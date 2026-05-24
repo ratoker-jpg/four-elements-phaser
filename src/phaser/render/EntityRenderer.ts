@@ -50,7 +50,7 @@ const RESOURCE_SCALE_MAP: Record<ResourceType, number> = {
 
 const MODULAR_TANK_SCALE = 0.32;
 const MODULAR_TANK_DIRECTION: ModularDirection = 2;
-const MODULAR_TANK_TURRET_OFFSET = { x: 0, y: -10 };
+const MODULAR_TANK_TURRET_OFFSET = { x: 0, y: -28 };
 
 export class EntityRenderer {
   private scene: Phaser.Scene;
