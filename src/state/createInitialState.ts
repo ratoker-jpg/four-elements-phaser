@@ -40,7 +40,7 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
     });
   }
 
-  // Add modular combat unit (state-only, no visual asset yet)
+  // Add the starter modular combat unit for the visual MVP.
   for (const mc of extraModularCombat) {
     entities.push({
       id: `extra-modular-${mc.tx}-${mc.ty}`,
@@ -48,7 +48,6 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
       tx: mc.tx,
       ty: mc.ty,
       faction: mc.faction,
-      stateOnly: true,
     });
   }
 

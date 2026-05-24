@@ -1,9 +1,15 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS, DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
+import {
+  getSmokyTurretKey,
+  getWaspHullKey,
+  type ModularDirection,
+} from '../../assets/modularUnitAssets';
 import { tileToScreen, IsoPoint } from './isometric';
 import type {
   RenderableEntity,
   EntityKind,
+  Faction,
   ResourceType,
   GameState,
   HarvesterState,
@@ -42,6 +48,10 @@ const RESOURCE_SCALE_MAP: Record<ResourceType, number> = {
   infinite: INFINITE_MINERAL_SCALE,
 };
 
+const MODULAR_TANK_SCALE = 0.32;
+const MODULAR_TANK_DIRECTION: ModularDirection = 2;
+const MODULAR_TANK_TURRET_OFFSET = { x: 0, y: -10 };
+
 export class EntityRenderer {
   private scene: Phaser.Scene;
   private offset: IsoPoint;
@@ -60,6 +70,9 @@ export class EntityRenderer {
 
   /** Count of state-only entities skipped during initial render. */
   private skippedCount: number = 0;
+
+  /** Optional one-time render confirmation for the modular combat MVP. */
+  private modularCombatLogged: boolean = false;
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
@@ -85,7 +98,7 @@ export class EntityRenderer {
     if (this.skippedCount > 0) {
       console.warn(
         `[EntityRenderer] Skipped ${this.skippedCount} state-only entities ` +
-        `(obstacles, decor, modular combat — no visual assets yet).`,
+        `(obstacles, decor, and placeholder buildings without approved assets).`,
       );
     }
   }
@@ -164,9 +177,7 @@ export class EntityRenderer {
         this.placeBuilder(worldX, worldY, entity);
         break;
       case 'modular-combat':
-        console.warn(
-          `[EntityRenderer] TODO: No modular combat asset — skipping at (${entity.tx}, ${entity.ty}).`,
-        );
+        this.placeModularCombat(worldX, worldY, entity);
         break;
       default:
         break;
@@ -193,6 +204,36 @@ export class EntityRenderer {
     );
     void x;
     void y;
+  }
+
+  private placeModularCombat(x: number, y: number, entity: RenderableEntity): void {
+    const faction: Faction = entity.faction ?? 'cyan';
+    const hullKey = getWaspHullKey(faction, MODULAR_TANK_DIRECTION);
+    const turretKey = getSmokyTurretKey(faction, MODULAR_TANK_DIRECTION);
+
+    const baseDepth = 100 + y;
+    const hull = this.scene.add.image(x, y, hullKey);
+    hull.setScale(MODULAR_TANK_SCALE);
+    hull.setOrigin(0.5, 0.75);
+    hull.setDepth(baseDepth);
+
+    // Socket alignment is intentionally approximate for the visual MVP.
+    // We will refine the turret offset after in-game approval.
+    const turret = this.scene.add.image(
+      x + MODULAR_TANK_TURRET_OFFSET.x,
+      y + MODULAR_TANK_TURRET_OFFSET.y,
+      turretKey,
+    );
+    turret.setScale(MODULAR_TANK_SCALE);
+    turret.setOrigin(0.5, 0.5);
+    turret.setDepth(baseDepth + 1);
+
+    this.staticObjects.push(hull, turret);
+
+    if (!this.modularCombatLogged) {
+      console.log('[EntityRenderer] Rendered modular combat: wasp_m0 + smoky_m0');
+      this.modularCombatLogged = true;
+    }
   }
 
   // ─── Dynamic entity factories ──────────────────────────────────

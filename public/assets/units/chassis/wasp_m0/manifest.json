@@ -1,0 +1,277 @@
+{
+  "asset": "wasp_m0_hull",
+  "type": "chassis",
+  "frameWidth": 256,
+  "frameHeight": 256,
+  "directions": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "directionLabels": {
+    "0": "E",
+    "1": "SE",
+    "2": "S",
+    "3": "SW",
+    "4": "W",
+    "5": "NW",
+    "6": "N",
+    "7": "NE"
+  },
+  "framesPerDirection": 1,
+  "frameNamePattern": "wasp_m0_hull_idle_dir{dir}_0.png",
+  "factions": [
+    "cyan",
+    "green",
+    "yellow",
+    "purple"
+  ],
+  "factionColors": {
+    "cyan": [
+      0.12,
+      0.72,
+      0.82
+    ],
+    "green": [
+      0.12,
+      0.82,
+      0.24
+    ],
+    "yellow": [
+      0.86,
+      0.72,
+      0.18
+    ],
+    "purple": [
+      0.62,
+      0.36,
+      0.86
+    ]
+  },
+  "anchor": {
+    "x": 0.5,
+    "y": 0.75,
+    "note": "Initial recommended Phaser sprite origin. Validate in-game against tile grounding."
+  },
+  "source": {
+    "blend": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\wasp_m0_cean.blend",
+    "objectAllowlist": [
+      "hull"
+    ]
+  },
+  "renderSettings": {
+    "outputSize": 256,
+    "targetFill": 0.76,
+    "exposure": 4.15,
+    "gamma": 1.0,
+    "lightMult": 1.0,
+    "hullDiffuseBoost": 4.35,
+    "tracksDiffuseBoost": 4.8,
+    "filmTransparent": true
+  },
+  "exports": [
+    {
+      "faction": "cyan",
+      "dir": 0,
+      "label": "E",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\cyan\\wasp_m0_hull_idle_dir0_0.png"
+    },
+    {
+      "faction": "green",
+      "dir": 0,
+      "label": "E",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\green\\wasp_m0_hull_idle_dir0_0.png"
+    },
+    {
+      "faction": "yellow",
+      "dir": 0,
+      "label": "E",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\yellow\\wasp_m0_hull_idle_dir0_0.png"
+    },
+    {
+      "faction": "purple",
+      "dir": 0,
+      "label": "E",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\purple\\wasp_m0_hull_idle_dir0_0.png"
+    },
+    {
+      "faction": "cyan",
+      "dir": 1,
+      "label": "SE",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\cyan\\wasp_m0_hull_idle_dir1_0.png"
+    },
+    {
+      "faction": "green",
+      "dir": 1,
+      "label": "SE",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\green\\wasp_m0_hull_idle_dir1_0.png"
+    },
+    {
+      "faction": "yellow",
+      "dir": 1,
+      "label": "SE",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\yellow\\wasp_m0_hull_idle_dir1_0.png"
+    },
+    {
+      "faction": "purple",
+      "dir": 1,
+      "label": "SE",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\purple\\wasp_m0_hull_idle_dir1_0.png"
+    },
+    {
+      "faction": "cyan",
+      "dir": 2,
+      "label": "S",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\cyan\\wasp_m0_hull_idle_dir2_0.png"
+    },
+    {
+      "faction": "green",
+      "dir": 2,
+      "label": "S",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\green\\wasp_m0_hull_idle_dir2_0.png"
+    },
+    {
+      "faction": "yellow",
+      "dir": 2,
+      "label": "S",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\yellow\\wasp_m0_hull_idle_dir2_0.png"
+    },
+    {
+      "faction": "purple",
+      "dir": 2,
+      "label": "S",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\purple\\wasp_m0_hull_idle_dir2_0.png"
+    },
+    {
+      "faction": "cyan",
+      "dir": 3,
+      "label": "SW",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\cyan\\wasp_m0_hull_idle_dir3_0.png"
+    },
+    {
+      "faction": "green",
+      "dir": 3,
+      "label": "SW",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\green\\wasp_m0_hull_idle_dir3_0.png"
+    },
+    {
+      "faction": "yellow",
+      "dir": 3,
+      "label": "SW",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\yellow\\wasp_m0_hull_idle_dir3_0.png"
+    },
+    {
+      "faction": "purple",
+      "dir": 3,
+      "label": "SW",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\purple\\wasp_m0_hull_idle_dir3_0.png"
+    },
+    {
+      "faction": "cyan",
+      "dir": 4,
+      "label": "W",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\cyan\\wasp_m0_hull_idle_dir4_0.png"
+    },
+    {
+      "faction": "green",
+      "dir": 4,
+      "label": "W",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\green\\wasp_m0_hull_idle_dir4_0.png"
+    },
+    {
+      "faction": "yellow",
+      "dir": 4,
+      "label": "W",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\yellow\\wasp_m0_hull_idle_dir4_0.png"
+    },
+    {
+      "faction": "purple",
+      "dir": 4,
+      "label": "W",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\purple\\wasp_m0_hull_idle_dir4_0.png"
+    },
+    {
+      "faction": "cyan",
+      "dir": 5,
+      "label": "NW",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\cyan\\wasp_m0_hull_idle_dir5_0.png"
+    },
+    {
+      "faction": "green",
+      "dir": 5,
+      "label": "NW",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\green\\wasp_m0_hull_idle_dir5_0.png"
+    },
+    {
+      "faction": "yellow",
+      "dir": 5,
+      "label": "NW",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\yellow\\wasp_m0_hull_idle_dir5_0.png"
+    },
+    {
+      "faction": "purple",
+      "dir": 5,
+      "label": "NW",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\purple\\wasp_m0_hull_idle_dir5_0.png"
+    },
+    {
+      "faction": "cyan",
+      "dir": 6,
+      "label": "N",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\cyan\\wasp_m0_hull_idle_dir6_0.png"
+    },
+    {
+      "faction": "green",
+      "dir": 6,
+      "label": "N",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\green\\wasp_m0_hull_idle_dir6_0.png"
+    },
+    {
+      "faction": "yellow",
+      "dir": 6,
+      "label": "N",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\yellow\\wasp_m0_hull_idle_dir6_0.png"
+    },
+    {
+      "faction": "purple",
+      "dir": 6,
+      "label": "N",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\purple\\wasp_m0_hull_idle_dir6_0.png"
+    },
+    {
+      "faction": "cyan",
+      "dir": 7,
+      "label": "NE",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\cyan\\wasp_m0_hull_idle_dir7_0.png"
+    },
+    {
+      "faction": "green",
+      "dir": 7,
+      "label": "NE",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\green\\wasp_m0_hull_idle_dir7_0.png"
+    },
+    {
+      "faction": "yellow",
+      "dir": 7,
+      "label": "NE",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\yellow\\wasp_m0_hull_idle_dir7_0.png"
+    },
+    {
+      "faction": "purple",
+      "dir": 7,
+      "label": "NE",
+      "path": "C:\\Users\\Den\\Desktop\\Модели танки\\васп м0\\_exports\\wasp_m0_hull_idle_8dirs_v1\\purple\\wasp_m0_hull_idle_dir7_0.png"
+    }
+  ],
+  "notes": [
+    "turret_socket is hidden from render.",
+    "Hull colors are post-recolored from cyan base render.",
+    "No .blend materials or texture files are permanently edited.",
+    "Use this as hull/chassis layer; turret layer should be rendered separately."
+  ]
+}
