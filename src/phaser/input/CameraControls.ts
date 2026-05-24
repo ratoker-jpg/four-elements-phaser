@@ -116,26 +116,22 @@ export class CameraControls {
         if (dy === 0) return;
 
         const oldZoom = this.camera.zoom;
-
-        // Multiplicative zoom: dy > 0 (scroll down) = zoom out, dy < 0 (scroll up) = zoom in
         const factor = dy > 0 ? 1 / ZOOM_FACTOR : ZOOM_FACTOR;
         const newZoom = Phaser.Math.Clamp(
           oldZoom * factor,
           this.minZoom,
           this.maxZoom,
         );
+        if (newZoom === oldZoom) return;
 
-        // Keep the world point under the cursor stable:
-        // 1. Calculate the world point currently under the cursor
-        const worldX = this.camera.scrollX + pointer.x / oldZoom;
-        const worldY = this.camera.scrollY + pointer.y / oldZoom;
-
-        // 2. Apply the new zoom
+        // Use Phaser camera transforms instead of manual pointer math.
+        // This keeps zoom-to-cursor correct with scaled / expanded canvases.
+        const before = this.camera.getWorldPoint(pointer.x, pointer.y);
         this.camera.setZoom(newZoom);
+        const after = this.camera.getWorldPoint(pointer.x, pointer.y);
 
-        // 3. Adjust scroll so the same world point stays under the cursor
-        this.camera.scrollX = worldX - pointer.x / newZoom;
-        this.camera.scrollY = worldY - pointer.y / newZoom;
+        this.camera.scrollX += before.x - after.x;
+        this.camera.scrollY += before.y - after.y;
       },
     );
   }
