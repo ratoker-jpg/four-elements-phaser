@@ -282,6 +282,7 @@ export class EntityRenderer {
     this.modularTankAnchorTile = { tx: entity.tx, ty: entity.ty };
     this.modularTankDir = dir;
     this.modularTankFaction = faction;
+    tunerState.modularTankDir = dir;
 
     this.staticObjects.push(hull, turret);
     this.createModularTankDebugOverlay({
@@ -447,6 +448,7 @@ export class EntityRenderer {
   setModularTankDirection(dir: ModularTankDirection): void {
     if (!this.modularTankHull || !this.modularTankTurret) return;
     this.modularTankDir = dir;
+    tunerState.modularTankDir = dir;
 
     this.modularTankHull.setTexture(getWaspHullKey(this.modularTankFaction, dir));
     this.modularTankTurret.setTexture(getSmokyTurretKey(this.modularTankFaction, dir));
