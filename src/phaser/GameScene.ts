@@ -7,6 +7,11 @@ import { tileToScreen, mapOriginOffset } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
 import type { GameState, HarvesterPhase } from '../state/types';
+import {
+  MODULAR_TANK_HULL_OFFSET,
+  MODULAR_TANK_TURRET_OFFSET,
+  tunerState,
+} from '../config/worldConfig';
 
 /**
  * GameScene — orchestration-only scene.
@@ -88,12 +93,61 @@ export class GameScene extends Phaser.Scene {
     this.hqWorldY = hqScreen.y + offset.y;
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
+    // ── Debug overlay toggle (T) + PR5 tuner controls ────────────
     this.input.keyboard?.on('keydown-T', () => {
       const visible = this.entityRenderer?.toggleModularTankDebug();
       if (visible !== undefined) {
         console.log(`[GameScene] Modular tank debug overlay: ${visible ? 'ON' : 'OFF'}`);
       }
     });
+
+    // H — select hull layer for tuning (only when overlay is ON)
+    this.input.keyboard?.on('keydown-H', () => {
+      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
+      tunerState.selectedLayer = 'hull';
+      this.entityRenderer?.updateModularTankVisuals();
+      console.log('[Tuner] Selected layer: hull');
+    });
+
+    // J — select turret layer for tuning (only when overlay is ON)
+    this.input.keyboard?.on('keydown-J', () => {
+      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
+      tunerState.selectedLayer = 'turret';
+      this.entityRenderer?.updateModularTankVisuals();
+      console.log('[Tuner] Selected layer: turret');
+    });
+
+    // C — copy-ready constants to console (only when overlay is ON)
+    this.input.keyboard?.on('keydown-C', () => {
+      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
+      console.log(`MODULAR_TANK_HULL_OFFSET = { x: ${MODULAR_TANK_HULL_OFFSET.x}, y: ${MODULAR_TANK_HULL_OFFSET.y} };`);
+      console.log(`MODULAR_TANK_TURRET_OFFSET = { x: ${MODULAR_TANK_TURRET_OFFSET.x}, y: ${MODULAR_TANK_TURRET_OFFSET.y} };`);
+    });
+
+    // Arrow keys — adjust selected offset (only when overlay is ON)
+    const ARROW_STEP = 1;
+    const ARROW_SHIFT_STEP = 5;
+    const arrowHandler = (event: KeyboardEvent) => {
+      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
+      event.preventDefault();
+
+      const step = event.shiftKey ? ARROW_SHIFT_STEP : ARROW_STEP;
+      const offset = tunerState.selectedLayer === 'hull'
+        ? MODULAR_TANK_HULL_OFFSET
+        : MODULAR_TANK_TURRET_OFFSET;
+
+      switch (event.code) {
+        case 'ArrowLeft':  offset.x -= step; break;
+        case 'ArrowRight': offset.x += step; break;
+        case 'ArrowUp':    offset.y -= step; break;
+        case 'ArrowDown':  offset.y += step; break;
+        default: return; // not an arrow key, ignore
+      }
+
+      this.entityRenderer?.updateModularTankVisuals();
+    };
+
+    this.input.keyboard?.on('keydown', arrowHandler as (event: KeyboardEvent) => void);
 
     // HUD references
     this.hudCoords = document.getElementById('hud-coords');
@@ -115,7 +169,7 @@ export class GameScene extends Phaser.Scene {
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
-      `Drag: pan | Wheel: zoom | R: reset camera`,
+      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay`,
     );
   }
 
