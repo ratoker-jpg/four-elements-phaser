@@ -45,7 +45,9 @@ export function generateTerrainMap(): TerrainType[][] {
  *
  * Strategy (matches donor game's active render path):
  * 1. For each cell, stamp the appropriate sand_tile PNG scaled to TILE_W×TILE_H.
- * 2. Draw isometric grid lines on top.
+ * 2. The RenderTexture is placed at world origin (0,0) and sized to cover the
+ *    full isometric diamond map with padding. All tile stamps are drawn at
+ *    (tileToScreen + offset) so every coordinate is positive inside the RT.
  *
  * The result is a single RenderTexture that can be scrolled by the camera.
  */
@@ -53,38 +55,33 @@ export class TerrainRenderer {
   private renderTexture: Phaser.GameObjects.RenderTexture;
   private offset: IsoPoint;
 
-  /** Total pixel dimensions of the rendered map. */
-  private mapPixelW: number;
-  private mapPixelH: number;
-
   constructor(scene: Phaser.Scene, terrainMap: TerrainType[][]) {
     this.offset = mapOriginOffset(MAP_W, MAP_H);
 
-    // Calculate total render area
-    // Rightmost tile is (MAP_W-1, 0), leftmost is (0, MAP_H-1)
-    // Bottom tile is (MAP_W-1, MAP_H-1)
+    // Calculate total render area in world coordinates.
+    // All world positions = tileToScreen() + offset, so everything is positive.
+    const topLeft = tileToScreen(0, 0);
     const topRight = tileToScreen(MAP_W - 1, 0);
     const bottomLeft = tileToScreen(0, MAP_H - 1);
-    const bottomCenter = tileToScreen(MAP_W - 1, MAP_H - 1);
+    const bottomRight = tileToScreen(MAP_W - 1, MAP_H - 1);
 
-    this.mapPixelW = topRight.x - bottomLeft.x + TILE_W + 128;
-    this.mapPixelH = bottomCenter.y + TILE_H + 128;
+    const padding = 64;
+    const minX = Math.min(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x) + this.offset.x - padding;
+    const minY = Math.min(topLeft.y, topRight.y, bottomLeft.y, bottomRight.y) + this.offset.y - padding;
+    const maxX = Math.max(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x) + this.offset.x + TILE_W + padding;
+    const maxY = Math.max(topLeft.y, topRight.y, bottomLeft.y, bottomRight.y) + this.offset.y + TILE_H + padding;
 
-    // Create the RenderTexture
-    this.renderTexture = scene.add.renderTexture(
-      this.offset.x,
-      this.offset.y,
-      Math.ceil(this.mapPixelW),
-      Math.ceil(this.mapPixelH),
-    );
+    const rtWidth = Math.ceil(maxX - minX);
+    const rtHeight = Math.ceil(maxY - minY);
+
+    // Place the RenderTexture at world (0, 0) so its coordinate space
+    // matches the world coordinate space used by entities and grid.
+    this.renderTexture = scene.add.renderTexture(0, 0, rtWidth, rtHeight);
     this.renderTexture.setOrigin(0, 0);
     this.renderTexture.setDepth(0);
 
-    // Render all terrain tiles
+    // Render all terrain tiles into the RT at world coordinates
     this.renderTerrainTiles(scene, terrainMap);
-
-    // Render grid lines
-    this.renderGridLines(terrainMap);
 
     // The RenderTexture is now a static image — camera scrolls over it.
   }
@@ -104,22 +101,22 @@ export class TerrainRenderer {
         const assetKey = TERRAIN_KEY_MAP[terrainType];
         const screenPos = tileToScreen(tx, ty);
 
-        // Position relative to the RenderTexture's local coords
-        // (account for the offset baked into the RT position)
-        const localX = screenPos.x;
-        const localY = screenPos.y;
+        // Convert to world coordinates (always positive) before drawing.
+        // This is the same coordinate space used by entities and grid lines.
+        const worldX = screenPos.x + this.offset.x;
+        const worldY = screenPos.y + this.offset.y;
 
         // Switch the stamp's texture
         stamp.setTexture(assetKey);
 
         // Scale the large tile image to fit the isometric cell
         // Original images are ~1180×741; we need them at 76×38
-        const scaleX = 76 / stamp.width;
-        const scaleY = 38 / stamp.height;
+        const scaleX = TILE_W / stamp.width;
+        const scaleY = TILE_H / stamp.height;
         stamp.setScale(scaleX, scaleY);
 
-        // Draw onto the RenderTexture
-        this.renderTexture.draw(stamp, localX, localY);
+        // Draw onto the RenderTexture at world coordinates
+        this.renderTexture.draw(stamp, worldX, worldY);
       }
     }
 
@@ -127,23 +124,23 @@ export class TerrainRenderer {
     stamp.destroy();
   }
 
-  private renderGridLines(_terrainMap: TerrainType[][]): void {
-    // Grid lines are drawn by GameScene as a Graphics overlay.
-    // This method is a placeholder for future RT-based grid rendering.
-  }
-
   /** Get the world-space bounds of the terrain for camera limits. */
   getBounds(): Phaser.Geom.Rectangle {
-    const leftTop = tileToScreen(0, 0);
-    const rightTop = tileToScreen(MAP_W - 1, 0);
-    const leftBottom = tileToScreen(0, MAP_H - 1);
-    const bottomCenter = tileToScreen(MAP_W - 1, MAP_H - 1);
+    const topLeft = tileToScreen(0, 0);
+    const topRight = tileToScreen(MAP_W - 1, 0);
+    const bottomLeft = tileToScreen(0, MAP_H - 1);
+    const bottomRight = tileToScreen(MAP_W - 1, MAP_H - 1);
+
+    const minX = Math.min(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x) + this.offset.x;
+    const minY = Math.min(topLeft.y, topRight.y, bottomLeft.y, bottomRight.y) + this.offset.y;
+    const maxX = Math.max(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x) + this.offset.x;
+    const maxY = Math.max(topLeft.y, topRight.y, bottomLeft.y, bottomRight.y) + this.offset.y;
 
     return new Phaser.Geom.Rectangle(
-      leftBottom.x + this.offset.x - TILE_W,
-      leftTop.y + this.offset.y - TILE_H,
-      rightTop.x - leftBottom.x + TILE_W * 2,
-      bottomCenter.y - leftTop.y + TILE_H * 2,
+      minX - TILE_W,
+      minY - TILE_H,
+      maxX - minX + TILE_W * 2,
+      maxY - minY + TILE_H * 2,
     );
   }
 
