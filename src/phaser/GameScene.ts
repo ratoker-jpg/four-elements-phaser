@@ -11,6 +11,7 @@ import {
   MODULAR_TANK_HULL_OFFSET,
   MODULAR_TANK_TURRET_OFFSET,
   tunerState,
+  type ModularTankDirection,
 } from '../config/worldConfig';
 
 /**
@@ -149,6 +150,24 @@ export class GameScene extends Phaser.Scene {
 
     this.input.keyboard?.on('keydown', arrowHandler as (event: KeyboardEvent) => void);
 
+    // Q — previous direction (only when overlay is ON, PR6)
+    this.input.keyboard?.on('keydown-Q', () => {
+      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
+      const next = ((tunerState.modularTankDir - 1) + 8) % 8 as ModularTankDirection;
+      tunerState.modularTankDir = next;
+      this.entityRenderer.setModularTankDirection(next);
+      console.log(`[Tuner] Direction: ${next}`);
+    });
+
+    // E — next direction (only when overlay is ON, PR6)
+    this.input.keyboard?.on('keydown-E', () => {
+      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
+      const next = ((tunerState.modularTankDir + 1) % 8) as ModularTankDirection;
+      tunerState.modularTankDir = next;
+      this.entityRenderer.setModularTankDirection(next);
+      console.log(`[Tuner] Direction: ${next}`);
+    });
+
     // HUD references
     this.hudCoords = document.getElementById('hud-coords');
     this.hudMapName = document.getElementById('hud-map-name');
@@ -169,7 +188,7 @@ export class GameScene extends Phaser.Scene {
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
-      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay`,
+      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | Q/E: dir`,
     );
   }
 

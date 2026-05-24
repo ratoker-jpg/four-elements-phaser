@@ -29,9 +29,15 @@ export const MODULAR_TANK_TURRET_OFFSET = { ...DEFAULT_MODULAR_TANK_TURRET_OFFSE
 /** Which modular layer is selected for tuning. */
 export type TunerLayer = 'hull' | 'turret';
 
+/** Modular tank facing direction (0–7). Independent from asset module types. */
+export type ModularTankDirection = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
 /** Current tuner selection state — only meaningful when debug overlay is ON. */
 export const tunerState: {
   selectedLayer: TunerLayer;
+  /** Current debug direction override for modular tank (only when overlay is ON). */
+  modularTankDir: ModularTankDirection;
 } = {
   selectedLayer: 'hull',
+  modularTankDir: 2,
 };
