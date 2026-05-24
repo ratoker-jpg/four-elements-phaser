@@ -1,14 +1,16 @@
 import Phaser from 'phaser';
 
 /**
- * CameraControls — pan (drag) and zoom (scroll wheel) for the main camera.
+ * CameraControls — pan (drag), zoom (scroll wheel), and reset for the main camera.
  *
- * PR1 constraints:
- * - Drag to pan the camera across the terrain
- * - Scroll wheel to zoom in/out
- * - Camera bounds set to the terrain extent
- * - No keyboard controls (PR1 scope)
+ * PR1.1 changes:
+ * - Multiplicative zoom (factor ~1.12) instead of additive
+ * - Zoom keeps the world point under the cursor stable
+ * - resetTo() method for camera reset hotkey
+ * - bindResetKey() for wiring keyboard reset
  */
+
+const ZOOM_FACTOR = 1.12;
 
 export class CameraControls {
   private scene: Phaser.Scene;
@@ -20,6 +22,8 @@ export class CameraControls {
   private camStartScrollY: number = 0;
   private minZoom: number = 0.3;
   private maxZoom: number = 3.0;
+  private resetKey: Phaser.Input.Keyboard.Key | null = null;
+
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
     this.camera = scene.cameras.main;
@@ -41,6 +45,31 @@ export class CameraControls {
   /** Center the camera on a specific world position. */
   centerOn(worldX: number, worldY: number): void {
     this.camera.centerOn(worldX, worldY);
+  }
+
+  /**
+   * Reset camera to a specific world position and zoom level 1.0.
+   * Used by the R hotkey to snap back to HQ.
+   */
+  resetTo(worldX: number, worldY: number): void {
+    this.camera.setZoom(1.0);
+    this.camera.centerOn(worldX, worldY);
+  }
+
+  /**
+   * Bind a keyboard key to reset the camera.
+   * Call this after construction to wire the reset hotkey.
+   */
+  bindResetKey(keyCode: string, targetWorldX: number, targetWorldY: number): void {
+    if (this.resetKey) {
+      this.resetKey.destroy();
+    }
+    this.resetKey = this.scene.input.keyboard?.addKey(keyCode) ?? null;
+    if (this.resetKey) {
+      this.resetKey.on('down', () => {
+        this.resetTo(targetWorldX, targetWorldY);
+      });
+    }
   }
 
   private setupPan(): void {
@@ -78,7 +107,7 @@ export class CameraControls {
     this.scene.input.on(
       'wheel',
       (
-        _pointer: Phaser.Input.Pointer,
+        pointer: Phaser.Input.Pointer,
         _gameObjects: Phaser.GameObjects.GameObject[],
         _dx: number,
         dy: number,
@@ -86,16 +115,27 @@ export class CameraControls {
       ) => {
         if (dy === 0) return;
 
-        // Phaser wheel uses deltaY for normal mouse-wheel direction.
-        // deltaY > 0 means wheel down -> zoom out; deltaY < 0 means wheel up -> zoom in.
-        const zoomDirection = dy > 0 ? -1 : 1;
-        const zoomDelta = zoomDirection * 0.1;
+        const oldZoom = this.camera.zoom;
+
+        // Multiplicative zoom: dy > 0 (scroll down) = zoom out, dy < 0 (scroll up) = zoom in
+        const factor = dy > 0 ? 1 / ZOOM_FACTOR : ZOOM_FACTOR;
         const newZoom = Phaser.Math.Clamp(
-          this.camera.zoom + zoomDelta,
+          oldZoom * factor,
           this.minZoom,
           this.maxZoom,
         );
+
+        // Keep the world point under the cursor stable:
+        // 1. Calculate the world point currently under the cursor
+        const worldX = this.camera.scrollX + pointer.x / oldZoom;
+        const worldY = this.camera.scrollY + pointer.y / oldZoom;
+
+        // 2. Apply the new zoom
         this.camera.setZoom(newZoom);
+
+        // 3. Adjust scroll so the same world point stays under the cursor
+        this.camera.scrollX = worldX - pointer.x / newZoom;
+        this.camera.scrollY = worldY - pointer.y / newZoom;
       },
     );
   }
@@ -115,5 +155,9 @@ export class CameraControls {
     this.scene.input.off('pointerup');
     this.scene.input.off('pointerupoutside');
     this.scene.input.off('wheel');
+    if (this.resetKey) {
+      this.resetKey.destroy();
+      this.resetKey = null;
+    }
   }
 }
