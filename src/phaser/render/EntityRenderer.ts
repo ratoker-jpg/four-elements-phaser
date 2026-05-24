@@ -5,6 +5,7 @@ import {
   getWaspHullKey,
   type ModularDirection,
 } from '../../assets/modularUnitAssets';
+import { TILE_H, TILE_W } from '../../config/worldConfig';
 import { tileToScreen, IsoPoint } from './isometric';
 import type {
   RenderableEntity,
@@ -281,29 +282,42 @@ export class EntityRenderer {
     graphics.setDepth(data.baseDepth + 10);
     graphics.setVisible(this.modularTankDebugVisible);
 
+    const halfTileW = TILE_W / 2;
+    const halfTileH = TILE_H / 2;
+
+    // Logical tile footprint diamond for the modular unit anchor tile.
+    graphics.lineStyle(2, 0x7cff7c, 0.95);
+    graphics.beginPath();
+    graphics.moveTo(data.anchorWorldX, data.anchorWorldY - halfTileH);
+    graphics.lineTo(data.anchorWorldX + halfTileW, data.anchorWorldY);
+    graphics.lineTo(data.anchorWorldX, data.anchorWorldY + halfTileH);
+    graphics.lineTo(data.anchorWorldX - halfTileW, data.anchorWorldY);
+    graphics.closePath();
+    graphics.strokePath();
+
     // Logical tile anchor.
-    graphics.lineStyle(1, 0xffd54f, 0.95);
-    graphics.strokeCircle(data.anchorWorldX, data.anchorWorldY, 6);
-    graphics.lineBetween(data.anchorWorldX - 8, data.anchorWorldY, data.anchorWorldX + 8, data.anchorWorldY);
-    graphics.lineBetween(data.anchorWorldX, data.anchorWorldY - 8, data.anchorWorldX, data.anchorWorldY + 8);
+    graphics.lineStyle(2, 0xffd54f, 0.95);
+    graphics.strokeCircle(data.anchorWorldX, data.anchorWorldY, 7);
+    graphics.lineBetween(data.anchorWorldX - 10, data.anchorWorldY, data.anchorWorldX + 10, data.anchorWorldY);
+    graphics.lineBetween(data.anchorWorldX, data.anchorWorldY - 10, data.anchorWorldX, data.anchorWorldY + 10);
 
     // Hull sprite origin marker.
-    graphics.lineStyle(1, 0x26c6da, 0.95);
-    graphics.strokeCircle(data.hullWorldX, data.hullWorldY, 5);
-    graphics.lineBetween(data.hullWorldX - 7, data.hullWorldY - 7, data.hullWorldX + 7, data.hullWorldY + 7);
-    graphics.lineBetween(data.hullWorldX - 7, data.hullWorldY + 7, data.hullWorldX + 7, data.hullWorldY - 7);
+    graphics.lineStyle(2, 0x26c6da, 0.95);
+    graphics.strokeCircle(data.hullWorldX, data.hullWorldY, 6);
+    graphics.lineBetween(data.hullWorldX - 8, data.hullWorldY - 8, data.hullWorldX + 8, data.hullWorldY + 8);
+    graphics.lineBetween(data.hullWorldX - 8, data.hullWorldY + 8, data.hullWorldX + 8, data.hullWorldY - 8);
 
     // Turret sprite origin marker + line from hull origin to turret origin.
     graphics.lineStyle(2, 0xffffff, 0.9);
     graphics.lineBetween(data.hullWorldX, data.hullWorldY, data.turretWorldX, data.turretWorldY);
-    graphics.lineStyle(1, 0xff6b6b, 0.95);
-    graphics.strokeCircle(data.turretWorldX, data.turretWorldY, 5);
-    graphics.lineBetween(data.turretWorldX - 7, data.turretWorldY, data.turretWorldX + 7, data.turretWorldY);
-    graphics.lineBetween(data.turretWorldX, data.turretWorldY - 7, data.turretWorldX, data.turretWorldY + 7);
+    graphics.lineStyle(2, 0xff6b6b, 0.95);
+    graphics.strokeCircle(data.turretWorldX, data.turretWorldY, 6);
+    graphics.lineBetween(data.turretWorldX - 8, data.turretWorldY, data.turretWorldX + 8, data.turretWorldY);
+    graphics.lineBetween(data.turretWorldX, data.turretWorldY - 8, data.turretWorldX, data.turretWorldY + 8);
 
     const debugText = this.scene.add.text(
-      data.hullWorldX + 18,
-      data.hullWorldY - 56,
+      data.hullWorldX + 30,
+      data.hullWorldY + 28,
       [
         `tx/ty: ${data.tx}, ${data.ty}`,
         `world: ${Math.round(data.hullWorldX)}, ${Math.round(data.hullWorldY)}`,
