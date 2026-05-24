@@ -3,14 +3,6 @@ import { BootScene } from '../phaser/BootScene';
 import { PreloadScene } from '../phaser/PreloadScene';
 import { GameScene } from '../phaser/GameScene';
 
-/** Isometric tile dimensions — must match the original game. */
-export const TILE_W = 76;
-export const TILE_H = 38;
-
-/** Map dimensions for PR1. */
-export const MAP_W = 48;
-export const MAP_H = 48;
-
 export function createGameConfig(): Phaser.Types.Core.GameConfig {
   return {
     type: Phaser.WEBGL,
