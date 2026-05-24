@@ -81,10 +81,15 @@ export class CameraControls {
         _pointer: Phaser.Input.Pointer,
         _gameObjects: Phaser.GameObjects.GameObject[],
         _dx: number,
-        _dy: number,
-        dz: number,
+        dy: number,
+        _dz: number,
       ) => {
-        const zoomDelta = dz > 0 ? -0.1 : 0.1;
+        if (dy === 0) return;
+
+        // Phaser wheel uses deltaY for normal mouse-wheel direction.
+        // deltaY > 0 means wheel down -> zoom out; deltaY < 0 means wheel up -> zoom in.
+        const zoomDirection = dy > 0 ? -1 : 1;
+        const zoomDelta = zoomDirection * 0.1;
         const newZoom = Phaser.Math.Clamp(
           this.camera.zoom + zoomDelta,
           this.minZoom,
