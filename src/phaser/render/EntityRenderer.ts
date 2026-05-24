@@ -54,6 +54,7 @@ const MODULAR_TANK_SCALE = 0.32;
 const MODULAR_TANK_DIRECTION: ModularDirection = 2;
 const MODULAR_TANK_HULL_ORIGIN = { x: 0.5, y: 0.75 };
 const MODULAR_TANK_TURRET_ORIGIN = { x: 0.5, y: 0.5 };
+const MODULAR_TANK_HULL_OFFSET = { x: 18, y: 8 };
 const MODULAR_TANK_TURRET_OFFSET = { x: 2, y: -30 };
 
 interface ModularTankDebugOverlay {
@@ -229,8 +230,10 @@ export class EntityRenderer {
     const anchorWorldX = tileAnchor.x + this.offset.x;
     const anchorWorldY = tileAnchor.y + this.offset.y;
 
-    const baseDepth = 100 + y;
-    const hull = this.scene.add.image(x, y, hullKey);
+    const hullWorldX = x + MODULAR_TANK_HULL_OFFSET.x;
+    const hullWorldY = y + MODULAR_TANK_HULL_OFFSET.y;
+    const baseDepth = 100 + hullWorldY;
+    const hull = this.scene.add.image(hullWorldX, hullWorldY, hullKey);
     hull.setScale(MODULAR_TANK_SCALE);
     hull.setOrigin(MODULAR_TANK_HULL_ORIGIN.x, MODULAR_TANK_HULL_ORIGIN.y);
     hull.setDepth(baseDepth);
@@ -254,8 +257,8 @@ export class EntityRenderer {
       ty: entity.ty,
       anchorWorldX,
       anchorWorldY,
-      hullWorldX: x,
-      hullWorldY: y,
+      hullWorldX,
+      hullWorldY,
       turretWorldX,
       turretWorldY,
       baseDepth,
@@ -322,6 +325,7 @@ export class EntityRenderer {
         `tx/ty: ${data.tx}, ${data.ty}`,
         `world: ${Math.round(data.hullWorldX)}, ${Math.round(data.hullWorldY)}`,
         `scale: ${MODULAR_TANK_SCALE.toFixed(2)} dir: ${MODULAR_TANK_DIRECTION}`,
+        `hull offset: ${MODULAR_TANK_HULL_OFFSET.x}, ${MODULAR_TANK_HULL_OFFSET.y}`,
         `turret offset: ${MODULAR_TANK_TURRET_OFFSET.x}, ${MODULAR_TANK_TURRET_OFFSET.y}`,
       ].join('\n'),
       {
