@@ -48,7 +48,8 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
       tx: mc.tx,
       ty: mc.ty,
       faction: mc.faction,
-      dir: 2, // default facing: South
+      dir: 2, // default body facing: South
+      turretDir: 2, // default turret facing: South (matches bodyDir)
     });
   }
 

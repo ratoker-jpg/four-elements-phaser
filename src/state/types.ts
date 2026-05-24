@@ -159,8 +159,10 @@ export interface RenderableEntity {
   footprint?: number;
   /** If true, no visual asset exists yet — render is skipped with a console warning. */
   stateOnly?: boolean;
-  /** Facing direction for modular units (0–7). Defaults to 2 (S) if omitted. */
+  /** Body facing direction for modular units (0–7). Defaults to 2 (S) if omitted. */
   dir?: number;
+  /** Turret facing direction for modular units (0–7). Defaults to dir (bodyDir) if omitted. */
+  turretDir?: number;
 }
 
 // ─── Harvester State (PR3) ─────────────────────────────────────────
