@@ -4,8 +4,8 @@
  * No Phaser dependencies. All game state lives here.
  * The render layer reads from GameState but never mutates it directly.
  *
- * Schema mirrors the donor repo's MapData structure exactly,
- * preserving the full saved map data without simplification.
+ * PR3: Added runtime state for harvesters (HarvesterState) and resource
+ * nodes (ResourceNodeState) to support the civil gather/deliver loop.
  */
 
 // ─── Terrain ────────────────────────────────────────────────────────
@@ -143,15 +143,7 @@ export interface MapData {
   constructionSites: ConstructionSitePlacement[];
 }
 
-// ─── Game State ─────────────────────────────────────────────────────
-
-/** Resource counters placeholder — no economy loop yet. */
-export interface ResourceCounters {
-  small: number;
-  medium: number;
-  large: number;
-  infinite: number;
-}
+// ─── Renderable Entities (flattened for render layer) ───────────────
 
 /** Renderable entity kinds derived from GameState for the render layer. */
 export type EntityKind = 'hq' | 'builder' | 'harvester' | 'resource' | 'modular-combat';
@@ -169,6 +161,64 @@ export interface RenderableEntity {
   stateOnly?: boolean;
 }
 
+// ─── Harvester State (PR3) ─────────────────────────────────────────
+
+/** Harvester behaviour phases in the civil gather/deliver loop. */
+export type HarvesterPhase =
+  | 'idle'
+  | 'moving-to-resource'
+  | 'gathering'
+  | 'returning-to-hq'
+  | 'unloading';
+
+/** Runtime state for a single harvester unit. */
+export interface HarvesterState {
+  id: string;
+  /** Fractional tile X — updated every frame during movement. */
+  ftx: number;
+  /** Fractional tile Y — updated every frame during movement. */
+  fty: number;
+  faction: Faction;
+  phase: HarvesterPhase;
+  /** ID of the targeted resource node, or null. */
+  targetResourceId: string | null;
+  /** Raw minerals currently carried. */
+  cargoRaw: number;
+  /** Maximum raw minerals this harvester can carry. */
+  cargoCapacity: number;
+  /** Countdown timer (ms) while in 'gathering' phase. */
+  gatherTimer: number;
+  /** Countdown timer (ms) while in 'unloading' phase. */
+  unloadTimer: number;
+  /** Movement speed in tiles per second. */
+  speedTilesPerSecond: number;
+}
+
+// ─── Resource Node State (PR3) ─────────────────────────────────────
+
+/** Raw mineral amounts per resource type. */
+export const RESOURCE_RAW_AMOUNTS: Record<ResourceType, number> = {
+  small: 20,
+  medium: 60,
+  large: 120,
+  infinite: 999_999,
+};
+
+/** Runtime state for a single resource node on the map. */
+export interface ResourceNodeState {
+  id: string;
+  tx: number;
+  ty: number;
+  resourceType: ResourceType;
+  footprint: number;
+  /** Remaining raw minerals. Decremented on each gather cycle unless infinite. */
+  remainingRaw: number;
+  /** True when remainingRaw reaches 0. Infinite resources are never depleted. */
+  depleted: boolean;
+}
+
+// ─── Game State ─────────────────────────────────────────────────────
+
 /** Top-level game state. Pure data, no methods, no Phaser. */
 export interface GameState {
   /** Source map metadata. */
@@ -176,7 +226,7 @@ export interface GameState {
   mapName: string;
   mapWidth: number;
   mapHeight: number;
-  /** Raw saved map data (terrain + all placements from donor mapgen). */
+  /** Raw saved map data (terrain + all placements). */
   mapData: MapData;
   /** Flattened renderable entities derived from mapData + extra starter units. */
   entities: RenderableEntity[];
@@ -184,6 +234,14 @@ export interface GameState {
   /** Extra starter units not present in the original saved map. */
   extraHarvesters: Array<{ tx: number; ty: number; faction: Faction }>;
   extraModularCombat: ModularCombatUnit[];
-  /** Resource counters — placeholder, not yet driven by economy loop. */
-  resources: ResourceCounters;
+
+  // ── PR3: Runtime state ──────────────────────────────────────────
+  /** All harvester units with their current loop state. */
+  harvesters: HarvesterState[];
+  /** All resource nodes with depletion state. */
+  resourceNodes: ResourceNodeState[];
+  /** Player's accumulated raw minerals. */
+  rawMinerals: number;
+  /** HQ tile position for harvester return destination. */
+  hqPosition: { tx: number; ty: number };
 }

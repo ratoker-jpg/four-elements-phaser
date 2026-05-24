@@ -1,10 +1,13 @@
 import type {
   GameState,
   MapData,
-  ResourceCounters,
   RenderableEntity,
   Faction,
+  HarvesterState,
+  ResourceNodeState,
 } from './types';
+import { RESOURCE_RAW_AMOUNTS } from './types';
+import { createHarvester } from './updateGameState';
 import { customMap1 } from '../data/maps/customMap1';
 
 /**
@@ -13,10 +16,10 @@ import { customMap1 } from '../data/maps/customMap1';
  * This is the single source of truth for game state initialization.
  * The render layer reads from GameState but never mutates it directly.
  *
- * Entities are flattened from the donor MapData schema into a unified
- * RenderableEntity list for the render layer. Extra starter units
- * (harvesters, modular combat) that are NOT in the saved map are
- * added separately and clearly marked.
+ * PR3: Extracts harvester and resource entities into dedicated runtime
+ * state arrays (HarvesterState[], ResourceNodeState[]) for the civil
+ * gather/deliver loop. Extra harvesters are also tracked as runtime
+ * state units.
  */
 export function createInitialState(mapData: MapData = customMap1): GameState {
   // Flatten all map entities into a unified renderable entity list
@@ -26,7 +29,7 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
   const extraHarvesters = createExtraHarvesters(mapData);
   const extraModularCombat = createExtraModularCombat(mapData);
 
-  // Add harvesters to the entity list
+  // Add extra harvesters to the entity list
   for (const h of extraHarvesters) {
     entities.push({
       id: `extra-harvester-${h.tx}-${h.ty}`,
@@ -49,8 +52,10 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
     });
   }
 
-  // Count resources by type from map data
-  const resources = countResources(mapData.resources);
+  // ── PR3: Build runtime state ────────────────────────────────────
+  const harvesters = buildHarvesterStates(extraHarvesters, mapData);
+  const resourceNodes = buildResourceNodeStates(mapData);
+  const hqPosition = { tx: mapData.hq.tx + 1, ty: mapData.hq.ty + 1 }; // HQ center (3×3 footprint)
 
   return {
     mapId: `map-${mapData.hq.faction}-${mapData.width}x${mapData.height}`,
@@ -62,18 +67,49 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
     playerFaction: mapData.hq.faction as Faction,
     extraHarvesters,
     extraModularCombat,
-    resources,
+
+    // PR3 runtime state
+    harvesters,
+    resourceNodes,
+    rawMinerals: 0,
+    hqPosition,
   };
 }
 
-/**
- * Flatten the donor MapData's separate arrays (hq, resources, obstacles,
- * decor, builders) into a single RenderableEntity list for the render layer.
- *
- * Buildings and construction sites are included but have no visual assets yet.
- * Decor is included but has no visual assets yet.
- * Obstacles are included but have no visual assets yet.
- */
+// ─── PR3: Runtime state builders ────────────────────────────────────
+
+/** Build HarvesterState[] from extra harvester positions. */
+function buildHarvesterStates(
+  extraHarvesters: Array<{ tx: number; ty: number; faction: Faction }>,
+  _mapData: MapData,
+): HarvesterState[] {
+  // Currently the only harvesters are the extra ones
+  // (no harvesters in the saved map data schema)
+  return extraHarvesters.map((h, i) =>
+    createHarvester(`harvester-${i}`, h.tx, h.ty, h.faction),
+  );
+}
+
+/** Build ResourceNodeState[] from map data resource placements. */
+function buildResourceNodeStates(mapData: MapData): ResourceNodeState[] {
+  const nodes: ResourceNodeState[] = [];
+  let nextId = 0;
+  for (const r of mapData.resources) {
+    nodes.push({
+      id: `resource-${nextId++}`,
+      tx: r.tx,
+      ty: r.ty,
+      resourceType: r.type,
+      footprint: r.footprint,
+      remainingRaw: RESOURCE_RAW_AMOUNTS[r.type],
+      depleted: false,
+    });
+  }
+  return nodes;
+}
+
+// ─── Flatten helpers (PR2 unchanged) ────────────────────────────────
+
 function flattenMapEntities(mapData: MapData): RenderableEntity[] {
   const entities: RenderableEntity[] = [];
   let nextId = 1;
@@ -115,7 +151,7 @@ function flattenMapEntities(mapData: MapData): RenderableEntity[] {
   for (const obstacle of mapData.obstacles) {
     entities.push({
       id: id('obstacle'),
-      kind: 'resource', // Reuse resource rendering pipeline for now
+      kind: 'resource',
       tx: obstacle.tx,
       ty: obstacle.ty,
       stateOnly: true,
@@ -127,7 +163,7 @@ function flattenMapEntities(mapData: MapData): RenderableEntity[] {
   for (const decor of mapData.decor) {
     entities.push({
       id: id('decor'),
-      kind: 'resource', // Reuse resource rendering pipeline for now
+      kind: 'resource',
       tx: decor.tx,
       ty: decor.ty,
       stateOnly: true,
@@ -138,7 +174,7 @@ function flattenMapEntities(mapData: MapData): RenderableEntity[] {
   for (const building of mapData.buildings) {
     entities.push({
       id: id('building'),
-      kind: 'hq', // Reuse HQ rendering pipeline type for now
+      kind: 'hq',
       tx: building.tx,
       ty: building.ty,
       faction: mapData.hq.faction as Faction,
@@ -149,42 +185,30 @@ function flattenMapEntities(mapData: MapData): RenderableEntity[] {
   return entities;
 }
 
-/**
- * Create extra harvester units not present in the original saved map.
- * Placed adjacent to HQ on the side opposite the builder.
- */
 function createExtraHarvesters(mapData: MapData): Array<{ tx: number; ty: number; faction: Faction }> {
   const faction = mapData.hq.faction as Faction;
   const hqCx = mapData.hq.tx + 1; // HQ footprint center x (approx)
   const hqCy = mapData.hq.ty + 1;
 
-  // Place 2 harvesters on the ring around HQ, away from the builder
-  // Builder is at (3,3) which is NW of HQ at (4,4)
-  // Place harvesters on SE/E side of HQ
   const positions: Array<{ tx: number; ty: number }> = [];
 
-  // Try positions on the east/south-east ring of HQ
   const candidates = [
-    { tx: hqCx + 2, ty: hqCy },     // East
-    { tx: hqCx + 2, ty: hqCy + 1 }, // SE
-    { tx: hqCx + 1, ty: hqCy + 2 }, // South
-    { tx: hqCx, ty: hqCy + 2 },     // SW
-    { tx: hqCx - 1, ty: hqCy + 2 }, // S-SW
+    { tx: hqCx + 2, ty: hqCy },
+    { tx: hqCx + 2, ty: hqCy + 1 },
+    { tx: hqCx + 1, ty: hqCy + 2 },
+    { tx: hqCx, ty: hqCy + 2 },
+    { tx: hqCx - 1, ty: hqCy + 2 },
   ];
 
-  // Check occupied tiles from map data
   const occupied = new Set<string>();
-  // Mark HQ footprint
   for (let dy = 0; dy < 3; dy++) {
     for (let dx = 0; dx < 3; dx++) {
       occupied.add(`${mapData.hq.tx + dx},${mapData.hq.ty + dy}`);
     }
   }
-  // Mark builder positions
   for (const b of mapData.builders) {
     occupied.add(`${b.tx},${b.ty}`);
   }
-  // Mark resource footprints
   for (const r of mapData.resources) {
     for (let dy = 0; dy < r.footprint; dy++) {
       for (let dx = 0; dx < r.footprint; dx++) {
@@ -205,11 +229,6 @@ function createExtraHarvesters(mapData: MapData): Array<{ tx: number; ty: number
   return positions.map(p => ({ ...p, faction }));
 }
 
-/**
- * Create an extra modular combat unit not present in the original saved map.
- * State-only: chassis=wasp, weapon=smoky, mod=m0.
- * No visual asset exists yet.
- */
 function createExtraModularCombat(mapData: MapData): Array<{
   tx: number;
   ty: number;
@@ -219,7 +238,6 @@ function createExtraModularCombat(mapData: MapData): Array<{
   faction: Faction;
 }> {
   const faction = mapData.hq.faction as Faction;
-  // Place near HQ, east side
   return [{
     tx: mapData.hq.tx + 3,
     ty: mapData.hq.ty + 1,
@@ -228,12 +246,4 @@ function createExtraModularCombat(mapData: MapData): Array<{
     mod: 'm0',
     faction,
   }];
-}
-
-function countResources(resources: MapData['resources']): ResourceCounters {
-  const counters: ResourceCounters = { small: 0, medium: 0, large: 0, infinite: 0 };
-  for (const resource of resources) {
-    counters[resource.type]++;
-  }
-  return counters;
 }

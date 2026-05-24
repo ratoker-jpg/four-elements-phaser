@@ -38,22 +38,26 @@ html, body {
   padding: 8px 16px;
   background: rgba(0, 0, 0, 0.5);
   font-size: 14px;
+  gap: 16px;
 }
 
 #hud-map-name {
   font-weight: 600;
   color: #4fc3f7;
+  white-space: nowrap;
 }
 
-#hud-info {
+#hud-economy {
   font-size: 13px;
   color: #c0c0c0;
+  white-space: nowrap;
 }
 
 #hud-coords {
   font-family: monospace;
   font-size: 12px;
   color: #aaa;
+  white-space: nowrap;
 }
 
 #hud-bottom {
