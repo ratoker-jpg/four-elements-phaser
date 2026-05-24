@@ -16,6 +16,14 @@ const TERRAIN_KEY_MAP: Record<TerrainType, string> = {
   'sand-light': ASSET_KEYS.TERRAIN_SAND_LIGHT,
 };
 
+/** Pre-computed stamp config for terrain tiles (scale to fit iso cell, center origin). */
+const TERRAIN_STAMP_CONFIG: Phaser.Types.Textures.StampConfig = {
+  scaleX: TILE_W / 1180,
+  scaleY: TILE_H / 741,
+  originX: 0.5,
+  originY: 0.5,
+};
+
 /**
  * Generate a simple PR1 terrain map.
  * Mostly sand with some dark and light patches for visual variety.
@@ -44,8 +52,11 @@ export function generateTerrainMap(): TerrainType[][] {
  * TerrainRenderer — renders the full isometric terrain onto a RenderTexture.
  *
  * Strategy (matches donor game's active render path):
- * 1. For each cell, stamp the appropriate sand_tile PNG scaled to TILE_W×TILE_H.
- * 2. The RenderTexture is placed at world origin (0,0) and sized to cover the
+ * 1. For each cell, stamp the appropriate sand_tile PNG scaled to TILE_W×TILE_H
+ *    using RenderTexture.stamp() (direct texture stamping, no temporary GameObject).
+ * 2. After all stamps are queued, call RenderTexture.render() to flush the
+ *    command buffer and make the terrain visible.
+ * 3. The RenderTexture is placed at world origin (0,0) and sized to cover the
  *    full isometric diamond map with padding. All tile stamps are drawn at
  *    (tileToScreen + offset) so every coordinate is positive inside the RT.
  *
@@ -80,48 +91,32 @@ export class TerrainRenderer {
     this.renderTexture.setOrigin(0, 0);
     this.renderTexture.setDepth(0);
 
-    // Render all terrain tiles into the RT at world coordinates
-    this.renderTerrainTiles(scene, terrainMap);
+    // Queue all terrain stamps into the RT command buffer
+    this.stampTerrainTiles(terrainMap);
+
+    // Flush the command buffer — stamps are only visible after render()
+    this.renderTexture.render();
 
     // The RenderTexture is now a static image — camera scrolls over it.
   }
 
-  private renderTerrainTiles(
-    scene: Phaser.Scene,
-    terrainMap: TerrainType[][],
-  ): void {
-    // Create a temporary Image as a stamp, reuse it for each tile
-    const stamp = scene.add.image(0, 0, ASSET_KEYS.TERRAIN_SAND);
-    stamp.setVisible(false);
-    stamp.setOrigin(0.5, 0.5);
-
+  private stampTerrainTiles(terrainMap: TerrainType[][]): void {
     for (let ty = 0; ty < terrainMap.length; ty++) {
       for (let tx = 0; tx < terrainMap[ty].length; tx++) {
         const terrainType = terrainMap[ty][tx];
         const assetKey = TERRAIN_KEY_MAP[terrainType];
         const screenPos = tileToScreen(tx, ty);
 
-        // Convert to world coordinates (always positive) before drawing.
-        // This is the same coordinate space used by entities and grid lines.
+        // Convert to world coordinates (always positive).
+        // Same coordinate space used by entities and grid lines.
         const worldX = screenPos.x + this.offset.x;
         const worldY = screenPos.y + this.offset.y;
 
-        // Switch the stamp's texture
-        stamp.setTexture(assetKey);
-
-        // Scale the large tile image to fit the isometric cell
-        // Original images are ~1180×741; we need them at 76×38
-        const scaleX = TILE_W / stamp.width;
-        const scaleY = TILE_H / stamp.height;
-        stamp.setScale(scaleX, scaleY);
-
-        // Draw onto the RenderTexture at world coordinates
-        this.renderTexture.draw(stamp, worldX, worldY);
+        // Stamp the texture directly onto the RenderTexture.
+        // No temporary GameObject needed — stamp() writes to the command buffer.
+        this.renderTexture.stamp(assetKey, undefined, worldX, worldY, TERRAIN_STAMP_CONFIG);
       }
     }
-
-    // Clean up the stamp
-    stamp.destroy();
   }
 
   /** Get the world-space bounds of the terrain for camera limits. */
