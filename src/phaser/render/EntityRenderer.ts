@@ -49,7 +49,7 @@ const RESOURCE_SCALE_MAP: Record<ResourceType, number> = {
   infinite: INFINITE_MINERAL_SCALE,
 };
 
-const MODULAR_TANK_DEBUG = true;
+const MODULAR_TANK_DEBUG = false;
 const MODULAR_TANK_SCALE = 0.32;
 const MODULAR_TANK_DIRECTION: ModularDirection = 2;
 const MODULAR_TANK_HULL_ORIGIN = { x: 0.5, y: 0.75 };
