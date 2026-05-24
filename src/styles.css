@@ -40,9 +40,14 @@ html, body {
   font-size: 14px;
 }
 
-#hud-title {
+#hud-map-name {
   font-weight: 600;
   color: #4fc3f7;
+}
+
+#hud-info {
+  font-size: 13px;
+  color: #c0c0c0;
 }
 
 #hud-coords {
