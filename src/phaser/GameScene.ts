@@ -22,6 +22,8 @@ export class GameScene extends Phaser.Scene {
   private entityRenderer: EntityRenderer | null = null;
   private cameraControls: CameraControls | null = null;
   private hudCoords: HTMLElement | null = null;
+  private hqWorldX: number = 0;
+  private hqWorldY: number = 0;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -53,9 +55,14 @@ export class GameScene extends Phaser.Scene {
     const bounds = this.terrainRenderer.getBounds();
     this.cameraControls.setBounds(bounds);
 
-    // Center camera on HQ position
+    // Center camera on HQ position and store for reset hotkey
     const hqScreen = tileToScreen(24, 24);
-    this.cameraControls.centerOn(hqScreen.x + offset.x, hqScreen.y + offset.y);
+    this.hqWorldX = hqScreen.x + offset.x;
+    this.hqWorldY = hqScreen.y + offset.y;
+    this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
+
+    // Wire R key to reset camera back to HQ
+    this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
 
     // HUD reference
     this.hudCoords = document.getElementById('hud-coords');
@@ -63,7 +70,7 @@ export class GameScene extends Phaser.Scene {
     // Set world background color
     this.cameras.main.setBackgroundColor('#1a1a2e');
 
-    console.log('[GameScene] Static scene ready. Drag to pan, scroll to zoom.');
+    console.log('[GameScene] Static scene ready. Drag: pan | Wheel: zoom | R: reset camera');
   }
 
   update(): void {
