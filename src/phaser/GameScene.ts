@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MAP_W, MAP_H } from '../config/gameConfig';
+import { MAP_W, MAP_H, TILE_W, TILE_H } from '../config/worldConfig';
 import { ASSET_KEYS } from '../assets/assetManifest';
 import { TerrainRenderer, generateTerrainMap } from './render/TerrainRenderer';
 import { EntityRenderer, getPR1EntityPlacements } from './render/EntityRenderer';
@@ -100,8 +100,8 @@ export class GameScene extends Phaser.Scene {
         const screenPos = tileToScreen(tx, ty);
         const cx = screenPos.x + offset.x;
         const cy = screenPos.y + offset.y;
-        const hw = 38; // TILE_W / 2
-        const hh = 19; // TILE_H / 2
+        const hw = TILE_W / 2;
+        const hh = TILE_H / 2;
 
         graphics.beginPath();
         graphics.moveTo(cx, cy - hh);     // top

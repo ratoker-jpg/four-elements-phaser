@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { MAP_W, MAP_H, TILE_W, TILE_H } from '../../config/gameConfig';
+import { MAP_W, MAP_H, TILE_W, TILE_H } from '../../config/worldConfig';
 import { ASSET_KEYS } from '../../assets/assetManifest';
 import { tileToScreen, mapOriginOffset, IsoPoint } from './isometric';
 
@@ -50,17 +50,6 @@ export function generateTerrainMap(): TerrainType[][] {
 
 /**
  * TerrainRenderer — renders the full isometric terrain onto a RenderTexture.
- *
- * Strategy (matches donor game's active render path):
- * 1. For each cell, stamp the appropriate sand_tile PNG scaled to TILE_W×TILE_H
- *    using RenderTexture.stamp() (direct texture stamping, no temporary GameObject).
- * 2. After all stamps are queued, call RenderTexture.render() to flush the
- *    command buffer and make the terrain visible.
- * 3. The RenderTexture is placed at world origin (0,0) and sized to cover the
- *    full isometric diamond map with padding. All tile stamps are drawn at
- *    (tileToScreen + offset) so every coordinate is positive inside the RT.
- *
- * The result is a single RenderTexture that can be scrolled by the camera.
  */
 export class TerrainRenderer {
   private renderTexture: Phaser.GameObjects.RenderTexture;
@@ -69,8 +58,6 @@ export class TerrainRenderer {
   constructor(scene: Phaser.Scene, terrainMap: TerrainType[][]) {
     this.offset = mapOriginOffset(MAP_W, MAP_H);
 
-    // Calculate total render area in world coordinates.
-    // All world positions = tileToScreen() + offset, so everything is positive.
     const topLeft = tileToScreen(0, 0);
     const topRight = tileToScreen(MAP_W - 1, 0);
     const bottomLeft = tileToScreen(0, MAP_H - 1);
@@ -85,19 +72,12 @@ export class TerrainRenderer {
     const rtWidth = Math.ceil(maxX - minX);
     const rtHeight = Math.ceil(maxY - minY);
 
-    // Place the RenderTexture at world (0, 0) so its coordinate space
-    // matches the world coordinate space used by entities and grid.
     this.renderTexture = scene.add.renderTexture(0, 0, rtWidth, rtHeight);
     this.renderTexture.setOrigin(0, 0);
     this.renderTexture.setDepth(0);
 
-    // Queue all terrain stamps into the RT command buffer
     this.stampTerrainTiles(terrainMap);
-
-    // Flush the command buffer — stamps are only visible after render()
     this.renderTexture.render();
-
-    // The RenderTexture is now a static image — camera scrolls over it.
   }
 
   private stampTerrainTiles(terrainMap: TerrainType[][]): void {
@@ -106,14 +86,9 @@ export class TerrainRenderer {
         const terrainType = terrainMap[ty][tx];
         const assetKey = TERRAIN_KEY_MAP[terrainType];
         const screenPos = tileToScreen(tx, ty);
-
-        // Convert to world coordinates (always positive).
-        // Same coordinate space used by entities and grid lines.
         const worldX = screenPos.x + this.offset.x;
         const worldY = screenPos.y + this.offset.y;
 
-        // Stamp the texture directly onto the RenderTexture.
-        // No temporary GameObject needed — stamp() writes to the command buffer.
         this.renderTexture.stamp(assetKey, undefined, worldX, worldY, TERRAIN_STAMP_CONFIG);
       }
     }
