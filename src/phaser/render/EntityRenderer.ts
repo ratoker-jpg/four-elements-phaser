@@ -55,7 +55,7 @@ const MODULAR_TANK_DIRECTION: ModularDirection = 2;
 const MODULAR_TANK_HULL_ORIGIN = { x: 0.5, y: 0.75 };
 const MODULAR_TANK_TURRET_ORIGIN = { x: 0.5, y: 0.5 };
 const MODULAR_TANK_HULL_OFFSET = { x: 18, y: 8 };
-const MODULAR_TANK_TURRET_OFFSET = { x: 2, y: -30 };
+const MODULAR_TANK_TURRET_OFFSET = { x: 2, y: -31 };
 
 interface ModularTankDebugOverlay {
   graphics: Phaser.GameObjects.Graphics;
