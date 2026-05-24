@@ -5,26 +5,26 @@ import { EntityRenderer } from './render/EntityRenderer';
 import { CameraControls } from './input/CameraControls';
 import { tileToScreen, mapOriginOffset } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
-import type { GameState } from '../state/types';
+import { updateGameState } from '../state/updateGameState';
+import type { GameState, HarvesterPhase } from '../state/types';
 
 /**
  * GameScene — orchestration-only scene.
  *
- * PR2 FIX: All scene data comes from the real saved map (donor mapgen seed=42).
- * The render layer reads GameState but never mutates it.
- *
- * Rendered from state:
- * - Terrain from GameState.mapData.terrain (literal 48×48 array)
- * - Entities from GameState.entities (flattened from mapData + extra starters)
- * - Camera centered on HQ from state
- * - R key resets to HQ from state
- *
- * Intentionally static (no game loop mutations yet):
- * - No economy tick
- * - No harvester movement
- * - No construction
- * - No combat
+ * PR3: Drives the harvester civil loop via updateGameState().
+ * GameScene calls state update + renderer sync + HUD update only.
+ * No game logic lives here.
  */
+
+/** Phase labels for HUD display. */
+const PHASE_LABEL: Record<HarvesterPhase, string> = {
+  idle: 'Idle',
+  'moving-to-resource': 'Moving',
+  gathering: 'Gathering',
+  'returning-to-hq': 'Returning',
+  unloading: 'Unloading',
+};
+
 export class GameScene extends Phaser.Scene {
   private terrainRenderer: TerrainRenderer | null = null;
   private entityRenderer: EntityRenderer | null = null;
@@ -36,20 +36,23 @@ export class GameScene extends Phaser.Scene {
   // HUD elements
   private hudCoords: HTMLElement | null = null;
   private hudMapName: HTMLElement | null = null;
-  private hudInfo: HTMLElement | null = null;
+  private hudEconomy: HTMLElement | null = null;
+
+  /** Track last unload count to log once per unload. */
+  private lastLoggedMinerals: number = 0;
 
   constructor() {
     super({ key: 'GameScene' });
   }
 
   create(): void {
-    // Initialize game state from saved map (real mapgen seed=42 data)
+    // Initialize game state from saved map
     this.gameState = createInitialState();
 
     // Verify all required assets are loaded
     this.verifyAssets();
 
-    // Render terrain from GameState.mapData.terrain (literal array, not generated)
+    // Render terrain from GameState.mapData.terrain
     this.terrainRenderer = new TerrainRenderer(
       this,
       this.gameState.mapData.terrain,
@@ -63,18 +66,21 @@ export class GameScene extends Phaser.Scene {
     // Draw isometric grid overlay
     this.drawGridLines(offset);
 
-    // Render entities from GameState (flattened from mapData + extra starters)
+    // Render entities — static first, then dynamic
     this.entityRenderer = new EntityRenderer(this, offset);
-    this.entityRenderer.renderEntities(this.gameState.entities);
+    this.entityRenderer.renderStaticEntities(this.gameState.entities);
+    this.entityRenderer.renderDynamicInit(
+      this.gameState.harvesters,
+      this.gameState.resourceNodes,
+    );
 
     // Setup camera
     this.cameraControls = new CameraControls(this);
     const bounds = this.terrainRenderer.getBounds();
     this.cameraControls.setBounds(bounds);
 
-    // Find HQ position from state and center camera on it
+    // Center camera on HQ from state (HQ has 3x3 footprint, center on +1,+1)
     const hq = this.gameState.mapData.hq;
-    // HQ has a 3×3 footprint; center the camera on the center tile
     const hqCenterTx = hq.tx + 1;
     const hqCenterTy = hq.ty + 1;
     const hqScreen = tileToScreen(hqCenterTx, hqCenterTy);
@@ -86,7 +92,7 @@ export class GameScene extends Phaser.Scene {
     // HUD references
     this.hudCoords = document.getElementById('hud-coords');
     this.hudMapName = document.getElementById('hud-map-name');
-    this.hudInfo = document.getElementById('hud-info');
+    this.hudEconomy = document.getElementById('hud-economy');
 
     // Set initial HUD content
     if (this.hudMapName) {
@@ -97,33 +103,68 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#1a1a2e');
 
     // Log state summary
-    const md = this.gameState.mapData;
+    const s = this.gameState;
     console.log(
-      `[GameScene] State-driven scene ready. Map: ${this.gameState.mapName} | ` +
-      `Size: ${md.width}x${md.height} | ` +
-      `Resources: ${md.resources.length} | Obstacles: ${md.obstacles.length} | ` +
-      `Decor: ${md.decor.length} | Builders: ${md.builders.length} | ` +
-      `Extra harvesters: ${this.gameState.extraHarvesters.length} | ` +
-      `Extra modular combat: ${this.gameState.extraModularCombat.length} | ` +
+      `[GameScene] State-driven scene ready. Map: ${s.mapName} | ` +
+      `Size: ${s.mapWidth}x${s.mapHeight} | ` +
+      `Harvesters: ${s.harvesters.length} | ` +
+      `Resources: ${s.resourceNodes.length} | ` +
       `Drag: pan | Wheel: zoom | R: reset camera`,
     );
   }
 
-  update(): void {
-    // Update HUD with camera info
+  update(_time: number, delta: number): void {
+    // 1. Advance game state
+    updateGameState(this.gameState, delta);
+
+    // 2. Sync render layer
+    this.entityRenderer?.syncFromState(this.gameState);
+
+    // 3. Update HUD
+    this.updateHUD();
+
+    // 4. Debug log on unload completion
+    if (this.gameState.rawMinerals > this.lastLoggedMinerals) {
+      console.log(
+        `[GameScene] Unloaded! Raw minerals: ${this.gameState.rawMinerals}`,
+      );
+      this.lastLoggedMinerals = this.gameState.rawMinerals;
+    }
+  }
+
+  // ─── HUD ────────────────────────────────────────────────────────
+
+  private updateHUD(): void {
+    // Camera info
     if (this.cameraControls && this.hudCoords) {
       const info = this.cameraControls.getCameraInfo();
       this.hudCoords.textContent =
         `Zoom: ${info.zoom.toFixed(2)} | (${Math.round(info.scrollX)}, ${Math.round(info.scrollY)})`;
     }
 
-    // Update entity/resource counts
-    if (this.hudInfo) {
-      const counts = EntityRenderer.countByKind(this.gameState.entities);
-      const unitCount = counts.builder + counts.harvester + counts['modular-combat'];
-      this.hudInfo.textContent = `Resources: ${counts.resource} | Units: ${unitCount}`;
+    // Economy info
+    if (this.hudEconomy) {
+      const s = this.gameState;
+      const activeResources = s.resourceNodes.filter((r) => !r.depleted).length;
+      const totalResources = s.resourceNodes.length;
+
+      // Harvester status summary
+      const phaseCounts: Record<string, number> = {};
+      for (const h of s.harvesters) {
+        const label = PHASE_LABEL[h.phase];
+        phaseCounts[label] = (phaseCounts[label] || 0) + 1;
+      }
+      const phaseStr = Object.entries(phaseCounts)
+        .map(([label, count]) => `${count} ${label}`)
+        .join(', ');
+
+      this.hudEconomy.textContent =
+        `Raw: ${s.rawMinerals} | Resources: ${activeResources}/${totalResources} | ` +
+        `Harvesters: ${s.harvesters.length} (${phaseStr})`;
     }
   }
+
+  // ─── Helpers ────────────────────────────────────────────────────
 
   private verifyAssets(): void {
     const requiredKeys = Object.values(ASSET_KEYS);

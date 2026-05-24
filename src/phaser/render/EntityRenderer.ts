@@ -1,23 +1,26 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS, DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
 import { tileToScreen, IsoPoint } from './isometric';
-import type { RenderableEntity, EntityKind, ResourceType } from '../../state/types';
+import type {
+  RenderableEntity,
+  EntityKind,
+  ResourceType,
+  GameState,
+  HarvesterState,
+  ResourceNodeState,
+} from '../../state/types';
+import { directionFromDelta } from '../../state/updateGameState';
 
 /**
- * EntityRenderer — renders entities from GameState onto the scene.
+ * EntityRenderer — renders and syncs entities from GameState onto the scene.
  *
- * Each entity kind maps to a specific visual treatment:
- * - hq → cyan HQ image
- * - harvester → cyan harvester spritesheet (idle frame)
- * - builder → TODO: no approved builder asset in repo (logged warning)
- * - resource → mineral image based on resourceType
- * - modular-combat → state-only, no visual asset (logged warning)
+ * PR3 changes:
+ * - Static entities (HQ, builder, obstacles, decor) are rendered once from RenderableEntity[].
+ * - Harvesters are rendered from HarvesterState[] with fractional positions and direction facing.
+ * - Resources are rendered from ResourceNodeState[] with depletion support.
+ * - syncFromState() updates harvester positions and resource visibility each frame.
  *
  * Entities with stateOnly=true are skipped with a console warning.
- *
- * PR2 FIX: All entity data comes from the real saved map (donor mapgen seed=42).
- * The render pipeline flattens the donor's separate arrays (hq, resources[],
- * obstacles[], decor[], builders[]) into RenderableEntity[].
  */
 
 /** Scale for infinite resources — rendered as a large mineral at bigger scale. */
@@ -42,7 +45,20 @@ const RESOURCE_SCALE_MAP: Record<ResourceType, number> = {
 export class EntityRenderer {
   private scene: Phaser.Scene;
   private offset: IsoPoint;
-  private entities: Phaser.GameObjects.GameObject[] = [];
+
+  /** Static game objects (HQ, builder) — rendered once, never updated per frame. */
+  private staticObjects: Phaser.GameObjects.GameObject[] = [];
+
+  /** Harvester sprites keyed by harvester ID. */
+  private harvesterSprites = new Map<string, Phaser.GameObjects.Sprite>();
+
+  /** Previous harvester tile positions for direction calculation. */
+  private harvesterPrevTile = new Map<string, { ftx: number; fty: number }>();
+
+  /** Resource image objects keyed by resource node ID. */
+  private resourceSprites = new Map<string, Phaser.GameObjects.Image>();
+
+  /** Count of state-only entities skipped during initial render. */
   private skippedCount: number = 0;
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
@@ -50,16 +66,21 @@ export class EntityRenderer {
     this.offset = offset;
   }
 
-  /** Render all renderable entities from the GameState entity list. */
-  renderEntities(entities: RenderableEntity[]): void {
+  // ─── Static entity rendering (called once) ─────────────────────
+
+  /** Render static entities (HQ, builder, state-only) from the renderable entity list. */
+  renderStaticEntities(entities: RenderableEntity[]): void {
     this.skippedCount = 0;
     for (const entity of entities) {
+      // Skip harvester and resource — handled dynamically from runtime state
+      if (entity.kind === 'harvester' || entity.kind === 'resource') continue;
+
       // Skip state-only entities (no visual asset exists)
       if (entity.stateOnly) {
         this.skippedCount++;
         continue;
       }
-      this.renderEntity(entity);
+      this.renderStaticEntity(entity);
     }
     if (this.skippedCount > 0) {
       console.warn(
@@ -69,7 +90,68 @@ export class EntityRenderer {
     }
   }
 
-  private renderEntity(entity: RenderableEntity): void {
+  // ─── Dynamic entity rendering (called once at init) ────────────
+
+  /** Create initial sprites for all harvesters and resource nodes. */
+  renderDynamicInit(harvesters: HarvesterState[], resourceNodes: ResourceNodeState[]): void {
+    for (const h of harvesters) {
+      this.createHarvesterSprite(h);
+    }
+    for (const r of resourceNodes) {
+      this.createResourceSprite(r);
+    }
+  }
+
+  // ─── Frame-by-frame sync (called every frame) ─────────────────
+
+  /** Sync all dynamic sprites from the current GameState. */
+  syncFromState(state: GameState): void {
+    this.syncHarvesters(state.harvesters);
+    this.syncResources(state.resourceNodes);
+  }
+
+  private syncHarvesters(harvesters: HarvesterState[]): void {
+    for (const h of harvesters) {
+      const sprite = this.harvesterSprites.get(h.id);
+      if (!sprite) continue;
+
+      // Compute world position from fractional tile
+      const screenPos = tileToScreen(h.ftx, h.fty);
+      const worldX = screenPos.x + this.offset.x;
+      const worldY = screenPos.y + this.offset.y;
+
+      sprite.setPosition(worldX, worldY);
+      sprite.setDepth(100 + worldY);
+
+      // Direction facing based on movement
+      const prev = this.harvesterPrevTile.get(h.id);
+      if (prev) {
+        const dtx = h.ftx - prev.ftx;
+        const dty = h.fty - prev.fty;
+        if (Math.abs(dtx) > 0.001 || Math.abs(dty) > 0.001) {
+          const dirIndex = directionFromDelta(dtx, dty);
+          const frame = dirIndex * 8 + IDLE_FRAME;
+          sprite.setFrame(frame);
+        }
+      }
+      this.harvesterPrevTile.set(h.id, { ftx: h.ftx, fty: h.fty });
+    }
+  }
+
+  private syncResources(resourceNodes: ResourceNodeState[]): void {
+    for (const r of resourceNodes) {
+      const img = this.resourceSprites.get(r.id);
+      if (!img) continue;
+
+      if (r.depleted && img.visible) {
+        img.setVisible(false);
+      }
+    }
+  }
+
+  // ─── Static entity factory ─────────────────────────────────────
+
+  private renderStaticEntity(entity: RenderableEntity): void {
     const screenPos = tileToScreen(entity.tx, entity.ty);
     const worldX = screenPos.x + this.offset.x;
     const worldY = screenPos.y + this.offset.y;
@@ -78,26 +160,20 @@ export class EntityRenderer {
       case 'hq':
         this.placeHQ(worldX, worldY, entity.faction);
         break;
-      case 'harvester':
-        this.placeHarvester(worldX, worldY, entity.faction);
-        break;
       case 'builder':
         this.placeBuilder(worldX, worldY, entity);
         break;
-      case 'resource':
-        this.placeResource(worldX, worldY, entity.resourceType ?? 'small');
-        break;
       case 'modular-combat':
-        // Should have been caught by stateOnly check, but handle defensively
         console.warn(
-          `[EntityRenderer] TODO: No modular combat asset in repo — skipping at (${entity.tx}, ${entity.ty}).`,
+          `[EntityRenderer] TODO: No modular combat asset — skipping at (${entity.tx}, ${entity.ty}).`,
         );
+        break;
+      default:
         break;
     }
   }
 
   private placeHQ(x: number, y: number, faction?: string): void {
-    // Only cyan HQ asset available in repo
     if (faction !== 'cyan') {
       console.warn(`[EntityRenderer] No HQ asset for faction "${faction}" — skipping.`);
       return;
@@ -107,44 +183,54 @@ export class EntityRenderer {
     img.setScale(scale);
     img.setOrigin(0.5, 0.75);
     img.setDepth(100 + y);
-    this.entities.push(img);
-  }
-
-  private placeHarvester(x: number, y: number, faction?: string): void {
-    if (faction !== 'cyan') {
-      console.warn(`[EntityRenderer] No harvester asset for faction "${faction}" — skipping.`);
-      return;
-    }
-    // Frame index: row S (2) * 8 + col IDLE (0) = frame 16
-    const idleFrame = DIR_ROW.S * 8 + IDLE_FRAME;
-    const sprite = this.scene.add.sprite(x, y, ASSET_KEYS.HARVESTER_CYAN, idleFrame);
-    const scale = 41 / 256;
-    sprite.setScale(scale);
-    sprite.setOrigin(0.5, 0.75);
-    sprite.setDepth(100 + y);
-    this.entities.push(sprite);
+    this.staticObjects.push(img);
   }
 
   private placeBuilder(x: number, y: number, entity: RenderableEntity): void {
     // No approved builder asset exists in the new repo.
-    // Decision: skip rendering with a TODO warning. Do NOT create placeholder rectangles.
     console.warn(
-      `[EntityRenderer] TODO: No builder asset in repo — skipping builder at (${entity.tx}, ${entity.ty}). ` +
-      `Add builder_8x8_256.png to approved assets to enable rendering.`,
+      `[EntityRenderer] TODO: No builder asset — skipping builder at (${entity.tx}, ${entity.ty}).`,
     );
     void x;
     void y;
   }
 
-  private placeResource(x: number, y: number, resourceType: ResourceType): void {
-    const assetKey = RESOURCE_ASSET_MAP[resourceType];
-    const scale = RESOURCE_SCALE_MAP[resourceType];
-    const img = this.scene.add.image(x, y, assetKey);
+  // ─── Dynamic entity factories ──────────────────────────────────
+
+  private createHarvesterSprite(h: HarvesterState): void {
+    const screenPos = tileToScreen(h.ftx, h.fty);
+    const worldX = screenPos.x + this.offset.x;
+    const worldY = screenPos.y + this.offset.y;
+
+    // Frame index: row S (2) * 8 + col IDLE (0) = frame 16
+    const idleFrame = DIR_ROW.S * 8 + IDLE_FRAME;
+    const sprite = this.scene.add.sprite(worldX, worldY, ASSET_KEYS.HARVESTER_CYAN, idleFrame);
+    const scale = 41 / 256;
+    sprite.setScale(scale);
+    sprite.setOrigin(0.5, 0.75);
+    sprite.setDepth(100 + worldY);
+
+    this.harvesterSprites.set(h.id, sprite);
+    this.harvesterPrevTile.set(h.id, { ftx: h.ftx, fty: h.fty });
+  }
+
+  private createResourceSprite(r: ResourceNodeState): void {
+    const assetKey = RESOURCE_ASSET_MAP[r.resourceType];
+    const scale = RESOURCE_SCALE_MAP[r.resourceType];
+
+    const screenPos = tileToScreen(r.tx, r.ty);
+    const worldX = screenPos.x + this.offset.x;
+    const worldY = screenPos.y + this.offset.y;
+
+    const img = this.scene.add.image(worldX, worldY, assetKey);
     img.setScale(scale);
     img.setOrigin(0.5, 0.75);
-    img.setDepth(100 + y);
-    this.entities.push(img);
+    img.setDepth(100 + worldY);
+
+    this.resourceSprites.set(r.id, img);
   }
+
+  // ─── Utility ───────────────────────────────────────────────────
 
   /** Count how many visible entities of each kind exist (excludes stateOnly). */
   static countByKind(entities: RenderableEntity[]): Record<EntityKind, number> {
@@ -164,9 +250,20 @@ export class EntityRenderer {
   }
 
   destroy(): void {
-    for (const entity of this.entities) {
-      entity.destroy();
+    for (const obj of this.staticObjects) {
+      obj.destroy();
     }
-    this.entities = [];
+    this.staticObjects = [];
+
+    for (const sprite of this.harvesterSprites.values()) {
+      sprite.destroy();
+    }
+    this.harvesterSprites.clear();
+    this.harvesterPrevTile.clear();
+
+    for (const img of this.resourceSprites.values()) {
+      img.destroy();
+    }
+    this.resourceSprites.clear();
   }
 }
