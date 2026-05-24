@@ -1,121 +1,166 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS, DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
 import { tileToScreen, IsoPoint } from './isometric';
+import type { RenderableEntity, EntityKind, ResourceType } from '../../state/types';
 
 /**
- * EntityRenderer — places static entities (HQ, minerals, harvester) on the scene.
+ * EntityRenderer — renders entities from GameState onto the scene.
  *
- * PR1 constraints:
- * - HQ: static Image, no animation
- * - Minerals: static Images, no animation
- * - Harvester: Sprite showing idle frame only, no movement logic
- * - All entities positioned using isometric coordinates
+ * Each entity kind maps to a specific visual treatment:
+ * - hq → cyan HQ image
+ * - harvester → cyan harvester spritesheet (idle frame)
+ * - builder → TODO: no approved builder asset in repo (logged warning)
+ * - resource → mineral image based on resourceType
+ * - modular-combat → state-only, no visual asset (logged warning)
+ *
+ * Entities with stateOnly=true are skipped with a console warning.
+ *
+ * PR2 FIX: All entity data comes from the real saved map (donor mapgen seed=42).
+ * The render pipeline flattens the donor's separate arrays (hq, resources[],
+ * obstacles[], decor[], builders[]) into RenderableEntity[].
  */
 
-export interface EntityPlacement {
-  tx: number;
-  ty: number;
-  type: 'hq' | 'mineral_small' | 'mineral_medium' | 'mineral_large' | 'harvester';
-}
+/** Scale for infinite resources — rendered as a large mineral at bigger scale. */
+const INFINITE_MINERAL_SCALE = 0.65;
 
-/** Pre-defined entity placements for PR1 static scene. */
-export function getPR1EntityPlacements(): EntityPlacement[] {
-  return [
-    // HQ near the center
-    { tx: 24, ty: 24, type: 'hq' },
+/** Resource type → asset key mapping. */
+const RESOURCE_ASSET_MAP: Record<ResourceType, string> = {
+  small: ASSET_KEYS.MINERAL_SMALL,
+  medium: ASSET_KEYS.MINERAL_MEDIUM,
+  large: ASSET_KEYS.MINERAL_LARGE,
+  infinite: ASSET_KEYS.MINERAL_LARGE, // No infinite-specific asset; use large
+};
 
-    // Mineral clusters near HQ
-    { tx: 20, ty: 20, type: 'mineral_large' },
-    { tx: 21, ty: 19, type: 'mineral_medium' },
-    { tx: 19, ty: 21, type: 'mineral_small' },
-    { tx: 28, ty: 27, type: 'mineral_large' },
-    { tx: 29, ty: 28, type: 'mineral_medium' },
-    { tx: 27, ty: 29, type: 'mineral_small' },
-
-    // One harvester near HQ
-    { tx: 25, ty: 23, type: 'harvester' },
-  ];
-}
+/** Resource type → display scale. */
+const RESOURCE_SCALE_MAP: Record<ResourceType, number> = {
+  small: 0.3,
+  medium: 0.4,
+  large: 0.5,
+  infinite: INFINITE_MINERAL_SCALE,
+};
 
 export class EntityRenderer {
   private scene: Phaser.Scene;
   private offset: IsoPoint;
   private entities: Phaser.GameObjects.GameObject[] = [];
+  private skippedCount: number = 0;
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
     this.offset = offset;
   }
 
-  /** Place all entities from the placement list. */
-  placeEntities(placements: EntityPlacement[]): void {
-    for (const placement of placements) {
-      this.placeEntity(placement);
+  /** Render all renderable entities from the GameState entity list. */
+  renderEntities(entities: RenderableEntity[]): void {
+    this.skippedCount = 0;
+    for (const entity of entities) {
+      // Skip state-only entities (no visual asset exists)
+      if (entity.stateOnly) {
+        this.skippedCount++;
+        continue;
+      }
+      this.renderEntity(entity);
+    }
+    if (this.skippedCount > 0) {
+      console.warn(
+        `[EntityRenderer] Skipped ${this.skippedCount} state-only entities ` +
+        `(obstacles, decor, modular combat — no visual assets yet).`,
+      );
     }
   }
 
-  private placeEntity(placement: EntityPlacement): void {
-    const screenPos = tileToScreen(placement.tx, placement.ty);
+  private renderEntity(entity: RenderableEntity): void {
+    const screenPos = tileToScreen(entity.tx, entity.ty);
     const worldX = screenPos.x + this.offset.x;
     const worldY = screenPos.y + this.offset.y;
 
-    switch (placement.type) {
+    switch (entity.kind) {
       case 'hq':
-        this.placeHQ(worldX, worldY);
-        break;
-      case 'mineral_small':
-        this.placeMineral(worldX, worldY, ASSET_KEYS.MINERAL_SMALL, 0.3);
-        break;
-      case 'mineral_medium':
-        this.placeMineral(worldX, worldY, ASSET_KEYS.MINERAL_MEDIUM, 0.4);
-        break;
-      case 'mineral_large':
-        this.placeMineral(worldX, worldY, ASSET_KEYS.MINERAL_LARGE, 0.5);
+        this.placeHQ(worldX, worldY, entity.faction);
         break;
       case 'harvester':
-        this.placeHarvester(worldX, worldY);
+        this.placeHarvester(worldX, worldY, entity.faction);
+        break;
+      case 'builder':
+        this.placeBuilder(worldX, worldY, entity);
+        break;
+      case 'resource':
+        this.placeResource(worldX, worldY, entity.resourceType ?? 'small');
+        break;
+      case 'modular-combat':
+        // Should have been caught by stateOnly check, but handle defensively
+        console.warn(
+          `[EntityRenderer] TODO: No modular combat asset in repo — skipping at (${entity.tx}, ${entity.ty}).`,
+        );
         break;
     }
   }
 
-  private placeHQ(x: number, y: number): void {
-    // HQ is a large building sprite — scale it to fit reasonably on the map
+  private placeHQ(x: number, y: number, faction?: string): void {
+    // Only cyan HQ asset available in repo
+    if (faction !== 'cyan') {
+      console.warn(`[EntityRenderer] No HQ asset for faction "${faction}" — skipping.`);
+      return;
+    }
     const img = this.scene.add.image(x, y, ASSET_KEYS.HQ_CYAN);
-    // Original is 1114×835; scale down to ~120×90 for the isometric view
     const scale = 120 / img.width;
-    img.setScale(scale);
-    img.setOrigin(0.5, 0.75); // Anchor at bottom-center so it sits on the tile
-    img.setDepth(100 + y); // Depth sort by Y for painter's algorithm
-    this.entities.push(img);
-  }
-
-  private placeMineral(
-    x: number,
-    y: number,
-    key: string,
-    scale: number,
-  ): void {
-    const img = this.scene.add.image(x, y, key);
-    // Original 256×256; scale to appropriate iso size
     img.setScale(scale);
     img.setOrigin(0.5, 0.75);
     img.setDepth(100 + y);
     this.entities.push(img);
   }
 
-  private placeHarvester(x: number, y: number): void {
+  private placeHarvester(x: number, y: number, faction?: string): void {
+    if (faction !== 'cyan') {
+      console.warn(`[EntityRenderer] No harvester asset for faction "${faction}" — skipping.`);
+      return;
+    }
     // Frame index: row S (2) * 8 + col IDLE (0) = frame 16
-    // Show the harvester facing south in idle pose
     const idleFrame = DIR_ROW.S * 8 + IDLE_FRAME;
     const sprite = this.scene.add.sprite(x, y, ASSET_KEYS.HARVESTER_CYAN, idleFrame);
-
-    // Original frame is 256×256; scale to fit the isometric grid
-    // Harvester profile in donor game: size [41, 41], groundOffset 8
     const scale = 41 / 256;
     sprite.setScale(scale);
     sprite.setOrigin(0.5, 0.75);
     sprite.setDepth(100 + y);
     this.entities.push(sprite);
+  }
+
+  private placeBuilder(x: number, y: number, entity: RenderableEntity): void {
+    // No approved builder asset exists in the new repo.
+    // Decision: skip rendering with a TODO warning. Do NOT create placeholder rectangles.
+    console.warn(
+      `[EntityRenderer] TODO: No builder asset in repo — skipping builder at (${entity.tx}, ${entity.ty}). ` +
+      `Add builder_8x8_256.png to approved assets to enable rendering.`,
+    );
+    void x;
+    void y;
+  }
+
+  private placeResource(x: number, y: number, resourceType: ResourceType): void {
+    const assetKey = RESOURCE_ASSET_MAP[resourceType];
+    const scale = RESOURCE_SCALE_MAP[resourceType];
+    const img = this.scene.add.image(x, y, assetKey);
+    img.setScale(scale);
+    img.setOrigin(0.5, 0.75);
+    img.setDepth(100 + y);
+    this.entities.push(img);
+  }
+
+  /** Count how many visible entities of each kind exist (excludes stateOnly). */
+  static countByKind(entities: RenderableEntity[]): Record<EntityKind, number> {
+    const counts: Record<EntityKind, number> = {
+      hq: 0,
+      builder: 0,
+      harvester: 0,
+      resource: 0,
+      'modular-combat': 0,
+    };
+    for (const entity of entities) {
+      if (!entity.stateOnly) {
+        counts[entity.kind]++;
+      }
+    }
+    return counts;
   }
 
   destroy(): void {

@@ -1,15 +1,13 @@
 import Phaser from 'phaser';
-import { MAP_W, MAP_H, TILE_W, TILE_H } from '../../config/worldConfig';
+import { TILE_W, TILE_H } from '../../config/worldConfig';
 import { ASSET_KEYS } from '../../assets/assetManifest';
 import { tileToScreen, mapOriginOffset, IsoPoint } from './isometric';
+import type { TerrainType } from '../../state/types';
 
 /**
- * Terrain types used in PR1.
- * Only 'sand', 'sand-dark', 'sand-light' — the three legacy types
- * that the donor game's active render path uses.
+ * Asset key mapping for each terrain type.
+ * Only the 3 legacy tiles used by the donor game's active render path.
  */
-export type TerrainType = 'sand' | 'sand-dark' | 'sand-light';
-
 const TERRAIN_KEY_MAP: Record<TerrainType, string> = {
   sand: ASSET_KEYS.TERRAIN_SAND,
   'sand-dark': ASSET_KEYS.TERRAIN_SAND_DARK,
@@ -25,43 +23,31 @@ const TERRAIN_STAMP_CONFIG: Phaser.Types.Textures.StampConfig = {
 };
 
 /**
- * Generate a simple PR1 terrain map.
- * Mostly sand with some dark and light patches for visual variety.
- */
-export function generateTerrainMap(): TerrainType[][] {
-  const map: TerrainType[][] = [];
-  for (let ty = 0; ty < MAP_H; ty++) {
-    const row: TerrainType[] = [];
-    for (let tx = 0; tx < MAP_W; tx++) {
-      // Deterministic pattern: some dark/light patches
-      const hash = ((tx * 7 + ty * 13) >>> 0) % 100;
-      if (hash < 10) {
-        row.push('sand-dark');
-      } else if (hash < 18) {
-        row.push('sand-light');
-      } else {
-        row.push('sand');
-      }
-    }
-    map.push(row);
-  }
-  return map;
-}
-
-/**
  * TerrainRenderer — renders the full isometric terrain onto a RenderTexture.
+ *
+ * Receives terrain data from GameState (not hardcoded).
+ * Creates a static RenderTexture that the camera scrolls over.
  */
 export class TerrainRenderer {
   private renderTexture: Phaser.GameObjects.RenderTexture;
   private offset: IsoPoint;
+  private mapWidth: number;
+  private mapHeight: number;
 
-  constructor(scene: Phaser.Scene, terrainMap: TerrainType[][]) {
-    this.offset = mapOriginOffset(MAP_W, MAP_H);
+  constructor(
+    scene: Phaser.Scene,
+    terrainMap: TerrainType[][],
+    mapWidth: number,
+    mapHeight: number,
+  ) {
+    this.mapWidth = mapWidth;
+    this.mapHeight = mapHeight;
+    this.offset = mapOriginOffset(mapWidth, mapHeight);
 
     const topLeft = tileToScreen(0, 0);
-    const topRight = tileToScreen(MAP_W - 1, 0);
-    const bottomLeft = tileToScreen(0, MAP_H - 1);
-    const bottomRight = tileToScreen(MAP_W - 1, MAP_H - 1);
+    const topRight = tileToScreen(mapWidth - 1, 0);
+    const bottomLeft = tileToScreen(0, mapHeight - 1);
+    const bottomRight = tileToScreen(mapWidth - 1, mapHeight - 1);
 
     const padding = 64;
     const minX = Math.min(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x) + this.offset.x - padding;
@@ -97,9 +83,9 @@ export class TerrainRenderer {
   /** Get the world-space bounds of the terrain for camera limits. */
   getBounds(): Phaser.Geom.Rectangle {
     const topLeft = tileToScreen(0, 0);
-    const topRight = tileToScreen(MAP_W - 1, 0);
-    const bottomLeft = tileToScreen(0, MAP_H - 1);
-    const bottomRight = tileToScreen(MAP_W - 1, MAP_H - 1);
+    const topRight = tileToScreen(this.mapWidth - 1, 0);
+    const bottomLeft = tileToScreen(0, this.mapHeight - 1);
+    const bottomRight = tileToScreen(this.mapWidth - 1, this.mapHeight - 1);
 
     const minX = Math.min(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x) + this.offset.x;
     const minY = Math.min(topLeft.y, topRight.y, bottomLeft.y, bottomRight.y) + this.offset.y;
@@ -116,6 +102,14 @@ export class TerrainRenderer {
 
   getOffset(): IsoPoint {
     return this.offset;
+  }
+
+  getMapWidth(): number {
+    return this.mapWidth;
+  }
+
+  getMapHeight(): number {
+    return this.mapHeight;
   }
 
   destroy(): void {
