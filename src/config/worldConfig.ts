@@ -9,10 +9,10 @@ export const MAP_H = 48;
 // ─── Modular tank visual tuning (PR5) ─────────────────────────
 
 /** Default hull offset from tile anchor — approved baseline. */
-export const DEFAULT_MODULAR_TANK_HULL_OFFSET = { x: 18, y: 8 };
+export const DEFAULT_MODULAR_TANK_HULL_OFFSET = { x: 2, y: 16 };
 
 /** Default turret offset from tile anchor — approved baseline. */
-export const DEFAULT_MODULAR_TANK_TURRET_OFFSET = { x: 2, y: -31 };
+export const DEFAULT_MODULAR_TANK_TURRET_OFFSET = { x: -7, y: -18 };
 
 /**
  * Mutable runtime hull offset — live-tuned via keyboard in debug overlay.
