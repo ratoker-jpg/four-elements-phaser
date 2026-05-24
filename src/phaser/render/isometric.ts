@@ -7,7 +7,7 @@
  *   screen.y = (tx + ty) * TILE_H / 2
  */
 
-import { TILE_W, TILE_H } from '../../config/gameConfig';
+import { TILE_W, TILE_H } from '../../config/worldConfig';
 
 export interface IsoPoint {
   x: number;
