@@ -1,102 +1,248 @@
-import type { MapData, TerrainType, Entity } from '../../state/types';
+import type { MapData } from '../../state/types';
 
 /**
  * Custom Map 1 — "Карта 1"
  *
+ * Generated from donor repo's mapgen with seed=42.
  * 48×48 isometric desert map with:
- * - Start position: HQ at (4,4), builder at (3,3), harvester at (5,3)
- * - Start resource clusters near upper-left corner
+ * - HQ at (4,4), builder at (3,3)
+ * - Starter resource pocket near upper-left corner
  * - Central infinite crystal deposit near (23,22)
- * - Scattered medium/large resource clusters around the map
- * - Deterministic terrain pattern (mostly sand with dark/light patches)
+ * - Edge obstacle biome + interior obstacle clusters
+ * - Decor items (bushes, sand-bumps)
+ * - No buildings, no construction sites
  */
 
-// ─── Terrain generation ─────────────────────────────────────────────
+const TERRAIN: MapData["terrain"] = [
+  ['sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand-dark', 'sand', 'sand-dark', 'sand-light', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand-light', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand-light'],
+  ['sand-light', 'sand-light', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-dark', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand', 'sand-light'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-light', 'sand-dark', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-dark', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand-light', 'sand-light'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand-dark', 'sand-dark', 'sand-dark', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand'],
+  ['sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand-light', 'sand-dark', 'sand'],
+  ['sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand-light', 'sand-dark', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand-light', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand-light', 'sand-dark', 'sand-dark', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand-dark', 'sand-dark', 'sand-dark', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand-dark'],
+  ['sand', 'sand', 'sand', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-light', 'sand-light'],
+  ['sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light'],
+  ['sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand-light', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand-light', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-light', 'sand-dark', 'sand', 'sand-light', 'sand-light', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark'],
+  ['sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand-dark', 'sand-dark', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand'],
+  ['sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light'],
+  ['sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand-light', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand-light', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand'],
+  ['sand-light', 'sand-dark', 'sand-dark', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand-dark', 'sand-dark', 'sand-light', 'sand-light', 'sand-light', 'sand', 'sand', 'sand-light', 'sand', 'sand-light', 'sand', 'sand', 'sand-dark', 'sand', 'sand-light', 'sand', 'sand-light', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand-dark', 'sand-light', 'sand', 'sand', 'sand', 'sand-light', 'sand', 'sand', 'sand', 'sand', 'sand-light', 'sand-light', 'sand'],
+];
 
-function generateTerrain(): TerrainType[][] {
-  const map: TerrainType[][] = [];
-  for (let ty = 0; ty < 48; ty++) {
-    const row: TerrainType[] = [];
-    for (let tx = 0; tx < 48; tx++) {
-      const hash = ((tx * 7 + ty * 13) >>> 0) % 100;
-      if (hash < 10) {
-        row.push('sand-dark');
-      } else if (hash < 18) {
-        row.push('sand-light');
-      } else {
-        row.push('sand');
-      }
-    }
-    map.push(row);
+const RESOURCES: MapData["resources"] = [
+  { tx: 2, ty: 3, type: 'small', footprint: 1 },
+  { tx: 1, ty: 5, type: 'small', footprint: 1 },
+  { tx: 2, ty: 4, type: 'small', footprint: 1 },
+  { tx: 0, ty: 1, type: 'small', footprint: 1 },
+  { tx: 0, ty: 3, type: 'small', footprint: 1 },
+  { tx: 0, ty: 2, type: 'small', footprint: 1 },
+  { tx: 6, ty: 0, type: 'small', footprint: 1 },
+  { tx: 0, ty: 0, type: 'small', footprint: 1 },
+  { tx: 1, ty: 4, type: 'small', footprint: 1 },
+  { tx: 1, ty: 2, type: 'small', footprint: 1 },
+  { tx: 2, ty: 2, type: 'medium', footprint: 1 },
+  { tx: 1, ty: 1, type: 'medium', footprint: 1 },
+  { tx: 0, ty: 6, type: 'medium', footprint: 1 },
+  { tx: 2, ty: 1, type: 'medium', footprint: 1 },
+  { tx: 1, ty: 0, type: 'medium', footprint: 1 },
+  { tx: 0, ty: 17, type: 'medium', footprint: 1 },
+  { tx: 15, ty: 13, type: 'medium', footprint: 1 },
+  { tx: 9, ty: 16, type: 'medium', footprint: 1 },
+  { tx: 14, ty: 12, type: 'large', footprint: 1 },
+  { tx: 15, ty: 3, type: 'large', footprint: 1 },
+  { tx: 13, ty: 37, type: 'large', footprint: 1 },
+  { tx: 3, ty: 24, type: 'large', footprint: 1 },
+  { tx: 23, ty: 22, type: 'infinite', footprint: 3 },
+  { tx: 34, ty: 20, type: 'large', footprint: 1 },
+  { tx: 33, ty: 25, type: 'large', footprint: 1 },
+  { tx: 31, ty: 28, type: 'large', footprint: 1 },
+  { tx: 19, ty: 29, type: 'large', footprint: 1 },
+  { tx: 12, ty: 22, type: 'medium', footprint: 1 },
+  { tx: 30, ty: 14, type: 'medium', footprint: 1 },
+  { tx: 18, ty: 33, type: 'medium', footprint: 1 },
+  { tx: 36, ty: 19, type: 'medium', footprint: 1 },
+  { tx: 27, ty: 11, type: 'medium', footprint: 1 },
+];
+
+const OBSTACLES: MapData["obstacles"] = [
+  { tx: 45, ty: 25, type: 'rock-cluster', footprint: 1 },
+  { tx: 42, ty: 26, type: 'mountain-small', footprint: 1 },
+  { tx: 47, ty: 26, type: 'rock-cluster', footprint: 1 },
+  { tx: 45, ty: 27, type: 'rock-cluster', footprint: 1 },
+  { tx: 43, ty: 25, type: 'mountain-small', footprint: 1 },
+  { tx: 45, ty: 2, type: 'mountain-medium', footprint: 2 },
+  { tx: 47, ty: 4, type: 'mountain-small', footprint: 1 },
+  { tx: 44, ty: 5, type: 'mountain-small', footprint: 1 },
+  { tx: 44, ty: 1, type: 'mountain-small', footprint: 1 },
+  { tx: 2, ty: 35, type: 'mountain-small', footprint: 1 },
+  { tx: 4, ty: 35, type: 'rock-cluster', footprint: 1 },
+  { tx: 4, ty: 37, type: 'mountain-small', footprint: 1 },
+  { tx: 4, ty: 33, type: 'rock-cluster', footprint: 1 },
+  { tx: 4, ty: 34, type: 'rock-cluster', footprint: 1 },
+  { tx: 33, ty: 2, type: 'mountain-medium', footprint: 2 },
+  { tx: 36, ty: 4, type: 'mountain-small', footprint: 1 },
+  { tx: 32, ty: 5, type: 'mountain-small', footprint: 1 },
+  { tx: 34, ty: 5, type: 'mountain-small', footprint: 1 },
+  { tx: 33, ty: 46, type: 'mountain-small', footprint: 1 },
+  { tx: 32, ty: 45, type: 'mountain-small', footprint: 1 },
+  { tx: 32, ty: 44, type: 'mountain-small', footprint: 1 },
+  { tx: 35, ty: 43, type: 'mountain-small', footprint: 1 },
+  { tx: 38, ty: 45, type: 'mountain-medium', footprint: 2 },
+  { tx: 37, ty: 45, type: 'rock-cluster', footprint: 1 },
+  { tx: 38, ty: 42, type: 'mountain-small', footprint: 1 },
+  { tx: 40, ty: 45, type: 'rock-cluster', footprint: 1 },
+  { tx: 40, ty: 44, type: 'mountain-small', footprint: 1 },
+  { tx: 36, ty: 47, type: 'mountain-small', footprint: 1 },
+  { tx: 35, ty: 46, type: 'mountain-small', footprint: 1 },
+  { tx: 35, ty: 45, type: 'rock-cluster', footprint: 1 },
+  { tx: 33, ty: 45, type: 'mountain-small', footprint: 1 },
+  { tx: 43, ty: 11, type: 'rock-cluster', footprint: 1 },
+  { tx: 45, ty: 9, type: 'rock-cluster', footprint: 1 },
+  { tx: 42, ty: 8, type: 'rock-cluster', footprint: 1 },
+  { tx: 42, ty: 12, type: 'rock-cluster', footprint: 1 },
+  { tx: 40, ty: 10, type: 'rock-cluster', footprint: 1 },
+  { tx: 31, ty: 44, type: 'rock-cluster', footprint: 1 },
+  { tx: 29, ty: 46, type: 'rock-cluster', footprint: 1 },
+  { tx: 30, ty: 41, type: 'rock-cluster', footprint: 1 },
+  { tx: 33, ty: 42, type: 'rock-cluster', footprint: 1 },
+  { tx: 33, ty: 41, type: 'rock-cluster', footprint: 1 },
+  { tx: 47, ty: 3, type: 'rock-cluster', footprint: 1 },
+  { tx: 47, ty: 1, type: 'rock-cluster', footprint: 1 },
+  { tx: 44, ty: 0, type: 'rock-cluster', footprint: 1 },
+  { tx: 38, ty: 29, type: 'mountain-small', footprint: 1 },
+  { tx: 36, ty: 29, type: 'mountain-small', footprint: 1 },
+  { tx: 35, ty: 28, type: 'rock-cluster', footprint: 1 },
+  { tx: 37, ty: 30, type: 'mountain-small', footprint: 1 },
+  { tx: 38, ty: 27, type: 'mountain-small', footprint: 1 },
+  { tx: 43, ty: 40, type: 'mountain-small', footprint: 1 },
+  { tx: 40, ty: 42, type: 'mountain-small', footprint: 1 },
+  { tx: 42, ty: 41, type: 'rock-cluster', footprint: 1 },
+  { tx: 42, ty: 40, type: 'rock-cluster', footprint: 1 },
+];
+
+const DECOR: MapData["decor"] = [
+  { tx: 13, ty: 12, type: 'bush' },
+  { tx: 29, ty: 38, type: 'bush' },
+  { tx: 29, ty: 17, type: 'bush' },
+  { tx: 30, ty: 29, type: 'bush' },
+  { tx: 15, ty: 17, type: 'bush' },
+  { tx: 21, ty: 45, type: 'bush' },
+  { tx: 3, ty: 34, type: 'bush' },
+  { tx: 16, ty: 1, type: 'bush' },
+  { tx: 34, ty: 39, type: 'bush' },
+  { tx: 10, ty: 0, type: 'bush' },
+  { tx: 3, ty: 44, type: 'bush' },
+  { tx: 45, ty: 21, type: 'bush' },
+  { tx: 43, ty: 13, type: 'bush' },
+  { tx: 8, ty: 18, type: 'bush' },
+  { tx: 25, ty: 41, type: 'bush' },
+  { tx: 33, ty: 16, type: 'bush' },
+  { tx: 2, ty: 45, type: 'bush' },
+  { tx: 21, ty: 1, type: 'bush' },
+  { tx: 46, ty: 14, type: 'sand-bump' },
+  { tx: 1, ty: 33, type: 'sand-bump' },
+  { tx: 40, ty: 29, type: 'sand-bump' },
+  { tx: 45, ty: 39, type: 'sand-bump' },
+  { tx: 30, ty: 30, type: 'sand-bump' },
+  { tx: 19, ty: 1, type: 'sand-bump' },
+  { tx: 40, ty: 20, type: 'sand-bump' },
+  { tx: 34, ty: 4, type: 'sand-bump' },
+  { tx: 29, ty: 12, type: 'sand-bump' },
+  { tx: 7, ty: 28, type: 'sand-bump' },
+  { tx: 10, ty: 25, type: 'sand-bump' },
+  { tx: 37, ty: 18, type: 'sand-bump' },
+  { tx: 6, ty: 47, type: 'sand-bump' },
+  { tx: 35, ty: 35, type: 'sand-bump' },
+  { tx: 31, ty: 19, type: 'sand-bump' },
+  { tx: 4, ty: 26, type: 'sand-bump' },
+  { tx: 3, ty: 22, type: 'sand-bump' },
+  { tx: 39, ty: 31, type: 'sand-bump' },
+  { tx: 40, ty: 35, type: 'sand-bump' },
+  { tx: 44, ty: 36, type: 'sand-bump' },
+  { tx: 3, ty: 21, type: 'sand-bump' },
+  { tx: 20, ty: 10, type: 'sand-bump' },
+  { tx: 46, ty: 8, type: 'bush' },
+  { tx: 24, ty: 44, type: 'bush' },
+  { tx: 4, ty: 14, type: 'bush' },
+  { tx: 46, ty: 22, type: 'bush' },
+  { tx: 5, ty: 22, type: 'bush' },
+  { tx: 19, ty: 4, type: 'bush' },
+  { tx: 42, ty: 7, type: 'sand-bump' },
+  { tx: 46, ty: 9, type: 'sand-bump' },
+  { tx: 45, ty: 45, type: 'sand-bump' },
+  { tx: 1, ty: 24, type: 'sand-bump' },
+  { tx: 28, ty: 2, type: 'sand-bump' },
+  { tx: 20, ty: 2, type: 'sand-bump' },
+  { tx: 3, ty: 17, type: 'sand-bump' },
+  { tx: 1, ty: 43, type: 'sand-bump' },
+];
+
+const HQ: MapData["hq"] = {
+  "tx": 4,
+  "ty": 4,
+  "faction": "cyan"
+};
+
+const BUILDERS: MapData["builders"] = [
+  {
+    "tx": 3,
+    "ty": 3,
+    "busy": false,
+    "phase": "idle",
+    "path": [],
+    "pathIndex": 0,
+    "ftx": 3.5,
+    "fty": 3.5,
+    "targetTx": 3,
+    "targetTy": 3,
+    "assignedSiteId": -1
   }
-  return map;
-}
-
-// ─── Entity definitions ─────────────────────────────────────────────
-
-function createEntities(): Entity[] {
-  const entities: Entity[] = [];
-  let nextId = 1;
-  const id = () => `e${nextId++}`;
-
-  // ── Player start (upper-left area) ──
-  entities.push({ id: id(), kind: 'hq', tx: 4, ty: 4, faction: 'cyan' });
-  entities.push({ id: id(), kind: 'builder', tx: 3, ty: 3, faction: 'cyan' });
-  entities.push({ id: id(), kind: 'harvester', tx: 5, ty: 3, faction: 'cyan' });
-
-  // ── Start resource cluster near HQ ──
-  entities.push({ id: id(), kind: 'resource', tx: 2, ty: 2, resourceType: 'large' });
-  entities.push({ id: id(), kind: 'resource', tx: 3, ty: 1, resourceType: 'medium' });
-  entities.push({ id: id(), kind: 'resource', tx: 1, ty: 3, resourceType: 'small' });
-  entities.push({ id: id(), kind: 'resource', tx: 6, ty: 2, resourceType: 'medium' });
-  entities.push({ id: id(), kind: 'resource', tx: 7, ty: 5, resourceType: 'small' });
-  entities.push({ id: id(), kind: 'resource', tx: 2, ty: 6, resourceType: 'small' });
-
-  // ── Central infinite crystal deposit near (23, 22) ──
-  entities.push({ id: id(), kind: 'resource', tx: 23, ty: 22, resourceType: 'infinite' });
-  entities.push({ id: id(), kind: 'resource', tx: 22, ty: 21, resourceType: 'infinite' });
-  entities.push({ id: id(), kind: 'resource', tx: 24, ty: 23, resourceType: 'infinite' });
-  entities.push({ id: id(), kind: 'resource', tx: 21, ty: 23, resourceType: 'large' });
-  entities.push({ id: id(), kind: 'resource', tx: 25, ty: 21, resourceType: 'large' });
-  entities.push({ id: id(), kind: 'resource', tx: 23, ty: 24, resourceType: 'medium' });
-  entities.push({ id: id(), kind: 'resource', tx: 22, ty: 23, resourceType: 'medium' });
-
-  // ── Resource cluster — upper-right area ──
-  entities.push({ id: id(), kind: 'resource', tx: 40, ty: 5, resourceType: 'large' });
-  entities.push({ id: id(), kind: 'resource', tx: 42, ty: 4, resourceType: 'medium' });
-  entities.push({ id: id(), kind: 'resource', tx: 38, ty: 7, resourceType: 'small' });
-
-  // ── Resource cluster — lower-left area ──
-  entities.push({ id: id(), kind: 'resource', tx: 5, ty: 40, resourceType: 'large' });
-  entities.push({ id: id(), kind: 'resource', tx: 7, ty: 42, resourceType: 'medium' });
-  entities.push({ id: id(), kind: 'resource', tx: 3, ty: 38, resourceType: 'small' });
-
-  // ── Resource cluster — lower-right area ──
-  entities.push({ id: id(), kind: 'resource', tx: 40, ty: 40, resourceType: 'large' });
-  entities.push({ id: id(), kind: 'resource', tx: 42, ty: 42, resourceType: 'medium' });
-  entities.push({ id: id(), kind: 'resource', tx: 38, ty: 43, resourceType: 'small' });
-
-  // ── Scattered resources across the map ──
-  entities.push({ id: id(), kind: 'resource', tx: 15, ty: 12, resourceType: 'medium' });
-  entities.push({ id: id(), kind: 'resource', tx: 30, ty: 10, resourceType: 'small' });
-  entities.push({ id: id(), kind: 'resource', tx: 12, ty: 30, resourceType: 'small' });
-  entities.push({ id: id(), kind: 'resource', tx: 35, ty: 35, resourceType: 'medium' });
-  entities.push({ id: id(), kind: 'resource', tx: 18, ty: 38, resourceType: 'large' });
-  entities.push({ id: id(), kind: 'resource', tx: 33, ty: 15, resourceType: 'large' });
-
-  return entities;
-}
-
-// ─── Map definition ─────────────────────────────────────────────────
+];
 
 export const customMap1: MapData = {
-  id: 'custom-map-1',
-  name: 'Карта 1',
-  createdAt: '2026-05-24T00:00:00Z',
-  updatedAt: '2026-05-24T00:00:00Z',
   width: 48,
   height: 48,
-  terrain: generateTerrain(),
-  entities: createEntities(),
-  playerFaction: 'cyan',
+  terrain: TERRAIN,
+  hq: HQ,
+  resources: RESOURCES,
+  obstacles: OBSTACLES,
+  decor: DECOR,
+  buildings: [],
+  builders: BUILDERS,
+  constructionSites: [],
 };

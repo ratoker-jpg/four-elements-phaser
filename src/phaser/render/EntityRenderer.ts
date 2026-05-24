@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS, DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
 import { tileToScreen, IsoPoint } from './isometric';
-import type { Entity, EntityKind, ResourceType } from '../../state/types';
+import type { RenderableEntity, EntityKind, ResourceType } from '../../state/types';
 
 /**
  * EntityRenderer — renders entities from GameState onto the scene.
@@ -11,8 +11,13 @@ import type { Entity, EntityKind, ResourceType } from '../../state/types';
  * - harvester → cyan harvester spritesheet (idle frame)
  * - builder → TODO: no approved builder asset in repo (logged warning)
  * - resource → mineral image based on resourceType
+ * - modular-combat → state-only, no visual asset (logged warning)
  *
- * PR2: All entity data comes from GameState. No hardcoded placements.
+ * Entities with stateOnly=true are skipped with a console warning.
+ *
+ * PR2 FIX: All entity data comes from the real saved map (donor mapgen seed=42).
+ * The render pipeline flattens the donor's separate arrays (hq, resources[],
+ * obstacles[], decor[], builders[]) into RenderableEntity[].
  */
 
 /** Scale for infinite resources — rendered as a large mineral at bigger scale. */
@@ -38,20 +43,33 @@ export class EntityRenderer {
   private scene: Phaser.Scene;
   private offset: IsoPoint;
   private entities: Phaser.GameObjects.GameObject[] = [];
+  private skippedCount: number = 0;
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
     this.offset = offset;
   }
 
-  /** Render all entities from the GameState entity list. */
-  renderEntities(entities: Entity[]): void {
+  /** Render all renderable entities from the GameState entity list. */
+  renderEntities(entities: RenderableEntity[]): void {
+    this.skippedCount = 0;
     for (const entity of entities) {
+      // Skip state-only entities (no visual asset exists)
+      if (entity.stateOnly) {
+        this.skippedCount++;
+        continue;
+      }
       this.renderEntity(entity);
+    }
+    if (this.skippedCount > 0) {
+      console.warn(
+        `[EntityRenderer] Skipped ${this.skippedCount} state-only entities ` +
+        `(obstacles, decor, modular combat — no visual assets yet).`,
+      );
     }
   }
 
-  private renderEntity(entity: Entity): void {
+  private renderEntity(entity: RenderableEntity): void {
     const screenPos = tileToScreen(entity.tx, entity.ty);
     const worldX = screenPos.x + this.offset.x;
     const worldY = screenPos.y + this.offset.y;
@@ -68,6 +86,12 @@ export class EntityRenderer {
         break;
       case 'resource':
         this.placeResource(worldX, worldY, entity.resourceType ?? 'small');
+        break;
+      case 'modular-combat':
+        // Should have been caught by stateOnly check, but handle defensively
+        console.warn(
+          `[EntityRenderer] TODO: No modular combat asset in repo — skipping at (${entity.tx}, ${entity.ty}).`,
+        );
         break;
     }
   }
@@ -101,7 +125,7 @@ export class EntityRenderer {
     this.entities.push(sprite);
   }
 
-  private placeBuilder(x: number, y: number, entity: Entity): void {
+  private placeBuilder(x: number, y: number, entity: RenderableEntity): void {
     // No approved builder asset exists in the new repo.
     // Decision: skip rendering with a TODO warning. Do NOT create placeholder rectangles.
     console.warn(
@@ -122,11 +146,19 @@ export class EntityRenderer {
     this.entities.push(img);
   }
 
-  /** Count how many entities of each kind exist. */
-  static countByKind(entities: Entity[]): Record<EntityKind, number> {
-    const counts: Record<EntityKind, number> = { hq: 0, builder: 0, harvester: 0, resource: 0 };
+  /** Count how many visible entities of each kind exist (excludes stateOnly). */
+  static countByKind(entities: RenderableEntity[]): Record<EntityKind, number> {
+    const counts: Record<EntityKind, number> = {
+      hq: 0,
+      builder: 0,
+      harvester: 0,
+      resource: 0,
+      'modular-combat': 0,
+    };
     for (const entity of entities) {
-      counts[entity.kind]++;
+      if (!entity.stateOnly) {
+        counts[entity.kind]++;
+      }
     }
     return counts;
   }

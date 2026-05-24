@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
 
 /**
- * BootScene — minimal init, verify WebGL, then hand off to PreloadScene.
+ * BootScene — minimal init, then hand off to PreloadScene.
  * No assets loaded here.
+ *
+ * WebGL enforcement is handled by Phaser.WEBGL in gameConfig.
+ * No runtime instanceof guard — we already had a production blank-screen
+ * issue caused by that style of check.
  */
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -10,15 +14,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    // Verify we are running on WebGL — no Canvas fallback allowed
-    const renderer = this.game.renderer;
-    if (!renderer || !(renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer)) {
-      console.error(
-        '[BootScene] STOP: WebGL renderer not active. Phaser.AUTO or Canvas fallback detected.',
-      );
-      return;
-    }
-    console.log('[BootScene] WebGL renderer confirmed. Boot complete.');
+    console.log('[BootScene] Boot complete. Starting PreloadScene.');
     this.scene.start('PreloadScene');
   }
 }
