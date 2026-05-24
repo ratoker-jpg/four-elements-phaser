@@ -3,7 +3,6 @@ import { ASSET_KEYS, DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
 import {
   getSmokyTurretKey,
   getWaspHullKey,
-  type ModularDirection,
 } from '../../assets/modularUnitAssets';
 import {
   TILE_H,
@@ -11,6 +10,7 @@ import {
   MODULAR_TANK_HULL_OFFSET,
   MODULAR_TANK_TURRET_OFFSET,
   tunerState,
+  type ModularTankDirection,
 } from '../../config/worldConfig';
 import { tileToScreen, IsoPoint } from './isometric';
 import type {
@@ -57,11 +57,10 @@ const RESOURCE_SCALE_MAP: Record<ResourceType, number> = {
 
 const MODULAR_TANK_DEBUG = false;
 const MODULAR_TANK_SCALE = 0.32;
-const MODULAR_TANK_DIRECTION: ModularDirection = 2;
 const MODULAR_TANK_HULL_ORIGIN = { x: 0.5, y: 0.75 };
 const MODULAR_TANK_TURRET_ORIGIN = { x: 0.5, y: 0.5 };
-// Hull & turret offsets are now imported from worldConfig as mutable runtime values.
-// Use MODULAR_TANK_HULL_OFFSET / MODULAR_TANK_TURRET_OFFSET for live tuning.
+// Direction is now per-entity (entity.dir ?? 2) + debug override via tunerState.modularTankDir.
+// Hull & turret offsets are imported from worldConfig as mutable runtime values.
 
 interface ModularTankDebugOverlay {
   graphics: Phaser.GameObjects.Graphics;
@@ -107,6 +106,12 @@ export class EntityRenderer {
 
   /** Modular unit anchor tile coordinates (PR5 tuner). */
   private modularTankAnchorTile: { tx: number; ty: number } | null = null;
+
+  /** Current facing direction for the modular tank (PR6). */
+  private modularTankDir: ModularTankDirection = 2;
+
+  /** Faction of the modular tank, stored for texture swaps (PR6). */
+  private modularTankFaction: Faction = 'cyan';
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
@@ -242,8 +247,9 @@ export class EntityRenderer {
 
   private placeModularCombat(x: number, y: number, entity: RenderableEntity): void {
     const faction: Faction = entity.faction ?? 'cyan';
-    const hullKey = getWaspHullKey(faction, MODULAR_TANK_DIRECTION);
-    const turretKey = getSmokyTurretKey(faction, MODULAR_TANK_DIRECTION);
+    const dir: ModularTankDirection = (entity.dir ?? 2) as ModularTankDirection;
+    const hullKey = getWaspHullKey(faction, dir);
+    const turretKey = getSmokyTurretKey(faction, dir);
     const tileAnchor = tileToScreen(entity.tx, entity.ty);
     const anchorWorldX = tileAnchor.x + this.offset.x;
     const anchorWorldY = tileAnchor.y + this.offset.y;
@@ -269,11 +275,14 @@ export class EntityRenderer {
     turret.setOrigin(MODULAR_TANK_TURRET_ORIGIN.x, MODULAR_TANK_TURRET_ORIGIN.y);
     turret.setDepth(baseDepth + 1);
 
-    // Store references for PR5 live tuner repositioning
+    // Store references for PR5/PR6 live tuner repositioning and direction swaps
     this.modularTankHull = hull;
     this.modularTankTurret = turret;
     this.modularTankAnchorWorld = { x: anchorWorldX, y: anchorWorldY };
     this.modularTankAnchorTile = { tx: entity.tx, ty: entity.ty };
+    this.modularTankDir = dir;
+    this.modularTankFaction = faction;
+    tunerState.modularTankDir = dir;
 
     this.staticObjects.push(hull, turret);
     this.createModularTankDebugOverlay({
@@ -429,7 +438,23 @@ export class EntityRenderer {
     return this.modularTankDebugVisible;
   }
 
-  // ─── PR5: Modular tank visual tuner ─────────────────────────────
+  // ─── PR5/PR6: Modular tank visual tuner ──────────────────────────
+
+  /**
+   * Change the facing direction of the modular tank.
+   * Swaps hull and turret textures to the new direction, then rebuilds overlay.
+   * Called by GameScene on Q/E key press (only when debug overlay is ON).
+   */
+  setModularTankDirection(dir: ModularTankDirection): void {
+    if (!this.modularTankHull || !this.modularTankTurret) return;
+    this.modularTankDir = dir;
+    tunerState.modularTankDir = dir;
+
+    this.modularTankHull.setTexture(getWaspHullKey(this.modularTankFaction, dir));
+    this.modularTankTurret.setTexture(getSmokyTurretKey(this.modularTankFaction, dir));
+
+    this.updateModularTankVisuals();
+  }
 
   /**
    * Reposition hull and turret sprites from current runtime offsets,
@@ -468,10 +493,10 @@ export class EntityRenderer {
     return [
       `tx/ty: ${data.tx}, ${data.ty}`,
       `world: ${Math.round(data.hullWorldX)}, ${Math.round(data.hullWorldY)}`,
-      `scale: ${MODULAR_TANK_SCALE.toFixed(2)} dir: ${MODULAR_TANK_DIRECTION}`,
+      `scale: ${MODULAR_TANK_SCALE.toFixed(2)} dir: ${this.modularTankDir}`,
       `${hullTag}hull offset: ${MODULAR_TANK_HULL_OFFSET.x}, ${MODULAR_TANK_HULL_OFFSET.y}`,
       `${turretTag}turret offset: ${MODULAR_TANK_TURRET_OFFSET.x}, ${MODULAR_TANK_TURRET_OFFSET.y}`,
-      `H= hull  J= turret  C= copy`,
+      `H= hull  J= turret  C= copy  Q/E= dir`,
       `arrow= +/-1px  shift+arrow= +/-5px`,
     ].join('\n');
   }
