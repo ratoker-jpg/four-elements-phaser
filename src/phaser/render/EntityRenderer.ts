@@ -48,9 +48,17 @@ const RESOURCE_SCALE_MAP: Record<ResourceType, number> = {
   infinite: INFINITE_MINERAL_SCALE,
 };
 
+const MODULAR_TANK_DEBUG = true;
 const MODULAR_TANK_SCALE = 0.32;
 const MODULAR_TANK_DIRECTION: ModularDirection = 2;
+const MODULAR_TANK_HULL_ORIGIN = { x: 0.5, y: 0.75 };
+const MODULAR_TANK_TURRET_ORIGIN = { x: 0.5, y: 0.5 };
 const MODULAR_TANK_TURRET_OFFSET = { x: 0, y: -28 };
+
+interface ModularTankDebugOverlay {
+  graphics: Phaser.GameObjects.Graphics;
+  text: Phaser.GameObjects.Text;
+}
 
 export class EntityRenderer {
   private scene: Phaser.Scene;
@@ -73,6 +81,12 @@ export class EntityRenderer {
 
   /** Optional one-time render confirmation for the modular combat MVP. */
   private modularCombatLogged: boolean = false;
+
+  /** Debug overlays for modular combat anchor/socket tuning. */
+  private modularTankDebugOverlays: ModularTankDebugOverlay[] = [];
+
+  /** Current visibility state for the modular-combat debug overlay. */
+  private modularTankDebugVisible: boolean = MODULAR_TANK_DEBUG;
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
@@ -210,30 +224,105 @@ export class EntityRenderer {
     const faction: Faction = entity.faction ?? 'cyan';
     const hullKey = getWaspHullKey(faction, MODULAR_TANK_DIRECTION);
     const turretKey = getSmokyTurretKey(faction, MODULAR_TANK_DIRECTION);
+    const tileAnchor = tileToScreen(entity.tx, entity.ty);
+    const anchorWorldX = tileAnchor.x + this.offset.x;
+    const anchorWorldY = tileAnchor.y + this.offset.y;
 
     const baseDepth = 100 + y;
     const hull = this.scene.add.image(x, y, hullKey);
     hull.setScale(MODULAR_TANK_SCALE);
-    hull.setOrigin(0.5, 0.75);
+    hull.setOrigin(MODULAR_TANK_HULL_ORIGIN.x, MODULAR_TANK_HULL_ORIGIN.y);
     hull.setDepth(baseDepth);
 
     // Socket alignment is intentionally approximate for the visual MVP.
     // We will refine the turret offset after in-game approval.
+    const turretWorldX = x + MODULAR_TANK_TURRET_OFFSET.x;
+    const turretWorldY = y + MODULAR_TANK_TURRET_OFFSET.y;
     const turret = this.scene.add.image(
-      x + MODULAR_TANK_TURRET_OFFSET.x,
-      y + MODULAR_TANK_TURRET_OFFSET.y,
+      turretWorldX,
+      turretWorldY,
       turretKey,
     );
     turret.setScale(MODULAR_TANK_SCALE);
-    turret.setOrigin(0.5, 0.5);
+    turret.setOrigin(MODULAR_TANK_TURRET_ORIGIN.x, MODULAR_TANK_TURRET_ORIGIN.y);
     turret.setDepth(baseDepth + 1);
 
     this.staticObjects.push(hull, turret);
+    this.createModularTankDebugOverlay({
+      tx: entity.tx,
+      ty: entity.ty,
+      anchorWorldX,
+      anchorWorldY,
+      hullWorldX: x,
+      hullWorldY: y,
+      turretWorldX,
+      turretWorldY,
+      baseDepth,
+    });
 
     if (!this.modularCombatLogged) {
       console.log('[EntityRenderer] Rendered modular combat: wasp_m0 + smoky_m0');
       this.modularCombatLogged = true;
     }
+  }
+
+  private createModularTankDebugOverlay(data: {
+    tx: number;
+    ty: number;
+    anchorWorldX: number;
+    anchorWorldY: number;
+    hullWorldX: number;
+    hullWorldY: number;
+    turretWorldX: number;
+    turretWorldY: number;
+    baseDepth: number;
+  }): void {
+    const graphics = this.scene.add.graphics();
+    graphics.setDepth(data.baseDepth + 10);
+    graphics.setVisible(this.modularTankDebugVisible);
+
+    // Logical tile anchor.
+    graphics.lineStyle(1, 0xffd54f, 0.95);
+    graphics.strokeCircle(data.anchorWorldX, data.anchorWorldY, 6);
+    graphics.lineBetween(data.anchorWorldX - 8, data.anchorWorldY, data.anchorWorldX + 8, data.anchorWorldY);
+    graphics.lineBetween(data.anchorWorldX, data.anchorWorldY - 8, data.anchorWorldX, data.anchorWorldY + 8);
+
+    // Hull sprite origin marker.
+    graphics.lineStyle(1, 0x26c6da, 0.95);
+    graphics.strokeCircle(data.hullWorldX, data.hullWorldY, 5);
+    graphics.lineBetween(data.hullWorldX - 7, data.hullWorldY - 7, data.hullWorldX + 7, data.hullWorldY + 7);
+    graphics.lineBetween(data.hullWorldX - 7, data.hullWorldY + 7, data.hullWorldX + 7, data.hullWorldY - 7);
+
+    // Turret sprite origin marker + line from hull origin to turret origin.
+    graphics.lineStyle(2, 0xffffff, 0.9);
+    graphics.lineBetween(data.hullWorldX, data.hullWorldY, data.turretWorldX, data.turretWorldY);
+    graphics.lineStyle(1, 0xff6b6b, 0.95);
+    graphics.strokeCircle(data.turretWorldX, data.turretWorldY, 5);
+    graphics.lineBetween(data.turretWorldX - 7, data.turretWorldY, data.turretWorldX + 7, data.turretWorldY);
+    graphics.lineBetween(data.turretWorldX, data.turretWorldY - 7, data.turretWorldX, data.turretWorldY + 7);
+
+    const debugText = this.scene.add.text(
+      data.hullWorldX + 18,
+      data.hullWorldY - 56,
+      [
+        `tx/ty: ${data.tx}, ${data.ty}`,
+        `world: ${Math.round(data.hullWorldX)}, ${Math.round(data.hullWorldY)}`,
+        `scale: ${MODULAR_TANK_SCALE.toFixed(2)} dir: ${MODULAR_TANK_DIRECTION}`,
+        `turret offset: ${MODULAR_TANK_TURRET_OFFSET.x}, ${MODULAR_TANK_TURRET_OFFSET.y}`,
+      ].join('\n'),
+      {
+        fontFamily: 'monospace',
+        fontSize: '10px',
+        color: '#f4f7fb',
+        backgroundColor: 'rgba(16, 18, 28, 0.76)',
+        padding: { x: 4, y: 3 },
+      },
+    );
+    debugText.setDepth(data.baseDepth + 11);
+    debugText.setVisible(this.modularTankDebugVisible);
+
+    this.staticObjects.push(graphics, debugText);
+    this.modularTankDebugOverlays.push({ graphics, text: debugText });
   }
 
   // ─── Dynamic entity factories ──────────────────────────────────
@@ -290,11 +379,21 @@ export class EntityRenderer {
     return counts;
   }
 
+  toggleModularTankDebug(): boolean {
+    this.modularTankDebugVisible = !this.modularTankDebugVisible;
+    for (const overlay of this.modularTankDebugOverlays) {
+      overlay.graphics.setVisible(this.modularTankDebugVisible);
+      overlay.text.setVisible(this.modularTankDebugVisible);
+    }
+    return this.modularTankDebugVisible;
+  }
+
   destroy(): void {
     for (const obj of this.staticObjects) {
       obj.destroy();
     }
     this.staticObjects = [];
+    this.modularTankDebugOverlays = [];
 
     for (const sprite of this.harvesterSprites.values()) {
       sprite.destroy();

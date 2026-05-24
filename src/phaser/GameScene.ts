@@ -88,6 +88,12 @@ export class GameScene extends Phaser.Scene {
     this.hqWorldY = hqScreen.y + offset.y;
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
+    this.input.keyboard?.on('keydown-T', () => {
+      const visible = this.entityRenderer?.toggleModularTankDebug();
+      if (visible !== undefined) {
+        console.log(`[GameScene] Modular tank debug overlay: ${visible ? 'ON' : 'OFF'}`);
+      }
+    });
 
     // HUD references
     this.hudCoords = document.getElementById('hud-coords');
