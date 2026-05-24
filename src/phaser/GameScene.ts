@@ -8,8 +8,8 @@ import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
 import type { GameState, HarvesterPhase } from '../state/types';
 import {
-  MODULAR_TANK_HULL_OFFSET,
-  MODULAR_TANK_TURRET_OFFSET,
+  MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
+  MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR,
   tunerState,
   type ModularTankDirection,
 } from '../config/worldConfig';
@@ -20,6 +20,9 @@ import {
  * PR3: Drives the harvester civil loop via updateGameState().
  * GameScene calls state update + renderer sync + HUD update only.
  * No game logic lives here.
+ *
+ * PR7: Q/E cycles bodyDir, Z/X cycles turretDir.
+ * Arrow tuning targets current bodyDir entry in the offset tables.
  */
 
 /** Phase labels for HUD display. */
@@ -94,7 +97,7 @@ export class GameScene extends Phaser.Scene {
     this.hqWorldY = hqScreen.y + offset.y;
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
-    // ── Debug overlay toggle (T) + PR5 tuner controls ────────────
+    // ── Debug overlay toggle (T) + tuner controls ────────────
     this.input.keyboard?.on('keydown-T', () => {
       const visible = this.entityRenderer?.toggleModularTankDebug();
       if (visible !== undefined) {
@@ -118,14 +121,13 @@ export class GameScene extends Phaser.Scene {
       console.log('[Tuner] Selected layer: turret');
     });
 
-    // C — copy-ready constants to console (only when overlay is ON)
+    // C — print mutable runtime offset tables to console (only when overlay is ON)
     this.input.keyboard?.on('keydown-C', () => {
       if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      console.log(`MODULAR_TANK_HULL_OFFSET = { x: ${MODULAR_TANK_HULL_OFFSET.x}, y: ${MODULAR_TANK_HULL_OFFSET.y} };`);
-      console.log(`MODULAR_TANK_TURRET_OFFSET = { x: ${MODULAR_TANK_TURRET_OFFSET.x}, y: ${MODULAR_TANK_TURRET_OFFSET.y} };`);
+      this.entityRenderer?.printOffsetTables();
     });
 
-    // Arrow keys — adjust selected offset (only when overlay is ON)
+    // Arrow keys — adjust selected offset for current bodyDir entry (only when overlay is ON)
     const ARROW_STEP = 1;
     const ARROW_SHIFT_STEP = 5;
     const arrowHandler = (event: KeyboardEvent) => {
@@ -133,9 +135,11 @@ export class GameScene extends Phaser.Scene {
       event.preventDefault();
 
       const step = event.shiftKey ? ARROW_SHIFT_STEP : ARROW_STEP;
+      // Arrow tuning targets the current bodyDir entry in the offset tables
+      const bodyDir = tunerState.bodyDir;
       const offset = tunerState.selectedLayer === 'hull'
-        ? MODULAR_TANK_HULL_OFFSET
-        : MODULAR_TANK_TURRET_OFFSET;
+        ? MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir]
+        : MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir];
 
       switch (event.code) {
         case 'ArrowLeft':  offset.x -= step; break;
@@ -150,22 +154,36 @@ export class GameScene extends Phaser.Scene {
 
     this.input.keyboard?.on('keydown', arrowHandler as (event: KeyboardEvent) => void);
 
-    // Q — previous direction (only when overlay is ON, PR6)
+    // Q — previous body direction (only when overlay is ON)
     this.input.keyboard?.on('keydown-Q', () => {
       if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      const next = ((tunerState.modularTankDir - 1) + 8) % 8 as ModularTankDirection;
-      tunerState.modularTankDir = next;
-      this.entityRenderer.setModularTankDirection(next);
-      console.log(`[Tuner] Direction: ${next}`);
+      const next = ((tunerState.bodyDir - 1) + 8) % 8 as ModularTankDirection;
+      this.entityRenderer!.setModularTankBodyDir(next);
+      console.log(`[Tuner] bodyDir: ${next}`);
     });
 
-    // E — next direction (only when overlay is ON, PR6)
+    // E — next body direction (only when overlay is ON)
     this.input.keyboard?.on('keydown-E', () => {
       if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      const next = ((tunerState.modularTankDir + 1) % 8) as ModularTankDirection;
-      tunerState.modularTankDir = next;
-      this.entityRenderer.setModularTankDirection(next);
-      console.log(`[Tuner] Direction: ${next}`);
+      const next = ((tunerState.bodyDir + 1) % 8) as ModularTankDirection;
+      this.entityRenderer!.setModularTankBodyDir(next);
+      console.log(`[Tuner] bodyDir: ${next}`);
+    });
+
+    // Z — previous turret direction (only when overlay is ON)
+    this.input.keyboard?.on('keydown-Z', () => {
+      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
+      const next = ((tunerState.turretDir - 1) + 8) % 8 as ModularTankDirection;
+      this.entityRenderer!.setModularTankTurretDir(next);
+      console.log(`[Tuner] turretDir: ${next}`);
+    });
+
+    // X — next turret direction (only when overlay is ON)
+    this.input.keyboard?.on('keydown-X', () => {
+      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
+      const next = ((tunerState.turretDir + 1) % 8) as ModularTankDirection;
+      this.entityRenderer!.setModularTankTurretDir(next);
+      console.log(`[Tuner] turretDir: ${next}`);
     });
 
     // HUD references
@@ -188,7 +206,7 @@ export class GameScene extends Phaser.Scene {
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
-      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | Q/E: dir`,
+      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | Q/E: body dir | Z/X: turret dir`,
     );
   }
 
