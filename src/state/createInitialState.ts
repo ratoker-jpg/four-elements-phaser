@@ -27,7 +27,7 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
 
   // Add extra starter units not present in the original saved map
   const extraHarvesters = createExtraHarvesters(mapData);
-  const extraModularCombat = createExtraModularCombat(mapData);
+  const extraModularCombat = createExtraModularCombat(mapData, extraHarvesters);
 
   // Add extra harvesters to the entity list
   for (const h of extraHarvesters) {
@@ -40,7 +40,7 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
     });
   }
 
-  // Add modular combat unit (state-only, no visual asset yet)
+  // Add the starter modular combat unit for the visual MVP.
   for (const mc of extraModularCombat) {
     entities.push({
       id: `extra-modular-${mc.tx}-${mc.ty}`,
@@ -48,7 +48,6 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
       tx: mc.tx,
       ty: mc.ty,
       faction: mc.faction,
-      stateOnly: true,
     });
   }
 
@@ -200,27 +199,11 @@ function createExtraHarvesters(mapData: MapData): Array<{ tx: number; ty: number
     { tx: hqCx - 1, ty: hqCy + 2 },
   ];
 
-  const occupied = new Set<string>();
-  for (let dy = 0; dy < 3; dy++) {
-    for (let dx = 0; dx < 3; dx++) {
-      occupied.add(`${mapData.hq.tx + dx},${mapData.hq.ty + dy}`);
-    }
-  }
-  for (const b of mapData.builders) {
-    occupied.add(`${b.tx},${b.ty}`);
-  }
-  for (const r of mapData.resources) {
-    for (let dy = 0; dy < r.footprint; dy++) {
-      for (let dx = 0; dx < r.footprint; dx++) {
-        occupied.add(`${r.tx + dx},${r.ty + dy}`);
-      }
-    }
-  }
+  const occupied = buildStarterOccupiedSet(mapData);
 
   for (const c of candidates) {
     if (positions.length >= 2) break;
-    if (c.tx < 0 || c.ty < 0 || c.tx >= mapData.width || c.ty >= mapData.height) continue;
-    if (!occupied.has(`${c.tx},${c.ty}`)) {
+    if (isFreeStarterTile(mapData, occupied, c.tx, c.ty)) {
       positions.push(c);
       occupied.add(`${c.tx},${c.ty}`);
     }
@@ -229,7 +212,10 @@ function createExtraHarvesters(mapData: MapData): Array<{ tx: number; ty: number
   return positions.map(p => ({ ...p, faction }));
 }
 
-function createExtraModularCombat(mapData: MapData): Array<{
+function createExtraModularCombat(
+  mapData: MapData,
+  extraHarvesters: Array<{ tx: number; ty: number; faction: Faction }>,
+): Array<{
   tx: number;
   ty: number;
   chassis: 'wasp';
@@ -238,12 +224,76 @@ function createExtraModularCombat(mapData: MapData): Array<{
   faction: Faction;
 }> {
   const faction = mapData.hq.faction as Faction;
-  return [{
-    tx: mapData.hq.tx + 3,
-    ty: mapData.hq.ty + 1,
-    chassis: 'wasp',
-    weapon: 'smoky',
-    mod: 'm0',
-    faction,
-  }];
+  const occupied = buildStarterOccupiedSet(mapData, extraHarvesters);
+  const hq = mapData.hq;
+
+  const candidates = [
+    { tx: hq.tx + 3, ty: hq.ty + 1 },
+    { tx: hq.tx + 1, ty: hq.ty + 3 },
+    { tx: hq.tx - 1, ty: hq.ty + 1 },
+    { tx: hq.tx + 1, ty: hq.ty - 1 },
+    { tx: hq.tx + 3, ty: hq.ty + 2 },
+    { tx: hq.tx + 2, ty: hq.ty + 3 },
+    { tx: hq.tx, ty: hq.ty + 3 },
+    { tx: hq.tx - 1, ty: hq.ty + 2 },
+    { tx: hq.tx - 1, ty: hq.ty },
+    { tx: hq.tx, ty: hq.ty - 1 },
+    { tx: hq.tx + 2, ty: hq.ty - 1 },
+    { tx: hq.tx + 3, ty: hq.ty },
+  ];
+
+  for (const candidate of candidates) {
+    if (!isFreeStarterTile(mapData, occupied, candidate.tx, candidate.ty)) continue;
+    return [{
+      tx: candidate.tx,
+      ty: candidate.ty,
+      chassis: 'wasp',
+      weapon: 'smoky',
+      mod: 'm0',
+      faction,
+    }];
+  }
+
+  return [];
+}
+
+function buildStarterOccupiedSet(
+  mapData: MapData,
+  extraHarvesters: Array<{ tx: number; ty: number }> = [],
+): Set<string> {
+  const occupied = new Set<string>();
+
+  for (let dy = 0; dy < 3; dy++) {
+    for (let dx = 0; dx < 3; dx++) {
+      occupied.add(`${mapData.hq.tx + dx},${mapData.hq.ty + dy}`);
+    }
+  }
+
+  for (const builder of mapData.builders) {
+    occupied.add(`${builder.tx},${builder.ty}`);
+  }
+
+  for (const resource of mapData.resources) {
+    for (let dy = 0; dy < resource.footprint; dy++) {
+      for (let dx = 0; dx < resource.footprint; dx++) {
+        occupied.add(`${resource.tx + dx},${resource.ty + dy}`);
+      }
+    }
+  }
+
+  for (const harvester of extraHarvesters) {
+    occupied.add(`${harvester.tx},${harvester.ty}`);
+  }
+
+  return occupied;
+}
+
+function isFreeStarterTile(
+  mapData: MapData,
+  occupied: Set<string>,
+  tx: number,
+  ty: number,
+): boolean {
+  if (tx < 0 || ty < 0 || tx >= mapData.width || ty >= mapData.height) return false;
+  return !occupied.has(`${tx},${ty}`);
 }

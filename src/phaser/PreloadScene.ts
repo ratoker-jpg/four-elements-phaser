@@ -4,6 +4,7 @@ import {
   ASSET_PATHS,
   SPRITESHEET_8X8_256,
 } from '../assets/assetManifest';
+import { loadModularUnitAssets } from '../assets/modularUnitAssets';
 
 /**
  * PreloadScene — load all runtime-approved assets, then start GameScene.
@@ -51,6 +52,9 @@ export class PreloadScene extends Phaser.Scene {
       ASSET_KEYS.MINERAL_LARGE,
       ASSET_PATHS[ASSET_KEYS.MINERAL_LARGE],
     );
+
+    // --- Modular combat images (separate 256x256 direction PNGs) ---
+    loadModularUnitAssets(this);
 
     // Loading progress
     this.load.on('progress', (value: number) => {
