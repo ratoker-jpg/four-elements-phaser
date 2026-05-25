@@ -7,7 +7,7 @@
  *
  * Asset key convention:
  *   hq_{faction}                — e.g. hq_green, hq_yellow
- *   building_{faction}_{type}   — e.g. building_cyan_separator
+ *   building_{faction}_{suffix} — e.g. building_cyan_separator, building_cyan_raw_storage
  *
  * Note: hq_cyan is already registered in assetManifest.ts as
  * HQ_CYAN. This module loads only the non-cyan HQ PNGs to avoid
@@ -37,6 +37,19 @@ export const BUILDING_ASSET_TYPES = [
 export type BuildingAssetType = (typeof BUILDING_ASSET_TYPES)[number];
 
 /**
+ * Map hyphenated BuildingAssetType to underscore-suffix for texture keys.
+ * Keys use underscores to match filename convention (no hyphens).
+ */
+const BUILDING_KEY_SUFFIXES: Record<BuildingAssetType, string> = {
+  'separator': 'separator',
+  'raw-storage': 'raw_storage',
+  'matter-storage': 'matter_storage',
+  'power-plant': 'power_plant',
+  'command-relay': 'command_relay',
+  'units-factory': 'units_factory',
+};
+
+/**
  * Map hyphenated building type to the actual PNG filename on disk.
  * Most filenames use underscores; the type system uses hyphens.
  */
@@ -53,11 +66,13 @@ const BUILDING_FILE_NAMES: Record<BuildingAssetType, string> = {
 
 /**
  * Return the Phaser texture key for a building asset.
+ * Keys use underscore suffixes matching filename convention.
  *
- * Examples: 'building_cyan_separator', 'building_green_raw-storage'
+ * Examples: 'building_cyan_separator', 'building_cyan_raw_storage',
+ *           'building_green_power_plant', 'building_purple_units_factory'
  */
 export function getBuildingAssetKey(faction: Faction, buildingType: BuildingAssetType): string {
-  return `building_${faction}_${buildingType}`;
+  return `building_${faction}_${BUILDING_KEY_SUFFIXES[buildingType]}`;
 }
 
 /**
