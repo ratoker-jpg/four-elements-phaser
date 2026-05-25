@@ -74,6 +74,7 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
     resourceNodes,
     rawMinerals: 0,
     hqPosition,
+    nextConstructionId: 0,
   };
 }
 

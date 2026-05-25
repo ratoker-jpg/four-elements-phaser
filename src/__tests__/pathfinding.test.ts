@@ -53,6 +53,7 @@ function makeTestState(overrides?: {
     resourceNodes: [],
     rawMinerals: 0,
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
+    nextConstructionId: 0,
   };
 }
 
