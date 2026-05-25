@@ -12,9 +12,7 @@ Additional art-pipeline reference: `studioigor/ashen-crown`
 
 This roadmap describes what the project should become.
 
-It is intentionally not an implementation plan yet.
-
-Before implementation continues, this roadmap must be reviewed by a large architecture/system audit that explains how to implement these systems in Phaser 4 and in the current project architecture.
+This roadmap was reviewed by ROADMAP_SYSTEM_AUDIT 01D. Future major roadmap changes must update or rerun the relevant audit/design.
 
 Core rule:
 
@@ -671,11 +669,15 @@ Do not start enemy AI before civil/combat foundations are ready.
 
 ---
 
-## 3. Required roadmap audit
+## 3. Roadmap audit status
 
-Before implementation continues, run a large system audit using this roadmap.
+The system audit has been completed in `docs/ROADMAP_SYSTEM_AUDIT.md`.
 
-The audit must answer:
+Implementation should follow the audit's canonical PR sequence.
+
+Future major roadmap changes require audit/design update before implementation.
+
+The audit answered:
 
 - how each ARCH can be implemented in Phaser 4;
 - which Phaser APIs/systems are useful;
