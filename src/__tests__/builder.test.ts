@@ -269,6 +269,60 @@ describe('builder movement', () => {
     expect(builder.ftx).toBeGreaterThan(startFtx);
   });
 
+  it('builder does not snap early from ~0.2 tiles away', () => {
+    const state = makeTestState({
+      mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
+      rawMinerals: 500,
+      builders: [{ tx: 9, ty: 10 }], // Adjacent to site at (10,10)
+    });
+    placeConstructionSite(state, 'separator', 10, 10);
+    assignIdleBuilders(state);
+
+    const builder = state.mapData.builders[0];
+    // Builder should be immediately building since it's adjacent
+    expect(builder.phase).toBe('building');
+
+    // Now place builder 0.2 tiles away from a waypoint and verify it does NOT snap
+    // Set up a fresh scenario: builder far from site, moving toward it
+    const state2 = makeTestState({
+      mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
+      rawMinerals: 500,
+      builders: [{ tx: 8, ty: 10, ftx: 8, fty: 10 }],
+    });
+    placeConstructionSite(state2, 'separator', 10, 10);
+    assignIdleBuilders(state2);
+
+    const builder2 = state2.mapData.builders[0];
+    // Move builder most of the way toward its first waypoint, leaving ~0.2 gap
+    // First waypoint is typically (9, 10) since path goes tile-by-tile
+    const waypoint = builder2.path[0];
+    if (waypoint) {
+      // Place builder 0.2 tiles before the waypoint
+      const dx = waypoint.tx - builder2.ftx;
+      const dy = waypoint.ty - builder2.fty;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const offset = 0.2;
+      builder2.ftx = waypoint.tx - (dx / dist) * offset;
+      builder2.fty = waypoint.ty - (dy / dist) * offset;
+
+      const ftxBeforeSnap = builder2.ftx;
+      const ftyBeforeSnap = builder2.fty;
+
+      // Advance by a small dt — builder should move smoothly, NOT snap
+      updateBuilders(state2, 10);
+
+      // Builder should NOT have snapped to the waypoint integer position
+      // It should have moved only a small increment
+      const movedFtx = Math.abs(builder2.ftx - ftxBeforeSnap);
+      const movedFty = Math.abs(builder2.fty - ftyBeforeSnap);
+
+      // At speed 3 tiles/sec, 10ms = 0.03 tiles movement
+      // The move should be small (< 0.1 tiles), NOT a 0.2-tile snap
+      expect(movedFtx).toBeLessThan(0.1);
+      expect(movedFty).toBeLessThan(0.1);
+    }
+  });
+
   it('builder reaches site and transitions to building', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,

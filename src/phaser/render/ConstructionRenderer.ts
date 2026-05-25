@@ -1,21 +1,25 @@
 import Phaser from 'phaser';
 import { tileToScreen, IsoPoint } from './isometric';
 import { BUILDING_CONFIG } from '../../state/construction';
-import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPlacement } from '../../state/types';
+import { getCivilUnitKey } from '../../assets/civilUnitAssets';
+import { DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
+import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPlacement, Faction } from '../../state/types';
 
 /**
  * ConstructionRenderer — renders construction sites, completed buildings, and builders.
  *
  * ARCH-13E2: Minimal debug rendering for the Separator construction flow.
  * ARCH-13E3: Added builder rendering (small colored circle at fractional position).
+ * ASSET-02: Builder renders using `builder_{faction}` spritesheet loaded by civilUnitAssets.ts.
  *
  * Construction sites are rendered as amber semi-transparent tile diamonds
  * with a progress bar above. Completed buildings are rendered as green
- * semi-transparent tile diamonds. Builders are rendered as colored circles
- * (blue=idle, yellow=moving-to-site, green=building). No texture assets
- * are used — all rendering is done with Phaser Graphics primitives.
+ * semi-transparent tile diamonds. Builders are rendered from the
+ * `builder_{faction}` spritesheet loaded by civilUnitAssets.ts.
  *
- * This is a debug/MVP renderer, not the final building visual.
+ * If the builder texture is missing, a clear error is logged. ASSET-01
+ * guarantees all builder textures are preloaded — a missing texture
+ * indicates a preload bug, not a missing asset.
  */
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -46,14 +50,8 @@ const PROGRESS_FILL_ALPHA = 0.9;
 const HW = 76 / 2; // TILE_W / 2
 const HH = 38 / 2; // TILE_H / 2
 
-/** Builder rendering constants. */
-const BUILDER_RADIUS = 8;
-const BUILDER_COLOR_IDLE = 0x4488FF;
-const BUILDER_COLOR_MOVING = 0xFFCC00;
-const BUILDER_COLOR_BUILDING = 0x44FF44;
-const BUILDER_ALPHA = 0.9;
-const BUILDER_OUTLINE_COLOR = 0xFFFFFF;
-const BUILDER_OUTLINE_ALPHA = 0.6;
+/** Builder spritesheet display scale — conservative, ~16% of 256px frame. */
+const BUILDER_SCALE = 40 / 256;
 
 export class ConstructionRenderer {
   private scene: Phaser.Scene;
@@ -65,8 +63,11 @@ export class ConstructionRenderer {
   /** Completed building Graphics objects keyed by `${tx},${ty}`. */
   private buildingGraphics = new Map<string, Phaser.GameObjects.Graphics>();
 
-  /** Builder Graphics objects keyed by builder index. */
-  private builderGraphics = new Map<number, Phaser.GameObjects.Graphics>();
+  /** Builder Sprite objects keyed by builder index (spritesheet rendering). */
+  private builderSprites = new Map<number, Phaser.GameObjects.Sprite>();
+
+  /** Whether a missing-texture error has already been logged (avoid spam). */
+  private builderTextureErrorLogged = false;
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
@@ -79,7 +80,7 @@ export class ConstructionRenderer {
   syncFromState(state: GameState): void {
     this.syncConstructionSites(state.mapData.constructionSites);
     this.syncBuildings(state.mapData.buildings);
-    this.syncBuilders(state.mapData.builders);
+    this.syncBuilders(state.mapData.builders, state.playerFaction);
   }
 
   private syncConstructionSites(sites: ConstructionSitePlacement[]): void {
@@ -134,26 +135,79 @@ export class ConstructionRenderer {
     }
   }
 
-  private syncBuilders(builders: BuilderPlacement[]): void {
+  private syncBuilders(builders: BuilderPlacement[], faction: Faction): void {
+    const textureKey = getCivilUnitKey(faction, 'builder');
+    const textureExists = this.scene.textures.exists(textureKey);
+
+    if (!textureExists) {
+      // ASSET-01 guarantees builder textures are loaded. Missing texture = bug.
+      if (!this.builderTextureErrorLogged) {
+        console.error(
+          `[ConstructionRenderer] Builder texture "${textureKey}" not found! ` +
+          `ASSET-01 guarantees this texture is preloaded. Check PreloadScene and civilUnitAssets.ts.`,
+        );
+        this.builderTextureErrorLogged = true;
+      }
+      // Skip rendering builders — do NOT silently fall back to circles.
+      // Destroy any stale sprites from a previous frame.
+      for (const [bi, sprite] of this.builderSprites) {
+        if (bi < builders.length) {
+          sprite.destroy();
+          this.builderSprites.delete(bi);
+        }
+      }
+      return;
+    }
+
+    // Texture exists — clear the error flag if it was set from a transient issue
+    this.builderTextureErrorLogged = false;
+
     for (let bi = 0; bi < builders.length; bi++) {
-      if (!this.builderGraphics.has(bi)) {
-        const g = this.scene.add.graphics();
-        this.builderGraphics.set(bi, g);
-      }
-
-      // Redraw builder graphics each frame
-      const g = this.builderGraphics.get(bi)!;
-      g.clear();
-      this.drawBuilder(g, builders[bi]);
+      const builder = builders[bi];
+      this.syncBuilderSprite(bi, builder, textureKey);
     }
 
-    // Destroy graphics for removed builders (unlikely but safe)
-    for (const [bi, g] of this.builderGraphics) {
+    // Destroy sprites for removed builders
+    for (const [bi, sprite] of this.builderSprites) {
       if (bi >= builders.length) {
-        g.destroy();
-        this.builderGraphics.delete(bi);
+        sprite.destroy();
+        this.builderSprites.delete(bi);
       }
     }
+  }
+
+  /**
+   * Sync builder using spritesheet rendering.
+   * Creates the sprite on first call, then updates position each frame.
+   *
+   * Uses fixed DIR_ROW.S (south-facing) for all phases.
+   * Direction tracking can be added in a future PR.
+   */
+  private syncBuilderSprite(
+    bi: number,
+    builder: BuilderPlacement,
+    textureKey: string,
+  ): void {
+    // Compute screen position from fractional tile
+    const screenPos = tileToScreen(builder.ftx, builder.fty);
+    const worldX = screenPos.x + this.offset.x;
+    const worldY = screenPos.y + this.offset.y;
+
+    // Fixed south-facing frame: DIR_ROW.S * 8 + IDLE_FRAME
+    const frameIndex = DIR_ROW.S * 8 + IDLE_FRAME;
+
+    // Get or create sprite
+    let sprite = this.builderSprites.get(bi);
+    if (!sprite) {
+      sprite = this.scene.add.sprite(worldX, worldY, textureKey, frameIndex);
+      sprite.setScale(BUILDER_SCALE);
+      sprite.setOrigin(0.5, 0.75);
+      this.builderSprites.set(bi, sprite);
+    }
+
+    // Update position each frame
+    sprite.setPosition(worldX, worldY);
+    sprite.setDepth(110 + worldY);
   }
 
   // ─── Drawing helpers ───────────────────────────────────────────
@@ -277,39 +331,6 @@ export class ConstructionRenderer {
     g.setDepth(100 + worldY);
   }
 
-  /** Draw a small colored circle for a builder at their fractional tile position. */
-  private drawBuilder(g: Phaser.GameObjects.Graphics, builder: BuilderPlacement): void {
-    // Use fractional position for smooth movement
-    const screenPos = tileToScreen(builder.ftx, builder.fty);
-    const cx = screenPos.x + this.offset.x;
-    const cy = screenPos.y + this.offset.y;
-
-    // Pick color based on phase
-    let fillColor: number;
-    switch (builder.phase) {
-      case 'idle':
-        fillColor = BUILDER_COLOR_IDLE;
-        break;
-      case 'moving-to-site':
-        fillColor = BUILDER_COLOR_MOVING;
-        break;
-      case 'building':
-        fillColor = BUILDER_COLOR_BUILDING;
-        break;
-    }
-
-    // Filled circle
-    g.fillStyle(fillColor, BUILDER_ALPHA);
-    g.fillCircle(cx, cy - 4, BUILDER_RADIUS);
-
-    // Outline
-    g.lineStyle(1.5, BUILDER_OUTLINE_COLOR, BUILDER_OUTLINE_ALPHA);
-    g.strokeCircle(cx, cy - 4, BUILDER_RADIUS);
-
-    // Depth based on position
-    g.setDepth(110 + cy);
-  }
-
   // ─── Cleanup ───────────────────────────────────────────────────
 
   destroy(): void {
@@ -323,9 +344,9 @@ export class ConstructionRenderer {
     }
     this.buildingGraphics.clear();
 
-    for (const g of this.builderGraphics.values()) {
-      g.destroy();
+    for (const sprite of this.builderSprites.values()) {
+      sprite.destroy();
     }
-    this.builderGraphics.clear();
+    this.builderSprites.clear();
   }
 }

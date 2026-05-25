@@ -27,8 +27,13 @@ import { BUILDING_CONFIG } from './construction';
 /** Builder movement speed in tiles per second. */
 const BUILDER_SPEED = 3.0;
 
-/** Distance threshold (in tiles) to consider "arrived" at a path waypoint. */
-const ARRIVAL_THRESHOLD = 0.25;
+/**
+ * Distance threshold (in tiles) to consider "arrived" at a path waypoint.
+ * Reduced from 0.25 to 0.03 to eliminate visible snap-on-arrival jitter
+ * when rendering builder sprites. The snap is still correct but only
+ * triggers when the builder is visually indistinguishable from the target.
+ */
+const ARRIVAL_THRESHOLD = 0.03;
 
 // ─── Public API ─────────────────────────────────────────────────────
 
