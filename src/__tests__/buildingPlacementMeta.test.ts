@@ -275,6 +275,13 @@ describe('computeOriginY', () => {
     expect(computeOriginY(0.5)).toBe(0.5);
     expect(computeOriginY(1.0)).toBe(1.0);
   });
+
+  it('returns alpha-bottom ratio for isometric buildings', () => {
+    // BUILD-ANCHOR-03 fixup: originY = groundLineRatio = alphaBounds.bottom / sourceHeight
+    // For a building with alphaBounds.bottom=757 and sourceHeight=760:
+    const originY = computeOriginY(757 / 760);
+    expect(originY).toBeCloseTo(0.9961, 3);
+  });
 });
 
 // ─── computeTargetDisplayWidth ───────────────────────────────────────
@@ -398,6 +405,25 @@ describe('GENERATED_BUILDING_META', () => {
     for (const meta of GENERATED_BUILDING_META) {
       expect(meta.groundLineRatio).toBeGreaterThan(0);
       expect(meta.groundLineRatio).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('has groundLineRatio derived from alpha-bottom (not widest-row)', () => {
+    // BUILD-ANCHOR-03 fixup: groundLineRatio = alphaBounds.bottom / sourceHeight
+    // The widest-row heuristic was wrong for isometric buildings.
+    // With alpha-bottom, groundLineRatio should be close to 1.0
+    // (typically > 0.99 because the building base extends near the bottom).
+    for (const meta of GENERATED_BUILDING_META) {
+      const expectedRatio = meta.alphaBounds.bottom / meta.sourceHeight;
+      expect(meta.groundLineRatio).toBeCloseTo(expectedRatio, 4);
+      // Sanity: isometric building bases should be near the image bottom
+      expect(meta.groundLineRatio).toBeGreaterThan(0.95);
+    }
+  });
+
+  it('has originY equal to groundLineRatio', () => {
+    for (const meta of GENERATED_BUILDING_META) {
+      expect(meta.originY).toBe(meta.groundLineRatio);
     }
   });
 

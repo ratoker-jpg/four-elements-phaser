@@ -98,10 +98,12 @@ export type BuildingPlacementCategory = 'structure' | 'tower' | 'flat';
  * - `sourceWidth`, `sourceHeight`: from the PNG file dimensions.
  * - `alphaBounds`, `visibleWidth`, `visibleHeight`: generated offline by
  *   the alpha-bounds generator script (BUILD-ANCHOR-02).
- * - `groundLineRatio`: generated offline, then visually approved. Ratio
- *   (0–1) of where the building's visual base sits relative to the
- *   source image height. For a building whose bottom edge is at the
- *   very last pixel row, groundLineRatio ≈ 1.0.
+ * - `groundLineRatio`: generated offline from alpha bounds bottom.
+ *   Ratio (0–1) of where the building's visual base sits relative to
+ *   the source image height. Computed as alphaBounds.bottom / sourceHeight.
+ *   For isometric buildings, the ground contact (south vertex of the
+ *   building's diamond base) is at the bottom of the alpha content,
+ *   so groundLineRatio ≈ 1.0.
  * - `originX`, `originY`: derived from groundLineRatio and alpha bounds.
  *   These are the Phaser setOrigin() values that position the sprite
  *   so its visual ground line aligns with the footprint anchor point.
@@ -169,14 +171,15 @@ export interface BuildingPlacementMeta {
    * Ratio (0–1) indicating where the building's visual base sits
    * relative to the source image height.
    *
-   * Measured from the top of the source image:
-   *   groundLineRatio = groundLineY / sourceHeight
+   * Computed as alphaBounds.bottom / sourceHeight.
    *
-   * For a building whose bottom edge is at the last pixel row:
-   *   groundLineRatio ≈ 1.0
+   * For isometric building sprites, the visual ground contact point
+   * (south vertex of the building's diamond base) is at the bottom
+   * of the alpha content, so groundLineRatio ≈ 1.0.
    *
-   * This is used to compute originY so the sprite's visual ground line
-   * aligns with the footprint anchor point.
+   * BUILD-ANCHOR-03 fixup: previously used a widest-row heuristic
+   * that picked the building's midsection (~0.59–0.69), causing a
+   * large visible shift. Now uses alpha-bottom for correct placement.
    */
   groundLineRatio: number;
 
@@ -326,8 +329,14 @@ export function computeOriginX(alphaBounds: AlphaBounds, sourceWidth: number): n
 /**
  * Compute Phaser setOrigin() Y value from ground-line ratio.
  *
- * originY = groundLineRatio — the sprite anchor point sits at the
- * building's visual base, aligning it with the footprint anchor.
+ * originY = groundLineRatio = alphaBounds.bottom / sourceHeight
+ *
+ * This places the sprite anchor at the visual base of the building,
+ * aligning the building's ground contact point with the footprint
+ * south vertex.
+ *
+ * BUILD-ANCHOR-03 fixup: groundLineRatio is now computed from the
+ * alpha bounds bottom rather than the widest-row heuristic.
  */
 export function computeOriginY(groundLineRatio: number): number {
   return groundLineRatio;
