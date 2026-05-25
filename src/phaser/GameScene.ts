@@ -200,13 +200,6 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      // ARCH-01B: Debug matter top-up with explicit [DEBUG] logging.
-      if (this.gameState.economy.matter < 150) {
-        const prev = this.gameState.economy.matter;
-        this.gameState.economy.matter = 150;
-        console.log(`[DEBUG] Matter top-up: ${prev} -> 150`);
-      }
-
       // ARCH-13E4: Automatic build-site selection.
       // The system finds a valid 2x2 location near player buildings
       // with a 1-tile gap around existing footprints.
