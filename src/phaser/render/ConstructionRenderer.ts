@@ -3,7 +3,6 @@ import { tileToScreen, IsoPoint } from './isometric';
 import { BUILDING_CONFIG } from '../../state/construction';
 import { getCivilUnitKey } from '../../assets/civilUnitAssets';
 import { DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
-import { directionFromDelta } from '../../state/updateGameState';
 import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPlacement, Faction } from '../../state/types';
 
 /**
@@ -62,14 +61,6 @@ const BUILDER_FALLBACK_ALPHA = 0.9;
 const BUILDER_FALLBACK_OUTLINE_COLOR = 0xFFFFFF;
 const BUILDER_FALLBACK_OUTLINE_ALPHA = 0.6;
 
-/** Per-builder tracked state for direction derivation. */
-interface BuilderTrackState {
-  prevFtx: number;
-  prevFty: number;
-  /** Current facing direction row index (0-7). Default S=2. */
-  dirRow: number;
-}
-
 export class ConstructionRenderer {
   private scene: Phaser.Scene;
   private offset: IsoPoint;
@@ -85,9 +76,6 @@ export class ConstructionRenderer {
 
   /** Builder Graphics objects keyed by builder index (fallback circle rendering). */
   private builderFallbackGraphics = new Map<number, Phaser.GameObjects.Graphics>();
-
-  /** Per-builder tracking state for direction facing. */
-  private builderTrack = new Map<number, BuilderTrackState>();
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
@@ -180,8 +168,6 @@ export class ConstructionRenderer {
           sprite.destroy();
           this.builderSprites.delete(bi);
         }
-        // Clean up tracking state
-        this.builderTrack.delete(bi);
       }
     }
 
@@ -190,7 +176,6 @@ export class ConstructionRenderer {
       if (bi >= builders.length) {
         sprite.destroy();
         this.builderSprites.delete(bi);
-        this.builderTrack.delete(bi);
       }
     }
     for (const [bi, g] of this.builderFallbackGraphics) {
@@ -203,7 +188,10 @@ export class ConstructionRenderer {
 
   /**
    * Sync builder using spritesheet rendering.
-   * Creates the sprite on first call, then updates position and direction each frame.
+   * Creates the sprite on first call, then updates position each frame.
+   *
+   * Uses fixed DIR_ROW.S (south-facing) for all phases.
+   * Direction tracking can be added in a future PR.
    */
   private syncBuilderSprite(
     bi: number,
@@ -216,26 +204,8 @@ export class ConstructionRenderer {
     const worldX = screenPos.x + this.offset.x;
     const worldY = screenPos.y + this.offset.y;
 
-    // Get or create tracking state
-    let track = this.builderTrack.get(bi);
-    if (!track) {
-      track = { prevFtx: builder.ftx, prevFty: builder.fty, dirRow: DIR_ROW.S };
-      this.builderTrack.set(bi, track);
-    }
-
-    // Derive direction from movement delta (same approach as harvester)
-    const dtx = builder.ftx - track.prevFtx;
-    const dty = builder.fty - track.prevFty;
-    if (Math.abs(dtx) > 0.001 || Math.abs(dty) > 0.001) {
-      track.dirRow = directionFromDelta(dtx, dty);
-    }
-    track.prevFtx = builder.ftx;
-    track.prevFty = builder.fty;
-
-    // Frame index: direction row * 8 + idle column
-    // For this PR, all phases use column 0 (idle frame) with direction row.
-    // Future PRs can add walk/build animation cycles.
-    const frameIndex = track.dirRow * 8 + IDLE_FRAME;
+    // Fixed south-facing frame: DIR_ROW.S * 8 + IDLE_FRAME
+    const frameIndex = DIR_ROW.S * 8 + IDLE_FRAME;
 
     // Get or create sprite
     let sprite = this.builderSprites.get(bi);
@@ -246,9 +216,8 @@ export class ConstructionRenderer {
       this.builderSprites.set(bi, sprite);
     }
 
-    // Update position and frame each frame
+    // Update position each frame
     sprite.setPosition(worldX, worldY);
-    sprite.setFrame(frameIndex);
     sprite.setDepth(110 + worldY);
   }
 
@@ -443,7 +412,5 @@ export class ConstructionRenderer {
       g.destroy();
     }
     this.builderFallbackGraphics.clear();
-
-    this.builderTrack.clear();
   }
 }
