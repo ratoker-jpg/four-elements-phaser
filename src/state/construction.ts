@@ -9,11 +9,14 @@
  * - Construction site creation (placeConstructionSite)
  * - Construction progress tracking (updateConstructionSiteProgress)
  *
+ * ARCH-13E3: Construction progress now requires an assigned builder in 'building'
+ * phase. Sites with pending=true (no builder actively building) do not advance.
+ * On completion, the assigned builder is released back to idle.
+ *
  * Intentionally NOT integrated yet:
- * - No renderer / visual construction site
  * - No placement preview
- * - No mouse/keyboard input
- * - No builder movement / pathfinding integration
+ * - No final build UI
+ * - No mouse/keyboard input for placement
  * - No economy redesign beyond rawMinerals deduction
  */
 
@@ -148,10 +151,16 @@ export function placeConstructionSite(
 /**
  * Advance construction site progress by deltaMs milliseconds.
  *
+ * ARCH-13E3: Progress only advances when the site has an active builder
+ * in 'building' phase (site.pending === false). If no builder is assigned
+ * or the builder hasn't arrived yet (site.pending === true), progress
+ * does not advance.
+ *
  * Clamps deltaMs to 200ms maximum (consistent with updateGameState convention).
  * When construction completes:
  * - Creates a building in state.mapData.buildings
  * - Removes the construction site from state.mapData.constructionSites
+ * - Releases the assigned builder back to idle
  *
  * Returns { completed: false } if still in progress or site not found.
  * Returns { completed: true; buildingId } when construction finishes.
@@ -170,6 +179,22 @@ export function updateConstructionSiteProgress(
   if (siteIndex === -1) return { completed: false };
 
   const site = state.mapData.constructionSites[siteIndex];
+
+  // ARCH-13E3: Do not advance progress if builder hasn't started building yet.
+  // site.pending === true means no builder is actively building at this site.
+  if (site.pending) {
+    return { completed: false };
+  }
+
+  // ARCH-13E3: Verify builder is in 'building' phase.
+  // If the assigned builder is no longer building (shouldn't happen, but safety check),
+  // don't advance progress.
+  if (site.builderIndex >= 0 && site.builderIndex < state.mapData.builders.length) {
+    const builder = state.mapData.builders[site.builderIndex];
+    if (builder.phase !== 'building') {
+      return { completed: false };
+    }
+  }
 
   // Clamp delta (consistent with updateGameState)
   const dt = Math.min(deltaMs, 200);
@@ -190,6 +215,23 @@ export function updateConstructionSiteProgress(
     ty: site.ty,
     type: site.type,
   });
+
+  // Release the assigned builder back to idle
+  if (site.builderIndex >= 0) {
+    // Import releaseBuilder dynamically to avoid circular dependency at module level.
+    // We inline the release logic here to keep construction.ts self-contained.
+    const bi = site.builderIndex;
+    if (bi < state.mapData.builders.length) {
+      const builder = state.mapData.builders[bi];
+      builder.busy = false;
+      builder.phase = 'idle';
+      builder.assignedSiteId = -1;
+      builder.path = [];
+      builder.pathIndex = 0;
+      builder.targetTx = Math.round(builder.ftx);
+      builder.targetTy = Math.round(builder.fty);
+    }
+  }
 
   // Remove the construction site
   state.mapData.constructionSites.splice(siteIndex, 1);
