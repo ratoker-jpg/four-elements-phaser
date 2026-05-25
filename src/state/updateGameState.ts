@@ -177,8 +177,8 @@ function handleUnloading(
   h.unloadTimer -= dt;
   if (h.unloadTimer > 0) return; // still unloading
 
-  // Transfer cargo to player
-  state.rawMinerals += h.cargoRaw;
+  // Transfer cargo to player economy
+  state.economy.raw += h.cargoRaw;
   h.cargoRaw = 0;
   h.phase = 'idle';
 }

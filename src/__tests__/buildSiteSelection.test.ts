@@ -3,7 +3,7 @@ import {
   findBuildSiteNearPlayerBuildings,
 } from '../state/buildSiteSelection';
 import { canPlaceBuilding, BUILDING_CONFIG } from '../state/construction';
-import type { GameState, MapData } from '../state/types';
+import type { GameState, MapData, EconomyState } from '../state/types';
 
 // ─── Test helpers ──────────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ function makeTestState(overrides?: {
   mapH?: number;
   hqTx?: number;
   hqTy?: number;
-  rawMinerals?: number;
+  matter?: number;
   resources?: Array<{ tx: number; ty: number; footprint: number }>;
   obstacles?: Array<{ tx: number; ty: number; footprint: number }>;
   buildings?: Array<{ tx: number; ty: number; type?: string }>;
@@ -53,7 +53,7 @@ function makeTestState(overrides?: {
       ty: c.ty,
       type: (c.type ?? 'separator') as 'separator',
       elapsed: 0,
-      duration: 5000,
+      duration: 20000,
       progress: 0,
       builderIndex: -1,
       id: i,
@@ -73,7 +73,7 @@ function makeTestState(overrides?: {
     extraModularCombat: [],
     harvesters: [],
     resourceNodes: [],
-    rawMinerals: overrides?.rawMinerals ?? 500,
+    economy: { raw: 0, matter: overrides?.matter ?? 500, elements: { cyan: 0, green: 0, yellow: 0, purple: 0 }, powerGenerated: 0, powerConsumed: 0 } as EconomyState,
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
   };
@@ -238,7 +238,7 @@ describe('findBuildSiteNearPlayerBuildings', () => {
     //
     // Make an even more constrained map: 4x4, HQ at (0,0) 3x3
     // Only free tile is (3,3) which can't fit 2x2
-    const state = makeTestState({ mapW: 4, mapH: 4, hqTx: 0, hqTy: 0, rawMinerals: 500 });
+    const state = makeTestState({ mapW: 4, mapH: 4, hqTx: 0, hqTy: 0, matter: 500 });
     const result = findBuildSiteNearPlayerBuildings(state, 'separator', { gapTiles: 1 });
 
     expect(result.ok).toBe(false);
@@ -333,10 +333,10 @@ describe('findBuildSiteNearPlayerBuildings', () => {
     }
   });
 
-  it('returns no-valid-site when rawMinerals insufficient', () => {
+  it('returns no-valid-site when matter insufficient', () => {
     // The search should still find a site position (canPlaceBuilding checks resources),
-    // but with 0 minerals, canPlaceBuilding returns insufficient-resources
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 5, hqTy: 5, rawMinerals: 0 });
+    // but with 0 matter, canPlaceBuilding returns insufficient-resources
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 5, hqTy: 5, matter: 0 });
     const result = findBuildSiteNearPlayerBuildings(state, 'separator');
 
     // Since canPlaceBuilding rejects all sites due to insufficient resources,

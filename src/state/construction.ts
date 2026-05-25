@@ -17,7 +17,7 @@
  * - No placement preview
  * - No final build UI
  * - No mouse/keyboard input for placement
- * - No economy redesign beyond rawMinerals deduction
+ * - No economy redesign beyond matter-based construction deduction
  */
 
 import type { GameState, BuildingType } from './types';
@@ -30,7 +30,8 @@ export interface BuildingConfig {
   type: BuildingType;
   footprintW: number;
   footprintH: number;
-  costRaw: number;
+  /** Construction cost in matter (processed resource). */
+  costMatter: number;
   buildTimeMs: number;
 }
 
@@ -47,8 +48,8 @@ export const BUILDING_CONFIG: Partial<Record<BuildingType, BuildingConfig>> = {
     type: 'separator',
     footprintW: 2,
     footprintH: 2,
-    costRaw: 100,
-    buildTimeMs: 5000,
+    costMatter: 60,
+    buildTimeMs: 20000,
   },
 };
 
@@ -71,7 +72,7 @@ export type PlacementResult =
  * 1. Building type must have a config entry in BUILDING_CONFIG.
  * 2. The full footprint must be within map bounds.
  * 3. The full footprint must be buildable (no unbuildable tiles).
- * 4. Player must have sufficient rawMinerals.
+ * 4. Player must have sufficient matter.
  *
  * Does NOT mutate state.
  */
@@ -96,8 +97,8 @@ export function canPlaceBuilding(
     return { valid: false, reason: 'occupied' };
   }
 
-  // 4. Insufficient resources
-  if (state.rawMinerals < config.costRaw) {
+  // 4. Insufficient matter
+  if (state.economy.matter < config.costMatter) {
     return { valid: false, reason: 'insufficient-resources' };
   }
 
@@ -108,7 +109,7 @@ export function canPlaceBuilding(
  * Place a construction site at the given position.
  *
  * Validates placement with canPlaceBuilding first.
- * On success: deducts rawMinerals and creates a construction site in state.
+ * On success: deducts matter and creates a construction site in state.
  * On failure: does NOT mutate state.
  *
  * Uses deterministic IDs: site-${nextConstructionId}, incrementing counter.
@@ -127,8 +128,8 @@ export function placeConstructionSite(
 
   const config = BUILDING_CONFIG[buildingType]!; // guaranteed non-null after validation
 
-  // Deduct resources
-  state.rawMinerals -= config.costRaw;
+  // Deduct matter
+  state.economy.matter -= config.costMatter;
 
   // Create construction site with deterministic ID
   const siteId = `site-${state.nextConstructionId}`;

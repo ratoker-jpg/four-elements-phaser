@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState, createHarvester } from '../state/updateGameState';
 import type { HarvesterPhase } from '../state/types';
+import { START_RAW } from '../state/types';
 
 /** Valid harvester phases for assertion. */
 const VALID_PHASES: HarvesterPhase[] = [
@@ -69,7 +70,7 @@ describe('updateGameState — harvester loop', () => {
     expect(VALID_PHASES).toContain(h.phase);
   });
 
-  it('unloading phase transfers cargo to player raw minerals', () => {
+  it('unloading phase transfers cargo to player economy.raw', () => {
     const state = createInitialState();
 
     // Run enough frames to complete at least one full gather cycle
@@ -78,8 +79,8 @@ describe('updateGameState — harvester loop', () => {
       updateGameState(state, 16);
     }
 
-    // After many cycles, raw minerals should have increased
-    expect(state.rawMinerals).toBeGreaterThan(0);
+    // After many cycles, economy.raw should have increased beyond START_RAW
+    expect(state.economy.raw).toBeGreaterThan(START_RAW);
   });
 });
 

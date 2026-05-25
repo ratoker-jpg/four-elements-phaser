@@ -52,8 +52,8 @@ export class GameScene extends Phaser.Scene {
   private hudBuild: HTMLElement | null = null;
   private hudBuilder: HTMLElement | null = null;
 
-  /** Track last unload count to log once per unload. */
-  private lastLoggedMinerals: number = 0;
+  /** Track last raw count to log once per unload. */
+  private lastLoggedRaw: number = 0;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -200,11 +200,11 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      // ARCH-13F1: Debug resource top-up with explicit [DEBUG] logging.
-      if (this.gameState.rawMinerals < 150) {
-        const prev = this.gameState.rawMinerals;
-        this.gameState.rawMinerals = 150;
-        console.log(`[DEBUG] Resource top-up: ${prev} -> 150 rawMinerals`);
+      // ARCH-01B: Debug matter top-up with explicit [DEBUG] logging.
+      if (this.gameState.economy.matter < 150) {
+        const prev = this.gameState.economy.matter;
+        this.gameState.economy.matter = 150;
+        console.log(`[DEBUG] Matter top-up: ${prev} -> 150`);
       }
 
       // ARCH-13E4: Automatic build-site selection.
@@ -276,11 +276,11 @@ export class GameScene extends Phaser.Scene {
     this.updateHUD();
 
     // 7. Debug log on unload completion
-    if (this.gameState.rawMinerals > this.lastLoggedMinerals) {
+    if (this.gameState.economy.raw > this.lastLoggedRaw) {
       console.log(
-        `[GameScene] Unloaded! Raw minerals: ${this.gameState.rawMinerals}`,
+        `[GameScene] Unloaded! Raw: ${this.gameState.economy.raw}`,
       );
-      this.lastLoggedMinerals = this.gameState.rawMinerals;
+      this.lastLoggedRaw = this.gameState.economy.raw;
     }
   }
 
@@ -311,7 +311,7 @@ export class GameScene extends Phaser.Scene {
         .join(', ');
 
       this.hudEconomy.textContent =
-        `Raw: ${s.rawMinerals} | Resources: ${activeResources}/${totalResources} | ` +
+        `Raw: ${s.economy.raw} | Matter: ${s.economy.matter} | Resources: ${activeResources}/${totalResources} | ` +
         `Sites: ${s.mapData.constructionSites.length} | ` +
         `Harvesters: ${s.harvesters.length} (${phaseStr})`;
     }
