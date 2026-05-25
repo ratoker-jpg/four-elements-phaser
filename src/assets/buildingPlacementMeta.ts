@@ -7,9 +7,10 @@
  *
  * Design principles:
  * ─────────────────
- * 1. Metadata is generated OFFLINE by a future script (BUILD-ANCHOR-02).
- *    The runtime must NEVER scan PNG pixels — alpha bounds and ground-line
- *    ratios are pre-computed and committed as TypeScript data.
+ * 1. Metadata is generated OFFLINE by tools/generate_building_meta.py
+ *    (BUILD-ANCHOR-02). The runtime must NEVER scan PNG pixels — alpha
+ *    bounds and ground-line ratios are pre-computed and committed as
+ *    TypeScript data in generatedBuildingMeta.ts.
  *
  * 2. Buildings anchor to the FOOTPRINT SOUTH VERTEX, not to the geometric
  *    center of the multi-tile footprint. This matches the visual rest point
@@ -29,6 +30,7 @@
  */
 
 import type { BuildingType, Faction } from '../state/types';
+import { GENERATED_BUILDING_META } from './generatedBuildingMeta';
 
 // ─── Supporting Types ───────────────────────────────────────────────
 
@@ -284,4 +286,97 @@ export function hasBuildingPlacementMeta(
 export function registerBuildingPlacementMeta(meta: BuildingPlacementMeta): void {
   const key = buildMetaRegistryKey(meta.faction, meta.buildingType);
   BUILDING_PLACEMENT_META[key] = meta;
+}
+
+// ─── Derived-field computation helpers ────────────────────────────────
+
+/**
+ * Compute visible width from alpha bounds.
+ *
+ * visibleWidth = alphaBounds.right - alphaBounds.left
+ * (right is exclusive, like array slice end)
+ */
+export function computeVisibleWidth(alphaBounds: AlphaBounds): number {
+  return alphaBounds.right - alphaBounds.left;
+}
+
+/**
+ * Compute visible height from alpha bounds.
+ *
+ * visibleHeight = alphaBounds.bottom - alphaBounds.top
+ * (bottom is exclusive, like array slice end)
+ */
+export function computeVisibleHeight(alphaBounds: AlphaBounds): number {
+  return alphaBounds.bottom - alphaBounds.top;
+}
+
+/**
+ * Compute Phaser setOrigin() X value from alpha bounds and source width.
+ *
+ * The origin X positions the sprite so its visible horizontal center
+ * aligns with the placement point.
+ *
+ * originX = (alphaBounds.left + alphaBounds.right) / 2 / sourceWidth
+ */
+export function computeOriginX(alphaBounds: AlphaBounds, sourceWidth: number): number {
+  const visibleCenterX = (alphaBounds.left + alphaBounds.right) / 2;
+  return visibleCenterX / sourceWidth;
+}
+
+/**
+ * Compute Phaser setOrigin() Y value from ground-line ratio.
+ *
+ * originY = groundLineRatio — the sprite anchor point sits at the
+ * building's visual base, aligning it with the footprint anchor.
+ */
+export function computeOriginY(groundLineRatio: number): number {
+  return groundLineRatio;
+}
+
+/**
+ * Compute the target display width for a building based on its isometric
+ * footprint size.
+ *
+ * For isometric 2:1 projection with TILE_W=76, TILE_H=38:
+ *   isometric diamond width = (footprintW + footprintH) * 38
+ *
+ * Buildings extend above the footprint diamond, so this width represents
+ * a reasonable display size that scales with footprint area.
+ */
+export function computeTargetDisplayWidth(footprintW: number, footprintH: number): number {
+  return (footprintW + footprintH) * 38;
+}
+
+/**
+ * Compute the scale factor to render a building at the target display width.
+ *
+ * computedScale = targetDisplayWidth / sourceWidth
+ *
+ * Pre-computed so the renderer does no division at runtime.
+ */
+export function computeScale(targetDisplayWidth: number, sourceWidth: number): number {
+  return targetDisplayWidth / sourceWidth;
+}
+
+/**
+ * Detect building visual category from visible content aspect ratio.
+ *
+ * - 'tower': height/width > 1.5 (tall, narrow)
+ * - 'flat': height/width < 0.7 (wide, short)
+ * - 'structure': default (balanced proportions)
+ */
+export function detectCategory(visibleWidth: number, visibleHeight: number): BuildingPlacementCategory {
+  if (visibleWidth === 0) return 'structure';
+  const ratio = visibleHeight / visibleWidth;
+  if (ratio > 1.5) return 'tower';
+  if (ratio < 0.7) return 'flat';
+  return 'structure';
+}
+
+// ─── Registry initialization from generated data ─────────────────────
+
+// Populate the registry with all generated metadata entries at module load.
+// The generated data is committed TypeScript — no runtime I/O or PNG scanning.
+for (const meta of GENERATED_BUILDING_META) {
+  registerBuildingPlacementMeta(meta);
 }
