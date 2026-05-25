@@ -17,6 +17,7 @@ import type {
   HarvesterState,
   ResourceNodeState,
 } from './types';
+import { SEP_RAW_COST, SEP_MATTER_YIELD, SEP_ELEMENT_YIELD, SEP_CYCLE_MS } from './types';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -51,6 +52,9 @@ export function updateGameState(state: GameState, deltaMs: number): void {
   for (const harvester of state.harvesters) {
     updateHarvester(state, harvester, dt);
   }
+
+  // ARCH-01C: Advance separator processing cycle
+  updateSeparators(state, dt);
 }
 
 // ─── Harvester state machine ────────────────────────────────────────
@@ -277,6 +281,62 @@ export function directionFromDelta(dtx: number, dty: number): number {
     '-4': 4, '-3': 5, '-2': 6, '-1': 7,
   };
   return map[sector] ?? 2;
+}
+
+// ─── Separator processing cycle (ARCH-01C) ────────────────────────────
+
+/**
+ * Advance all separator processing cycles by deltaMs.
+ *
+ * For each separator:
+ * - If economy.raw >= SEP_RAW_COST, the separator is active and progress advances.
+ * - Progress advances by (dt / SEP_CYCLE_MS) per tick, clamped to [0, 1].
+ * - When progress reaches 1.0, one cycle completes:
+ *   - Consume SEP_RAW_COST raw
+ *   - Add SEP_MATTER_YIELD matter
+ *   - Add SEP_ELEMENT_YIELD elementUnits to player faction
+ *   - Reset progress to 0
+ * - If economy.raw < SEP_RAW_COST, the separator pauses (active=false, progress preserved).
+ * - Progress does not reset when paused.
+ */
+function updateSeparators(state: GameState, dt: number): void {
+  const playerFaction = state.playerFaction;
+
+  for (const sep of state.economy.separators) {
+    const canProcess = state.economy.raw >= SEP_RAW_COST;
+    sep.active = canProcess;
+
+    if (!canProcess) {
+      // Paused — progress preserved, not reset
+      continue;
+    }
+
+    // Advance progress
+    sep.progress += dt / SEP_CYCLE_MS;
+
+    // Complete as many full cycles as progress allows
+    while (sep.progress >= 1) {
+      // Only consume if still enough raw for this cycle
+      if (state.economy.raw < SEP_RAW_COST) {
+        // Ran out of raw mid-cycle — clamp progress and stop
+        sep.active = false;
+        sep.progress = Math.min(sep.progress, 1);
+        break;
+      }
+
+      // Consume raw, yield matter and elementUnits
+      state.economy.raw -= SEP_RAW_COST;
+      state.economy.matter += SEP_MATTER_YIELD;
+      state.economy.elements[playerFaction] += SEP_ELEMENT_YIELD;
+
+      sep.progress -= 1;
+    }
+
+    // After processing, re-check active state
+    if (state.economy.raw < SEP_RAW_COST) {
+      sep.active = false;
+    }
+  }
 }
 
 // ─── Factory helpers ────────────────────────────────────────────────

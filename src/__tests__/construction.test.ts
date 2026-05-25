@@ -82,6 +82,7 @@ function makeTestState(overrides?: {
     elements: { cyan: 0, green: 0, yellow: 0, purple: 0 },
     powerGenerated: 0,
     powerConsumed: 0,
+    separators: [],
   };
 
   return {
