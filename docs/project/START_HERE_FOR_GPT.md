@@ -28,10 +28,13 @@ Before helping with the project, read these files in this order:
 3. `docs/ROADMAP.md`  
    Read only when planning the next phase, changing direction, generating roadmap tasks, or preparing a large audit.
 
-4. `docs/project/GLM_EXECUTOR_RULES.md`  
+4. `docs/project/ARCH_SCOPING_POLICY.md`  
+   Read when planning an `ARCH-*` workstream or deciding whether to combine/split implementation PRs by risk.
+
+5. `docs/project/GLM_EXECUTOR_RULES.md`  
    Read when preparing a task for GLM. This file is for executor instructions only.
 
-5. Topic-specific docs when relevant, for example:
+6. Topic-specific docs when relevant, for example:
    - `docs/BUILDING_PLACEMENT_STRATEGY.md` for building PNG placement / anchoring.
    - Other architecture docs only when the current task directly touches that system.
 
@@ -166,7 +169,24 @@ Any roadmap change must be explicit:
 new idea -> roadmap update -> audit/design update if needed -> then implementation
 ```
 
-Do not let spontaneous ideas bypass the accepted roadmap.
+---
+
+## ARCH planning and PR grouping
+
+When planning a large `ARCH-*` workstream, read `docs/project/ARCH_SCOPING_POLICY.md`.
+
+Default model:
+
+```text
+large ARCH -> accepted audit/design -> risk-based scoped PR sequence -> implementation
+```
+
+Do not mechanically split every small phase into a separate PR.  
+Do not bundle a whole ARCH into one risky PR.
+
+Implementation PRs may combine adjacent low-risk phases when they are same-layer, easy to test, and easy to roll back.
+
+Split work when it crosses layers, adds a new runtime loop, affects multiple gameplay systems, or makes rollback unclear.
 
 ---
 
