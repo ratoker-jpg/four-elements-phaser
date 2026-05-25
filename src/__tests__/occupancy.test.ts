@@ -1,0 +1,325 @@
+import { describe, it, expect } from 'vitest';
+import {
+  buildOccupancyMap,
+  isInBounds,
+  getFlags,
+  isPassable,
+  isBuildable,
+} from '../state/occupancy';
+import { createInitialState } from '../state/createInitialState';
+import type { GameState, MapData } from '../state/types';
+
+// ─── Test helpers ──────────────────────────────────────────────────
+
+/** Build a minimal GameState with configurable features for targeted tests. */
+function makeTestState(overrides?: {
+  mapW?: number;
+  mapH?: number;
+  hqTx?: number;
+  hqTy?: number;
+  resources?: Array<{ tx: number; ty: number; footprint: number }>;
+  obstacles?: Array<{ tx: number; ty: number; footprint: number }>;
+  buildings?: Array<{ tx: number; ty: number }>;
+  harvesters?: Array<{ ftx: number; fty: number }>;
+}): GameState {
+  const w = overrides?.mapW ?? 10;
+  const h = overrides?.mapH ?? 10;
+  const hqTx = overrides?.hqTx ?? 0;
+  const hqTy = overrides?.hqTy ?? 0;
+
+  const mapData: MapData = {
+    width: w,
+    height: h,
+    terrain: Array.from({ length: h }, () => Array(w).fill('sand')),
+    hq: { tx: hqTx, ty: hqTy, faction: 'cyan' },
+    resources: (overrides?.resources ?? []).map((r) => ({
+      tx: r.tx,
+      ty: r.ty,
+      type: 'small' as const,
+      footprint: r.footprint,
+    })),
+    obstacles: (overrides?.obstacles ?? []).map(o => ({
+      tx: o.tx,
+      ty: o.ty,
+      type: 'mountain-small' as const,
+      footprint: o.footprint,
+    })),
+    decor: [],
+    buildings: (overrides?.buildings ?? []).map(b => ({
+      tx: b.tx,
+      ty: b.ty,
+      type: 'separator' as const,
+    })),
+    builders: [],
+    constructionSites: [],
+  };
+
+  return {
+    mapId: 'test',
+    mapName: 'Test',
+    mapWidth: w,
+    mapHeight: h,
+    mapData,
+    entities: [],
+    playerFaction: 'cyan',
+    extraHarvesters: [],
+    extraModularCombat: [],
+    harvesters: (overrides?.harvesters ?? []).map((h, i) => ({
+      id: `h-${i}`,
+      ftx: h.ftx,
+      fty: h.fty,
+      faction: 'cyan' as const,
+      phase: 'idle' as const,
+      targetResourceId: null,
+      cargoRaw: 0,
+      cargoCapacity: 20,
+      gatherTimer: 0,
+      unloadTimer: 0,
+      speedTilesPerSecond: 2.5,
+    })),
+    resourceNodes: (overrides?.resources ?? []).map((r, i) => ({
+      id: `r-${i}`,
+      tx: r.tx,
+      ty: r.ty,
+      resourceType: 'small' as const,
+      footprint: r.footprint,
+      remainingRaw: 20,
+      depleted: false,
+    })),
+    rawMinerals: 0,
+    hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
+  };
+}
+
+// ─── Tests ─────────────────────────────────────────────────────────
+
+describe('buildOccupancyMap', () => {
+  it('returns a map with correct dimensions', () => {
+    const state = makeTestState({ mapW: 12, mapH: 8 });
+    const map = buildOccupancyMap(state);
+    expect(map.width).toBe(12);
+    expect(map.height).toBe(8);
+  });
+});
+
+describe('isInBounds', () => {
+  const state = makeTestState({ mapW: 10, mapH: 10 });
+  const map = buildOccupancyMap(state);
+
+  it('accepts tiles inside the map', () => {
+    expect(isInBounds(map, 0, 0)).toBe(true);
+    expect(isInBounds(map, 9, 9)).toBe(true);
+    expect(isInBounds(map, 5, 5)).toBe(true);
+  });
+
+  it('rejects tiles outside the map', () => {
+    expect(isInBounds(map, -1, 0)).toBe(false);
+    expect(isInBounds(map, 0, -1)).toBe(false);
+    expect(isInBounds(map, 10, 0)).toBe(false);
+    expect(isInBounds(map, 0, 10)).toBe(false);
+    expect(isInBounds(map, -1, -1)).toBe(false);
+  });
+});
+
+describe('isPassable — empty map tiles', () => {
+  const state = makeTestState({ mapW: 10, mapH: 10, hqTx: 0, hqTy: 0 });
+  const map = buildOccupancyMap(state);
+
+  it('tiles outside the HQ footprint are passable', () => {
+    // Tile (5,5) is far from HQ at (0,0)
+    expect(isPassable(map, 5, 5)).toBe(true);
+    expect(isPassable(map, 9, 9)).toBe(true);
+  });
+
+  it('out-of-bounds tiles are not passable', () => {
+    expect(isPassable(map, -1, 0)).toBe(false);
+    expect(isPassable(map, 10, 0)).toBe(false);
+    expect(isPassable(map, 0, 10)).toBe(false);
+  });
+});
+
+describe('HQ footprint', () => {
+  const state = makeTestState({ mapW: 10, mapH: 10, hqTx: 2, hqTy: 2 });
+  const map = buildOccupancyMap(state);
+
+  it('HQ tiles are impassable', () => {
+    for (let dy = 0; dy < 3; dy++) {
+      for (let dx = 0; dx < 3; dx++) {
+        expect(isPassable(map, 2 + dx, 2 + dy)).toBe(false);
+      }
+    }
+  });
+
+  it('HQ tiles are unbuildable', () => {
+    expect(isBuildable(map, 2, 2, 1, 1)).toBe(false);
+    expect(isBuildable(map, 3, 3, 1, 1)).toBe(false);
+  });
+
+  it('tile just outside HQ is passable', () => {
+    expect(isPassable(map, 1, 2)).toBe(true);
+    expect(isPassable(map, 5, 2)).toBe(true);
+  });
+});
+
+describe('Resource footprint', () => {
+  const state = makeTestState({
+    mapW: 10,
+    mapH: 10,
+    hqTx: 0,
+    hqTy: 0,
+    resources: [{ tx: 5, ty: 5, footprint: 1 }],
+  });
+  const map = buildOccupancyMap(state);
+
+  it('resource tile has "resource" and "unbuildable" flags', () => {
+    const flags = getFlags(map, 5, 5);
+    expect(flags.has('resource')).toBe(true);
+    expect(flags.has('unbuildable')).toBe(true);
+  });
+
+  it('resource tile is passable (harvesters must reach it)', () => {
+    expect(isPassable(map, 5, 5)).toBe(true);
+  });
+
+  it('resource tile is not buildable', () => {
+    expect(isBuildable(map, 5, 5, 1, 1)).toBe(false);
+  });
+});
+
+describe('Obstacle footprint', () => {
+  const state = makeTestState({
+    mapW: 10,
+    mapH: 10,
+    hqTx: 0,
+    hqTy: 0,
+    obstacles: [{ tx: 7, ty: 7, footprint: 2 }],
+  });
+  const map = buildOccupancyMap(state);
+
+  it('obstacle tiles are impassable', () => {
+    expect(isPassable(map, 7, 7)).toBe(false);
+    expect(isPassable(map, 7, 8)).toBe(false);
+    expect(isPassable(map, 8, 7)).toBe(false);
+    expect(isPassable(map, 8, 8)).toBe(false);
+  });
+
+  it('obstacle tiles are unbuildable', () => {
+    expect(isBuildable(map, 7, 7, 1, 1)).toBe(false);
+  });
+});
+
+describe('Building footprint', () => {
+  const state = makeTestState({
+    mapW: 10,
+    mapH: 10,
+    hqTx: 0,
+    hqTy: 0,
+    buildings: [{ tx: 6, ty: 6 }],
+  });
+  const map = buildOccupancyMap(state);
+
+  it('building tile is impassable', () => {
+    expect(isPassable(map, 6, 6)).toBe(false);
+  });
+
+  it('building tile is unbuildable', () => {
+    expect(isBuildable(map, 6, 6, 1, 1)).toBe(false);
+  });
+});
+
+describe('isBuildable', () => {
+  const state = makeTestState({
+    mapW: 10,
+    mapH: 10,
+    hqTx: 0,
+    hqTy: 0,
+    resources: [{ tx: 5, ty: 5, footprint: 1 }],
+  });
+  const map = buildOccupancyMap(state);
+
+  it('rejects a footprint overlapping an unbuildable tile', () => {
+    // 2×2 at (4,4) overlaps resource at (5,5)
+    expect(isBuildable(map, 4, 4, 2, 2)).toBe(false);
+  });
+
+  it('accepts a fully empty footprint', () => {
+    // 2×2 at (7,7) — far from HQ and resources
+    expect(isBuildable(map, 7, 7, 2, 2)).toBe(true);
+  });
+
+  it('rejects a footprint going out of bounds', () => {
+    expect(isBuildable(map, 9, 9, 2, 2)).toBe(false);
+  });
+
+  it('accepts a 1×1 on a clean tile', () => {
+    expect(isBuildable(map, 8, 8, 1, 1)).toBe(true);
+  });
+});
+
+describe('Soft-occupied', () => {
+  const state = makeTestState({
+    mapW: 10,
+    mapH: 10,
+    hqTx: 0,
+    hqTy: 0,
+    harvesters: [{ ftx: 5, fty: 5 }],
+  });
+  const map = buildOccupancyMap(state);
+
+  it('harvester tile has "soft-occupied" flag', () => {
+    const flags = getFlags(map, 5, 5);
+    expect(flags.has('soft-occupied')).toBe(true);
+  });
+
+  it('soft-occupied tile is still passable', () => {
+    expect(isPassable(map, 5, 5)).toBe(true);
+  });
+
+  it('soft-occupied tile is still buildable', () => {
+    expect(isBuildable(map, 5, 5, 1, 1)).toBe(true);
+  });
+});
+
+describe('getFlags', () => {
+  const state = makeTestState({ mapW: 10, mapH: 10, hqTx: 0, hqTy: 0 });
+  const map = buildOccupancyMap(state);
+
+  it('returns empty set for a clean tile', () => {
+    const flags = getFlags(map, 9, 9);
+    expect(flags.size).toBe(0);
+  });
+
+  it('returns empty set for out-of-bounds', () => {
+    const flags = getFlags(map, -1, -1);
+    expect(flags.size).toBe(0);
+  });
+});
+
+describe('integration — createInitialState', () => {
+  it('HQ at (4,4) makes a 3×3 area impassable', () => {
+    const state = createInitialState();
+    const map = buildOccupancyMap(state);
+
+    // HQ footprint: (4,4) to (6,6)
+    for (let dy = 0; dy < 3; dy++) {
+      for (let dx = 0; dx < 3; dx++) {
+        expect(isPassable(map, 4 + dx, 4 + dy)).toBe(false);
+      }
+    }
+
+    // Just outside HQ should be passable
+    expect(isPassable(map, 7, 4)).toBe(true);
+    expect(isPassable(map, 4, 7)).toBe(true);
+  });
+
+  it('infinite resource at (23,22) with footprint 3 is unbuildable', () => {
+    const state = createInitialState();
+    const map = buildOccupancyMap(state);
+
+    for (let dy = 0; dy < 3; dy++) {
+      for (let dx = 0; dx < 3; dx++) {
+        expect(isBuildable(map, 23 + dx, 22 + dy, 1, 1)).toBe(false);
+      }
+    }
+  });
+});
