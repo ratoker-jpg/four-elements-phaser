@@ -25,7 +25,7 @@ Before helping with the project, read these files in this order:
 2. `docs/project/PROJECT_STATE.md`  
    Short current status: what is merged, what is on hold, what must not be touched, and what the next planned discussion/task is.
 
-3. `docs/project/ROADMAP.md`  
+3. `docs/ROADMAP.md`  
    Read only when planning the next phase, changing direction, generating roadmap tasks, or preparing a large audit.
 
 4. `docs/project/GLM_EXECUTOR_RULES.md`  

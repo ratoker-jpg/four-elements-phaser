@@ -42,7 +42,7 @@ docs/project/PROJECT_STATE.md
 Read additionally:
 
 ```text
-docs/project/ROADMAP.md
+docs/ROADMAP.md
 ```
 
 only when the task involves roadmap planning, direction changes, large audits, or phase planning.
@@ -635,7 +635,7 @@ Read first:
 ```text
 Read first:
 - docs/project/GLM_EXECUTOR_RULES.md
-- docs/project/ROADMAP.md
+- docs/ROADMAP.md
 - relevant economy design doc
 - src/state/types.ts
 - src/state/updateGameState.ts

@@ -11,6 +11,9 @@
 
 ## 0. Current main sync (Синхронизация с текущим main)
 
+> **Note:** This section describes repo state at audit time before PR #31 / ARCH-00-docs merge.
+> After PR #31 merge, `docs/project/` files and `docs/ROADMAP_SYSTEM_AUDIT.md` are expected to be on main.
+
 **Commit:** `acf5820` (merge PR #30 — BUILD-ANCHOR-01)
 
 ### Уже сделано / замержено
@@ -19,7 +22,7 @@
 |-----------|---------|-------------|
 | BuildingPlacementMeta data model | `src/assets/buildingPlacementMeta.ts` + test | PR #30 (BUILD-ANCHOR-01) |
 | Construction core (Separator) | `src/state/construction.ts` | PR #20 (ARCH-13E1) |
-| Build site selection (spiral search) | `src/state/buildSiteSelection.ts` | PR #21 (ARCH-13E2) |
+| Build site selection (spiral search + auto) | `src/state/buildSiteSelection.ts` | PR #24 (ARCH-13E4) |
 | Builder state machine + movement | `src/state/builder.ts` | PR #22 (ARCH-13E3) |
 | Occupancy grid | `src/state/occupancy.ts` | PR #19 (ARCH-13C+D) |
 | BFS pathfinding | `src/state/pathfinding.ts` | PR #19 (ARCH-13C+D) |
@@ -28,7 +31,6 @@
 | Modular tank renderer (extracted from EntityRenderer) | `src/phaser/render/ModularTankRenderer.ts` + `ModularTankDebugOverlay.ts` | PR #7 → refactor |
 | Building placement strategy doc | `docs/BUILDING_PLACEMENT_STRATEGY.md` | PR #29 (DOC-01) |
 | Civil + building assets ported | `src/assets/buildingAssets.ts`, `civilUnitAssets.ts` | PR #26 (ASSET-01) |
-| Auto build-site selection | `src/state/buildSiteSelection.ts` | PR #24 (ARCH-13E4) |
 | Construction UX / QA cleanup | various | PR #25 (ARCH-13F1) |
 | 10 unit-тестов | `src/__tests__/` | cumulative |
 

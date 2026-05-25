@@ -1,6 +1,6 @@
 # ROADMAP.md
 
-Status: draft for system audit  
+Status: accepted roadmap after ROADMAP_SYSTEM_AUDIT 01D  
 Project: Four Elements Phaser  
 Main repo: `ratoker-jpg/four-elements-phaser`  
 Reference / donor repo: `ratoker-jpg/four-elements-next`  
@@ -694,6 +694,6 @@ The audit must answer:
 
 ## 4. Immediate next step
 
-Run `ROADMAP_SYSTEM_AUDIT` against this roadmap.
+System audit completed in `docs/ROADMAP_SYSTEM_AUDIT.md`.
 
-No implementation PRs before the audit is reviewed and accepted.
+Next technical PR: BUILD-ANCHOR-02 — offline alpha-bounds generator.
