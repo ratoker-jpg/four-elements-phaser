@@ -1,21 +1,25 @@
 import Phaser from 'phaser';
 import { tileToScreen, IsoPoint } from './isometric';
 import { BUILDING_CONFIG } from '../../state/construction';
-import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPlacement } from '../../state/types';
+import { getCivilUnitKey } from '../../assets/civilUnitAssets';
+import { DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
+import { directionFromDelta } from '../../state/updateGameState';
+import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPlacement, Faction } from '../../state/types';
 
 /**
  * ConstructionRenderer — renders construction sites, completed buildings, and builders.
  *
  * ARCH-13E2: Minimal debug rendering for the Separator construction flow.
  * ARCH-13E3: Added builder rendering (small colored circle at fractional position).
+ * ASSET-02: Builder now renders using spritesheet instead of circle.
  *
  * Construction sites are rendered as amber semi-transparent tile diamonds
  * with a progress bar above. Completed buildings are rendered as green
- * semi-transparent tile diamonds. Builders are rendered as colored circles
- * (blue=idle, yellow=moving-to-site, green=building). No texture assets
- * are used — all rendering is done with Phaser Graphics primitives.
+ * semi-transparent tile diamonds. Builders are rendered from the
+ * `builder_{faction}` spritesheet loaded by civilUnitAssets.ts.
  *
- * This is a debug/MVP renderer, not the final building visual.
+ * If the builder texture is missing (e.g. unsupported faction), the builder
+ * falls back to a colored circle matching the old debug rendering.
  */
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -46,14 +50,25 @@ const PROGRESS_FILL_ALPHA = 0.9;
 const HW = 76 / 2; // TILE_W / 2
 const HH = 38 / 2; // TILE_H / 2
 
-/** Builder rendering constants. */
-const BUILDER_RADIUS = 8;
-const BUILDER_COLOR_IDLE = 0x4488FF;
-const BUILDER_COLOR_MOVING = 0xFFCC00;
-const BUILDER_COLOR_BUILDING = 0x44FF44;
-const BUILDER_ALPHA = 0.9;
-const BUILDER_OUTLINE_COLOR = 0xFFFFFF;
-const BUILDER_OUTLINE_ALPHA = 0.6;
+/** Builder spritesheet display scale — conservative, ~16% of 256px frame. */
+const BUILDER_SCALE = 40 / 256;
+
+/** Builder fallback circle rendering constants (used if texture is missing). */
+const BUILDER_FALLBACK_RADIUS = 8;
+const BUILDER_FALLBACK_COLOR_IDLE = 0x4488FF;
+const BUILDER_FALLBACK_COLOR_MOVING = 0xFFCC00;
+const BUILDER_FALLBACK_COLOR_BUILDING = 0x44FF44;
+const BUILDER_FALLBACK_ALPHA = 0.9;
+const BUILDER_FALLBACK_OUTLINE_COLOR = 0xFFFFFF;
+const BUILDER_FALLBACK_OUTLINE_ALPHA = 0.6;
+
+/** Per-builder tracked state for direction derivation. */
+interface BuilderTrackState {
+  prevFtx: number;
+  prevFty: number;
+  /** Current facing direction row index (0-7). Default S=2. */
+  dirRow: number;
+}
 
 export class ConstructionRenderer {
   private scene: Phaser.Scene;
@@ -65,8 +80,14 @@ export class ConstructionRenderer {
   /** Completed building Graphics objects keyed by `${tx},${ty}`. */
   private buildingGraphics = new Map<string, Phaser.GameObjects.Graphics>();
 
-  /** Builder Graphics objects keyed by builder index. */
-  private builderGraphics = new Map<number, Phaser.GameObjects.Graphics>();
+  /** Builder Sprite objects keyed by builder index (spritesheet rendering). */
+  private builderSprites = new Map<number, Phaser.GameObjects.Sprite>();
+
+  /** Builder Graphics objects keyed by builder index (fallback circle rendering). */
+  private builderFallbackGraphics = new Map<number, Phaser.GameObjects.Graphics>();
+
+  /** Per-builder tracking state for direction facing. */
+  private builderTrack = new Map<number, BuilderTrackState>();
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
@@ -79,7 +100,7 @@ export class ConstructionRenderer {
   syncFromState(state: GameState): void {
     this.syncConstructionSites(state.mapData.constructionSites);
     this.syncBuildings(state.mapData.buildings);
-    this.syncBuilders(state.mapData.builders);
+    this.syncBuilders(state.mapData.builders, state.playerFaction);
   }
 
   private syncConstructionSites(sites: ConstructionSitePlacement[]): void {
@@ -134,26 +155,116 @@ export class ConstructionRenderer {
     }
   }
 
-  private syncBuilders(builders: BuilderPlacement[]): void {
-    for (let bi = 0; bi < builders.length; bi++) {
-      if (!this.builderGraphics.has(bi)) {
-        const g = this.scene.add.graphics();
-        this.builderGraphics.set(bi, g);
-      }
+  private syncBuilders(builders: BuilderPlacement[], faction: Faction): void {
+    const textureKey = getCivilUnitKey(faction, 'builder');
+    const textureExists = this.scene.textures.exists(textureKey);
 
-      // Redraw builder graphics each frame
-      const g = this.builderGraphics.get(bi)!;
-      g.clear();
-      this.drawBuilder(g, builders[bi]);
+    for (let bi = 0; bi < builders.length; bi++) {
+      const builder = builders[bi];
+
+      if (textureExists) {
+        // Spritesheet rendering path
+        this.syncBuilderSprite(bi, builder, textureKey, faction);
+        // Clean up any fallback graphics if they exist from a previous frame
+        const fallback = this.builderFallbackGraphics.get(bi);
+        if (fallback) {
+          fallback.destroy();
+          this.builderFallbackGraphics.delete(bi);
+        }
+      } else {
+        // Fallback circle rendering path
+        this.syncBuilderFallback(bi, builder);
+        // Clean up any sprite if it exists from a previous frame
+        const sprite = this.builderSprites.get(bi);
+        if (sprite) {
+          sprite.destroy();
+          this.builderSprites.delete(bi);
+        }
+        // Clean up tracking state
+        this.builderTrack.delete(bi);
+      }
     }
 
-    // Destroy graphics for removed builders (unlikely but safe)
-    for (const [bi, g] of this.builderGraphics) {
+    // Destroy objects for removed builders
+    for (const [bi, sprite] of this.builderSprites) {
+      if (bi >= builders.length) {
+        sprite.destroy();
+        this.builderSprites.delete(bi);
+        this.builderTrack.delete(bi);
+      }
+    }
+    for (const [bi, g] of this.builderFallbackGraphics) {
       if (bi >= builders.length) {
         g.destroy();
-        this.builderGraphics.delete(bi);
+        this.builderFallbackGraphics.delete(bi);
       }
     }
+  }
+
+  /**
+   * Sync builder using spritesheet rendering.
+   * Creates the sprite on first call, then updates position and direction each frame.
+   */
+  private syncBuilderSprite(
+    bi: number,
+    builder: BuilderPlacement,
+    textureKey: string,
+    _faction: Faction,
+  ): void {
+    // Compute screen position from fractional tile
+    const screenPos = tileToScreen(builder.ftx, builder.fty);
+    const worldX = screenPos.x + this.offset.x;
+    const worldY = screenPos.y + this.offset.y;
+
+    // Get or create tracking state
+    let track = this.builderTrack.get(bi);
+    if (!track) {
+      track = { prevFtx: builder.ftx, prevFty: builder.fty, dirRow: DIR_ROW.S };
+      this.builderTrack.set(bi, track);
+    }
+
+    // Derive direction from movement delta (same approach as harvester)
+    const dtx = builder.ftx - track.prevFtx;
+    const dty = builder.fty - track.prevFty;
+    if (Math.abs(dtx) > 0.001 || Math.abs(dty) > 0.001) {
+      track.dirRow = directionFromDelta(dtx, dty);
+    }
+    track.prevFtx = builder.ftx;
+    track.prevFty = builder.fty;
+
+    // Frame index: direction row * 8 + idle column
+    // For this PR, all phases use column 0 (idle frame) with direction row.
+    // Future PRs can add walk/build animation cycles.
+    const frameIndex = track.dirRow * 8 + IDLE_FRAME;
+
+    // Get or create sprite
+    let sprite = this.builderSprites.get(bi);
+    if (!sprite) {
+      sprite = this.scene.add.sprite(worldX, worldY, textureKey, frameIndex);
+      sprite.setScale(BUILDER_SCALE);
+      sprite.setOrigin(0.5, 0.75);
+      this.builderSprites.set(bi, sprite);
+    }
+
+    // Update position and frame each frame
+    sprite.setPosition(worldX, worldY);
+    sprite.setFrame(frameIndex);
+    sprite.setDepth(110 + worldY);
+  }
+
+  /**
+   * Sync builder using fallback circle rendering.
+   * Used when the builder spritesheet texture is not available.
+   */
+  private syncBuilderFallback(bi: number, builder: BuilderPlacement): void {
+    if (!this.builderFallbackGraphics.has(bi)) {
+      const g = this.scene.add.graphics();
+      this.builderFallbackGraphics.set(bi, g);
+    }
+
+    const g = this.builderFallbackGraphics.get(bi)!;
+    g.clear();
+    this.drawBuilderFallbackCircle(g, builder);
   }
 
   // ─── Drawing helpers ───────────────────────────────────────────
@@ -277,8 +388,8 @@ export class ConstructionRenderer {
     g.setDepth(100 + worldY);
   }
 
-  /** Draw a small colored circle for a builder at their fractional tile position. */
-  private drawBuilder(g: Phaser.GameObjects.Graphics, builder: BuilderPlacement): void {
+  /** Draw a small colored circle for a builder at their fractional tile position (fallback). */
+  private drawBuilderFallbackCircle(g: Phaser.GameObjects.Graphics, builder: BuilderPlacement): void {
     // Use fractional position for smooth movement
     const screenPos = tileToScreen(builder.ftx, builder.fty);
     const cx = screenPos.x + this.offset.x;
@@ -288,23 +399,23 @@ export class ConstructionRenderer {
     let fillColor: number;
     switch (builder.phase) {
       case 'idle':
-        fillColor = BUILDER_COLOR_IDLE;
+        fillColor = BUILDER_FALLBACK_COLOR_IDLE;
         break;
       case 'moving-to-site':
-        fillColor = BUILDER_COLOR_MOVING;
+        fillColor = BUILDER_FALLBACK_COLOR_MOVING;
         break;
       case 'building':
-        fillColor = BUILDER_COLOR_BUILDING;
+        fillColor = BUILDER_FALLBACK_COLOR_BUILDING;
         break;
     }
 
     // Filled circle
-    g.fillStyle(fillColor, BUILDER_ALPHA);
-    g.fillCircle(cx, cy - 4, BUILDER_RADIUS);
+    g.fillStyle(fillColor, BUILDER_FALLBACK_ALPHA);
+    g.fillCircle(cx, cy - 4, BUILDER_FALLBACK_RADIUS);
 
     // Outline
-    g.lineStyle(1.5, BUILDER_OUTLINE_COLOR, BUILDER_OUTLINE_ALPHA);
-    g.strokeCircle(cx, cy - 4, BUILDER_RADIUS);
+    g.lineStyle(1.5, BUILDER_FALLBACK_OUTLINE_COLOR, BUILDER_FALLBACK_OUTLINE_ALPHA);
+    g.strokeCircle(cx, cy - 4, BUILDER_FALLBACK_RADIUS);
 
     // Depth based on position
     g.setDepth(110 + cy);
@@ -323,9 +434,16 @@ export class ConstructionRenderer {
     }
     this.buildingGraphics.clear();
 
-    for (const g of this.builderGraphics.values()) {
+    for (const sprite of this.builderSprites.values()) {
+      sprite.destroy();
+    }
+    this.builderSprites.clear();
+
+    for (const g of this.builderFallbackGraphics.values()) {
       g.destroy();
     }
-    this.builderGraphics.clear();
+    this.builderFallbackGraphics.clear();
+
+    this.builderTrack.clear();
   }
 }
