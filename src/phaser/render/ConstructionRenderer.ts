@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { tileToScreen, IsoPoint } from './isometric';
+import { tileToScreen, IsoPoint, footprintSouthVertex } from './isometric';
 import { BUILDING_CONFIG } from '../../state/construction';
 import { getCivilUnitKey } from '../../assets/civilUnitAssets';
 import { DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
+import { getBuildingPlacementMeta, type BuildingPlacementMeta } from '../../assets/buildingPlacementMeta';
 import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPlacement, Faction } from '../../state/types';
 
 /**
@@ -11,11 +12,14 @@ import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPl
  * ARCH-13E2: Minimal debug rendering for the Separator construction flow.
  * ARCH-13E3: Added builder rendering (small colored circle at fractional position).
  * ASSET-02: Builder renders using `builder_{faction}` spritesheet loaded by civilUnitAssets.ts.
+ * BUILD-ANCHOR-03: Completed buildings render as PNG images using metadata-driven
+ *   south-vertex placement. Green diamond fallback remains for missing metadata/texture.
  *
  * Construction sites are rendered as amber semi-transparent tile diamonds
- * with a progress bar above. Completed buildings are rendered as green
- * semi-transparent tile diamonds. Builders are rendered from the
- * `builder_{faction}` spritesheet loaded by civilUnitAssets.ts.
+ * with a progress bar above. Completed buildings render as PNG images when
+ * metadata and texture exist; otherwise as green semi-transparent tile diamonds.
+ * Builders are rendered from the `builder_{faction}` spritesheet loaded by
+ * civilUnitAssets.ts.
  *
  * If the builder texture is missing, a clear error is logged. ASSET-01
  * guarantees all builder textures are preloaded — a missing texture
@@ -30,10 +34,10 @@ const SITE_FILL_ALPHA = 0.4;
 /** Amber outline for construction site footprints. */
 const SITE_LINE_COLOR = 0xFF8800;
 const SITE_LINE_ALPHA = 0.8;
-/** Green fill for completed building footprints. */
+/** Green fill for completed building footprints (fallback only). */
 const BUILDING_FILL_COLOR = 0x00AA55;
 const BUILDING_FILL_ALPHA = 0.45;
-/** Green outline for completed building footprints. */
+/** Green outline for completed building footprints (fallback only). */
 const BUILDING_LINE_COLOR = 0x008844;
 const BUILDING_LINE_ALPHA = 0.8;
 
@@ -60,14 +64,21 @@ export class ConstructionRenderer {
   /** Construction site Graphics objects keyed by site numeric ID. */
   private siteGraphics = new Map<number, Phaser.GameObjects.Graphics>();
 
-  /** Completed building Graphics objects keyed by `${tx},${ty}`. */
+  /** Completed building Graphics objects (diamond fallback) keyed by `${tx},${ty}`. */
   private buildingGraphics = new Map<string, Phaser.GameObjects.Graphics>();
+
+  /** Completed building Image objects (PNG rendering) keyed by `${tx},${ty}`. */
+  private buildingImages = new Map<string, Phaser.GameObjects.Image>();
 
   /** Builder Sprite objects keyed by builder index (spritesheet rendering). */
   private builderSprites = new Map<number, Phaser.GameObjects.Sprite>();
 
   /** Whether a missing-texture error has already been logged (avoid spam). */
   private builderTextureErrorLogged = false;
+
+  /** Set of `${faction}_${buildingType}` keys for which a missing-meta/texture
+   *  warning has already been logged. Prevents per-frame spam. */
+  private missingBuildingMetaLogged = new Set<string>();
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
@@ -79,7 +90,7 @@ export class ConstructionRenderer {
   /** Sync rendered construction sites, buildings, and builders from current GameState. */
   syncFromState(state: GameState): void {
     this.syncConstructionSites(state.mapData.constructionSites);
-    this.syncBuildings(state.mapData.buildings);
+    this.syncBuildings(state.mapData.buildings, state.playerFaction);
     this.syncBuilders(state.mapData.builders, state.playerFaction);
   }
 
@@ -111,28 +122,108 @@ export class ConstructionRenderer {
     }
   }
 
-  private syncBuildings(buildings: BuildingPlacement[]): void {
+  private syncBuildings(buildings: BuildingPlacement[], faction: Faction): void {
     const activeKeys = new Set<string>();
 
     for (const building of buildings) {
       const key = `${building.tx},${building.ty}`;
       activeKeys.add(key);
 
-      if (!this.buildingGraphics.has(key)) {
-        const g = this.scene.add.graphics();
-        this.drawBuildingDiamond(g, building);
-        this.setDepthFromFootprint(g, building.tx, building.ty, building.type);
-        this.buildingGraphics.set(key, g);
+      // Try metadata-driven PNG rendering
+      const meta = getBuildingPlacementMeta(faction, building.type);
+      const textureExists = meta ? this.scene.textures.exists(meta.assetKey) : false;
+
+      if (meta && textureExists) {
+        // PNG rendering path — destroy any stale diamond placeholder
+        const staleGraphics = this.buildingGraphics.get(key);
+        if (staleGraphics) {
+          staleGraphics.destroy();
+          this.buildingGraphics.delete(key);
+        }
+
+        // Create building Image if not already present
+        if (!this.buildingImages.has(key)) {
+          this.createBuildingImage(building, meta);
+        }
+      } else {
+        // Diamond fallback — destroy any stale Image
+        const staleImage = this.buildingImages.get(key);
+        if (staleImage) {
+          staleImage.destroy();
+          this.buildingImages.delete(key);
+        }
+
+        // Create diamond if not already present
+        if (!this.buildingGraphics.has(key)) {
+          const g = this.scene.add.graphics();
+          this.drawBuildingDiamond(g, building);
+          this.setDepthFromFootprint(g, building.tx, building.ty, building.type);
+          this.buildingGraphics.set(key, g);
+        }
+
+        // Log missing metadata/texture once per key, not every frame
+        const logKey = `${faction}_${building.type}`;
+        if (!this.missingBuildingMetaLogged.has(logKey)) {
+          if (!meta) {
+            console.warn(
+              `[ConstructionRenderer] No placement metadata for "${logKey}". ` +
+              `Falling back to diamond placeholder. Run: npm run generate:building-meta`,
+            );
+          } else {
+            console.error(
+              `[ConstructionRenderer] Texture "${meta.assetKey}" not found for "${logKey}". ` +
+              `Check PreloadScene and buildingAssets.ts.`,
+            );
+          }
+          this.missingBuildingMetaLogged.add(logKey);
+        }
       }
     }
 
-    // Destroy graphics for removed buildings (unlikely but safe)
+    // Destroy graphics for removed buildings
     for (const [key, g] of this.buildingGraphics) {
       if (!activeKeys.has(key)) {
         g.destroy();
         this.buildingGraphics.delete(key);
       }
     }
+
+    // Destroy images for removed buildings
+    for (const [key, img] of this.buildingImages) {
+      if (!activeKeys.has(key)) {
+        img.destroy();
+        this.buildingImages.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Create a Phaser Image for a completed building using metadata-driven placement.
+   *
+   * BUILD-ANCHOR-03: South-vertex placement formula.
+   *
+   * Steps:
+   * 1. Compute the isometric footprint south vertex.
+   * 2. Apply exception offsets if present.
+   * 3. Set texture, origin, scale, position, depth.
+   */
+  private createBuildingImage(building: BuildingPlacement, meta: BuildingPlacementMeta): void {
+    // Compute south vertex of the footprint diamond
+    const sv = footprintSouthVertex(building.tx, building.ty, meta.footprintW, meta.footprintH);
+    const worldX = sv.x + this.offset.x + (meta.exceptionOffsetX ?? 0);
+    const worldY = sv.y + this.offset.y + (meta.exceptionOffsetY ?? 0);
+
+    // Create image with metadata-driven placement
+    const image = this.scene.add.image(worldX, worldY, meta.assetKey);
+    image.setOrigin(meta.originX, meta.originY);
+    image.setScale(meta.computedScale);
+
+    // Depth from bottom-right footprint tile
+    const depth = this.computeBuildingDepth(building.tx, building.ty, meta.footprintW, meta.footprintH);
+    image.setDepth(depth);
+
+    const key = `${building.tx},${building.ty}`;
+    this.buildingImages.set(key, image);
   }
 
   private syncBuilders(builders: BuilderPlacement[], faction: Faction): void {
@@ -312,6 +403,16 @@ export class ConstructionRenderer {
     }
   }
 
+  // ─── Depth helpers ──────────────────────────────────────────────
+
+  /** Compute depth value for isometric z-ordering from the bottom-right footprint tile. */
+  private computeBuildingDepth(tx: number, ty: number, fpW: number, fpH: number): number {
+    const depthTx = tx + fpW - 1;
+    const depthTy = ty + fpH - 1;
+    const screenPos = tileToScreen(depthTx, depthTy);
+    return 100 + screenPos.y + this.offset.y;
+  }
+
   /** Set depth for isometric z-ordering based on the bottom of the footprint. */
   private setDepthFromFootprint(
     g: Phaser.GameObjects.Graphics,
@@ -322,13 +423,7 @@ export class ConstructionRenderer {
     const config = BUILDING_CONFIG[buildingType as keyof typeof BUILDING_CONFIG];
     const fpW = config?.footprintW ?? 1;
     const fpH = config?.footprintH ?? 1;
-
-    // Use the bottom-center tile for depth sorting
-    const depthTx = tx + fpW - 1;
-    const depthTy = ty + fpH - 1;
-    const screenPos = tileToScreen(depthTx, depthTy);
-    const worldY = screenPos.y + this.offset.y;
-    g.setDepth(100 + worldY);
+    g.setDepth(this.computeBuildingDepth(tx, ty, fpW, fpH));
   }
 
   // ─── Cleanup ───────────────────────────────────────────────────
@@ -343,6 +438,11 @@ export class ConstructionRenderer {
       g.destroy();
     }
     this.buildingGraphics.clear();
+
+    for (const img of this.buildingImages.values()) {
+      img.destroy();
+    }
+    this.buildingImages.clear();
 
     for (const sprite of this.builderSprites.values()) {
       sprite.destroy();
