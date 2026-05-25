@@ -8,36 +8,42 @@ Repo: `ratoker-jpg/four-elements-phaser`
 
 ## Current mode
 
-Process / workflow rework.
+Implementation — scoped technical PRs under accepted roadmap.
 
-No new code PRs until workflow docs and roadmap direction are accepted.
+Workflow docs and roadmap direction are accepted (PR #31 — ARCH-00-docs).
 
 ---
 
 ## Current priority
 
-Finish and commit project workflow documentation:
+BUILD-ANCHOR-02 — offline alpha-bounds generator.
 
-- `docs/project/START_HERE_FOR_GPT.md`
-- `docs/project/GPT_WORKFLOW.md`
-- `docs/project/GLM_EXECUTOR_RULES.md`
-- `docs/project/PROJECT_STATE.md`
+This is the first technical PR under the new workflow.
 
-After that, rework the roadmap before continuing implementation.
+Scope:
+
+- Generate per-building alpha-bounds metadata from PNG assets at build/dev time.
+- Output structured data consumable by the BuildingPlacementMeta model (PR #30).
+- No runtime renderer changes in this PR.
+- No manual per-PNG tuning.
 
 ---
 
-## Recent accepted direction
+## Accepted workflow
 
-The project must move from ad-hoc implementation to a system-first workflow.
+The project now follows a system-first workflow defined in:
+
+- `docs/project/START_HERE_FOR_GPT.md` — entry point for GPT agent.
+- `docs/project/GPT_WORKFLOW.md` — GPT planner workflow rules.
+- `docs/project/GLM_EXECUTOR_RULES.md` — GLM executor rules.
+- `docs/ROADMAP.md` — 21-ARCH roadmap with scoped PR sequences.
+- `docs/ROADMAP_SYSTEM_AUDIT.md` — roadmap system audit.
 
 Core rule:
 
 ```text
 roadmap -> audit/design -> scoped PR sequence -> implementation
 ```
-
-Manual per-object tuning is not accepted as the default production approach.
 
 ---
 
@@ -62,6 +68,7 @@ Manual `displayWidth / origin / offset` tuning per PNG is not the production pat
 
 - PR #29 — `DOC-01: Building placement strategy` — merged.
 - PR #30 — `BUILD-ANCHOR-01: BuildingPlacementMeta data model` — merged.
+- PR #31 — `ARCH-00-docs: Workflow, roadmap, and roadmap system audit docs` — merged.
 
 ---
 
@@ -82,29 +89,11 @@ but its production approach relied too much on manual per-PNG tuning.
 
 Do not start:
 
-- `BUILD-ANCHOR-02`
-- alpha-bounds generator
-- building renderer changes
-- economy changes
-- new asset rendering
-- new combat work
-- new production/factory work
+- combat system code
+- economy system code
+- random / unscoped implementation work
 
-until the roadmap is reworked and accepted.
-
----
-
-## Next planned discussion
-
-Rework the project roadmap by large ARCH blocks.
-
-The roadmap must describe not only what we want, but also:
-
-- how each system should be implemented;
-- what Phaser 4 APIs or project systems are relevant;
-- what data model is needed;
-- what should be audited first;
-- what PR sequence is safe.
+Building-placement technical PRs (BUILD-ANCHOR-02 and following) are allowed under the accepted roadmap.
 
 ---
 
