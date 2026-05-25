@@ -12,26 +12,42 @@ Implementation — scoped technical PRs under accepted roadmap.
 
 Workflow docs and roadmap direction are accepted (PR #31 — ARCH-00-docs).
 
+The temporary BUILD-ANCHOR workstream under ARCH-03 is now complete enough to stop and return to the main roadmap order.
+
 ---
 
 ## Current priority
 
-BUILD-ANCHOR-02 — offline alpha-bounds generator.
+ARCH-01 — Economy baseline.
 
-This is the first technical PR under the new workflow.
+Goal:
 
-Scope:
+- Port/fix the accepted civil economy baseline from `four-elements-next` into Phaser.
+- Keep the work scoped and implementation-focused.
+- Do not redesign the economy unless a roadmap/design change is explicitly accepted.
 
-- Generate per-building alpha-bounds metadata from PNG assets at build/dev time.
-- Output structured data consumable by the BuildingPlacementMeta model (PR #30).
-- No runtime renderer changes in this PR.
-- No manual per-PNG tuning.
+Expected first step:
+
+```text
+ARCH-01A — scoped economy baseline audit/design or first implementation PR,
+depending on how much current state/code inspection is needed.
+```
+
+Before preparing the next GLM task, GPT must read:
+
+- `docs/project/START_HERE_FOR_GPT.md`
+- `docs/project/GPT_WORKFLOW.md`
+- `docs/project/PROJECT_STATE.md`
+- `docs/ROADMAP.md`
+- `docs/ROADMAP_SYSTEM_AUDIT.md`
+
+For economy tasking, also inspect the relevant current state files before writing a prompt.
 
 ---
 
 ## Accepted workflow
 
-The project now follows a system-first workflow defined in:
+The project follows a system-first workflow defined in:
 
 - `docs/project/START_HERE_FOR_GPT.md` — entry point for GPT agent.
 - `docs/project/GPT_WORKFLOW.md` — GPT planner workflow rules.
@@ -47,28 +63,31 @@ roadmap -> audit/design -> scoped PR sequence -> implementation
 
 ---
 
-## Current building placement decision
+## Recently completed ARCH-03 building placement work
 
-Building PNG placement must use a systemic metadata-based approach.
+The ARCH-03 building PNG placement sequence was completed before returning to ARCH-01 because the renderer needed a systemic metadata-driven placement path and PR #28 had been closed as manual-tuning based.
 
-Accepted direction:
-
-```text
-offline metadata / alpha bounds
-south-vertex footprint anchoring
-generic renderer formula
-dev tuner only as diagnostic
-```
-
-Manual `displayWidth / origin / offset` tuning per PNG is not the production path.
-
----
-
-## Recent important PRs
+Recent important PRs:
 
 - PR #29 — `DOC-01: Building placement strategy` — merged.
 - PR #30 — `BUILD-ANCHOR-01: BuildingPlacementMeta data model` — merged.
 - PR #31 — `ARCH-00-docs: Workflow, roadmap, and roadmap system audit docs` — merged.
+- PR #32 — `BUILD-ANCHOR-02: Offline alpha-bounds generator` — merged.
+- PR #33 — `BUILD-ANCHOR-03: Render completed buildings with placement metadata` — merged.
+
+Completed building placement direction:
+
+```text
+offline metadata / alpha bounds
+alpha-bottom ground line
+south-vertex footprint anchoring
+generic renderer formula
+footprint-based target display width
+fallback diamond only for missing metadata/texture
+dev tuner only as diagnostic
+```
+
+Manual `displayWidth / origin / offset` tuning per PNG is not the production path.
 
 ---
 
@@ -90,10 +109,13 @@ but its production approach relied too much on manual per-PNG tuning.
 Do not start:
 
 - combat system code
-- economy system code
+- enemy AI code
 - random / unscoped implementation work
+- more building-placement polish unless it is required by an accepted roadmap task or a regression fix
 
-Building-placement technical PRs (BUILD-ANCHOR-02 and following) are allowed under the accepted roadmap.
+Allowed next workstream:
+
+- ARCH-01 — Economy baseline.
 
 ---
 
