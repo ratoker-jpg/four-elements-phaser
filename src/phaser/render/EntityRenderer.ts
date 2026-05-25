@@ -210,13 +210,11 @@ export class EntityRenderer {
     this.staticObjects.push(img);
   }
 
-  private placeBuilder(x: number, y: number, entity: RenderableEntity): void {
-    // No approved builder asset exists in the new repo.
-    console.warn(
-      `[EntityRenderer] TODO: No builder asset — skipping builder at (${entity.tx}, ${entity.ty}).`,
-    );
-    void x;
-    void y;
+  private placeBuilder(_x: number, _y: number, entity: RenderableEntity): void {
+    // ARCH-13E3: Builder rendering is now handled by ConstructionRenderer
+    // using fractional tile positions for smooth movement.
+    // The static builder placeholder in entities is no longer rendered here.
+    void entity;
   }
 
   // ─── Dynamic entity factories ──────────────────────────────────

@@ -7,6 +7,7 @@ import { tileToScreen, mapOriginOffset } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
 import { placeConstructionSite, updateConstructionSiteProgress } from '../state/construction';
+import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, HarvesterPhase } from '../state/types';
 import {
   MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
@@ -231,7 +232,13 @@ export class GameScene extends Phaser.Scene {
     // 1. Advance game state (harvester civil loop)
     updateGameState(this.gameState, delta);
 
-    // 2. Advance construction site progress
+    // 2. Auto-assign idle builders to pending construction sites
+    assignIdleBuilders(this.gameState);
+
+    // 3. Advance builder movement (must come before construction progress)
+    updateBuilders(this.gameState, delta);
+
+    // 4. Advance construction site progress (only for sites with active builder)
     const siteIds = this.gameState.mapData.constructionSites.map(s => `site-${s.id}`);
     for (const siteId of siteIds) {
       const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
@@ -240,13 +247,13 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // 3. Sync render layer
+    // 5. Sync render layer
     this.entityRenderer?.syncFromState(this.gameState);
 
-    // 4. Update HUD
+    // 6. Update HUD
     this.updateHUD();
 
-    // 5. Debug log on unload completion
+    // 7. Debug log on unload completion
     if (this.gameState.rawMinerals > this.lastLoggedMinerals) {
       console.log(
         `[GameScene] Unloaded! Raw minerals: ${this.gameState.rawMinerals}`,

@@ -20,6 +20,7 @@ function makeTestState(overrides?: {
   obstacles?: Array<{ tx: number; ty: number; footprint: number }>;
   buildings?: Array<{ tx: number; ty: number; type?: string }>;
   constructionSites?: Array<{ tx: number; ty: number; type?: string }>;
+  builders?: Array<{ tx: number; ty: number }>;
 }): GameState {
   const w = overrides?.mapW ?? 20;
   const h = overrides?.mapH ?? 20;
@@ -49,7 +50,19 @@ function makeTestState(overrides?: {
       ty: b.ty,
       type: (b.type ?? 'separator') as 'separator',
     })),
-    builders: [],
+    builders: (overrides?.builders ?? []).map((b) => ({
+      tx: b.tx,
+      ty: b.ty,
+      busy: false,
+      phase: 'idle' as const,
+      path: [],
+      pathIndex: 0,
+      ftx: b.tx,
+      fty: b.ty,
+      targetTx: b.tx,
+      targetTy: b.ty,
+      assignedSiteId: -1,
+    })),
     constructionSites: (overrides?.constructionSites ?? []).map((c, i) => ({
       tx: c.tx,
       ty: c.ty,
@@ -79,6 +92,51 @@ function makeTestState(overrides?: {
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
   };
+}
+
+/**
+ * Place a construction site AND set up a builder in 'building' phase
+ * for tests that need construction progress to advance.
+ *
+ * ARCH-13E3: Progress only advances when site.pending === false and
+ * the assigned builder is in 'building' phase.
+ */
+function makeBuildingState(overrides?: {
+  mapW?: number;
+  mapH?: number;
+  hqTx?: number;
+  hqTy?: number;
+  rawMinerals?: number;
+  siteTx?: number;
+  siteTy?: number;
+}): GameState {
+  const siteTx = overrides?.siteTx ?? 10;
+  const siteTy = overrides?.siteTy ?? 10;
+
+  const state = makeTestState({
+    mapW: overrides?.mapW ?? 20,
+    mapH: overrides?.mapH ?? 20,
+    hqTx: overrides?.hqTx ?? 0,
+    hqTy: overrides?.hqTy ?? 0,
+    rawMinerals: overrides?.rawMinerals ?? 500,
+    builders: [{ tx: siteTx - 1, ty: siteTy }], // Adjacent to site
+  });
+
+  // Place construction site
+  placeConstructionSite(state, 'separator', siteTx, siteTy);
+
+  // Manually set builder to building phase (simulating assignment + arrival)
+  const builder = state.mapData.builders[0];
+  builder.busy = true;
+  builder.phase = 'building';
+  builder.assignedSiteId = 0;
+
+  // Set site to non-pending with builder assigned
+  const site = state.mapData.constructionSites[0];
+  site.builderIndex = 0;
+  site.pending = false;
+
+  return state;
 }
 
 // ─── BUILDING_CONFIG ───────────────────────────────────────────────
@@ -251,9 +309,8 @@ describe('placeConstructionSite', () => {
 // ─── updateConstructionSiteProgress ────────────────────────────────
 
 describe('updateConstructionSiteProgress', () => {
-  it('increments progress over time', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0 });
-    placeConstructionSite(state, 'separator', 10, 10);
+  it('increments progress over time with builder in building phase', () => {
+    const state = makeBuildingState();
 
     // Advance 200ms (max per tick due to clamping)
     const result = updateConstructionSiteProgress(state, 'site-0', 200);
@@ -265,8 +322,7 @@ describe('updateConstructionSiteProgress', () => {
   });
 
   it('clamps deltaMs to 200ms', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0 });
-    placeConstructionSite(state, 'separator', 10, 10);
+    const state = makeBuildingState();
 
     // Even with huge delta, should only advance 200ms
     const result = updateConstructionSiteProgress(state, 'site-0', 10000);
@@ -277,8 +333,7 @@ describe('updateConstructionSiteProgress', () => {
   });
 
   it('completes construction when elapsed reaches duration', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0 });
-    placeConstructionSite(state, 'separator', 10, 10);
+    const state = makeBuildingState();
 
     // Advance in 200ms steps (clamped max) for 25 steps = 5000ms total
     let lastResult: { completed: boolean; buildingId?: string } = { completed: false };
@@ -293,8 +348,7 @@ describe('updateConstructionSiteProgress', () => {
   });
 
   it('removes construction site and creates building on completion', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0 });
-    placeConstructionSite(state, 'separator', 10, 10);
+    const state = makeBuildingState();
 
     expect(state.mapData.constructionSites.length).toBe(1);
     expect(state.mapData.buildings.length).toBe(0);
@@ -327,8 +381,7 @@ describe('updateConstructionSiteProgress', () => {
   });
 
   it('completed building blocks further placement at same location', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, rawMinerals: 1000 });
-    placeConstructionSite(state, 'separator', 10, 10);
+    const state = makeBuildingState({ rawMinerals: 1000 });
 
     // Complete construction
     for (let i = 0; i < 25; i++) {
@@ -338,6 +391,57 @@ describe('updateConstructionSiteProgress', () => {
     // Now try to place another separator at the same location
     const result = canPlaceBuilding(state, 'separator', 10, 10);
     expect(result).toEqual({ valid: false, reason: 'occupied' });
+  });
+
+  it('does not advance progress when site is pending (no builder)', () => {
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0 });
+    placeConstructionSite(state, 'separator', 10, 10);
+
+    // No builder assigned — site is pending
+    const result = updateConstructionSiteProgress(state, 'site-0', 200);
+    expect(result).toEqual({ completed: false });
+
+    const site = state.mapData.constructionSites[0];
+    expect(site.elapsed).toBe(0);
+    expect(site.progress).toBe(0);
+  });
+
+  it('does not advance progress when builder is moving-to-site', () => {
+    const state = makeTestState({
+      mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
+      builders: [{ tx: 5, ty: 5 }],
+    });
+    placeConstructionSite(state, 'separator', 10, 10);
+
+    // Manually set builder to moving-to-site phase but site still pending
+    const builder = state.mapData.builders[0];
+    builder.busy = true;
+    builder.phase = 'moving-to-site';
+    builder.assignedSiteId = 0;
+
+    const site = state.mapData.constructionSites[0];
+    site.builderIndex = 0;
+    site.pending = true; // Still pending because builder hasn't arrived
+
+    // Progress should not advance
+    const result = updateConstructionSiteProgress(state, 'site-0', 200);
+    expect(result).toEqual({ completed: false });
+    expect(site.elapsed).toBe(0);
+  });
+
+  it('releases builder on completion', () => {
+    const state = makeBuildingState();
+
+    // Complete construction
+    for (let i = 0; i < 25; i++) {
+      updateConstructionSiteProgress(state, 'site-0', 200);
+    }
+
+    // Builder should be released back to idle
+    const builder = state.mapData.builders[0];
+    expect(builder.busy).toBe(false);
+    expect(builder.phase).toBe('idle');
+    expect(builder.assignedSiteId).toBe(-1);
   });
 });
 
