@@ -7,6 +7,7 @@ import { tileToScreen, mapOriginOffset } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
 import { placeConstructionSite, updateConstructionSiteProgress } from '../state/construction';
+import { findBuildSiteNearPlayerBuildings } from '../state/buildSiteSelection';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, HarvesterPhase } from '../state/types';
 import {
@@ -188,19 +189,28 @@ export class GameScene extends Phaser.Scene {
       console.log(`[Tuner] turretDir: ${next}`);
     });
 
-    // ── Debug build hotkey (B) — place Separator construction site ──
+    // ── Debug build hotkey (B) — auto-place Separator construction site ──
     this.input.keyboard?.on('keydown-B', () => {
-      // Grant debug resources for testing (separator costs 100 raw)
+      // TEMPORARY QA: grant debug resources if too low (separator costs 100 raw).
+      // This will be removed once the economy is properly balanced.
       if (this.gameState.rawMinerals < 150) {
         this.gameState.rawMinerals = 150;
       }
 
-      // Fixed test placement tile near HQ: (8, 4)
-      const result = placeConstructionSite(this.gameState, 'separator', 8, 4);
+      // ARCH-13E4: Automatic build-site selection.
+      // The system finds a valid 2x2 location near player buildings
+      // with a 1-tile gap around existing footprints.
+      const site = findBuildSiteNearPlayerBuildings(this.gameState, 'separator');
+      if (!site.ok) {
+        console.warn(`[GameScene] No valid build site found: ${site.reason}`);
+        return;
+      }
+
+      const result = placeConstructionSite(this.gameState, 'separator', site.tx, site.ty);
       if (result.ok) {
-        console.log(`[GameScene] Construction site placed: ${result.siteId} at (8,4)`);
+        console.log(`[GameScene] Construction site placed: ${result.siteId} at (${site.tx},${site.ty})`);
       } else {
-        console.warn(`[GameScene] Placement failed: ${result.reason}`);
+        console.warn(`[GameScene] Placement failed at (${site.tx},${site.ty}): ${result.reason}`);
       }
     });
 
