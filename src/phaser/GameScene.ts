@@ -3,10 +3,15 @@ import { ASSET_KEYS } from '../assets/assetManifest';
 import { TerrainRenderer } from './render/TerrainRenderer';
 import { EntityRenderer } from './render/EntityRenderer';
 import { CameraControls } from './input/CameraControls';
-import { tileToScreen, mapOriginOffset } from './render/isometric';
+import { tileToScreen, worldToTile, mapOriginOffset, type IsoPoint } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
-import { placeConstructionSite, updateConstructionSiteProgress } from '../state/construction';
+import {
+  BUILDING_CONFIG,
+  canPlaceBuilding,
+  placeConstructionSite,
+  updateConstructionSiteProgress,
+} from '../state/construction';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, HarvesterPhase } from '../state/types';
 import {
@@ -36,13 +41,36 @@ const PHASE_LABEL: Record<HarvesterPhase, string> = {
   unloading: 'Unloading',
 };
 
+const PREVIEW_VALID_FILL = 0x44aa44;
+const PREVIEW_VALID_LINE = 0xffcc55;
+const PREVIEW_INVALID_FILL = 0xcc4444;
+const PREVIEW_INVALID_LINE = 0xff6666;
+const PREVIEW_FILL_ALPHA = 0.28;
+const PREVIEW_LINE_ALPHA = 0.95;
+const PREVIEW_HW = 76 / 2;
+const PREVIEW_HH = 38 / 2;
+const PREVIEW_DEPTH = 80;
+
+interface PlacementModeState {
+  active: boolean;
+  hoverTx: number;
+  hoverTy: number;
+}
+
 export class GameScene extends Phaser.Scene {
   private terrainRenderer: TerrainRenderer | null = null;
   private entityRenderer: EntityRenderer | null = null;
   private cameraControls: CameraControls | null = null;
   private gameState!: GameState;
+  private mapOffset!: IsoPoint;
   private hqWorldX: number = 0;
   private hqWorldY: number = 0;
+  private placementPreview: Phaser.GameObjects.Graphics | null = null;
+  private placementMode: PlacementModeState = {
+    active: false,
+    hoverTx: 0,
+    hoverTy: 0,
+  };
 
   // HUD elements
   private hudCoords: HTMLElement | null = null;
@@ -72,13 +100,13 @@ export class GameScene extends Phaser.Scene {
     );
 
     // Get offset for entity placement
-    const offset = mapOriginOffset(this.gameState.mapWidth, this.gameState.mapHeight);
+    this.mapOffset = mapOriginOffset(this.gameState.mapWidth, this.gameState.mapHeight);
 
     // Draw isometric grid overlay
-    this.drawGridLines(offset);
+    this.drawGridLines(this.mapOffset);
 
     // Render entities — static first, then dynamic
-    this.entityRenderer = new EntityRenderer(this, offset);
+    this.entityRenderer = new EntityRenderer(this, this.mapOffset);
     this.entityRenderer.renderStaticEntities(this.gameState.entities);
     this.entityRenderer.renderDynamicInit(
       this.gameState.harvesters,
@@ -95,8 +123,8 @@ export class GameScene extends Phaser.Scene {
     const hqCenterTx = hq.tx + 1;
     const hqCenterTy = hq.ty + 1;
     const hqScreen = tileToScreen(hqCenterTx, hqCenterTy);
-    this.hqWorldX = hqScreen.x + offset.x;
-    this.hqWorldY = hqScreen.y + offset.y;
+    this.hqWorldX = hqScreen.x + this.mapOffset.x;
+    this.hqWorldY = hqScreen.y + this.mapOffset.y;
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
     // ── Debug overlay toggle (T) + tuner controls ────────────
@@ -189,19 +217,34 @@ export class GameScene extends Phaser.Scene {
     });
 
     // ── Debug build hotkey (B) — place Separator construction site ──
+    this.placementPreview = this.add.graphics();
+    this.placementPreview.setDepth(PREVIEW_DEPTH);
+    this.placementPreview.setVisible(false);
+
     this.input.keyboard?.on('keydown-B', () => {
-      // Grant debug resources for testing (separator costs 100 raw)
-      if (this.gameState.rawMinerals < 150) {
-        this.gameState.rawMinerals = 150;
+      if (this.placementMode.active) {
+        this.cancelPlacementMode('toggled-off');
+        return;
       }
 
-      // Fixed test placement tile near HQ: (8, 4)
-      const result = placeConstructionSite(this.gameState, 'separator', 8, 4);
-      if (result.ok) {
-        console.log(`[GameScene] Construction site placed: ${result.siteId} at (8,4)`);
-      } else {
-        console.warn(`[GameScene] Placement failed: ${result.reason}`);
-      }
+      this.enterPlacementMode();
+    });
+
+    this.input.keyboard?.on('keydown-ESC', () => {
+      if (!this.placementMode.active) return;
+      this.cancelPlacementMode('escape');
+    });
+
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (!this.placementMode.active) return;
+      this.updatePlacementHover(pointer);
+    });
+
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (!this.placementMode.active) return;
+      if (pointer.rightButtonDown()) return;
+      if (pointer.button !== 0) return;
+      this.tryPlaceAtPointer(pointer);
     });
 
     // HUD references
@@ -224,7 +267,7 @@ export class GameScene extends Phaser.Scene {
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
-      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B: build separator | Q/E: body dir | Z/X: turret dir`,
+      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B: toggle separator placement | Esc: cancel placement | Q/E: body dir | Z/X: turret dir`,
     );
   }
 
@@ -259,6 +302,10 @@ export class GameScene extends Phaser.Scene {
         `[GameScene] Unloaded! Raw minerals: ${this.gameState.rawMinerals}`,
       );
       this.lastLoggedMinerals = this.gameState.rawMinerals;
+    }
+
+    if (this.placementMode.active) {
+      this.redrawPlacementPreview();
     }
   }
 
@@ -307,6 +354,116 @@ export class GameScene extends Phaser.Scene {
     console.log('[GameScene] All asset textures verified.');
   }
 
+  private enterPlacementMode(): void {
+    this.ensureDebugPlacementResources();
+
+    const config = BUILDING_CONFIG.separator;
+    if (!config) return;
+
+    const hq = this.gameState.mapData.hq;
+    this.placementMode = {
+      active: true,
+      hoverTx: Math.min(hq.tx + 4, this.gameState.mapWidth - config.footprintW),
+      hoverTy: Math.max(0, hq.ty - 1),
+    };
+
+    this.updatePlacementHover(this.input.activePointer);
+    console.log('[GameScene] Separator placement mode enabled (temporary debug resource grant may apply for QA).');
+  }
+
+  private cancelPlacementMode(reason: 'toggled-off' | 'escape' | 'placed'): void {
+    this.placementMode.active = false;
+    this.placementPreview?.clear();
+    this.placementPreview?.setVisible(false);
+    console.log(`[GameScene] Separator placement mode exited: ${reason}`);
+  }
+
+  private ensureDebugPlacementResources(): void {
+    const config = BUILDING_CONFIG.separator;
+    if (!config) return;
+
+    if (this.gameState.rawMinerals < config.costRaw) {
+      this.gameState.rawMinerals = config.costRaw;
+      console.log('[GameScene] Debug grant applied: raw minerals topped up to Separator cost.');
+    }
+  }
+
+  private updatePlacementHover(pointer: Phaser.Input.Pointer): void {
+    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const tilePoint = worldToTile(worldPoint.x, worldPoint.y, this.mapOffset);
+    this.placementMode.hoverTx = Math.floor(tilePoint.x);
+    this.placementMode.hoverTy = Math.floor(tilePoint.y);
+    this.redrawPlacementPreview();
+  }
+
+  private tryPlaceAtPointer(pointer: Phaser.Input.Pointer): void {
+    this.ensureDebugPlacementResources();
+    this.updatePlacementHover(pointer);
+
+    const { hoverTx, hoverTy } = this.placementMode;
+    const validation = canPlaceBuilding(this.gameState, 'separator', hoverTx, hoverTy);
+    if (!validation.valid) {
+      console.warn(`[GameScene] Placement failed at (${hoverTx},${hoverTy}): ${validation.reason}`);
+      return;
+    }
+
+    const result = placeConstructionSite(this.gameState, 'separator', hoverTx, hoverTy);
+    if (!result.ok) {
+      console.warn(`[GameScene] Placement failed at (${hoverTx},${hoverTy}): ${result.reason}`);
+      return;
+    }
+
+    console.log(`[GameScene] Construction site placed: ${result.siteId} at (${hoverTx},${hoverTy})`);
+    this.cancelPlacementMode('placed');
+  }
+
+  private redrawPlacementPreview(): void {
+    if (!this.placementPreview) return;
+
+    if (!this.placementMode.active) {
+      this.placementPreview.clear();
+      this.placementPreview.setVisible(false);
+      return;
+    }
+
+    const config = BUILDING_CONFIG.separator;
+    if (!config) return;
+
+    const { hoverTx, hoverTy } = this.placementMode;
+    const validation = canPlaceBuilding(this.gameState, 'separator', hoverTx, hoverTy);
+    const fillColor = validation.valid ? PREVIEW_VALID_FILL : PREVIEW_INVALID_FILL;
+    const lineColor = validation.valid ? PREVIEW_VALID_LINE : PREVIEW_INVALID_LINE;
+
+    this.placementPreview.clear();
+    this.placementPreview.setVisible(true);
+
+    for (let dy = 0; dy < config.footprintH; dy++) {
+      for (let dx = 0; dx < config.footprintW; dx++) {
+        const screenPos = tileToScreen(hoverTx + dx, hoverTy + dy);
+        const cx = screenPos.x + this.mapOffset.x;
+        const cy = screenPos.y + this.mapOffset.y;
+
+        this.placementPreview.fillStyle(fillColor, PREVIEW_FILL_ALPHA);
+        this.placementPreview.beginPath();
+        this.placementPreview.moveTo(cx, cy - PREVIEW_HH);
+        this.placementPreview.lineTo(cx + PREVIEW_HW, cy);
+        this.placementPreview.lineTo(cx, cy + PREVIEW_HH);
+        this.placementPreview.lineTo(cx - PREVIEW_HW, cy);
+        this.placementPreview.closePath();
+        this.placementPreview.fillPath();
+
+        this.placementPreview.lineStyle(1.5, lineColor, PREVIEW_LINE_ALPHA);
+        this.placementPreview.beginPath();
+        this.placementPreview.moveTo(cx, cy - PREVIEW_HH);
+        this.placementPreview.lineTo(cx + PREVIEW_HW, cy);
+        this.placementPreview.lineTo(cx, cy + PREVIEW_HH);
+        this.placementPreview.lineTo(cx - PREVIEW_HW, cy);
+        this.placementPreview.closePath();
+        this.placementPreview.strokePath();
+      }
+    }
+  }
+
   private drawGridLines(offset: { x: number; y: number }): void {
     const graphics = this.add.graphics();
     graphics.setDefaultStyles({
@@ -336,6 +493,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.placementPreview?.destroy();
     this.cameraControls?.destroy();
     this.entityRenderer?.destroy();
     this.terrainRenderer?.destroy();

@@ -31,6 +31,11 @@ export function screenToTile(sx: number, sy: number): IsoPoint {
   return { x: tx, y: ty };
 }
 
+/** Convert world coordinates to tile coordinates using the map origin offset. */
+export function worldToTile(worldX: number, worldY: number, offset: IsoPoint): IsoPoint {
+  return screenToTile(worldX - offset.x, worldY - offset.y);
+}
+
 /** Offset so that tile (0,0) is at a positive position in the render buffer. */
 export function mapOriginOffset(_mapW: number, mapH: number): IsoPoint {
   // Tile (0, mapH-1) is the leftmost point; tile (mapW-1, 0) is the rightmost.

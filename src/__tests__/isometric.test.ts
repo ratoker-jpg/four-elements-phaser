@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tileToScreen, screenToTile, mapOriginOffset } from '../phaser/render/isometric';
+import { tileToScreen, screenToTile, worldToTile, mapOriginOffset } from '../phaser/render/isometric';
 
 describe('tileToScreen', () => {
   it('maps origin tile (0,0) to screen origin', () => {
@@ -65,5 +65,15 @@ describe('mapOriginOffset', () => {
     const offset = mapOriginOffset(48, 48);
     expect(offset.x).toBeGreaterThan(0);
     expect(offset.y).toBeGreaterThan(0);
+  });
+});
+
+describe('worldToTile', () => {
+  it('round-trips tile coords after applying map origin offset', () => {
+    const offset = mapOriginOffset(48, 48);
+    const screen = tileToScreen(12, 9);
+    const tile = worldToTile(screen.x + offset.x, screen.y + offset.y, offset);
+    expect(tile.x).toBeCloseTo(12);
+    expect(tile.y).toBeCloseTo(9);
   });
 });
