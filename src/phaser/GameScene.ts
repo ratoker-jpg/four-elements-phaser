@@ -6,6 +6,7 @@ import { CameraControls } from './input/CameraControls';
 import { tileToScreen, mapOriginOffset } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
+import { placeConstructionSite, updateConstructionSiteProgress } from '../state/construction';
 import type { GameState, HarvesterPhase } from '../state/types';
 import {
   MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
@@ -186,6 +187,22 @@ export class GameScene extends Phaser.Scene {
       console.log(`[Tuner] turretDir: ${next}`);
     });
 
+    // ── Debug build hotkey (B) — place Separator construction site ──
+    this.input.keyboard?.on('keydown-B', () => {
+      // Grant debug resources for testing (separator costs 100 raw)
+      if (this.gameState.rawMinerals < 150) {
+        this.gameState.rawMinerals = 150;
+      }
+
+      // Fixed test placement tile near HQ: (8, 4)
+      const result = placeConstructionSite(this.gameState, 'separator', 8, 4);
+      if (result.ok) {
+        console.log(`[GameScene] Construction site placed: ${result.siteId} at (8,4)`);
+      } else {
+        console.warn(`[GameScene] Placement failed: ${result.reason}`);
+      }
+    });
+
     // HUD references
     this.hudCoords = document.getElementById('hud-coords');
     this.hudMapName = document.getElementById('hud-map-name');
@@ -206,21 +223,30 @@ export class GameScene extends Phaser.Scene {
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
-      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | Q/E: body dir | Z/X: turret dir`,
+      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B: build separator | Q/E: body dir | Z/X: turret dir`,
     );
   }
 
   update(_time: number, delta: number): void {
-    // 1. Advance game state
+    // 1. Advance game state (harvester civil loop)
     updateGameState(this.gameState, delta);
 
-    // 2. Sync render layer
+    // 2. Advance construction site progress
+    const siteIds = this.gameState.mapData.constructionSites.map(s => `site-${s.id}`);
+    for (const siteId of siteIds) {
+      const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
+      if (result.completed) {
+        console.log(`[GameScene] Construction completed: ${result.buildingId}`);
+      }
+    }
+
+    // 3. Sync render layer
     this.entityRenderer?.syncFromState(this.gameState);
 
-    // 3. Update HUD
+    // 4. Update HUD
     this.updateHUD();
 
-    // 4. Debug log on unload completion
+    // 5. Debug log on unload completion
     if (this.gameState.rawMinerals > this.lastLoggedMinerals) {
       console.log(
         `[GameScene] Unloaded! Raw minerals: ${this.gameState.rawMinerals}`,
@@ -257,6 +283,7 @@ export class GameScene extends Phaser.Scene {
 
       this.hudEconomy.textContent =
         `Raw: ${s.rawMinerals} | Resources: ${activeResources}/${totalResources} | ` +
+        `Sites: ${s.mapData.constructionSites.length} | ` +
         `Harvesters: ${s.harvesters.length} (${phaseStr})`;
     }
   }
