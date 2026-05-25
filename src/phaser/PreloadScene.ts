@@ -5,6 +5,8 @@ import {
   SPRITESHEET_8X8_256,
 } from '../assets/assetManifest';
 import { loadModularUnitAssets } from '../assets/modularUnitAssets';
+import { loadCivilUnitAssets } from '../assets/civilUnitAssets';
+import { loadBuildingAssets } from '../assets/buildingAssets';
 
 /**
  * PreloadScene — load all runtime-approved assets, then start GameScene.
@@ -55,6 +57,12 @@ export class PreloadScene extends Phaser.Scene {
 
     // --- Modular combat images (separate 256x256 direction PNGs) ---
     loadModularUnitAssets(this);
+
+    // --- Civil unit spritesheets (builder + harvester per faction) ---
+    loadCivilUnitAssets(this);
+
+    // --- Building PNGs (all buildings + non-cyan HQ per faction) ---
+    loadBuildingAssets(this);
 
     // Loading progress
     this.load.on('progress', (value: number) => {
