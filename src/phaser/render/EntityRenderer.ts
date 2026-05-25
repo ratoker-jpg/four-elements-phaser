@@ -303,6 +303,23 @@ export class EntityRenderer {
     this.modularTankRenderer.printOffsetTables();
   }
 
+  // ─── Building dev tuner facade methods (delegate to ConstructionRenderer) ──
+
+  /** Toggle the building dev tuner. Returns new active state, or null if disallowed. */
+  toggleBuildingDevTuner(): boolean | null {
+    return this.constructionRenderer.toggleDevTuner();
+  }
+
+  /** Whether the building dev tuner is currently active. */
+  isBuildingDevTunerActive(): boolean {
+    return this.constructionRenderer.isDevTunerActive();
+  }
+
+  /** Forward a keyboard event to the building dev tuner. Returns true if consumed. */
+  handleBuildingDevTunerKey(event: KeyboardEvent): boolean {
+    return this.constructionRenderer.handleDevTunerKey(event);
+  }
+
   destroy(): void {
     for (const obj of this.staticObjects) {
       obj.destroy();

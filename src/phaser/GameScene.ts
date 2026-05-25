@@ -191,6 +191,26 @@ export class GameScene extends Phaser.Scene {
       console.log(`[Tuner] turretDir: ${next}`);
     });
 
+    // ── Building dev tuner (9) ──────────────────────────────────────
+    this.input.keyboard?.on('keydown-Digit9', () => {
+      const result = this.entityRenderer?.toggleBuildingDevTuner();
+      if (result !== null && result !== undefined) {
+        console.log(`[GameScene] Building dev tuner: ${result ? 'ON' : 'OFF'}`);
+      }
+    });
+
+    // Building tuner keyboard controls (arrow, bracket, O/P, C)
+    // These must be checked before the existing modular tank arrow handler
+    // to avoid double-processing.
+    const buildingTunerHandler = (event: KeyboardEvent) => {
+      if (!this.entityRenderer?.isBuildingDevTunerActive()) return;
+      const consumed = this.entityRenderer.handleBuildingDevTunerKey(event);
+      if (consumed) {
+        event.stopPropagation(); // prevent modular tank arrow handler from also processing
+      }
+    };
+    this.input.keyboard?.on('keydown', buildingTunerHandler as (event: KeyboardEvent) => void);
+
     // ── Debug build hotkey (B) — auto-place Separator construction site ──
     this.input.keyboard?.on('keydown-B', () => {
       // ARCH-13F1: B-press guard — do not create a site if no idle builder is available.
@@ -246,7 +266,7 @@ export class GameScene extends Phaser.Scene {
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
-      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B: build separator | Q/E: body dir | Z/X: turret dir`,
+      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B: build separator | Q/E: body dir | Z/X: turret dir | 9: building tuner`,
     );
   }
 

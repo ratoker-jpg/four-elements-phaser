@@ -5,6 +5,9 @@ import { getCivilUnitKey } from '../../assets/civilUnitAssets';
 import { getBuildingAssetKey } from '../../assets/buildingAssets';
 import type { BuildingAssetType } from '../../assets/buildingAssets';
 import { DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
+import { getBuildingProfile } from '../../config/buildingVisuals';
+import type { BuildingVisualProfile } from '../../config/buildingVisuals';
+import { BuildingDevTuner } from '../../dev/BuildingDevTuner';
 import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPlacement, Faction } from '../../state/types';
 
 /**
@@ -14,13 +17,14 @@ import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPl
  * ARCH-13E3: Added builder rendering (small colored circle at fractional position).
  * ASSET-02: Builder renders using `builder_{faction}` spritesheet loaded by civilUnitAssets.ts.
  * BUILD-01: Completed Separator renders using `building_{faction}_separator` PNG.
+ * BUILD-01A: Building visual profiles + dev tuner for live placement tuning.
  *
  * Construction sites are rendered as amber semi-transparent tile diamonds
  * with a progress bar above. Completed buildings with approved PNG assets
- * (currently Separator) render as Phaser Images; other building types
- * render as green semi-transparent tile diamonds as a placeholder.
- * Builders are rendered from the `builder_{faction}` spritesheet loaded
- * by civilUnitAssets.ts.
+ * (currently Separator) render as Phaser Images using BuildingVisualProfile
+ * for placement; other building types render as green semi-transparent
+ * tile diamonds as a placeholder. Builders are rendered from the
+ * `builder_{faction}` spritesheet loaded by civilUnitAssets.ts.
  *
  * If a building texture is missing, a clear error is logged. ASSET-01
  * guarantees all building textures are preloaded — a missing texture
@@ -58,9 +62,6 @@ const HH = 38 / 2; // TILE_H / 2
 /** Builder spritesheet display scale — conservative, ~16% of 256px frame. */
 const BUILDER_SCALE = 40 / 256;
 
-/** Target display width (px) for completed building PNGs. Scale = value / img.width. */
-const BUILDING_DISPLAY_WIDTH = 120;
-
 /** Building types that have approved PNG assets and should render as Images. */
 const PNG_BUILDING_TYPES: ReadonlySet<string> = new Set(['separator']);
 
@@ -86,9 +87,30 @@ export class ConstructionRenderer {
   /** Whether a missing builder-texture error has already been logged (avoid spam). */
   private builderTextureErrorLogged = false;
 
+  /** Dev-only building tuner — null if dev guard disallows. */
+  private devTuner: BuildingDevTuner;
+
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
     this.offset = offset;
+    this.devTuner = new BuildingDevTuner(scene, offset);
+  }
+
+  // ─── Public API ─────────────────────────────────────────────────
+
+  /** Toggle the dev building tuner. Returns new active state, or null if disallowed. */
+  toggleDevTuner(): boolean | null {
+    return this.devTuner.toggle();
+  }
+
+  /** Whether the dev building tuner is currently active. */
+  isDevTunerActive(): boolean {
+    return this.devTuner.isActive();
+  }
+
+  /** Forward a keyboard event to the dev tuner. Returns true if consumed. */
+  handleDevTunerKey(event: KeyboardEvent): boolean {
+    return this.devTuner.handleKey(event);
   }
 
   // ─── Frame sync ────────────────────────────────────────────────
@@ -164,11 +186,17 @@ export class ConstructionRenderer {
         this.buildingImages.delete(key);
       }
     }
+
+    // Redraw dev tuner overlay for the first PNG building (if tuner is active)
+    if (this.devTuner.isActive()) {
+      this.redrawDevTuner(buildings, faction);
+    }
   }
 
   /**
    * Sync a completed building that has an approved PNG asset.
-   * Creates a Phaser Image at the footprint center on first call.
+   * Creates a Phaser Image positioned using BuildingVisualProfile.
+   * When the dev tuner is active, re-applies profile each frame for live tuning.
    * Missing texture logs a clear error — no silent fallback.
    */
   private syncPngBuilding(
@@ -194,27 +222,65 @@ export class ConstructionRenderer {
 
     this.buildingTextureErrorLogged = false;
 
-    // Already have an Image for this building — nothing to update (static position)
-    if (this.buildingImages.has(key)) return;
-
+    const profile = getBuildingProfile(building.type);
     const config = BUILDING_CONFIG[building.type as keyof typeof BUILDING_CONFIG];
     const fpW = config?.footprintW ?? 1;
     const fpH = config?.footprintH ?? 1;
 
-    // Position at the center of the isometric footprint
+    // Compute base position at the center of the isometric footprint
     const centerScreen = tileToScreen(
       building.tx + (fpW - 1) / 2,
       building.ty + (fpH - 1) / 2,
     );
-    const worldX = centerScreen.x + this.offset.x;
-    const worldY = centerScreen.y + this.offset.y;
+    const baseX = centerScreen.x + this.offset.x;
+    const baseY = centerScreen.y + this.offset.y;
 
-    const img = this.scene.add.image(worldX, worldY, textureKey);
-    const scale = BUILDING_DISPLAY_WIDTH / img.width;
-    img.setScale(scale);
-    img.setOrigin(0.5, 0.75);
+    // Get or create image
+    let img = this.buildingImages.get(key);
+    if (!img) {
+      img = this.scene.add.image(baseX, baseY, textureKey);
+      this.buildingImages.set(key, img);
+    }
+
+    // Apply profile values (always, so dev tuner changes take effect immediately)
+    if (profile) {
+      this.applyProfile(img, baseX, baseY, profile);
+    } else {
+      // Fallback: no profile yet — use conservative defaults
+      const scale = 120 / img.width;
+      img.setScale(scale);
+      img.setOrigin(0.5, 0.75);
+      img.setPosition(baseX, baseY);
+    }
+
     img.setDepth(this.computeBuildingDepth(building.tx, building.ty, building.type));
-    this.buildingImages.set(key, img);
+  }
+
+  /** Apply a BuildingVisualProfile to an image, computing position and scale. */
+  private applyProfile(
+    img: Phaser.GameObjects.Image,
+    baseX: number,
+    baseY: number,
+    profile: BuildingVisualProfile,
+  ): void {
+    const scale = profile.displayWidth / img.width;
+    img.setScale(scale);
+    img.setOrigin(profile.originX, profile.originY);
+    img.setPosition(baseX + profile.offsetX, baseY + profile.offsetY);
+  }
+
+  /** Redraw the dev tuner overlay for the first PNG building found. */
+  private redrawDevTuner(buildings: BuildingPlacement[], faction: Faction): void {
+    // Find the first PNG building to tune
+    for (const building of buildings) {
+      if (PNG_BUILDING_TYPES.has(building.type)) {
+        const key = `${building.tx},${building.ty}`;
+        const img = this.buildingImages.get(key) ?? null;
+        this.devTuner.setTargetBuildingType(building.type);
+        this.devTuner.redraw(building, faction, img);
+        return; // Tune one building at a time
+      }
+    }
   }
 
   private syncBuilders(builders: BuilderPlacement[], faction: Faction): void {
@@ -440,5 +506,7 @@ export class ConstructionRenderer {
       sprite.destroy();
     }
     this.builderSprites.clear();
+
+    this.devTuner.destroy();
   }
 }
