@@ -10,15 +10,16 @@ import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPl
  *
  * ARCH-13E2: Minimal debug rendering for the Separator construction flow.
  * ARCH-13E3: Added builder rendering (small colored circle at fractional position).
- * ASSET-02: Builder now renders using spritesheet instead of circle.
+ * ASSET-02: Builder renders using `builder_{faction}` spritesheet loaded by civilUnitAssets.ts.
  *
  * Construction sites are rendered as amber semi-transparent tile diamonds
  * with a progress bar above. Completed buildings are rendered as green
  * semi-transparent tile diamonds. Builders are rendered from the
  * `builder_{faction}` spritesheet loaded by civilUnitAssets.ts.
  *
- * If the builder texture is missing (e.g. unsupported faction), the builder
- * falls back to a colored circle matching the old debug rendering.
+ * If the builder texture is missing, a clear error is logged. ASSET-01
+ * guarantees all builder textures are preloaded — a missing texture
+ * indicates a preload bug, not a missing asset.
  */
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -52,15 +53,6 @@ const HH = 38 / 2; // TILE_H / 2
 /** Builder spritesheet display scale — conservative, ~16% of 256px frame. */
 const BUILDER_SCALE = 40 / 256;
 
-/** Builder fallback circle rendering constants (used if texture is missing). */
-const BUILDER_FALLBACK_RADIUS = 8;
-const BUILDER_FALLBACK_COLOR_IDLE = 0x4488FF;
-const BUILDER_FALLBACK_COLOR_MOVING = 0xFFCC00;
-const BUILDER_FALLBACK_COLOR_BUILDING = 0x44FF44;
-const BUILDER_FALLBACK_ALPHA = 0.9;
-const BUILDER_FALLBACK_OUTLINE_COLOR = 0xFFFFFF;
-const BUILDER_FALLBACK_OUTLINE_ALPHA = 0.6;
-
 export class ConstructionRenderer {
   private scene: Phaser.Scene;
   private offset: IsoPoint;
@@ -74,8 +66,8 @@ export class ConstructionRenderer {
   /** Builder Sprite objects keyed by builder index (spritesheet rendering). */
   private builderSprites = new Map<number, Phaser.GameObjects.Sprite>();
 
-  /** Builder Graphics objects keyed by builder index (fallback circle rendering). */
-  private builderFallbackGraphics = new Map<number, Phaser.GameObjects.Graphics>();
+  /** Whether a missing-texture error has already been logged (avoid spam). */
+  private builderTextureErrorLogged = false;
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
@@ -147,41 +139,39 @@ export class ConstructionRenderer {
     const textureKey = getCivilUnitKey(faction, 'builder');
     const textureExists = this.scene.textures.exists(textureKey);
 
-    for (let bi = 0; bi < builders.length; bi++) {
-      const builder = builders[bi];
-
-      if (textureExists) {
-        // Spritesheet rendering path
-        this.syncBuilderSprite(bi, builder, textureKey, faction);
-        // Clean up any fallback graphics if they exist from a previous frame
-        const fallback = this.builderFallbackGraphics.get(bi);
-        if (fallback) {
-          fallback.destroy();
-          this.builderFallbackGraphics.delete(bi);
-        }
-      } else {
-        // Fallback circle rendering path
-        this.syncBuilderFallback(bi, builder);
-        // Clean up any sprite if it exists from a previous frame
-        const sprite = this.builderSprites.get(bi);
-        if (sprite) {
+    if (!textureExists) {
+      // ASSET-01 guarantees builder textures are loaded. Missing texture = bug.
+      if (!this.builderTextureErrorLogged) {
+        console.error(
+          `[ConstructionRenderer] Builder texture "${textureKey}" not found! ` +
+          `ASSET-01 guarantees this texture is preloaded. Check PreloadScene and civilUnitAssets.ts.`,
+        );
+        this.builderTextureErrorLogged = true;
+      }
+      // Skip rendering builders — do NOT silently fall back to circles.
+      // Destroy any stale sprites from a previous frame.
+      for (const [bi, sprite] of this.builderSprites) {
+        if (bi < builders.length) {
           sprite.destroy();
           this.builderSprites.delete(bi);
         }
       }
+      return;
     }
 
-    // Destroy objects for removed builders
+    // Texture exists — clear the error flag if it was set from a transient issue
+    this.builderTextureErrorLogged = false;
+
+    for (let bi = 0; bi < builders.length; bi++) {
+      const builder = builders[bi];
+      this.syncBuilderSprite(bi, builder, textureKey);
+    }
+
+    // Destroy sprites for removed builders
     for (const [bi, sprite] of this.builderSprites) {
       if (bi >= builders.length) {
         sprite.destroy();
         this.builderSprites.delete(bi);
-      }
-    }
-    for (const [bi, g] of this.builderFallbackGraphics) {
-      if (bi >= builders.length) {
-        g.destroy();
-        this.builderFallbackGraphics.delete(bi);
       }
     }
   }
@@ -197,7 +187,6 @@ export class ConstructionRenderer {
     bi: number,
     builder: BuilderPlacement,
     textureKey: string,
-    _faction: Faction,
   ): void {
     // Compute screen position from fractional tile
     const screenPos = tileToScreen(builder.ftx, builder.fty);
@@ -219,21 +208,6 @@ export class ConstructionRenderer {
     // Update position each frame
     sprite.setPosition(worldX, worldY);
     sprite.setDepth(110 + worldY);
-  }
-
-  /**
-   * Sync builder using fallback circle rendering.
-   * Used when the builder spritesheet texture is not available.
-   */
-  private syncBuilderFallback(bi: number, builder: BuilderPlacement): void {
-    if (!this.builderFallbackGraphics.has(bi)) {
-      const g = this.scene.add.graphics();
-      this.builderFallbackGraphics.set(bi, g);
-    }
-
-    const g = this.builderFallbackGraphics.get(bi)!;
-    g.clear();
-    this.drawBuilderFallbackCircle(g, builder);
   }
 
   // ─── Drawing helpers ───────────────────────────────────────────
@@ -357,39 +331,6 @@ export class ConstructionRenderer {
     g.setDepth(100 + worldY);
   }
 
-  /** Draw a small colored circle for a builder at their fractional tile position (fallback). */
-  private drawBuilderFallbackCircle(g: Phaser.GameObjects.Graphics, builder: BuilderPlacement): void {
-    // Use fractional position for smooth movement
-    const screenPos = tileToScreen(builder.ftx, builder.fty);
-    const cx = screenPos.x + this.offset.x;
-    const cy = screenPos.y + this.offset.y;
-
-    // Pick color based on phase
-    let fillColor: number;
-    switch (builder.phase) {
-      case 'idle':
-        fillColor = BUILDER_FALLBACK_COLOR_IDLE;
-        break;
-      case 'moving-to-site':
-        fillColor = BUILDER_FALLBACK_COLOR_MOVING;
-        break;
-      case 'building':
-        fillColor = BUILDER_FALLBACK_COLOR_BUILDING;
-        break;
-    }
-
-    // Filled circle
-    g.fillStyle(fillColor, BUILDER_FALLBACK_ALPHA);
-    g.fillCircle(cx, cy - 4, BUILDER_FALLBACK_RADIUS);
-
-    // Outline
-    g.lineStyle(1.5, BUILDER_FALLBACK_OUTLINE_COLOR, BUILDER_FALLBACK_OUTLINE_ALPHA);
-    g.strokeCircle(cx, cy - 4, BUILDER_FALLBACK_RADIUS);
-
-    // Depth based on position
-    g.setDepth(110 + cy);
-  }
-
   // ─── Cleanup ───────────────────────────────────────────────────
 
   destroy(): void {
@@ -407,10 +348,5 @@ export class ConstructionRenderer {
       sprite.destroy();
     }
     this.builderSprites.clear();
-
-    for (const g of this.builderFallbackGraphics.values()) {
-      g.destroy();
-    }
-    this.builderFallbackGraphics.clear();
   }
 }
