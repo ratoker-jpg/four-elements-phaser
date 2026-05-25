@@ -1,22 +1,13 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS, DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
 import {
-  getSmokyTurretKey,
-  getWaspHullKey,
-} from '../../assets/modularUnitAssets';
-import {
-  TILE_H,
-  TILE_W,
-  MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
-  MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR,
-  tunerState,
   type ModularTankDirection,
 } from '../../config/worldConfig';
 import { tileToScreen, IsoPoint } from './isometric';
+import { ModularTankRenderer } from './ModularTankRenderer';
 import type {
   RenderableEntity,
   EntityKind,
-  Faction,
   ResourceType,
   GameState,
   HarvesterState,
@@ -40,6 +31,11 @@ import { directionFromDelta } from '../../state/updateGameState';
  * - Turret mount position = anchor + turretMountByBodyDir[bodyDir] (depends on bodyDir, NOT turretDir).
  * - Q/E cycles bodyDir, Z/X cycles turretDir (overlay ON only).
  *
+ * ARCH-13B changes:
+ * - Modular tank rendering and debug overlay extracted to ModularTankRenderer
+ *   and ModularTankDebugOverlay. EntityRenderer delegates modular-combat
+ *   placement and all tuner/debug methods to ModularTankRenderer.
+ *
  * Entities with stateOnly=true are skipped with a console warning.
  */
 
@@ -62,19 +58,6 @@ const RESOURCE_SCALE_MAP: Record<ResourceType, number> = {
   infinite: INFINITE_MINERAL_SCALE,
 };
 
-const MODULAR_TANK_DEBUG = false;
-const MODULAR_TANK_SCALE = 0.32;
-const MODULAR_TANK_HULL_ORIGIN = { x: 0.5, y: 0.75 };
-const MODULAR_TANK_TURRET_ORIGIN = { x: 0.5, y: 0.5 };
-// PR7: bodyDir controls hull texture + turret mount position.
-// turretDir controls turret texture only.
-// Offsets are per-bodyDir Records imported from worldConfig as mutable runtime values.
-
-interface ModularTankDebugOverlay {
-  graphics: Phaser.GameObjects.Graphics;
-  text: Phaser.GameObjects.Text;
-}
-
 export class EntityRenderer {
   private scene: Phaser.Scene;
   private offset: IsoPoint;
@@ -94,39 +77,13 @@ export class EntityRenderer {
   /** Count of state-only entities skipped during initial render. */
   private skippedCount: number = 0;
 
-  /** Optional one-time render confirmation for the modular combat MVP. */
-  private modularCombatLogged: boolean = false;
-
-  /** Debug overlays for modular combat anchor/socket tuning. */
-  private modularTankDebugOverlays: ModularTankDebugOverlay[] = [];
-
-  /** Current visibility state for the modular-combat debug overlay. */
-  private modularTankDebugVisible: boolean = MODULAR_TANK_DEBUG;
-
-  /** Stored hull image for live repositioning (PR5 tuner). */
-  private modularTankHull: Phaser.GameObjects.Image | null = null;
-
-  /** Stored turret image for live repositioning (PR5 tuner). */
-  private modularTankTurret: Phaser.GameObjects.Image | null = null;
-
-  /** Modular unit anchor world position — tile center in screen space + offset (PR5 tuner). */
-  private modularTankAnchorWorld: { x: number; y: number } | null = null;
-
-  /** Modular unit anchor tile coordinates (PR5 tuner). */
-  private modularTankAnchorTile: { tx: number; ty: number } | null = null;
-
-  /** Current body facing direction for the modular tank (PR7). */
-  private modularTankBodyDir: ModularTankDirection = 2;
-
-  /** Current turret facing direction for the modular tank (PR7). */
-  private modularTankTurretDir: ModularTankDirection = 2;
-
-  /** Faction of the modular tank, stored for texture swaps (PR6). */
-  private modularTankFaction: Faction = 'cyan';
+  /** Modular tank renderer — owns hull/turret placement, direction, debug overlay. */
+  private modularTankRenderer: ModularTankRenderer;
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
     this.offset = offset;
+    this.modularTankRenderer = new ModularTankRenderer(scene, offset);
   }
 
   // ─── Static entity rendering (called once) ─────────────────────
@@ -227,7 +184,7 @@ export class EntityRenderer {
         this.placeBuilder(worldX, worldY, entity);
         break;
       case 'modular-combat':
-        this.placeModularCombat(worldX, worldY, entity);
+        this.modularTankRenderer.place(entity);
         break;
       default:
         break;
@@ -254,140 +211,6 @@ export class EntityRenderer {
     );
     void x;
     void y;
-  }
-
-  private placeModularCombat(_x: number, _y: number, entity: RenderableEntity): void {
-    const faction: Faction = entity.faction ?? 'cyan';
-    const bodyDir: ModularTankDirection = (entity.dir ?? 2) as ModularTankDirection;
-    const turretDir: ModularTankDirection = (entity.turretDir ?? bodyDir) as ModularTankDirection;
-
-    // Hull texture uses bodyDir; turret texture uses turretDir.
-    const hullKey = getWaspHullKey(faction, bodyDir);
-    const turretKey = getSmokyTurretKey(faction, turretDir);
-
-    const tileAnchor = tileToScreen(entity.tx, entity.ty);
-    const anchorWorldX = tileAnchor.x + this.offset.x;
-    const anchorWorldY = tileAnchor.y + this.offset.y;
-
-    // Hull position = anchor + hullOffset[bodyDir]
-    const hullOff = MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir];
-    const hullWorldX = anchorWorldX + hullOff.x;
-    const hullWorldY = anchorWorldY + hullOff.y;
-    const baseDepth = 100 + hullWorldY;
-
-    const hull = this.scene.add.image(hullWorldX, hullWorldY, hullKey);
-    hull.setScale(MODULAR_TANK_SCALE);
-    hull.setOrigin(MODULAR_TANK_HULL_ORIGIN.x, MODULAR_TANK_HULL_ORIGIN.y);
-    hull.setDepth(baseDepth);
-
-    // Turret mount position = anchor + turretMount[bodyDir] (NOT turretDir!)
-    const turretMount = MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir];
-    const turretWorldX = anchorWorldX + turretMount.x;
-    const turretWorldY = anchorWorldY + turretMount.y;
-    const turret = this.scene.add.image(
-      turretWorldX,
-      turretWorldY,
-      turretKey,
-    );
-    turret.setScale(MODULAR_TANK_SCALE);
-    turret.setOrigin(MODULAR_TANK_TURRET_ORIGIN.x, MODULAR_TANK_TURRET_ORIGIN.y);
-    turret.setDepth(baseDepth + 1);
-
-    // Store references for live tuner repositioning and direction swaps
-    this.modularTankHull = hull;
-    this.modularTankTurret = turret;
-    this.modularTankAnchorWorld = { x: anchorWorldX, y: anchorWorldY };
-    this.modularTankAnchorTile = { tx: entity.tx, ty: entity.ty };
-    this.modularTankBodyDir = bodyDir;
-    this.modularTankTurretDir = turretDir;
-    this.modularTankFaction = faction;
-    tunerState.bodyDir = bodyDir;
-    tunerState.turretDir = turretDir;
-
-    this.staticObjects.push(hull, turret);
-    this.createModularTankDebugOverlay({
-      tx: entity.tx,
-      ty: entity.ty,
-      anchorWorldX,
-      anchorWorldY,
-      hullWorldX,
-      hullWorldY,
-      turretWorldX,
-      turretWorldY,
-      baseDepth,
-    });
-
-    if (!this.modularCombatLogged) {
-      console.log('[EntityRenderer] Rendered modular combat: wasp_m0 + smoky_m0');
-      this.modularCombatLogged = true;
-    }
-  }
-
-  private createModularTankDebugOverlay(data: {
-    tx: number;
-    ty: number;
-    anchorWorldX: number;
-    anchorWorldY: number;
-    hullWorldX: number;
-    hullWorldY: number;
-    turretWorldX: number;
-    turretWorldY: number;
-    baseDepth: number;
-  }): void {
-    const graphics = this.scene.add.graphics();
-    graphics.setDepth(data.baseDepth + 10);
-    graphics.setVisible(this.modularTankDebugVisible);
-
-    const halfTileW = TILE_W / 2;
-    const halfTileH = TILE_H / 2;
-
-    // Logical tile footprint diamond for the modular unit anchor tile.
-    graphics.lineStyle(2, 0x7cff7c, 0.95);
-    graphics.beginPath();
-    graphics.moveTo(data.anchorWorldX, data.anchorWorldY - halfTileH);
-    graphics.lineTo(data.anchorWorldX + halfTileW, data.anchorWorldY);
-    graphics.lineTo(data.anchorWorldX, data.anchorWorldY + halfTileH);
-    graphics.lineTo(data.anchorWorldX - halfTileW, data.anchorWorldY);
-    graphics.closePath();
-    graphics.strokePath();
-
-    // Logical tile anchor.
-    graphics.lineStyle(2, 0xffd54f, 0.95);
-    graphics.strokeCircle(data.anchorWorldX, data.anchorWorldY, 7);
-    graphics.lineBetween(data.anchorWorldX - 10, data.anchorWorldY, data.anchorWorldX + 10, data.anchorWorldY);
-    graphics.lineBetween(data.anchorWorldX, data.anchorWorldY - 10, data.anchorWorldX, data.anchorWorldY + 10);
-
-    // Hull sprite origin marker.
-    graphics.lineStyle(2, 0x26c6da, 0.95);
-    graphics.strokeCircle(data.hullWorldX, data.hullWorldY, 6);
-    graphics.lineBetween(data.hullWorldX - 8, data.hullWorldY - 8, data.hullWorldX + 8, data.hullWorldY + 8);
-    graphics.lineBetween(data.hullWorldX - 8, data.hullWorldY + 8, data.hullWorldX + 8, data.hullWorldY - 8);
-
-    // Turret sprite origin marker + line from hull origin to turret origin.
-    graphics.lineStyle(2, 0xffffff, 0.9);
-    graphics.lineBetween(data.hullWorldX, data.hullWorldY, data.turretWorldX, data.turretWorldY);
-    graphics.lineStyle(2, 0xff6b6b, 0.95);
-    graphics.strokeCircle(data.turretWorldX, data.turretWorldY, 6);
-    graphics.lineBetween(data.turretWorldX - 8, data.turretWorldY, data.turretWorldX + 8, data.turretWorldY);
-    graphics.lineBetween(data.turretWorldX, data.turretWorldY - 8, data.turretWorldX, data.turretWorldY + 8);
-
-    const debugText = this.scene.add.text(
-      data.hullWorldX + 30,
-      data.hullWorldY + 28,
-      this.buildModularTankDebugText(data),
-      {
-        fontFamily: 'monospace',
-        fontSize: '10px',
-        color: '#f4f7fb',
-        backgroundColor: 'rgba(16, 18, 28, 0.76)',
-        padding: { x: 4, y: 3 },
-      },
-    );
-    debugText.setDepth(data.baseDepth + 11);
-    debugText.setVisible(this.modularTankDebugVisible);
-
-    this.staticObjects.push(graphics, debugText);
-    this.modularTankDebugOverlays.push({ graphics, text: debugText });
   }
 
   // ─── Dynamic entity factories ──────────────────────────────────
@@ -444,199 +267,36 @@ export class EntityRenderer {
     return counts;
   }
 
-  /** Whether the debug overlay is currently visible (PR5 tuner guard). */
+  // ─── Modular tank facade methods (delegate to ModularTankRenderer) ──
+
+  /** Whether the debug overlay is currently visible. */
   isDebugOverlayVisible(): boolean {
-    return this.modularTankDebugVisible;
+    return this.modularTankRenderer.isDebugOverlayVisible();
   }
 
+  /** Toggle the modular tank debug overlay. Returns new visibility state. */
   toggleModularTankDebug(): boolean {
-    this.modularTankDebugVisible = !this.modularTankDebugVisible;
-    for (const overlay of this.modularTankDebugOverlays) {
-      overlay.graphics.setVisible(this.modularTankDebugVisible);
-      overlay.text.setVisible(this.modularTankDebugVisible);
-    }
-    return this.modularTankDebugVisible;
+    return this.modularTankRenderer.toggleDebug();
   }
 
-  // ─── PR7: Modular tank body/turret direction + visual tuner ────────
-
-  /**
-   * Change the body direction of the modular tank.
-   * Changes hull texture and turret mount position (mount depends on bodyDir).
-   * Does NOT change turret texture (that's setModularTankTurretDir).
-   * Called by GameScene on Q/E key press (only when debug overlay is ON).
-   */
+  /** Change the body direction of the modular tank. */
   setModularTankBodyDir(dir: ModularTankDirection): void {
-    if (!this.modularTankHull || !this.modularTankTurret) return;
-    this.modularTankBodyDir = dir;
-    tunerState.bodyDir = dir;
-
-    // Hull texture follows bodyDir
-    this.modularTankHull.setTexture(getWaspHullKey(this.modularTankFaction, dir));
-
-    // Turret mount position changes because bodyDir changed
-    this.updateModularTankVisuals();
+    this.modularTankRenderer.setBodyDir(dir);
   }
 
-  /**
-   * Change the turret direction of the modular tank.
-   * Changes turret texture ONLY. Turret mount position stays the same
-   * (it depends on bodyDir, not turretDir).
-   * Called by GameScene on Z/X key press (only when debug overlay is ON).
-   */
+  /** Change the turret direction of the modular tank. */
   setModularTankTurretDir(dir: ModularTankDirection): void {
-    if (!this.modularTankTurret) return;
-    this.modularTankTurretDir = dir;
-    tunerState.turretDir = dir;
-
-    // Turret texture follows turretDir; position stays (depends on bodyDir)
-    this.modularTankTurret.setTexture(getSmokyTurretKey(this.modularTankFaction, dir));
-
-    // Update overlay text to reflect new turretDir (positions unchanged)
-    this.updateModularTankVisuals();
+    this.modularTankRenderer.setTurretDir(dir);
   }
 
-  /**
-   * Reposition hull and turret sprites from current runtime offsets
-   * keyed by bodyDir, then rebuild the debug overlay markers and text.
-   * Called by GameScene after keyboard offset adjustments or direction changes.
-   */
+  /** Reposition hull/turret and rebuild debug overlay. */
   updateModularTankVisuals(): void {
-    if (!this.modularTankHull || !this.modularTankTurret || !this.modularTankAnchorWorld) return;
-
-    const ax = this.modularTankAnchorWorld.x;
-    const ay = this.modularTankAnchorWorld.y;
-    const bodyDir = this.modularTankBodyDir;
-
-    // Hull position = anchor + hullOffset[bodyDir]
-    const hullOff = MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir];
-    const hullX = ax + hullOff.x;
-    const hullY = ay + hullOff.y;
-    this.modularTankHull.setPosition(hullX, hullY);
-
-    // Turret mount position = anchor + turretMount[bodyDir]
-    const turretMount = MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir];
-    const turretX = ax + turretMount.x;
-    const turretY = ay + turretMount.y;
-    this.modularTankTurret.setPosition(turretX, turretY);
-
-    this.rebuildModularTankDebugOverlay(hullX, hullY, turretX, turretY);
+    this.modularTankRenderer.updateVisuals();
   }
 
-  /** Build the debug text string for the modular tank overlay. */
-  private buildModularTankDebugText(data: {
-    tx: number;
-    ty: number;
-    hullWorldX: number;
-    hullWorldY: number;
-    turretWorldX: number;
-    turretWorldY: number;
-  }): string {
-    const selected = tunerState.selectedLayer;
-    const bodyDir = this.modularTankBodyDir;
-    const turretDir = this.modularTankTurretDir;
-    const hullOff = MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir];
-    const turretMount = MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir];
-
-    const hullTag = selected === 'hull' ? '>> ' : '   ';
-    const turretTag = selected === 'turret' ? '>> ' : '   ';
-    return [
-      `tx/ty: ${data.tx}, ${data.ty}`,
-      `world: ${Math.round(data.hullWorldX)}, ${Math.round(data.hullWorldY)}`,
-      `scale: ${MODULAR_TANK_SCALE.toFixed(2)}  bodyDir: ${bodyDir}  turretDir: ${turretDir}`,
-      `${hullTag}hull[${bodyDir}]: ${hullOff.x}, ${hullOff.y}`,
-      `${turretTag}turret mount[${bodyDir}]: ${turretMount.x}, ${turretMount.y}`,
-      `Q/E= body dir  Z/X= turret dir`,
-      `H= hull  J= turret  C= print`,
-      `arrow= +/-1px  shift+arrow= +/-5px`,
-    ].join('\n');
-  }
-
-  /**
-   * Rebuild the debug overlay graphics and text after offset changes.
-   * Clears the existing Graphics and redraws all markers at updated positions.
-   */
-  private rebuildModularTankDebugOverlay(
-    hullX: number,
-    hullY: number,
-    turretX: number,
-    turretY: number,
-  ): void {
-    if (this.modularTankDebugOverlays.length === 0 || !this.modularTankAnchorWorld || !this.modularTankAnchorTile) return;
-
-    const overlay = this.modularTankDebugOverlays[0];
-    const ax = this.modularTankAnchorWorld.x;
-    const ay = this.modularTankAnchorWorld.y;
-
-    // Clear and redraw graphics
-    const g = overlay.graphics;
-    g.clear();
-
-    const halfTileW = TILE_W / 2;
-    const halfTileH = TILE_H / 2;
-
-    // Diamond (tile footprint) — doesn't move with offsets
-    g.lineStyle(2, 0x7cff7c, 0.95);
-    g.beginPath();
-    g.moveTo(ax, ay - halfTileH);
-    g.lineTo(ax + halfTileW, ay);
-    g.lineTo(ax, ay + halfTileH);
-    g.lineTo(ax - halfTileW, ay);
-    g.closePath();
-    g.strokePath();
-
-    // Anchor crosshair
-    g.lineStyle(2, 0xffd54f, 0.95);
-    g.strokeCircle(ax, ay, 7);
-    g.lineBetween(ax - 10, ay, ax + 10, ay);
-    g.lineBetween(ax, ay - 10, ax, ay + 10);
-
-    // Hull X marker
-    g.lineStyle(2, 0x26c6da, 0.95);
-    g.strokeCircle(hullX, hullY, 6);
-    g.lineBetween(hullX - 8, hullY - 8, hullX + 8, hullY + 8);
-    g.lineBetween(hullX - 8, hullY + 8, hullX + 8, hullY - 8);
-
-    // Connecting line + turret crosshair
-    g.lineStyle(2, 0xffffff, 0.9);
-    g.lineBetween(hullX, hullY, turretX, turretY);
-    g.lineStyle(2, 0xff6b6b, 0.95);
-    g.strokeCircle(turretX, turretY, 6);
-    g.lineBetween(turretX - 8, turretY, turretX + 8, turretY);
-    g.lineBetween(turretX, turretY - 8, turretX, turretY + 8);
-
-    // Update text position and content
-    overlay.text.setPosition(hullX + 30, hullY + 28);
-    overlay.text.setText(this.buildModularTankDebugText({
-      tx: this.modularTankAnchorTile.tx,
-      ty: this.modularTankAnchorTile.ty,
-      hullWorldX: hullX,
-      hullWorldY: hullY,
-      turretWorldX: turretX,
-      turretWorldY: turretY,
-    }));
-  }
-
-  /** Print copy-ready mutable runtime offset tables to console. */
+  /** Print mutable runtime offset tables to console. */
   printOffsetTables(): void {
-    const dirs: ModularTankDirection[] = [0, 1, 2, 3, 4, 5, 6, 7];
-
-    const hullEntries = dirs.map(d => {
-      const o = MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[d];
-      return `  ${d}: { x: ${o.x}, y: ${o.y} }`;
-    }).join(',\n');
-
-    const turretEntries = dirs.map(d => {
-      const o = MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[d];
-      return `  ${d}: { x: ${o.x}, y: ${o.y} }`;
-    }).join(',\n');
-
-    console.log('DEFAULT_MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR = {');
-    console.log(hullEntries);
-    console.log('};');
-    console.log('DEFAULT_MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR = {');
-    console.log(turretEntries);
-    console.log('};');
+    this.modularTankRenderer.printOffsetTables();
   }
 
   destroy(): void {
@@ -644,7 +304,8 @@ export class EntityRenderer {
       obj.destroy();
     }
     this.staticObjects = [];
-    this.modularTankDebugOverlays = [];
+
+    this.modularTankRenderer.destroy();
 
     for (const sprite of this.harvesterSprites.values()) {
       sprite.destroy();
