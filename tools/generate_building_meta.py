@@ -7,7 +7,7 @@ BUILD-ANCHOR-02: Generator-only. No rendering changes.
 Scans building PNG assets under public/assets/factions/*/buildings/ and
 produces structured TypeScript metadata compatible with BuildingPlacementMeta.
 
-Uses Python + PIL (Pillow) — already available in the environment.
+Uses Python + PIL (Pillow) — install via: pip install -r tools/requirements.txt
 Zero npm dependencies required.
 
 Usage:

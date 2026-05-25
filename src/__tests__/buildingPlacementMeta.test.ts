@@ -121,58 +121,96 @@ describe('getBuildingPlacementMeta', () => {
 // ─── registerBuildingPlacementMeta ───────────────────────────────────
 
 describe('registerBuildingPlacementMeta', () => {
+  // Use test-only building types that do NOT collide with real generated
+  // metadata entries. The registry is module-level (singleton), so writing
+  // to a real key like ('cyan','separator') would overwrite committed data
+  // and break other tests or make them order-dependent.
+  const TEST_TYPE_A = '__test_type_a' as any;
+  const TEST_TYPE_B = '__test_type_b' as any;
+
   it('registers and retrieves a metadata entry', () => {
     const meta = makeTestMeta({
-      buildingType: 'separator' as any,
-      faction: 'cyan',
-      // Using a unique test key to avoid collision with generated data
-      assetKey: 'test_building_cyan_separator',
+      buildingType: TEST_TYPE_A,
+      assetKey: 'test_building_cyan___test_type_a',
     });
     registerBuildingPlacementMeta(meta);
 
-    const retrieved = getBuildingPlacementMeta('cyan', 'separator');
+    const retrieved = getBuildingPlacementMeta('cyan', TEST_TYPE_A);
     expect(retrieved).toBeDefined();
-    expect(retrieved!.assetKey).toBe('test_building_cyan_separator');
+    expect(retrieved!.assetKey).toBe('test_building_cyan___test_type_a');
   });
 
   it('overwrites existing entry (last-write-wins)', () => {
-    const meta1 = makeTestMeta({ targetDisplayWidth: 100 });
-    const meta2 = makeTestMeta({ targetDisplayWidth: 150 });
+    const meta1 = makeTestMeta({
+      buildingType: TEST_TYPE_B,
+      targetDisplayWidth: 100,
+      assetKey: 'test_first',
+    });
+    const meta2 = makeTestMeta({
+      buildingType: TEST_TYPE_B,
+      targetDisplayWidth: 150,
+      assetKey: 'test_second',
+    });
     registerBuildingPlacementMeta(meta1);
     registerBuildingPlacementMeta(meta2);
 
-    const retrieved = getBuildingPlacementMeta('cyan', 'separator');
+    const retrieved = getBuildingPlacementMeta('cyan', TEST_TYPE_B);
     expect(retrieved!.targetDisplayWidth).toBe(150);
+    expect(retrieved!.assetKey).toBe('test_second');
   });
 
   it('stores different entries for different factions', () => {
-    const cyanMeta = makeTestMeta({ faction: 'cyan', assetKey: 'building_cyan_separator' });
-    const greenMeta = makeTestMeta({ faction: 'green', assetKey: 'building_green_separator' });
+    const cyanMeta = makeTestMeta({
+      faction: 'cyan',
+      buildingType: TEST_TYPE_A,
+      assetKey: 'test_building_cyan___test_type_a',
+    });
+    const greenMeta = makeTestMeta({
+      faction: 'green',
+      buildingType: TEST_TYPE_A,
+      assetKey: 'test_building_green___test_type_a',
+    });
     registerBuildingPlacementMeta(cyanMeta);
     registerBuildingPlacementMeta(greenMeta);
 
-    expect(hasBuildingPlacementMeta('cyan', 'separator')).toBe(true);
-    expect(hasBuildingPlacementMeta('green', 'separator')).toBe(true);
-    expect(getBuildingPlacementMeta('cyan', 'separator')!.assetKey).toBe('building_cyan_separator');
-    expect(getBuildingPlacementMeta('green', 'separator')!.assetKey).toBe('building_green_separator');
+    expect(hasBuildingPlacementMeta('cyan', TEST_TYPE_A)).toBe(true);
+    expect(hasBuildingPlacementMeta('green', TEST_TYPE_A)).toBe(true);
+    expect(getBuildingPlacementMeta('cyan', TEST_TYPE_A)!.assetKey).toBe('test_building_cyan___test_type_a');
+    expect(getBuildingPlacementMeta('green', TEST_TYPE_A)!.assetKey).toBe('test_building_green___test_type_a');
   });
 
   it('stores different entries for different building types', () => {
-    const separatorMeta = makeTestMeta({
-      buildingType: 'separator',
-      assetKey: 'building_cyan_separator',
+    const metaA = makeTestMeta({
+      buildingType: TEST_TYPE_A,
+      assetKey: 'test_cyan_A',
     });
-    const storageMeta = makeTestMeta({
-      buildingType: 'raw-storage',
-      assetKey: 'building_cyan_raw_storage',
-      footprintW: 2,
-      footprintH: 2,
+    const metaB = makeTestMeta({
+      buildingType: TEST_TYPE_B,
+      assetKey: 'test_cyan_B',
     });
-    registerBuildingPlacementMeta(separatorMeta);
-    registerBuildingPlacementMeta(storageMeta);
+    registerBuildingPlacementMeta(metaA);
+    registerBuildingPlacementMeta(metaB);
 
-    expect(hasBuildingPlacementMeta('cyan', 'separator')).toBe(true);
-    expect(hasBuildingPlacementMeta('cyan', 'raw-storage')).toBe(true);
+    expect(hasBuildingPlacementMeta('cyan', TEST_TYPE_A)).toBe(true);
+    expect(hasBuildingPlacementMeta('cyan', TEST_TYPE_B)).toBe(true);
+  });
+
+  it('does not overwrite real generated metadata', () => {
+    // Verify real generated entry is intact before and after test registration
+    const before = getBuildingPlacementMeta('cyan', 'separator');
+    expect(before).toBeDefined();
+    expect(before!.assetKey).toBe('building_cyan_separator');
+
+    // Register a test-only entry (different key — must not affect real data)
+    const testMeta = makeTestMeta({
+      buildingType: TEST_TYPE_A,
+      assetKey: 'test_only_entry',
+    });
+    registerBuildingPlacementMeta(testMeta);
+
+    // Real entry is unchanged
+    const after = getBuildingPlacementMeta('cyan', 'separator');
+    expect(after!.assetKey).toBe('building_cyan_separator');
   });
 });
 

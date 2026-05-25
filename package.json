@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "generate:building-meta": "python3 tools/generate_building_meta.py"
+    "generate:building-meta": "node tools/generate_building_meta.mjs"
   },
   "dependencies": {
     "phaser": "4.1.0"
