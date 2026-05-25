@@ -6,7 +6,7 @@ import { CameraControls } from './input/CameraControls';
 import { tileToScreen, mapOriginOffset } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
-import { placeConstructionSite, updateConstructionSiteProgress } from '../state/construction';
+import { placeConstructionSite, updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/construction';
 import { findBuildSiteNearPlayerBuildings } from '../state/buildSiteSelection';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, HarvesterPhase } from '../state/types';
@@ -49,6 +49,8 @@ export class GameScene extends Phaser.Scene {
   private hudCoords: HTMLElement | null = null;
   private hudMapName: HTMLElement | null = null;
   private hudEconomy: HTMLElement | null = null;
+  private hudBuild: HTMLElement | null = null;
+  private hudBuilder: HTMLElement | null = null;
 
   /** Track last unload count to log once per unload. */
   private lastLoggedMinerals: number = 0;
@@ -191,10 +193,18 @@ export class GameScene extends Phaser.Scene {
 
     // ── Debug build hotkey (B) — auto-place Separator construction site ──
     this.input.keyboard?.on('keydown-B', () => {
-      // TEMPORARY QA: grant debug resources if too low (separator costs 100 raw).
-      // This will be removed once the economy is properly balanced.
+      // ARCH-13F1: B-press guard — do not create a site if no idle builder is available.
+      const hasIdleBuilder = this.gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
+      if (!hasIdleBuilder) {
+        console.warn('[GameScene] B pressed but no idle builder available — site not created.');
+        return;
+      }
+
+      // ARCH-13F1: Debug resource top-up with explicit [DEBUG] logging.
       if (this.gameState.rawMinerals < 150) {
+        const prev = this.gameState.rawMinerals;
         this.gameState.rawMinerals = 150;
+        console.log(`[DEBUG] Resource top-up: ${prev} -> 150 rawMinerals`);
       }
 
       // ARCH-13E4: Automatic build-site selection.
@@ -218,6 +228,8 @@ export class GameScene extends Phaser.Scene {
     this.hudCoords = document.getElementById('hud-coords');
     this.hudMapName = document.getElementById('hud-map-name');
     this.hudEconomy = document.getElementById('hud-economy');
+    this.hudBuild = document.getElementById('hud-build');
+    this.hudBuilder = document.getElementById('hud-builder');
 
     // Set initial HUD content
     if (this.hudMapName) {
@@ -302,6 +314,58 @@ export class GameScene extends Phaser.Scene {
         `Raw: ${s.rawMinerals} | Resources: ${activeResources}/${totalResources} | ` +
         `Sites: ${s.mapData.constructionSites.length} | ` +
         `Harvesters: ${s.harvesters.length} (${phaseStr})`;
+    }
+
+    // ARCH-13F1: Build status line
+    if (this.hudBuild) {
+      const sites = this.gameState.mapData.constructionSites;
+      if (sites.length === 0) {
+        this.hudBuild.textContent = 'Build: none';
+      } else {
+        // Show the first active construction site
+        const site = sites[0];
+        const config = BUILDING_CONFIG[site.type];
+        const label = config ? 'Separator' : site.type;
+        const pct = Math.round(site.progress * 100);
+        if (site.pending) {
+          this.hudBuild.textContent = `Build: ${label} at (${site.tx},${site.ty}), waiting for builder`;
+        } else {
+          this.hudBuild.textContent = `Build: ${label} at (${site.tx},${site.ty}), ${pct}%`;
+        }
+      }
+
+      // If no idle builder and B is pressed, show warning
+      const hasIdleBuilder = this.gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
+      if (!hasIdleBuilder && sites.length === 0) {
+        // Only show "no valid site" when there are no active sites AND no idle builder
+        // (the B-press guard prevents creation, so this hints at the reason)
+      }
+    }
+
+    // ARCH-13F1: Builder status line
+    if (this.hudBuilder) {
+      const builders = this.gameState.mapData.builders;
+      if (builders.length === 0) {
+        this.hudBuilder.textContent = 'Builder: none';
+      } else if (builders.length === 1) {
+        const b = builders[0];
+        const phaseLabel = b.phase === 'idle' ? 'idle'
+          : b.phase === 'moving-to-site' ? 'moving'
+          : 'building';
+        this.hudBuilder.textContent = `Builder: ${phaseLabel}`;
+      } else {
+        // Multiple builders: compact summary
+        const counts: Record<string, number> = { idle: 0, moving: 0, building: 0 };
+        for (const b of builders) {
+          const label = b.phase === 'moving-to-site' ? 'moving' : b.phase;
+          counts[label] = (counts[label] || 0) + 1;
+        }
+        const parts: string[] = [];
+        if (counts.idle > 0) parts.push(`${counts.idle} idle`);
+        if (counts.moving > 0) parts.push(`${counts.moving} moving`);
+        if (counts.building > 0) parts.push(`${counts.building} building`);
+        this.hudBuilder.textContent = `Builders: ${parts.join(', ')}`;
+      }
     }
   }
 

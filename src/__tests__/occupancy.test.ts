@@ -21,6 +21,7 @@ function makeTestState(overrides?: {
   obstacles?: Array<{ tx: number; ty: number; footprint: number }>;
   buildings?: Array<{ tx: number; ty: number }>;
   harvesters?: Array<{ ftx: number; fty: number }>;
+  builders?: Array<{ ftx: number; fty: number }>;
 }): GameState {
   const w = overrides?.mapW ?? 10;
   const h = overrides?.mapH ?? 10;
@@ -50,7 +51,19 @@ function makeTestState(overrides?: {
       ty: b.ty,
       type: 'separator' as const,
     })),
-    builders: [],
+    builders: (overrides?.builders ?? []).map((b) => ({
+      tx: Math.round(b.ftx),
+      ty: Math.round(b.fty),
+      busy: false,
+      phase: 'idle' as const,
+      path: [],
+      pathIndex: 0,
+      ftx: b.ftx,
+      fty: b.fty,
+      targetTx: Math.round(b.ftx),
+      targetTy: Math.round(b.fty),
+      assignedSiteId: -1,
+    })),
     constructionSites: [],
   };
 
@@ -332,5 +345,51 @@ describe('integration — createInitialState', () => {
         expect(isBuildable(map, 23 + dx, 22 + dy, 1, 1)).toBe(false);
       }
     }
+  });
+});
+
+describe('Builder soft-occupied (ARCH-13F1)', () => {
+  it('builder at integer ftx/fty marks that tile as soft-occupied', () => {
+    const state = makeTestState({
+      mapW: 10,
+      mapH: 10,
+      hqTx: 0,
+      hqTy: 0,
+      builders: [{ ftx: 7, fty: 7 }],
+    });
+    const map = buildOccupancyMap(state);
+    const flags = getFlags(map, 7, 7);
+    expect(flags.has('soft-occupied')).toBe(true);
+  });
+
+  it('builder at fractional ftx/fty uses Math.round for tile position', () => {
+    const state = makeTestState({
+      mapW: 10,
+      mapH: 10,
+      hqTx: 0,
+      hqTy: 0,
+      builders: [{ ftx: 5.6, fty: 5.4 }],
+    });
+    const map = buildOccupancyMap(state);
+    // Math.round(5.6) = 6, Math.round(5.4) = 5
+    const flagsAt6x5 = getFlags(map, 6, 5);
+    expect(flagsAt6x5.has('soft-occupied')).toBe(true);
+
+    // The non-rounded tile should NOT be soft-occupied
+    const flagsAt5x5 = getFlags(map, 5, 5);
+    expect(flagsAt5x5.has('soft-occupied')).toBe(false);
+  });
+
+  it('soft-occupied builder tile is still passable and buildable', () => {
+    const state = makeTestState({
+      mapW: 10,
+      mapH: 10,
+      hqTx: 0,
+      hqTy: 0,
+      builders: [{ ftx: 8, fty: 8 }],
+    });
+    const map = buildOccupancyMap(state);
+    expect(isPassable(map, 8, 8)).toBe(true);
+    expect(isBuildable(map, 8, 8, 1, 1)).toBe(true);
   });
 });

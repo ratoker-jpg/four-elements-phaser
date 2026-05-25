@@ -117,9 +117,9 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
       'impassable', 'unbuildable');
   }
 
-  // ── Soft-occupied: builders ────────────────────────────────────
+  // ── Soft-occupied: builders (rounded tile position) ──────────────
   for (const b of state.mapData.builders) {
-    const k = key(b.tx, b.ty, width);
+    const k = key(Math.round(b.ftx), Math.round(b.fty), width);
     getOrMake(flags, k).add('soft-occupied');
   }
 

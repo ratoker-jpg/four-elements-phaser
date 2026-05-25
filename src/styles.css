@@ -53,6 +53,18 @@ html, body {
   white-space: nowrap;
 }
 
+#hud-build {
+  font-size: 13px;
+  color: #81c784;
+  white-space: nowrap;
+}
+
+#hud-builder {
+  font-size: 13px;
+  color: #ffb74d;
+  white-space: nowrap;
+}
+
 #hud-coords {
   font-family: monospace;
   font-size: 12px;
