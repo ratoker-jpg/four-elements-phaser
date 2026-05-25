@@ -5,6 +5,7 @@ import {
 } from '../../config/worldConfig';
 import { tileToScreen, IsoPoint } from './isometric';
 import { ModularTankRenderer } from './ModularTankRenderer';
+import { ConstructionRenderer } from './ConstructionRenderer';
 import type {
   RenderableEntity,
   EntityKind,
@@ -80,10 +81,14 @@ export class EntityRenderer {
   /** Modular tank renderer — owns hull/turret placement, direction, debug overlay. */
   private modularTankRenderer: ModularTankRenderer;
 
+  /** Construction renderer — owns construction site + building placeholder graphics. */
+  private constructionRenderer: ConstructionRenderer;
+
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
     this.offset = offset;
     this.modularTankRenderer = new ModularTankRenderer(scene, offset);
+    this.constructionRenderer = new ConstructionRenderer(scene, offset);
   }
 
   // ─── Static entity rendering (called once) ─────────────────────
@@ -128,6 +133,7 @@ export class EntityRenderer {
   syncFromState(state: GameState): void {
     this.syncHarvesters(state.harvesters);
     this.syncResources(state.resourceNodes);
+    this.constructionRenderer.syncFromState(state);
   }
 
   private syncHarvesters(harvesters: HarvesterState[]): void {
@@ -306,6 +312,7 @@ export class EntityRenderer {
     this.staticObjects = [];
 
     this.modularTankRenderer.destroy();
+    this.constructionRenderer.destroy();
 
     for (const sprite of this.harvesterSprites.values()) {
       sprite.destroy();
