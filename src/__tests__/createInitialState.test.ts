@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createInitialState } from '../state/createInitialState';
-import { RESOURCE_RAW_AMOUNTS } from '../state/types';
+import { RESOURCE_RAW_AMOUNTS, START_RAW, START_MATTER } from '../state/types';
 
 describe('createInitialState', () => {
   it('returns a valid GameState with expected map dimensions', () => {
@@ -49,9 +49,16 @@ describe('createInitialState', () => {
     }
   });
 
-  it('starts with zero raw minerals', () => {
+  it('starts with correct initial economy values', () => {
     const state = createInitialState();
-    expect(state.rawMinerals).toBe(0);
+    expect(state.economy.raw).toBe(START_RAW);
+    expect(state.economy.matter).toBe(START_MATTER);
+    expect(state.economy.elements.cyan).toBe(0);
+    expect(state.economy.elements.green).toBe(0);
+    expect(state.economy.elements.yellow).toBe(0);
+    expect(state.economy.elements.purple).toBe(0);
+    expect(state.economy.powerGenerated).toBe(0);
+    expect(state.economy.powerConsumed).toBe(0);
   });
 
   it('sets HQ position to center of 3x3 footprint', () => {

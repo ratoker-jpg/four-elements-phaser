@@ -5,8 +5,9 @@ import type {
   Faction,
   HarvesterState,
   ResourceNodeState,
+  EconomyState,
 } from './types';
-import { RESOURCE_RAW_AMOUNTS } from './types';
+import { RESOURCE_RAW_AMOUNTS, START_RAW, START_MATTER } from './types';
 import { createHarvester } from './updateGameState';
 import { customMap1 } from '../data/maps/customMap1';
 
@@ -72,13 +73,24 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
     // PR3 runtime state
     harvesters,
     resourceNodes,
-    rawMinerals: 0,
+    economy: createInitialEconomy(mapData.hq.faction as Faction),
     hqPosition,
     nextConstructionId: 0,
   };
 }
 
 // ─── PR3: Runtime state builders ────────────────────────────────────
+
+/** Create initial EconomyState with ROADMAP starting values. */
+function createInitialEconomy(_playerFaction: Faction): EconomyState {
+  return {
+    raw: START_RAW,
+    matter: START_MATTER,
+    elements: { cyan: 0, green: 0, yellow: 0, purple: 0 },
+    powerGenerated: 0,
+    powerConsumed: 0,
+  };
+}
 
 /** Build HarvesterState[] from extra harvester positions. */
 function buildHarvesterStates(

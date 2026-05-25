@@ -4,7 +4,7 @@ import {
   isPassable,
 } from '../state/occupancy';
 import { findPath, findPathToAdjacent, type TileCoord } from '../state/pathfinding';
-import type { GameState, MapData } from '../state/types';
+import type { GameState, MapData, EconomyState } from '../state/types';
 
 // ─── Test helpers ──────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ function makeTestState(overrides?: {
     extraModularCombat: [],
     harvesters: [],
     resourceNodes: [],
-    rawMinerals: 0,
+    economy: { raw: 0, matter: 0, elements: { cyan: 0, green: 0, yellow: 0, purple: 0 }, powerGenerated: 0, powerConsumed: 0 } as EconomyState,
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
   };

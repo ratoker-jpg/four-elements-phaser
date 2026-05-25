@@ -5,7 +5,7 @@ import {
   placeConstructionSite,
   updateConstructionSiteProgress,
 } from '../state/construction';
-import type { GameState, MapData } from '../state/types';
+import type { GameState, MapData, EconomyState } from '../state/types';
 
 // ─── Test helpers ──────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ function makeTestState(overrides?: {
   mapH?: number;
   hqTx?: number;
   hqTy?: number;
-  rawMinerals?: number;
+  matter?: number;
   resources?: Array<{ tx: number; ty: number; footprint: number }>;
   obstacles?: Array<{ tx: number; ty: number; footprint: number }>;
   buildings?: Array<{ tx: number; ty: number; type?: string }>;
@@ -68,12 +68,20 @@ function makeTestState(overrides?: {
       ty: c.ty,
       type: (c.type ?? 'separator') as 'separator',
       elapsed: 0,
-      duration: 5000,
+      duration: 20000,
       progress: 0,
       builderIndex: -1,
       id: i,
       pending: true,
     })),
+  };
+
+  const economy: EconomyState = {
+    raw: 0,
+    matter: overrides?.matter ?? 500,
+    elements: { cyan: 0, green: 0, yellow: 0, purple: 0 },
+    powerGenerated: 0,
+    powerConsumed: 0,
   };
 
   return {
@@ -88,7 +96,7 @@ function makeTestState(overrides?: {
     extraModularCombat: [],
     harvesters: [],
     resourceNodes: [],
-    rawMinerals: overrides?.rawMinerals ?? 500,
+    economy,
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
   };
@@ -106,7 +114,7 @@ function makeBuildingState(overrides?: {
   mapH?: number;
   hqTx?: number;
   hqTy?: number;
-  rawMinerals?: number;
+  matter?: number;
   siteTx?: number;
   siteTy?: number;
 }): GameState {
@@ -118,7 +126,7 @@ function makeBuildingState(overrides?: {
     mapH: overrides?.mapH ?? 20,
     hqTx: overrides?.hqTx ?? 0,
     hqTy: overrides?.hqTy ?? 0,
-    rawMinerals: overrides?.rawMinerals ?? 500,
+    matter: overrides?.matter ?? 500,
     builders: [{ tx: siteTx - 1, ty: siteTy }], // Adjacent to site
   });
 
@@ -147,8 +155,8 @@ describe('BUILDING_CONFIG', () => {
     expect(config).toBeDefined();
     expect(config!.footprintW).toBe(2);
     expect(config!.footprintH).toBe(2);
-    expect(config!.costRaw).toBe(100);
-    expect(config!.buildTimeMs).toBe(5000);
+    expect(config!.costMatter).toBe(60);
+    expect(config!.buildTimeMs).toBe(20000);
   });
 });
 
@@ -224,9 +232,9 @@ describe('canPlaceBuilding', () => {
     expect(result).toEqual({ valid: false, reason: 'occupied' });
   });
 
-  it('rejects insufficient rawMinerals', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, rawMinerals: 50 });
-    // Separator costs 100, player has 50
+  it('rejects insufficient matter', () => {
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 50 });
+    // Separator costs 60 matter, player has 50
     const result = canPlaceBuilding(state, 'separator', 10, 10);
     expect(result).toEqual({ valid: false, reason: 'insufficient-resources' });
   });
@@ -238,8 +246,8 @@ describe('canPlaceBuilding', () => {
     expect(result).toEqual({ valid: false, reason: 'unknown-building-type' });
   });
 
-  it('accepts placement with exactly enough rawMinerals', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, rawMinerals: 100 });
+  it('accepts placement with exactly enough matter', () => {
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 60 });
     const result = canPlaceBuilding(state, 'separator', 10, 10);
     expect(result).toEqual({ valid: true });
   });
@@ -248,12 +256,12 @@ describe('canPlaceBuilding', () => {
 // ─── placeConstructionSite ─────────────────────────────────────────
 
 describe('placeConstructionSite', () => {
-  it('deducts rawMinerals on success', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, rawMinerals: 500 });
-    const before = state.rawMinerals;
+  it('deducts matter on success', () => {
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 500 });
+    const before = state.economy.matter;
     const result = placeConstructionSite(state, 'separator', 10, 10);
     expect(result.ok).toBe(true);
-    expect(state.rawMinerals).toBe(before - BUILDING_CONFIG['separator']!.costRaw);
+    expect(state.economy.matter).toBe(before - BUILDING_CONFIG['separator']!.costMatter);
   });
 
   it('creates a construction site in state.mapData.constructionSites', () => {
@@ -267,29 +275,29 @@ describe('placeConstructionSite', () => {
     expect(site.ty).toBe(10);
     expect(site.type).toBe('separator');
     expect(site.elapsed).toBe(0);
-    expect(site.duration).toBe(5000);
+    expect(site.duration).toBe(20000);
     expect(site.progress).toBe(0);
     expect(site.pending).toBe(true);
     expect(site.id).toBe(0);
   });
 
-  it('failed placement does not mutate rawMinerals', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, rawMinerals: 50 });
-    const before = state.rawMinerals;
+  it('failed placement does not mutate matter', () => {
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 50 });
+    const before = state.economy.matter;
     const result = placeConstructionSite(state, 'separator', 10, 10);
     expect(result.ok).toBe(false);
-    expect(state.rawMinerals).toBe(before);
+    expect(state.economy.matter).toBe(before);
   });
 
   it('failed placement does not add construction site', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, rawMinerals: 50 });
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 50 });
     const result = placeConstructionSite(state, 'separator', 10, 10);
     expect(result.ok).toBe(false);
     expect(state.mapData.constructionSites.length).toBe(0);
   });
 
   it('returns failure reason matching canPlaceBuilding', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, rawMinerals: 50 });
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 50 });
     const result = placeConstructionSite(state, 'separator', 10, 10);
     if (!result.ok) {
       expect(result.reason).toBe('insufficient-resources');
@@ -318,7 +326,7 @@ describe('updateConstructionSiteProgress', () => {
 
     const site = state.mapData.constructionSites[0];
     expect(site.elapsed).toBe(200);
-    expect(site.progress).toBeCloseTo(200 / 5000, 4);
+    expect(site.progress).toBeCloseTo(200 / 20000, 4);
   });
 
   it('clamps deltaMs to 200ms', () => {
@@ -335,9 +343,9 @@ describe('updateConstructionSiteProgress', () => {
   it('completes construction when elapsed reaches duration', () => {
     const state = makeBuildingState();
 
-    // Advance in 200ms steps (clamped max) for 25 steps = 5000ms total
+    // Advance in 200ms steps (clamped max) for 100 steps = 20000ms total
     let lastResult: { completed: boolean; buildingId?: string } = { completed: false };
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 100; i++) {
       lastResult = updateConstructionSiteProgress(state, 'site-0', 200);
     }
 
@@ -354,7 +362,7 @@ describe('updateConstructionSiteProgress', () => {
     expect(state.mapData.buildings.length).toBe(0);
 
     // Complete construction
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 100; i++) {
       updateConstructionSiteProgress(state, 'site-0', 200);
     }
 
@@ -381,10 +389,10 @@ describe('updateConstructionSiteProgress', () => {
   });
 
   it('completed building blocks further placement at same location', () => {
-    const state = makeBuildingState({ rawMinerals: 1000 });
+    const state = makeBuildingState({ matter: 1000 });
 
     // Complete construction
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 100; i++) {
       updateConstructionSiteProgress(state, 'site-0', 200);
     }
 
@@ -433,7 +441,7 @@ describe('updateConstructionSiteProgress', () => {
     const state = makeBuildingState();
 
     // Complete construction
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 100; i++) {
       updateConstructionSiteProgress(state, 'site-0', 200);
     }
 
@@ -449,7 +457,7 @@ describe('updateConstructionSiteProgress', () => {
 
 describe('deterministic IDs', () => {
   it('construction site IDs increment sequentially', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, rawMinerals: 1000 });
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 1000 });
 
     const r1 = placeConstructionSite(state, 'separator', 10, 10);
     const r2 = placeConstructionSite(state, 'separator', 14, 14);
@@ -472,12 +480,69 @@ describe('deterministic IDs', () => {
   });
 
   it('nextConstructionId counter persists across placements', () => {
-    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, rawMinerals: 1000 });
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 1000 });
 
     placeConstructionSite(state, 'separator', 10, 10);
     expect(state.nextConstructionId).toBe(1);
 
     placeConstructionSite(state, 'separator', 14, 14);
     expect(state.nextConstructionId).toBe(2);
+  });
+});
+
+// ─── ARCH-01B: Matter-based construction ────────────────────────────
+
+describe('ARCH-01B: matter-based construction', () => {
+  it('Separator costs 60 matter per ROADMAP', () => {
+    const config = BUILDING_CONFIG['separator'];
+    expect(config!.costMatter).toBe(60);
+  });
+
+  it('Separator build time is 20000ms per ROADMAP', () => {
+    const config = BUILDING_CONFIG['separator'];
+    expect(config!.buildTimeMs).toBe(20000);
+  });
+
+  it('placement deducts matter from economy, not raw', () => {
+    const state = makeTestState({ matter: 200 });
+    const rawBefore = state.economy.raw;
+    const matterBefore = state.economy.matter;
+
+    const result = placeConstructionSite(state, 'separator', 10, 10);
+    expect(result.ok).toBe(true);
+
+    // Matter should decrease by 60
+    expect(state.economy.matter).toBe(matterBefore - 60);
+    // Raw should be unchanged
+    expect(state.economy.raw).toBe(rawBefore);
+  });
+
+  it('insufficient matter rejects placement even with high raw', () => {
+    const state = makeTestState({ matter: 50 });
+    state.economy.raw = 9999; // Plenty of raw, but not the right resource
+
+    const result = canPlaceBuilding(state, 'separator', 10, 10);
+    expect(result).toEqual({ valid: false, reason: 'insufficient-resources' });
+  });
+
+  it('failed placement does not deduct matter', () => {
+    const state = makeTestState({ matter: 50 });
+    const matterBefore = state.economy.matter;
+
+    const result = placeConstructionSite(state, 'separator', 10, 10);
+    expect(result.ok).toBe(false);
+    expect(state.economy.matter).toBe(matterBefore);
+  });
+
+  it('exact matter amount allows placement', () => {
+    const state = makeTestState({ matter: 60 });
+    const result = canPlaceBuilding(state, 'separator', 10, 10);
+    expect(result).toEqual({ valid: true });
+  });
+
+  it('one matter less than cost rejects placement', () => {
+    const state = makeTestState({ matter: 59 });
+    const result = canPlaceBuilding(state, 'separator', 10, 10);
+    expect(result).toEqual({ valid: false, reason: 'insufficient-resources' });
   });
 });

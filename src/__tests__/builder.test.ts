@@ -9,7 +9,7 @@ import {
   updateConstructionSiteProgress,
 } from '../state/construction';
 import { updateGameState } from '../state/updateGameState';
-import type { GameState, MapData, BuilderPlacement } from '../state/types';
+import type { GameState, MapData, EconomyState, BuilderPlacement } from '../state/types';
 
 // ─── Test helpers ──────────────────────────────────────────────────
 
@@ -19,7 +19,7 @@ function makeTestState(overrides?: {
   mapH?: number;
   hqTx?: number;
   hqTy?: number;
-  rawMinerals?: number;
+  matter?: number;
   builders?: Array<{ tx: number; ty: number; ftx?: number; fty?: number }>;
   resources?: Array<{ tx: number; ty: number; footprint: number }>;
 }): GameState {
@@ -72,7 +72,7 @@ function makeTestState(overrides?: {
     extraModularCombat: [],
     harvesters: [],
     resourceNodes: [],
-    rawMinerals: overrides?.rawMinerals ?? 500,
+    economy: { raw: 0, matter: overrides?.matter ?? 500, elements: { cyan: 0, green: 0, yellow: 0, purple: 0 }, powerGenerated: 0, powerConsumed: 0 } as EconomyState,
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
   };
@@ -113,7 +113,7 @@ describe('site does not progress without builder', () => {
   it('construction site with no builder does not progress', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
     });
     // No builders in state
     placeConstructionSite(state, 'separator', 10, 10);
@@ -131,7 +131,7 @@ describe('site does not progress without builder', () => {
   it('site with pending=true does not advance even with deltaMs', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
     });
     placeConstructionSite(state, 'separator', 10, 10);
 
@@ -149,7 +149,7 @@ describe('idle builder gets assigned to site', () => {
   it('assignIdleBuilders assigns an idle builder to a pending site', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 8, ty: 10 }], // Near site at (10,10)
     });
     placeConstructionSite(state, 'separator', 10, 10);
@@ -168,7 +168,7 @@ describe('idle builder gets assigned to site', () => {
   it('builder receives path to adjacent site tile', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 8, ty: 10 }],
     });
     placeConstructionSite(state, 'separator', 10, 10);
@@ -195,7 +195,7 @@ describe('idle builder gets assigned to site', () => {
   it('already adjacent builder immediately transitions to building', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 9, ty: 10 }], // Adjacent to site at (10,10)
     });
     placeConstructionSite(state, 'separator', 10, 10);
@@ -212,7 +212,7 @@ describe('idle builder gets assigned to site', () => {
   it('no idle builder means site stays pending', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       // No builders
     });
     placeConstructionSite(state, 'separator', 10, 10);
@@ -227,7 +227,7 @@ describe('idle builder gets assigned to site', () => {
   it('busy builder is not assigned to a new site', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 1000,
+      matter: 1000,
       builders: [{ tx: 8, ty: 10 }],
     });
 
@@ -252,7 +252,7 @@ describe('builder movement', () => {
   it('builder moves toward site over time', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 8, ty: 10, ftx: 8, fty: 10 }],
     });
     placeConstructionSite(state, 'separator', 10, 10);
@@ -272,7 +272,7 @@ describe('builder movement', () => {
   it('builder does not snap early from ~0.2 tiles away', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 9, ty: 10 }], // Adjacent to site at (10,10)
     });
     placeConstructionSite(state, 'separator', 10, 10);
@@ -286,7 +286,7 @@ describe('builder movement', () => {
     // Set up a fresh scenario: builder far from site, moving toward it
     const state2 = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 8, ty: 10, ftx: 8, fty: 10 }],
     });
     placeConstructionSite(state2, 'separator', 10, 10);
@@ -326,7 +326,7 @@ describe('builder movement', () => {
   it('builder reaches site and transitions to building', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 8, ty: 10, ftx: 8, fty: 10 }],
     });
     placeConstructionSite(state, 'separator', 10, 10);
@@ -353,7 +353,7 @@ describe('site progresses only after builder in building phase', () => {
   it('site with building-phase builder advances progress', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 9, ty: 10 }], // Already adjacent
     });
     placeConstructionSite(state, 'separator', 10, 10);
@@ -369,13 +369,13 @@ describe('site progresses only after builder in building phase', () => {
 
     const site = state.mapData.constructionSites[0];
     expect(site.elapsed).toBe(200);
-    expect(site.progress).toBeCloseTo(200 / 5000, 4);
+    expect(site.progress).toBeCloseTo(200 / 20000, 4);
   });
 
   it('site with moving-to-site builder does not advance progress', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 5, ty: 5 }], // Far from site
     });
     placeConstructionSite(state, 'separator', 10, 10);
@@ -402,7 +402,7 @@ describe('completion returns builder to idle', () => {
   it('builder becomes idle when construction completes', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 9, ty: 10 }], // Already adjacent
     });
     placeConstructionSite(state, 'separator', 10, 10);
@@ -412,9 +412,9 @@ describe('completion returns builder to idle', () => {
     const builder = state.mapData.builders[0];
     expect(builder.phase).toBe('building');
 
-    // Complete construction (25 ticks of 200ms = 5000ms)
+    // Complete construction (100 ticks of 200ms = 20000ms)
     let lastResult: { completed: boolean; buildingId?: string } = { completed: false };
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 100; i++) {
       lastResult = updateConstructionSiteProgress(state, 'site-0', 200);
     }
 
@@ -429,7 +429,7 @@ describe('completion returns builder to idle', () => {
   it('released builder can be assigned to a new site', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 2000,
+      matter: 2000,
       builders: [{ tx: 9, ty: 10 }], // Adjacent to first site
     });
 
@@ -441,7 +441,7 @@ describe('completion returns builder to idle', () => {
     expect(builder.phase).toBe('building');
 
     // Complete first construction
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 100; i++) {
       updateConstructionSiteProgress(state, 'site-0', 200);
     }
 
@@ -463,7 +463,7 @@ describe('releaseBuilder', () => {
   it('resets builder to idle state', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 9, ty: 10 }],
     });
 
@@ -500,7 +500,7 @@ describe('harvester loop unaffected', () => {
   it('harvesters continue working alongside builder state machine', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
-      rawMinerals: 500,
+      matter: 500,
       builders: [{ tx: 9, ty: 10 }],
       resources: [{ tx: 15, ty: 15, footprint: 1 }],
     });
