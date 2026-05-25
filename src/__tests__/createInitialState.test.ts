@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createInitialState } from '../state/createInitialState';
-import { RESOURCE_RAW_AMOUNTS, START_RAW, START_MATTER } from '../state/types';
+import { RESOURCE_RAW_AMOUNTS, START_RAW, START_MATTER, HQ_RAW_CAP, HQ_MATTER_CAP, HQ_ELEMENT_CAP } from '../state/types';
 
 describe('createInitialState', () => {
   it('returns a valid GameState with expected map dimensions', () => {
@@ -70,5 +70,12 @@ describe('createInitialState', () => {
   it('player faction matches map HQ faction', () => {
     const state = createInitialState();
     expect(state.playerFaction).toBe('cyan');
+  });
+
+  it('starts with base HQ storage caps', () => {
+    const state = createInitialState();
+    expect(state.economy.rawCap).toBe(HQ_RAW_CAP);
+    expect(state.economy.matterCap).toBe(HQ_MATTER_CAP);
+    expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP);
   });
 });

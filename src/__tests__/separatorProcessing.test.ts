@@ -9,6 +9,12 @@ import {
   SEP_ELEMENT_YIELD,
   SEP_CYCLE_MS,
   ELEMENT_UNITS_PER_ELEMENT,
+  HQ_RAW_CAP,
+  HQ_MATTER_CAP,
+  HQ_ELEMENT_CAP,
+  RAW_STORAGE_RAW_BONUS,
+  MATTER_STORAGE_MATTER_BONUS,
+  MATTER_STORAGE_ELEMENT_BONUS,
 } from '../state/types';
 
 // ─── Test helpers ──────────────────────────────────────────────────
@@ -22,6 +28,9 @@ function makeStateWithSeparator(overrides?: {
   matter?: number;
   separatorProgress?: number;
   separatorActive?: boolean;
+  rawCap?: number;
+  matterCap?: number;
+  elementCap?: number;
 }): GameState {
   const mapData: MapData = {
     width: 20,
@@ -48,6 +57,9 @@ function makeStateWithSeparator(overrides?: {
       progress: overrides?.separatorProgress ?? 0,
       active: overrides?.separatorActive ?? false,
     }],
+    rawCap: overrides?.rawCap ?? 200,
+    matterCap: overrides?.matterCap ?? 200,
+    elementCap: overrides?.elementCap ?? 200,
   };
 
   return {
@@ -357,5 +369,273 @@ describe('ARCH-01C: multiple separators', () => {
     expect(state.economy.raw).toBe(200 - 2 * SEP_RAW_COST);
     expect(state.economy.matter).toBe(120 + 2 * SEP_MATTER_YIELD);
     expect(state.economy.elements.cyan).toBe(2 * SEP_ELEMENT_YIELD);
+  });
+});
+
+// ─── ARCH-01D: Storage cap constants ────────────────────────────────
+
+describe('ARCH-01D: storage cap constants', () => {
+  it('HQ_RAW_CAP is 200', () => {
+    expect(HQ_RAW_CAP).toBe(200);
+  });
+
+  it('HQ_MATTER_CAP is 200', () => {
+    expect(HQ_MATTER_CAP).toBe(200);
+  });
+
+  it('HQ_ELEMENT_CAP is 200', () => {
+    expect(HQ_ELEMENT_CAP).toBe(200);
+  });
+
+  it('RAW_STORAGE_RAW_BONUS is 200', () => {
+    expect(RAW_STORAGE_RAW_BONUS).toBe(200);
+  });
+
+  it('MATTER_STORAGE_MATTER_BONUS is 200', () => {
+    expect(MATTER_STORAGE_MATTER_BONUS).toBe(200);
+  });
+
+  it('MATTER_STORAGE_ELEMENT_BONUS is 200', () => {
+    expect(MATTER_STORAGE_ELEMENT_BONUS).toBe(200);
+  });
+});
+
+// ─── ARCH-01D: Initial economy caps are 200/200/200 ────────────────
+
+describe('ARCH-01D: initial economy caps', () => {
+  it('initial economy caps are base HQ caps (200/200/200)', () => {
+    const state = createInitialState();
+    expect(state.economy.rawCap).toBe(HQ_RAW_CAP);
+    expect(state.economy.matterCap).toBe(HQ_MATTER_CAP);
+    expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP);
+  });
+
+  it('raw-storage in initial mapData increases rawCap by RAW_STORAGE_RAW_BONUS', () => {
+    const mapData: MapData = {
+      width: 20,
+      height: 20,
+      terrain: Array.from({ length: 20 }, () => Array(20).fill('sand')),
+      hq: { tx: 4, ty: 4, faction: 'cyan' },
+      resources: [],
+      obstacles: [],
+      decor: [],
+      buildings: [
+        { tx: 20, ty: 20, type: 'raw-storage' },
+      ],
+      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      constructionSites: [],
+    };
+
+    const state = createInitialState(mapData);
+    expect(state.economy.rawCap).toBe(HQ_RAW_CAP + RAW_STORAGE_RAW_BONUS);
+    expect(state.economy.matterCap).toBe(HQ_MATTER_CAP);
+    expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP);
+  });
+
+  it('matter-storage in initial mapData increases matterCap and elementCap', () => {
+    const mapData: MapData = {
+      width: 20,
+      height: 20,
+      terrain: Array.from({ length: 20 }, () => Array(20).fill('sand')),
+      hq: { tx: 4, ty: 4, faction: 'cyan' },
+      resources: [],
+      obstacles: [],
+      decor: [],
+      buildings: [
+        { tx: 20, ty: 20, type: 'matter-storage' },
+      ],
+      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      constructionSites: [],
+    };
+
+    const state = createInitialState(mapData);
+    expect(state.economy.rawCap).toBe(HQ_RAW_CAP);
+    expect(state.economy.matterCap).toBe(HQ_MATTER_CAP + MATTER_STORAGE_MATTER_BONUS);
+    expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP + MATTER_STORAGE_ELEMENT_BONUS);
+  });
+
+  it('multiple storage buildings stack their bonuses', () => {
+    const mapData: MapData = {
+      width: 30,
+      height: 30,
+      terrain: Array.from({ length: 30 }, () => Array(30).fill('sand')),
+      hq: { tx: 4, ty: 4, faction: 'cyan' },
+      resources: [],
+      obstacles: [],
+      decor: [],
+      buildings: [
+        { tx: 20, ty: 20, type: 'raw-storage' },
+        { tx: 22, ty: 20, type: 'raw-storage' },
+        { tx: 24, ty: 20, type: 'matter-storage' },
+      ],
+      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      constructionSites: [],
+    };
+
+    const state = createInitialState(mapData);
+    expect(state.economy.rawCap).toBe(HQ_RAW_CAP + 2 * RAW_STORAGE_RAW_BONUS);
+    expect(state.economy.matterCap).toBe(HQ_MATTER_CAP + MATTER_STORAGE_MATTER_BONUS);
+    expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP + MATTER_STORAGE_ELEMENT_BONUS);
+  });
+});
+
+// ─── ARCH-01D: Separator pauses when matter cap would be exceeded ─────
+
+describe('ARCH-01D: separator matter cap blocking', () => {
+  it('separator pauses when matter + SEP_MATTER_YIELD would exceed matterCap', () => {
+    // matterCap = 125, matter = 120, SEP_MATTER_YIELD = 10
+    // 120 + 10 = 130 > 125 → blocked
+    const state = makeStateWithSeparator({ raw: 100, matter: 120, matterCap: 125 });
+    updateGameState(state, 100);
+    const sep = state.economy.separators[0];
+    expect(sep.active).toBe(false);
+    expect(sep.progress).toBe(0);
+  });
+
+  it('separator progresses when matter + SEP_MATTER_YIELD <= matterCap', () => {
+    // matterCap = 200, matter = 120, SEP_MATTER_YIELD = 10
+    // 120 + 10 = 130 <= 200 → OK
+    const state = makeStateWithSeparator({ raw: 100, matter: 120, matterCap: 200 });
+    updateGameState(state, 100);
+    const sep = state.economy.separators[0];
+    expect(sep.active).toBe(true);
+    expect(sep.progress).toBeGreaterThan(0);
+  });
+
+  it('separator does not exceed matter cap after cycle completion', () => {
+    // matterCap = 125, matter = 115, SEP_MATTER_YIELD = 10
+    // 115 + 10 = 125 <= 125 → OK, but next cycle would be blocked
+    const state = makeStateWithSeparator({ raw: 200, matter: 115, matterCap: 125 });
+
+    // Complete one cycle (25 frames of 200ms)
+    for (let i = 0; i < 25; i++) {
+      updateGameState(state, 200);
+    }
+
+    expect(state.economy.matter).toBe(125);
+    // Separator should now be paused (next cycle: 125 + 10 > 125)
+    const sep = state.economy.separators[0];
+    expect(sep.active).toBe(false);
+  });
+});
+
+// ─── ARCH-01D: Separator pauses when element cap would be exceeded ────
+
+describe('ARCH-01D: separator element cap blocking', () => {
+  it('separator pauses when elements + SEP_ELEMENT_YIELD would exceed elementCap', () => {
+    // elementCap = 195, elements.cyan = 194, SEP_ELEMENT_YIELD = 2
+    // 194 + 2 = 196 > 195 → blocked
+    const state = makeStateWithSeparator({ raw: 100, elementCap: 195 });
+    state.economy.elements.cyan = 194;
+    updateGameState(state, 100);
+    const sep = state.economy.separators[0];
+    expect(sep.active).toBe(false);
+  });
+
+  it('separator progresses when elements + SEP_ELEMENT_YIELD <= elementCap', () => {
+    // elementCap = 200, elements.cyan = 194, SEP_ELEMENT_YIELD = 2
+    // 194 + 2 = 196 <= 200 → OK
+    const state = makeStateWithSeparator({ raw: 100, elementCap: 200 });
+    state.economy.elements.cyan = 194;
+    updateGameState(state, 100);
+    const sep = state.economy.separators[0];
+    expect(sep.active).toBe(true);
+  });
+
+  it('separator progress is preserved while cap-blocked', () => {
+    const state = makeStateWithSeparator({ raw: 100, matterCap: 125 });
+    state.economy.matter = 115;
+
+    // Advance partway through a cycle
+    for (let i = 0; i < 10; i++) {
+      updateGameState(state, 200);
+    }
+    const sep = state.economy.separators[0];
+    const savedProgress = sep.progress;
+    expect(savedProgress).toBeGreaterThan(0);
+    expect(savedProgress).toBeLessThan(1);
+
+    // Set matter to cap so next yield would exceed
+    state.economy.matter = 120; // 120 + 10 = 130 > 125
+    updateGameState(state, 200);
+
+    // Progress should be preserved
+    expect(sep.progress).toBeCloseTo(savedProgress, 6);
+    expect(sep.active).toBe(false);
+  });
+
+  it('separator resumes when cap room becomes available', () => {
+    const state = makeStateWithSeparator({ raw: 100, matterCap: 125 });
+    state.economy.matter = 120; // 120 + 10 = 130 > 125
+
+    // Advance some ticks — separator blocked by cap
+    for (let i = 0; i < 10; i++) {
+      updateGameState(state, 200);
+    }
+    const sep = state.economy.separators[0];
+    expect(sep.active).toBe(false);
+    expect(sep.progress).toBe(0); // Never started because blocked from beginning
+
+    // Spend matter to make room
+    state.economy.matter = 50; // 50 + 10 = 60 <= 125
+    updateGameState(state, 200);
+    expect(sep.active).toBe(true);
+    expect(sep.progress).toBeGreaterThan(0);
+  });
+});
+
+// ─── ARCH-01D: Harvester unload does not exceed rawCap ────────────────
+
+describe('ARCH-01D: harvester unload cap behavior', () => {
+  it('harvester unload does not exceed rawCap', () => {
+    const state = makeStateWithSeparator({ raw: 195, rawCap: 200 });
+    state.economy.separators = [];
+
+    // Add a harvester at HQ position with 20 cargo
+    const harvester = {
+      id: 'test-harvester',
+      ftx: 1,
+      fty: 1,
+      faction: 'cyan' as const,
+      phase: 'unloading' as const,
+      targetResourceId: null,
+      cargoRaw: 20,
+      cargoCapacity: 20,
+      gatherTimer: 0,
+      unloadTimer: 0, // timer expired
+      speedTilesPerSecond: 2.5,
+    };
+    state.harvesters.push(harvester);
+
+    // Process one frame — only 5 raw should be transferred (200 - 195 = 5)
+    updateGameState(state, 16);
+
+    expect(state.economy.raw).toBe(200); // capped at rawCap
+    expect(harvester.cargoRaw).toBe(15); // remaining cargo preserved
+  });
+
+  it('harvester cargo is not silently lost when rawCap is full', () => {
+    const state = makeStateWithSeparator({ raw: 200, rawCap: 200 });
+    state.economy.separators = [];
+
+    const harvester = {
+      id: 'test-harvester',
+      ftx: 1,
+      fty: 1,
+      faction: 'cyan' as const,
+      phase: 'unloading' as const,
+      targetResourceId: null,
+      cargoRaw: 20,
+      cargoCapacity: 20,
+      gatherTimer: 0,
+      unloadTimer: 0,
+      speedTilesPerSecond: 2.5,
+    };
+    state.harvesters.push(harvester);
+
+    updateGameState(state, 16);
+
+    expect(state.economy.raw).toBe(200); // unchanged
+    expect(harvester.cargoRaw).toBe(20); // cargo preserved, not lost
   });
 });

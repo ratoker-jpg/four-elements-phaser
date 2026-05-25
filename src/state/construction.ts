@@ -21,6 +21,7 @@
  */
 
 import type { GameState, BuildingType } from './types';
+import { RAW_STORAGE_RAW_BONUS, MATTER_STORAGE_MATTER_BONUS, MATTER_STORAGE_ELEMENT_BONUS } from './types';
 import { buildOccupancyMap, isBuildable } from './occupancy';
 
 // ─── Building Configuration ─────────────────────────────────────────
@@ -225,6 +226,14 @@ export function updateConstructionSiteProgress(
       progress: 0,
       active: false,
     });
+  }
+
+  // ARCH-01D: Apply storage cap bonuses for completed storage buildings.
+  if (site.type === 'raw-storage') {
+    state.economy.rawCap += RAW_STORAGE_RAW_BONUS;
+  } else if (site.type === 'matter-storage') {
+    state.economy.matterCap += MATTER_STORAGE_MATTER_BONUS;
+    state.economy.elementCap += MATTER_STORAGE_ELEMENT_BONUS;
   }
 
   // Release the assigned builder back to idle

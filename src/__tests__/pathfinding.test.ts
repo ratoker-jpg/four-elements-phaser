@@ -51,7 +51,7 @@ function makeTestState(overrides?: {
     extraModularCombat: [],
     harvesters: [],
     resourceNodes: [],
-    economy: { raw: 0, matter: 0, elements: { cyan: 0, green: 0, yellow: 0, purple: 0 }, powerGenerated: 0, powerConsumed: 0, separators: [] } as EconomyState,
+    economy: { raw: 0, matter: 0, elements: { cyan: 0, green: 0, yellow: 0, purple: 0 }, powerGenerated: 0, powerConsumed: 0, separators: [], rawCap: 200, matterCap: 200, elementCap: 200 } as EconomyState,
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
   };

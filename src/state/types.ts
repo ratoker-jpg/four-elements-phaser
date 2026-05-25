@@ -243,6 +243,21 @@ export interface SeparatorRuntimeState {
   active: boolean;
 }
 
+// ─── Storage Cap Constants (ARCH-01D) ────────────────────────────────
+
+/** Base HQ raw storage cap. */
+export const HQ_RAW_CAP = 200;
+/** Base HQ matter storage cap. */
+export const HQ_MATTER_CAP = 200;
+/** Base HQ element storage cap (in elementUnits). */
+export const HQ_ELEMENT_CAP = 200;
+/** Raw storage bonus per raw-storage building. */
+export const RAW_STORAGE_RAW_BONUS = 200;
+/** Matter storage bonus per matter-storage building. */
+export const MATTER_STORAGE_MATTER_BONUS = 200;
+/** Element cap bonus per matter-storage building (in elementUnits). */
+export const MATTER_STORAGE_ELEMENT_BONUS = 200;
+
 // ─── Economy State (ARCH-01B) ──────────────────────────────────────
 
 /** Player economy state — pure data, no methods, no Phaser. */
@@ -259,6 +274,12 @@ export interface EconomyState {
   powerConsumed: number;
   /** Runtime state for each completed separator building. ARCH-01C. */
   separators: SeparatorRuntimeState[];
+  /** Maximum raw storage capacity. ARCH-01D. */
+  rawCap: number;
+  /** Maximum matter storage capacity. ARCH-01D. */
+  matterCap: number;
+  /** Maximum element storage capacity per faction (in elementUnits). ARCH-01D. */
+  elementCap: number;
 }
 
 /** Initial economy values per ROADMAP.md ARCH-01. */
