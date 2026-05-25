@@ -303,7 +303,80 @@ Do not spend Codex/GLM cycles on pixel guessing when an in-game tuner or manual 
 
 ---
 
-## 13. PR acceptance rules
+## 13. ARCH planning and phased execution
+
+Use an `ARCH` task when several upcoming PRs are connected by one architecture direction.
+
+An `ARCH` is allowed to be larger than a normal PR because it is a planning container, not automatically one implementation PR.
+
+Recommended shape:
+
+```text
+ARCH-13 — Foundation Stabilization
+Phase A — Vitest baseline
+Phase B — Modular renderer/debug split
+Phase C — Passability / Occupancy / Pathfinding MVP
+Phase D — Construction MVP
+Phase E — VFX / Feel pass
+```
+
+Important rule:
+
+```text
+one large ARCH audit does not mean one large code PR
+```
+
+ARCH workflow:
+
+1. Define the full architecture package.
+2. Ask for Phase 1 Audit Only.
+3. The audit must split work into phases.
+4. The audit must identify phase dependencies.
+5. The audit must say which phases can be combined and which must stay separate.
+6. Implementation starts only after explicit approval for a named phase or phase group.
+
+Approval examples:
+
+```text
+Делай Phase A
+Делай Phase A+B
+Делай Phase C only
+```
+
+Do not interpret `Делай` for the whole ARCH unless the user explicitly says to implement the whole ARCH.
+
+### Phase combination rules
+
+Phases may be combined only when risk is low.
+
+Usually safe to combine:
+
+- docs-only changes;
+- tests-only changes;
+- package/test-script setup plus a small set of baseline tests;
+- no runtime behavior changes;
+- no visual QA dependency;
+- small rollback.
+
+Usually keep separate:
+
+- gameplay behavior changes;
+- renderer refactors;
+- pathfinding/passability;
+- construction;
+- input/UI changes;
+- changes touching state + renderer + GameScene together;
+- any phase that needs manual visual QA.
+
+Hard stop:
+
+Do not combine renderer split + pathfinding + construction into one implementation PR.
+
+That is too risky and recreates the old patch-accumulation failure mode.
+
+---
+
+## 14. PR acceptance rules
 
 Every implementation PR should state:
 
@@ -327,47 +400,42 @@ Reject or pause PRs that:
 
 ---
 
-## 14. Short next-step recommendation
+## 15. Short next-step recommendation
 
 After merging the modular socket PR, do not continue combat.
 
 Recommended next task:
 
 ```text
-PR13A — Vitest Baseline
+ARCH-13 — Foundation Stabilization / Phase 1 Audit Only
 ```
 
-Goal:
-
-- add Vitest;
-- add `npm test`;
-- test pure TS logic only;
-- no gameplay changes;
-- no renderer changes except import fixes if needed.
-
-After that:
+Expected phases:
 
 ```text
-PR13B — ModularTankRenderer split
+Phase A — Vitest baseline
+Phase B — ModularTankRenderer split
+Phase C — Passability + Occupancy MVP
+Phase D — Pathfinding MVP
+Phase E — Construction MVP contract / implementation plan
 ```
 
-Goal:
-
-- extract modular tank visual/debug code from `EntityRenderer`;
-- keep behavior unchanged;
-- no gameplay changes.
-
-Then return to civil loop:
+The likely first implementation approval after audit:
 
 ```text
-PR14 — Passability + Pathfinding MVP
-PR15 — Construction MVP
+Делай Phase A
+```
+
+or, if the audit shows low risk:
+
+```text
+Делай Phase A+B
 ```
 
 ---
 
-## 15. One-line operating rule
+## 16. One-line operating rule
 
 Build the game, not the bridge.
 
-Stabilize the foundation, freeze combat, add tests, split oversized render code, then continue the civil loop.
+Use ARCH tasks for connected planning, but keep implementation phases narrow unless the risk is clearly low.
