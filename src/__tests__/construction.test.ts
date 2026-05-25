@@ -83,6 +83,9 @@ function makeTestState(overrides?: {
     powerGenerated: 0,
     powerConsumed: 0,
     separators: [],
+    rawCap: 200,
+    matterCap: 200,
+    elementCap: 200,
   };
 
   return {
@@ -545,5 +548,101 @@ describe('ARCH-01B: matter-based construction', () => {
     const state = makeTestState({ matter: 59 });
     const result = canPlaceBuilding(state, 'separator', 10, 10);
     expect(result).toEqual({ valid: false, reason: 'insufficient-resources' });
+  });
+});
+
+// ─── ARCH-01D: Construction completion applies storage cap bonuses ────
+
+describe('ARCH-01D: construction completion cap bonuses', () => {
+  it('separator completion does not change caps', () => {
+    const state = makeBuildingState();
+    const rawCapBefore = state.economy.rawCap;
+    const matterCapBefore = state.economy.matterCap;
+    const elementCapBefore = state.economy.elementCap;
+
+    // Complete construction
+    for (let i = 0; i < 100; i++) {
+      updateConstructionSiteProgress(state, 'site-0', 200);
+    }
+
+    expect(state.economy.rawCap).toBe(rawCapBefore);
+    expect(state.economy.matterCap).toBe(matterCapBefore);
+    expect(state.economy.elementCap).toBe(elementCapBefore);
+  });
+
+  it('raw-storage completion increases rawCap by RAW_STORAGE_RAW_BONUS', () => {
+    // Create a state with a raw-storage construction site directly
+    const state = makeTestState({
+      mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
+      matter: 500,
+      builders: [{ tx: 9, ty: 10 }],
+    });
+
+    // Manually create a raw-storage construction site
+    state.mapData.constructionSites.push({
+      tx: 10, ty: 10,
+      type: 'raw-storage',
+      elapsed: 0,
+      duration: 20000,
+      progress: 0,
+      builderIndex: 0,
+      id: 0,
+      pending: false,
+    });
+
+    // Set builder to building phase
+    const builder = state.mapData.builders[0];
+    builder.busy = true;
+    builder.phase = 'building';
+    builder.assignedSiteId = 0;
+
+    const rawCapBefore = state.economy.rawCap;
+
+    // Complete construction
+    for (let i = 0; i < 100; i++) {
+      updateConstructionSiteProgress(state, 'site-0', 200);
+    }
+
+    expect(state.economy.rawCap).toBe(rawCapBefore + 200); // RAW_STORAGE_RAW_BONUS
+    expect(state.economy.matterCap).toBe(200); // unchanged
+    expect(state.economy.elementCap).toBe(200); // unchanged
+  });
+
+  it('matter-storage completion increases matterCap and elementCap', () => {
+    const state = makeTestState({
+      mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
+      matter: 500,
+      builders: [{ tx: 9, ty: 10 }],
+    });
+
+    // Manually create a matter-storage construction site
+    state.mapData.constructionSites.push({
+      tx: 10, ty: 10,
+      type: 'matter-storage',
+      elapsed: 0,
+      duration: 20000,
+      progress: 0,
+      builderIndex: 0,
+      id: 0,
+      pending: false,
+    });
+
+    // Set builder to building phase
+    const builder = state.mapData.builders[0];
+    builder.busy = true;
+    builder.phase = 'building';
+    builder.assignedSiteId = 0;
+
+    const matterCapBefore = state.economy.matterCap;
+    const elementCapBefore = state.economy.elementCap;
+
+    // Complete construction
+    for (let i = 0; i < 100; i++) {
+      updateConstructionSiteProgress(state, 'site-0', 200);
+    }
+
+    expect(state.economy.rawCap).toBe(200); // unchanged
+    expect(state.economy.matterCap).toBe(matterCapBefore + 200); // MATTER_STORAGE_MATTER_BONUS
+    expect(state.economy.elementCap).toBe(elementCapBefore + 200); // MATTER_STORAGE_ELEMENT_BONUS
   });
 });

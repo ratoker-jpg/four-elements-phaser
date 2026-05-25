@@ -181,10 +181,31 @@ function handleUnloading(
   h.unloadTimer -= dt;
   if (h.unloadTimer > 0) return; // still unloading
 
-  // Transfer cargo to player economy
-  state.economy.raw += h.cargoRaw;
-  h.cargoRaw = 0;
-  h.phase = 'idle';
+  // ARCH-01D: Enforce raw cap on harvester unload.
+  // Transfer as much cargo as fits within rawCap; keep remaining in cargo.
+  // Do not lose cargo silently — if raw is at cap, keep cargo and wait.
+  const room = state.economy.rawCap - state.economy.raw;
+  if (room <= 0) {
+    // Raw storage full — keep cargo, stay at HQ position.
+    // Set a short unload timer so the harvester retries next frame
+    // instead of immediately re-entering the unload phase without a delay.
+    h.unloadTimer = UNLOAD_DURATION_MS;
+    return;
+  }
+
+  const transfer = Math.min(h.cargoRaw, room);
+  state.economy.raw += transfer;
+  h.cargoRaw -= transfer;
+
+  if (h.cargoRaw > 0) {
+    // Partial unload — still at HQ, retry unloading remaining cargo.
+    // Set a short unload timer so the harvester retries after a brief pause,
+    // giving separator processing a chance to free up raw storage.
+    h.unloadTimer = UNLOAD_DURATION_MS;
+  } else {
+    // All cargo unloaded — go idle and re-enter gather loop.
+    h.phase = 'idle';
+  }
 }
 
 // ─── Movement helpers ───────────────────────────────────────────────
@@ -303,7 +324,14 @@ function updateSeparators(state: GameState, dt: number): void {
   const playerFaction = state.playerFaction;
 
   for (const sep of state.economy.separators) {
-    const canProcess = state.economy.raw >= SEP_RAW_COST;
+    // ARCH-01D: Check all conditions for separator to process:
+    // 1. raw >= SEP_RAW_COST
+    // 2. matter + SEP_MATTER_YIELD <= matterCap
+    // 3. elements[playerFaction] + SEP_ELEMENT_YIELD <= elementCap
+    const canProcess =
+      state.economy.raw >= SEP_RAW_COST &&
+      state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
+      state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
     sep.active = canProcess;
 
     if (!canProcess) {
@@ -316,9 +344,13 @@ function updateSeparators(state: GameState, dt: number): void {
 
     // Complete as many full cycles as progress allows
     while (sep.progress >= 1) {
-      // Only consume if still enough raw for this cycle
-      if (state.economy.raw < SEP_RAW_COST) {
-        // Ran out of raw mid-cycle — clamp progress and stop
+      // Re-check all conditions before consuming each cycle
+      if (
+        state.economy.raw < SEP_RAW_COST ||
+        state.economy.matter + SEP_MATTER_YIELD > state.economy.matterCap ||
+        state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD > state.economy.elementCap
+      ) {
+        // Blocked by cap or lack of raw mid-cycle — clamp progress and stop
         sep.active = false;
         sep.progress = Math.min(sep.progress, 1);
         break;
@@ -333,7 +365,11 @@ function updateSeparators(state: GameState, dt: number): void {
     }
 
     // After processing, re-check active state
-    if (state.economy.raw < SEP_RAW_COST) {
+    const stillCanProcess =
+      state.economy.raw >= SEP_RAW_COST &&
+      state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
+      state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
+    if (!stillCanProcess) {
       sep.active = false;
     }
   }

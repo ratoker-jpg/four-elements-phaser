@@ -8,7 +8,17 @@ import type {
   EconomyState,
   SeparatorRuntimeState,
 } from './types';
-import { RESOURCE_RAW_AMOUNTS, START_RAW, START_MATTER } from './types';
+import {
+  RESOURCE_RAW_AMOUNTS,
+  START_RAW,
+  START_MATTER,
+  HQ_RAW_CAP,
+  HQ_MATTER_CAP,
+  HQ_ELEMENT_CAP,
+  RAW_STORAGE_RAW_BONUS,
+  MATTER_STORAGE_MATTER_BONUS,
+  MATTER_STORAGE_ELEMENT_BONUS,
+} from './types';
 import { createHarvester } from './updateGameState';
 import { customMap1 } from '../data/maps/customMap1';
 
@@ -94,6 +104,21 @@ function createInitialEconomy(_playerFaction: Faction, mapData: MapData): Econom
       active: false,
     }));
 
+  // ARCH-01D: Initialize caps from existing completed buildings.
+  // Base HQ caps + bonuses from raw-storage and matter-storage buildings.
+  let rawCap = HQ_RAW_CAP;
+  let matterCap = HQ_MATTER_CAP;
+  let elementCap = HQ_ELEMENT_CAP;
+
+  for (const building of mapData.buildings) {
+    if (building.type === 'raw-storage') {
+      rawCap += RAW_STORAGE_RAW_BONUS;
+    } else if (building.type === 'matter-storage') {
+      matterCap += MATTER_STORAGE_MATTER_BONUS;
+      elementCap += MATTER_STORAGE_ELEMENT_BONUS;
+    }
+  }
+
   return {
     raw: START_RAW,
     matter: START_MATTER,
@@ -101,6 +126,9 @@ function createInitialEconomy(_playerFaction: Faction, mapData: MapData): Econom
     powerGenerated: 0,
     powerConsumed: 0,
     separators,
+    rawCap,
+    matterCap,
+    elementCap,
   };
 }
 
