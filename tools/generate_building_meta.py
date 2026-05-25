@@ -134,38 +134,35 @@ def compute_ground_line_ratio(img: Image.Image, alpha_bounds: dict) -> float:
     """
     Estimate where the building's visual base sits relative to source height.
 
-    Heuristic: find the row with the widest alpha content (most non-transparent
-    pixels). This is typically the building's base/ground line. Shadows below
-    the base tend to be narrower.
+    For isometric building sprites, the building's visual ground contact point
+    is at the SOUTH VERTEX of the building's isometric diamond base — the
+    bottommost pixel row of visible content. The widest alpha row typically
+    represents the building's midsection/roof, NOT the ground line.
 
-    groundLineRatio = groundLineY / sourceHeight
+    The groundLineRatio is the ratio of the bottom of the alpha bounds to
+    the source image height:
 
-    Falls back to alpha_bounds.bottom / sourceHeight if the widest-row
-    heuristic fails.
+        groundLineRatio = alphaBounds.bottom / sourceHeight
+
+    This ensures the image origin sits at the visual base of the building,
+    so the south-vertex placement formula aligns the building's base with
+    the footprint south vertex.
+
+    BUILD-ANCHOR-03 fixup: replaced widest-row heuristic with alpha-bottom.
+    The widest-row heuristic produced groundLineRatio ~0.59-0.69, placing
+    the building's midsection at the footprint south vertex instead of its
+    base, causing a large visible shift between construction diamond and
+    completed building PNG.
     """
-    if img.mode != "RGBA":
-        img = img.convert("RGBA")
+    height = img.size[1]
+    bottom = alpha_bounds["bottom"]  # exclusive bound
 
-    width, height = img.size
-    pixels = img.load()
-
-    top = alpha_bounds["top"]
-    bottom = alpha_bounds["bottom"]  # exclusive
-
-    max_alpha_width = 0
-    ground_line_y = bottom - 1  # default: bottom of visible content
-
-    for y in range(top, bottom):
-        row_count = 0
-        for x in range(width):
-            _, _, _, a = pixels[x, y]
-            if a > 0:
-                row_count += 1
-        if row_count > max_alpha_width:
-            max_alpha_width = row_count
-            ground_line_y = y
-
-    ratio = ground_line_y / height
+    # alphaBounds.bottom is the first row WITHOUT alpha content (exclusive).
+    # The last row WITH alpha content is bottom - 1.
+    # Use the exclusive bottom as the ground line: this matches the Phaser
+    # origin convention where originY=1.0 means the anchor is at the very
+    # bottom edge of the source image rectangle.
+    ratio = bottom / height
     return round(ratio, 6)
 
 
@@ -204,14 +201,45 @@ def compute_target_display_width(footprint_w: int, footprint_h: int) -> int:
     """
     Compute the desired rendered width in screen pixels.
 
-    For isometric 2:1 projection:
-      isometric diamond width = (footprintW + footprintH - 2) * HALF_TILE_W
+    Uses a footprint-size lookup tuned for isometric 2:1 building sprites.
+    The display width is the maximum horizontal span of the rendered building
+    image on screen, chosen so that each footprint category looks proportional
+    without manual per-building tuning.
 
-    Buildings extend beyond the footprint diamond (they are tall structures).
-    A reasonable display width scales the diamond width by the footprint area.
-    For a 2x2 building: (2 + 2) * 38 = 152px (about 2 tiles wide).
+    Footprint-size mapping:
+        1x1 =>  65px   (single tile, small structure)
+        2x2 => 128px   (standard building)
+        3x3 => 200px   (large facility)
+
+    For non-square footprints (e.g. 2x3), the larger dimension determines
+    the mapping tier. This is a safe systemic fallback because wider/taller
+    footprints always need at least as much screen space as their smaller
+    square counterpart.
+
+    BUILD-ANCHOR-03 scale fixup: replaced (fpW+fpH)*38 formula with explicit
+    footprint-size mapping. The old formula produced 152px for 2x2 which was
+    too large; the new 128px value better matches the isometric diamond and
+    keeps buildings proportional to their footprint area.
     """
-    return (footprint_w + footprint_h) * HALF_TILE_W
+    max_dim = max(footprint_w, footprint_h)
+
+    # Explicit footprint-size mapping
+    FOOTPRINT_DISPLAY_WIDTHS: dict[int, int] = {
+        1: 65,
+        2: 128,
+        3: 200,
+    }
+
+    if max_dim in FOOTPRINT_DISPLAY_WIDTHS:
+        return FOOTPRINT_DISPLAY_WIDTHS[max_dim]
+
+    # Systemic fallback for larger footprints: extrapolate linearly from
+    # the 3x3 anchor point. This ensures new larger buildings get a
+    # reasonable default without manual tuning.
+    # Slope from 2x2→3x3: (200 - 128) / (3 - 2) = 72 px per tile
+    base_width = FOOTPRINT_DISPLAY_WIDTHS[3]
+    extra_tiles = max_dim - 3
+    return base_width + extra_tiles * 72
 
 
 # ─── Per-PNG processing ──────────────────────────────────────────────

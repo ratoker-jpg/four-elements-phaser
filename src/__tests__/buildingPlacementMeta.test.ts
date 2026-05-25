@@ -275,29 +275,45 @@ describe('computeOriginY', () => {
     expect(computeOriginY(0.5)).toBe(0.5);
     expect(computeOriginY(1.0)).toBe(1.0);
   });
+
+  it('returns alpha-bottom ratio for isometric buildings', () => {
+    // BUILD-ANCHOR-03 fixup: originY = groundLineRatio = alphaBounds.bottom / sourceHeight
+    // For a building with alphaBounds.bottom=757 and sourceHeight=760:
+    const originY = computeOriginY(757 / 760);
+    expect(originY).toBeCloseTo(0.9961, 3);
+  });
 });
 
 // ─── computeTargetDisplayWidth ───────────────────────────────────────
 
 describe('computeTargetDisplayWidth', () => {
-  it('computes width for 2x2 footprint', () => {
-    // (2 + 2) * 38 = 152
-    expect(computeTargetDisplayWidth(2, 2)).toBe(152);
+  it('returns 65 for 1x1 footprint', () => {
+    expect(computeTargetDisplayWidth(1, 1)).toBe(65);
   });
 
-  it('computes width for 3x3 footprint', () => {
-    // (3 + 3) * 38 = 228
-    expect(computeTargetDisplayWidth(3, 3)).toBe(228);
+  it('returns 128 for 2x2 footprint', () => {
+    expect(computeTargetDisplayWidth(2, 2)).toBe(128);
   });
 
-  it('computes width for non-square footprint', () => {
-    // (2 + 3) * 38 = 190
-    expect(computeTargetDisplayWidth(2, 3)).toBe(190);
+  it('returns 200 for 3x3 footprint', () => {
+    expect(computeTargetDisplayWidth(3, 3)).toBe(200);
   });
 
-  it('computes width for 1x1 footprint', () => {
-    // (1 + 1) * 38 = 76
-    expect(computeTargetDisplayWidth(1, 1)).toBe(76);
+  it('uses larger dimension for non-square footprints (2x3 => 200)', () => {
+    expect(computeTargetDisplayWidth(2, 3)).toBe(200);
+    expect(computeTargetDisplayWidth(3, 2)).toBe(200);
+  });
+
+  it('uses larger dimension for non-square footprints (1x2 => 128)', () => {
+    expect(computeTargetDisplayWidth(1, 2)).toBe(128);
+    expect(computeTargetDisplayWidth(2, 1)).toBe(128);
+  });
+
+  it('extrapolates for footprints larger than 3x3', () => {
+    // 4x4: baseWidth=200, extraTiles=1, 200 + 72 = 272
+    expect(computeTargetDisplayWidth(4, 4)).toBe(272);
+    // 5x5: baseWidth=200, extraTiles=2, 200 + 144 = 344
+    expect(computeTargetDisplayWidth(5, 5)).toBe(344);
   });
 });
 
@@ -305,7 +321,7 @@ describe('computeTargetDisplayWidth', () => {
 
 describe('computeScale', () => {
   it('computes targetDisplayWidth / sourceWidth', () => {
-    expect(computeScale(152, 1008)).toBeCloseTo(0.15079, 4);
+    expect(computeScale(128, 1008)).toBeCloseTo(0.12698, 4);
   });
 
   it('returns 1 for matching widths', () => {
@@ -401,6 +417,25 @@ describe('GENERATED_BUILDING_META', () => {
     }
   });
 
+  it('has groundLineRatio derived from alpha-bottom (not widest-row)', () => {
+    // BUILD-ANCHOR-03 fixup: groundLineRatio = alphaBounds.bottom / sourceHeight
+    // The widest-row heuristic was wrong for isometric buildings.
+    // With alpha-bottom, groundLineRatio should be close to 1.0
+    // (typically > 0.99 because the building base extends near the bottom).
+    for (const meta of GENERATED_BUILDING_META) {
+      const expectedRatio = meta.alphaBounds.bottom / meta.sourceHeight;
+      expect(meta.groundLineRatio).toBeCloseTo(expectedRatio, 4);
+      // Sanity: isometric building bases should be near the image bottom
+      expect(meta.groundLineRatio).toBeGreaterThan(0.95);
+    }
+  });
+
+  it('has originY equal to groundLineRatio', () => {
+    for (const meta of GENERATED_BUILDING_META) {
+      expect(meta.originY).toBe(meta.groundLineRatio);
+    }
+  });
+
   it('has positive computedScale for all entries', () => {
     for (const meta of GENERATED_BUILDING_META) {
       expect(meta.computedScale).toBeGreaterThan(0);
@@ -421,9 +456,27 @@ describe('GENERATED_BUILDING_META', () => {
   });
 
   it('has consistent targetDisplayWidth across same footprint buildings', () => {
-    // All current buildings have 2x2 footprint, so targetDisplayWidth should be the same
+    // All current buildings have 2x2 footprint, so targetDisplayWidth should be 128
     const widths = new Set(GENERATED_BUILDING_META.map((m) => m.targetDisplayWidth));
     expect(widths.size).toBe(1);
-    expect([...widths][0]).toBe(152);
+    expect([...widths][0]).toBe(128);
+  });
+
+  it('has targetDisplayWidth derived from footprint-size mapping', () => {
+    // BUILD-ANCHOR-03 scale fixup: explicit footprint-to-width mapping
+    // All current buildings are 2x2 => 128px
+    for (const meta of GENERATED_BUILDING_META) {
+      expect(meta.targetDisplayWidth).toBe(
+        computeTargetDisplayWidth(meta.footprintW, meta.footprintH),
+      );
+    }
+  });
+
+  it('has computedScale = targetDisplayWidth / sourceWidth', () => {
+    for (const meta of GENERATED_BUILDING_META) {
+      expect(meta.computedScale).toBeCloseTo(
+        meta.targetDisplayWidth / meta.sourceWidth, 4,
+      );
+    }
   });
 });
