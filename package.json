@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "generate:building-meta": "python3 tools/generate_building_meta.py"
   },
   "dependencies": {
     "phaser": "4.1.0"
