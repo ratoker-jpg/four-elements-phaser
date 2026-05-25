@@ -346,14 +346,41 @@ export function computeOriginY(groundLineRatio: number): number {
  * Compute the target display width for a building based on its isometric
  * footprint size.
  *
- * For isometric 2:1 projection with TILE_W=76, TILE_H=38:
- *   isometric diamond width = (footprintW + footprintH) * 38
+ * Uses a footprint-size lookup tuned for isometric 2:1 building sprites.
+ * The display width is the maximum horizontal span of the rendered building
+ * image on screen, chosen so each footprint category looks proportional
+ * without manual per-building tuning.
  *
- * Buildings extend above the footprint diamond, so this width represents
- * a reasonable display size that scales with footprint area.
+ * Footprint-size mapping:
+ *   1x1 =>  65px   (single tile, small structure)
+ *   2x2 => 128px   (standard building)
+ *   3x3 => 200px   (large facility)
+ *
+ * For non-square footprints (e.g. 2x3), the larger dimension determines
+ * the mapping tier. For footprints larger than 3x3, a linear extrapolation
+ * from the 3x3 anchor point is used as a systemic fallback.
+ *
+ * BUILD-ANCHOR-03 scale fixup: replaced (fpW+fpH)*38 formula with explicit
+ * footprint-size mapping.
  */
 export function computeTargetDisplayWidth(footprintW: number, footprintH: number): number {
-  return (footprintW + footprintH) * 38;
+  const maxDim = Math.max(footprintW, footprintH);
+
+  const FOOTPRINT_DISPLAY_WIDTHS: Record<number, number> = {
+    1: 65,
+    2: 128,
+    3: 200,
+  };
+
+  if (maxDim in FOOTPRINT_DISPLAY_WIDTHS) {
+    return FOOTPRINT_DISPLAY_WIDTHS[maxDim];
+  }
+
+  // Systemic fallback: extrapolate linearly from 3x3 anchor.
+  // Slope from 2x2→3x3: (200 - 128) / (3 - 2) = 72 px per tile
+  const baseWidth = FOOTPRINT_DISPLAY_WIDTHS[3];
+  const extraTiles = maxDim - 3;
+  return baseWidth + extraTiles * 72;
 }
 
 /**

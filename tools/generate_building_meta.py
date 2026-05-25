@@ -201,14 +201,45 @@ def compute_target_display_width(footprint_w: int, footprint_h: int) -> int:
     """
     Compute the desired rendered width in screen pixels.
 
-    For isometric 2:1 projection:
-      isometric diamond width = (footprintW + footprintH - 2) * HALF_TILE_W
+    Uses a footprint-size lookup tuned for isometric 2:1 building sprites.
+    The display width is the maximum horizontal span of the rendered building
+    image on screen, chosen so that each footprint category looks proportional
+    without manual per-building tuning.
 
-    Buildings extend beyond the footprint diamond (they are tall structures).
-    A reasonable display width scales the diamond width by the footprint area.
-    For a 2x2 building: (2 + 2) * 38 = 152px (about 2 tiles wide).
+    Footprint-size mapping:
+        1x1 =>  65px   (single tile, small structure)
+        2x2 => 128px   (standard building)
+        3x3 => 200px   (large facility)
+
+    For non-square footprints (e.g. 2x3), the larger dimension determines
+    the mapping tier. This is a safe systemic fallback because wider/taller
+    footprints always need at least as much screen space as their smaller
+    square counterpart.
+
+    BUILD-ANCHOR-03 scale fixup: replaced (fpW+fpH)*38 formula with explicit
+    footprint-size mapping. The old formula produced 152px for 2x2 which was
+    too large; the new 128px value better matches the isometric diamond and
+    keeps buildings proportional to their footprint area.
     """
-    return (footprint_w + footprint_h) * HALF_TILE_W
+    max_dim = max(footprint_w, footprint_h)
+
+    # Explicit footprint-size mapping
+    FOOTPRINT_DISPLAY_WIDTHS: dict[int, int] = {
+        1: 65,
+        2: 128,
+        3: 200,
+    }
+
+    if max_dim in FOOTPRINT_DISPLAY_WIDTHS:
+        return FOOTPRINT_DISPLAY_WIDTHS[max_dim]
+
+    # Systemic fallback for larger footprints: extrapolate linearly from
+    # the 3x3 anchor point. This ensures new larger buildings get a
+    # reasonable default without manual tuning.
+    # Slope from 2x2→3x3: (200 - 128) / (3 - 2) = 72 px per tile
+    base_width = FOOTPRINT_DISPLAY_WIDTHS[3]
+    extra_tiles = max_dim - 3
+    return base_width + extra_tiles * 72
 
 
 # ─── Per-PNG processing ──────────────────────────────────────────────
