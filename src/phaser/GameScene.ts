@@ -10,6 +10,7 @@ import { placeConstructionSite, updateConstructionSiteProgress, BUILDING_CONFIG 
 import { findBuildSiteNearPlayerBuildings } from '../state/buildSiteSelection';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, HarvesterPhase } from '../state/types';
+import { ELEMENT_UNITS_PER_ELEMENT } from '../state/types';
 import {
   MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
   MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR,
@@ -303,8 +304,13 @@ export class GameScene extends Phaser.Scene {
         .map(([label, count]) => `${count} ${label}`)
         .join(', ');
 
+      // ARCH-01C: Display faction element in displayed units (elementUnits / ELEMENT_UNITS_PER_ELEMENT)
+      const factionElementRaw = s.economy.elements[s.playerFaction];
+      const factionElementDisplayed = (factionElementRaw / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
+      const factionLabel = s.playerFaction.charAt(0).toUpperCase() + s.playerFaction.slice(1);
+
       this.hudEconomy.textContent =
-        `Raw: ${s.economy.raw} | Matter: ${s.economy.matter} | Resources: ${activeResources}/${totalResources} | ` +
+        `Raw: ${s.economy.raw} | Matter: ${s.economy.matter} | ${factionLabel}: ${factionElementDisplayed} | Resources: ${activeResources}/${totalResources} | ` +
         `Sites: ${s.mapData.constructionSites.length} | ` +
         `Harvesters: ${s.harvesters.length} (${phaseStr})`;
     }

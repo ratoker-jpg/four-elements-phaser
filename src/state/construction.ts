@@ -217,6 +217,16 @@ export function updateConstructionSiteProgress(
     type: site.type,
   });
 
+  // ARCH-01C: Register completed separator into economy separator runtime state.
+  if (site.type === 'separator') {
+    state.economy.separators.push({
+      tx: site.tx,
+      ty: site.ty,
+      progress: 0,
+      active: false,
+    });
+  }
+
   // Release the assigned builder back to idle
   if (site.builderIndex >= 0) {
     // Import releaseBuilder dynamically to avoid circular dependency at module level.

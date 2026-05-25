@@ -6,6 +6,7 @@ import type {
   HarvesterState,
   ResourceNodeState,
   EconomyState,
+  SeparatorRuntimeState,
 } from './types';
 import { RESOURCE_RAW_AMOUNTS, START_RAW, START_MATTER } from './types';
 import { createHarvester } from './updateGameState';
@@ -73,7 +74,7 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
     // PR3 runtime state
     harvesters,
     resourceNodes,
-    economy: createInitialEconomy(mapData.hq.faction as Faction),
+    economy: createInitialEconomy(mapData.hq.faction as Faction, mapData),
     hqPosition,
     nextConstructionId: 0,
   };
@@ -82,13 +83,24 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
 // ─── PR3: Runtime state builders ────────────────────────────────────
 
 /** Create initial EconomyState with ROADMAP starting values. */
-function createInitialEconomy(_playerFaction: Faction): EconomyState {
+function createInitialEconomy(_playerFaction: Faction, mapData: MapData): EconomyState {
+  // ARCH-01C: Initialize separator runtime state from existing completed separator buildings.
+  const separators: SeparatorRuntimeState[] = mapData.buildings
+    .filter(b => b.type === 'separator')
+    .map(b => ({
+      tx: b.tx,
+      ty: b.ty,
+      progress: 0,
+      active: false,
+    }));
+
   return {
     raw: START_RAW,
     matter: START_MATTER,
     elements: { cyan: 0, green: 0, yellow: 0, purple: 0 },
     powerGenerated: 0,
     powerConsumed: 0,
+    separators,
   };
 }
 
