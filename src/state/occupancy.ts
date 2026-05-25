@@ -17,6 +17,7 @@
  */
 
 import type { GameState } from './types';
+import { BUILDING_CONFIG } from './construction';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -50,17 +51,18 @@ function getOrMake(flags: Map<number, Set<TileFlag>>, k: number): Set<TileFlag> 
   return s;
 }
 
-/** Mark all tiles in a footprint with the given flags. */
+/** Mark all tiles in a rectangular footprint with the given flags. */
 function markFootprint(
   flags: Map<number, Set<TileFlag>>,
   width: number,
   baseTx: number,
   baseTy: number,
-  footprint: number,
+  fpW: number,
+  fpH: number,
   ...addFlags: TileFlag[]
 ): void {
-  for (let dy = 0; dy < footprint; dy++) {
-    for (let dx = 0; dx < footprint; dx++) {
+  for (let dy = 0; dy < fpH; dy++) {
+    for (let dx = 0; dx < fpW; dx++) {
       const k = key(baseTx + dx, baseTy + dy, width);
       const s = getOrMake(flags, k);
       for (const f of addFlags) s.add(f);
@@ -82,30 +84,36 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
   const flags = new Map<number, Set<TileFlag>>();
 
   // ── HQ — 3×3 footprint ────────────────────────────────────────
-  markFootprint(flags, width, state.mapData.hq.tx, state.mapData.hq.ty, 3,
+  markFootprint(flags, width, state.mapData.hq.tx, state.mapData.hq.ty, 3, 3,
     'impassable', 'unbuildable');
 
   // ── Resources — impassable not set (harvesters must reach them) ─
   for (const r of state.mapData.resources) {
-    markFootprint(flags, width, r.tx, r.ty, r.footprint,
+    markFootprint(flags, width, r.tx, r.ty, r.footprint, r.footprint,
       'unbuildable', 'resource');
   }
 
   // ── Obstacles ──────────────────────────────────────────────────
   for (const o of state.mapData.obstacles) {
-    markFootprint(flags, width, o.tx, o.ty, o.footprint,
+    markFootprint(flags, width, o.tx, o.ty, o.footprint, o.footprint,
       'impassable', 'unbuildable');
   }
 
-  // ── Buildings — default 1×1 footprint (type has no footprint field) ─
+  // ── Buildings — footprint from BUILDING_CONFIG, fallback 1×1 ─
   for (const b of state.mapData.buildings) {
-    markFootprint(flags, width, b.tx, b.ty, 1,
+    const config = BUILDING_CONFIG[b.type];
+    const fpW = config?.footprintW ?? 1;
+    const fpH = config?.footprintH ?? 1;
+    markFootprint(flags, width, b.tx, b.ty, fpW, fpH,
       'impassable', 'unbuildable');
   }
 
-  // ── Construction sites — 1×1 ──────────────────────────────────
+  // ── Construction sites — footprint from BUILDING_CONFIG, fallback 1×1 ─
   for (const c of state.mapData.constructionSites) {
-    markFootprint(flags, width, c.tx, c.ty, 1,
+    const config = BUILDING_CONFIG[c.type];
+    const fpW = config?.footprintW ?? 1;
+    const fpH = config?.footprintH ?? 1;
+    markFootprint(flags, width, c.tx, c.ty, fpW, fpH,
       'impassable', 'unbuildable');
   }
 

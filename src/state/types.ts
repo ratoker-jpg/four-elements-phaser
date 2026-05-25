@@ -248,4 +248,8 @@ export interface GameState {
   rawMinerals: number;
   /** HQ tile position for harvester return destination. */
   hqPosition: { tx: number; ty: number };
+
+  // ── ARCH-13E1: Construction state ─────────────────────────────
+  /** Auto-incrementing counter for deterministic construction site IDs. */
+  nextConstructionId: number;
 }

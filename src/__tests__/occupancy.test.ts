@@ -88,6 +88,7 @@ function makeTestState(overrides?: {
     })),
     rawMinerals: 0,
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
+    nextConstructionId: 0,
   };
 }
 
@@ -218,12 +219,22 @@ describe('Building footprint', () => {
   });
   const map = buildOccupancyMap(state);
 
-  it('building tile is impassable', () => {
+  it('separator 2x2 footprint tiles are impassable', () => {
+    // separator has 2x2 footprint per BUILDING_CONFIG
     expect(isPassable(map, 6, 6)).toBe(false);
+    expect(isPassable(map, 6, 7)).toBe(false);
+    expect(isPassable(map, 7, 6)).toBe(false);
+    expect(isPassable(map, 7, 7)).toBe(false);
   });
 
-  it('building tile is unbuildable', () => {
+  it('separator 2x2 footprint tiles are unbuildable', () => {
     expect(isBuildable(map, 6, 6, 1, 1)).toBe(false);
+    expect(isBuildable(map, 7, 7, 1, 1)).toBe(false);
+  });
+
+  it('tile just outside separator footprint is passable', () => {
+    expect(isPassable(map, 5, 6)).toBe(true);
+    expect(isPassable(map, 8, 7)).toBe(true);
   });
 });
 
