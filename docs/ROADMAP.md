@@ -206,6 +206,38 @@ Use the Ashen Crown art pipeline commits as design reference, not as code to cop
 
 A new unit/building/projectile can be staged, generated, previewed, audited, and only then wired into runtime.
 
+## Implementation status
+
+ARCH-02 asset pipeline migration for current runtime-approved assets is **complete**.
+
+Completed PRs:
+
+- **ARCH-02A** — Asset pipeline strategy (audit/design docs). PR #38, merged.
+- **ARCH-02B+C** — Manifest schema, validation script, folder scaffold. PR #45, merged.
+- **ARCH-02D** — Buildings/HQ processor MVP. PR #46, merged.
+- **ARCH-02E** — Generated asset sample viewer. PR #47, merged.
+- **ARCH-02F** — Runtime generated manifest integration for hq + buildings. PR #48, merged.
+- **ARCH-02G** — CivilUnits spritesheets from generated manifest. PR #50, merged.
+- **ARCH-02H** — ModularUnits images from generated manifest. PR #51, merged.
+- **ARCH-02I** — Terrain + resources from generated manifest. PR #53, merged.
+- CI helper PR #52 — workflow_dispatch for manual PR preview builds. Merged.
+
+Current generated manifest covers 106 assets across 6 families:
+hq(4) + buildings(24) + civilUnits(8) + modularUnits(64) + terrain(3) + resources(3).
+
+PreloadScene loads all six families from `src/assets/generatedAssetManifest.ts`
+via `src/assets/runtimeGeneratedAssets.ts`. Legacy loader files remain for
+compatibility but are no longer called.
+
+## Possible follow-up
+
+- **ARCH-02J** — Optional legacy cleanup (remove deprecated loader files:
+  `buildingAssets.ts`, `civilUnitAssets.ts`, `modularUnitAssets.ts`,
+  and terrain/resource entries from `assetManifest.ts`).
+- Future decor/fx/ui families only when approved assets are introduced.
+
+Do not invent new implementation roadmap beyond this.
+
 ---
 
 # ARCH-03 — Building / asset placement system
@@ -696,6 +728,11 @@ The audit answered:
 
 ## 4. Immediate next step
 
-System audit completed in `docs/ROADMAP_SYSTEM_AUDIT.md`.
+ARCH-02 asset pipeline migration for current runtime-approved assets is complete (ARCH-02A through ARCH-02I merged).
 
-Next technical PR: BUILD-ANCHOR-02 — offline alpha-bounds generator.
+ARCH-03 building placement system is complete.
+
+ARCH-01 economy baseline is complete.
+
+Next roadmap workstream should be determined by GPT/planner based on
+`docs/project/PROJECT_STATE.md` and `docs/ROADMAP_SYSTEM_AUDIT.md`.

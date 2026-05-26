@@ -46,20 +46,31 @@ Do not copy the whole 60+ MB asset tree in PR1 unless explicitly approved.
 
 ## Asset structure
 
-Recommended new structure:
+Current runtime asset structure:
 
 ```text
 public/assets/
-  terrain/
-  buildings/
+  tiles/                    sand terrain PNGs
+  environment/              mineral/resource PNGs
+  factions/
+    {cyan,green,yellow,purple}/
+      buildings/            HQ + building PNGs per faction
+      units/                builder/harvester spritesheets per faction
   units/
-  resources/
-  environment/
-  ui/
-src/assets/assetManifest.ts
+    chassis/wasp_m0/{faction}/   modular hull direction PNGs
+    weapons/smoky_m0/{faction}/  modular turret direction PNGs
+src/assets/
+  generatedAssetManifest.ts   auto-generated runtime manifest (source of truth)
+  runtimeGeneratedAssets.ts   loader helpers consumed by PreloadScene
+  assetManifest.ts            legacy base manifest (kept for compatibility)
 ```
 
-The asset manifest is written fresh. Do not copy the old loader.
+The generated manifest (`generatedAssetManifest.ts`) is the single source of truth
+for runtime asset keys and paths. It is produced by `tools/process_art_assets.mjs`
+and committed to the repository. Do not edit it manually — regenerate it with
+`npm run process:art-assets`.
+
+The asset manifest was written fresh. Do not copy the old loader.
 
 ## Naming rules
 
@@ -124,7 +135,8 @@ The donor repo must not be used to copy:
 
 - [ ] only approved assets copied;
 - [ ] no old code copied;
-- [ ] asset manifest updated;
+- [ ] generated manifest regenerated (`npm run process:art-assets`);
+- [ ] generated manifest validation passes (`npm run validate:asset-manifest`);
 - [ ] assets load in browser;
 - [ ] no console missing-asset errors;
 - [ ] visual scale/grounding checked manually;

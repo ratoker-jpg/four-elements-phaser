@@ -1,6 +1,6 @@
 # ASSET_PIPELINE_STRATEGY.md
 
-Status: accepted design (ARCH-02A)
+Status: implemented (ARCH-02A through ARCH-02I merged)
 Audience: GPT / task planning / GLM executor
 Project: Four Elements Phaser
 
@@ -25,7 +25,7 @@ The pipeline does not replace the existing building placement metadata system (A
 - 1 harvester spritesheet (cyan)
 - 3 mineral sprites (small, medium, large)
 
-This file defines `ASSET_KEYS`, `ASSET_PATHS`, and `SPRITESHEET_8X8_256`. It is the original manifest from PR1, but it now covers only a fraction of the assets actually loaded at runtime.
+This file defines `ASSET_KEYS`, `ASSET_PATHS`, and `SPRITESHEET_8X8_256`. It is the original manifest from PR1, kept for backward compatibility. PreloadScene no longer calls its loader functions — terrain, HQ, harvester, and mineral assets are now loaded from the generated manifest via `runtimeGeneratedAssets.ts`.
 
 ### 2.2 Building assets
 
@@ -45,7 +45,7 @@ This file defines `ASSET_KEYS`, `ASSET_PATHS`, and `SPRITESHEET_8X8_256`. It is 
 
 ### 2.6 PreloadScene
 
-`src/phaser/PreloadScene.ts` manually calls four separate loaders in sequence: inline terrain/HQ/harvester/resource loading from `ASSET_KEYS`/`ASSET_PATHS`, then `loadModularUnitAssets(this)`, then `loadCivilUnitAssets(this)`, then `loadBuildingAssets(this)`. There is no manifest-driven or data-driven loading; the load sequence is hardcoded.
+`src/phaser/PreloadScene.ts` now loads all six families from the generated manifest via `runtimeGeneratedAssets.ts` convenience wrappers: `loadGeneratedTerrainAndResourceAssets(this)`, `loadGeneratedBuildingAndHqAssets(this)`, `loadGeneratedCivilUnitAssets(this)`, and `loadGeneratedModularUnitAssets(this)`. The old manual loader calls have been removed from PreloadScene. Legacy loader files (`buildingAssets.ts`, `civilUnitAssets.ts`, `modularUnitAssets.ts`) remain in the codebase for compatibility but are no longer called.
 
 ### 2.7 Public asset tree
 
@@ -62,11 +62,11 @@ public/assets/
     weapons/smoky_m0/{faction}/ 8 direction PNGs per faction = 32 total
 ```
 
-Total on disk: ~106 PNG files. No source sheets, no staged assets, no generated variants.
+Total on disk: ~106 PNG files. No source sheets or staged assets yet. Generated manifest and audit report are in `art/generated/`.
 
 ### 2.8 Asset policy
 
-`docs/ASSET_POLICY.md` requires explicit approval for asset copying, forbids blind folder copying, and mandates that assets be documented in the manifest. However, the current codebase has drifted from this: `buildingAssets.ts`, `civilUnitAssets.ts`, and `modularUnitAssets.ts` all load assets that are not listed in `assetManifest.ts`.
+`docs/ASSET_POLICY.md` requires explicit approval for asset copying, forbids blind folder copying, and mandates that assets be documented in the manifest. With the generated manifest integration complete, all runtime-loaded assets are now registered in `manifest.generated.json` and `generatedAssetManifest.ts`. The legacy files (`buildingAssets.ts`, `civilUnitAssets.ts`, `modularUnitAssets.ts`) are deprecated but kept for compatibility.
 
 ---
 
@@ -371,7 +371,28 @@ Each family has an `enabled` flag (defaulting to `true`). Families that are not 
 - `loadGeneratedImageAssetFamilies(scene, families)` — loads all image-type assets from the specified enabled families.
 - `loadGeneratedBuildingAndHqAssets(scene)` — convenience wrapper for hq + buildings.
 
-ARCH-02F implements this for hq + buildings families only. ARCH-02G adds civilUnits spritesheet loading. ARCH-02H adds modularUnits image loading. ARCH-02I adds terrain + resources image loading. All six families (hq, buildings, civilUnits, modularUnits, terrain, resources) are now loaded from the generated manifest. The old `loadBuildingAssets()` in `buildingAssets.ts` is kept as deprecated legacy fallback but is no longer called by PreloadScene. The old `loadCivilUnitAssets()` in `civilUnitAssets.ts` and `loadModularUnitAssets()` in `modularUnitAssets.ts` are similarly kept as deprecated legacy fallback. Terrain and resource keys in `assetManifest.ts` are marked `@deprecated`.
+ARCH-02F through ARCH-02I have been implemented and merged. All six families (hq, buildings, civilUnits, modularUnits, terrain, resources) are loaded from the generated manifest. The old `loadBuildingAssets()` in `buildingAssets.ts`, `loadCivilUnitAssets()` in `civilUnitAssets.ts`, and `loadModularUnitAssets()` in `modularUnitAssets.ts` are kept as deprecated legacy fallback but are no longer called by PreloadScene. Terrain and resource keys in `assetManifest.ts` remain for backward compatibility.
+
+Current generated families and counts:
+
+| Family | Keys | loadType | Status |
+|--------|------|----------|--------|
+| hq | 4 | image | Enabled, loaded at runtime |
+| buildings | 24 | image | Enabled, loaded at runtime |
+| civilUnits | 8 | spritesheet | Enabled, loaded at runtime |
+| modularUnits | 64 | image | Enabled, loaded at runtime |
+| terrain | 3 | image | Enabled, loaded at runtime |
+| resources | 3 | image | Enabled, loaded at runtime |
+| **Total** | **106** | | |
+
+Families not yet in the generated manifest (no approved runtime assets yet):
+- decor/obstacles
+- fx/particles
+- UI icons
+
+These families will be added to the generated manifest only when approved assets are introduced.
+
+Runtime integration note: the generated manifest is currently a committed TypeScript constant (`generatedAssetManifest.ts`), not a runtime JSON fetch. This avoids network requests and enables compile-time type checking of asset keys. A future optimization could switch to runtime JSON loading, but this is not currently needed.
 
 ### 8.4 Key-to-path mapping
 
@@ -548,34 +569,41 @@ For staged assets, the processor should check whether a corresponding source fil
 
 ## 13. Integration rules with PreloadScene/runtime
 
-### 13.1 Current integration
+### 13.1 Original integration (replaced)
 
-PreloadScene manually calls four separate loaders. Each loader is responsible for its own key generation, path construction, and load type (image vs. spritesheet). There is no single entry point for "load all assets."
+PreloadScene originally called four separate loaders manually. Each loader was responsible for its own key generation, path construction, and load type (image vs. spritesheet). There was no single entry point for "load all assets." This has been replaced by the generated manifest integration.
 
-### 13.2 Current integration (ARCH-02F)
+### 13.2 Current integration (ARCH-02F through ARCH-02I)
 
-ARCH-02F has integrated the generated manifest into PreloadScene for hq + buildings families:
+ARCH-02F through ARCH-02I have integrated all six current families into PreloadScene:
 
-1. PreloadScene now calls `loadGeneratedBuildingAndHqAssets(this)` instead of the old manual `this.load.image(ASSET_KEYS.HQ_CYAN, ...)` + `loadBuildingAssets(this)`.
+1. PreloadScene calls four convenience wrappers:
+   - `loadGeneratedTerrainAndResourceAssets(this)` — terrain + resources
+   - `loadGeneratedBuildingAndHqAssets(this)` — hq + buildings
+   - `loadGeneratedCivilUnitAssets(this)` — civilUnits spritesheets
+   - `loadGeneratedModularUnitAssets(this)` — modularUnits images
 2. The generated loader reads from `src/assets/generatedAssetManifest.ts` (a committed TS file, not a runtime JSON fetch).
-3. Duplicate key protection is built into the loader — it tracks loaded keys within each call.
-4. The old `loadBuildingAssets()` is kept as deprecated legacy; its key/path helper exports remain available.
-5. Other assets (terrain, harvester, minerals, modular units, civil units) still use their original loaders.
+3. Duplicate key protection is built into each loader — it tracks loaded keys within each call.
+4. The old loader files (`buildingAssets.ts`, `civilUnitAssets.ts`, `modularUnitAssets.ts`) are kept as deprecated legacy.
+5. All current runtime-approved assets are now loaded from the generated manifest.
 
-Full migration of all families to manifest-driven loading is deferred to later PRs.
+Future families (decor, fx, ui) will follow the same pattern when approved assets are introduced.
 
-### 13.3 Migration path
+### 13.3 Migration path (completed)
 
-The migration from fragmented loaders to manifest-driven loading should be incremental:
+The migration from fragmented loaders to manifest-driven loading was incremental:
 
 1. **ARCH-02A**: Design only (this document). No runtime changes.
 2. **ARCH-02B**: Manifest schema + validation script. No runtime changes.
 3. **ARCH-02C**: Source/staged/generated folder structure + sample asset report. No runtime changes.
 4. **ARCH-02D**: Processor/generator MVP for one family. Generates manifest JSON. No runtime changes.
 5. **ARCH-02E**: Sample viewer. Reads generated manifest. No runtime changes.
-6. **ARCH-02F**: Integrate validated generated assets into runtime manifest. This is the first phase that changes PreloadScene.
+6. **ARCH-02F**: Integrate validated generated assets into runtime manifest (hq + buildings). First runtime changes.
+7. **ARCH-02G**: CivilUnits spritesheet loading from generated manifest.
+8. **ARCH-02H**: ModularUnits image loading from generated manifest.
+9. **ARCH-02I**: Terrain + resources image loading from generated manifest.
 
-At each phase, the existing loaders continue to work. The manifest grows alongside them until ARCH-02F replaces them.
+All phases are complete and merged. The migration is done for current runtime-approved assets.
 
 ---
 
@@ -603,14 +631,18 @@ ARCH-02 does not redesign the building placement metadata system. It adds a laye
 
 ### 15.1 Proposed sequence
 
-| Phase | Content | Risk | Runtime changes? |
-|-------|---------|------|------------------|
-| ARCH-02A | Audit/design docs (this document) | Low | No |
-| ARCH-02B | Manifest schema JSON + `validate_manifest.mjs` script + unit tests | Low | No |
-| ARCH-02C | Source/staged/generated folder structure + `.gitignore` + sample asset report | Low | No |
-| ARCH-02D | Processor/generator MVP for one family (buildings) | Medium | No |
-| ARCH-02E | Sample viewer (`task/art-sample/index.html`) | Low | No |
-| ARCH-02F | Integrate validated generated assets into runtime manifest + update PreloadScene | Elevated | Yes |
+| Phase | Content | Risk | Runtime changes? | Status |
+|-------|---------|------|------------------|--------|
+| ARCH-02A | Audit/design docs (this document) | Low | No | Done (PR #38) |
+| ARCH-02B | Manifest schema JSON + `validate_manifest.mjs` script + unit tests | Low | No | Done (PR #45) |
+| ARCH-02C | Source/staged/generated folder structure + `.gitignore` + sample asset report | Low | No | Done (PR #45) |
+| ARCH-02D | Processor/generator MVP for one family (buildings) | Medium | No | Done (PR #46) |
+| ARCH-02E | Sample viewer (`task/art-sample/index.html`) | Low | No | Done (PR #47) |
+| ARCH-02F | Integrate validated generated assets into runtime manifest + update PreloadScene | Elevated | Yes | Done (PR #48) |
+| ARCH-02G | CivilUnits spritesheet loading from generated manifest | Medium | Yes | Done (PR #50) |
+| ARCH-02H | ModularUnits image loading from generated manifest | Medium | Yes | Done (PR #51) |
+| ARCH-02I | Terrain + resources image loading from generated manifest | Medium | Yes | Done (PR #53) |
+| ARCH-02J | Optional legacy cleanup | Low | Yes | Not started |
 
 ### 15.2 Risk justification
 
@@ -620,6 +652,11 @@ ARCH-02 does not redesign the building placement metadata system. It adds a laye
 - **ARCH-02D (medium)**: The processor generates files and a manifest JSON. It does not change runtime code. Risk is that the generated output is incorrect, but this is caught by validation and the sample viewer. Starting with one family (buildings) limits the blast radius.
 - **ARCH-02E (low)**: The viewer is a standalone HTML file. It reads the manifest but does not modify it. No runtime impact.
 - **ARCH-02F (elevated)**: This phase changes PreloadScene and potentially other runtime asset loading code. It replaces the fragmented loaders with manifest-driven loading. This is the highest-risk phase because it affects what assets the game loads at startup. It should be a separate PR with thorough manual QA.
+- **ARCH-02G (medium)**: Adds civilUnits spritesheet loading. Changes PreloadScene but is incremental on top of ARCH-02F.
+- **ARCH-02H (medium)**: Adds modularUnits image loading. Changes PreloadScene but is incremental.
+- **ARCH-02I (medium)**: Adds terrain + resources image loading. Changes PreloadScene but is incremental.
+
+All phases ARCH-02A through ARCH-02I have been completed and merged.
 
 ### 15.3 Possible combination
 
@@ -647,7 +684,7 @@ This sequence is sound. The audit confirms it with one adjustment: ARCH-02D shou
 
 The following are explicitly NOT part of ARCH-02:
 
-- Runtime code changes (PreloadScene, GameScene, renderers) — deferred to ARCH-02F.
+- Runtime code changes for current asset families — completed in ARCH-02F through ARCH-02I.
 - Building placement metadata redesign — ARCH-03 is complete; do not revisit.
 - Combat assets or combat pipeline — blocked until civil systems are stable.
 - Enemy AI assets — blocked until combat exists.
@@ -715,3 +752,15 @@ FX sprites need a defined format. Individual PNGs vs. spritesheet vs. Phaser Par
 ### 18.5 CI integration
 
 Should `validate_manifest.mjs` run in CI? If so, it should be added to the GitHub Actions workflow. This is a low-risk enhancement that can be added at any phase after ARCH-02B.
+
+### 18.6 Art-sample viewer and PR preview
+
+The art-sample viewer is available online via GitHub Pages:
+- Main: `https://ratoker-jpg.github.io/four-elements-phaser/task/art-sample/index.html`
+- PR preview: `https://ratoker-jpg.github.io/four-elements-phaser/pr-preview/pr-<number>/task/art-sample/index.html`
+
+PR preview builds can be triggered manually via `workflow_dispatch` (added in PR #52) when PAT pushes do not trigger GitHub Actions workflows automatically.
+
+### 18.7 Runtime manifest is committed TypeScript
+
+The current runtime integration uses a committed TypeScript constant (`generatedAssetManifest.ts`), not a runtime JSON fetch. This enables compile-time type checking and avoids network requests. The manifest JSON (`manifest.generated.json`) is the processor output, and the TypeScript file is generated from it. Both are committed to the repository. A deterministic `generatedAt` timestamp (`1970-01-01T00:00:00.000Z`) is used for committed generated files to avoid meaningless diffs.
