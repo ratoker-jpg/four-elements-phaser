@@ -73,10 +73,12 @@ BUILDING_KEY_SUFFIXES = {
 }
 
 # Footprint sizes from BUILDING_CONFIG in src/state/construction.ts.
-# Only 'separator' has a confirmed config entry.
-# Other types use assumed defaults — reported as warnings.
+# Types with confirmed BUILDING_CONFIG entries use their explicit values.
+# Types without a config entry use assumed defaults — reported as warnings.
 CONFIRMED_FOOTPRINTS = {
     "separator": (2, 2),
+    "power-plant": (2, 2),
+    "units-factory": (2, 2),
 }
 
 # Assumed default footprint for types without BUILDING_CONFIG.
