@@ -263,6 +263,73 @@ If no exception applies, GPT should hold the low task and include it in the next
 
 ---
 
+## Smoke-check effect on PR risk
+
+ARCH-11A introduced automated QA smoke checks (`npm run qa:smoke`, CI `QA Smoke Test` workflow, report/screenshot artifacts). This section clarifies how smoke automation affects risk grouping decisions.
+
+### Core principle
+
+Automated smoke checks improve confidence for coherent medium/elevated PRs, but they do not lower high-risk scope by default.
+
+### What smoke checks validate
+
+Smoke checks detect technical boot, preload, and runtime readiness issues:
+
+- the Vite build succeeds;
+- the preview server starts and responds;
+- the game page opens in a headless Chromium instance;
+- all three readiness markers appear in the console (`PreloadScene` assets loaded, `GameScene` textures verified, `GameScene` state-driven scene ready);
+- no unhandled errors or failed network requests crash the page;
+- a screenshot artifact is captured for manual inspection.
+
+Smoke checks do **not** validate gameplay correctness, visual layout, UX sensitivity, or logic edge cases. They confirm that the application boots and reaches a runnable state without throwing technical errors.
+
+### When smoke checks justify larger PRs
+
+Smoke checks can justify larger coherent medium/elevated PRs when all of the following conditions are met:
+
+- scope is the same workstream/layer — the PR does not cross unrelated systems;
+- rollback is clear — reverting the PR restores the previous working state without side effects;
+- `qa:smoke` is green — no console errors, no failed requests, all readiness markers present;
+- `npm test`, `npm run typecheck`, and `npm run build` are all green;
+- the PR body explains phase grouping and scope rationale.
+
+When these conditions hold, a PR that would otherwise sit at the boundary of `medium` may be accepted as `elevated`, because smoke automation provides an additional automated gate that catches technical regressions before merge.
+
+### What smoke checks do NOT permit
+
+Smoke checks do **not** permit high-risk PRs by default. A green smoke run does not change a `high` risk assessment into `elevated` or `medium`.
+
+High-risk PRs must still be split into smaller scoped PRs unless Denis explicitly accepts the risk. The reasons:
+
+- smoke checks cannot detect gameplay logic errors, balance problems, or visual regressions;
+- smoke checks cannot validate multi-system interactions that only emerge during manual play;
+- a green smoke run on a high-scope PR only confirms the app boots — it does not confirm that all the interleaved systems work correctly together;
+- high-risk PRs by definition have unclear rollback, and a screenshot artifact does not make rollback clearer.
+
+### Smoke checks and manual QA
+
+Smoke checks do not replace manual QA for:
+
+- visual or gameplay correctness — sprite placement, animation timing, HUD layout;
+- UX-sensitive changes — control responsiveness, information readability, interaction flow;
+- cross-system behavior — economy loops under real play, unit pathfinding, construction sequences;
+- any change where the correct result must be judged by a human looking at the running game.
+
+Smoke automation reduces the chance that a technical boot/preload/runtime error slips through, but it does not reduce the need for human verification of behavior that requires judgement.
+
+### Summary
+
+```text
+Green smoke + coherent scope + clear rollback + green CI = larger medium/elevated PR is acceptable.
+Green smoke does NOT downgrade high risk.
+High-risk PRs must still be split unless Denis explicitly accepts.
+Smoke checks detect technical readiness, not gameplay correctness.
+Smoke checks do not replace manual QA for visual/gameplay/UX-sensitive changes.
+```
+
+---
+
 ## Layer rule still applies
 
 Risk-based grouping does not cancel the existing rule:
@@ -430,6 +497,9 @@ Batch low-risk implementation tasks by default.
 Avoid low-only implementation PRs unless an exception applies.
 Current early-project ceiling: elevated.
 High-risk scopes must be split.
+Smoke checks improve confidence for coherent medium/elevated PRs but do not lower high risk.
+Smoke checks detect technical readiness, not gameplay correctness.
+Smoke checks do not replace manual QA for visual/gameplay/UX-sensitive changes.
 Do not re-audit what is already accepted.
 Do not split so small that process overhead dominates.
 Do not bundle so large that review/rollback becomes unsafe.
