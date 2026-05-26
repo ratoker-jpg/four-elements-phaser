@@ -87,10 +87,11 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
   markFootprint(flags, width, state.mapData.hq.tx, state.mapData.hq.ty, 3, 3,
     'impassable', 'unbuildable');
 
-  // ── Resources — impassable not set (harvesters must reach them) ─
+  // ── Resources — ARCH-05X: now impassable for movement
+  //   Harvesters must approach adjacent tiles, not drive onto the resource center.
   for (const r of state.mapData.resources) {
     markFootprint(flags, width, r.tx, r.ty, r.footprint, r.footprint,
-      'unbuildable', 'resource');
+      'impassable', 'unbuildable', 'resource');
   }
 
   // ── Obstacles ──────────────────────────────────────────────────
@@ -179,4 +180,73 @@ export function isBuildable(map: OccupancyMap, tx: number, ty: number, w: number
     }
   }
   return true;
+}
+
+// ─── Unit-blocker helpers (ARCH-05X hardening) ─────────────────────
+
+/**
+ * Add civil unit positions as "impassable" blockers to an existing occupancy map.
+ *
+ * This mutates the occupancy map in place. Used by movement commands so
+ * that units don't path through each other. The excluded unit's own tile
+ * is NOT blocked (so the pathfinder can start from its current position).
+ *
+ * @param state  Game state (to read builder/harvester positions)
+ * @param map    Occupancy map to mutate
+ * @param excludeType  Unit type to exclude ('builder' | 'harvester')
+ * @param excludeId    Unit identifier to exclude (builder index or harvester id)
+ */
+export function addUnitBlockers(
+  state: GameState,
+  map: OccupancyMap,
+  excludeType?: 'builder' | 'harvester',
+  excludeId?: number | string,
+): void {
+  // Add builders as impassable (except excluded)
+  for (let i = 0; i < state.mapData.builders.length; i++) {
+    if (excludeType === 'builder' && excludeId === i) continue;
+    const b = state.mapData.builders[i];
+    const k = key(Math.round(b.ftx), Math.round(b.fty), map.width);
+    getOrMake(map.flags, k).add('impassable');
+  }
+
+  // Add harvesters as impassable (except excluded)
+  for (const h of state.harvesters) {
+    if (excludeType === 'harvester' && excludeId === h.id) continue;
+    const k = key(Math.round(h.ftx), Math.round(h.fty), map.width);
+    getOrMake(map.flags, k).add('impassable');
+  }
+}
+
+/**
+ * Whether a tile is currently occupied by another civil unit.
+ *
+ * Checks builders and harvesters (rounded tile positions).
+ * The excluded unit is not counted.
+ *
+ * @param state  Game state
+ * @param tx     Target tile X
+ * @param ty     Target tile Y
+ * @param excludeType  Unit type to exclude
+ * @param excludeId    Unit identifier to exclude
+ */
+export function isTileOccupiedByUnit(
+  state: GameState,
+  tx: number,
+  ty: number,
+  excludeType?: 'builder' | 'harvester',
+  excludeId?: number | string,
+): boolean {
+  for (let i = 0; i < state.mapData.builders.length; i++) {
+    if (excludeType === 'builder' && excludeId === i) continue;
+    const b = state.mapData.builders[i];
+    if (Math.round(b.ftx) === tx && Math.round(b.fty) === ty) return true;
+  }
+
+  for (const h of state.harvesters) {
+    if (excludeType === 'harvester' && excludeId === h.id) continue;
+    if (Math.round(h.ftx) === tx && Math.round(h.fty) === ty) return true;
+  }
+
+  return false;
 }

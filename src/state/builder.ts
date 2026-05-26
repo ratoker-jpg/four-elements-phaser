@@ -172,10 +172,14 @@ function updateBuilder(
 }
 
 /**
- * Handle builder movement toward a construction site.
+ * Handle builder movement toward a construction site OR manual move target.
+ *
+ * ARCH-05X: If the builder has `manualMove` flag set, it returns to idle
+ * on arrival instead of transitioning to 'building'.
  *
  * Moves along the path tile by tile. When the builder arrives at the
- * final path tile (adjacent to the site), transitions to 'building' phase.
+ * final path tile, transitions to 'building' phase (construction site)
+ * or 'idle' (manual move).
  */
 function handleMovingToSite(
   state: GameState,
@@ -183,19 +187,42 @@ function handleMovingToSite(
   builderIndex: number,
   dt: number,
 ): void {
-  // Verify the assigned site still exists
-  const site = findSiteById(state, builder.assignedSiteId);
-  if (!site) {
-    // Site was removed — return to idle
-    releaseBuilder(state, builderIndex);
-    return;
+  // Manual move — check if arrived
+  const isManual = builder.manualMove === true;
+
+  if (isManual) {
+    // Verify the target still makes sense
+    if (builder.path.length === 0 || builder.pathIndex >= builder.path.length) {
+      // Arrived at manual move target
+      builder.phase = 'idle';
+      builder.manualMove = undefined;
+      builder.path = [];
+      builder.pathIndex = 0;
+      return;
+    }
+  } else {
+    // Construction move — verify the assigned site still exists
+    const site = findSiteById(state, builder.assignedSiteId);
+    if (!site) {
+      releaseBuilder(state, builderIndex);
+      return;
+    }
   }
 
-  // If no path to follow, we may already be adjacent
+  // If no path to follow, we may already be adjacent (construction) or at target (manual)
   if (builder.path.length === 0 || builder.pathIndex >= builder.path.length) {
-    // Already at destination — transition to building
-    builder.phase = 'building';
-    site.pending = false;
+    if (isManual) {
+      builder.phase = 'idle';
+      builder.manualMove = undefined;
+    } else {
+      const site = findSiteById(state, builder.assignedSiteId);
+      if (site) {
+        builder.phase = 'building';
+        site.pending = false;
+      } else {
+        releaseBuilder(state, builderIndex);
+      }
+    }
     return;
   }
 
@@ -213,11 +240,21 @@ function handleMovingToSite(
 
     // Check if we've reached the end of the path
     if (builder.pathIndex >= builder.path.length) {
-      builder.phase = 'building';
-      site.pending = false;
-      console.log(
-        `[Builder] Builder ${builderIndex} arrived at site ${site.id}, now building`,
-      );
+      if (isManual) {
+        builder.phase = 'idle';
+        builder.manualMove = undefined;
+      } else {
+        const site = findSiteById(state, builder.assignedSiteId);
+        if (site) {
+          builder.phase = 'building';
+          site.pending = false;
+          console.log(
+            `[Builder] Builder ${builderIndex} arrived at site ${site.id}, now building`,
+          );
+        } else {
+          releaseBuilder(state, builderIndex);
+        }
+      }
     }
   }
 }

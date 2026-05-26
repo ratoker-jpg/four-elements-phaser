@@ -11,6 +11,7 @@ const VALID_PHASES: HarvesterPhase[] = [
   'gathering',
   'returning-to-hq',
   'unloading',
+  'manual-move',
 ];
 
 describe('updateGameState — harvester loop', () => {
@@ -36,7 +37,9 @@ describe('updateGameState — harvester loop', () => {
     const ftxBefore = h.ftx;
     const ftyBefore = h.fty;
 
-    // Move for enough time to see displacement
+    // ARCH-05X: First tick computes BFS path, movement starts on second tick.
+    // Run two ticks to ensure displacement is visible.
+    updateGameState(state, 500);
     updateGameState(state, 500);
 
     const moved = h.ftx !== ftxBefore || h.fty !== ftyBefore;

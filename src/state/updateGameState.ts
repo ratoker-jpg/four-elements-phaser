@@ -27,6 +27,9 @@ import {
   SEPARATOR_ACTIVE_POWER_CONSUMPTION,
   UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION,
 } from './types';
+import { buildOccupancyMap, isPassable } from './occupancy';
+import { findPath, findPathToAdjacent } from './pathfinding';
+import { updateHarvesterManualMove, findResourceApproachTile } from './unitCommands';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -94,12 +97,27 @@ function updateHarvester(
     case 'unloading':
       handleUnloading(state, h, dt);
       break;
+    case 'manual-move':
+      updateHarvesterManualMove(state, h, dt);
+      break;
   }
 }
 
 // ── idle ──────────────────────────────────────────────────────────
 
 function handleIdle(state: GameState, h: HarvesterState): void {
+  // Clean up any stale path data from previous phases
+  if (h.approachPath || h.returnPath || h.manualPath) {
+    h.approachPath = undefined;
+    h.approachPathIndex = undefined;
+    h.returnPath = undefined;
+    h.returnPathIndex = undefined;
+    h.manualPath = undefined;
+    h.manualPathIndex = undefined;
+    h.manualCooldownMs = undefined;
+    h.blockedReason = undefined;
+  }
+
   const target = findNearestAvailableResource(state, h);
   if (!target) return; // nothing to gather
 
@@ -109,6 +127,17 @@ function handleIdle(state: GameState, h: HarvesterState): void {
 
 // ── moving-to-resource ────────────────────────────────────────────
 
+/**
+ * ARCH-05X: Harvester now uses BFS pathfinding to an adjacent approach
+ * tile instead of straight-line movement to the resource center.
+ *
+ * The harvester must NOT move onto the exact resource tile.
+ * Instead, it paths to the nearest passable tile adjacent to the
+ * resource footprint and gathers from there.
+ *
+ * Path is stored on the harvester as _approachPath (array of tile coords).
+ * The harvester follows the path waypoint by waypoint.
+ */
 function handleMovingToResource(
   state: GameState,
   h: HarvesterState,
@@ -119,15 +148,86 @@ function handleMovingToResource(
     // Target lost — go idle and re-evaluate
     h.targetResourceId = null;
     h.phase = 'idle';
+    h.approachPath = undefined;
+    h.approachPathIndex = undefined;
+    h.blockedReason = undefined;
     return;
   }
 
-  const arrived = moveToward(h, target.tx, target.ty, dt);
-  if (arrived) {
-    h.ftx = target.tx;
-    h.fty = target.ty;
+  // On first entry, compute approach path
+  if (!h.approachPath) {
+    const approachResult = findResourceApproachTile(
+      state, h.ftx, h.fty, target.tx, target.ty, target.footprint,
+    );
+
+    if (!approachResult.ok) {
+      // No approach tile — skip this resource
+      h.targetResourceId = null;
+      h.phase = 'idle';
+      h.blockedReason = undefined;
+      return;
+    }
+
+    const startTx = Math.round(h.ftx);
+    const startTy = Math.round(h.fty);
+    const occupancy = buildOccupancyMap(state);
+
+    // If already at approach tile, skip movement
+    if (startTx === approachResult.approachTx && startTy === approachResult.approachTy) {
+      h.ftx = approachResult.approachTx;
+      h.fty = approachResult.approachTy;
+      h.gatherTimer = GATHER_DURATION_MS;
+      h.phase = 'gathering';
+      h.approachPath = undefined;
+      h.approachPathIndex = undefined;
+      h.blockedReason = undefined;
+      return;
+    }
+
+    const path = findPath(occupancy, startTx, startTy, approachResult.approachTx, approachResult.approachTy);
+    if (!path || path.length === 0) {
+      // No path to approach tile — skip this resource
+      h.targetResourceId = null;
+      h.phase = 'idle';
+      h.blockedReason = 'no-approach-path';
+      return;
+    }
+
+    h.approachPath = path;
+    h.approachPathIndex = 0;
+    h.blockedReason = undefined;
+    return; // movement will start on next frame tick
+  }
+
+  // Follow approach path
+  const currentPath = h.approachPath;
+  const pathIndex = h.approachPathIndex ?? 0;
+  if (pathIndex >= currentPath.length) {
+    // Arrived at approach tile
     h.gatherTimer = GATHER_DURATION_MS;
     h.phase = 'gathering';
+    h.approachPath = undefined;
+    h.approachPathIndex = undefined;
+    h.blockedReason = undefined;
+    return;
+  }
+
+  const waypoint = currentPath[pathIndex];
+  const arrived = moveToward(h, waypoint.tx, waypoint.ty, dt);
+
+  if (arrived) {
+    h.ftx = waypoint.tx;
+    h.fty = waypoint.ty;
+    h.approachPathIndex = pathIndex + 1;
+
+    if (h.approachPathIndex >= currentPath.length) {
+      // Arrived at approach tile — start gathering
+      h.gatherTimer = GATHER_DURATION_MS;
+      h.phase = 'gathering';
+      h.approachPath = undefined;
+      h.approachPathIndex = undefined;
+      h.blockedReason = undefined;
+    }
   }
 }
 
@@ -171,17 +271,98 @@ function handleGathering(
 
 // ── returning-to-hq ───────────────────────────────────────────────
 
+/**
+ * ARCH-05X hardened: Harvester uses BFS pathfinding back to HQ.
+ *
+ * If BFS fails (no path to HQ), the harvester enters a blocked state
+ * instead of falling back to straight-line movement through obstacles.
+ * The blocked reason is stored in h.blockedReason for debug telemetry.
+ * The harvester stays in 'returning-to-hq' phase and retries each tick
+ * in case the map changes (e.g. a building is destroyed in the future).
+ */
 function handleReturningToHQ(
   state: GameState,
   h: HarvesterState,
   dt: number,
 ): void {
-  const arrived = moveToward(h, state.hqPosition.tx, state.hqPosition.ty, dt);
-  if (arrived) {
-    h.ftx = state.hqPosition.tx;
-    h.fty = state.hqPosition.ty;
+  // On first entry, compute return path
+  if (!h.returnPath) {
+    const hqTx = state.hqPosition.tx;
+    const hqTy = state.hqPosition.ty;
+    const startTx = Math.round(h.ftx);
+    const startTy = Math.round(h.fty);
+    const occupancy = buildOccupancyMap(state);
+
+    // Path to a tile adjacent to HQ (HQ is 3x3 impassable)
+    const path = findPathToAdjacent(occupancy, startTx, startTy, hqTx - 1, hqTy - 1, 3, 3);
+    if (!path) {
+      // No path to adjacent — try direct path to a tile near HQ as fallback
+      // (but NOT straight-line movement through obstacles)
+      const directPath = findPath(occupancy, startTx, startTy, hqTx, hqTy);
+      if (!directPath) {
+        // Truly no route — harvester is blocked. Stay safe, don't walk through obstacles.
+        h.blockedReason = 'no-path-to-hq';
+        // Remain in returning-to-hq phase; will retry path computation next tick
+        return;
+      }
+      if (directPath.length === 0) {
+        // Already at HQ center
+        h.unloadTimer = UNLOAD_DURATION_MS;
+        h.phase = 'unloading';
+        h.returnPath = undefined;
+        h.returnPathIndex = undefined;
+        h.blockedReason = undefined;
+        return;
+      }
+      h.returnPath = directPath;
+      h.returnPathIndex = 0;
+      h.blockedReason = undefined;
+      return;
+    }
+
+    if (path.length === 0) {
+      // Already adjacent to HQ
+      h.unloadTimer = UNLOAD_DURATION_MS;
+      h.phase = 'unloading';
+      h.returnPath = undefined;
+      h.returnPathIndex = undefined;
+      h.blockedReason = undefined;
+      return;
+    }
+
+    h.returnPath = path;
+    h.returnPathIndex = 0;
+    h.blockedReason = undefined;
+    return;
+  }
+
+  // Follow return path
+  const pathIndex = h.returnPathIndex ?? 0;
+  if (pathIndex >= h.returnPath.length) {
+    // Arrived at HQ
     h.unloadTimer = UNLOAD_DURATION_MS;
     h.phase = 'unloading';
+    h.returnPath = undefined;
+    h.returnPathIndex = undefined;
+    h.blockedReason = undefined;
+    return;
+  }
+
+  const waypoint = h.returnPath[pathIndex];
+  const arrived = moveToward(h, waypoint.tx, waypoint.ty, dt);
+
+  if (arrived) {
+    h.ftx = waypoint.tx;
+    h.fty = waypoint.ty;
+    h.returnPathIndex = pathIndex + 1;
+
+    if (h.returnPathIndex >= h.returnPath.length) {
+      h.unloadTimer = UNLOAD_DURATION_MS;
+      h.phase = 'unloading';
+      h.returnPath = undefined;
+      h.returnPathIndex = undefined;
+      h.blockedReason = undefined;
+    }
   }
 }
 
@@ -470,7 +651,6 @@ function allocatePowerAndProcess(state: GameState, dt: number): void {
 // ─── Factory spawn logic (ARCH-01F) ────────────────────────────────────
 
 import type { UnitFactoryRuntimeState, BuilderPlacement } from './types';
-import { buildOccupancyMap, isPassable } from './occupancy';
 
 /**
  * Attempt to spawn all completed items at the front of a factory's queue.

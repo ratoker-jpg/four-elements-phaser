@@ -99,6 +99,8 @@ export interface BuilderPlacement {
   targetTx: number;
   targetTy: number;
   assignedSiteId: number;
+  /** ARCH-05X hardening: true when moving to a manual-move target (not a construction site). */
+  manualMove?: boolean;
 }
 
 // ─── Construction Sites ─────────────────────────────────────────────
@@ -173,7 +175,8 @@ export type HarvesterPhase =
   | 'moving-to-resource'
   | 'gathering'
   | 'returning-to-hq'
-  | 'unloading';
+  | 'unloading'
+  | 'manual-move';
 
 /** Runtime state for a single harvester unit. */
 export interface HarvesterState {
@@ -196,6 +199,25 @@ export interface HarvesterState {
   unloadTimer: number;
   /** Movement speed in tiles per second. */
   speedTilesPerSecond: number;
+
+  // ── ARCH-05X hardening: explicit path fields (replaces `as any` casts) ──
+
+  /** BFS path to approach tile adjacent to resource. Set during 'moving-to-resource'. */
+  approachPath?: Array<{ tx: number; ty: number }>;
+  /** Current waypoint index into approachPath. */
+  approachPathIndex?: number;
+  /** BFS path back to HQ. Set during 'returning-to-hq'. */
+  returnPath?: Array<{ tx: number; ty: number }>;
+  /** Current waypoint index into returnPath. */
+  returnPathIndex?: number;
+  /** BFS path for manual move command. Set during 'manual-move'. */
+  manualPath?: Array<{ tx: number; ty: number }>;
+  /** Current waypoint index into manualPath. */
+  manualPathIndex?: number;
+  /** Cooldown timer (ms) after manual move before auto-gather resumes. */
+  manualCooldownMs?: number;
+  /** Debug reason when harvester is blocked (no path to HQ). Cleared on phase change. */
+  blockedReason?: string;
 }
 
 // ─── Resource Node State (PR3) ─────────────────────────────────────

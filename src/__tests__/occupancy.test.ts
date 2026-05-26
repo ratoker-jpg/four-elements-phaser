@@ -192,8 +192,8 @@ describe('Resource footprint', () => {
     expect(flags.has('unbuildable')).toBe(true);
   });
 
-  it('resource tile is passable (harvesters must reach it)', () => {
-    expect(isPassable(map, 5, 5)).toBe(true);
+  it('resource tile is impassable for movement (ARCH-05X: harvesters approach from adjacent)', () => {
+    expect(isPassable(map, 5, 5)).toBe(false);
   });
 
   it('resource tile is not buildable', () => {
