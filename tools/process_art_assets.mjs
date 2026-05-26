@@ -4,9 +4,11 @@
  *
  * ARCH-02D: MVP processor for the buildings family.
  * ARCH-02F: Also generates src/assets/generatedAssetManifest.ts for runtime.
+ * ARCH-02G: Also processes civilUnits family (builder/harvester spritesheets).
  *
- * Scans current approved runtime building assets under
+ * Scans current approved runtime assets under
  *   public/assets/factions/{cyan,green,yellow,purple}/buildings/
+ *   public/assets/factions/{cyan,green,yellow,purple}/units/
  * and generates:
  *   - art/generated/manifest.generated.json
  *   - art/generated/audit-report.json
@@ -19,7 +21,7 @@
  *   node tools/process_art_assets.mjs [options]
  *
  * Options:
- *   --family <name>   Asset family to process (default: "buildings")
+ *   --family <name>   Asset family to process (default: "all")
  *   --root <dir>      Project root directory (default: auto-detected from script location)
  *   --json            Output machine-readable JSON instead of console report
  *   --dry-run         Process and validate but do not write output files
@@ -94,6 +96,21 @@ const BUILDING_FILE_NAMES = {
 
 const HQ_FILE_NAME = 'hq_t1.png';
 
+// ─── Civil unit constants (must match src/assets/civilUnitAssets.ts) ──
+
+const CIVIL_UNIT_TYPES = ['builder', 'harvester'];
+
+const CIVIL_UNIT_FILE_NAMES = {
+  builder: 'builder_8x8_256.png',
+  harvester: 'harvester_8x8_256.png',
+};
+
+const CIVIL_UNIT_FRAME_CONFIG = {
+  frameWidth: 256,
+  frameHeight: 256,
+  endFrame: 63,
+};
+
 // Deterministic timestamp for committed generated files.
 // Using the epoch ensures rerunning the processor with unchanged inputs
 // does not dirty the working tree.
@@ -145,6 +162,146 @@ export function generateBuildingPath(faction, buildingType) {
  */
 export function generateHqPath(faction) {
   return `assets/factions/${faction}/buildings/${HQ_FILE_NAME}`;
+}
+
+/**
+ * Process the civilUnits family and generate manifest + audit data.
+ *
+ * @param {object} options
+ * @param {string} options.publicDir - Absolute path to public/ directory
+ * @param {string[]} [options.factions] - Factions to process
+ * @param {string[]} [options.civilUnitTypes] - Civil unit types to process
+ * @returns {{ manifest: object, auditReport: object }}
+ */
+export function processCivilUnitsFamily(options) {
+  const {
+    publicDir,
+    factions = FACTIONS,
+    civilUnitTypes = CIVIL_UNIT_TYPES,
+  } = options;
+
+  const civilUnitKeys = [];
+  const paths = {};
+  const auditWarnings = [];
+  const auditErrors = [];
+  const missingSource = [];
+  const orphanFiles = [];
+
+  let totalAssets = 0;
+  let validAssets = 0;
+  let warningAssets = 0;
+  let errorAssets = 0;
+
+  // ── Process civil unit entries ────────────────────────────────────
+  for (const faction of factions) {
+    for (const unitType of civilUnitTypes) {
+      const key = generateCivilUnitKey(faction, unitType);
+      const relativePath = generateCivilUnitPath(faction, unitType);
+      const absolutePath = join(publicDir, relativePath);
+
+      civilUnitKeys.push(key);
+      paths[key] = relativePath;
+      totalAssets++;
+
+      if (existsSync(absolutePath)) {
+        validAssets++;
+      } else {
+        auditErrors.push({
+          family: 'civilUnits',
+          key,
+          code: 'MISSING_FILE',
+          message: `Referenced file not found: ${relativePath}`,
+        });
+        missingSource.push(relativePath);
+        errorAssets++;
+      }
+    }
+  }
+
+  // ── Check for orphan files in units dirs ─────────────────────────
+  for (const faction of factions) {
+    const unitsDir = join(publicDir, 'assets', 'factions', faction, 'units');
+    if (!existsSync(unitsDir)) continue;
+
+    const filesOnDisk = readdirSync(unitsDir).filter(f => f.endsWith('.png'));
+
+    // Build set of expected filenames for this faction
+    const expectedFiles = new Set();
+    for (const unitType of civilUnitTypes) {
+      expectedFiles.add(CIVIL_UNIT_FILE_NAMES[unitType]);
+    }
+
+    for (const file of filesOnDisk) {
+      if (!expectedFiles.has(file)) {
+        const relativePath = `assets/factions/${faction}/units/${file}`;
+        auditWarnings.push({
+          family: 'civilUnits',
+          key: `${faction}_${file.replace('.png', '')}`,
+          code: 'ORPHAN_FILE',
+          message: `File on disk not referenced by manifest: ${relativePath}`,
+        });
+        orphanFiles.push(relativePath);
+        warningAssets++;
+      }
+    }
+  }
+
+  // ── Build manifest ────────────────────────────────────────────────
+  const manifest = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    families: {
+      civilUnits: {
+        keys: civilUnitKeys,
+        loadType: 'spritesheet',
+        frameConfig: { ...CIVIL_UNIT_FRAME_CONFIG },
+        enabled: true,
+      },
+    },
+    paths,
+  };
+
+  // ── Build audit report ────────────────────────────────────────────
+  const auditReport = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    summary: {
+      totalAssets,
+      validAssets,
+      warningAssets,
+      errorAssets,
+    },
+    warnings: auditWarnings,
+    errors: auditErrors,
+    missingSource,
+    orphanFiles,
+  };
+
+  return { manifest, auditReport };
+}
+
+/**
+ * Generate a civil unit manifest key from faction and unit type.
+ *
+ * @param {string} faction
+ * @param {string} unitType - e.g. 'builder', 'harvester'
+ * @returns {string} Manifest key (e.g. 'builder_cyan')
+ */
+export function generateCivilUnitKey(faction, unitType) {
+  return `${unitType}_${faction}`;
+}
+
+/**
+ * Generate the runtime-relative path for a civil unit spritesheet.
+ *
+ * @param {string} faction
+ * @param {string} unitType - e.g. 'builder', 'harvester'
+ * @returns {string} Path relative to public/ (e.g. 'assets/factions/cyan/units/builder_8x8_256.png')
+ */
+export function generateCivilUnitPath(faction, unitType) {
+  const filename = CIVIL_UNIT_FILE_NAMES[unitType];
+  if (!filename) throw new Error(`Unknown civil unit type: ${unitType}`);
+  return `assets/factions/${faction}/units/${filename}`;
 }
 
 /**
@@ -328,6 +485,9 @@ export function generateRuntimeManifestTS(manifest) {
     lines.push(`    ${familyName}: {`);
     lines.push(`      keys: [${family.keys.map(k => `'${k}'`).join(', ')}],`);
     lines.push(`      loadType: '${family.loadType}',`);
+    if (family.frameConfig) {
+      lines.push(`      frameConfig: { frameWidth: ${family.frameConfig.frameWidth}, frameHeight: ${family.frameConfig.frameHeight}, endFrame: ${family.frameConfig.endFrame} },`);
+    }
     lines.push(`      enabled: ${family.enabled},`);
     lines.push('    },');
   }
@@ -360,7 +520,7 @@ function printUsage() {
   console.error(`Usage: node tools/process_art_assets.mjs [options]
 
 Options:
-  --family <name>   Asset family to process (default: "buildings")
+  --family <name>   Asset family to process: "buildings", "civilUnits", or "all" (default: "all")
   --root <dir>      Project root directory (default: auto-detected)
   --json            Output machine-readable JSON instead of console report
   --dry-run         Process and validate but do not write output files
@@ -374,7 +534,7 @@ Exit codes:
 async function main() {
   const args = process.argv.slice(2);
 
-  let family = 'buildings';
+  let family = 'all';
   let projectRoot = null;
   let jsonOutput = false;
   let dryRun = false;
@@ -398,9 +558,9 @@ async function main() {
     }
   }
 
-  // For this MVP, only buildings family is supported
-  if (family !== 'buildings') {
-    console.error(`Error: Only "buildings" family is supported in this MVP. Got: "${family}"`);
+  const VALID_FAMILIES = new Set(['buildings', 'civilUnits', 'all']);
+  if (!VALID_FAMILIES.has(family)) {
+    console.error(`Error: Unknown family "${family}". Valid: buildings, civilUnits, all`);
     process.exit(2);
   }
 
@@ -419,7 +579,50 @@ async function main() {
   }
 
   // ── Process ───────────────────────────────────────────────────────
-  const { manifest, auditReport } = processBuildingsFamily({ publicDir });
+  const processBuildings = family === 'buildings' || family === 'all';
+  const processCivilUnits = family === 'civilUnits' || family === 'all';
+
+  // Collect results from each family
+  let combinedManifest = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    families: {},
+    paths: {},
+  };
+  let combinedAudit = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    summary: { totalAssets: 0, validAssets: 0, warningAssets: 0, errorAssets: 0 },
+    warnings: [],
+    errors: [],
+    missingSource: [],
+    orphanFiles: [],
+  };
+
+  function mergeResult(manifest, auditReport) {
+    Object.assign(combinedManifest.families, manifest.families);
+    Object.assign(combinedManifest.paths, manifest.paths);
+    combinedAudit.summary.totalAssets += auditReport.summary.totalAssets;
+    combinedAudit.summary.validAssets += auditReport.summary.validAssets;
+    combinedAudit.summary.warningAssets += auditReport.summary.warningAssets;
+    combinedAudit.summary.errorAssets += auditReport.summary.errorAssets;
+    combinedAudit.warnings.push(...auditReport.warnings);
+    combinedAudit.errors.push(...auditReport.errors);
+    combinedAudit.missingSource.push(...auditReport.missingSource);
+    combinedAudit.orphanFiles.push(...auditReport.orphanFiles);
+  }
+
+  if (processBuildings) {
+    const { manifest, auditReport } = processBuildingsFamily({ publicDir });
+    mergeResult(manifest, auditReport);
+  }
+
+  if (processCivilUnits) {
+    const { manifest, auditReport } = processCivilUnitsFamily({ publicDir });
+    mergeResult(manifest, auditReport);
+  }
+
+  const { manifest, auditReport } = { manifest: combinedManifest, auditReport: combinedAudit };
 
   // ── Validate manifest with validate_manifest.mjs ──────────────────
   const validation = validateManifest(manifest, { root: publicDir });
@@ -486,8 +689,9 @@ async function main() {
     console.log();
 
     console.log('Manifest summary:');
-    console.log(`  HQ keys: ${manifest.families.hq.keys.length}`);
-    console.log(`  Building keys: ${manifest.families.buildings.keys.length}`);
+    if (manifest.families.hq) console.log(`  HQ keys: ${manifest.families.hq.keys.length}`);
+    if (manifest.families.buildings) console.log(`  Building keys: ${manifest.families.buildings.keys.length}`);
+    if (manifest.families.civilUnits) console.log(`  Civil unit keys: ${manifest.families.civilUnits.keys.length}`);
     console.log(`  Total paths: ${Object.keys(manifest.paths).length}`);
     console.log();
 
