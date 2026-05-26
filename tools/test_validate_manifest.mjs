@@ -10,6 +10,9 @@
  */
 
 import { strict as assert } from 'node:assert';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { validateManifest } from './validate_manifest.mjs';
 
 // ─── Test helpers ─────────────────────────────────────────────────────
@@ -392,31 +395,51 @@ test('missing file creates error only when root option is provided', () => {
   const { errors: errorsNoRoot } = validateManifest(manifest);
   assert.strictEqual(errorsNoRoot.length, 0, 'Without root, no file-existence errors');
 
-  // With root — should report missing file
-  const { errors: errorsWithRoot } = validateManifest(manifest, { root: '/home/z/my-project/four-elements-phaser/public' });
-  const mf = findIssue(errorsWithRoot, 'MISSING_FILE');
-  assert.ok(mf, 'With root, missing file should produce error');
+  // With root — should report missing file (using temp dir where file does not exist)
+  const tempRoot = mkdtempSync(join(tmpdir(), 'manifest-test-'));
+  try {
+    const { errors: errorsWithRoot } = validateManifest(manifest, { root: tempRoot });
+    const mf = findIssue(errorsWithRoot, 'MISSING_FILE');
+    assert.ok(mf, 'With root, missing file should produce error');
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
 
 // ── Disabled family skipped from file-existence checks ───────────────
 
 test('disabled family skipped from file-existence checks', () => {
-  const manifest = makeValidManifest({
-    families: {
-      fx: {
-        keys: ['fx_nonexistent'],
-        loadType: 'image',
-        enabled: false,
+  // Create a temp root with an existing file for the enabled family,
+  // but no file for the disabled family — the disabled family should be skipped.
+  const tempRoot = mkdtempSync(join(tmpdir(), 'manifest-test-'));
+  try {
+    mkdirSync(join(tempRoot, 'assets', 'tiles'), { recursive: true });
+    writeFileSync(join(tempRoot, 'assets', 'tiles', 'sand_tile.png'), '');
+
+    const manifest = makeValidManifest({
+      families: {
+        terrain: {
+          keys: ['terrain_sand'],
+          loadType: 'image',
+          enabled: true,
+        },
+        fx: {
+          keys: ['fx_nonexistent'],
+          loadType: 'image',
+          enabled: false,
+        },
       },
-    },
-    paths: {
-      terrain_sand: 'assets/tiles/sand_tile.png',
-      fx_nonexistent: 'assets/fx/DOES_NOT_EXIST.png',
-    },
-  });
-  const { errors } = validateManifest(manifest, { root: '/home/z/my-project/four-elements-phaser/public' });
-  const mf = findIssue(errors, 'MISSING_FILE');
-  assert.strictEqual(mf, undefined, 'Disabled family should skip file-existence checks');
+      paths: {
+        terrain_sand: 'assets/tiles/sand_tile.png',
+        fx_nonexistent: 'assets/fx/DOES_NOT_EXIST.png',
+      },
+    });
+    const { errors } = validateManifest(manifest, { root: tempRoot });
+    const mf = findIssue(errors, 'MISSING_FILE');
+    assert.strictEqual(mf, undefined, 'Disabled family should skip file-existence checks');
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
 
 // ── Warning-only manifest exits success unless strict ─────────────────
