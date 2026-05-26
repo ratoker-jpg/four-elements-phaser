@@ -87,10 +87,11 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
   markFootprint(flags, width, state.mapData.hq.tx, state.mapData.hq.ty, 3, 3,
     'impassable', 'unbuildable');
 
-  // ── Resources — impassable not set (harvesters must reach them) ─
+  // ── Resources — ARCH-05X: now impassable for movement
+  //   Harvesters must approach adjacent tiles, not drive onto the resource center.
   for (const r of state.mapData.resources) {
     markFootprint(flags, width, r.tx, r.ty, r.footprint, r.footprint,
-      'unbuildable', 'resource');
+      'impassable', 'unbuildable', 'resource');
   }
 
   // ── Obstacles ──────────────────────────────────────────────────

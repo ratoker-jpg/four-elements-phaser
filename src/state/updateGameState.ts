@@ -27,6 +27,9 @@ import {
   SEPARATOR_ACTIVE_POWER_CONSUMPTION,
   UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION,
 } from './types';
+import { buildOccupancyMap, isPassable } from './occupancy';
+import { findPath, findPathToAdjacent } from './pathfinding';
+import { updateHarvesterManualMove, findResourceApproachTile } from './unitCommands';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -94,6 +97,9 @@ function updateHarvester(
     case 'unloading':
       handleUnloading(state, h, dt);
       break;
+    case 'manual-move':
+      updateHarvesterManualMove(state, h, dt);
+      break;
   }
 }
 
@@ -109,6 +115,17 @@ function handleIdle(state: GameState, h: HarvesterState): void {
 
 // ── moving-to-resource ────────────────────────────────────────────
 
+/**
+ * ARCH-05X: Harvester now uses BFS pathfinding to an adjacent approach
+ * tile instead of straight-line movement to the resource center.
+ *
+ * The harvester must NOT move onto the exact resource tile.
+ * Instead, it paths to the nearest passable tile adjacent to the
+ * resource footprint and gathers from there.
+ *
+ * Path is stored on the harvester as _approachPath (array of tile coords).
+ * The harvester follows the path waypoint by waypoint.
+ */
 function handleMovingToResource(
   state: GameState,
   h: HarvesterState,
@@ -119,15 +136,80 @@ function handleMovingToResource(
     // Target lost — go idle and re-evaluate
     h.targetResourceId = null;
     h.phase = 'idle';
+    delete (h as any)._approachPath;
+    delete (h as any)._approachPathIndex;
     return;
   }
 
-  const arrived = moveToward(h, target.tx, target.ty, dt);
-  if (arrived) {
-    h.ftx = target.tx;
-    h.fty = target.ty;
+  // On first entry, compute approach path
+  const approachPath: Array<{ tx: number; ty: number }> | undefined = (h as any)._approachPath;
+  if (!approachPath) {
+    const approachResult = findResourceApproachTile(
+      state, h.ftx, h.fty, target.tx, target.ty, target.footprint,
+    );
+
+    if (!approachResult.ok) {
+      // No approach tile — skip this resource
+      h.targetResourceId = null;
+      h.phase = 'idle';
+      return;
+    }
+
+    const startTx = Math.round(h.ftx);
+    const startTy = Math.round(h.fty);
+    const occupancy = buildOccupancyMap(state);
+
+    // If already at approach tile, skip movement
+    if (startTx === approachResult.approachTx && startTy === approachResult.approachTy) {
+      h.ftx = approachResult.approachTx;
+      h.fty = approachResult.approachTy;
+      h.gatherTimer = GATHER_DURATION_MS;
+      h.phase = 'gathering';
+      return;
+    }
+
+    const path = findPath(occupancy, startTx, startTy, approachResult.approachTx, approachResult.approachTy);
+    if (!path || path.length === 0) {
+      // No path to approach tile — skip this resource
+      h.targetResourceId = null;
+      h.phase = 'idle';
+      return;
+    }
+
+    (h as any)._approachPath = path;
+    (h as any)._approachPathIndex = 0;
+    // Re-read the path from the harvester for the fall-through movement logic
+    // (the local `approachPath` was undefined when we entered this block)
+    return; // movement will start on next frame tick
+  }
+
+  // Follow approach path
+  const currentPath: Array<{ tx: number; ty: number }> = (h as any)._approachPath;
+  const pathIndex: number = (h as any)._approachPathIndex ?? 0;
+  if (pathIndex >= currentPath.length) {
+    // Arrived at approach tile
     h.gatherTimer = GATHER_DURATION_MS;
     h.phase = 'gathering';
+    delete (h as any)._approachPath;
+    delete (h as any)._approachPathIndex;
+    return;
+  }
+
+  const waypoint = currentPath[pathIndex];
+  const arrived = moveToward(h, waypoint.tx, waypoint.ty, dt);
+
+  if (arrived) {
+    h.ftx = waypoint.tx;
+    h.fty = waypoint.ty;
+    (h as any)._approachPathIndex = pathIndex + 1;
+
+    if ((h as any)._approachPathIndex >= currentPath.length) {
+      // Arrived at approach tile — start gathering
+      h.gatherTimer = GATHER_DURATION_MS;
+      h.phase = 'gathering';
+      delete (h as any)._approachPath;
+      delete (h as any)._approachPathIndex;
+    }
   }
 }
 
@@ -171,17 +253,88 @@ function handleGathering(
 
 // ── returning-to-hq ───────────────────────────────────────────────
 
+/**
+ * ARCH-05X: Harvester now uses BFS pathfinding back to HQ instead of
+ * straight-line movement, so it navigates around buildings.
+ */
 function handleReturningToHQ(
   state: GameState,
   h: HarvesterState,
   dt: number,
 ): void {
-  const arrived = moveToward(h, state.hqPosition.tx, state.hqPosition.ty, dt);
-  if (arrived) {
-    h.ftx = state.hqPosition.tx;
-    h.fty = state.hqPosition.ty;
+  // On first entry, compute return path
+  const returnPath: Array<{ tx: number; ty: number }> | undefined = (h as any)._returnPath;
+  if (!returnPath) {
+    const hqTx = state.hqPosition.tx;
+    const hqTy = state.hqPosition.ty;
+    const startTx = Math.round(h.ftx);
+    const startTy = Math.round(h.fty);
+    const occupancy = buildOccupancyMap(state);
+
+    // Path to a tile adjacent to HQ (HQ is 3x3 impassable)
+    const path = findPathToAdjacent(occupancy, startTx, startTy, hqTx - 1, hqTy - 1, 3, 3);
+    if (!path) {
+      // Fallback: try direct path to HQ center (legacy behavior)
+      const directPath = findPath(occupancy, startTx, startTy, hqTx, hqTy);
+      if (!directPath) {
+        // No path at all — try straight line (old behavior)
+        const arrived = moveToward(h, hqTx, hqTy, dt);
+        if (arrived) {
+          h.ftx = hqTx;
+          h.fty = hqTy;
+          h.unloadTimer = UNLOAD_DURATION_MS;
+          h.phase = 'unloading';
+        }
+        return;
+      }
+      if (directPath.length === 0) {
+        // Already there
+        h.unloadTimer = UNLOAD_DURATION_MS;
+        h.phase = 'unloading';
+        return;
+      }
+      (h as any)._returnPath = directPath;
+      (h as any)._returnPathIndex = 0;
+      return;
+    }
+
+    if (path.length === 0) {
+      // Already adjacent to HQ
+      h.unloadTimer = UNLOAD_DURATION_MS;
+      h.phase = 'unloading';
+      return;
+    }
+
+    (h as any)._returnPath = path;
+    (h as any)._returnPathIndex = 0;
+    return;
+  }
+
+  // Follow return path
+  const pathIndex: number = (h as any)._returnPathIndex ?? 0;
+  if (pathIndex >= returnPath.length) {
+    // Arrived at HQ
     h.unloadTimer = UNLOAD_DURATION_MS;
     h.phase = 'unloading';
+    delete (h as any)._returnPath;
+    delete (h as any)._returnPathIndex;
+    return;
+  }
+
+  const waypoint = returnPath[pathIndex];
+  const arrived = moveToward(h, waypoint.tx, waypoint.ty, dt);
+
+  if (arrived) {
+    h.ftx = waypoint.tx;
+    h.fty = waypoint.ty;
+    (h as any)._returnPathIndex = pathIndex + 1;
+
+    if ((h as any)._returnPathIndex >= returnPath.length) {
+      h.unloadTimer = UNLOAD_DURATION_MS;
+      h.phase = 'unloading';
+      delete (h as any)._returnPath;
+      delete (h as any)._returnPathIndex;
+    }
   }
 }
 
@@ -470,7 +623,6 @@ function allocatePowerAndProcess(state: GameState, dt: number): void {
 // ─── Factory spawn logic (ARCH-01F) ────────────────────────────────────
 
 import type { UnitFactoryRuntimeState, BuilderPlacement } from './types';
-import { buildOccupancyMap, isPassable } from './occupancy';
 
 /**
  * Attempt to spawn all completed items at the front of a factory's queue.

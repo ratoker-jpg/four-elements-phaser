@@ -173,7 +173,8 @@ export type HarvesterPhase =
   | 'moving-to-resource'
   | 'gathering'
   | 'returning-to-hq'
-  | 'unloading';
+  | 'unloading'
+  | 'manual-move';
 
 /** Runtime state for a single harvester unit. */
 export interface HarvesterState {
