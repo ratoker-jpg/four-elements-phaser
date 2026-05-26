@@ -18,6 +18,8 @@ import {
   RAW_STORAGE_RAW_BONUS,
   MATTER_STORAGE_MATTER_BONUS,
   MATTER_STORAGE_ELEMENT_BONUS,
+  HQ_BASE_POWER,
+  POWER_PLANT_GENERATION,
 } from './types';
 import { createHarvester } from './updateGameState';
 import { customMap1 } from '../data/maps/customMap1';
@@ -119,11 +121,15 @@ function createInitialEconomy(_playerFaction: Faction, mapData: MapData): Econom
     }
   }
 
+  // ARCH-01E: Compute powerGenerated from HQ base + power-plant buildings.
+  const powerPlantCount = mapData.buildings.filter(b => b.type === 'power-plant').length;
+  const powerGenerated = HQ_BASE_POWER + powerPlantCount * POWER_PLANT_GENERATION;
+
   return {
     raw: START_RAW,
     matter: START_MATTER,
     elements: { cyan: 0, green: 0, yellow: 0, purple: 0 },
-    powerGenerated: 0,
+    powerGenerated,
     powerConsumed: 0,
     separators,
     rawCap,

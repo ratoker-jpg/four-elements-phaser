@@ -52,6 +52,13 @@ export const BUILDING_CONFIG: Partial<Record<BuildingType, BuildingConfig>> = {
     costMatter: 60,
     buildTimeMs: 20000,
   },
+  'power-plant': {
+    type: 'power-plant',
+    footprintW: 2,
+    footprintH: 2,
+    costMatter: 100,
+    buildTimeMs: 25000,
+  },
 };
 
 // ─── Placement Result ───────────────────────────────────────────────

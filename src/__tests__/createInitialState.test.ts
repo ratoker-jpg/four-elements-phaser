@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createInitialState } from '../state/createInitialState';
-import { RESOURCE_RAW_AMOUNTS, START_RAW, START_MATTER, HQ_RAW_CAP, HQ_MATTER_CAP, HQ_ELEMENT_CAP } from '../state/types';
+import { RESOURCE_RAW_AMOUNTS, START_RAW, START_MATTER, HQ_RAW_CAP, HQ_MATTER_CAP, HQ_ELEMENT_CAP, HQ_BASE_POWER } from '../state/types';
 
 describe('createInitialState', () => {
   it('returns a valid GameState with expected map dimensions', () => {
@@ -57,7 +57,7 @@ describe('createInitialState', () => {
     expect(state.economy.elements.green).toBe(0);
     expect(state.economy.elements.yellow).toBe(0);
     expect(state.economy.elements.purple).toBe(0);
-    expect(state.economy.powerGenerated).toBe(0);
+    expect(state.economy.powerGenerated).toBe(HQ_BASE_POWER);
     expect(state.economy.powerConsumed).toBe(0);
   });
 
