@@ -2,8 +2,9 @@
 
 This directory holds the asset pipeline working tree for Four Elements Phaser.
 
-**Do not place binary assets (PNGs, PSDs, etc.) in this PR.**
-Binary asset staging belongs to future ARCH-02D+ phases.
+Binary asset staging is not part of the current MVP.
+The processor scans current approved runtime assets in `public/assets/` and
+generates manifest/report only — no PNG copying yet.
 
 ## Directory layout
 
@@ -36,7 +37,7 @@ Output of the asset processor and validation tools:
 
 - `manifest.generated.json` — machine-readable manifest of all processed assets
 - `audit-report.json` — validation results, warnings, and errors
-- Family subdirectories with runtime-ready PNGs (future ARCH-02D)
+- Family subdirectories with runtime-ready PNGs (future)
 
 **Runtime integration is not yet active.** The current runtime loaders in
 `src/assets/` continue to load directly from `public/assets/`. Migration to
@@ -60,11 +61,26 @@ Steps 2–4 are tooling-supported. Step 1 is always manual.
 
 ## Tooling
 
-| Script | Purpose |
-|--------|---------|
-| `tools/validate_manifest.mjs` | Validate manifest JSON structure, keys, naming |
-| `tools/process_art_assets.mjs` | Unified asset processor (future ARCH-02D) |
-| `tools/generate_building_meta.py` | Building placement metadata generator |
+| Script | Command | Purpose |
+|--------|---------|--------|
+| `tools/process_art_assets.mjs` | `npm run process:art-assets` | Generate manifest + audit report for buildings family |
+| `tools/validate_manifest.mjs` | `npm run validate:asset-manifest` | Validate manifest JSON structure, keys, naming |
+| `tools/generate_building_meta.py` | `npm run generate:building-meta` | Building placement metadata generator |
+
+### process:art-assets
+
+The building asset processor MVP scans current approved runtime assets under
+`public/assets/factions/{cyan,green,yellow,purple}/buildings/` and produces:
+
+- `art/generated/manifest.generated.json` — manifest with hq + buildings families
+- `art/generated/audit-report.json` — validation results
+
+Current MVP behavior:
+- Processes buildings family only.
+- Scans runtime assets in `public/assets/` as input (not `art/staged/`).
+- No PNG copying or modification.
+- Runs the existing building metadata generator as a sub-step.
+- Runtime integration remains ARCH-02F.
 
 ## See also
 

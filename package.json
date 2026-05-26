@@ -13,7 +13,10 @@
     "generate:building-meta": "node tools/generate_building_meta.mjs",
     "test:generator": "python3 tools/test_generate_building_meta.py -v",
     "validate:asset-manifest": "node tools/validate_manifest.mjs art/generated/manifest.sample.json",
-    "test:asset-manifest": "node tools/test_validate_manifest.mjs"
+    "test:asset-manifest": "node tools/test_validate_manifest.mjs",
+    "process:art-assets": "node tools/process_art_assets.mjs",
+    "process:art-assets:buildings": "node tools/process_art_assets.mjs --family buildings",
+    "test:process-art-assets": "node tools/test_process_art_assets.mjs"
   },
   "dependencies": {
     "phaser": "4.1.0"

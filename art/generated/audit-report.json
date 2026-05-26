@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-26T08:09:16.596Z",
+  "summary": {
+    "totalAssets": 28,
+    "validAssets": 28,
+    "warningAssets": 0,
+    "errorAssets": 0
+  },
+  "warnings": [],
+  "errors": [],
+  "missingSource": [],
+  "orphanFiles": []
+}

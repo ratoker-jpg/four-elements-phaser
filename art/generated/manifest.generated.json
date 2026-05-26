@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-26T08:09:16.596Z",
+  "families": {
+    "hq": {
+      "keys": [
+        "hq_cyan",
+        "hq_green",
+        "hq_yellow",
+        "hq_purple"
+      ],
+      "loadType": "image",
+      "enabled": true
+    },
+    "buildings": {
+      "keys": [
+        "building_cyan_separator",
+        "building_cyan_raw_storage",
+        "building_cyan_matter_storage",
+        "building_cyan_power_plant",
+        "building_cyan_command_relay",
+        "building_cyan_units_factory",
+        "building_green_separator",
+        "building_green_raw_storage",
+        "building_green_matter_storage",
+        "building_green_power_plant",
+        "building_green_command_relay",
+        "building_green_units_factory",
+        "building_yellow_separator",
+        "building_yellow_raw_storage",
+        "building_yellow_matter_storage",
+        "building_yellow_power_plant",
+        "building_yellow_command_relay",
+        "building_yellow_units_factory",
+        "building_purple_separator",
+        "building_purple_raw_storage",
+        "building_purple_matter_storage",
+        "building_purple_power_plant",
+        "building_purple_command_relay",
+        "building_purple_units_factory"
+      ],
+      "loadType": "image",
+      "enabled": true
+    }
+  },
+  "paths": {
+    "hq_cyan": "assets/factions/cyan/buildings/hq_t1.png",
+    "hq_green": "assets/factions/green/buildings/hq_t1.png",
+    "hq_yellow": "assets/factions/yellow/buildings/hq_t1.png",
+    "hq_purple": "assets/factions/purple/buildings/hq_t1.png",
+    "building_cyan_separator": "assets/factions/cyan/buildings/separator.png",
+    "building_cyan_raw_storage": "assets/factions/cyan/buildings/raw_storage.png",
+    "building_cyan_matter_storage": "assets/factions/cyan/buildings/matter_storage.png",
+    "building_cyan_power_plant": "assets/factions/cyan/buildings/power_plant.png",
+    "building_cyan_command_relay": "assets/factions/cyan/buildings/command_relay.png",
+    "building_cyan_units_factory": "assets/factions/cyan/buildings/units_factory.png",
+    "building_green_separator": "assets/factions/green/buildings/separator.png",
+    "building_green_raw_storage": "assets/factions/green/buildings/raw_storage.png",
+    "building_green_matter_storage": "assets/factions/green/buildings/matter_storage.png",
+    "building_green_power_plant": "assets/factions/green/buildings/power_plant.png",
+    "building_green_command_relay": "assets/factions/green/buildings/command_relay.png",
+    "building_green_units_factory": "assets/factions/green/buildings/units_factory.png",
+    "building_yellow_separator": "assets/factions/yellow/buildings/separator.png",
+    "building_yellow_raw_storage": "assets/factions/yellow/buildings/raw_storage.png",
+    "building_yellow_matter_storage": "assets/factions/yellow/buildings/matter_storage.png",
+    "building_yellow_power_plant": "assets/factions/yellow/buildings/power_plant.png",
+    "building_yellow_command_relay": "assets/factions/yellow/buildings/command_relay.png",
+    "building_yellow_units_factory": "assets/factions/yellow/buildings/units_factory.png",
+    "building_purple_separator": "assets/factions/purple/buildings/separator.png",
+    "building_purple_raw_storage": "assets/factions/purple/buildings/raw_storage.png",
+    "building_purple_matter_storage": "assets/factions/purple/buildings/matter_storage.png",
+    "building_purple_power_plant": "assets/factions/purple/buildings/power_plant.png",
+    "building_purple_command_relay": "assets/factions/purple/buildings/command_relay.png",
+    "building_purple_units_factory": "assets/factions/purple/buildings/units_factory.png"
+  }
+}
