@@ -70,15 +70,16 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.generatedAt).toBe('1970-01-01T00:00:00.000Z');
   });
 
-  it('has hq, buildings, and civilUnits families', () => {
+  it('has hq, buildings, civilUnits, and modularUnits families', () => {
     expect(GENERATED_ASSET_MANIFEST.families.hq).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.buildings).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.civilUnits).toBeDefined();
+    expect(GENERATED_ASSET_MANIFEST.families.modularUnits).toBeDefined();
   });
 
-  it('has 36 total paths (4 HQ + 24 buildings + 8 civilUnits)', () => {
+  it('has 100 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits)', () => {
     const keys = Object.keys(GENERATED_ASSET_MANIFEST.paths);
-    expect(keys).toHaveLength(36);
+    expect(keys).toHaveLength(100);
   });
 
   it('has 4 HQ keys', () => {
@@ -91,6 +92,10 @@ describe('GENERATED_ASSET_MANIFEST', () => {
 
   it('has 8 civilUnits keys', () => {
     expect(GENERATED_ASSET_MANIFEST.families.civilUnits.keys).toHaveLength(8);
+  });
+
+  it('has 64 modularUnits keys', () => {
+    expect(GENERATED_ASSET_MANIFEST.families.modularUnits.keys).toHaveLength(64);
   });
 
   it('has all 4 HQ faction keys', () => {
@@ -126,6 +131,19 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.families.civilUnits.frameConfig?.endFrame).toBe(63);
   });
 
+  it('modularUnits family has loadType image and enabled true', () => {
+    expect(GENERATED_ASSET_MANIFEST.families.modularUnits.loadType).toBe('image');
+    expect(GENERATED_ASSET_MANIFEST.families.modularUnits.enabled).toBe(true);
+  });
+
+  it('modularUnits keys match legacy getWaspHullKey/getSmokyTurretKey outputs', () => {
+    const muKeys = GENERATED_ASSET_MANIFEST.families.modularUnits.keys;
+    expect(muKeys).toContain('wasp_m0_hull_cyan_dir0');
+    expect(muKeys).toContain('wasp_m0_hull_purple_dir7');
+    expect(muKeys).toContain('smoky_m0_turret_cyan_dir0');
+    expect(muKeys).toContain('smoky_m0_turret_purple_dir7');
+  });
+
   it('paths match the art/generated/manifest.generated.json keys', () => {
     // Verify the generated TS manifest matches what the processor produces.
     // Key sample checks:
@@ -137,6 +155,8 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.paths['builder_cyan']).toBe('assets/factions/cyan/units/builder_8x8_256.png');
     expect(GENERATED_ASSET_MANIFEST.paths['harvester_cyan']).toBe('assets/factions/cyan/units/harvester_8x8_256.png');
     expect(GENERATED_ASSET_MANIFEST.paths['harvester_purple']).toBe('assets/factions/purple/units/harvester_8x8_256.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['wasp_m0_hull_cyan_dir0']).toBe('assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir0_0.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['smoky_m0_turret_purple_dir7']).toBe('assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir7_0.png');
   });
 
   it('has no duplicate keys across families', () => {
@@ -144,6 +164,7 @@ describe('GENERATED_ASSET_MANIFEST', () => {
       ...GENERATED_ASSET_MANIFEST.families.hq.keys,
       ...GENERATED_ASSET_MANIFEST.families.buildings.keys,
       ...GENERATED_ASSET_MANIFEST.families.civilUnits.keys,
+      ...GENERATED_ASSET_MANIFEST.families.modularUnits.keys,
     ];
     const uniqueKeys = new Set(allKeys);
     expect(uniqueKeys.size).toBe(allKeys.length);
@@ -346,6 +367,54 @@ describe('loadGeneratedSpritesheetAssetFamilies', () => {
   });
 });
 
+// ─── ModularUnits image loader tests (ARCH-02H) ─────────────────────
+
+describe('loadGeneratedModularUnitAssets', () => {
+  async function importLoader() {
+    const mod = await import('../assets/runtimeGeneratedAssets');
+    return mod;
+  }
+
+  it('loads modularUnits image keys exactly once each', async () => {
+    const { loadGeneratedModularUnitAssets } = await importLoader();
+    const mock = createMockScene();
+
+    try {
+      const loadedKeys = loadGeneratedModularUnitAssets(mock.scene as any);
+
+      // 4 factions × 8 dirs × 2 parts = 64
+      expect(loadedKeys).toHaveLength(64);
+      expect(mock.loadImageCalls).toHaveLength(64);
+
+      // Each key should appear exactly once
+      const keyCounts = new Map<string, number>();
+      for (const call of mock.loadImageCalls) {
+        keyCounts.set(call.key, (keyCounts.get(call.key) ?? 0) + 1);
+      }
+      for (const [, count] of keyCounts) {
+        expect(count).toBe(1);
+      }
+    } finally {
+      mock.restore();
+    }
+  });
+
+  it('includes wasp_m0_hull_cyan_dir0 key (legacy compatibility)', async () => {
+    const { loadGeneratedModularUnitAssets } = await importLoader();
+    const mock = createMockScene();
+
+    try {
+      const loadedKeys = loadGeneratedModularUnitAssets(mock.scene as any);
+      expect(loadedKeys).toContain('wasp_m0_hull_cyan_dir0');
+      expect(loadedKeys).toContain('smoky_m0_turret_cyan_dir0');
+      expect(loadedKeys).toContain('wasp_m0_hull_purple_dir7');
+      expect(loadedKeys).toContain('smoky_m0_turret_purple_dir7');
+    } finally {
+      mock.restore();
+    }
+  });
+});
+
 // ─── PreloadScene uses generated loader ────────────────────────────
 // These tests verify source code contents via dynamic import of the TS source
 // as a raw string. Since vitest runs in Node, we use globalThis to access
@@ -364,6 +433,8 @@ describe('PreloadScene integration', () => {
     expect(typeof runtimeMod.loadGeneratedSpritesheetAssetFamilies).toBe('function');
     expect(runtimeMod.loadGeneratedCivilUnitAssets).toBeDefined();
     expect(typeof runtimeMod.loadGeneratedCivilUnitAssets).toBe('function');
+    expect(runtimeMod.loadGeneratedModularUnitAssets).toBeDefined();
+    expect(typeof runtimeMod.loadGeneratedModularUnitAssets).toBe('function');
   });
 
   it('PreloadScene uses generated loader instead of manual building loading', async () => {
@@ -411,6 +482,26 @@ describe('PreloadScene integration', () => {
       expect(loadedKeys).toContain('builder_cyan');
       expect(loadedKeys).toContain('builder_green');
       expect(loadedKeys).toContain('harvester_purple');
+    } finally {
+      mock.restore();
+    }
+  });
+
+  it('PreloadScene uses generated modularUnits loader for all modular images', async () => {
+    const { loadGeneratedModularUnitAssets } = await import('../assets/runtimeGeneratedAssets');
+    const mock = createMockScene();
+
+    try {
+      const loadedKeys = loadGeneratedModularUnitAssets(mock.scene as any);
+
+      // Must load all 64 modular unit images
+      expect(loadedKeys).toHaveLength(64);
+
+      // Must include sample keys matching legacy getWaspHullKey/getSmokyTurretKey
+      expect(loadedKeys).toContain('wasp_m0_hull_cyan_dir0');
+      expect(loadedKeys).toContain('smoky_m0_turret_cyan_dir0');
+      expect(loadedKeys).toContain('wasp_m0_hull_purple_dir7');
+      expect(loadedKeys).toContain('smoky_m0_turret_purple_dir7');
     } finally {
       mock.restore();
     }

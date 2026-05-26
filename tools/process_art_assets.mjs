@@ -5,10 +5,13 @@
  * ARCH-02D: MVP processor for the buildings family.
  * ARCH-02F: Also generates src/assets/generatedAssetManifest.ts for runtime.
  * ARCH-02G: Also processes civilUnits family (builder/harvester spritesheets).
+ * ARCH-02H: Also processes modularUnits family (wasp hull + smoky turret images).
  *
  * Scans current approved runtime assets under
  *   public/assets/factions/{cyan,green,yellow,purple}/buildings/
  *   public/assets/factions/{cyan,green,yellow,purple}/units/
+ *   public/assets/units/chassis/wasp_m0/{cyan,green,yellow,purple}/
+ *   public/assets/units/weapons/smoky_m0/{cyan,green,yellow,purple}/
  * and generates:
  *   - art/generated/manifest.generated.json
  *   - art/generated/audit-report.json
@@ -110,6 +113,15 @@ const CIVIL_UNIT_FRAME_CONFIG = {
   frameHeight: 256,
   endFrame: 63,
 };
+
+// ─── Modular unit constants (must match src/assets/modularUnitAssets.ts) ──
+
+const MODULAR_DIRECTIONS = [0, 1, 2, 3, 4, 5, 6, 7];
+
+const MODULAR_PARTS = [
+  { keyPrefix: 'wasp_m0_hull', pathDir: 'chassis/wasp_m0', filePrefix: 'wasp_m0_hull_idle' },
+  { keyPrefix: 'smoky_m0_turret', pathDir: 'weapons/smoky_m0', filePrefix: 'smoky_m0_turret_idle' },
+];
 
 // Deterministic timestamp for committed generated files.
 // Using the epoch ensures rerunning the processor with unchanged inputs
@@ -302,6 +314,152 @@ export function generateCivilUnitPath(faction, unitType) {
   const filename = CIVIL_UNIT_FILE_NAMES[unitType];
   if (!filename) throw new Error(`Unknown civil unit type: ${unitType}`);
   return `assets/factions/${faction}/units/${filename}`;
+}
+
+/**
+ * Process the modularUnits family and generate manifest + audit data.
+ *
+ * @param {object} options
+ * @param {string} options.publicDir - Absolute path to public/ directory
+ * @param {string[]} [options.factions] - Factions to process
+ * @param {number[]} [options.directions] - Directions to process (0-7)
+ * @param {Array<{keyPrefix: string, pathDir: string, filePrefix: string}>} [options.modularParts] - Parts to process
+ * @returns {{ manifest: object, auditReport: object }}
+ */
+export function processModularUnitsFamily(options) {
+  const {
+    publicDir,
+    factions = FACTIONS,
+    directions = MODULAR_DIRECTIONS,
+    modularParts = MODULAR_PARTS,
+  } = options;
+
+  const modularUnitKeys = [];
+  const paths = {};
+  const auditWarnings = [];
+  const auditErrors = [];
+  const missingSource = [];
+  const orphanFiles = [];
+
+  let totalAssets = 0;
+  let validAssets = 0;
+  let warningAssets = 0;
+  let errorAssets = 0;
+
+  // ── Process modular unit entries ─────────────────────────────────
+  for (const faction of factions) {
+    for (const part of modularParts) {
+      for (const dir of directions) {
+        const key = generateModularUnitKey(faction, part.keyPrefix, dir);
+        const relativePath = generateModularUnitPath(faction, part.pathDir, part.filePrefix, dir);
+        const absolutePath = join(publicDir, relativePath);
+
+        modularUnitKeys.push(key);
+        paths[key] = relativePath;
+        totalAssets++;
+
+        if (existsSync(absolutePath)) {
+          validAssets++;
+        } else {
+          auditErrors.push({
+            family: 'modularUnits',
+            key,
+            code: 'MISSING_FILE',
+            message: `Referenced file not found: ${relativePath}`,
+          });
+          missingSource.push(relativePath);
+          errorAssets++;
+        }
+      }
+    }
+  }
+
+  // ── Check for orphan files in modular dirs ──────────────────────
+  for (const part of modularParts) {
+    for (const faction of factions) {
+      const partDir = join(publicDir, 'assets', 'units', part.pathDir, faction);
+      if (!existsSync(partDir)) continue;
+
+      const filesOnDisk = readdirSync(partDir).filter(f => f.endsWith('.png'));
+
+      // Build set of expected filenames for this faction/part
+      const expectedFiles = new Set();
+      for (const dir of directions) {
+        expectedFiles.add(`${part.filePrefix}_dir${dir}_0.png`);
+      }
+
+      for (const file of filesOnDisk) {
+        if (!expectedFiles.has(file)) {
+          const relativePath = `assets/units/${part.pathDir}/${faction}/${file}`;
+          auditWarnings.push({
+            family: 'modularUnits',
+            key: `${faction}_${file.replace('.png', '')}`,
+            code: 'ORPHAN_FILE',
+            message: `File on disk not referenced by manifest: ${relativePath}`,
+          });
+          orphanFiles.push(relativePath);
+          warningAssets++;
+        }
+      }
+    }
+  }
+
+  // ── Build manifest ────────────────────────────────────────────────
+  const manifest = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    families: {
+      modularUnits: {
+        keys: modularUnitKeys,
+        loadType: 'image',
+        enabled: true,
+      },
+    },
+    paths,
+  };
+
+  // ── Build audit report ────────────────────────────────────────────
+  const auditReport = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    summary: {
+      totalAssets,
+      validAssets,
+      warningAssets,
+      errorAssets,
+    },
+    warnings: auditWarnings,
+    errors: auditErrors,
+    missingSource,
+    orphanFiles,
+  };
+
+  return { manifest, auditReport };
+}
+
+/**
+ * Generate a modular unit manifest key from faction, part prefix, and direction.
+ *
+ * @param {string} faction
+ * @param {string} keyPrefix - e.g. 'wasp_m0_hull', 'smoky_m0_turret'
+ * @param {number} dir - Direction index (0-7)
+ * @returns {string} Manifest key (e.g. 'wasp_m0_hull_cyan_dir0')
+ */
+export function generateModularUnitKey(faction, keyPrefix, dir) {
+  return `${keyPrefix}_${faction}_dir${dir}`;
+}
+
+/**
+ * Generate the runtime-relative path for a modular unit image.
+ *
+ * @param {string} faction
+ * @param {string} pathDir - e.g. 'chassis/wasp_m0', 'weapons/smoky_m0'
+ * @param {string} filePrefix - e.g. 'wasp_m0_hull_idle', 'smoky_m0_turret_idle'
+ * @param {number} dir - Direction index (0-7)
+ * @returns {string} Path relative to public/ (e.g. 'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir0_0.png')
+ */
+export function generateModularUnitPath(faction, pathDir, filePrefix, dir) {
+  return `assets/units/${pathDir}/${faction}/${filePrefix}_dir${dir}_0.png`;
 }
 
 /**
@@ -520,7 +678,7 @@ function printUsage() {
   console.error(`Usage: node tools/process_art_assets.mjs [options]
 
 Options:
-  --family <name>   Asset family to process: "buildings", "civilUnits", or "all" (default: "all")
+  --family <name>   Asset family to process: "buildings", "civilUnits", "modularUnits", or "all" (default: "all")
   --root <dir>      Project root directory (default: auto-detected)
   --json            Output machine-readable JSON instead of console report
   --dry-run         Process and validate but do not write output files
@@ -558,9 +716,9 @@ async function main() {
     }
   }
 
-  const VALID_FAMILIES = new Set(['buildings', 'civilUnits', 'all']);
+  const VALID_FAMILIES = new Set(['buildings', 'civilUnits', 'modularUnits', 'all']);
   if (!VALID_FAMILIES.has(family)) {
-    console.error(`Error: Unknown family "${family}". Valid: buildings, civilUnits, all`);
+    console.error(`Error: Unknown family "${family}". Valid: buildings, civilUnits, modularUnits, all`);
     process.exit(2);
   }
 
@@ -581,6 +739,7 @@ async function main() {
   // ── Process ───────────────────────────────────────────────────────
   const processBuildings = family === 'buildings' || family === 'all';
   const processCivilUnits = family === 'civilUnits' || family === 'all';
+  const processModularUnits = family === 'modularUnits' || family === 'all';
 
   // Collect results from each family
   let combinedManifest = {
@@ -619,6 +778,11 @@ async function main() {
 
   if (processCivilUnits) {
     const { manifest, auditReport } = processCivilUnitsFamily({ publicDir });
+    mergeResult(manifest, auditReport);
+  }
+
+  if (processModularUnits) {
+    const { manifest, auditReport } = processModularUnitsFamily({ publicDir });
     mergeResult(manifest, auditReport);
   }
 
@@ -692,6 +856,7 @@ async function main() {
     if (manifest.families.hq) console.log(`  HQ keys: ${manifest.families.hq.keys.length}`);
     if (manifest.families.buildings) console.log(`  Building keys: ${manifest.families.buildings.keys.length}`);
     if (manifest.families.civilUnits) console.log(`  Civil unit keys: ${manifest.families.civilUnits.keys.length}`);
+    if (manifest.families.modularUnits) console.log(`  Modular unit keys: ${manifest.families.modularUnits.keys.length}`);
     console.log(`  Total paths: ${Object.keys(manifest.paths).length}`);
     console.log();
 

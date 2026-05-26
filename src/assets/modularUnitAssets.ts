@@ -22,6 +22,13 @@ export function getSmokyTurretPath(faction: Faction, dir: ModularDirection): str
   return `assets/units/weapons/smoky_m0/${faction}/smoky_m0_turret_idle_dir${dir}_0.png`;
 }
 
+/**
+ * Load all modular unit assets (wasp hull + smoky turret for all factions).
+ *
+ * @deprecated Legacy loader. Use `loadGeneratedModularUnitAssets(scene)` from
+ * `runtimeGeneratedAssets.ts` instead. This function is kept for backwards
+ * compatibility but is no longer called by PreloadScene.
+ */
 export function loadModularUnitAssets(scene: Phaser.Scene): void {
   for (const faction of MODULAR_FACTIONS) {
     for (const dir of MODULAR_DIRECTIONS) {

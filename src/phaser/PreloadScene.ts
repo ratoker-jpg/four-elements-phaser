@@ -3,8 +3,7 @@ import {
   ASSET_KEYS,
   ASSET_PATHS,
 } from '../assets/assetManifest';
-import { loadModularUnitAssets } from '../assets/modularUnitAssets';
-import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets } from '../assets/runtimeGeneratedAssets';
+import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadGeneratedModularUnitAssets } from '../assets/runtimeGeneratedAssets';
 
 /**
  * PreloadScene — load all runtime-approved assets, then start GameScene.
@@ -46,8 +45,8 @@ export class PreloadScene extends Phaser.Scene {
       ASSET_PATHS[ASSET_KEYS.MINERAL_LARGE],
     );
 
-    // --- Modular combat images (separate 256x256 direction PNGs) ---
-    loadModularUnitAssets(this);
+    // --- Modular combat images (loaded from generated manifest) ---
+    loadGeneratedModularUnitAssets(this);
 
     // Loading progress
     this.load.on('progress', (value: number) => {

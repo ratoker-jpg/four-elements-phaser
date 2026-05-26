@@ -39,11 +39,12 @@ Output of the asset processor and validation tools:
 - `audit-report.json` — validation results, warnings, and errors
 - Family subdirectories with runtime-ready PNGs (future)
 
-**Runtime integration is active for hq + buildings + civilUnits families (ARCH-02F, ARCH-02G).**
+**Runtime integration is active for hq + buildings + civilUnits + modularUnits families (ARCH-02F, ARCH-02G, ARCH-02H).**
 The processor now also generates `src/assets/generatedAssetManifest.ts`, which
-is imported by PreloadScene via `loadGeneratedBuildingAndHqAssets()` and
-`loadGeneratedCivilUnitAssets()`. Other asset families (terrain, resources,
-modularUnits) still use their original loaders until later PRs.
+is imported by PreloadScene via `loadGeneratedBuildingAndHqAssets()`,
+`loadGeneratedCivilUnitAssets()`, and `loadGeneratedModularUnitAssets()`.
+Other asset families (terrain, resources) still use their original loaders
+until later PRs.
 
 ## Pipeline flow
 
@@ -65,29 +66,31 @@ Steps 2–4 are tooling-supported. Step 1 is always manual.
 
 | Script | Command | Purpose |
 |--------|---------|--------|
-| `tools/process_art_assets.mjs` | `npm run process:art-assets` | Generate manifest, audit report, and runtime TS manifest for buildings + civilUnits families |
+| `tools/process_art_assets.mjs` | `npm run process:art-assets` | Generate manifest, audit report, and runtime TS manifest for buildings + civilUnits + modularUnits families |
 | `tools/validate_manifest.mjs` | `npm run validate:asset-manifest` | Validate manifest JSON structure, keys, naming |
 | `tools/generate_building_meta.py` | `npm run generate:building-meta` | Building placement metadata generator |
 
 ### process:art-assets
 
 The building asset processor scans current approved runtime assets under
-`public/assets/factions/{cyan,green,yellow,purple}/buildings/` and
-`public/assets/factions/{cyan,green,yellow,purple}/units/` and produces:
+`public/assets/factions/{cyan,green,yellow,purple}/buildings/`,
+`public/assets/factions/{cyan,green,yellow,purple}/units/`,
+`public/assets/units/chassis/wasp_m0/{cyan,green,yellow,purple}/`, and
+`public/assets/units/weapons/smoky_m0/{cyan,green,yellow,purple}/` and produces:
 
-- `art/generated/manifest.generated.json` — manifest with hq + buildings + civilUnits families
+- `art/generated/manifest.generated.json` — manifest with hq + buildings + civilUnits + modularUnits families
 - `art/generated/audit-report.json` — validation results
 - `src/assets/generatedAssetManifest.ts` — committed TypeScript manifest for runtime
 
 Current behavior:
-- Processes buildings and civilUnits families by default (`--family all`).
+- Processes buildings, civilUnits, and modularUnits families by default (`--family all`).
 - **Always use `npm run process:art-assets` (default `--family all`)** to regenerate the full manifest. Running with a single family (e.g. `--family buildings`) overwrites the generated outputs with a partial manifest, which will break PreloadScene since it expects civilUnits to be present.
 - Scans runtime assets in `public/assets/` as input (not `art/staged/`).
 - No PNG copying or modification.
 - Runs the existing building metadata generator as a sub-step.
 - Generates a TypeScript runtime manifest consumed by PreloadScene.
-- Runtime currently loads hq + buildings + civilUnits from generated manifest.
-- Other families (terrain, resources, modularUnits) remain on existing loaders.
+- Runtime currently loads hq + buildings + civilUnits + modularUnits from generated manifest.
+- Other families (terrain, resources) remain on existing loaders.
 
 ## Sample viewer
 

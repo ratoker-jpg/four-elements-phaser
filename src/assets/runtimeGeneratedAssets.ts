@@ -6,6 +6,7 @@
  * and queue the correct Phaser loader calls.
  *
  * ARCH-02G: Added spritesheet family loading for civilUnits.
+ * ARCH-02H: Added modularUnits image family loading.
  *
  * Duplicate-key protection: each helper tracks loaded keys within a single
  * call to prevent loading the same texture key twice. This replaces the
@@ -168,4 +169,15 @@ export function loadGeneratedCivilUnitAssets(
   scene: Phaser.Scene,
 ): string[] {
   return loadGeneratedSpritesheetAssetFamilies(scene, ['civilUnits']);
+}
+
+/**
+ * Convenience: load modularUnits family from the generated manifest.
+ *
+ * This replaces the loadModularUnitAssets() call from modularUnitAssets.ts.
+ */
+export function loadGeneratedModularUnitAssets(
+  scene: Phaser.Scene,
+): string[] {
+  return loadGeneratedImageAssetFamilies(scene, ['modularUnits']);
 }
