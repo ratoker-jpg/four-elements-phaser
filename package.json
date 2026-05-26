@@ -17,12 +17,14 @@
     "process:art-assets": "node tools/process_art_assets.mjs",
     "test:process-art-assets": "node tools/test_process_art_assets.mjs",
     "test:art-sample-viewer": "node tools/test_art_sample_viewer.mjs",
-    "view:art-sample": "echo 'Open http://localhost:5173/task/art-sample/index.html after running npm run dev'"
+    "view:art-sample": "echo 'Open http://localhost:5173/task/art-sample/index.html after running npm run dev'",
+    "qa:smoke": "node tools/qa_smoke.mjs"
   },
   "dependencies": {
     "phaser": "4.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "typescript": "~5.7.0",
     "vite": "^6.3.0",
     "vitest": "^4.1.7"
