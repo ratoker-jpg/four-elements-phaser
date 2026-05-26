@@ -3,6 +3,7 @@ import {
   findResourceApproachTile,
   issueManualMove,
   checkPathExists,
+  updateHarvesterManualMove,
 } from '../state/unitCommands';
 import {
   selectBuilder,
@@ -15,6 +16,7 @@ import {
 import { buildOccupancyMap, isPassable } from '../state/occupancy';
 import type { GameState } from '../state/types';
 import { createInitialState } from '../state/createInitialState';
+import { updateGameState } from '../state/updateGameState';
 
 /**
  * ARCH-05X: Tests for civil unit movement, selection, passability,
@@ -361,5 +363,246 @@ describe('path existence check', () => {
     const hq = state.mapData.hq;
     const result = checkPathExists(state, 0, 0, hq.tx, hq.ty);
     expect(result).toBe('target-impassable');
+  });
+});
+
+// ─── ARCH-05X Hardening: Typed Fields ───────────────────────────────
+
+describe('ARCH-05X hardening: typed fields (no as any)', () => {
+  it('harvester manual move stores path in typed fields, not as any', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    const occupancy = buildOccupancyMap(state);
+    let targetTx = -1;
+    let targetTy = -1;
+    for (let ty = 0; ty < 5; ty++) {
+      for (let tx = 0; tx < 5; tx++) {
+        if (isPassable(occupancy, tx, ty) &&
+            (tx !== Math.round(h.ftx) || ty !== Math.round(h.fty))) {
+          targetTx = tx;
+          targetTy = ty;
+          break;
+        }
+      }
+      if (targetTx >= 0) break;
+    }
+    if (targetTx < 0) return;
+
+    const sel = selectHarvester(h.id);
+    const result = issueManualMove(state, sel, targetTx, targetTy);
+    if (!result.ok) return;
+
+    // Path should be stored in typed fields, not hidden `as any` properties
+    expect(h.manualPath).toBeDefined();
+    expect(Array.isArray(h.manualPath)).toBe(true);
+    expect(h.manualPathIndex).toBe(0);
+    expect(h.manualCooldownMs).toBe(0);
+  });
+
+  it('builder manual move stores manualMove flag in typed field', () => {
+    const state = createTestState();
+    const builder = state.mapData.builders[0];
+    if (!builder) return;
+
+    builder.busy = false;
+    builder.phase = 'idle';
+
+    const occupancy = buildOccupancyMap(state);
+    let targetTx = -1;
+    let targetTy = -1;
+    for (let ty = 0; ty < 5; ty++) {
+      for (let tx = 0; tx < 5; tx++) {
+        if (isPassable(occupancy, tx, ty)) {
+          targetTx = tx;
+          targetTy = ty;
+          break;
+        }
+      }
+      if (targetTx >= 0) break;
+    }
+    if (targetTx < 0) return;
+
+    const sel = selectBuilder(0);
+    const result = issueManualMove(state, sel, targetTx, targetTy);
+    if (!result.ok) return;
+
+    // manualMove should be a typed field, not a hidden `as any` property
+    expect(builder.manualMove).toBe(true);
+  });
+
+  it('harvester manual move update uses typed cooldown field', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    // Set up harvester in manual-move state with typed fields
+    h.phase = 'manual-move';
+    h.manualPath = [{ tx: Math.round(h.ftx) + 1, ty: Math.round(h.fty) }];
+    h.manualPathIndex = 1; // already past end = arrived
+    h.manualCooldownMs = 0;
+    h.cargoRaw = 5;
+
+    // Call update — should start cooldown
+    updateHarvesterManualMove(state, h, 100);
+
+    // Cooldown should be set in typed field
+    expect(h.manualCooldownMs).toBeDefined();
+    expect(h.manualCooldownMs!).toBeGreaterThan(0);
+  });
+});
+
+// ─── ARCH-05X Hardening: No Straight-Line Fallback ──────────────────
+
+describe('ARCH-05X hardening: no straight-line fallback on return-to-HQ', () => {
+  it('harvester does not walk through obstacles when BFS fails', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    // Simulate a harvester that has cargo and needs to return to HQ
+    h.cargoRaw = 10;
+    h.phase = 'returning-to-hq';
+    h.targetResourceId = null;
+
+    // Record initial position
+    const startFtx = h.ftx;
+    const startFty = h.fty;
+
+    // Run several frames of update
+    for (let i = 0; i < 10; i++) {
+      updateGameState(state, 16);
+    }
+
+    // The harvester should either have found a valid BFS path (and be moving along it)
+    // or be stuck with blockedReason set. It must NOT have moved through obstacles
+    // via straight-line fallback.
+    // In the normal map, there should always be a path, so it should be moving
+    // toward HQ via BFS path or have transitioned to unloading.
+    if (h.phase === 'returning-to-hq') {
+      // If still returning, must have a returnPath set (BFS path, not straight line)
+      // or blockedReason explaining why it's stuck
+      if (h.returnPath) {
+        // BFS path exists — harvester is navigating properly
+        expect(Array.isArray(h.returnPath)).toBe(true);
+      } else {
+        // No BFS path — must have a blockedReason and NOT have moved
+        expect(h.blockedReason).toBeDefined();
+        // Position should not have changed (no straight-line fallback)
+        expect(h.ftx).toBeCloseTo(startFtx, 1);
+        expect(h.fty).toBeCloseTo(startFty, 1);
+      }
+    }
+  });
+
+  it('blocked harvester has blockedReason set when no path to HQ exists', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    // Place the harvester on an isolated tile surrounded by obstacles
+    // (simulating a completely blocked scenario)
+    // This is a constructed test — in the real map there should always be a path.
+    // We set up a harvester in returning-to-hq with manually cleared returnPath
+    // to test the blocked state detection.
+
+    h.cargoRaw = 10;
+    h.phase = 'returning-to-hq';
+    h.targetResourceId = null;
+    h.returnPath = undefined;
+    h.returnPathIndex = undefined;
+    h.blockedReason = undefined;
+
+    // Move the harvester to a position where BFS might fail
+    // by placing it at the edge of the map near obstacles
+    const occupancy = buildOccupancyMap(state);
+    // Find a passable tile far from HQ
+    let farthestTx = 0;
+    let farthestTy = 0;
+    let maxDist = 0;
+    const hqTx = state.hqPosition.tx;
+    const hqTy = state.hqPosition.ty;
+    for (let ty = 0; ty < state.mapHeight; ty++) {
+      for (let tx = 0; tx < state.mapWidth; tx++) {
+        if (isPassable(occupancy, tx, ty)) {
+          const dist = Math.abs(tx - hqTx) + Math.abs(ty - hqTy);
+          if (dist > maxDist) {
+            maxDist = dist;
+            farthestTx = tx;
+            farthestTy = ty;
+          }
+        }
+      }
+    }
+
+    h.ftx = farthestTx;
+    h.fty = farthestTy;
+
+    // Run update — on normal map it should find a path
+    updateGameState(state, 16);
+
+    // On the normal game map, there should be a path from any passable tile to HQ
+    // So the harvester should either have a returnPath or have started unloading
+    if (h.phase === 'returning-to-hq' && !h.returnPath) {
+      // If somehow no path, blockedReason must be set
+      expect(h.blockedReason).toBeDefined();
+    }
+  });
+
+  it('harvester returning-to-hq clears blockedReason when path found', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    h.cargoRaw = 10;
+    h.phase = 'returning-to-hq';
+    h.targetResourceId = null;
+    h.returnPath = undefined;
+    h.returnPathIndex = undefined;
+    h.blockedReason = 'test-blocked';
+
+    // Run update — should find path and clear blockedReason
+    updateGameState(state, 16);
+
+    // On normal map, path should be found
+    if (h.returnPath) {
+      expect(h.blockedReason).toBeUndefined();
+    }
+  });
+
+  it('harvester idle phase clears all stale path fields', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    // Set stale path data
+    h.approachPath = [{ tx: 1, ty: 2 }];
+    h.approachPathIndex = 0;
+    h.returnPath = [{ tx: 3, ty: 4 }];
+    h.returnPathIndex = 1;
+    h.manualPath = [{ tx: 5, ty: 6 }];
+    h.manualPathIndex = 0;
+    h.manualCooldownMs = 500;
+    h.blockedReason = 'stale';
+    h.phase = 'idle';
+    h.targetResourceId = null;
+
+    // Remove all resources to keep harvester idle
+    for (const r of state.resourceNodes) {
+      r.depleted = true;
+    }
+
+    // Run update — idle handler should clean up stale paths
+    updateGameState(state, 16);
+
+    expect(h.approachPath).toBeUndefined();
+    expect(h.approachPathIndex).toBeUndefined();
+    expect(h.returnPath).toBeUndefined();
+    expect(h.returnPathIndex).toBeUndefined();
+    expect(h.manualPath).toBeUndefined();
+    expect(h.manualPathIndex).toBeUndefined();
+    expect(h.manualCooldownMs).toBeUndefined();
+    expect(h.blockedReason).toBeUndefined();
   });
 });

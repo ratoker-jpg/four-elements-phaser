@@ -102,10 +102,16 @@ function issueHarvesterManualMove(
   // Override harvester into manual move mode
   h.phase = 'manual-move';
   h.targetResourceId = null; // clear auto target
-  // Store path in the harvester's extra fields (we add these to HarvesterState)
-  (h as any)._manualPath = path;
-  (h as any)._manualPathIndex = 0;
-  (h as any)._manualCooldown = 0;
+  // Store path in typed fields on HarvesterState
+  h.manualPath = path;
+  h.manualPathIndex = 0;
+  h.manualCooldownMs = 0;
+  h.blockedReason = undefined;
+  // Clear any stale approach/return paths from previous auto-gather
+  h.approachPath = undefined;
+  h.approachPathIndex = undefined;
+  h.returnPath = undefined;
+  h.returnPathIndex = undefined;
 
   return { ok: true };
 }
@@ -142,7 +148,7 @@ function issueBuilderManualMove(
   builder.targetTx = targetTx;
   builder.targetTy = targetTy;
   // Mark as manual move so we know to return to idle, not building
-  (builder as any)._manualMove = true;
+  builder.manualMove = true;
 
   return { ok: true };
 }
@@ -265,25 +271,26 @@ export function updateHarvesterManualMove(
   h: HarvesterState,
   dt: number,
 ): string | null {
-  const manualPath: Array<{ tx: number; ty: number }> | undefined = (h as any)._manualPath;
-  const manualPathIndex: number = (h as any)._manualPathIndex ?? 0;
+  const manualPath = h.manualPath;
+  const manualPathIndex = h.manualPathIndex ?? 0;
 
   // Cooldown phase — waiting before returning to auto-gather
-  if ((h as any)._manualCooldown > 0) {
-    (h as any)._manualCooldown -= dt;
-    if ((h as any)._manualCooldown <= 0) {
+  if ((h.manualCooldownMs ?? 0) > 0) {
+    h.manualCooldownMs = (h.manualCooldownMs ?? 0) - dt;
+    if ((h.manualCooldownMs ?? 0) <= 0) {
       // Return to idle — auto-gather will resume
       h.phase = 'idle';
-      delete (h as any)._manualPath;
-      delete (h as any)._manualPathIndex;
-      delete (h as any)._manualCooldown;
+      h.manualPath = undefined;
+      h.manualPathIndex = undefined;
+      h.manualCooldownMs = undefined;
+      h.blockedReason = undefined;
     }
     return null;
   }
 
   if (!manualPath || manualPathIndex >= manualPath.length) {
     // Arrived — start cooldown
-    (h as any)._manualCooldown = MANUAL_COOLDOWN_MS;
+    h.manualCooldownMs = MANUAL_COOLDOWN_MS;
     return null;
   }
 
@@ -294,11 +301,11 @@ export function updateHarvesterManualMove(
   if (arrived) {
     h.ftx = waypoint.tx;
     h.fty = waypoint.ty;
-    (h as any)._manualPathIndex = manualPathIndex + 1;
+    h.manualPathIndex = manualPathIndex + 1;
 
-    if ((h as any)._manualPathIndex >= manualPath.length) {
+    if (h.manualPathIndex >= manualPath.length) {
       // Reached final waypoint — start cooldown
-      (h as any)._manualCooldown = MANUAL_COOLDOWN_MS;
+      h.manualCooldownMs = MANUAL_COOLDOWN_MS;
     }
   }
 

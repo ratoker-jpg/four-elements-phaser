@@ -106,6 +106,18 @@ function updateHarvester(
 // ── idle ──────────────────────────────────────────────────────────
 
 function handleIdle(state: GameState, h: HarvesterState): void {
+  // Clean up any stale path data from previous phases
+  if (h.approachPath || h.returnPath || h.manualPath) {
+    h.approachPath = undefined;
+    h.approachPathIndex = undefined;
+    h.returnPath = undefined;
+    h.returnPathIndex = undefined;
+    h.manualPath = undefined;
+    h.manualPathIndex = undefined;
+    h.manualCooldownMs = undefined;
+    h.blockedReason = undefined;
+  }
+
   const target = findNearestAvailableResource(state, h);
   if (!target) return; // nothing to gather
 
@@ -136,14 +148,14 @@ function handleMovingToResource(
     // Target lost — go idle and re-evaluate
     h.targetResourceId = null;
     h.phase = 'idle';
-    delete (h as any)._approachPath;
-    delete (h as any)._approachPathIndex;
+    h.approachPath = undefined;
+    h.approachPathIndex = undefined;
+    h.blockedReason = undefined;
     return;
   }
 
   // On first entry, compute approach path
-  const approachPath: Array<{ tx: number; ty: number }> | undefined = (h as any)._approachPath;
-  if (!approachPath) {
+  if (!h.approachPath) {
     const approachResult = findResourceApproachTile(
       state, h.ftx, h.fty, target.tx, target.ty, target.footprint,
     );
@@ -152,6 +164,7 @@ function handleMovingToResource(
       // No approach tile — skip this resource
       h.targetResourceId = null;
       h.phase = 'idle';
+      h.blockedReason = undefined;
       return;
     }
 
@@ -165,6 +178,9 @@ function handleMovingToResource(
       h.fty = approachResult.approachTy;
       h.gatherTimer = GATHER_DURATION_MS;
       h.phase = 'gathering';
+      h.approachPath = undefined;
+      h.approachPathIndex = undefined;
+      h.blockedReason = undefined;
       return;
     }
 
@@ -173,25 +189,26 @@ function handleMovingToResource(
       // No path to approach tile — skip this resource
       h.targetResourceId = null;
       h.phase = 'idle';
+      h.blockedReason = 'no-approach-path';
       return;
     }
 
-    (h as any)._approachPath = path;
-    (h as any)._approachPathIndex = 0;
-    // Re-read the path from the harvester for the fall-through movement logic
-    // (the local `approachPath` was undefined when we entered this block)
+    h.approachPath = path;
+    h.approachPathIndex = 0;
+    h.blockedReason = undefined;
     return; // movement will start on next frame tick
   }
 
   // Follow approach path
-  const currentPath: Array<{ tx: number; ty: number }> = (h as any)._approachPath;
-  const pathIndex: number = (h as any)._approachPathIndex ?? 0;
+  const currentPath = h.approachPath;
+  const pathIndex = h.approachPathIndex ?? 0;
   if (pathIndex >= currentPath.length) {
     // Arrived at approach tile
     h.gatherTimer = GATHER_DURATION_MS;
     h.phase = 'gathering';
-    delete (h as any)._approachPath;
-    delete (h as any)._approachPathIndex;
+    h.approachPath = undefined;
+    h.approachPathIndex = undefined;
+    h.blockedReason = undefined;
     return;
   }
 
@@ -201,14 +218,15 @@ function handleMovingToResource(
   if (arrived) {
     h.ftx = waypoint.tx;
     h.fty = waypoint.ty;
-    (h as any)._approachPathIndex = pathIndex + 1;
+    h.approachPathIndex = pathIndex + 1;
 
-    if ((h as any)._approachPathIndex >= currentPath.length) {
+    if (h.approachPathIndex >= currentPath.length) {
       // Arrived at approach tile — start gathering
       h.gatherTimer = GATHER_DURATION_MS;
       h.phase = 'gathering';
-      delete (h as any)._approachPath;
-      delete (h as any)._approachPathIndex;
+      h.approachPath = undefined;
+      h.approachPathIndex = undefined;
+      h.blockedReason = undefined;
     }
   }
 }
@@ -254,8 +272,13 @@ function handleGathering(
 // ── returning-to-hq ───────────────────────────────────────────────
 
 /**
- * ARCH-05X: Harvester now uses BFS pathfinding back to HQ instead of
- * straight-line movement, so it navigates around buildings.
+ * ARCH-05X hardened: Harvester uses BFS pathfinding back to HQ.
+ *
+ * If BFS fails (no path to HQ), the harvester enters a blocked state
+ * instead of falling back to straight-line movement through obstacles.
+ * The blocked reason is stored in h.blockedReason for debug telemetry.
+ * The harvester stays in 'returning-to-hq' phase and retries each tick
+ * in case the map changes (e.g. a building is destroyed in the future).
  */
 function handleReturningToHQ(
   state: GameState,
@@ -263,8 +286,7 @@ function handleReturningToHQ(
   dt: number,
 ): void {
   // On first entry, compute return path
-  const returnPath: Array<{ tx: number; ty: number }> | undefined = (h as any)._returnPath;
-  if (!returnPath) {
+  if (!h.returnPath) {
     const hqTx = state.hqPosition.tx;
     const hqTy = state.hqPosition.ty;
     const startTx = Math.round(h.ftx);
@@ -274,27 +296,27 @@ function handleReturningToHQ(
     // Path to a tile adjacent to HQ (HQ is 3x3 impassable)
     const path = findPathToAdjacent(occupancy, startTx, startTy, hqTx - 1, hqTy - 1, 3, 3);
     if (!path) {
-      // Fallback: try direct path to HQ center (legacy behavior)
+      // No path to adjacent — try direct path to a tile near HQ as fallback
+      // (but NOT straight-line movement through obstacles)
       const directPath = findPath(occupancy, startTx, startTy, hqTx, hqTy);
       if (!directPath) {
-        // No path at all — try straight line (old behavior)
-        const arrived = moveToward(h, hqTx, hqTy, dt);
-        if (arrived) {
-          h.ftx = hqTx;
-          h.fty = hqTy;
-          h.unloadTimer = UNLOAD_DURATION_MS;
-          h.phase = 'unloading';
-        }
+        // Truly no route — harvester is blocked. Stay safe, don't walk through obstacles.
+        h.blockedReason = 'no-path-to-hq';
+        // Remain in returning-to-hq phase; will retry path computation next tick
         return;
       }
       if (directPath.length === 0) {
-        // Already there
+        // Already at HQ center
         h.unloadTimer = UNLOAD_DURATION_MS;
         h.phase = 'unloading';
+        h.returnPath = undefined;
+        h.returnPathIndex = undefined;
+        h.blockedReason = undefined;
         return;
       }
-      (h as any)._returnPath = directPath;
-      (h as any)._returnPathIndex = 0;
+      h.returnPath = directPath;
+      h.returnPathIndex = 0;
+      h.blockedReason = undefined;
       return;
     }
 
@@ -302,38 +324,44 @@ function handleReturningToHQ(
       // Already adjacent to HQ
       h.unloadTimer = UNLOAD_DURATION_MS;
       h.phase = 'unloading';
+      h.returnPath = undefined;
+      h.returnPathIndex = undefined;
+      h.blockedReason = undefined;
       return;
     }
 
-    (h as any)._returnPath = path;
-    (h as any)._returnPathIndex = 0;
+    h.returnPath = path;
+    h.returnPathIndex = 0;
+    h.blockedReason = undefined;
     return;
   }
 
   // Follow return path
-  const pathIndex: number = (h as any)._returnPathIndex ?? 0;
-  if (pathIndex >= returnPath.length) {
+  const pathIndex = h.returnPathIndex ?? 0;
+  if (pathIndex >= h.returnPath.length) {
     // Arrived at HQ
     h.unloadTimer = UNLOAD_DURATION_MS;
     h.phase = 'unloading';
-    delete (h as any)._returnPath;
-    delete (h as any)._returnPathIndex;
+    h.returnPath = undefined;
+    h.returnPathIndex = undefined;
+    h.blockedReason = undefined;
     return;
   }
 
-  const waypoint = returnPath[pathIndex];
+  const waypoint = h.returnPath[pathIndex];
   const arrived = moveToward(h, waypoint.tx, waypoint.ty, dt);
 
   if (arrived) {
     h.ftx = waypoint.tx;
     h.fty = waypoint.ty;
-    (h as any)._returnPathIndex = pathIndex + 1;
+    h.returnPathIndex = pathIndex + 1;
 
-    if ((h as any)._returnPathIndex >= returnPath.length) {
+    if (h.returnPathIndex >= h.returnPath.length) {
       h.unloadTimer = UNLOAD_DURATION_MS;
       h.phase = 'unloading';
-      delete (h as any)._returnPath;
-      delete (h as any)._returnPathIndex;
+      h.returnPath = undefined;
+      h.returnPathIndex = undefined;
+      h.blockedReason = undefined;
     }
   }
 }

@@ -188,14 +188,14 @@ function handleMovingToSite(
   dt: number,
 ): void {
   // Manual move — check if arrived
-  const isManual = (builder as any)._manualMove === true;
+  const isManual = builder.manualMove === true;
 
   if (isManual) {
     // Verify the target still makes sense
     if (builder.path.length === 0 || builder.pathIndex >= builder.path.length) {
       // Arrived at manual move target
       builder.phase = 'idle';
-      delete (builder as any)._manualMove;
+      builder.manualMove = undefined;
       builder.path = [];
       builder.pathIndex = 0;
       return;
@@ -213,7 +213,7 @@ function handleMovingToSite(
   if (builder.path.length === 0 || builder.pathIndex >= builder.path.length) {
     if (isManual) {
       builder.phase = 'idle';
-      delete (builder as any)._manualMove;
+      builder.manualMove = undefined;
     } else {
       const site = findSiteById(state, builder.assignedSiteId);
       if (site) {
@@ -242,7 +242,7 @@ function handleMovingToSite(
     if (builder.pathIndex >= builder.path.length) {
       if (isManual) {
         builder.phase = 'idle';
-        delete (builder as any)._manualMove;
+        builder.manualMove = undefined;
       } else {
         const site = findSiteById(state, builder.assignedSiteId);
         if (site) {
