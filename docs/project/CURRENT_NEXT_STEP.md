@@ -2,41 +2,47 @@
 
 Status: operational checkpoint  
 Project: Four Elements Phaser  
-Date: 2026-05-25
+Date: 2026-05-26
 
 ---
 
 ## Why this file exists
 
-This short checkpoint prevents confusion between the high-level roadmap order and the temporary BUILD-ANCHOR workstream that was completed under ARCH-03.
+This short checkpoint prevents confusion between the high-level roadmap order and the current operational workstream.
 
 Use `PROJECT_STATE.md` as the primary operational source of truth.
 
 ---
 
-## Completed temporary workstream
+## Recently completed workstream
 
-The ARCH-03 building placement baseline has been completed enough to stop and return to the roadmap order.
+ARCH-01 Economy baseline is complete enough to stop and move to the next roadmap workstream.
 
 Completed PRs:
 
 ```text
-PR #29 — DOC-01: Building placement strategy
-PR #30 — BUILD-ANCHOR-01: BuildingPlacementMeta data model
-PR #32 — BUILD-ANCHOR-02: Offline alpha-bounds generator
-PR #33 — BUILD-ANCHOR-03: Render completed buildings with placement metadata
+PR #36 — ARCH-01B: EconomyState + matter-based construction baseline
+PR #37 — ARCH-01C: Separator processing cycle
+PR #39 — ARCH-01D: Storage caps + cap-safe economy processing
+PR #40 — ARCH-01E: Power baseline + separator power gating
+PR #41 — ARCH-01F: Units-factory production baseline
 ```
 
-Current implemented placement model:
+Implemented economy baseline:
 
 ```text
-offline alpha-bounds metadata
-alpha-bottom ground line
-south-vertex footprint anchoring
-generic renderer formula
-footprint-based target display width
-fallback diamond only for missing metadata/texture
+raw gathering
+matter/elements economy
+separator conversion cycle
+storage caps
+power generation and active consumption
+power-plant config
+units-factory production queue
+builder/harvester matter + element costs
+builder/harvester production and spawn
 ```
+
+Remaining production UI, save/load integration, balancing, and combat-unit production are not random follow-ups. They require accepted roadmap scope.
 
 ---
 
@@ -47,10 +53,10 @@ Return to the accepted roadmap order.
 Next workstream:
 
 ```text
-ARCH-01 — Economy baseline
+ARCH-02 — Art / sprite pipeline
 ```
 
-Do not start BUILD-ANCHOR-04, renderer polish, combat, enemy AI, or random feature work unless a new roadmap/design decision explicitly changes the plan.
+Do not start ARCH-01 spillover, combat, enemy AI, or random feature work unless a new roadmap/design decision explicitly changes the plan.
 
 ---
 
@@ -59,8 +65,9 @@ Do not start BUILD-ANCHOR-04, renderer polish, combat, enemy AI, or random featu
 Before creating the next GLM task:
 
 1. Read the required project docs.
-2. Inspect current economy/state files.
-3. Decide whether ARCH-01 needs a scoped audit/design first or can start with a small implementation PR.
-4. Prepare a compact GLM prompt following `GLM_EXECUTOR_RULES.md`.
+2. Inspect current asset folders, preload/runtime asset loading, building metadata, and render paths.
+3. Use `ROADMAP_SYSTEM_AUDIT.md` as the accepted large audit/design source if it already covers ARCH-02.
+4. Decide whether ARCH-02 needs a short current-code delta-check or can start with a scoped design PR.
+5. Prepare a compact GLM prompt following `GLM_EXECUTOR_RULES.md` and `ARCH_SCOPING_POLICY.md`.
 
 Do not work from memory.
