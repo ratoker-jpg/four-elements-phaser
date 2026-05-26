@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "preview": "vite preview",
     "generate:building-meta": "node tools/generate_building_meta.mjs",
-    "test:generator": "python3 tools/test_generate_building_meta.py -v"
+    "test:generator": "python3 tools/test_generate_building_meta.py -v",
+    "validate:asset-manifest": "node tools/validate_manifest.mjs art/generated/manifest.sample.json",
+    "test:asset-manifest": "node tools/test_validate_manifest.mjs"
   },
   "dependencies": {
     "phaser": "4.1.0"

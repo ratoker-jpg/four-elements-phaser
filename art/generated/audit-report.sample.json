@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-26T12:00:00Z",
+  "summary": {
+    "totalAssets": 15,
+    "validAssets": 13,
+    "warningAssets": 1,
+    "errorAssets": 1
+  },
+  "warnings": [
+    {
+      "family": "buildings",
+      "key": "building_cyan_power_plant",
+      "code": "UNUSUAL_ASPECT_RATIO",
+      "message": "Aspect ratio 1.48 exceeds typical building range (0.7-1.2)"
+    }
+  ],
+  "errors": [
+    {
+      "family": "terrain",
+      "key": "terrain_sand_grass",
+      "code": "MISSING_FILE",
+      "message": "Referenced file not found: assets/tiles/sand_grass.png"
+    }
+  ],
+  "missingSource": [],
+  "orphanFiles": []
+}
