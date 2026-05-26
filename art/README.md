@@ -88,12 +88,14 @@ A standalone HTML viewer for visually inspecting generated assets is located at
 `task/art-sample/index.html`. It reads the manifest and audit report and displays
 asset previews grouped by family and faction.
 
-Requires a local dev/static server (browsers block `fetch()` under `file://`):
+Accessible online via GitHub Pages after deployment, or locally with a dev server:
 
 ```bash
 npm run dev
 # Then open http://localhost:5173/task/art-sample/index.html
 ```
+
+Online: `https://ratoker-jpg.github.io/four-elements-phaser/task/art-sample/index.html`
 
 See `task/art-sample/README.md` for full usage instructions.
 

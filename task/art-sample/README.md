@@ -27,9 +27,9 @@ This produces:
 
 ## How to open the viewer
 
-The viewer uses `fetch()` to load JSON files, which most browsers block under `file://`. Open it through a local dev/static server.
+The viewer uses `fetch()` to load JSON files, which most browsers block under `file://`. Open it through a local dev/static server or use the GitHub Pages deployment.
 
-### Option 1: Vite dev server
+### Option 1: Vite dev server (local)
 
 ```bash
 npm run dev
@@ -37,7 +37,7 @@ npm run dev
 
 Then navigate to: `http://localhost:5173/task/art-sample/index.html`
 
-### Option 2: Static server from repo root
+### Option 2: Static server from repo root (local)
 
 ```bash
 npx serve .
@@ -45,11 +45,20 @@ npx serve .
 
 Then navigate to: `http://localhost:3000/task/art-sample/index.html`
 
+### Option 3: GitHub Pages (online)
+
+After the PR is deployed, the viewer is available at:
+
+- **PR preview**: `https://ratoker-jpg.github.io/four-elements-phaser/pr-preview/pr-47/task/art-sample/index.html`
+- **Main branch** (after merge): `https://ratoker-jpg.github.io/four-elements-phaser/task/art-sample/index.html`
+
+The GitHub Pages workflow automatically copies the viewer HTML and generated JSON files into the Vite dist output.
+
 The viewer will display a clear error message with instructions if JSON loading is blocked.
 
 ## Image paths
 
-Manifest paths are relative to `public/`. The viewer resolves images using the relative path `../../public/<manifest path>` from its own location. No PNGs are copied or modified.
+Manifest paths are relative to `public/` (e.g. `assets/factions/cyan/buildings/separator.png`). The viewer resolves images using the relative path `../../<manifest path>` from its own location. This works because Vite and GitHub Pages serve the contents of `public/` at the site root. No PNGs are copied or modified.
 
 ## No runtime integration yet
 

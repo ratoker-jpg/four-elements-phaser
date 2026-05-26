@@ -131,11 +131,16 @@ test('viewer uses ../../art/generated for JSON paths', () => {
   );
 });
 
-test('viewer uses ../../public for image paths', () => {
+test('viewer uses ../../ for image paths (works on GitHub Pages and Vite)', () => {
   const html = getViewerHtml();
   assert.ok(
-    html.includes('../../public/'),
-    'Viewer should use relative path ../../public/ to resolve image src',
+    html.includes('PUBLIC_PREFIX') && html.includes("'../../'"),
+    'Viewer should use ../../ as PUBLIC_PREFIX to resolve image src (served from site root on Pages/Vite)',
+  );
+  // Also verify no hard-coded public/ in the prefix
+  assert.ok(
+    !html.includes("'../../public/'"),
+    'Viewer should not use ../../public/ prefix (Vite/Pages serve public/ contents at root)',
   );
 });
 
