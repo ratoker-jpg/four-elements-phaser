@@ -6,7 +6,8 @@
  */
 
 export const ASSET_KEYS = {
-  // Terrain (3 legacy tiles — the active render path in the donor game)
+  // Terrain (3 legacy tiles — now loaded from generated manifest via loadGeneratedTerrainAndResourceAssets)
+  // @deprecated Use GENERATED_ASSET_MANIFEST.families.terrain.keys instead
   TERRAIN_SAND: 'terrain_sand',
   TERRAIN_SAND_DARK: 'terrain_sand_dark',
   TERRAIN_SAND_LIGHT: 'terrain_sand_light',
@@ -17,7 +18,8 @@ export const ASSET_KEYS = {
   // Units
   HARVESTER_CYAN: 'harvester_cyan',
 
-  // Resources
+  // Resources (3 minerals — now loaded from generated manifest via loadGeneratedTerrainAndResourceAssets)
+  // @deprecated Use GENERATED_ASSET_MANIFEST.families.resources.keys instead
   MINERAL_SMALL: 'mineral_small',
   MINERAL_MEDIUM: 'mineral_medium',
   MINERAL_LARGE: 'mineral_large',
@@ -28,8 +30,12 @@ export type AssetKey = (typeof ASSET_KEYS)[keyof typeof ASSET_KEYS];
 /**
  * Path map for Phaser loader.
  * Keys are the same as ASSET_KEYS values; paths are relative to /public.
+ *
+ * Terrain and resource paths are now provided by the generated manifest.
+ * These entries remain for compatibility until a later cleanup.
  */
 export const ASSET_PATHS: Record<AssetKey, string> = {
+  // @deprecated Terrain paths — now in GENERATED_ASSET_MANIFEST.paths
   [ASSET_KEYS.TERRAIN_SAND]: 'assets/tiles/sand_tile.png',
   [ASSET_KEYS.TERRAIN_SAND_DARK]: 'assets/tiles/sand_tile_dark.png',
   [ASSET_KEYS.TERRAIN_SAND_LIGHT]: 'assets/tiles/sand_tile_light.png',
@@ -39,6 +45,7 @@ export const ASSET_PATHS: Record<AssetKey, string> = {
   [ASSET_KEYS.HARVESTER_CYAN]:
     'assets/factions/cyan/units/harvester_8x8_256.png',
 
+  // @deprecated Resource paths — now in GENERATED_ASSET_MANIFEST.paths
   [ASSET_KEYS.MINERAL_SMALL]: 'assets/environment/mineral_small_02.png',
   [ASSET_KEYS.MINERAL_MEDIUM]: 'assets/environment/mineral_medium_02.png',
   [ASSET_KEYS.MINERAL_LARGE]: 'assets/environment/mineral_large_02.png',

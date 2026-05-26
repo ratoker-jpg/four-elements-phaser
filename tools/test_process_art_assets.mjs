@@ -25,6 +25,8 @@ import {
   processModularUnitsFamily,
   generateModularUnitKey,
   generateModularUnitPath,
+  processTerrainFamily,
+  processResourcesFamily,
   generateRuntimeManifestTS,
 } from './process_art_assets.mjs';
 import { validateManifest } from './validate_manifest.mjs';
@@ -1126,7 +1128,7 @@ test('combined default output includes all families', () => {
 
     // Total keys: 4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits = 100
     const totalKeys = Object.keys(merged.paths).length;
-    assert.strictEqual(totalKeys, 100, `Expected 100 total paths, got ${totalKeys}`);
+    assert.strictEqual(totalKeys, 100, `Expected 100 total paths (without terrain/resources), got ${totalKeys}`);
 
     // Validate the merged manifest
     const { errors } = validateManifest(merged, { root: publicDir });
@@ -1169,6 +1171,444 @@ test('generateRuntimeManifestTS for combined output includes all families', () =
     // Must have modular unit keys in paths
     assert.ok(ts.includes("'wasp_m0_hull_cyan_dir0':"), 'TS must have hull path');
     assert.ok(ts.includes("'smoky_m0_turret_cyan_dir0':"), 'TS must have turret path');
+  } finally {
+    cleanup();
+  }
+});
+
+// ── Terrain family tests (ARCH-02I) ──────────────────────────────────
+
+/** Create a temp directory with terrain fixtures for testing. */
+function createTerrainFixtures() {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  const publicDir = join(root, 'public');
+
+  const tilesDir = join(publicDir, 'assets', 'tiles');
+  mkdirSync(tilesDir, { recursive: true });
+  writeFileSync(join(tilesDir, 'sand_tile.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'sand_tile_dark.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'sand_tile_light.png'), 'fake-png');
+
+  return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+test('terrain manifest generation produces correct shape with all fixtures', () => {
+  const { publicDir, cleanup } = createTerrainFixtures();
+  try {
+    const { manifest, auditReport } = processTerrainFamily({ publicDir });
+
+    assert.strictEqual(manifest.version, 1);
+    assert.strictEqual(manifest.generatedAt, '1970-01-01T00:00:00.000Z');
+    assert.ok(manifest.families.terrain);
+    assert.strictEqual(manifest.families.terrain.loadType, 'image');
+    assert.strictEqual(manifest.families.terrain.enabled, true);
+    assert.strictEqual(manifest.families.terrain.keys.length, 3);
+    assert.strictEqual(Object.keys(manifest.paths).length, 3);
+    assert.strictEqual(manifest.families.terrain.frameConfig, undefined);
+  } finally {
+    cleanup();
+  }
+});
+
+test('terrain manifest contains correct keys', () => {
+  const { publicDir, cleanup } = createTerrainFixtures();
+  try {
+    const { manifest } = processTerrainFamily({ publicDir });
+    const keys = manifest.families.terrain.keys;
+    assert.ok(keys.includes('terrain_sand'));
+    assert.ok(keys.includes('terrain_sand_dark'));
+    assert.ok(keys.includes('terrain_sand_light'));
+  } finally {
+    cleanup();
+  }
+});
+
+test('terrain manifest paths match legacy ASSET_PATHS values', () => {
+  const { publicDir, cleanup } = createTerrainFixtures();
+  try {
+    const { manifest } = processTerrainFamily({ publicDir });
+    assert.strictEqual(manifest.paths['terrain_sand'], 'assets/tiles/sand_tile.png');
+    assert.strictEqual(manifest.paths['terrain_sand_dark'], 'assets/tiles/sand_tile_dark.png');
+    assert.strictEqual(manifest.paths['terrain_sand_light'], 'assets/tiles/sand_tile_light.png');
+  } finally {
+    cleanup();
+  }
+});
+
+test('terrain audit report has no errors with all fixtures', () => {
+  const { publicDir, cleanup } = createTerrainFixtures();
+  try {
+    const { auditReport } = processTerrainFamily({ publicDir });
+    assert.strictEqual(auditReport.summary.totalAssets, 3);
+    assert.strictEqual(auditReport.summary.validAssets, 3);
+    assert.strictEqual(auditReport.summary.errorAssets, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test('missing expected terrain image creates MISSING_FILE error', () => {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  try {
+    const publicDir = join(root, 'public');
+    const tilesDir = join(publicDir, 'assets', 'tiles');
+    mkdirSync(tilesDir, { recursive: true });
+    writeFileSync(join(tilesDir, 'sand_tile.png'), 'fake-png');
+    // Missing: sand_tile_dark.png, sand_tile_light.png
+
+    const { auditReport } = processTerrainFamily({ publicDir });
+    assert.ok(auditReport.errors.length > 0, 'Should have errors for missing files');
+    const missingFileErrors = auditReport.errors.filter(e => e.code === 'MISSING_FILE');
+    assert.strictEqual(missingFileErrors.length, 2, 'Should have 2 MISSING_FILE errors');
+    assert.ok(
+      missingFileErrors.some(e => e.key === 'terrain_sand_dark'),
+      'Should report missing terrain_sand_dark',
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('terrain manifest passes validateManifest with all fixtures', () => {
+  const { publicDir, cleanup } = createTerrainFixtures();
+  try {
+    const { manifest } = processTerrainFamily({ publicDir });
+    const { errors } = validateManifest(manifest, { root: publicDir });
+    assert.strictEqual(errors.length, 0, `Expected 0 validation errors, got: ${JSON.stringify(errors)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('terrain manifest generation is deterministic', () => {
+  const { publicDir, cleanup } = createTerrainFixtures();
+  try {
+    const first = processTerrainFamily({ publicDir });
+    const second = processTerrainFamily({ publicDir });
+    assert.deepStrictEqual(first.manifest, second.manifest, 'Two runs must produce identical manifests');
+    assert.deepStrictEqual(first.auditReport, second.auditReport, 'Two runs must produce identical audit reports');
+  } finally {
+    cleanup();
+  }
+});
+
+// ── Resources family tests (ARCH-02I) ────────────────────────────────
+
+/** Create a temp directory with resource fixtures for testing. */
+function createResourceFixtures() {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  const publicDir = join(root, 'public');
+
+  const envDir = join(publicDir, 'assets', 'environment');
+  mkdirSync(envDir, { recursive: true });
+  writeFileSync(join(envDir, 'mineral_small_02.png'), 'fake-png');
+  writeFileSync(join(envDir, 'mineral_medium_02.png'), 'fake-png');
+  writeFileSync(join(envDir, 'mineral_large_02.png'), 'fake-png');
+
+  return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+test('resources manifest generation produces correct shape with all fixtures', () => {
+  const { publicDir, cleanup } = createResourceFixtures();
+  try {
+    const { manifest, auditReport } = processResourcesFamily({ publicDir });
+
+    assert.strictEqual(manifest.version, 1);
+    assert.strictEqual(manifest.generatedAt, '1970-01-01T00:00:00.000Z');
+    assert.ok(manifest.families.resources);
+    assert.strictEqual(manifest.families.resources.loadType, 'image');
+    assert.strictEqual(manifest.families.resources.enabled, true);
+    assert.strictEqual(manifest.families.resources.keys.length, 3);
+    assert.strictEqual(Object.keys(manifest.paths).length, 3);
+    assert.strictEqual(manifest.families.resources.frameConfig, undefined);
+  } finally {
+    cleanup();
+  }
+});
+
+test('resources manifest contains correct keys', () => {
+  const { publicDir, cleanup } = createResourceFixtures();
+  try {
+    const { manifest } = processResourcesFamily({ publicDir });
+    const keys = manifest.families.resources.keys;
+    assert.ok(keys.includes('mineral_small'));
+    assert.ok(keys.includes('mineral_medium'));
+    assert.ok(keys.includes('mineral_large'));
+  } finally {
+    cleanup();
+  }
+});
+
+test('resources manifest paths match legacy ASSET_PATHS values', () => {
+  const { publicDir, cleanup } = createResourceFixtures();
+  try {
+    const { manifest } = processResourcesFamily({ publicDir });
+    assert.strictEqual(manifest.paths['mineral_small'], 'assets/environment/mineral_small_02.png');
+    assert.strictEqual(manifest.paths['mineral_medium'], 'assets/environment/mineral_medium_02.png');
+    assert.strictEqual(manifest.paths['mineral_large'], 'assets/environment/mineral_large_02.png');
+  } finally {
+    cleanup();
+  }
+});
+
+test('resources audit report has no errors with all fixtures', () => {
+  const { publicDir, cleanup } = createResourceFixtures();
+  try {
+    const { auditReport } = processResourcesFamily({ publicDir });
+    assert.strictEqual(auditReport.summary.totalAssets, 3);
+    assert.strictEqual(auditReport.summary.validAssets, 3);
+    assert.strictEqual(auditReport.summary.errorAssets, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test('missing expected resource image creates MISSING_FILE error', () => {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  try {
+    const publicDir = join(root, 'public');
+    const envDir = join(publicDir, 'assets', 'environment');
+    mkdirSync(envDir, { recursive: true });
+    writeFileSync(join(envDir, 'mineral_small_02.png'), 'fake-png');
+    // Missing: mineral_medium_02.png, mineral_large_02.png
+
+    const { auditReport } = processResourcesFamily({ publicDir });
+    assert.ok(auditReport.errors.length > 0, 'Should have errors for missing files');
+    const missingFileErrors = auditReport.errors.filter(e => e.code === 'MISSING_FILE');
+    assert.strictEqual(missingFileErrors.length, 2, 'Should have 2 MISSING_FILE errors');
+    assert.ok(
+      missingFileErrors.some(e => e.key === 'mineral_large'),
+      'Should report missing mineral_large',
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resources manifest passes validateManifest with all fixtures', () => {
+  const { publicDir, cleanup } = createResourceFixtures();
+  try {
+    const { manifest } = processResourcesFamily({ publicDir });
+    const { errors } = validateManifest(manifest, { root: publicDir });
+    assert.strictEqual(errors.length, 0, `Expected 0 validation errors, got: ${JSON.stringify(errors)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('resources manifest generation is deterministic', () => {
+  const { publicDir, cleanup } = createResourceFixtures();
+  try {
+    const first = processResourcesFamily({ publicDir });
+    const second = processResourcesFamily({ publicDir });
+    assert.deepStrictEqual(first.manifest, second.manifest, 'Two runs must produce identical manifests');
+    assert.deepStrictEqual(first.auditReport, second.auditReport, 'Two runs must produce identical audit reports');
+  } finally {
+    cleanup();
+  }
+});
+
+// ── Combined default output with terrain + resources (ARCH-02I) ──────
+
+/** Create a combined fixture with all asset families including terrain + resources. */
+function createFullCombinedFixtures() {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  const publicDir = join(root, 'public');
+
+  const factions = ['cyan', 'green', 'yellow', 'purple'];
+
+  // Buildings
+  const buildingFiles = [
+    'hq_t1.png', 'separator.png', 'raw_storage.png', 'matter_storage.png',
+    'power_plant.png', 'command_relay.png', 'units_factory.png',
+  ];
+  for (const faction of factions) {
+    const dir = join(publicDir, 'assets', 'factions', faction, 'buildings');
+    mkdirSync(dir, { recursive: true });
+    for (const file of buildingFiles) {
+      writeFileSync(join(dir, file), 'fake-png');
+    }
+  }
+
+  // Civil units
+  const unitFiles = ['builder_8x8_256.png', 'harvester_8x8_256.png'];
+  for (const faction of factions) {
+    const dir = join(publicDir, 'assets', 'factions', faction, 'units');
+    mkdirSync(dir, { recursive: true });
+    for (const file of unitFiles) {
+      writeFileSync(join(dir, file), 'fake-png');
+    }
+  }
+
+  // Modular units
+  const dirs = [0, 1, 2, 3, 4, 5, 6, 7];
+  for (const faction of factions) {
+    const hullDir = join(publicDir, 'assets', 'units', 'chassis', 'wasp_m0', faction);
+    mkdirSync(hullDir, { recursive: true });
+    for (const dir of dirs) {
+      writeFileSync(join(hullDir, `wasp_m0_hull_idle_dir${dir}_0.png`), 'fake-png');
+    }
+
+    const turretDir = join(publicDir, 'assets', 'units', 'weapons', 'smoky_m0', faction);
+    mkdirSync(turretDir, { recursive: true });
+    for (const dir of dirs) {
+      writeFileSync(join(turretDir, `smoky_m0_turret_idle_dir${dir}_0.png`), 'fake-png');
+    }
+  }
+
+  // Terrain
+  const tilesDir = join(publicDir, 'assets', 'tiles');
+  mkdirSync(tilesDir, { recursive: true });
+  writeFileSync(join(tilesDir, 'sand_tile.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'sand_tile_dark.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'sand_tile_light.png'), 'fake-png');
+
+  // Resources
+  const envDir = join(publicDir, 'assets', 'environment');
+  mkdirSync(envDir, { recursive: true });
+  writeFileSync(join(envDir, 'mineral_small_02.png'), 'fake-png');
+  writeFileSync(join(envDir, 'mineral_medium_02.png'), 'fake-png');
+  writeFileSync(join(envDir, 'mineral_large_02.png'), 'fake-png');
+
+  return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+test('full combined output includes all six families with 106 total paths', () => {
+  const { publicDir, cleanup } = createFullCombinedFixtures();
+  try {
+    const { manifest: bManifest } = processBuildingsFamily({ publicDir });
+    const { manifest: cuManifest } = processCivilUnitsFamily({ publicDir });
+    const { manifest: muManifest } = processModularUnitsFamily({ publicDir });
+    const { manifest: tManifest } = processTerrainFamily({ publicDir });
+    const { manifest: rManifest } = processResourcesFamily({ publicDir });
+
+    const merged = {
+      version: 1,
+      generatedAt: '1970-01-01T00:00:00.000Z',
+      families: {
+        ...bManifest.families,
+        ...cuManifest.families,
+        ...muManifest.families,
+        ...tManifest.families,
+        ...rManifest.families,
+      },
+      paths: {
+        ...bManifest.paths,
+        ...cuManifest.paths,
+        ...muManifest.paths,
+        ...tManifest.paths,
+        ...rManifest.paths,
+      },
+    };
+
+    // Must have all six families
+    assert.ok(merged.families.hq, 'Must have hq family');
+    assert.ok(merged.families.buildings, 'Must have buildings family');
+    assert.ok(merged.families.civilUnits, 'Must have civilUnits family');
+    assert.ok(merged.families.modularUnits, 'Must have modularUnits family');
+    assert.ok(merged.families.terrain, 'Must have terrain family');
+    assert.ok(merged.families.resources, 'Must have resources family');
+
+    // Key counts
+    assert.strictEqual(merged.families.terrain.keys.length, 3);
+    assert.strictEqual(merged.families.resources.keys.length, 3);
+    assert.strictEqual(merged.families.terrain.loadType, 'image');
+    assert.strictEqual(merged.families.resources.loadType, 'image');
+
+    // Total paths: 4 + 24 + 8 + 64 + 3 + 3 = 106
+    const totalKeys = Object.keys(merged.paths).length;
+    assert.strictEqual(totalKeys, 106, `Expected 106 total paths, got ${totalKeys}`);
+
+    // Validate the merged manifest
+    const { errors } = validateManifest(merged, { root: publicDir });
+    assert.strictEqual(errors.length, 0, `Merged manifest must pass validation, got: ${JSON.stringify(errors)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('generateRuntimeManifestTS for full combined output includes terrain and resources', () => {
+  const { publicDir, cleanup } = createFullCombinedFixtures();
+  try {
+    const { manifest: bManifest } = processBuildingsFamily({ publicDir });
+    const { manifest: cuManifest } = processCivilUnitsFamily({ publicDir });
+    const { manifest: muManifest } = processModularUnitsFamily({ publicDir });
+    const { manifest: tManifest } = processTerrainFamily({ publicDir });
+    const { manifest: rManifest } = processResourcesFamily({ publicDir });
+
+    const merged = {
+      version: 1,
+      generatedAt: '1970-01-01T00:00:00.000Z',
+      families: {
+        ...bManifest.families,
+        ...cuManifest.families,
+        ...muManifest.families,
+        ...tManifest.families,
+        ...rManifest.families,
+      },
+      paths: {
+        ...bManifest.paths,
+        ...cuManifest.paths,
+        ...muManifest.paths,
+        ...tManifest.paths,
+        ...rManifest.paths,
+      },
+    };
+
+    const ts = generateRuntimeManifestTS(merged);
+
+    // Must have terrain and resources families
+    assert.ok(ts.includes('terrain:'), 'TS must have terrain family');
+    assert.ok(ts.includes('resources:'), 'TS must have resources family');
+
+    // Must have terrain keys
+    assert.ok(ts.includes("'terrain_sand'"), 'TS must have terrain_sand key');
+    assert.ok(ts.includes("'terrain_sand_dark'"), 'TS must have terrain_sand_dark key');
+    assert.ok(ts.includes("'terrain_sand_light'"), 'TS must have terrain_sand_light key');
+
+    // Must have resource keys
+    assert.ok(ts.includes("'mineral_small'"), 'TS must have mineral_small key');
+    assert.ok(ts.includes("'mineral_medium'"), 'TS must have mineral_medium key');
+    assert.ok(ts.includes("'mineral_large'"), 'TS must have mineral_large key');
+
+    // Must have terrain and resource paths
+    assert.ok(ts.includes("'terrain_sand': 'assets/tiles/sand_tile.png',"), 'TS must have terrain_sand path');
+    assert.ok(ts.includes("'mineral_small': 'assets/environment/mineral_small_02.png',"), 'TS must have mineral_small path');
+  } finally {
+    cleanup();
+  }
+});
+
+test('repeated full combined generation remains deterministic', () => {
+  const { publicDir, cleanup } = createFullCombinedFixtures();
+  try {
+    const mergeResults = () => {
+      const { manifest: bManifest } = processBuildingsFamily({ publicDir });
+      const { manifest: cuManifest } = processCivilUnitsFamily({ publicDir });
+      const { manifest: muManifest } = processModularUnitsFamily({ publicDir });
+      const { manifest: tManifest } = processTerrainFamily({ publicDir });
+      const { manifest: rManifest } = processResourcesFamily({ publicDir });
+      return {
+        version: 1,
+        generatedAt: '1970-01-01T00:00:00.000Z',
+        families: {
+          ...bManifest.families, ...cuManifest.families, ...muManifest.families,
+          ...tManifest.families, ...rManifest.families,
+        },
+        paths: {
+          ...bManifest.paths, ...cuManifest.paths, ...muManifest.paths,
+          ...tManifest.paths, ...rManifest.paths,
+        },
+      };
+    };
+
+    const first = mergeResults();
+    const second = mergeResults();
+    assert.deepStrictEqual(first, second, 'Two full combined runs must produce identical manifests');
+
+    const ts1 = generateRuntimeManifestTS(first);
+    const ts2 = generateRuntimeManifestTS(second);
+    assert.strictEqual(ts1, ts2, 'TS output must be identical across runs');
   } finally {
     cleanup();
   }
