@@ -251,8 +251,48 @@ export const HQ_BASE_POWER = 10;
 export const POWER_PLANT_GENERATION = 15;
 /** Power consumed by a separator while actively processing. */
 export const SEPARATOR_ACTIVE_POWER_CONSUMPTION = 5;
-/** Power consumed by a units-factory while actively producing. Reserved for ARCH-01F. */
+/** Power consumed by a units-factory while actively producing. */
 export const UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION = 4;
+
+// ─── Production Constants (ARCH-01F) ────────────────────────────────────
+
+/** Maximum number of items in a factory production queue. */
+export const QUEUE_LIMIT = 2;
+
+/** Builder production cost in matter. */
+export const BUILDER_PRODUCTION_MATTER_COST = 40;
+/** Builder production cost in elementUnits. */
+export const BUILDER_PRODUCTION_ELEMENT_COST = 10;
+/** Builder production duration in milliseconds. */
+export const BUILDER_PRODUCTION_DURATION_MS = 15000;
+
+/** Harvester production cost in matter. */
+export const HARVESTER_PRODUCTION_MATTER_COST = 50;
+/** Harvester production cost in elementUnits. */
+export const HARVESTER_PRODUCTION_ELEMENT_COST = 10;
+/** Harvester production duration in milliseconds. */
+export const HARVESTER_PRODUCTION_DURATION_MS = 20000;
+
+// ─── Reserved Modular Combat Constants (ARCH-01F, not implemented) ──────
+
+/** Wasp chassis matter cost (reserved for future modular combat). */
+export const WASP_CHASSIS_MATTER_COST = 20;
+/** Wasp chassis element cost in elementUnits (reserved for future modular combat). */
+export const WASP_CHASSIS_ELEMENT_COST = 5;
+/** Wasp chassis production duration in milliseconds (reserved for future modular combat). */
+export const WASP_CHASSIS_PRODUCTION_DURATION_MS = 7000;
+/** Smoky weapon matter cost (reserved for future modular combat). */
+export const SMOKY_WEAPON_MATTER_COST = 25;
+/** Smoky weapon element cost in elementUnits (reserved for future modular combat). */
+export const SMOKY_WEAPON_ELEMENT_COST = 5;
+/** Smoky weapon production duration in milliseconds (reserved for future modular combat). */
+export const SMOKY_WEAPON_PRODUCTION_DURATION_MS = 18000;
+/** Total wasp+smoky unit matter cost (reserved for future modular combat). */
+export const WASP_SMOKY_TOTAL_MATTER_COST = 45;
+/** Total wasp+smoky unit element cost in elementUnits (reserved for future modular combat). */
+export const WASP_SMOKY_TOTAL_ELEMENT_COST = 10;
+/** Total wasp+smoky unit production duration in milliseconds (reserved for future modular combat). */
+export const WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS = 25000;
 
 // ─── Storage Cap Constants (ARCH-01D) ────────────────────────────────
 
@@ -297,6 +337,43 @@ export interface EconomyState {
 export const START_RAW = 30;
 export const START_MATTER = 120;
 
+// ─── Production State (ARCH-01F) ────────────────────────────────────
+
+/** Unit types that can be produced by a units-factory. */
+export type ProducibleUnitType = 'builder' | 'harvester';
+
+/** A single item in a factory production queue. */
+export interface ProductionQueueItem {
+  /** The type of unit being produced. */
+  unitType: ProducibleUnitType;
+  /** Milliseconds elapsed since production started. */
+  elapsedMs: number;
+  /** Total duration in milliseconds. */
+  durationMs: number;
+  /** Progress fraction 0..1. */
+  progress: number;
+  /** Whether the item has finished producing and is waiting to spawn. */
+  completed: boolean;
+}
+
+/** Runtime state for a single completed units-factory building. */
+export interface UnitFactoryRuntimeState {
+  /** Tile X of the factory building (top-left of footprint). */
+  tx: number;
+  /** Tile Y of the factory building (top-left of footprint). */
+  ty: number;
+  /** Production queue. Maximum size QUEUE_LIMIT. */
+  queue: ProductionQueueItem[];
+  /** Whether the factory is actively producing (has power and an unfinished item). */
+  active: boolean;
+}
+
+/** Production state for all units-factories. */
+export interface ProductionState {
+  /** Runtime state for each completed units-factory building. */
+  factories: UnitFactoryRuntimeState[];
+}
+
 // ─── Game State ─────────────────────────────────────────────────────
 
 /** Top-level game state. Pure data, no methods, no Phaser. */
@@ -328,4 +405,8 @@ export interface GameState {
   // ── ARCH-13E1: Construction state ─────────────────────────────
   /** Auto-incrementing counter for deterministic construction site IDs. */
   nextConstructionId: number;
+
+  // ── ARCH-01F: Production state ────────────────────────────────
+  /** Production state for all units-factories. */
+  production: ProductionState;
 }

@@ -81,6 +81,7 @@ function makeStateWithSeparator(overrides?: {
     economy,
     hqPosition: { tx: 1, ty: 1 },
     nextConstructionId: 0,
+    production: { factories: [] },
   };
 }
 
@@ -362,6 +363,7 @@ describe('ARCH-01C: multiple separators', () => {
       progress: 0,
       active: false,
     });
+    state.mapData.buildings.push({ tx: 14, ty: 14, type: 'separator' });
 
     // Complete one cycle (25 frames of 200ms = 5000ms)
     for (let i = 0; i < 25; i++) {
@@ -733,6 +735,7 @@ describe('ARCH-01E: separator power gating', () => {
       progress: 0,
       active: false,
     });
+    state.mapData.buildings.push({ tx: 14, ty: 14, type: 'separator' });
 
     updateGameState(state, 100);
 
@@ -756,6 +759,8 @@ describe('ARCH-01E: separator power gating', () => {
       progress: 0,
       active: false,
     });
+    state.mapData.buildings.push({ tx: 14, ty: 14, type: 'separator' });
+    state.mapData.buildings.push({ tx: 16, ty: 16, type: 'separator' });
 
     updateGameState(state, 100);
 
@@ -782,6 +787,8 @@ describe('ARCH-01E: separator power gating', () => {
       progress: 0.5, // Has existing progress
       active: false,
     });
+    state.mapData.buildings.push({ tx: 14, ty: 14, type: 'separator' });
+    state.mapData.buildings.push({ tx: 16, ty: 16, type: 'separator' });
 
     // Third separator is power-blocked from the start
     updateGameState(state, 100);
@@ -806,6 +813,8 @@ describe('ARCH-01E: separator power gating', () => {
       progress: 0.5,
       active: false,
     });
+    state.mapData.buildings.push({ tx: 14, ty: 14, type: 'separator' });
+    state.mapData.buildings.push({ tx: 16, ty: 16, type: 'separator' });
 
     // Third separator is power-blocked
     updateGameState(state, 100);
@@ -832,6 +841,7 @@ describe('ARCH-01E: separator power gating', () => {
         progress: 0,
         active: false,
       });
+      state.mapData.buildings.push({ tx: 14 + i * 2, ty: 14 + i * 2, type: 'separator' });
     }
 
     updateGameState(state, 100);

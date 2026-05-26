@@ -7,6 +7,7 @@ import type {
   ResourceNodeState,
   EconomyState,
   SeparatorRuntimeState,
+  ProductionState,
 } from './types';
 import {
   RESOURCE_RAW_AMOUNTS,
@@ -89,6 +90,7 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
     economy: createInitialEconomy(mapData.hq.faction as Faction, mapData),
     hqPosition,
     nextConstructionId: 0,
+    production: createInitialProduction(mapData),
   };
 }
 
@@ -166,6 +168,20 @@ function buildResourceNodeStates(mapData: MapData): ResourceNodeState[] {
     });
   }
   return nodes;
+}
+
+/** Create initial ProductionState from existing completed units-factory buildings. */
+function createInitialProduction(mapData: MapData): ProductionState {
+  const factories = mapData.buildings
+    .filter(b => b.type === 'units-factory')
+    .map(b => ({
+      tx: b.tx,
+      ty: b.ty,
+      queue: [],
+      active: false,
+    }));
+
+  return { factories };
 }
 
 // ─── Flatten helpers (PR2 unchanged) ────────────────────────────────
