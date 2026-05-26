@@ -198,7 +198,7 @@ export class GameScene extends Phaser.Scene {
       // ARCH-13F1: B-press guard — do not create a site if no idle builder is available.
       const hasIdleBuilder = this.gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
       if (!hasIdleBuilder) {
-        console.warn('[GameScene] B pressed but no idle builder available — site not created.');
+        this.logDevHotkeyInfo('[GameScene] B pressed but no idle builder available — site not created.');
         return;
       }
 
@@ -207,7 +207,7 @@ export class GameScene extends Phaser.Scene {
       // with a 1-tile gap around existing footprints.
       const site = findBuildSiteNearPlayerBuildings(this.gameState, 'separator');
       if (!site.ok) {
-        console.warn(`[GameScene] No valid build site found: ${site.reason}`);
+        this.logDevHotkeyInfo(`[GameScene] No valid build site found: ${site.reason}`);
         return;
       }
 
@@ -223,13 +223,13 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-F', () => {
       const hasIdleBuilder = this.gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
       if (!hasIdleBuilder) {
-        console.warn('[GameScene] F pressed but no idle builder available — site not created.');
+        this.logDevHotkeyInfo('[GameScene] F pressed but no idle builder available — site not created.');
         return;
       }
 
       const site = findBuildSiteNearPlayerBuildings(this.gameState, 'units-factory');
       if (!site.ok) {
-        console.warn(`[GameScene] No valid build site for units-factory: ${site.reason}`);
+        this.logDevHotkeyInfo(`[GameScene] No valid build site for units-factory: ${site.reason}`);
         return;
       }
 
@@ -245,14 +245,14 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-N', () => {
       const factory = this.gameState.production.factories[0];
       if (!factory) {
-        console.warn('[GameScene] N pressed but no completed units-factory exists.');
+        this.logDevHotkeyInfo('[GameScene] N pressed but no completed units-factory exists.');
         return;
       }
       const result = startUnitProduction(this.gameState, factory.tx, factory.ty, 'builder');
       if (result.ok) {
         console.log(`[GameScene] Builder queued at factory (${factory.tx},${factory.ty})`);
       } else {
-        console.warn(`[GameScene] Builder queue failed: ${result.reason}`);
+        this.logDevHotkeyInfo(`[GameScene] Builder queue failed: ${result.reason}`);
       }
     });
 
@@ -260,14 +260,14 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-G', () => {
       const factory = this.gameState.production.factories[0];
       if (!factory) {
-        console.warn('[GameScene] G pressed but no completed units-factory exists.');
+        this.logDevHotkeyInfo('[GameScene] G pressed but no completed units-factory exists.');
         return;
       }
       const result = startUnitProduction(this.gameState, factory.tx, factory.ty, 'harvester');
       if (result.ok) {
         console.log(`[GameScene] Harvester queued at factory (${factory.tx},${factory.ty})`);
       } else {
-        console.warn(`[GameScene] Harvester queue failed: ${result.reason}`);
+        this.logDevHotkeyInfo(`[GameScene] Harvester queue failed: ${result.reason}`);
       }
     });
 
@@ -443,6 +443,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ─── Helpers ────────────────────────────────────────────────────
+
+  /** Log expected dev-hotkey state at info level to reduce console noise. */
+  private logDevHotkeyInfo(message: string): void {
+    console.info(message);
+  }
 
   private verifyAssets(): void {
     const requiredKeys = Object.values(ASSET_KEYS);
