@@ -268,28 +268,25 @@ export class GameScene extends Phaser.Scene {
     // Set world background color
     this.cameras.main.setBackgroundColor('#1a1a2e');
 
-    // ── ARCH-05X: Unit selection + move input ────────────────────
+    // ── ARCH-05X: Unit selection + move input (LMB) ────────────────
 
     // Selection highlight graphics (drawn each frame under selected unit)
     this.selectionHighlight = this.add.graphics();
     this.selectionHighlight.setDepth(150);
 
-    // Left-click: select civil unit under cursor
+    // Prevent browser context menu on the game canvas only
+    this.game.canvas.addEventListener('contextmenu', (e: Event) => e.preventDefault());
+
+    // LMB pointerdown: record click start position
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.rightButtonDown()) return; // right-click = move command
       if (!pointer.leftButtonDown()) return;
 
-      // Skip if drag-panning (CameraControls handles its own pointerdown)
-      // We use a short threshold — if pointer moved <4px it's a click, not a drag
-      const startX = pointer.x;
-      const startY = pointer.y;
-
-      // Defer selection check to pointerup to distinguish click from drag
-      this._clickStartX = startX;
-      this._clickStartY = startY;
-      this._clickButton = pointer.leftButtonDown() ? 'left' : 'none';
+      this._clickStartX = pointer.x;
+      this._clickStartY = pointer.y;
+      this._clickButton = 'left';
     });
 
+    // LMB pointerup: if click (not drag), select unit or issue move
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       if (this._clickButton !== 'left') return;
       this._clickButton = 'none';
@@ -300,12 +297,6 @@ export class GameScene extends Phaser.Scene {
       if (moved > 4) return; // was a drag, not a click
 
       this.handleLeftClick(pointer);
-    });
-
-    // Right-click: issue move command to selected unit
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (!pointer.rightButtonDown()) return;
-      this.handleRightClick(pointer);
     });
 
     // ESC: deselect
@@ -364,13 +355,13 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // ─── ARCH-05X: Selection + move input ─────────────────────────────
+  // ─── ARCH-05X: Selection + move input (LMB only) ──────────────────
 
   /**
-   * Handle left-click: select a civil unit under cursor.
-   *
-   * Checks builders first, then harvesters, by finding the unit
-   * closest to the clicked world position within a distance threshold.
+   * Handle left-click:
+   * - If a unit is under cursor → select it
+   * - If no unit under cursor AND a unit is selected → issue move command
+   * - If no unit under cursor AND nothing selected → do nothing
    */
   private handleLeftClick(pointer: Phaser.Input.Pointer): void {
     const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
@@ -381,7 +372,7 @@ export class GameScene extends Phaser.Scene {
     // Selection radius in tile units
     const SELECT_RADIUS = 0.8;
 
-    // Check builders
+    // Check if there's a unit under the cursor
     let bestDist = SELECT_RADIUS;
     let bestSelection: UnitSelection = null;
 
@@ -396,7 +387,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Check harvesters
     for (const h of this.gameState.harvesters) {
       const dx = h.ftx - clickTx;
       const dy = h.fty - clickTy;
@@ -407,35 +397,28 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    this.selectedUnit = bestSelection;
     if (bestSelection) {
+      // Unit under cursor → select it
+      this.selectedUnit = bestSelection;
       const label = bestSelection.kind === 'builder'
         ? `Builder #${bestSelection.index}`
         : `Harvester ${(bestSelection as { kind: 'harvester'; id: string }).id}`;
       this.playtestHud?.showStatus(`Selected: ${label}`, true);
-    }
-  }
-
-  /**
-   * Handle right-click: issue move command to selected unit.
-   */
-  private handleRightClick(pointer: Phaser.Input.Pointer): void {
-    if (!isUnitSelected(this.selectedUnit)) {
-      this.playtestHud?.showStatus('No unit selected', false);
       return;
     }
 
-    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-    const tilePos = screenToTile(worldPoint.x - this._offset.x, worldPoint.y - this._offset.y);
-    const targetTx = Math.round(tilePos.x);
-    const targetTy = Math.round(tilePos.y);
+    // No unit under cursor — if a unit is selected, issue move command
+    if (isUnitSelected(this.selectedUnit)) {
+      const targetTx = Math.round(clickTx);
+      const targetTy = Math.round(clickTy);
 
-    const result = issueManualMove(this.gameState, this.selectedUnit, targetTx, targetTy);
-    if (result.ok) {
-      const label = this.selectedUnit!.kind === 'builder' ? 'Builder' : 'Harvester';
-      this.playtestHud?.showStatus(`${label} → (${targetTx},${targetTy})`, true);
-    } else {
-      this.playtestHud?.showStatus(`Move failed: ${result.reason}`, false);
+      const result = issueManualMove(this.gameState, this.selectedUnit, targetTx, targetTy);
+      if (result.ok) {
+        const label = this.selectedUnit!.kind === 'builder' ? 'Builder' : 'Harvester';
+        this.playtestHud?.showStatus(`${label} → (${targetTx},${targetTy})`, true);
+      } else {
+        this.playtestHud?.showStatus(`Move failed: ${result.reason}`, false);
+      }
     }
   }
 
@@ -468,12 +451,18 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Draw a pulsing cyan circle under the selected unit
+    // Draw a pulsing cyan circle at ground level under the selected unit.
+    // Both builder and harvester use origin (0.5, 0.75) in the renderer,
+    // so the bottom 25% of the sprite is below the position point.
+    // Ground level ≈ worldY + 14 pixels (256px × ~0.22 scale × 0.25).
+    const GROUND_OFFSET_Y = 14;
+    const HIGHLIGHT_RADIUS = 14;
+
     const pulse = 0.5 + 0.5 * Math.sin((this.time.now % 1000) / 1000 * Math.PI * 2);
     const alpha = 0.4 + 0.4 * pulse;
 
     this.selectionHighlight.lineStyle(2, 0x00ffff, alpha);
-    this.selectionHighlight.strokeCircle(worldX, worldY + 6, 14);
+    this.selectionHighlight.strokeCircle(worldX, worldY + GROUND_OFFSET_Y, HIGHLIGHT_RADIUS);
   }
 
   // ─── Command methods (shared by hotkeys and HUD buttons) ────────

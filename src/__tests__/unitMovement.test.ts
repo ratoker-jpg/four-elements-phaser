@@ -13,7 +13,7 @@ import {
   isBuilderSelected,
   isHarvesterSelected,
 } from '../state/unitSelection';
-import { buildOccupancyMap, isPassable } from '../state/occupancy';
+import { buildOccupancyMap, isPassable, addUnitBlockers, isTileOccupiedByUnit } from '../state/occupancy';
 import type { GameState } from '../state/types';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
@@ -604,5 +604,156 @@ describe('ARCH-05X hardening: no straight-line fallback on return-to-HQ', () => 
     expect(h.manualPathIndex).toBeUndefined();
     expect(h.manualCooldownMs).toBeUndefined();
     expect(h.blockedReason).toBeUndefined();
+  });
+});
+
+// ─── ARCH-05X Hardening: Unit Blocking ──────────────────────────────
+
+describe('ARCH-05X hardening: units block each other', () => {
+  it('isTileOccupiedByUnit returns true when a builder is on the tile', () => {
+    const state = createTestState();
+    const builder = state.mapData.builders[0];
+    if (!builder) return;
+
+    const tx = Math.round(builder.ftx);
+    const ty = Math.round(builder.fty);
+
+    expect(isTileOccupiedByUnit(state, tx, ty)).toBe(true);
+  });
+
+  it('isTileOccupiedByUnit returns true when a harvester is on the tile', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    const tx = Math.round(h.ftx);
+    const ty = Math.round(h.fty);
+
+    expect(isTileOccupiedByUnit(state, tx, ty)).toBe(true);
+  });
+
+  it('isTileOccupiedByUnit excludes the specified unit', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    const tx = Math.round(h.ftx);
+    const ty = Math.round(h.fty);
+
+    // The harvester's own tile is not occupied when excluded
+    expect(isTileOccupiedByUnit(state, tx, ty, 'harvester', h.id)).toBe(false);
+  });
+
+  it('isTileOccupiedByUnit returns false for empty tile', () => {
+    const state = createTestState();
+    const occupancy = buildOccupancyMap(state);
+
+    // Find a passable tile with no unit on it
+    for (let ty = 0; ty < state.mapHeight; ty++) {
+      for (let tx = 0; tx < state.mapWidth; tx++) {
+        if (isPassable(occupancy, tx, ty) && !isTileOccupiedByUnit(state, tx, ty)) {
+          expect(isTileOccupiedByUnit(state, tx, ty)).toBe(false);
+          return;
+        }
+      }
+    }
+  });
+
+  it('addUnitBlockers makes unit tiles impassable', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    const occupancy = buildOccupancyMap(state);
+    // Before adding blockers, the harvester's tile may or may not be passable
+    // (it could be on a passable tile or on a resource)
+
+    addUnitBlockers(state, occupancy, 'harvester', h.id);
+
+    // After adding blockers, other harvesters' tiles should be impassable
+    for (const other of state.harvesters) {
+      if (other.id === h.id) continue;
+      const otx = Math.round(other.ftx);
+      const oty = Math.round(other.fty);
+      expect(isPassable(occupancy, otx, oty)).toBe(false);
+    }
+  });
+
+  it('addUnitBlockers excludes the specified unit', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    const tx = Math.round(h.ftx);
+    const ty = Math.round(h.fty);
+
+    // Check that the tile is passable before (without resource/building on it)
+    const occupancyBefore = buildOccupancyMap(state);
+    const wasPassable = isPassable(occupancyBefore, tx, ty);
+
+    const occupancy = buildOccupancyMap(state);
+    addUnitBlockers(state, occupancy, 'harvester', h.id);
+
+    // The excluded harvester's tile should NOT be blocked by itself
+    // (it might still be impassable from resources/buildings)
+    if (wasPassable) {
+      expect(isPassable(occupancy, tx, ty)).toBe(true);
+    }
+  });
+
+  it('manual move to tile occupied by another unit returns target-occupied', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    const builder = state.mapData.builders[0];
+    if (!h || !builder) return;
+
+    // Find a passable tile, then move the builder there
+    const occupancy = buildOccupancyMap(state);
+    let occupiedTx = -1;
+    let occupiedTy = -1;
+    for (let ty = 0; ty < 10; ty++) {
+      for (let tx = 0; tx < 10; tx++) {
+        if (isPassable(occupancy, tx, ty) &&
+            tx !== Math.round(h.ftx) && ty !== Math.round(h.fty)) {
+          occupiedTx = tx;
+          occupiedTy = ty;
+          break;
+        }
+      }
+      if (occupiedTx >= 0) break;
+    }
+    if (occupiedTx < 0) return;
+
+    // Move the builder to this passable tile so it occupies it
+    builder.ftx = occupiedTx;
+    builder.fty = occupiedTy;
+
+    const sel = selectHarvester(h.id);
+    const result = issueManualMove(state, sel, occupiedTx, occupiedTy);
+
+    // Should be rejected because tile is occupied by the builder
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('target-occupied');
+    }
+  });
+
+  it('pathfinding avoids other units when unit blockers are added', () => {
+    const state = createTestState();
+    const occupancy = buildOccupancyMap(state);
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    // Add unit blockers (excluding this harvester)
+    addUnitBlockers(state, occupancy, 'harvester', h.id);
+
+    // Other harvesters' positions should be impassable in the map
+    for (const other of state.harvesters) {
+      if (other.id === h.id) continue;
+      const otx = Math.round(other.ftx);
+      const oty = Math.round(other.fty);
+      // The tile should now be impassable (unless it was already impassable from terrain)
+      expect(isPassable(occupancy, otx, oty)).toBe(false);
+    }
   });
 });

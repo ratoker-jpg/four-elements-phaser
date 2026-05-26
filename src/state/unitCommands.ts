@@ -9,7 +9,7 @@
  */
 
 import type { GameState, HarvesterState } from './types';
-import { buildOccupancyMap, isPassable } from './occupancy';
+import { buildOccupancyMap, isPassable, addUnitBlockers, isTileOccupiedByUnit } from './occupancy';
 import { findPath } from './pathfinding';
 import type { SelectableUnit } from './unitSelection';
 
@@ -32,7 +32,7 @@ const MANUAL_COOLDOWN_MS = 800;
 /** Result of a move command. */
 export type MoveResult =
   | { ok: true }
-  | { ok: false; reason: 'no-unit-selected' | 'target-impassable' | 'no-path' | 'unit-busy' };
+  | { ok: false; reason: 'no-unit-selected' | 'target-impassable' | 'target-occupied' | 'no-path' | 'unit-busy' };
 
 /** Result of a resource approach computation. */
 export type ApproachResult =
@@ -73,8 +73,20 @@ export function issueManualMove(
   }
 
   if (unit.kind === 'harvester') {
+    // Target must not be occupied by another unit
+    if (isTileOccupiedByUnit(state, targetTx, targetTy, 'harvester', unit.id)) {
+      return { ok: false, reason: 'target-occupied' };
+    }
+    // Add unit blockers so pathfinding avoids other units
+    addUnitBlockers(state, occupancy, 'harvester', unit.id);
     return issueHarvesterManualMove(state, unit.id, targetTx, targetTy, occupancy);
   } else if (unit.kind === 'builder') {
+    // Target must not be occupied by another unit
+    if (isTileOccupiedByUnit(state, targetTx, targetTy, 'builder', unit.index)) {
+      return { ok: false, reason: 'target-occupied' };
+    }
+    // Add unit blockers so pathfinding avoids other units
+    addUnitBlockers(state, occupancy, 'builder', unit.index);
     return issueBuilderManualMove(state, unit.index, targetTx, targetTy, occupancy);
   }
 
