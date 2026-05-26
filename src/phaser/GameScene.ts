@@ -9,6 +9,7 @@ import { updateGameState } from '../state/updateGameState';
 import { placeConstructionSite, updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/construction';
 import { findBuildSiteNearPlayerBuildings } from '../state/buildSiteSelection';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
+import { startUnitProduction } from '../state/production';
 import type { GameState, HarvesterPhase } from '../state/types';
 import { ELEMENT_UNITS_PER_ELEMENT } from '../state/types';
 import {
@@ -218,6 +219,58 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
+    // ── Debug build hotkey (F) — auto-place units-factory construction site ──
+    this.input.keyboard?.on('keydown-F', () => {
+      const hasIdleBuilder = this.gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
+      if (!hasIdleBuilder) {
+        console.warn('[GameScene] F pressed but no idle builder available — site not created.');
+        return;
+      }
+
+      const site = findBuildSiteNearPlayerBuildings(this.gameState, 'units-factory');
+      if (!site.ok) {
+        console.warn(`[GameScene] No valid build site for units-factory: ${site.reason}`);
+        return;
+      }
+
+      const result = placeConstructionSite(this.gameState, 'units-factory', site.tx, site.ty);
+      if (result.ok) {
+        console.log(`[GameScene] Units-factory site placed: ${result.siteId} at (${site.tx},${site.ty})`);
+      } else {
+        console.warn(`[GameScene] Units-factory placement failed at (${site.tx},${site.ty}): ${result.reason}`);
+      }
+    });
+
+    // ── Debug production hotkey (N) — queue builder at oldest completed factory ──
+    this.input.keyboard?.on('keydown-N', () => {
+      const factory = this.gameState.production.factories[0];
+      if (!factory) {
+        console.warn('[GameScene] N pressed but no completed units-factory exists.');
+        return;
+      }
+      const result = startUnitProduction(this.gameState, factory.tx, factory.ty, 'builder');
+      if (result.ok) {
+        console.log(`[GameScene] Builder queued at factory (${factory.tx},${factory.ty})`);
+      } else {
+        console.warn(`[GameScene] Builder queue failed: ${result.reason}`);
+      }
+    });
+
+    // ── Debug production hotkey (G) — queue harvester at oldest completed factory ──
+    this.input.keyboard?.on('keydown-G', () => {
+      const factory = this.gameState.production.factories[0];
+      if (!factory) {
+        console.warn('[GameScene] G pressed but no completed units-factory exists.');
+        return;
+      }
+      const result = startUnitProduction(this.gameState, factory.tx, factory.ty, 'harvester');
+      if (result.ok) {
+        console.log(`[GameScene] Harvester queued at factory (${factory.tx},${factory.ty})`);
+      } else {
+        console.warn(`[GameScene] Harvester queue failed: ${result.reason}`);
+      }
+    });
+
     // HUD references
     this.hudCoords = document.getElementById('hud-coords');
     this.hudMapName = document.getElementById('hud-map-name');
@@ -240,7 +293,7 @@ export class GameScene extends Phaser.Scene {
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
-      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B: build separator | Q/E: body dir | Z/X: turret dir`,
+      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B: build separator | F: build factory | N: queue builder | G: queue harvester | Q/E: body dir | Z/X: turret dir`,
     );
   }
 
@@ -312,10 +365,28 @@ export class GameScene extends Phaser.Scene {
       const elementCapDisplayed = (s.economy.elementCap / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
       const factionLabel = s.playerFaction.charAt(0).toUpperCase() + s.playerFaction.slice(1);
 
+      // ARCH-01F: Compact factory production readout
+      let factoryStr = '';
+      if (s.production.factories.length > 0) {
+        const parts: string[] = [];
+        for (const factory of s.production.factories) {
+          if (factory.queue.length === 0) {
+            parts.push('idle');
+          } else {
+            const first = factory.queue[0];
+            const typeLabel = first.unitType === 'builder' ? 'B' : 'H';
+            const pct = Math.round(first.progress * 100);
+            const status = first.completed ? 'done' : `${pct}%`;
+            parts.push(`${factory.queue.length}q ${typeLabel}${status}`);
+          }
+        }
+        factoryStr = ` | Factory: ${parts.join(', ')}`;
+      }
+
       this.hudEconomy.textContent =
         `Raw: ${s.economy.raw}/${s.economy.rawCap} | Matter: ${s.economy.matter}/${s.economy.matterCap} | ${factionLabel}: ${factionElementDisplayed}/${elementCapDisplayed} | Power: ${s.economy.powerConsumed}/${s.economy.powerGenerated} | Resources: ${activeResources}/${totalResources} | ` +
         `Sites: ${s.mapData.constructionSites.length} | ` +
-        `Harvesters: ${s.harvesters.length} (${phaseStr})`;
+        `Harvesters: ${s.harvesters.length} (${phaseStr})${factoryStr}`;
     }
 
     // ARCH-13F1: Build status line
@@ -327,7 +398,7 @@ export class GameScene extends Phaser.Scene {
         // Show the first active construction site
         const site = sites[0];
         const config = BUILDING_CONFIG[site.type];
-        const label = config ? 'Separator' : site.type;
+        const label = config ? site.type.charAt(0).toUpperCase() + site.type.slice(1).replace('-', ' ') : site.type;
         const pct = Math.round(site.progress * 100);
         if (site.pending) {
           this.hudBuild.textContent = `Build: ${label} at (${site.tx},${site.ty}), waiting for builder`;

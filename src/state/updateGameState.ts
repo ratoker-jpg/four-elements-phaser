@@ -25,6 +25,7 @@ import {
   HQ_BASE_POWER,
   POWER_PLANT_GENERATION,
   SEPARATOR_ACTIVE_POWER_CONSUMPTION,
+  UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION,
 } from './types';
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -61,11 +62,11 @@ export function updateGameState(state: GameState, deltaMs: number): void {
     updateHarvester(state, harvester, dt);
   }
 
-  // ARCH-01C: Advance separator processing cycle
-  // ARCH-01E: Separator power gating is integrated inside updateSeparators
-  updateSeparators(state, dt);
+  // ARCH-01C/01E/01F: Unified power allocation + separator processing + factory production.
+  // Power consumers (separators, factories) are allocated power in completed building order.
+  allocatePowerAndProcess(state, dt);
 
-  // ARCH-01E: Recompute power state after separator processing
+  // ARCH-01E: Recompute power state after separator processing and factory production
   recomputePower(state);
 }
 
@@ -319,95 +320,295 @@ export function directionFromDelta(dtx: number, dty: number): number {
 // ─── Separator processing cycle (ARCH-01C / ARCH-01E) ──────────────────
 
 /**
- * Advance all separator processing cycles by deltaMs.
+ * Unified power allocation and processing for all active consumers.
  *
- * ARCH-01E: Separator power gating is integrated.
+ * ARCH-01C/01E/01F: Iterates mapData.buildings in completed building order.
+ * Allocates power to separators and factories based on their position
+ * in the buildings list. Older buildings get power first.
  *
- * For each separator (in build order):
- * - First check: can the separator process? (raw >= cost, matter/element caps OK)
- * - If NO: separator is inactive, does NOT consume power.
- * - If YES: check if enough available power remains.
- *   - If YES: separator is active, power is allocated, progress advances.
- *   - If NO: separator is inactive (power-blocked), progress preserved.
- * - A separator blocked by raw/caps does not request or consume power.
- * - When power becomes available later, separator resumes from preserved progress.
+ * - Separator: checks raw/caps, then power; advances processing if both OK.
+ * - Factory: delegates to updateProduction which checks queue and power.
+ *
+ * A consumer blocked by resources/caps does not request power.
+ * When power is unavailable, progress is preserved (not reset).
  */
-function updateSeparators(state: GameState, dt: number): void {
+function allocatePowerAndProcess(state: GameState, dt: number): void {
   const playerFaction = state.playerFaction;
 
-  // ARCH-01E: Track remaining available power for separator allocation.
-  // Power consumers are evaluated in build order (economy.separators order).
-  // Older completed buildings get power first.
+  // Compute total available power
   let remainingPower = HQ_BASE_POWER +
     state.mapData.buildings.filter(b => b.type === 'power-plant').length * POWER_PLANT_GENERATION;
 
+  // Build lookup maps for separator and factory runtime state by position
+  const separatorMap = new Map<string, typeof state.economy.separators[0]>();
   for (const sep of state.economy.separators) {
-    // ARCH-01D: Check resource/cap conditions for separator to process:
-    // 1. raw >= SEP_RAW_COST
-    // 2. matter + SEP_MATTER_YIELD <= matterCap
-    // 3. elements[playerFaction] + SEP_ELEMENT_YIELD <= elementCap
-    const hasResources =
-      state.economy.raw >= SEP_RAW_COST &&
-      state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
-      state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
+    separatorMap.set(`${sep.tx},${sep.ty}`, sep);
+  }
 
-    // ARCH-01E: A separator blocked by raw/caps does not consume power.
-    if (!hasResources) {
-      sep.active = false;
-      // Paused — progress preserved, not reset
-      continue;
-    }
+  const factoryMap = new Map<string, typeof state.production.factories[0]>();
+  for (const factory of state.production.factories) {
+    factoryMap.set(`${factory.tx},${factory.ty}`, factory);
+  }
 
-    // ARCH-01E: Check if enough power is available for this separator.
-    if (remainingPower < SEPARATOR_ACTIVE_POWER_CONSUMPTION) {
-      // Power-blocked: progress preserved, does not consume power.
-      sep.active = false;
-      continue;
-    }
+  // Iterate buildings in completed build order
+  for (const building of state.mapData.buildings) {
+    if (building.type === 'separator') {
+      const sep = separatorMap.get(`${building.tx},${building.ty}`);
+      if (!sep) continue;
 
-    // This separator can process and has power.
-    // Allocate power for this separator.
-    remainingPower -= SEPARATOR_ACTIVE_POWER_CONSUMPTION;
-    sep.active = true;
+      // ARCH-01D: Check resource/cap conditions for separator to process
+      const hasResources =
+        state.economy.raw >= SEP_RAW_COST &&
+        state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
+        state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
 
-    // Advance progress
-    sep.progress += dt / SEP_CYCLE_MS;
-
-    // Complete as many full cycles as progress allows
-    while (sep.progress >= 1) {
-      // Re-check resource conditions before consuming each cycle
-      if (
-        state.economy.raw < SEP_RAW_COST ||
-        state.economy.matter + SEP_MATTER_YIELD > state.economy.matterCap ||
-        state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD > state.economy.elementCap
-      ) {
-        // Blocked by cap or lack of raw mid-cycle — clamp progress and stop
+      if (!hasResources) {
         sep.active = false;
-        // Return allocated power since separator is now blocked
-        remainingPower += SEPARATOR_ACTIVE_POWER_CONSUMPTION;
-        sep.progress = Math.min(sep.progress, 1);
-        break;
+        continue;
       }
 
-      // Consume raw, yield matter and elementUnits
-      state.economy.raw -= SEP_RAW_COST;
-      state.economy.matter += SEP_MATTER_YIELD;
-      state.economy.elements[playerFaction] += SEP_ELEMENT_YIELD;
+      // Check power
+      if (remainingPower < SEPARATOR_ACTIVE_POWER_CONSUMPTION) {
+        sep.active = false;
+        continue;
+      }
 
-      sep.progress -= 1;
-    }
+      // Allocate power and process
+      remainingPower -= SEPARATOR_ACTIVE_POWER_CONSUMPTION;
+      sep.active = true;
 
-    // After processing, re-check active state
-    const stillHasResources =
-      state.economy.raw >= SEP_RAW_COST &&
-      state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
-      state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
-    if (!stillHasResources) {
-      sep.active = false;
-      // Return allocated power since separator is now blocked
-      remainingPower += SEPARATOR_ACTIVE_POWER_CONSUMPTION;
+      // Advance progress
+      sep.progress += dt / SEP_CYCLE_MS;
+
+      // Complete as many full cycles as progress allows
+      while (sep.progress >= 1) {
+        // Re-check resource conditions before consuming each cycle
+        if (
+          state.economy.raw < SEP_RAW_COST ||
+          state.economy.matter + SEP_MATTER_YIELD > state.economy.matterCap ||
+          state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD > state.economy.elementCap
+        ) {
+          sep.active = false;
+          remainingPower += SEPARATOR_ACTIVE_POWER_CONSUMPTION;
+          sep.progress = Math.min(sep.progress, 1);
+          break;
+        }
+
+        // Consume raw, yield matter and elementUnits
+        state.economy.raw -= SEP_RAW_COST;
+        state.economy.matter += SEP_MATTER_YIELD;
+        state.economy.elements[playerFaction] += SEP_ELEMENT_YIELD;
+
+        sep.progress -= 1;
+      }
+
+      // After processing, re-check active state
+      const stillHasResources =
+        state.economy.raw >= SEP_RAW_COST &&
+        state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
+        state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
+      if (!stillHasResources) {
+        sep.active = false;
+        remainingPower += SEPARATOR_ACTIVE_POWER_CONSUMPTION;
+      }
+    } else if (building.type === 'units-factory') {
+      const factory = factoryMap.get(`${building.tx},${building.ty}`);
+      if (!factory) continue;
+
+      // Check if factory has anything to produce
+      const unfinishedItem = factory.queue.find(item => !item.completed);
+      if (!unfinishedItem) {
+        factory.active = false;
+        // Still try to spawn any completed items
+        processFactorySpawns(state, factory);
+        continue;
+      }
+
+      // Check power
+      if (remainingPower < UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION) {
+        factory.active = false;
+        // Still try to spawn any completed items (doesn't consume power)
+        processFactorySpawns(state, factory);
+        continue;
+      }
+
+      // Allocate power for this factory
+      remainingPower -= UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION;
+      factory.active = true;
+
+      // Advance progress on the first unfinished item
+      const clampedDt = Math.min(dt, 200);
+      unfinishedItem.elapsedMs += clampedDt;
+      unfinishedItem.progress = Math.min(unfinishedItem.elapsedMs / unfinishedItem.durationMs, 1);
+
+      if (unfinishedItem.progress >= 1) {
+        unfinishedItem.completed = true;
+        unfinishedItem.progress = 1;
+      }
+
+      // Try to spawn completed items
+      processFactorySpawns(state, factory);
     }
   }
+
+  // Mark any separators not found in mapData.buildings as inactive
+  // (shouldn't happen in normal flow, but safety)
+  for (const sep of state.economy.separators) {
+    if (!separatorMap.has(`${sep.tx},${sep.ty}`)) {
+      // Already processed above or not in buildings — skip
+    }
+  }
+
+  // Mark any factories not found in mapData.buildings as inactive
+  for (const factory of state.production.factories) {
+    if (!factoryMap.has(`${factory.tx},${factory.ty}`)) {
+      // Not in buildings — shouldn't happen
+    }
+  }
+}
+
+// ─── Factory spawn logic (ARCH-01F) ────────────────────────────────────
+
+import type { UnitFactoryRuntimeState, BuilderPlacement } from './types';
+import { buildOccupancyMap, isPassable } from './occupancy';
+
+/**
+ * Attempt to spawn all completed items at the front of a factory's queue.
+ *
+ * For each completed item at the front of the queue:
+ * - Find a valid adjacent tile near the factory footprint
+ * - Spawn the appropriate unit type
+ * - Remove the item from the queue
+ *
+ * If no valid spawn tile exists, the completed item stays in queue
+ * and will retry on the next tick.
+ */
+function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState): void {
+  while (factory.queue.length > 0 && factory.queue[0].completed) {
+    const item = factory.queue[0];
+    const spawnPos = findSpawnPosition(state, factory.tx, factory.ty);
+
+    if (!spawnPos) {
+      break;
+    }
+
+    if (item.unitType === 'builder') {
+      spawnBuilder(state, spawnPos.tx, spawnPos.ty);
+    } else if (item.unitType === 'harvester') {
+      spawnHarvesterUnit(state, spawnPos.tx, spawnPos.ty);
+    }
+
+    factory.queue.shift();
+  }
+}
+
+/**
+ * Find a valid spawn position adjacent to the factory footprint.
+ *
+ * The factory has a 2x2 footprint at (tx, ty).
+ * Search rings around the footprint for the first passable tile.
+ */
+function findSpawnPosition(
+  state: GameState,
+  factoryTx: number,
+  factoryTy: number,
+): { tx: number; ty: number } | null {
+  const fpW = 2;
+  const fpH = 2;
+  const occupancyMap = buildOccupancyMap(state);
+
+  for (let ring = 0; ring < 5; ring++) {
+    const candidates = getRingCandidates(factoryTx, factoryTy, fpW, fpH, ring);
+
+    for (const pos of candidates) {
+      if (pos.tx < 0 || pos.ty < 0 ||
+          pos.tx >= state.mapWidth || pos.ty >= state.mapHeight) {
+        continue;
+      }
+      if (isPassable(occupancyMap, pos.tx, pos.ty)) {
+        return pos;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Get candidate tile positions for a given ring around a rectangular footprint.
+ */
+function getRingCandidates(
+  baseTx: number,
+  baseTy: number,
+  fpW: number,
+  fpH: number,
+  ring: number,
+): Array<{ tx: number; ty: number }> {
+  const candidates: Array<{ tx: number; ty: number }> = [];
+
+  // North edge
+  for (let dx = -ring; dx < fpW + ring; dx++) {
+    candidates.push({ tx: baseTx + dx, ty: baseTy - 1 - ring });
+  }
+  // South edge
+  for (let dx = -ring; dx < fpW + ring; dx++) {
+    candidates.push({ tx: baseTx + dx, ty: baseTy + fpH + ring });
+  }
+  // West edge (excluding corners)
+  for (let dy = 0; dy < fpH; dy++) {
+    candidates.push({ tx: baseTx - 1 - ring, ty: baseTy + dy });
+  }
+  // East edge (excluding corners)
+  for (let dy = 0; dy < fpH; dy++) {
+    candidates.push({ tx: baseTx + fpW + ring, ty: baseTy + dy });
+  }
+
+  return candidates;
+}
+
+/**
+ * Spawn a builder unit at the given tile position.
+ */
+function spawnBuilder(state: GameState, tx: number, ty: number): void {
+  const builder: BuilderPlacement = {
+    tx,
+    ty,
+    busy: false,
+    phase: 'idle',
+    path: [],
+    pathIndex: 0,
+    ftx: tx,
+    fty: ty,
+    targetTx: tx,
+    targetTy: ty,
+    assignedSiteId: -1,
+  };
+  state.mapData.builders.push(builder);
+
+  state.entities.push({
+    id: `builder-spawn-${tx}-${ty}-${Date.now()}`,
+    kind: 'builder',
+    tx,
+    ty,
+    faction: state.playerFaction,
+  });
+}
+
+/**
+ * Spawn a harvester unit at the given tile position.
+ */
+function spawnHarvesterUnit(state: GameState, tx: number, ty: number): void {
+  const id = `harvester-spawn-${tx}-${ty}-${Date.now()}`;
+  const harvester = createHarvester(id, tx, ty, state.playerFaction);
+  state.harvesters.push(harvester);
+
+  state.entities.push({
+    id,
+    kind: 'harvester',
+    tx,
+    ty,
+    faction: state.playerFaction,
+  });
 }
 
 // ─── Power state recomputation (ARCH-01E) ────────────────────────────────
@@ -418,17 +619,20 @@ function updateSeparators(state: GameState, dt: number): void {
  * powerGenerated = HQ_BASE_POWER + completed power-plant count * POWER_PLANT_GENERATION
  * powerConsumed = actual active power consumed this tick
  *
- * This is called after separator processing so that powerConsumed
- * reflects the active state determined during the update.
+ * This is called after separator processing and factory production so that
+ * powerConsumed reflects the active state determined during the update.
  */
 function recomputePower(state: GameState): void {
   const powerPlantCount = state.mapData.buildings.filter(b => b.type === 'power-plant').length;
   state.economy.powerGenerated = HQ_BASE_POWER + powerPlantCount * POWER_PLANT_GENERATION;
 
   // powerConsumed = count of active separators * SEPARATOR_ACTIVE_POWER_CONSUMPTION
-  // Units-factory consumption is NOT implemented yet (ARCH-01F)
+  //              + count of active factories producing * UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION
   const activeSeparatorCount = state.economy.separators.filter(s => s.active).length;
-  state.economy.powerConsumed = activeSeparatorCount * SEPARATOR_ACTIVE_POWER_CONSUMPTION;
+  const activeFactoryCount = state.production.factories.filter(f => f.active).length;
+  state.economy.powerConsumed =
+    activeSeparatorCount * SEPARATOR_ACTIVE_POWER_CONSUMPTION +
+    activeFactoryCount * UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION;
 }
 
 // ─── Factory helpers ────────────────────────────────────────────────

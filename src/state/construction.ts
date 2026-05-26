@@ -59,6 +59,13 @@ export const BUILDING_CONFIG: Partial<Record<BuildingType, BuildingConfig>> = {
     costMatter: 100,
     buildTimeMs: 25000,
   },
+  'units-factory': {
+    type: 'units-factory',
+    footprintW: 2,
+    footprintH: 2,
+    costMatter: 120,
+    buildTimeMs: 40000,
+  },
 };
 
 // ─── Placement Result ───────────────────────────────────────────────
@@ -241,6 +248,16 @@ export function updateConstructionSiteProgress(
   } else if (site.type === 'matter-storage') {
     state.economy.matterCap += MATTER_STORAGE_MATTER_BONUS;
     state.economy.elementCap += MATTER_STORAGE_ELEMENT_BONUS;
+  }
+
+  // ARCH-01F: Register completed units-factory into production runtime state.
+  if (site.type === 'units-factory') {
+    state.production.factories.push({
+      tx: site.tx,
+      ty: site.ty,
+      queue: [],
+      active: false,
+    });
   }
 
   // Release the assigned builder back to idle

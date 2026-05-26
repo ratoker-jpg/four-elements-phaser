@@ -103,6 +103,7 @@ function makeTestState(overrides?: {
     economy,
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
+    production: { factories: [] },
   };
 }
 
