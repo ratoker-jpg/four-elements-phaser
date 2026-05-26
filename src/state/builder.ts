@@ -174,7 +174,7 @@ function updateBuilder(
 /**
  * Handle builder movement toward a construction site OR manual move target.
  *
- * ARCH-05X: If the builder has `_manualMove` flag set, it returns to idle
+ * ARCH-05X: If the builder has `manualMove` flag set, it returns to idle
  * on arrival instead of transitioning to 'building'.
  *
  * Moves along the path tile by tile. When the builder arrives at the
