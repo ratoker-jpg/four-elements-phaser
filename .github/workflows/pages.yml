@@ -42,6 +42,15 @@ jobs:
         if: github.event_name == 'pull_request'
         run: npm run build -- --base /four-elements-phaser/pr-preview/pr-${{ github.event.pull_request.number }}/
 
+      - name: Copy art-sample viewer into dist
+        run: |
+          mkdir -p dist/task/art-sample
+          cp task/art-sample/index.html dist/task/art-sample/index.html
+          cp task/art-sample/README.md dist/task/art-sample/README.md
+          mkdir -p dist/art/generated
+          cp art/generated/manifest.generated.json dist/art/generated/manifest.generated.json
+          cp art/generated/audit-report.json dist/art/generated/audit-report.json
+
       - name: Deploy main site
         if: github.event_name == 'push'
         uses: peaceiris/actions-gh-pages@v4
