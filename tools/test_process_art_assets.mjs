@@ -19,6 +19,7 @@ import {
   generateBuildingPath,
   generateHqPath,
   processBuildingsFamily,
+  generateRuntimeManifestTS,
 } from './process_art_assets.mjs';
 import { validateManifest } from './validate_manifest.mjs';
 
@@ -477,6 +478,91 @@ test('serialized manifest is byte-identical across runs', () => {
     const serialized2 = JSON.stringify(processBuildingsFamily({ publicDir }).manifest, null, 2);
     assert.strictEqual(serialized1, serialized2,
       'Serialized manifest output must be byte-identical across runs');
+  } finally {
+    cleanup();
+  }
+});
+
+// ── Runtime TypeScript manifest generation (ARCH-02F) ──────────────
+
+test('generateRuntimeManifestTS produces valid TypeScript with hq + buildings families', () => {
+  const { publicDir, cleanup } = createBuildingFixtures();
+  try {
+    const { manifest } = processBuildingsFamily({ publicDir });
+    const ts = generateRuntimeManifestTS(manifest);
+
+    // Must contain key structural elements
+    assert.ok(ts.includes('export const GENERATED_ASSET_MANIFEST'), 'Must export const');
+    assert.ok(ts.includes('as const;'), 'Must use as const');
+    assert.ok(ts.includes('version: 1,'), 'Must have version');
+    assert.ok(ts.includes("generatedAt: '1970-01-01T00:00:00.000Z',"), 'Must have deterministic timestamp');
+    assert.ok(ts.includes('families:'), 'Must have families');
+    assert.ok(ts.includes('hq:'), 'Must have hq family');
+    assert.ok(ts.includes('buildings:'), 'Must have buildings family');
+    assert.ok(ts.includes("loadType: 'image',"), 'Must have image loadType');
+    assert.ok(ts.includes('enabled: true,'), 'Must have enabled flag');
+    assert.ok(ts.includes('paths:'), 'Must have paths');
+  } finally {
+    cleanup();
+  }
+});
+
+test('generateRuntimeManifestTS contains all 28 keys', () => {
+  const { publicDir, cleanup } = createBuildingFixtures();
+  try {
+    const { manifest } = processBuildingsFamily({ publicDir });
+    const ts = generateRuntimeManifestTS(manifest);
+
+    // Check all 4 HQ keys
+    assert.ok(ts.includes("'hq_cyan'"), 'Must have hq_cyan');
+    assert.ok(ts.includes("'hq_green'"), 'Must have hq_green');
+    assert.ok(ts.includes("'hq_yellow'"), 'Must have hq_yellow');
+    assert.ok(ts.includes("'hq_purple'"), 'Must have hq_purple');
+
+    // Check a sample of building keys
+    assert.ok(ts.includes("'building_cyan_separator'"), 'Must have building_cyan_separator');
+    assert.ok(ts.includes("'building_green_power_plant'"), 'Must have building_green_power_plant');
+    assert.ok(ts.includes("'building_purple_units_factory'"), 'Must have building_purple_units_factory');
+
+    // Check paths section has the right keys
+    assert.ok(ts.includes("'hq_cyan': 'assets/factions/cyan/buildings/hq_t1.png',"), 'Must have hq_cyan path');
+    assert.ok(ts.includes("'building_cyan_separator': 'assets/factions/cyan/buildings/separator.png',"), 'Must have building path');
+  } finally {
+    cleanup();
+  }
+});
+
+test('generateRuntimeManifestTS exports type definitions', () => {
+  const { publicDir, cleanup } = createBuildingFixtures();
+  try {
+    const { manifest } = processBuildingsFamily({ publicDir });
+    const ts = generateRuntimeManifestTS(manifest);
+
+    assert.ok(ts.includes('export type GeneratedAssetKey'), 'Must export GeneratedAssetKey type');
+    assert.ok(ts.includes('export type GeneratedAssetFamilyName'), 'Must export GeneratedAssetFamilyName type');
+  } finally {
+    cleanup();
+  }
+});
+
+test('generateRuntimeManifestTS is deterministic', () => {
+  const { publicDir, cleanup } = createBuildingFixtures();
+  try {
+    const { manifest } = processBuildingsFamily({ publicDir });
+    const ts1 = generateRuntimeManifestTS(manifest);
+    const ts2 = generateRuntimeManifestTS(manifest);
+    assert.strictEqual(ts1, ts2, 'Two calls with same manifest must produce identical TS output');
+  } finally {
+    cleanup();
+  }
+});
+
+test('generateRuntimeManifestTS does not contain double commas', () => {
+  const { publicDir, cleanup } = createBuildingFixtures();
+  try {
+    const { manifest } = processBuildingsFamily({ publicDir });
+    const ts = generateRuntimeManifestTS(manifest);
+    assert.ok(!ts.includes(',,',), 'Generated TS must not contain double commas');
   } finally {
     cleanup();
   }
