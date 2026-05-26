@@ -3,6 +3,8 @@ import { ASSET_KEYS } from '../assets/assetManifest';
 import { TerrainRenderer } from './render/TerrainRenderer';
 import { EntityRenderer } from './render/EntityRenderer';
 import { CameraControls } from './input/CameraControls';
+import { PlaytestHud } from './ui/PlaytestHud';
+import type { BuildRequestResult, ProductionRequestResult } from './ui/PlaytestHud';
 import { tileToScreen, mapOriginOffset } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
@@ -10,7 +12,7 @@ import { placeConstructionSite, updateConstructionSiteProgress, BUILDING_CONFIG 
 import { findBuildSiteNearPlayerBuildings } from '../state/buildSiteSelection';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import { startUnitProduction } from '../state/production';
-import type { GameState, HarvesterPhase } from '../state/types';
+import type { GameState, HarvesterPhase, BuildingType, ProducibleUnitType } from '../state/types';
 import { ELEMENT_UNITS_PER_ELEMENT } from '../state/types';
 import {
   MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
@@ -28,6 +30,9 @@ import {
  *
  * PR7: Q/E cycles bodyDir, Z/X cycles turretDir.
  * Arrow tuning targets current bodyDir entry in the offset tables.
+ *
+ * ARCH-14A: PlaytestHud provides clickable build/production buttons
+ * that call the same command paths as the debug hotkeys.
  */
 
 /** Phase labels for HUD display. */
@@ -43,11 +48,12 @@ export class GameScene extends Phaser.Scene {
   private terrainRenderer: TerrainRenderer | null = null;
   private entityRenderer: EntityRenderer | null = null;
   private cameraControls: CameraControls | null = null;
+  private playtestHud: PlaytestHud | null = null;
   private gameState!: GameState;
   private hqWorldX: number = 0;
   private hqWorldY: number = 0;
 
-  // HUD elements
+  // HUD elements (legacy top bar)
   private hudCoords: HTMLElement | null = null;
   private hudMapName: HTMLElement | null = null;
   private hudEconomy: HTMLElement | null = null;
@@ -104,6 +110,7 @@ export class GameScene extends Phaser.Scene {
     this.hqWorldY = hqScreen.y + offset.y;
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
+
     // ── Debug overlay toggle (T) + tuner controls ────────────
     this.input.keyboard?.on('keydown-T', () => {
       const visible = this.entityRenderer?.toggleModularTankDebug();
@@ -193,85 +200,29 @@ export class GameScene extends Phaser.Scene {
       console.log(`[Tuner] turretDir: ${next}`);
     });
 
-    // ── Debug build hotkey (B) — auto-place Separator construction site ──
+    // ── Build hotkeys — now delegate to extracted command methods ──
     this.input.keyboard?.on('keydown-B', () => {
-      // ARCH-13F1: B-press guard — do not create a site if no idle builder is available.
-      const hasIdleBuilder = this.gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
-      if (!hasIdleBuilder) {
-        this.logDevHotkeyInfo('[GameScene] B pressed but no idle builder available — site not created.');
-        return;
-      }
-
-      // ARCH-13E4: Automatic build-site selection.
-      // The system finds a valid 2x2 location near player buildings
-      // with a 1-tile gap around existing footprints.
-      const site = findBuildSiteNearPlayerBuildings(this.gameState, 'separator');
-      if (!site.ok) {
-        this.logDevHotkeyInfo(`[GameScene] No valid build site found: ${site.reason}`);
-        return;
-      }
-
-      const result = placeConstructionSite(this.gameState, 'separator', site.tx, site.ty);
-      if (result.ok) {
-        console.log(`[GameScene] Construction site placed: ${result.siteId} at (${site.tx},${site.ty})`);
-      } else {
-        console.warn(`[GameScene] Placement failed at (${site.tx},${site.ty}): ${result.reason}`);
-      }
+      const result = this.requestBuild('separator');
+      this.playtestHud?.showStatus(result.message, result.success);
     });
 
-    // ── Debug build hotkey (F) — auto-place units-factory construction site ──
     this.input.keyboard?.on('keydown-F', () => {
-      const hasIdleBuilder = this.gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
-      if (!hasIdleBuilder) {
-        this.logDevHotkeyInfo('[GameScene] F pressed but no idle builder available — site not created.');
-        return;
-      }
-
-      const site = findBuildSiteNearPlayerBuildings(this.gameState, 'units-factory');
-      if (!site.ok) {
-        this.logDevHotkeyInfo(`[GameScene] No valid build site for units-factory: ${site.reason}`);
-        return;
-      }
-
-      const result = placeConstructionSite(this.gameState, 'units-factory', site.tx, site.ty);
-      if (result.ok) {
-        console.log(`[GameScene] Units-factory site placed: ${result.siteId} at (${site.tx},${site.ty})`);
-      } else {
-        console.warn(`[GameScene] Units-factory placement failed at (${site.tx},${site.ty}): ${result.reason}`);
-      }
+      const result = this.requestBuild('units-factory');
+      this.playtestHud?.showStatus(result.message, result.success);
     });
 
-    // ── Debug production hotkey (N) — queue builder at oldest completed factory ──
+    // ── Production hotkeys — now delegate to extracted command methods ──
     this.input.keyboard?.on('keydown-N', () => {
-      const factory = this.gameState.production.factories[0];
-      if (!factory) {
-        this.logDevHotkeyInfo('[GameScene] N pressed but no completed units-factory exists.');
-        return;
-      }
-      const result = startUnitProduction(this.gameState, factory.tx, factory.ty, 'builder');
-      if (result.ok) {
-        console.log(`[GameScene] Builder queued at factory (${factory.tx},${factory.ty})`);
-      } else {
-        this.logDevHotkeyInfo(`[GameScene] Builder queue failed: ${result.reason}`);
-      }
+      const result = this.requestQueueUnit('builder');
+      this.playtestHud?.showStatus(result.message, result.success);
     });
 
-    // ── Debug production hotkey (G) — queue harvester at oldest completed factory ──
     this.input.keyboard?.on('keydown-G', () => {
-      const factory = this.gameState.production.factories[0];
-      if (!factory) {
-        this.logDevHotkeyInfo('[GameScene] G pressed but no completed units-factory exists.');
-        return;
-      }
-      const result = startUnitProduction(this.gameState, factory.tx, factory.ty, 'harvester');
-      if (result.ok) {
-        console.log(`[GameScene] Harvester queued at factory (${factory.tx},${factory.ty})`);
-      } else {
-        this.logDevHotkeyInfo(`[GameScene] Harvester queue failed: ${result.reason}`);
-      }
+      const result = this.requestQueueUnit('harvester');
+      this.playtestHud?.showStatus(result.message, result.success);
     });
 
-    // HUD references
+    // HUD references (legacy top bar)
     this.hudCoords = document.getElementById('hud-coords');
     this.hudMapName = document.getElementById('hud-map-name');
     this.hudEconomy = document.getElementById('hud-economy');
@@ -282,6 +233,13 @@ export class GameScene extends Phaser.Scene {
     if (this.hudMapName) {
       this.hudMapName.textContent = `Map: ${this.gameState.mapName}`;
     }
+
+    // ARCH-14A: Create PlaytestHud with build/production callbacks
+    this.playtestHud = new PlaytestHud();
+    this.playtestHud.create(
+      (buildingType: BuildingType) => this.requestBuild(buildingType),
+      (unitType: ProducibleUnitType) => this.requestQueueUnit(unitType),
+    );
 
     // Set world background color
     this.cameras.main.setBackgroundColor('#1a1a2e');
@@ -319,10 +277,13 @@ export class GameScene extends Phaser.Scene {
     // 5. Sync render layer
     this.entityRenderer?.syncFromState(this.gameState);
 
-    // 6. Update HUD
+    // 6. Update HUD (legacy top bar)
     this.updateHUD();
 
-    // 7. Debug log on unload completion
+    // 7. Update PlaytestHud panel
+    this.playtestHud?.update(this.gameState);
+
+    // 8. Debug log on unload completion
     if (this.gameState.economy.raw > this.lastLoggedRaw) {
       console.log(
         `[GameScene] Unloaded! Raw: ${this.gameState.economy.raw}`,
@@ -331,7 +292,61 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // ─── HUD ────────────────────────────────────────────────────────
+  // ─── Command methods (shared by hotkeys and HUD buttons) ────────
+
+  /**
+   * Request a building construction site.
+   *
+   * Checks for idle builder, finds a valid build site, and places
+   * the construction site. Returns a result for status feedback.
+   *
+   * Called by both hotkeys (B, F) and PlaytestHud build buttons.
+   */
+  private requestBuild(buildingType: BuildingType): BuildRequestResult {
+    // ARCH-13F1: Guard — do not create a site if no idle builder is available.
+    const hasIdleBuilder = this.gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
+    if (!hasIdleBuilder) {
+      return { success: false, message: 'no idle builder' };
+    }
+
+    // ARCH-13E4: Automatic build-site selection.
+    const site = findBuildSiteNearPlayerBuildings(this.gameState, buildingType);
+    if (!site.ok) {
+      return { success: false, message: `no valid build site` };
+    }
+
+    const result = placeConstructionSite(this.gameState, buildingType, site.tx, site.ty);
+    if (result.ok) {
+      console.log(`[GameScene] Construction site placed: ${result.siteId} at (${site.tx},${site.ty})`);
+      return { success: true, message: `${buildingType} site placed` };
+    } else {
+      console.warn(`[GameScene] Placement failed at (${site.tx},${site.ty}): ${result.reason}`);
+      return { success: false, message: `placement failed: ${result.reason}` };
+    }
+  }
+
+  /**
+   * Request production of a unit at the oldest completed factory.
+   *
+   * Called by both hotkeys (N, G) and PlaytestHud production buttons.
+   */
+  private requestQueueUnit(unitType: ProducibleUnitType): ProductionRequestResult {
+    const factory = this.gameState.production.factories[0];
+    if (!factory) {
+      return { success: false, message: 'no completed units-factory' };
+    }
+
+    const result = startUnitProduction(this.gameState, factory.tx, factory.ty, unitType);
+    if (result.ok) {
+      console.log(`[GameScene] ${unitType} queued at factory (${factory.tx},${factory.ty})`);
+      return { success: true, message: `${unitType} queued` };
+    } else {
+      this.logDevHotkeyInfo(`[GameScene] ${unitType} queue failed: ${result.reason}`);
+      return { success: false, message: result.reason };
+    }
+  }
+
+  // ─── HUD (legacy top bar) ────────────────────────────────────────
 
   private updateHUD(): void {
     // Camera info
@@ -357,9 +372,6 @@ export class GameScene extends Phaser.Scene {
         .map(([label, count]) => `${count} ${label}`)
         .join(', ');
 
-      // ARCH-01C: Display faction element in displayed units (elementUnits / ELEMENT_UNITS_PER_ELEMENT)
-      // ARCH-01D: Show caps compactly: Raw: current/cap | Matter: current/cap | Faction: displayed/displayedCap
-      // ARCH-01E: Show power compactly: Power: consumed/generated
       const factionElementRaw = s.economy.elements[s.playerFaction];
       const factionElementDisplayed = (factionElementRaw / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
       const elementCapDisplayed = (s.economy.elementCap / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
@@ -405,13 +417,6 @@ export class GameScene extends Phaser.Scene {
         } else {
           this.hudBuild.textContent = `Build: ${label} at (${site.tx},${site.ty}), ${pct}%`;
         }
-      }
-
-      // If no idle builder and B is pressed, show warning
-      const hasIdleBuilder = this.gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
-      if (!hasIdleBuilder && sites.length === 0) {
-        // Only show "no valid site" when there are no active sites AND no idle builder
-        // (the B-press guard prevents creation, so this hints at the reason)
       }
     }
 
@@ -488,6 +493,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.playtestHud?.destroy();
+    this.playtestHud = null;
     this.cameraControls?.destroy();
     this.entityRenderer?.destroy();
     this.terrainRenderer?.destroy();
