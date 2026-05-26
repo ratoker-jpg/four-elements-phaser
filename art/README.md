@@ -82,7 +82,23 @@ Current MVP behavior:
 - Runs the existing building metadata generator as a sub-step.
 - Runtime integration remains ARCH-02F.
 
+## Sample viewer
+
+A standalone HTML viewer for visually inspecting generated assets is located at
+`task/art-sample/index.html`. It reads the manifest and audit report and displays
+asset previews grouped by family and faction.
+
+Requires a local dev/static server (browsers block `fetch()` under `file://`):
+
+```bash
+npm run dev
+# Then open http://localhost:5173/task/art-sample/index.html
+```
+
+See `task/art-sample/README.md` for full usage instructions.
+
 ## See also
 
 - `docs/ASSET_PIPELINE_STRATEGY.md` — full pipeline design
 - `docs/ASSET_POLICY.md` — asset copy and quality rules
+- `task/art-sample/README.md` — sample viewer usage

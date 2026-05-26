@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Four Elements — Generated Asset Viewer</title>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --card-bg: #0f3460;
+      --text: #e0e0e0;
+      --text-dim: #8899aa;
+      --accent: #e94560;
+      --warning: #f0a500;
+      --error: #e94560;
+      --success: #00c853;
+      --border: #2a3a5e;
+      --faction-cyan: #00bcd4;
+      --faction-green: #4caf50;
+      --faction-yellow: #ffc107;
+      --faction-purple: #9c27b0;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 200px;
+      max-width: 400px;
+      padding: 0.4rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    .search-box::placeholder { color: var(--text-dim); }
+
+    .family-filter {
+      padding: 0.4rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .family-filter option { background: var(--surface); }
+
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    /* Summary panel */
+    .summary-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .summary-stat {
+      text-align: center;
+    }
+
+    .summary-stat .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .summary-stat .label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .summary-stat.valid .value { color: var(--success); }
+    .summary-stat.warnings .value { color: var(--warning); }
+    .summary-stat.errors .value { color: var(--error); }
+
+    /* Issues lists */
+    .issues-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .issues-panel h3 {
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .issue-item {
+      padding: 0.35rem 0;
+      font-size: 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .issue-item:last-child { border-bottom: none; }
+
+    .issue-code {
+      display: inline-block;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+
+    .issue-code.warning { background: #3d2e00; color: var(--warning); }
+    .issue-code.error { background: #3d0015; color: var(--error); }
+
+    /* Family section */
+    .family-section {
+      margin-bottom: 2rem;
+    }
+
+    .family-section h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .family-section h2 .family-badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 3px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+      background: var(--card-bg);
+      color: var(--text-dim);
+    }
+
+    /* Faction group */
+    .faction-group {
+      margin-bottom: 1rem;
+    }
+
+    .faction-group h3 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      padding-left: 0.5rem;
+      border-left: 3px solid var(--border);
+    }
+
+    .faction-group[data-faction="cyan"] h3 { border-left-color: var(--faction-cyan); }
+    .faction-group[data-faction="green"] h3 { border-left-color: var(--faction-green); }
+    .faction-group[data-faction="yellow"] h3 { border-left-color: var(--faction-yellow); }
+    .faction-group[data-faction="purple"] h3 { border-left-color: var(--faction-purple); }
+
+    /* Asset grid */
+    .asset-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+
+    /* Asset card */
+    .asset-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .asset-card:hover {
+      border-color: var(--accent);
+    }
+
+    .asset-card.has-error {
+      border-color: var(--error);
+    }
+
+    .asset-card.has-warning {
+      border-color: var(--warning);
+    }
+
+    .card-image {
+      width: 100%;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: repeating-conic-gradient(#1a1a2e 0% 25%, #16213e 0% 50%) 0 0 / 20px 20px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .card-image img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      image-rendering: pixelated;
+    }
+
+    .card-image .badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge.error-badge {
+      background: var(--error);
+      color: white;
+    }
+
+    .badge.warning-badge {
+      background: var(--warning);
+      color: #1a1a2e;
+    }
+
+    .card-info {
+      padding: 0.5rem 0.75rem;
+    }
+
+    .card-key {
+      font-size: 0.8rem;
+      font-weight: 600;
+      word-break: break-all;
+    }
+
+    .card-path {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      word-break: break-all;
+      margin-top: 0.15rem;
+    }
+
+    .card-family {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      margin-top: 0.2rem;
+    }
+
+    /* Error states */
+    .load-error {
+      text-align: center;
+      padding: 3rem 1.5rem;
+    }
+
+    .load-error h2 {
+      color: var(--error);
+      margin-bottom: 0.75rem;
+    }
+
+    .load-error p {
+      color: var(--text-dim);
+      max-width: 500px;
+      margin: 0.5rem auto;
+    }
+
+    .load-error code {
+      background: var(--surface);
+      padding: 0.2rem 0.4rem;
+      border-radius: 3px;
+      font-size: 0.85rem;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .asset-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      }
+      .summary-panel {
+        gap: 1rem;
+      }
+      header h1 { font-size: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Four Elements — Generated Asset Viewer</h1>
+  <div class="header-controls">
+    <input type="text" id="searchInput" class="search-box" placeholder="Filter by key, path, or family..." />
+    <select id="familyFilter" class="family-filter">
+      <option value="all">All families</option>
+    </select>
+  </div>
+</header>
+
+<main id="mainContent">
+  <!-- Populated by JS -->
+</main>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Paths (relative to this HTML file) ──────────────────────────────
+  const MANIFEST_PATH = '../../art/generated/manifest.generated.json';
+  const AUDIT_PATH    = '../../art/generated/audit-report.json';
+  const PUBLIC_PREFIX = '../../public/';
+
+  // ── DOM refs ────────────────────────────────────────────────────────
+  const mainEl       = document.getElementById('mainContent');
+  const searchInput  = document.getElementById('searchInput');
+  const familyFilter = document.getElementById('familyFilter');
+
+  // ── State ───────────────────────────────────────────────────────────
+  let manifest = null;
+  let auditReport = null;
+  let issuesByKey = {};   // key -> { errors: [], warnings: [] }
+
+  // ── Init ────────────────────────────────────────────────────────────
+  async function init() {
+    try {
+      const [manifestResp, auditResp] = await Promise.all([
+        fetch(MANIFEST_PATH),
+        fetch(AUDIT_PATH),
+      ]);
+
+      if (!manifestResp.ok) {
+        throw new Error(`Failed to load manifest: ${manifestResp.status} ${manifestResp.statusText}`);
+      }
+      if (!auditResp.ok) {
+        throw new Error(`Failed to load audit report: ${auditResp.status} ${auditResp.statusText}`);
+      }
+
+      manifest     = await manifestResp.json();
+      auditReport  = await auditResp.json();
+    } catch (err) {
+      renderLoadError(err);
+      return;
+    }
+
+    buildIssuesIndex();
+    populateFamilyFilter();
+    render();
+
+    searchInput.addEventListener('input', render);
+    familyFilter.addEventListener('change', render);
+  }
+
+  // ── Issues index ────────────────────────────────────────────────────
+  function buildIssuesIndex() {
+    issuesByKey = {};
+    if (!auditReport) return;
+
+    for (const item of (auditReport.warnings || [])) {
+      const key = item.key || '';
+      if (!issuesByKey[key]) issuesByKey[key] = { errors: [], warnings: [] };
+      issuesByKey[key].warnings.push(item);
+    }
+
+    for (const item of (auditReport.errors || [])) {
+      const key = item.key || '';
+      if (!issuesByKey[key]) issuesByKey[key] = { errors: [], warnings: [] };
+      issuesByKey[key].errors.push(item);
+    }
+  }
+
+  // ── Family filter ───────────────────────────────────────────────────
+  function populateFamilyFilter() {
+    if (!manifest || !manifest.families) return;
+    const families = Object.keys(manifest.families);
+    for (const f of families) {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = f;
+      familyFilter.appendChild(opt);
+    }
+  }
+
+  // ── Extract faction from key ────────────────────────────────────────
+  function extractFaction(key) {
+    const match = key.match(/_(cyan|green|yellow|purple)_/);
+    if (match) return match[1];
+    // hq_cyan, hq_green, etc.
+    const hqMatch = key.match(/^hq_(cyan|green|yellow|purple)$/);
+    if (hqMatch) return hqMatch[1];
+    return null;
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────
+  function render() {
+    const filterText = searchInput.value.toLowerCase().trim();
+    const filterFamily = familyFilter.value;
+
+    let html = '';
+
+    // Summary panel
+    html += renderSummaryPanel();
+
+    // Issues lists
+    html += renderIssuesPanel();
+
+    // Family sections
+    const families = manifest.families || {};
+    for (const [familyName, family] of Object.entries(families)) {
+      if (filterFamily !== 'all' && filterFamily !== familyName) continue;
+
+      const keys = (family.keys || []).filter(key => {
+        if (!filterText) return true;
+        const path = manifest.paths[key] || '';
+        return key.toLowerCase().includes(filterText) ||
+               path.toLowerCase().includes(filterText) ||
+               familyName.toLowerCase().includes(filterText);
+      });
+
+      if (keys.length === 0) continue;
+
+      html += `<section class="family-section">`;
+      html += `<h2>${escHtml(familyName)} <span class="family-badge">${family.loadType}${family.enabled === false ? ' (disabled)' : ''}</span></h2>`;
+
+      // Group by faction for building keys
+      const factionGroups = {};
+      const noFaction = [];
+
+      for (const key of keys) {
+        const faction = extractFaction(key);
+        if (faction) {
+          if (!factionGroups[faction]) factionGroups[faction] = [];
+          factionGroups[faction].push(key);
+        } else {
+          noFaction.push(key);
+        }
+      }
+
+      // Render faction groups in canonical order
+      const factionOrder = ['cyan', 'green', 'yellow', 'purple'];
+      for (const faction of factionOrder) {
+        if (!factionGroups[faction] || factionGroups[faction].length === 0) continue;
+        html += `<div class="faction-group" data-faction="${faction}">`;
+        html += `<h3>${escHtml(faction.charAt(0).toUpperCase() + faction.slice(1))}</h3>`;
+        html += `<div class="asset-grid">`;
+        for (const key of factionGroups[faction]) {
+          html += renderCard(key, familyName);
+        }
+        html += `</div></div>`;
+      }
+
+      // Render non-faction keys
+      if (noFaction.length > 0) {
+        html += `<div class="faction-group">`;
+        html += `<div class="asset-grid">`;
+        for (const key of noFaction) {
+          html += renderCard(key, familyName);
+        }
+        html += `</div></div>`;
+      }
+
+      html += `</section>`;
+    }
+
+    if (!html || html === renderSummaryPanel() + renderIssuesPanel()) {
+      html += `<div class="empty-state">No assets match the current filter.</div>`;
+    }
+
+    mainEl.innerHTML = html;
+  }
+
+  // ── Summary panel ───────────────────────────────────────────────────
+  function renderSummaryPanel() {
+    if (!auditReport || !auditReport.summary) return '';
+    const s = auditReport.summary;
+    return `
+      <div class="summary-panel">
+        <div class="summary-stat"><div class="value">${s.totalAssets}</div><div class="label">Total</div></div>
+        <div class="summary-stat valid"><div class="value">${s.validAssets}</div><div class="label">Valid</div></div>
+        <div class="summary-stat warnings"><div class="value">${s.warningAssets}</div><div class="label">Warnings</div></div>
+        <div class="summary-stat errors"><div class="value">${s.errorAssets}</div><div class="label">Errors</div></div>
+      </div>`;
+  }
+
+  // ── Issues panel ────────────────────────────────────────────────────
+  function renderIssuesPanel() {
+    if (!auditReport) return '';
+    let html = '';
+
+    if (auditReport.errors && auditReport.errors.length > 0) {
+      html += `<div class="issues-panel"><h3>Errors</h3>`;
+      for (const e of auditReport.errors) {
+        html += `<div class="issue-item"><span class="issue-code error">${escHtml(e.code)}</span>`;
+        if (e.key) html += `<strong>${escHtml(e.key)}</strong> `;
+        html += `${escHtml(e.message)}</div>`;
+      }
+      html += `</div>`;
+    }
+
+    if (auditReport.warnings && auditReport.warnings.length > 0) {
+      html += `<div class="issues-panel"><h3>Warnings</h3>`;
+      for (const w of auditReport.warnings) {
+        html += `<div class="issue-item"><span class="issue-code warning">${escHtml(w.code)}</span>`;
+        if (w.key) html += `<strong>${escHtml(w.key)}</strong> `;
+        html += `${escHtml(w.message)}</div>`;
+      }
+      html += `</div>`;
+    }
+
+    return html;
+  }
+
+  // ── Asset card ──────────────────────────────────────────────────────
+  function renderCard(key, familyName) {
+    const path = manifest.paths[key] || '';
+    const imgSrc = PUBLIC_PREFIX + path;
+    const issues = issuesByKey[key] || { errors: [], warnings: [] };
+    const hasError = issues.errors.length > 0;
+    const hasWarning = issues.warnings.length > 0;
+
+    let cardClass = 'asset-card';
+    if (hasError) cardClass += ' has-error';
+    else if (hasWarning) cardClass += ' has-warning';
+
+    let badgeHtml = '';
+    if (hasError) {
+      badgeHtml = `<span class="badge error-badge">error</span>`;
+    } else if (hasWarning) {
+      badgeHtml = `<span class="badge warning-badge">warn</span>`;
+    }
+
+    return `
+      <div class="${cardClass}">
+        <div class="card-image">
+          <img src="${escAttr(imgSrc)}" alt="${escAttr(key)}" loading="lazy"
+               onerror="this.style.display='none';this.parentElement.innerHTML+='<div style=\\'color:var(--error);font-size:0.75rem;text-align:center;padding:0.5rem\\'>Image not found</div>'" />
+          ${badgeHtml}
+        </div>
+        <div class="card-info">
+          <div class="card-key">${escHtml(key)}</div>
+          <div class="card-path">${escHtml(path)}</div>
+          <div class="card-family">${escHtml(familyName)}</div>
+        </div>
+      </div>`;
+  }
+
+  // ── Load error ──────────────────────────────────────────────────────
+  function renderLoadError(err) {
+    mainEl.innerHTML = `
+      <div class="load-error">
+        <h2>Failed to load asset data</h2>
+        <p>${escHtml(err.message)}</p>
+        <p>
+          If you opened this file directly via <code>file://</code>, the browser
+          may block <code>fetch()</code> for local JSON files.
+          Open through a local dev/static server instead:
+        </p>
+        <p>
+          <code>npx vite</code> then navigate to
+          <code>http://localhost:5173/task/art-sample/index.html</code>
+        </p>
+        <p style="margin-top:1rem;font-size:0.8rem;color:var(--text-dim)">
+          Alternatively, you can run <code>npx serve .</code> from the repo root
+          and open <code>http://localhost:3000/task/art-sample/index.html</code>.
+        </p>
+      </div>`;
+  }
+
+  // ── HTML escape helpers ─────────────────────────────────────────────
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function escAttr(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // ── Start ───────────────────────────────────────────────────────────
+  init();
+
+})();
+</script>
+
+</body>
+</html>
