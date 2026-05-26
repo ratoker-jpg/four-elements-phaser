@@ -162,6 +162,15 @@ describe('BUILDING_CONFIG', () => {
     expect(config!.costMatter).toBe(60);
     expect(config!.buildTimeMs).toBe(20000);
   });
+
+  it('has power-plant config with correct values (ARCH-01E)', () => {
+    const config = BUILDING_CONFIG['power-plant'];
+    expect(config).toBeDefined();
+    expect(config!.footprintW).toBe(2);
+    expect(config!.footprintH).toBe(2);
+    expect(config!.costMatter).toBe(100);
+    expect(config!.buildTimeMs).toBe(25000);
+  });
 });
 
 // ─── canPlaceBuilding ──────────────────────────────────────────────
@@ -644,5 +653,62 @@ describe('ARCH-01D: construction completion cap bonuses', () => {
     expect(state.economy.rawCap).toBe(200); // unchanged
     expect(state.economy.matterCap).toBe(matterCapBefore + 200); // MATTER_STORAGE_MATTER_BONUS
     expect(state.economy.elementCap).toBe(elementCapBefore + 200); // MATTER_STORAGE_ELEMENT_BONUS
+  });
+});
+
+// ─── ARCH-01E: Power-plant construction completion ────────────────────
+
+describe('ARCH-01E: power-plant construction completion', () => {
+  it('power-plant completion adds building to mapData.buildings', () => {
+    const state = makeTestState({
+      mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
+      matter: 500,
+      builders: [{ tx: 9, ty: 10 }],
+    });
+
+    // Manually create a power-plant construction site
+    state.mapData.constructionSites.push({
+      tx: 10, ty: 10,
+      type: 'power-plant',
+      elapsed: 0,
+      duration: 25000,
+      progress: 0,
+      builderIndex: 0,
+      id: 0,
+      pending: false,
+    });
+
+    // Set builder to building phase
+    const builder = state.mapData.builders[0];
+    builder.busy = true;
+    builder.phase = 'building';
+    builder.assignedSiteId = 0;
+
+    // Complete construction
+    for (let i = 0; i < 125; i++) { // 25000ms / 200ms = 125 ticks
+      updateConstructionSiteProgress(state, 'site-0', 200);
+    }
+
+    // Power-plant should be in buildings
+    expect(state.mapData.buildings.some(b => b.type === 'power-plant')).toBe(true);
+  });
+
+  it('power-plant can be placed with canPlaceBuilding', () => {
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 100 });
+    const result = canPlaceBuilding(state, 'power-plant', 10, 10);
+    expect(result).toEqual({ valid: true });
+  });
+
+  it('power-plant placement deducts 100 matter', () => {
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 200 });
+    const result = placeConstructionSite(state, 'power-plant', 10, 10);
+    expect(result.ok).toBe(true);
+    expect(state.economy.matter).toBe(100);
+  });
+
+  it('power-plant placement requires 100 matter', () => {
+    const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0, matter: 99 });
+    const result = canPlaceBuilding(state, 'power-plant', 10, 10);
+    expect(result).toEqual({ valid: false, reason: 'insufficient-resources' });
   });
 });

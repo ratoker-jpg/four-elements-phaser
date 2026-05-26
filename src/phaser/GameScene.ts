@@ -305,14 +305,15 @@ export class GameScene extends Phaser.Scene {
         .join(', ');
 
       // ARCH-01C: Display faction element in displayed units (elementUnits / ELEMENT_UNITS_PER_ELEMENT)
-      // ARCH-01D: Show caps compactly: Raw: current/cap | Matter: current/cap | Faction: displayed/current/displayed cap
+      // ARCH-01D: Show caps compactly: Raw: current/cap | Matter: current/cap | Faction: displayed/displayedCap
+      // ARCH-01E: Show power compactly: Power: consumed/generated
       const factionElementRaw = s.economy.elements[s.playerFaction];
       const factionElementDisplayed = (factionElementRaw / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
       const elementCapDisplayed = (s.economy.elementCap / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
       const factionLabel = s.playerFaction.charAt(0).toUpperCase() + s.playerFaction.slice(1);
 
       this.hudEconomy.textContent =
-        `Raw: ${s.economy.raw}/${s.economy.rawCap} | Matter: ${s.economy.matter}/${s.economy.matterCap} | ${factionLabel}: ${factionElementDisplayed}/${elementCapDisplayed} | Resources: ${activeResources}/${totalResources} | ` +
+        `Raw: ${s.economy.raw}/${s.economy.rawCap} | Matter: ${s.economy.matter}/${s.economy.matterCap} | ${factionLabel}: ${factionElementDisplayed}/${elementCapDisplayed} | Power: ${s.economy.powerConsumed}/${s.economy.powerGenerated} | Resources: ${activeResources}/${totalResources} | ` +
         `Sites: ${s.mapData.constructionSites.length} | ` +
         `Harvesters: ${s.harvesters.length} (${phaseStr})`;
     }

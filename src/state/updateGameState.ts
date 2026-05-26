@@ -17,7 +17,15 @@ import type {
   HarvesterState,
   ResourceNodeState,
 } from './types';
-import { SEP_RAW_COST, SEP_MATTER_YIELD, SEP_ELEMENT_YIELD, SEP_CYCLE_MS } from './types';
+import {
+  SEP_RAW_COST,
+  SEP_MATTER_YIELD,
+  SEP_ELEMENT_YIELD,
+  SEP_CYCLE_MS,
+  HQ_BASE_POWER,
+  POWER_PLANT_GENERATION,
+  SEPARATOR_ACTIVE_POWER_CONSUMPTION,
+} from './types';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -54,7 +62,11 @@ export function updateGameState(state: GameState, deltaMs: number): void {
   }
 
   // ARCH-01C: Advance separator processing cycle
+  // ARCH-01E: Separator power gating is integrated inside updateSeparators
   updateSeparators(state, dt);
+
+  // ARCH-01E: Recompute power state after separator processing
+  recomputePower(state);
 }
 
 // ─── Harvester state machine ────────────────────────────────────────
@@ -304,47 +316,66 @@ export function directionFromDelta(dtx: number, dty: number): number {
   return map[sector] ?? 2;
 }
 
-// ─── Separator processing cycle (ARCH-01C) ────────────────────────────
+// ─── Separator processing cycle (ARCH-01C / ARCH-01E) ──────────────────
 
 /**
  * Advance all separator processing cycles by deltaMs.
  *
- * For each separator:
- * - If economy.raw >= SEP_RAW_COST, the separator is active and progress advances.
- * - Progress advances by (dt / SEP_CYCLE_MS) per tick, clamped to [0, 1].
- * - When progress reaches 1.0, one cycle completes:
- *   - Consume SEP_RAW_COST raw
- *   - Add SEP_MATTER_YIELD matter
- *   - Add SEP_ELEMENT_YIELD elementUnits to player faction
- *   - Reset progress to 0
- * - If economy.raw < SEP_RAW_COST, the separator pauses (active=false, progress preserved).
- * - Progress does not reset when paused.
+ * ARCH-01E: Separator power gating is integrated.
+ *
+ * For each separator (in build order):
+ * - First check: can the separator process? (raw >= cost, matter/element caps OK)
+ * - If NO: separator is inactive, does NOT consume power.
+ * - If YES: check if enough available power remains.
+ *   - If YES: separator is active, power is allocated, progress advances.
+ *   - If NO: separator is inactive (power-blocked), progress preserved.
+ * - A separator blocked by raw/caps does not request or consume power.
+ * - When power becomes available later, separator resumes from preserved progress.
  */
 function updateSeparators(state: GameState, dt: number): void {
   const playerFaction = state.playerFaction;
 
+  // ARCH-01E: Track remaining available power for separator allocation.
+  // Power consumers are evaluated in build order (economy.separators order).
+  // Older completed buildings get power first.
+  let remainingPower = HQ_BASE_POWER +
+    state.mapData.buildings.filter(b => b.type === 'power-plant').length * POWER_PLANT_GENERATION;
+
   for (const sep of state.economy.separators) {
-    // ARCH-01D: Check all conditions for separator to process:
+    // ARCH-01D: Check resource/cap conditions for separator to process:
     // 1. raw >= SEP_RAW_COST
     // 2. matter + SEP_MATTER_YIELD <= matterCap
     // 3. elements[playerFaction] + SEP_ELEMENT_YIELD <= elementCap
-    const canProcess =
+    const hasResources =
       state.economy.raw >= SEP_RAW_COST &&
       state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
       state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
-    sep.active = canProcess;
 
-    if (!canProcess) {
+    // ARCH-01E: A separator blocked by raw/caps does not consume power.
+    if (!hasResources) {
+      sep.active = false;
       // Paused — progress preserved, not reset
       continue;
     }
+
+    // ARCH-01E: Check if enough power is available for this separator.
+    if (remainingPower < SEPARATOR_ACTIVE_POWER_CONSUMPTION) {
+      // Power-blocked: progress preserved, does not consume power.
+      sep.active = false;
+      continue;
+    }
+
+    // This separator can process and has power.
+    // Allocate power for this separator.
+    remainingPower -= SEPARATOR_ACTIVE_POWER_CONSUMPTION;
+    sep.active = true;
 
     // Advance progress
     sep.progress += dt / SEP_CYCLE_MS;
 
     // Complete as many full cycles as progress allows
     while (sep.progress >= 1) {
-      // Re-check all conditions before consuming each cycle
+      // Re-check resource conditions before consuming each cycle
       if (
         state.economy.raw < SEP_RAW_COST ||
         state.economy.matter + SEP_MATTER_YIELD > state.economy.matterCap ||
@@ -352,6 +383,8 @@ function updateSeparators(state: GameState, dt: number): void {
       ) {
         // Blocked by cap or lack of raw mid-cycle — clamp progress and stop
         sep.active = false;
+        // Return allocated power since separator is now blocked
+        remainingPower += SEPARATOR_ACTIVE_POWER_CONSUMPTION;
         sep.progress = Math.min(sep.progress, 1);
         break;
       }
@@ -365,14 +398,37 @@ function updateSeparators(state: GameState, dt: number): void {
     }
 
     // After processing, re-check active state
-    const stillCanProcess =
+    const stillHasResources =
       state.economy.raw >= SEP_RAW_COST &&
       state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
       state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
-    if (!stillCanProcess) {
+    if (!stillHasResources) {
       sep.active = false;
+      // Return allocated power since separator is now blocked
+      remainingPower += SEPARATOR_ACTIVE_POWER_CONSUMPTION;
     }
   }
+}
+
+// ─── Power state recomputation (ARCH-01E) ────────────────────────────────
+
+/**
+ * Recompute powerGenerated and powerConsumed from current state.
+ *
+ * powerGenerated = HQ_BASE_POWER + completed power-plant count * POWER_PLANT_GENERATION
+ * powerConsumed = actual active power consumed this tick
+ *
+ * This is called after separator processing so that powerConsumed
+ * reflects the active state determined during the update.
+ */
+function recomputePower(state: GameState): void {
+  const powerPlantCount = state.mapData.buildings.filter(b => b.type === 'power-plant').length;
+  state.economy.powerGenerated = HQ_BASE_POWER + powerPlantCount * POWER_PLANT_GENERATION;
+
+  // powerConsumed = count of active separators * SEPARATOR_ACTIVE_POWER_CONSUMPTION
+  // Units-factory consumption is NOT implemented yet (ARCH-01F)
+  const activeSeparatorCount = state.economy.separators.filter(s => s.active).length;
+  state.economy.powerConsumed = activeSeparatorCount * SEPARATOR_ACTIVE_POWER_CONSUMPTION;
 }
 
 // ─── Factory helpers ────────────────────────────────────────────────
