@@ -39,11 +39,14 @@ Output of the asset processor and validation tools:
 - `audit-report.json` — validation results, warnings, and errors
 - Family subdirectories with runtime-ready PNGs (future)
 
-**Runtime integration is active for hq + buildings + civilUnits + modularUnits + terrain + resources families (ARCH-02F, ARCH-02G, ARCH-02H, ARCH-02I).**
+**Runtime integration is active for all six current families: hq + buildings + civilUnits + modularUnits + terrain + resources (ARCH-02F, ARCH-02G, ARCH-02H, ARCH-02I).**
 The processor now also generates `src/assets/generatedAssetManifest.ts`, which
 is imported by PreloadScene via `loadGeneratedBuildingAndHqAssets()`,
 `loadGeneratedCivilUnitAssets()`, `loadGeneratedModularUnitAssets()`, and
 `loadGeneratedTerrainAndResourceAssets()`.
+
+Current generated asset count: **106** assets across 6 families
+(hq: 4, buildings: 24, civilUnits: 8, modularUnits: 64, terrain: 3, resources: 3).
 
 ## Pipeline flow
 
@@ -104,7 +107,12 @@ npm run dev
 # Then open http://localhost:5173/task/art-sample/index.html
 ```
 
-Online: `https://ratoker-jpg.github.io/four-elements-phaser/task/art-sample/index.html`
+Online URLs:
+- Main: `https://ratoker-jpg.github.io/four-elements-phaser/task/art-sample/index.html`
+- PR preview: `https://ratoker-jpg.github.io/four-elements-phaser/pr-preview/pr-<number>/task/art-sample/index.html`
+
+PR preview builds can be triggered manually via `workflow_dispatch` when PAT pushes
+do not trigger GitHub Actions workflows automatically.
 
 See `task/art-sample/README.md` for full usage instructions.
 

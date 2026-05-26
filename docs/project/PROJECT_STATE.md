@@ -18,20 +18,46 @@ ARCH-01 Economy baseline is now complete enough to stop and move to the next roa
 
 ## Current priority
 
-ARCH-02 — Art / sprite pipeline.
+ARCH-02 asset pipeline migration for current runtime-approved assets is **complete**.
 
-Goal:
+PreloadScene now loads all current runtime-approved assets from
+`src/assets/generatedAssetManifest.ts` via `src/assets/runtimeGeneratedAssets.ts`.
 
-- Create a systemic pipeline for adding, validating, previewing, and integrating sprites/assets.
-- Avoid one-off runtime asset wiring and manual visual tuning as the production workflow.
-- Support future units, buildings, projectiles, particles/fx, UI icons, terrain, resources, decor, and obstacles.
-
-Expected first step:
+Generated manifest families and counts:
 
 ```text
-ARCH-02A — art/sprite pipeline audit/design from existing roadmap references,
-then risk-based implementation PRs.
+hq:            4  (image)
+buildings:    24  (image)
+civilUnits:    8  (spritesheet)
+modularUnits: 64  (image)
+terrain:       3  (image)
+resources:     3  (image)
+total:       106 assets
 ```
+
+Legacy files remain for compatibility and are no longer called by PreloadScene:
+
+- `src/assets/assetManifest.ts` — original base manifest (terrain, harvester, minerals)
+- `src/assets/buildingAssets.ts` — building loader (deprecated fallback)
+- `src/assets/civilUnitAssets.ts` — civil unit loader (deprecated fallback)
+- `src/assets/modularUnitAssets.ts` — modular unit loader (deprecated fallback)
+
+ARCH-02 completed PRs:
+
+- ARCH-02A — asset pipeline strategy (PR #38)
+- ARCH-02B+C — manifest schema, validation script, folder scaffold (PR #45)
+- ARCH-02D — buildings/HQ processor MVP (PR #46)
+- ARCH-02E — generated asset sample viewer (PR #47)
+- ARCH-02F — runtime generated manifest integration for hq/buildings (PR #48)
+- ARCH-02G — civilUnits spritesheets from generated manifest (PR #50)
+- ARCH-02H — modularUnits images from generated manifest (PR #51)
+- ARCH-02I — terrain/resources from generated manifest (PR #53)
+- CI helper PR #52 — workflow_dispatch for manual PR preview builds
+
+Possible follow-up items:
+
+- ARCH-02J — optional legacy cleanup (remove deprecated loader files)
+- Future decor/fx/ui families only when approved assets are introduced
 
 Before preparing the next GLM task, GPT must read:
 
@@ -41,8 +67,6 @@ Before preparing the next GLM task, GPT must read:
 - `docs/project/ARCH_SCOPING_POLICY.md`
 - `docs/ROADMAP.md`
 - `docs/ROADMAP_SYSTEM_AUDIT.md`
-
-For art/sprite pipeline tasking, also inspect the current asset folders, preload/runtime asset loading, building asset metadata, and render paths before writing a prompt.
 
 ---
 
