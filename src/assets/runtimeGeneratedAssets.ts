@@ -7,6 +7,7 @@
  *
  * ARCH-02G: Added spritesheet family loading for civilUnits.
  * ARCH-02H: Added modularUnits image family loading.
+ * ARCH-02I: Added terrain + resources image family loading.
  *
  * Duplicate-key protection: each helper tracks loaded keys within a single
  * call to prevent loading the same texture key twice. This replaces the
@@ -180,4 +181,16 @@ export function loadGeneratedModularUnitAssets(
   scene: Phaser.Scene,
 ): string[] {
   return loadGeneratedImageAssetFamilies(scene, ['modularUnits']);
+}
+
+/**
+ * Convenience: load terrain + resources families from the generated manifest.
+ *
+ * This replaces the manual terrain_sand / mineral_small etc. loads
+ * that previously used ASSET_KEYS / ASSET_PATHS from assetManifest.ts.
+ */
+export function loadGeneratedTerrainAndResourceAssets(
+  scene: Phaser.Scene,
+): string[] {
+  return loadGeneratedImageAssetFamilies(scene, ['terrain', 'resources']);
 }

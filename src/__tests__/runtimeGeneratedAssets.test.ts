@@ -70,16 +70,18 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.generatedAt).toBe('1970-01-01T00:00:00.000Z');
   });
 
-  it('has hq, buildings, civilUnits, and modularUnits families', () => {
+  it('has hq, buildings, civilUnits, modularUnits, terrain, and resources families', () => {
     expect(GENERATED_ASSET_MANIFEST.families.hq).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.buildings).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.civilUnits).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.modularUnits).toBeDefined();
+    expect(GENERATED_ASSET_MANIFEST.families.terrain).toBeDefined();
+    expect(GENERATED_ASSET_MANIFEST.families.resources).toBeDefined();
   });
 
-  it('has 100 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits)', () => {
+  it('has 106 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits + 3 terrain + 3 resources)', () => {
     const keys = Object.keys(GENERATED_ASSET_MANIFEST.paths);
-    expect(keys).toHaveLength(100);
+    expect(keys).toHaveLength(106);
   });
 
   it('has 4 HQ keys', () => {
@@ -96,6 +98,14 @@ describe('GENERATED_ASSET_MANIFEST', () => {
 
   it('has 64 modularUnits keys', () => {
     expect(GENERATED_ASSET_MANIFEST.families.modularUnits.keys).toHaveLength(64);
+  });
+
+  it('has 3 terrain keys', () => {
+    expect(GENERATED_ASSET_MANIFEST.families.terrain.keys).toHaveLength(3);
+  });
+
+  it('has 3 resources keys', () => {
+    expect(GENERATED_ASSET_MANIFEST.families.resources.keys).toHaveLength(3);
   });
 
   it('has all 4 HQ faction keys', () => {
@@ -136,12 +146,45 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.families.modularUnits.enabled).toBe(true);
   });
 
+  it('terrain family has loadType image and enabled true', () => {
+    expect(GENERATED_ASSET_MANIFEST.families.terrain.loadType).toBe('image');
+    expect(GENERATED_ASSET_MANIFEST.families.terrain.enabled).toBe(true);
+  });
+
+  it('resources family has loadType image and enabled true', () => {
+    expect(GENERATED_ASSET_MANIFEST.families.resources.loadType).toBe('image');
+    expect(GENERATED_ASSET_MANIFEST.families.resources.enabled).toBe(true);
+  });
+
+  it('terrain keys match legacy ASSET_KEYS values', () => {
+    const terrainKeys = GENERATED_ASSET_MANIFEST.families.terrain.keys;
+    expect(terrainKeys).toContain('terrain_sand');
+    expect(terrainKeys).toContain('terrain_sand_dark');
+    expect(terrainKeys).toContain('terrain_sand_light');
+  });
+
+  it('resources keys match legacy ASSET_KEYS values', () => {
+    const resourceKeys = GENERATED_ASSET_MANIFEST.families.resources.keys;
+    expect(resourceKeys).toContain('mineral_small');
+    expect(resourceKeys).toContain('mineral_medium');
+    expect(resourceKeys).toContain('mineral_large');
+  });
+
   it('modularUnits keys match legacy getWaspHullKey/getSmokyTurretKey outputs', () => {
     const muKeys = GENERATED_ASSET_MANIFEST.families.modularUnits.keys;
     expect(muKeys).toContain('wasp_m0_hull_cyan_dir0');
     expect(muKeys).toContain('wasp_m0_hull_purple_dir7');
     expect(muKeys).toContain('smoky_m0_turret_cyan_dir0');
     expect(muKeys).toContain('smoky_m0_turret_purple_dir7');
+  });
+
+  it('terrain and resource paths match legacy ASSET_PATHS values', () => {
+    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand']).toBe('assets/tiles/sand_tile.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand_dark']).toBe('assets/tiles/sand_tile_dark.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand_light']).toBe('assets/tiles/sand_tile_light.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['mineral_small']).toBe('assets/environment/mineral_small_02.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['mineral_medium']).toBe('assets/environment/mineral_medium_02.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['mineral_large']).toBe('assets/environment/mineral_large_02.png');
   });
 
   it('paths match the art/generated/manifest.generated.json keys', () => {
@@ -165,6 +208,8 @@ describe('GENERATED_ASSET_MANIFEST', () => {
       ...GENERATED_ASSET_MANIFEST.families.buildings.keys,
       ...GENERATED_ASSET_MANIFEST.families.civilUnits.keys,
       ...GENERATED_ASSET_MANIFEST.families.modularUnits.keys,
+      ...GENERATED_ASSET_MANIFEST.families.terrain.keys,
+      ...GENERATED_ASSET_MANIFEST.families.resources.keys,
     ];
     const uniqueKeys = new Set(allKeys);
     expect(uniqueKeys.size).toBe(allKeys.length);
@@ -435,6 +480,8 @@ describe('PreloadScene integration', () => {
     expect(typeof runtimeMod.loadGeneratedCivilUnitAssets).toBe('function');
     expect(runtimeMod.loadGeneratedModularUnitAssets).toBeDefined();
     expect(typeof runtimeMod.loadGeneratedModularUnitAssets).toBe('function');
+    expect(runtimeMod.loadGeneratedTerrainAndResourceAssets).toBeDefined();
+    expect(typeof runtimeMod.loadGeneratedTerrainAndResourceAssets).toBe('function');
   });
 
   it('PreloadScene uses generated loader instead of manual building loading', async () => {
@@ -482,6 +529,31 @@ describe('PreloadScene integration', () => {
       expect(loadedKeys).toContain('builder_cyan');
       expect(loadedKeys).toContain('builder_green');
       expect(loadedKeys).toContain('harvester_purple');
+    } finally {
+      mock.restore();
+    }
+  });
+
+  it('PreloadScene uses generated terrain/resource loader for terrain and mineral images', async () => {
+    const { loadGeneratedTerrainAndResourceAssets } = await import('../assets/runtimeGeneratedAssets');
+    const mock = createMockScene();
+
+    try {
+      const loadedKeys = loadGeneratedTerrainAndResourceAssets(mock.scene as any);
+
+      // 3 terrain + 3 resources = 6
+      expect(loadedKeys).toHaveLength(6);
+      expect(mock.loadImageCalls).toHaveLength(6);
+
+      // Must include all terrain keys matching legacy ASSET_KEYS
+      expect(loadedKeys).toContain('terrain_sand');
+      expect(loadedKeys).toContain('terrain_sand_dark');
+      expect(loadedKeys).toContain('terrain_sand_light');
+
+      // Must include all resource keys matching legacy ASSET_KEYS
+      expect(loadedKeys).toContain('mineral_small');
+      expect(loadedKeys).toContain('mineral_medium');
+      expect(loadedKeys).toContain('mineral_large');
     } finally {
       mock.restore();
     }

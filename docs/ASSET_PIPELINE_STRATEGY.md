@@ -371,7 +371,7 @@ Each family has an `enabled` flag (defaulting to `true`). Families that are not 
 - `loadGeneratedImageAssetFamilies(scene, families)` — loads all image-type assets from the specified enabled families.
 - `loadGeneratedBuildingAndHqAssets(scene)` — convenience wrapper for hq + buildings.
 
-ARCH-02F implements this for hq + buildings families only. ARCH-02G adds civilUnits spritesheet loading. ARCH-02H adds modularUnits image loading. Other families (terrain, resources) remain on their existing loaders until later PRs. The old `loadBuildingAssets()` in `buildingAssets.ts` is kept as deprecated legacy fallback but is no longer called by PreloadScene. The old `loadCivilUnitAssets()` in `civilUnitAssets.ts` and `loadModularUnitAssets()` in `modularUnitAssets.ts` are similarly kept as deprecated legacy fallback.
+ARCH-02F implements this for hq + buildings families only. ARCH-02G adds civilUnits spritesheet loading. ARCH-02H adds modularUnits image loading. ARCH-02I adds terrain + resources image loading. All six families (hq, buildings, civilUnits, modularUnits, terrain, resources) are now loaded from the generated manifest. The old `loadBuildingAssets()` in `buildingAssets.ts` is kept as deprecated legacy fallback but is no longer called by PreloadScene. The old `loadCivilUnitAssets()` in `civilUnitAssets.ts` and `loadModularUnitAssets()` in `modularUnitAssets.ts` are similarly kept as deprecated legacy fallback. Terrain and resource keys in `assetManifest.ts` are marked `@deprecated`.
 
 ### 8.4 Key-to-path mapping
 

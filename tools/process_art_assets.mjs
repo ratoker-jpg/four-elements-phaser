@@ -6,12 +6,15 @@
  * ARCH-02F: Also generates src/assets/generatedAssetManifest.ts for runtime.
  * ARCH-02G: Also processes civilUnits family (builder/harvester spritesheets).
  * ARCH-02H: Also processes modularUnits family (wasp hull + smoky turret images).
+ * ARCH-02I: Also processes terrain and resources families (tile + mineral images).
  *
  * Scans current approved runtime assets under
  *   public/assets/factions/{cyan,green,yellow,purple}/buildings/
  *   public/assets/factions/{cyan,green,yellow,purple}/units/
  *   public/assets/units/chassis/wasp_m0/{cyan,green,yellow,purple}/
  *   public/assets/units/weapons/smoky_m0/{cyan,green,yellow,purple}/
+ *   public/assets/tiles/
+ *   public/assets/environment/
  * and generates:
  *   - art/generated/manifest.generated.json
  *   - art/generated/audit-report.json
@@ -121,6 +124,22 @@ const MODULAR_DIRECTIONS = [0, 1, 2, 3, 4, 5, 6, 7];
 const MODULAR_PARTS = [
   { keyPrefix: 'wasp_m0_hull', pathDir: 'chassis/wasp_m0', filePrefix: 'wasp_m0_hull_idle' },
   { keyPrefix: 'smoky_m0_turret', pathDir: 'weapons/smoky_m0', filePrefix: 'smoky_m0_turret_idle' },
+];
+
+// ─── Terrain constants (must match src/assets/assetManifest.ts) ─────
+
+const TERRAN_ENTRIES = [
+  { key: 'terrain_sand', path: 'assets/tiles/sand_tile.png' },
+  { key: 'terrain_sand_dark', path: 'assets/tiles/sand_tile_dark.png' },
+  { key: 'terrain_sand_light', path: 'assets/tiles/sand_tile_light.png' },
+];
+
+// ─── Resource constants (must match src/assets/assetManifest.ts) ────
+
+const RESOURCE_ENTRIES = [
+  { key: 'mineral_small', path: 'assets/environment/mineral_small_02.png' },
+  { key: 'mineral_medium', path: 'assets/environment/mineral_medium_02.png' },
+  { key: 'mineral_large', path: 'assets/environment/mineral_large_02.png' },
 ];
 
 // Deterministic timestamp for committed generated files.
@@ -463,6 +482,170 @@ export function generateModularUnitPath(faction, pathDir, filePrefix, dir) {
 }
 
 /**
+ * Process the terrain family and generate manifest + audit data.
+ *
+ * @param {object} options
+ * @param {string} options.publicDir - Absolute path to public/ directory
+ * @param {Array<{key: string, path: string}>} [options.terrainEntries] - Terrain entries to process
+ * @returns {{ manifest: object, auditReport: object }}
+ */
+export function processTerrainFamily(options) {
+  const {
+    publicDir,
+    terrainEntries = TERRAN_ENTRIES,
+  } = options;
+
+  const terrainKeys = [];
+  const paths = {};
+  const auditWarnings = [];
+  const auditErrors = [];
+  const missingSource = [];
+  const orphanFiles = [];
+
+  let totalAssets = 0;
+  let validAssets = 0;
+  let warningAssets = 0;
+  let errorAssets = 0;
+
+  // ── Process terrain entries ──────────────────────────────────────
+  for (const entry of terrainEntries) {
+    const { key, path: relativePath } = entry;
+    const absolutePath = join(publicDir, relativePath);
+
+    terrainKeys.push(key);
+    paths[key] = relativePath;
+    totalAssets++;
+
+    if (existsSync(absolutePath)) {
+      validAssets++;
+    } else {
+      auditErrors.push({
+        family: 'terrain',
+        key,
+        code: 'MISSING_FILE',
+        message: `Referenced file not found: ${relativePath}`,
+      });
+      missingSource.push(relativePath);
+      errorAssets++;
+    }
+  }
+
+  // ── Build manifest ────────────────────────────────────────────────
+  const manifest = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    families: {
+      terrain: {
+        keys: terrainKeys,
+        loadType: 'image',
+        enabled: true,
+      },
+    },
+    paths,
+  };
+
+  // ── Build audit report ────────────────────────────────────────────
+  const auditReport = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    summary: {
+      totalAssets,
+      validAssets,
+      warningAssets,
+      errorAssets,
+    },
+    warnings: auditWarnings,
+    errors: auditErrors,
+    missingSource,
+    orphanFiles,
+  };
+
+  return { manifest, auditReport };
+}
+
+/**
+ * Process the resources family and generate manifest + audit data.
+ *
+ * @param {object} options
+ * @param {string} options.publicDir - Absolute path to public/ directory
+ * @param {Array<{key: string, path: string}>} [options.resourceEntries] - Resource entries to process
+ * @returns {{ manifest: object, auditReport: object }}
+ */
+export function processResourcesFamily(options) {
+  const {
+    publicDir,
+    resourceEntries = RESOURCE_ENTRIES,
+  } = options;
+
+  const resourceKeys = [];
+  const paths = {};
+  const auditWarnings = [];
+  const auditErrors = [];
+  const missingSource = [];
+  const orphanFiles = [];
+
+  let totalAssets = 0;
+  let validAssets = 0;
+  let warningAssets = 0;
+  let errorAssets = 0;
+
+  // ── Process resource entries ─────────────────────────────────────
+  for (const entry of resourceEntries) {
+    const { key, path: relativePath } = entry;
+    const absolutePath = join(publicDir, relativePath);
+
+    resourceKeys.push(key);
+    paths[key] = relativePath;
+    totalAssets++;
+
+    if (existsSync(absolutePath)) {
+      validAssets++;
+    } else {
+      auditErrors.push({
+        family: 'resources',
+        key,
+        code: 'MISSING_FILE',
+        message: `Referenced file not found: ${relativePath}`,
+      });
+      missingSource.push(relativePath);
+      errorAssets++;
+    }
+  }
+
+  // ── Build manifest ────────────────────────────────────────────────
+  const manifest = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    families: {
+      resources: {
+        keys: resourceKeys,
+        loadType: 'image',
+        enabled: true,
+      },
+    },
+    paths,
+  };
+
+  // ── Build audit report ────────────────────────────────────────────
+  const auditReport = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    summary: {
+      totalAssets,
+      validAssets,
+      warningAssets,
+      errorAssets,
+    },
+    warnings: auditWarnings,
+    errors: auditErrors,
+    missingSource,
+    orphanFiles,
+  };
+
+  return { manifest, auditReport };
+}
+
+/**
  * Process the buildings family and generate manifest + audit data.
  *
  * @param {object} options
@@ -678,7 +861,7 @@ function printUsage() {
   console.error(`Usage: node tools/process_art_assets.mjs [options]
 
 Options:
-  --family <name>   Asset family to process: "buildings", "civilUnits", "modularUnits", or "all" (default: "all")
+  --family <name>   Asset family to process: "buildings", "civilUnits", "modularUnits", "terrain", "resources", or "all" (default: "all")
   --root <dir>      Project root directory (default: auto-detected)
   --json            Output machine-readable JSON instead of console report
   --dry-run         Process and validate but do not write output files
@@ -716,9 +899,9 @@ async function main() {
     }
   }
 
-  const VALID_FAMILIES = new Set(['buildings', 'civilUnits', 'modularUnits', 'all']);
+  const VALID_FAMILIES = new Set(['buildings', 'civilUnits', 'modularUnits', 'terrain', 'resources', 'all']);
   if (!VALID_FAMILIES.has(family)) {
-    console.error(`Error: Unknown family "${family}". Valid: buildings, civilUnits, modularUnits, all`);
+    console.error(`Error: Unknown family "${family}". Valid: buildings, civilUnits, modularUnits, terrain, resources, all`);
     process.exit(2);
   }
 
@@ -740,6 +923,8 @@ async function main() {
   const processBuildings = family === 'buildings' || family === 'all';
   const processCivilUnits = family === 'civilUnits' || family === 'all';
   const processModularUnits = family === 'modularUnits' || family === 'all';
+  const processTerrain = family === 'terrain' || family === 'all';
+  const processResources = family === 'resources' || family === 'all';
 
   // Collect results from each family
   let combinedManifest = {
@@ -783,6 +968,16 @@ async function main() {
 
   if (processModularUnits) {
     const { manifest, auditReport } = processModularUnitsFamily({ publicDir });
+    mergeResult(manifest, auditReport);
+  }
+
+  if (processTerrain) {
+    const { manifest, auditReport } = processTerrainFamily({ publicDir });
+    mergeResult(manifest, auditReport);
+  }
+
+  if (processResources) {
+    const { manifest, auditReport } = processResourcesFamily({ publicDir });
     mergeResult(manifest, auditReport);
   }
 
@@ -857,6 +1052,8 @@ async function main() {
     if (manifest.families.buildings) console.log(`  Building keys: ${manifest.families.buildings.keys.length}`);
     if (manifest.families.civilUnits) console.log(`  Civil unit keys: ${manifest.families.civilUnits.keys.length}`);
     if (manifest.families.modularUnits) console.log(`  Modular unit keys: ${manifest.families.modularUnits.keys.length}`);
+    if (manifest.families.terrain) console.log(`  Terrain keys: ${manifest.families.terrain.keys.length}`);
+    if (manifest.families.resources) console.log(`  Resource keys: ${manifest.families.resources.keys.length}`);
     console.log(`  Total paths: ${Object.keys(manifest.paths).length}`);
     console.log();
 

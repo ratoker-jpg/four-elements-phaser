@@ -30,6 +30,16 @@ export const GENERATED_ASSET_MANIFEST = {
       loadType: 'image',
       enabled: true,
     },
+    terrain: {
+      keys: ['terrain_sand', 'terrain_sand_dark', 'terrain_sand_light'],
+      loadType: 'image',
+      enabled: true,
+    },
+    resources: {
+      keys: ['mineral_small', 'mineral_medium', 'mineral_large'],
+      loadType: 'image',
+      enabled: true,
+    },
   },
   paths: {
     'hq_cyan': 'assets/factions/cyan/buildings/hq_t1.png',
@@ -132,6 +142,12 @@ export const GENERATED_ASSET_MANIFEST = {
     'smoky_m0_turret_purple_dir5': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir5_0.png',
     'smoky_m0_turret_purple_dir6': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir6_0.png',
     'smoky_m0_turret_purple_dir7': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir7_0.png',
+    'terrain_sand': 'assets/tiles/sand_tile.png',
+    'terrain_sand_dark': 'assets/tiles/sand_tile_dark.png',
+    'terrain_sand_light': 'assets/tiles/sand_tile_light.png',
+    'mineral_small': 'assets/environment/mineral_small_02.png',
+    'mineral_medium': 'assets/environment/mineral_medium_02.png',
+    'mineral_large': 'assets/environment/mineral_large_02.png',
   },
 } as const;
 
