@@ -5,19 +5,13 @@ on:
     branches: [main]
   pull_request:
     types: [opened, synchronize, reopened]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR number for preview deploy (leave empty for main-site deploy)'
-        required: false
-        default: ''
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: pages-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.ref }}
+  group: pages-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -40,24 +34,13 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Resolve PR number
-        id: pr
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ github.event.inputs.pr_number }}" ]; then
-            echo "number=${{ github.event.inputs.pr_number }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "number=" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Build main site
-        if: steps.pr.outputs.number == ''
+        if: github.event_name == 'push'
         run: npm run build -- --base /four-elements-phaser/
 
       - name: Build PR preview
-        if: steps.pr.outputs.number != ''
-        run: npm run build -- --base /four-elements-phaser/pr-preview/pr-${{ steps.pr.outputs.number }}/
+        if: github.event_name == 'pull_request'
+        run: npm run build -- --base /four-elements-phaser/pr-preview/pr-${{ github.event.pull_request.number }}/
 
       - name: Copy art-sample viewer into dist
         run: |
@@ -69,7 +52,7 @@ jobs:
           cp art/generated/audit-report.json dist/art/generated/audit-report.json
 
       - name: Deploy main site
-        if: steps.pr.outputs.number == ''
+        if: github.event_name == 'push'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -79,28 +62,27 @@ jobs:
           keep_files: true
 
       - name: Deploy PR preview
-        if: steps.pr.outputs.number != ''
+        if: github.event_name == 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: ./dist
-          destination_dir: pr-preview/pr-${{ steps.pr.outputs.number }}
+          destination_dir: pr-preview/pr-${{ github.event.pull_request.number }}
           keep_files: true
 
       - name: Comment PR preview link
-        if: steps.pr.outputs.number != ''
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
-            const previewUrl = `https://${context.repo.owner}.github.io/${context.repo.repo}/pr-preview/pr-${prNumber}/`;
+            const previewUrl = `https://${context.repo.owner}.github.io/${context.repo.repo}/pr-preview/pr-${context.issue.number}/`;
             const marker = '<!-- four-elements-phaser-pr-preview -->';
             const body = `${marker}\nPR preview: ${previewUrl}`;
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: prNumber,
+              issue_number: context.issue.number,
               per_page: 100,
             });
             const existing = comments.find((comment) => comment.body?.includes(marker));
@@ -115,7 +97,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: prNumber,
+                issue_number: context.issue.number,
                 body,
               });
             }
