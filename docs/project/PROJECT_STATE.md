@@ -12,25 +12,25 @@ Implementation — scoped technical PRs under accepted roadmap.
 
 Workflow docs and roadmap direction are accepted (PR #31 — ARCH-00-docs).
 
-The temporary BUILD-ANCHOR workstream under ARCH-03 is now complete enough to stop and return to the main roadmap order.
+ARCH-01 Economy baseline is now complete enough to stop and move to the next roadmap workstream.
 
 ---
 
 ## Current priority
 
-ARCH-01 — Economy baseline.
+ARCH-02 — Art / sprite pipeline.
 
 Goal:
 
-- Port/fix the accepted civil economy baseline from `four-elements-next` into Phaser.
-- Keep the work scoped and implementation-focused.
-- Do not redesign the economy unless a roadmap/design change is explicitly accepted.
+- Create a systemic pipeline for adding, validating, previewing, and integrating sprites/assets.
+- Avoid one-off runtime asset wiring and manual visual tuning as the production workflow.
+- Support future units, buildings, projectiles, particles/fx, UI icons, terrain, resources, decor, and obstacles.
 
 Expected first step:
 
 ```text
-ARCH-01A — scoped economy baseline audit/design or first implementation PR,
-depending on how much current state/code inspection is needed.
+ARCH-02A — art/sprite pipeline audit/design from existing roadmap references,
+then risk-based implementation PRs.
 ```
 
 Before preparing the next GLM task, GPT must read:
@@ -38,10 +38,11 @@ Before preparing the next GLM task, GPT must read:
 - `docs/project/START_HERE_FOR_GPT.md`
 - `docs/project/GPT_WORKFLOW.md`
 - `docs/project/PROJECT_STATE.md`
+- `docs/project/ARCH_SCOPING_POLICY.md`
 - `docs/ROADMAP.md`
 - `docs/ROADMAP_SYSTEM_AUDIT.md`
 
-For economy tasking, also inspect the relevant current state files before writing a prompt.
+For art/sprite pipeline tasking, also inspect the current asset folders, preload/runtime asset loading, building asset metadata, and render paths before writing a prompt.
 
 ---
 
@@ -52,14 +53,43 @@ The project follows a system-first workflow defined in:
 - `docs/project/START_HERE_FOR_GPT.md` — entry point for GPT agent.
 - `docs/project/GPT_WORKFLOW.md` — GPT planner workflow rules.
 - `docs/project/GLM_EXECUTOR_RULES.md` — GLM executor rules.
+- `docs/project/ARCH_SCOPING_POLICY.md` — ARCH phase grouping and risk ceiling.
 - `docs/ROADMAP.md` — 21-ARCH roadmap with scoped PR sequences.
 - `docs/ROADMAP_SYSTEM_AUDIT.md` — roadmap system audit.
 
 Core rule:
 
 ```text
-roadmap -> audit/design -> scoped PR sequence -> implementation
+roadmap -> audit/design -> risk-based scoped PR sequence -> implementation
 ```
+
+---
+
+## Recently completed ARCH-01 economy baseline
+
+Recent important PRs:
+
+- PR #36 — `ARCH-01B: EconomyState + matter-based construction baseline` — merged.
+- PR #37 — `ARCH-01C: Separator processing cycle` — merged.
+- PR #39 — `ARCH-01D: Storage caps + cap-safe economy processing` — merged.
+- PR #40 — `ARCH-01E: Power baseline + separator power gating` — merged.
+- PR #41 — `ARCH-01F: Units-factory production baseline` — merged.
+
+Implemented economy direction:
+
+```text
+raw gathering
+matter/elements economy
+separator conversion cycle
+storage caps
+power generation and active consumption
+power-plant config
+units-factory production queue
+builder/harvester matter + element costs
+builder/harvester production and spawn
+```
+
+ARCH-01 is not perfect final gameplay/UI. Remaining production UI, save/load integration, balancing, and combat-unit production should happen under later accepted roadmap workstreams, not as random ARCH-01 spillover.
 
 ---
 
@@ -108,14 +138,15 @@ but its production approach relied too much on manual per-PNG tuning.
 
 Do not start:
 
-- combat system code
-- enemy AI code
-- random / unscoped implementation work
-- more building-placement polish unless it is required by an accepted roadmap task or a regression fix
+- combat system code;
+- enemy AI code;
+- random / unscoped implementation work;
+- more economy spillover unless it is a regression fix or accepted roadmap task;
+- more building-placement polish unless it is required by an accepted roadmap task or a regression fix.
 
 Allowed next workstream:
 
-- ARCH-01 — Economy baseline.
+- ARCH-02 — Art / sprite pipeline.
 
 ---
 
