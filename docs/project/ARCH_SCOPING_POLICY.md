@@ -187,6 +187,82 @@ Split into separate PRs when any are true:
 
 ---
 
+## Low-only PR policy
+
+Low-only implementation PRs are discouraged by default.
+
+A low-risk change can be valid by itself, but isolated low-only implementation PRs burn review time, executor context, PR preview cycles, and decision bandwidth. GPT should normally batch low-risk implementation changes into the next coherent `medium` or `elevated` PR instead of creating a separate PR for each small cleanup.
+
+Default target for implementation PRs:
+
+```text
+preferred implementation PR risk = medium or elevated
+```
+
+This does **not** mean unrelated low-risk changes should be bundled just to increase risk. Low changes may be batched only when they are coherent:
+
+- same ARCH workstream;
+- same architecture layer or boundary;
+- same manual QA path;
+- same rollback story;
+- no unrelated systems hidden inside the PR.
+
+Correct examples:
+
+```text
+ARCH-14B — playtest HUD usability bundle
+- throttle noisy preload logs
+- improve playtest HUD labels
+- clean duplicated status text
+- add one missing same-layer button/status hint
+risk: medium
+```
+
+```text
+ARCH-05A — unit selection MVP
+- click selection
+- selected unit highlight
+- minimal selected-unit HUD readout
+risk: medium/elevated depending on scope
+```
+
+Bad examples:
+
+```text
+PRELOAD-LOG-01 — only throttle one console log
+risk: low
+```
+
+if it can safely wait for the next coherent UI/playtest/devtools bundle.
+
+```text
+MIXED-LOW-01 — preload logs + roadmap typo + tank renderer rename + economy constant
+```
+
+This is unrelated batching and should be rejected even if each individual change is low-risk.
+
+Allowed low-only exceptions:
+
+- review fixup requested on an open PR;
+- CI, PR preview, or workflow unblock;
+- hotfix for broken `main` or broken preview;
+- docs-only sync or policy update;
+- PR metadata/body correction;
+- safety or security issue;
+- explicit Denis approval.
+
+When GPT proposes a low-only implementation PR, it must explain:
+
+```text
+why this cannot be batched into a nearby medium/elevated PR
+which exception applies
+why waiting would be worse than merging now
+```
+
+If no exception applies, GPT should hold the low task and include it in the next coherent PR bundle.
+
+---
+
 ## Layer rule still applies
 
 Risk-based grouping does not cancel the existing rule:
@@ -229,8 +305,9 @@ For a new ARCH workstream, GPT should:
 6. Estimate the risk of each phase.
 7. Propose a risk-based PR sequence.
 8. Combine low/medium adjacent steps where sensible, up to the allowed combined risk ceiling.
-9. Split high-risk scopes into smaller PRs.
-10. Prepare compact GLM prompts.
+9. Avoid isolated low-only implementation PRs unless an explicit exception applies.
+10. Split high-risk scopes into smaller PRs.
+11. Prepare compact GLM prompts.
 
 ---
 
@@ -243,7 +320,8 @@ For already-audited ARCH work:
 - prefer `IMPLEMENTATION ONLY` tasks after GPT has selected the scope;
 - use `PHASE 1 AUDIT ONLY` only when a real unknown remains;
 - do not ask GLM to re-plan the whole roadmap;
-- do not ask GLM to perform broad repo audits unless explicitly needed.
+- do not ask GLM to perform broad repo audits unless explicitly needed;
+- do not send GLM isolated low-only implementation tasks unless an exception applies.
 
 A valid small delta-check prompt can be used before implementation when the audit is known to be old.
 
@@ -338,6 +416,8 @@ A PR with multiple phases can be mergeable when:
 - manual QA is clear;
 - rollback is understandable.
 
+A low-only implementation PR can be mergeable only when it matches an allowed exception or Denis explicitly accepts it.
+
 ---
 
 ## Short version
@@ -346,6 +426,8 @@ A PR with multiple phases can be mergeable when:
 Use big audits for big ARCH decisions.
 ARCH phases are logical units, not mandatory PR boundaries.
 Use risk-based PR grouping for implementation.
+Batch low-risk implementation tasks by default.
+Avoid low-only implementation PRs unless an exception applies.
 Current early-project ceiling: elevated.
 High-risk scopes must be split.
 Do not re-audit what is already accepted.
