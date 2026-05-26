@@ -92,6 +92,11 @@ const BUILDING_FILE_NAMES = {
 
 const HQ_FILE_NAME = 'hq_t1.png';
 
+// Deterministic timestamp for committed generated files.
+// Using the epoch ensures rerunning the processor with unchanged inputs
+// does not dirty the working tree.
+const DETERMINISTIC_TIMESTAMP = '1970-01-01T00:00:00.000Z';
+
 // ─── Core processing logic (exported for testing) ───────────────────
 
 /**
@@ -252,7 +257,7 @@ export function processBuildingsFamily(options) {
   // ── Build manifest ────────────────────────────────────────────────
   const manifest = {
     version: 1,
-    generatedAt: new Date().toISOString(),
+    generatedAt: DETERMINISTIC_TIMESTAMP,
     families: {
       hq: {
         keys: hqKeys,
@@ -271,7 +276,7 @@ export function processBuildingsFamily(options) {
   // ── Build audit report ────────────────────────────────────────────
   const auditReport = {
     version: 1,
-    generatedAt: new Date().toISOString(),
+    generatedAt: DETERMINISTIC_TIMESTAMP,
     summary: {
       totalAssets,
       validAssets,

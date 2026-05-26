@@ -418,6 +418,70 @@ test('manifest paths map keys to correct relative paths', () => {
   }
 });
 
+// ── Deterministic output: repeated generation produces identical results ──
+
+test('repeated generation with same fixtures produces identical manifest', () => {
+  const { publicDir, cleanup } = createBuildingFixtures();
+  try {
+    const { manifest: first } = processBuildingsFamily({ publicDir });
+    const { manifest: second } = processBuildingsFamily({ publicDir });
+    assert.deepStrictEqual(first, second, 'Two runs with same input must produce identical manifests');
+  } finally {
+    cleanup();
+  }
+});
+
+test('repeated generation with same fixtures produces identical audit report', () => {
+  const { publicDir, cleanup } = createBuildingFixtures();
+  try {
+    const { auditReport: first } = processBuildingsFamily({ publicDir });
+    const { auditReport: second } = processBuildingsFamily({ publicDir });
+    assert.deepStrictEqual(first, second, 'Two runs with same input must produce identical audit reports');
+  } finally {
+    cleanup();
+  }
+});
+
+test('generated manifest uses deterministic generatedAt timestamp', () => {
+  const { publicDir, cleanup } = createBuildingFixtures();
+  try {
+    const { manifest, auditReport } = processBuildingsFamily({ publicDir });
+    assert.strictEqual(manifest.generatedAt, '1970-01-01T00:00:00.000Z',
+      'Manifest generatedAt must be the deterministic epoch value');
+    assert.strictEqual(auditReport.generatedAt, '1970-01-01T00:00:00.000Z',
+      'Audit report generatedAt must be the deterministic epoch value');
+  } finally {
+    cleanup();
+  }
+});
+
+test('repeated generation with partial fixtures produces identical output', () => {
+  const { publicDir, cleanup } = createPartialFixtures();
+  try {
+    const first = processBuildingsFamily({ publicDir });
+    const second = processBuildingsFamily({ publicDir });
+    assert.deepStrictEqual(first.manifest, second.manifest,
+      'Partial fixture manifests must be identical across runs');
+    assert.deepStrictEqual(first.auditReport, second.auditReport,
+      'Partial fixture audit reports must be identical across runs');
+  } finally {
+    cleanup();
+  }
+});
+
+test('serialized manifest is byte-identical across runs', () => {
+  const { publicDir, cleanup } = createBuildingFixtures();
+  try {
+    const { manifest } = processBuildingsFamily({ publicDir });
+    const serialized1 = JSON.stringify(manifest, null, 2);
+    const serialized2 = JSON.stringify(processBuildingsFamily({ publicDir }).manifest, null, 2);
+    assert.strictEqual(serialized1, serialized2,
+      'Serialized manifest output must be byte-identical across runs');
+  } finally {
+    cleanup();
+  }
+});
+
 // ── Summary ─────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed, ${passed + failed} total\n`);
