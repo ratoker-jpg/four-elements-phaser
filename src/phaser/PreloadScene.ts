@@ -5,6 +5,8 @@ import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadGen
  * PreloadScene — load all runtime-approved assets, then start GameScene.
  */
 export class PreloadScene extends Phaser.Scene {
+  private lastLoggedProgressMilestone = -1;
+
   constructor() {
     super({ key: 'PreloadScene' });
   }
@@ -22,9 +24,14 @@ export class PreloadScene extends Phaser.Scene {
     // --- Modular combat images (loaded from generated manifest) ---
     loadGeneratedModularUnitAssets(this);
 
-    // Loading progress
+    // Loading progress — log only at 0%, 25%, 50%, 75%, 100% milestones
     this.load.on('progress', (value: number) => {
-      console.log(`[PreloadScene] Loading: ${Math.round(value * 100)}%`);
+      const percent = Math.round(value * 100);
+      const milestone = Math.floor(percent / 25) * 25;
+      if (milestone > this.lastLoggedProgressMilestone) {
+        console.log(`[PreloadScene] Loading: ${milestone}%`);
+        this.lastLoggedProgressMilestone = milestone;
+      }
     });
 
     this.load.on('loaderror', (file: Phaser.Loader.File) => {
