@@ -2,11 +2,9 @@ import Phaser from 'phaser';
 import {
   ASSET_KEYS,
   ASSET_PATHS,
-  SPRITESHEET_8X8_256,
 } from '../assets/assetManifest';
 import { loadModularUnitAssets } from '../assets/modularUnitAssets';
-import { loadCivilUnitAssets } from '../assets/civilUnitAssets';
-import { loadGeneratedBuildingAndHqAssets } from '../assets/runtimeGeneratedAssets';
+import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets } from '../assets/runtimeGeneratedAssets';
 
 /**
  * PreloadScene — load all runtime-approved assets, then start GameScene.
@@ -31,15 +29,8 @@ export class PreloadScene extends Phaser.Scene {
     // --- Buildings + HQ (loaded from generated manifest) ---
     loadGeneratedBuildingAndHqAssets(this);
 
-    // --- Units (spritesheet) ---
-    this.load.spritesheet(
-      ASSET_KEYS.HARVESTER_CYAN,
-      ASSET_PATHS[ASSET_KEYS.HARVESTER_CYAN],
-      {
-        frameWidth: SPRITESHEET_8X8_256.frameWidth,
-        frameHeight: SPRITESHEET_8X8_256.frameHeight,
-      },
-    );
+    // --- Civil unit spritesheets (loaded from generated manifest) ---
+    loadGeneratedCivilUnitAssets(this);
 
     // --- Resources ---
     this.load.image(
@@ -57,9 +48,6 @@ export class PreloadScene extends Phaser.Scene {
 
     // --- Modular combat images (separate 256x256 direction PNGs) ---
     loadModularUnitAssets(this);
-
-    // --- Civil unit spritesheets (builder + harvester per faction) ---
-    loadCivilUnitAssets(this);
 
     // Loading progress
     this.load.on('progress', (value: number) => {

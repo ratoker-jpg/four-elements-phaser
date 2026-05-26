@@ -53,6 +53,11 @@ export function getCivilUnitPath(faction: Faction, unitType: CivilUnitType): str
 /**
  * Load all civil unit spritesheets into the Phaser loader queue.
  *
+ * @deprecated Use `loadGeneratedCivilUnitAssets(scene)` from runtimeGeneratedAssets.ts instead.
+ * The generated manifest loader loads all builder + harvester spritesheets for all factions,
+ * including harvester_cyan which was previously skipped here to avoid duplicate-key conflicts.
+ * This function is kept as a legacy fallback but is no longer called by PreloadScene.
+ *
  * - Builder sheets: all 4 factions.
  * - Harvester sheets: only green, yellow, purple (cyan is already loaded
  *   by assetManifest.ts as HARVESTER_CYAN to avoid duplicate-key conflict).

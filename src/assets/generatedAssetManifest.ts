@@ -19,6 +19,12 @@ export const GENERATED_ASSET_MANIFEST = {
       loadType: 'image',
       enabled: true,
     },
+    civilUnits: {
+      keys: ['builder_cyan', 'harvester_cyan', 'builder_green', 'harvester_green', 'builder_yellow', 'harvester_yellow', 'builder_purple', 'harvester_purple'],
+      loadType: 'spritesheet',
+      frameConfig: { frameWidth: 256, frameHeight: 256, endFrame: 63 },
+      enabled: true,
+    },
   },
   paths: {
     'hq_cyan': 'assets/factions/cyan/buildings/hq_t1.png',
@@ -49,6 +55,14 @@ export const GENERATED_ASSET_MANIFEST = {
     'building_purple_power_plant': 'assets/factions/purple/buildings/power_plant.png',
     'building_purple_command_relay': 'assets/factions/purple/buildings/command_relay.png',
     'building_purple_units_factory': 'assets/factions/purple/buildings/units_factory.png',
+    'builder_cyan': 'assets/factions/cyan/units/builder_8x8_256.png',
+    'harvester_cyan': 'assets/factions/cyan/units/harvester_8x8_256.png',
+    'builder_green': 'assets/factions/green/units/builder_8x8_256.png',
+    'harvester_green': 'assets/factions/green/units/harvester_8x8_256.png',
+    'builder_yellow': 'assets/factions/yellow/units/builder_8x8_256.png',
+    'harvester_yellow': 'assets/factions/yellow/units/harvester_8x8_256.png',
+    'builder_purple': 'assets/factions/purple/units/builder_8x8_256.png',
+    'harvester_purple': 'assets/factions/purple/units/harvester_8x8_256.png',
   },
 } as const;
 

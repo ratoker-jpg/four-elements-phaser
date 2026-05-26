@@ -19,6 +19,9 @@ import {
   generateBuildingPath,
   generateHqPath,
   processBuildingsFamily,
+  processCivilUnitsFamily,
+  generateCivilUnitKey,
+  generateCivilUnitPath,
   generateRuntimeManifestTS,
 } from './process_art_assets.mjs';
 import { validateManifest } from './validate_manifest.mjs';
@@ -565,6 +568,213 @@ test('generateRuntimeManifestTS does not contain double commas', () => {
     assert.ok(!ts.includes(',,',), 'Generated TS must not contain double commas');
   } finally {
     cleanup();
+  }
+});
+
+/** Create a temp directory with civil unit fixtures for testing. */
+function createCivilUnitFixtures() {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  const publicDir = join(root, 'public');
+
+  const factions = ['cyan', 'green', 'yellow', 'purple'];
+  const files = [
+    'builder_8x8_256.png',
+    'harvester_8x8_256.png',
+  ];
+
+  for (const faction of factions) {
+    const dir = join(publicDir, 'assets', 'factions', faction, 'units');
+    mkdirSync(dir, { recursive: true });
+    for (const file of files) {
+      writeFileSync(join(dir, file), 'fake-png');
+    }
+  }
+
+  return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+/** Create a temp directory with partial civil unit fixtures (missing some files). */
+function createPartialCivilUnitFixtures() {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  const publicDir = join(root, 'public');
+
+  // Only create cyan with builder
+  const dir = join(publicDir, 'assets', 'factions', 'cyan', 'units');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'builder_8x8_256.png'), 'fake-png');
+
+  return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+// ─── Civil unit key/path generation tests (ARCH-02G) ──────────────
+
+test('generateCivilUnitKey produces correct key', () => {
+  assert.strictEqual(generateCivilUnitKey('cyan', 'builder'), 'builder_cyan');
+  assert.strictEqual(generateCivilUnitKey('green', 'harvester'), 'harvester_green');
+});
+
+test('generateCivilUnitPath produces correct path', () => {
+  assert.strictEqual(
+    generateCivilUnitPath('cyan', 'builder'),
+    'assets/factions/cyan/units/builder_8x8_256.png',
+  );
+  assert.strictEqual(
+    generateCivilUnitPath('purple', 'harvester'),
+    'assets/factions/purple/units/harvester_8x8_256.png',
+  );
+});
+
+test('generateCivilUnitPath throws for unknown unit type', () => {
+  assert.throws(() => generateCivilUnitPath('cyan', 'tank'), /Unknown civil unit type/);
+});
+
+// ─── CivilUnits manifest generation tests (ARCH-02G) ──────────────
+
+test('civilUnits manifest generation produces correct shape with all fixtures', () => {
+  const { publicDir, cleanup } = createCivilUnitFixtures();
+  try {
+    const { manifest, auditReport } = processCivilUnitsFamily({ publicDir });
+
+    // Top-level fields
+    assert.strictEqual(manifest.version, 1);
+    assert.strictEqual(manifest.generatedAt, '1970-01-01T00:00:00.000Z');
+
+    // Families
+    assert.ok(manifest.families.civilUnits);
+    assert.strictEqual(manifest.families.civilUnits.loadType, 'spritesheet');
+    assert.strictEqual(manifest.families.civilUnits.enabled, true);
+
+    // Keys: 4 factions × 2 unit types = 8
+    assert.strictEqual(manifest.families.civilUnits.keys.length, 8);
+
+    // frameConfig
+    assert.strictEqual(manifest.families.civilUnits.frameConfig.frameWidth, 256);
+    assert.strictEqual(manifest.families.civilUnits.frameConfig.frameHeight, 256);
+    assert.strictEqual(manifest.families.civilUnits.frameConfig.endFrame, 63);
+
+    // Paths: 8 entries
+    assert.strictEqual(Object.keys(manifest.paths).length, 8);
+
+    // No other families
+    assert.strictEqual(manifest.families.hq, undefined);
+    assert.strictEqual(manifest.families.buildings, undefined);
+  } finally {
+    cleanup();
+  }
+});
+
+test('civilUnits manifest contains all expected keys', () => {
+  const { publicDir, cleanup } = createCivilUnitFixtures();
+  try {
+    const { manifest } = processCivilUnitsFamily({ publicDir });
+    const keys = manifest.families.civilUnits.keys;
+    assert.ok(keys.includes('builder_cyan'));
+    assert.ok(keys.includes('harvester_cyan'));
+    assert.ok(keys.includes('builder_green'));
+    assert.ok(keys.includes('harvester_green'));
+    assert.ok(keys.includes('builder_yellow'));
+    assert.ok(keys.includes('harvester_yellow'));
+    assert.ok(keys.includes('builder_purple'));
+    assert.ok(keys.includes('harvester_purple'));
+  } finally {
+    cleanup();
+  }
+});
+
+test('civilUnits audit report has no errors with all fixtures', () => {
+  const { publicDir, cleanup } = createCivilUnitFixtures();
+  try {
+    const { auditReport } = processCivilUnitsFamily({ publicDir });
+    assert.strictEqual(auditReport.summary.totalAssets, 8);
+    assert.strictEqual(auditReport.summary.validAssets, 8);
+    assert.strictEqual(auditReport.summary.errorAssets, 0);
+    assert.strictEqual(auditReport.summary.warningAssets, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test('missing expected civil unit spritesheet creates MISSING_FILE error', () => {
+  const { publicDir, cleanup } = createPartialCivilUnitFixtures();
+  try {
+    const { auditReport } = processCivilUnitsFamily({ publicDir });
+    assert.ok(auditReport.errors.length > 0, 'Should have errors for missing files');
+    const missingFileErrors = auditReport.errors.filter(e => e.code === 'MISSING_FILE');
+    assert.ok(missingFileErrors.length > 0, 'Should have MISSING_FILE errors');
+    // Missing: harvester_cyan + all green/yellow/purple sheets = 7
+    assert.ok(
+      missingFileErrors.some(e => e.key === 'harvester_cyan'),
+      'Should report missing harvester_cyan',
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('unexpected extra file in units dir creates ORPHAN_FILE warning', () => {
+  const { publicDir, cleanup } = createCivilUnitFixtures();
+  try {
+    // Add an extra file
+    const extraFile = join(publicDir, 'assets', 'factions', 'cyan', 'units', 'mystery_unit.png');
+    writeFileSync(extraFile, 'fake-png');
+
+    const { auditReport } = processCivilUnitsFamily({ publicDir });
+    const orphanWarning = auditReport.warnings.find(w => w.code === 'ORPHAN_FILE');
+    assert.ok(orphanWarning, 'Should warn about orphan file');
+    assert.ok(orphanWarning.message.includes('mystery_unit.png'));
+  } finally {
+    cleanup();
+  }
+});
+
+test('civilUnits manifest passes validateManifest with all fixtures', () => {
+  const { publicDir, cleanup } = createCivilUnitFixtures();
+  try {
+    const { manifest } = processCivilUnitsFamily({ publicDir });
+    const { errors } = validateManifest(manifest, { root: publicDir });
+    assert.strictEqual(errors.length, 0, `Expected 0 validation errors, got: ${JSON.stringify(errors)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('civilUnits manifest generation is deterministic', () => {
+  const { publicDir, cleanup } = createCivilUnitFixtures();
+  try {
+    const first = processCivilUnitsFamily({ publicDir });
+    const second = processCivilUnitsFamily({ publicDir });
+    assert.deepStrictEqual(first.manifest, second.manifest, 'Two runs must produce identical manifests');
+    assert.deepStrictEqual(first.auditReport, second.auditReport, 'Two runs must produce identical audit reports');
+  } finally {
+    cleanup();
+  }
+});
+
+test('generateRuntimeManifestTS includes civilUnits with frameConfig', () => {
+  const { publicDir: bPublicDir, cleanup: bCleanup } = createBuildingFixtures();
+  const { publicDir: cuPublicDir, cleanup: cuCleanup } = createCivilUnitFixtures();
+  try {
+    const { manifest: bManifest } = processBuildingsFamily({ publicDir: bPublicDir });
+    const { manifest: cuManifest } = processCivilUnitsFamily({ publicDir: cuPublicDir });
+
+    // Merge manifests like the CLI does
+    const merged = {
+      version: 1,
+      generatedAt: '1970-01-01T00:00:00.000Z',
+      families: { ...bManifest.families, ...cuManifest.families },
+      paths: { ...bManifest.paths, ...cuManifest.paths },
+    };
+
+    const ts = generateRuntimeManifestTS(merged);
+    assert.ok(ts.includes('civilUnits:'), 'Must have civilUnits family');
+    assert.ok(ts.includes("loadType: 'spritesheet',"), 'Must have spritesheet loadType');
+    assert.ok(ts.includes('frameConfig: { frameWidth: 256, frameHeight: 256, endFrame: 63 }'), 'Must have frameConfig');
+    assert.ok(ts.includes("'builder_cyan'"), 'Must have builder_cyan key');
+    assert.ok(ts.includes("'harvester_cyan'"), 'Must have harvester_cyan key');
+    assert.ok(ts.includes("'builder_cyan': 'assets/factions/cyan/units/builder_8x8_256.png',"), 'Must have builder_cyan path');
+  } finally {
+    bCleanup();
+    cuCleanup();
   }
 });
 
