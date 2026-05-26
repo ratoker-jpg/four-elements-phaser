@@ -562,6 +562,36 @@ describe('ARCH-01F: production completion and spawning', () => {
     expect(dy).toBeLessThanOrEqual(3);
   });
 
+  it('builder production completes with one updateGameState(state, BUILDER_PRODUCTION_DURATION_MS)', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    startUnitProduction(state, 10, 10, 'builder');
+
+    const factory = state.production.factories[0];
+    const buildersBefore = state.mapData.builders.length;
+
+    // Single call with full builder duration
+    updateGameState(state, BUILDER_PRODUCTION_DURATION_MS);
+
+    // Item should be completed and spawned
+    expect(factory.queue.length).toBe(0);
+    expect(state.mapData.builders.length).toBe(buildersBefore + 1);
+  });
+
+  it('harvester production completes with one updateGameState(state, HARVESTER_PRODUCTION_DURATION_MS)', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    startUnitProduction(state, 10, 10, 'harvester');
+
+    const factory = state.production.factories[0];
+    const harvestersBefore = state.harvesters.length;
+
+    // Single call with full harvester duration
+    updateGameState(state, HARVESTER_PRODUCTION_DURATION_MS);
+
+    // Item should be completed and spawned
+    expect(factory.queue.length).toBe(0);
+    expect(state.harvesters.length).toBe(harvestersBefore + 1);
+  });
+
   it('if spawn area is blocked, completed item stays queued and retries', () => {
     const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
     startUnitProduction(state, 10, 10, 'builder');

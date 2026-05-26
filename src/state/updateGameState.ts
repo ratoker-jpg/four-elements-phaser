@@ -55,16 +55,17 @@ const ARRIVAL_THRESHOLD = 0.25;
  * given the same input state and delta.
  */
 export function updateGameState(state: GameState, deltaMs: number): void {
-  // Clamp delta to prevent huge jumps after tab-switch
-  const dt = Math.min(deltaMs, 200);
+  // Clamp delta for movement to prevent huge jumps after tab-switch.
+  // Production/separators use the full deltaMs for accurate time advancement.
+  const moveDt = Math.min(deltaMs, 200);
 
   for (const harvester of state.harvesters) {
-    updateHarvester(state, harvester, dt);
+    updateHarvester(state, harvester, moveDt);
   }
 
   // ARCH-01C/01E/01F: Unified power allocation + separator processing + factory production.
   // Power consumers (separators, factories) are allocated power in completed building order.
-  allocatePowerAndProcess(state, dt);
+  allocatePowerAndProcess(state, deltaMs);
 
   // ARCH-01E: Recompute power state after separator processing and factory production
   recomputePower(state);
@@ -437,8 +438,7 @@ function allocatePowerAndProcess(state: GameState, dt: number): void {
       factory.active = true;
 
       // Advance progress on the first unfinished item
-      const clampedDt = Math.min(dt, 200);
-      unfinishedItem.elapsedMs += clampedDt;
+      unfinishedItem.elapsedMs += dt;
       unfinishedItem.progress = Math.min(unfinishedItem.elapsedMs / unfinishedItem.durationMs, 1);
 
       if (unfinishedItem.progress >= 1) {
