@@ -211,6 +211,11 @@ export class GameScene extends Phaser.Scene {
       this.playtestHud?.showStatus(result.message, result.success);
     });
 
+    this.input.keyboard?.on('keydown-P', () => {
+      const result = this.requestBuild('power-plant');
+      this.playtestHud?.showStatus(result.message, result.success);
+    });
+
     // ── Production hotkeys — now delegate to extracted command methods ──
     this.input.keyboard?.on('keydown-N', () => {
       const result = this.requestQueueUnit('builder');
@@ -251,7 +256,7 @@ export class GameScene extends Phaser.Scene {
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
-      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B: build separator | F: build factory | N: queue builder | G: queue harvester | Q/E: body dir | Z/X: turret dir`,
+      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B/P/F: build | N: queue builder | G: queue harvester | Q/E: body dir | Z/X: turret dir`,
     );
   }
 
