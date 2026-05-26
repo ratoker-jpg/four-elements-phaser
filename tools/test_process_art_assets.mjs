@@ -22,6 +22,9 @@ import {
   processCivilUnitsFamily,
   generateCivilUnitKey,
   generateCivilUnitPath,
+  processModularUnitsFamily,
+  generateModularUnitKey,
+  generateModularUnitPath,
   generateRuntimeManifestTS,
 } from './process_art_assets.mjs';
 import { validateManifest } from './validate_manifest.mjs';
@@ -778,9 +781,272 @@ test('generateRuntimeManifestTS includes civilUnits with frameConfig', () => {
   }
 });
 
-// ── Combined default (--family all) output includes civilUnits (ARCH-02G fixup) ──
+// ── Modular unit key/path generation tests (ARCH-02H) ──────────────
 
-/** Create a temp directory with both building and civil unit fixtures. */
+test('generateModularUnitKey produces correct hull key', () => {
+  assert.strictEqual(generateModularUnitKey('cyan', 'wasp_m0_hull', 0), 'wasp_m0_hull_cyan_dir0');
+  assert.strictEqual(generateModularUnitKey('purple', 'wasp_m0_hull', 7), 'wasp_m0_hull_purple_dir7');
+});
+
+test('generateModularUnitKey produces correct turret key', () => {
+  assert.strictEqual(generateModularUnitKey('cyan', 'smoky_m0_turret', 0), 'smoky_m0_turret_cyan_dir0');
+  assert.strictEqual(generateModularUnitKey('purple', 'smoky_m0_turret', 7), 'smoky_m0_turret_purple_dir7');
+});
+
+test('generateModularUnitPath produces correct hull path', () => {
+  assert.strictEqual(
+    generateModularUnitPath('cyan', 'chassis/wasp_m0', 'wasp_m0_hull_idle', 0),
+    'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir0_0.png',
+  );
+  assert.strictEqual(
+    generateModularUnitPath('purple', 'chassis/wasp_m0', 'wasp_m0_hull_idle', 7),
+    'assets/units/chassis/wasp_m0/purple/wasp_m0_hull_idle_dir7_0.png',
+  );
+});
+
+test('generateModularUnitPath produces correct turret path', () => {
+  assert.strictEqual(
+    generateModularUnitPath('cyan', 'weapons/smoky_m0', 'smoky_m0_turret_idle', 0),
+    'assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir0_0.png',
+  );
+  assert.strictEqual(
+    generateModularUnitPath('purple', 'weapons/smoky_m0', 'smoky_m0_turret_idle', 7),
+    'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir7_0.png',
+  );
+});
+
+// ─── ModularUnits manifest generation tests (ARCH-02H) ────────────
+
+/** Create a temp directory with modular unit fixtures for testing. */
+function createModularUnitFixtures() {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  const publicDir = join(root, 'public');
+
+  const factions = ['cyan', 'green', 'yellow', 'purple'];
+  const dirs = [0, 1, 2, 3, 4, 5, 6, 7];
+
+  for (const faction of factions) {
+    const hullDir = join(publicDir, 'assets', 'units', 'chassis', 'wasp_m0', faction);
+    mkdirSync(hullDir, { recursive: true });
+    for (const dir of dirs) {
+      writeFileSync(join(hullDir, `wasp_m0_hull_idle_dir${dir}_0.png`), 'fake-png');
+    }
+
+    const turretDir = join(publicDir, 'assets', 'units', 'weapons', 'smoky_m0', faction);
+    mkdirSync(turretDir, { recursive: true });
+    for (const dir of dirs) {
+      writeFileSync(join(turretDir, `smoky_m0_turret_idle_dir${dir}_0.png`), 'fake-png');
+    }
+  }
+
+  return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+/** Create a temp directory with partial modular unit fixtures (missing some files). */
+function createPartialModularUnitFixtures() {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  const publicDir = join(root, 'public');
+
+  // Only create cyan hull dir0
+  const hullDir = join(publicDir, 'assets', 'units', 'chassis', 'wasp_m0', 'cyan');
+  mkdirSync(hullDir, { recursive: true });
+  writeFileSync(join(hullDir, 'wasp_m0_hull_idle_dir0_0.png'), 'fake-png');
+
+  return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+test('modularUnits manifest generation produces correct shape with all fixtures', () => {
+  const { publicDir, cleanup } = createModularUnitFixtures();
+  try {
+    const { manifest, auditReport } = processModularUnitsFamily({ publicDir });
+
+    // Top-level fields
+    assert.strictEqual(manifest.version, 1);
+    assert.strictEqual(manifest.generatedAt, '1970-01-01T00:00:00.000Z');
+
+    // Families
+    assert.ok(manifest.families.modularUnits);
+    assert.strictEqual(manifest.families.modularUnits.loadType, 'image');
+    assert.strictEqual(manifest.families.modularUnits.enabled, true);
+
+    // Keys: 4 factions × 8 dirs × 2 parts = 64
+    assert.strictEqual(manifest.families.modularUnits.keys.length, 64);
+
+    // No frameConfig for image type
+    assert.strictEqual(manifest.families.modularUnits.frameConfig, undefined);
+
+    // Paths: 64 entries
+    assert.strictEqual(Object.keys(manifest.paths).length, 64);
+
+    // No other families
+    assert.strictEqual(manifest.families.hq, undefined);
+    assert.strictEqual(manifest.families.buildings, undefined);
+    assert.strictEqual(manifest.families.civilUnits, undefined);
+  } finally {
+    cleanup();
+  }
+});
+
+test('modularUnits manifest contains all expected sample keys', () => {
+  const { publicDir, cleanup } = createModularUnitFixtures();
+  try {
+    const { manifest } = processModularUnitsFamily({ publicDir });
+    const keys = manifest.families.modularUnits.keys;
+    assert.ok(keys.includes('wasp_m0_hull_cyan_dir0'));
+    assert.ok(keys.includes('wasp_m0_hull_purple_dir7'));
+    assert.ok(keys.includes('smoky_m0_turret_cyan_dir0'));
+    assert.ok(keys.includes('smoky_m0_turret_purple_dir7'));
+  } finally {
+    cleanup();
+  }
+});
+
+test('modularUnits manifest paths match legacy helper outputs', () => {
+  const { publicDir, cleanup } = createModularUnitFixtures();
+  try {
+    const { manifest } = processModularUnitsFamily({ publicDir });
+
+    // Verify paths match what getWaspHullKey/getSmokyTurretKey would produce
+    assert.strictEqual(
+      manifest.paths['wasp_m0_hull_cyan_dir0'],
+      'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir0_0.png',
+    );
+    assert.strictEqual(
+      manifest.paths['smoky_m0_turret_cyan_dir0'],
+      'assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir0_0.png',
+    );
+    assert.strictEqual(
+      manifest.paths['wasp_m0_hull_purple_dir7'],
+      'assets/units/chassis/wasp_m0/purple/wasp_m0_hull_idle_dir7_0.png',
+    );
+    assert.strictEqual(
+      manifest.paths['smoky_m0_turret_purple_dir7'],
+      'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir7_0.png',
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('modularUnits audit report has no errors with all fixtures', () => {
+  const { publicDir, cleanup } = createModularUnitFixtures();
+  try {
+    const { auditReport } = processModularUnitsFamily({ publicDir });
+    assert.strictEqual(auditReport.summary.totalAssets, 64);
+    assert.strictEqual(auditReport.summary.validAssets, 64);
+    assert.strictEqual(auditReport.summary.errorAssets, 0);
+    assert.strictEqual(auditReport.summary.warningAssets, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test('missing expected modular unit image creates MISSING_FILE error', () => {
+  const { publicDir, cleanup } = createPartialModularUnitFixtures();
+  try {
+    const { auditReport } = processModularUnitsFamily({ publicDir });
+    assert.ok(auditReport.errors.length > 0, 'Should have errors for missing files');
+    const missingFileErrors = auditReport.errors.filter(e => e.code === 'MISSING_FILE');
+    assert.ok(missingFileErrors.length > 0, 'Should have MISSING_FILE errors');
+    // Only wasp_m0_hull_cyan_dir0 exists, everything else is missing
+    assert.ok(
+      missingFileErrors.some(e => e.key === 'smoky_m0_turret_cyan_dir0'),
+      'Should report missing smoky_m0_turret_cyan_dir0',
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('unexpected extra file in modular dir creates ORPHAN_FILE warning', () => {
+  const { publicDir, cleanup } = createModularUnitFixtures();
+  try {
+    // Add an extra file
+    const extraFile = join(publicDir, 'assets', 'units', 'chassis', 'wasp_m0', 'cyan', 'mystery_hull.png');
+    writeFileSync(extraFile, 'fake-png');
+
+    const { auditReport } = processModularUnitsFamily({ publicDir });
+    const orphanWarning = auditReport.warnings.find(w => w.code === 'ORPHAN_FILE');
+    assert.ok(orphanWarning, 'Should warn about orphan file');
+    assert.ok(orphanWarning.message.includes('mystery_hull.png'));
+  } finally {
+    cleanup();
+  }
+});
+
+test('modularUnits manifest passes validateManifest with all fixtures', () => {
+  const { publicDir, cleanup } = createModularUnitFixtures();
+  try {
+    const { manifest } = processModularUnitsFamily({ publicDir });
+    const { errors } = validateManifest(manifest, { root: publicDir });
+    assert.strictEqual(errors.length, 0, `Expected 0 validation errors, got: ${JSON.stringify(errors)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('modularUnits manifest generation is deterministic', () => {
+  const { publicDir, cleanup } = createModularUnitFixtures();
+  try {
+    const first = processModularUnitsFamily({ publicDir });
+    const second = processModularUnitsFamily({ publicDir });
+    assert.deepStrictEqual(first.manifest, second.manifest, 'Two runs must produce identical manifests');
+    assert.deepStrictEqual(first.auditReport, second.auditReport, 'Two runs must produce identical audit reports');
+  } finally {
+    cleanup();
+  }
+});
+
+test('modularUnits works with minimal single-faction single-dir fixture', () => {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  try {
+    const publicDir = join(root, 'public');
+    const hullDir = join(publicDir, 'assets', 'units', 'chassis', 'wasp_m0', 'cyan');
+    mkdirSync(hullDir, { recursive: true });
+    writeFileSync(join(hullDir, 'wasp_m0_hull_idle_dir0_0.png'), 'fake-png');
+
+    const turretDir = join(publicDir, 'assets', 'units', 'weapons', 'smoky_m0', 'cyan');
+    mkdirSync(turretDir, { recursive: true });
+    writeFileSync(join(turretDir, 'smoky_m0_turret_idle_dir0_0.png'), 'fake-png');
+
+    const { manifest, auditReport } = processModularUnitsFamily({
+      publicDir,
+      factions: ['cyan'],
+      directions: [0],
+      modularParts: [
+        { keyPrefix: 'wasp_m0_hull', pathDir: 'chassis/wasp_m0', filePrefix: 'wasp_m0_hull_idle' },
+        { keyPrefix: 'smoky_m0_turret', pathDir: 'weapons/smoky_m0', filePrefix: 'smoky_m0_turret_idle' },
+      ],
+    });
+
+    assert.strictEqual(manifest.families.modularUnits.keys.length, 2);
+    assert.strictEqual(manifest.families.modularUnits.keys[0], 'wasp_m0_hull_cyan_dir0');
+    assert.strictEqual(manifest.families.modularUnits.keys[1], 'smoky_m0_turret_cyan_dir0');
+    assert.strictEqual(auditReport.summary.totalAssets, 2);
+    assert.strictEqual(auditReport.summary.errorAssets, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('generateRuntimeManifestTS includes modularUnits with image loadType', () => {
+  const { publicDir, cleanup } = createModularUnitFixtures();
+  try {
+    const { manifest } = processModularUnitsFamily({ publicDir });
+    const ts = generateRuntimeManifestTS(manifest);
+    assert.ok(ts.includes('modularUnits:'), 'Must have modularUnits family');
+    assert.ok(ts.includes("'wasp_m0_hull_cyan_dir0'"), 'Must have hull key');
+    assert.ok(ts.includes("'smoky_m0_turret_cyan_dir0'"), 'Must have turret key');
+    // Should NOT have frameConfig (image type)
+    assert.ok(!ts.includes('frameConfig'), 'Image type should not have frameConfig in TS');
+  } finally {
+    cleanup();
+  }
+});
+
+// ── Combined default (--family all) output includes all families (ARCH-02G+02H) ──
+
+/** Create a temp directory with building, civil unit, and modular unit fixtures. */
 function createCombinedFixtures() {
   const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
   const publicDir = join(root, 'public');
@@ -810,35 +1076,57 @@ function createCombinedFixtures() {
     }
   }
 
+  // Modular units
+  const dirs = [0, 1, 2, 3, 4, 5, 6, 7];
+  for (const faction of factions) {
+    const hullDir = join(publicDir, 'assets', 'units', 'chassis', 'wasp_m0', faction);
+    mkdirSync(hullDir, { recursive: true });
+    for (const dir of dirs) {
+      writeFileSync(join(hullDir, `wasp_m0_hull_idle_dir${dir}_0.png`), 'fake-png');
+    }
+
+    const turretDir = join(publicDir, 'assets', 'units', 'weapons', 'smoky_m0', faction);
+    mkdirSync(turretDir, { recursive: true });
+    for (const dir of dirs) {
+      writeFileSync(join(turretDir, `smoky_m0_turret_idle_dir${dir}_0.png`), 'fake-png');
+    }
+  }
+
   return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-test('combined default output includes civilUnits family', () => {
+test('combined default output includes all families', () => {
   const { publicDir, cleanup } = createCombinedFixtures();
   try {
-    // Simulate --family all (the default): process both families and merge
+    // Simulate --family all (the default): process all families and merge
     const { manifest: bManifest } = processBuildingsFamily({ publicDir });
     const { manifest: cuManifest } = processCivilUnitsFamily({ publicDir });
+    const { manifest: muManifest } = processModularUnitsFamily({ publicDir });
 
     const merged = {
       version: 1,
       generatedAt: '1970-01-01T00:00:00.000Z',
-      families: { ...bManifest.families, ...cuManifest.families },
-      paths: { ...bManifest.paths, ...cuManifest.paths },
+      families: { ...bManifest.families, ...cuManifest.families, ...muManifest.families },
+      paths: { ...bManifest.paths, ...cuManifest.paths, ...muManifest.paths },
     };
 
-    // Must have all three families
+    // Must have all four families
     assert.ok(merged.families.hq, 'Merged manifest must have hq family');
     assert.ok(merged.families.buildings, 'Merged manifest must have buildings family');
     assert.ok(merged.families.civilUnits, 'Merged manifest must have civilUnits family');
+    assert.ok(merged.families.modularUnits, 'Merged manifest must have modularUnits family');
 
     // civilUnits must have spritesheet loadType
     assert.strictEqual(merged.families.civilUnits.loadType, 'spritesheet');
     assert.strictEqual(merged.families.civilUnits.keys.length, 8);
 
-    // Total keys: 4 HQ + 24 buildings + 8 civilUnits = 36
+    // modularUnits must have image loadType
+    assert.strictEqual(merged.families.modularUnits.loadType, 'image');
+    assert.strictEqual(merged.families.modularUnits.keys.length, 64);
+
+    // Total keys: 4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits = 100
     const totalKeys = Object.keys(merged.paths).length;
-    assert.strictEqual(totalKeys, 36, `Expected 36 total paths, got ${totalKeys}`);
+    assert.strictEqual(totalKeys, 100, `Expected 100 total paths, got ${totalKeys}`);
 
     // Validate the merged manifest
     const { errors } = validateManifest(merged, { root: publicDir });
@@ -848,33 +1136,39 @@ test('combined default output includes civilUnits family', () => {
   }
 });
 
-test('generateRuntimeManifestTS for combined output includes civilUnits', () => {
+test('generateRuntimeManifestTS for combined output includes all families', () => {
   const { publicDir, cleanup } = createCombinedFixtures();
   try {
     const { manifest: bManifest } = processBuildingsFamily({ publicDir });
     const { manifest: cuManifest } = processCivilUnitsFamily({ publicDir });
+    const { manifest: muManifest } = processModularUnitsFamily({ publicDir });
 
     const merged = {
       version: 1,
       generatedAt: '1970-01-01T00:00:00.000Z',
-      families: { ...bManifest.families, ...cuManifest.families },
-      paths: { ...bManifest.paths, ...cuManifest.paths },
+      families: { ...bManifest.families, ...cuManifest.families, ...muManifest.families },
+      paths: { ...bManifest.paths, ...cuManifest.paths, ...muManifest.paths },
     };
 
     const ts = generateRuntimeManifestTS(merged);
 
-    // Must have all three families
+    // Must have all four families
     assert.ok(ts.includes('hq:'), 'TS must have hq family');
     assert.ok(ts.includes('buildings:'), 'TS must have buildings family');
     assert.ok(ts.includes('civilUnits:'), 'TS must have civilUnits family');
+    assert.ok(ts.includes('modularUnits:'), 'TS must have modularUnits family');
 
-    // Must have spritesheet loadType and frameConfig
+    // Must have spritesheet loadType and frameConfig for civilUnits
     assert.ok(ts.includes("loadType: 'spritesheet',"), 'TS must have spritesheet loadType');
     assert.ok(ts.includes('frameConfig:'), 'TS must have frameConfig');
 
     // Must have civil unit keys in paths
     assert.ok(ts.includes("'builder_cyan':"), 'TS must have builder_cyan path');
     assert.ok(ts.includes("'harvester_cyan':"), 'TS must have harvester_cyan path');
+
+    // Must have modular unit keys in paths
+    assert.ok(ts.includes("'wasp_m0_hull_cyan_dir0':"), 'TS must have hull path');
+    assert.ok(ts.includes("'smoky_m0_turret_cyan_dir0':"), 'TS must have turret path');
   } finally {
     cleanup();
   }
