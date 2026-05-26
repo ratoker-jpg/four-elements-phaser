@@ -65,3 +65,36 @@ const MODULAR_TANK_BASE_SCALE = 0.32;
  */
 export const MODULAR_RENDER_SCALE: number =
   MODULAR_TANK_BASE_SCALE * MODULAR_SCALE_MULT;
+
+/**
+ * Ratio of current modular render scale to the base scale at which the
+ * hull/turret offset tables in worldConfig were originally calibrated.
+ *
+ * Used by ModularTankRenderer to proportionally adjust offset positions
+ * so the visual composition (hull + turret alignment, tile centering)
+ * stays consistent when the render scale changes.
+ *
+ * 0.24 / 0.32 = 0.75
+ */
+export const MODULAR_SCALE_RATIO: number =
+  MODULAR_RENDER_SCALE / MODULAR_TANK_BASE_SCALE;
+
+/**
+ * Post-scale anchor correction for the modular tank composition.
+ *
+ * After applying the scale-ratio transform to base offsets, this 2D shift
+ * fine-tunes visual centering on the tile. It moves the entire hull+turret
+ * group together, so their mutual alignment is never affected.
+ *
+ * Derivation (256×256 sprites, hull origin 0.5/0.75):
+ *   At base scale (0.32), hull offset {2,16} → visual centre at anchor+{2,-4.48}
+ *   At new scale (0.24) with ratio only → visual centre at anchor+{1.5,-3.36}
+ *   Shift = {+0.5, +1.12}  →  correction = {+0.5, -1.12}
+ *
+ * Adjust this value with the debug overlay if the modular unit appears
+ * off-center after a future scale change.
+ */
+export const MODULAR_ANCHOR_CORRECTION: { x: number; y: number } = {
+  x: 0.5,
+  y: -1.12,
+};

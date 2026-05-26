@@ -1,0 +1,37 @@
+{
+  "result": "PASS",
+  "url": "http://localhost:4173",
+  "duration_ms": 8895,
+  "duration_human": "8.9s",
+  "build": {
+    "ok": true
+  },
+  "preview": {
+    "ok": true
+  },
+  "readiness": {
+    "required_markers": [
+      "[PreloadScene] All assets loaded.",
+      "[GameScene] All asset textures verified.",
+      "[GameScene] State-driven scene ready."
+    ],
+    "found_markers": [
+      "[PreloadScene] All assets loaded.",
+      "[GameScene] All asset textures verified.",
+      "[GameScene] State-driven scene ready."
+    ],
+    "missing_markers": []
+  },
+  "smoke_errors": [],
+  "console_errors": [],
+  "console_warnings": [
+    "[.WebGL-0x28c400121a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x28c400121a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x28c400121a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[.WebGL-0x28c400121a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+  ],
+  "page_errors": [],
+  "failed_requests": [],
+  "has_canvas": true,
+  "screenshot": "_reports/qa-smoke-screenshot.png"
+}

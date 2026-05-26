@@ -17,6 +17,7 @@ import {
   MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR,
   type ModularTankDirection,
 } from '../../config/worldConfig';
+import { MODULAR_SCALE_RATIO, MODULAR_ANCHOR_CORRECTION } from '../../config/unitRenderConfig';
 
 /** Data needed to create the debug overlay for the first time. */
 export interface DebugOverlayInitData {
@@ -147,14 +148,25 @@ export class ModularTankDebugOverlay {
     const hullOff = MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir];
     const turretMount = MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir];
 
+    // Compute effective (scale-transformed) offsets for display
+    const effHull = {
+      x: +(hullOff.x * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.x).toFixed(1),
+      y: +(hullOff.y * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.y).toFixed(1),
+    };
+    const effTurret = {
+      x: +(turretMount.x * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.x).toFixed(1),
+      y: +(turretMount.y * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.y).toFixed(1),
+    };
+
     const hullTag = selected === 'hull' ? '>> ' : '   ';
     const turretTag = selected === 'turret' ? '>> ' : '   ';
     return [
       `tx/ty: ${this.anchorTile.tx}, ${this.anchorTile.ty}`,
       `world: ${Math.round(data.hullWorldX)}, ${Math.round(data.hullWorldY)}`,
-      `scale: ${data.scale.toFixed(2)}  bodyDir: ${bodyDir}  turretDir: ${turretDir}`,
-      `${hullTag}hull[${bodyDir}]: ${hullOff.x}, ${hullOff.y}`,
-      `${turretTag}turret mount[${bodyDir}]: ${turretMount.x}, ${turretMount.y}`,
+      `scale: ${data.scale.toFixed(2)}  ratio: ${MODULAR_SCALE_RATIO.toFixed(2)}  corr: ${MODULAR_ANCHOR_CORRECTION.x},${MODULAR_ANCHOR_CORRECTION.y}`,
+      `bodyDir: ${bodyDir}  turretDir: ${turretDir}`,
+      `${hullTag}hull[${bodyDir}]: base {${hullOff.x},${hullOff.y}} → eff {${effHull.x},${effHull.y}}`,
+      `${turretTag}turret[${bodyDir}]: base {${turretMount.x},${turretMount.y}} → eff {${effTurret.x},${effTurret.y}}`,
       `Q/E= body dir  Z/X= turret dir`,
       `H= hull  J= turret  C= print`,
       `arrow= +/-1px  shift+arrow= +/-5px`,

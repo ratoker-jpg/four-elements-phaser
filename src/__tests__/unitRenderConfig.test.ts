@@ -6,6 +6,8 @@ import {
   HARVESTER_RENDER_SCALE,
   BUILDER_RENDER_SCALE,
   MODULAR_RENDER_SCALE,
+  MODULAR_SCALE_RATIO,
+  MODULAR_ANCHOR_CORRECTION,
 } from '../config/unitRenderConfig';
 
 /**
@@ -89,5 +91,82 @@ describe('scale ordering after normalisation', () => {
     // Verify it was reduced by the intended factor instead.
     expect(MODULAR_RENDER_SCALE).toBeLessThan(0.32);
     expect(MODULAR_RENDER_SCALE / 0.32).toBeCloseTo(0.75, 2);
+  });
+});
+
+describe('modular scale-aware offset transform', () => {
+  it('MODULAR_SCALE_RATIO = current scale / base scale', () => {
+    const baseScale = 0.32;
+    expect(MODULAR_SCALE_RATIO).toBeCloseTo(MODULAR_RENDER_SCALE / baseScale, 4);
+  });
+
+  it('MODULAR_SCALE_RATIO equals the modular multiplier (0.75)', () => {
+    // When the base scale is 0.32 and the multiplier is 0.75,
+    // the ratio is the same as the multiplier.
+    expect(MODULAR_SCALE_RATIO).toBeCloseTo(0.75, 2);
+  });
+
+  it('MODULAR_SCALE_RATIO is between 0 and 1 (scale was reduced)', () => {
+    expect(MODULAR_SCALE_RATIO).toBeGreaterThan(0);
+    expect(MODULAR_SCALE_RATIO).toBeLessThan(1);
+  });
+
+  it('MODULAR_ANCHOR_CORRECTION has x and y number properties', () => {
+    expect(typeof MODULAR_ANCHOR_CORRECTION.x).toBe('number');
+    expect(typeof MODULAR_ANCHOR_CORRECTION.y).toBe('number');
+    expect(isFinite(MODULAR_ANCHOR_CORRECTION.x)).toBe(true);
+    expect(isFinite(MODULAR_ANCHOR_CORRECTION.y)).toBe(true);
+  });
+
+  it('MODULAR_ANCHOR_CORRECTION preserves base-scale visual centre', () => {
+    // Derivation: 256×256 sprites, hull origin (0.5, 0.75), hull offset {2, 16}
+    // At base scale (0.32), visual centre is at anchor + {2, -4.48}
+    // At new scale with ratio only, visual centre is at anchor + {1.5, -3.36}
+    // Correction shifts position so visual centre matches base scale.
+    //
+    // Hull position with transform = anchor + offset × ratio + correction
+    // Visual centre Y = hullPos.y - 0.25 × 256 × 0.24
+    //
+    // We verify the transform produces the same visual centre as base scale.
+    const baseScale = 0.32;
+    const newScale = MODULAR_RENDER_SCALE;
+    const hullOffset = { x: 2, y: 16 };
+    const spriteH = 256;
+
+    // Visual centre at base scale
+    const baseVisCentreY = hullOffset.y - 0.25 * spriteH * baseScale;
+
+    // Visual centre at new scale with transform
+    const transformedY = hullOffset.y * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.y;
+    const newVisCentreY = transformedY - 0.25 * spriteH * newScale;
+
+    expect(newVisCentreY).toBeCloseTo(baseVisCentreY, 2);
+  });
+
+  it('scale transform preserves hull-turret relative offset proportionally', () => {
+    // The turret mount offset relative to the hull offset should scale
+    // by the same ratio, keeping the turret visually on the hull.
+    const hullOffset = { x: 2, y: 16 };
+    const turretMount = { x: -6, y: -18 }; // dir 2 example
+
+    // Base-scale relative offset
+    const baseRelX = turretMount.x - hullOffset.x;
+    const baseRelY = turretMount.y - hullOffset.y;
+
+    // Transformed relative offset (anchor correction cancels out)
+    const transHull = {
+      x: hullOffset.x * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.x,
+      y: hullOffset.y * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.y,
+    };
+    const transTurret = {
+      x: turretMount.x * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.x,
+      y: turretMount.y * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.y,
+    };
+    const transRelX = transTurret.x - transHull.x;
+    const transRelY = transTurret.y - transHull.y;
+
+    // Relative offset should scale by MODULAR_SCALE_RATIO
+    expect(transRelX).toBeCloseTo(baseRelX * MODULAR_SCALE_RATIO, 4);
+    expect(transRelY).toBeCloseTo(baseRelY * MODULAR_SCALE_RATIO, 4);
   });
 });

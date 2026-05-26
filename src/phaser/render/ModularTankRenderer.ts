@@ -24,7 +24,11 @@ import {
 } from '../../config/worldConfig';
 import { tileToScreen, type IsoPoint } from './isometric';
 import type { RenderableEntity, Faction } from '../../state/types';
-import { MODULAR_RENDER_SCALE } from '../../config/unitRenderConfig';
+import {
+  MODULAR_RENDER_SCALE,
+  MODULAR_SCALE_RATIO,
+  MODULAR_ANCHOR_CORRECTION,
+} from '../../config/unitRenderConfig';
 import { ModularTankDebugOverlay } from '../debug/ModularTankDebugOverlay';
 
 /** Default initial visibility for the debug overlay. */
@@ -38,6 +42,26 @@ const MODULAR_TANK_HULL_ORIGIN = { x: 0.5, y: 0.75 };
 
 /** Sprite origin for the turret image. */
 const MODULAR_TANK_TURRET_ORIGIN = { x: 0.5, y: 0.5 };
+
+/**
+ * Apply scale-aware transform to a base-scale offset.
+ *
+ * Base offsets in worldConfig were calibrated at MODULAR_TANK_BASE_SCALE (0.32).
+ * When the render scale changes, offsets must be proportionally adjusted so
+ * the hull+turret visual composition stays consistent on the tile.
+ *
+ * Transform: (offset × scaleRatio) + anchorCorrection
+ *
+ * The anchor correction compensates for the non-linear shift in visual centre
+ * caused by the non-centred sprite origin (0.5, 0.75).  It shifts the entire
+ * hull+turret group together, preserving their relative alignment.
+ */
+function applyScaleTransform(offset: { x: number; y: number }): { x: number; y: number } {
+  return {
+    x: offset.x * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.x,
+    y: offset.y * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.y,
+  };
+}
 
 export class ModularTankRenderer {
   private scene: Phaser.Scene;
@@ -92,8 +116,8 @@ export class ModularTankRenderer {
     const anchorWorldX = tileAnchor.x + this.offset.x;
     const anchorWorldY = tileAnchor.y + this.offset.y;
 
-    // Hull position = anchor + hullOffset[bodyDir]
-    const hullOff = MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir];
+    // Hull position = anchor + scaleTransform(hullOffset[bodyDir])
+    const hullOff = applyScaleTransform(MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir]);
     const hullWorldX = anchorWorldX + hullOff.x;
     const hullWorldY = anchorWorldY + hullOff.y;
     const baseDepth = 100 + hullWorldY;
@@ -103,10 +127,10 @@ export class ModularTankRenderer {
     hull.setOrigin(MODULAR_TANK_HULL_ORIGIN.x, MODULAR_TANK_HULL_ORIGIN.y);
     hull.setDepth(baseDepth);
 
-    // Turret mount position = anchor + turretMount[bodyDir] (NOT turretDir!)
-    const turretMount = MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir];
-    const turretWorldX = anchorWorldX + turretMount.x;
-    const turretWorldY = anchorWorldY + turretMount.y;
+    // Turret mount position = anchor + scaleTransform(turretMount[bodyDir]) (NOT turretDir!)
+    const turretMountOff = applyScaleTransform(MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir]);
+    const turretWorldX = anchorWorldX + turretMountOff.x;
+    const turretWorldY = anchorWorldY + turretMountOff.y;
     const turret = this.scene.add.image(
       turretWorldX,
       turretWorldY,
@@ -196,16 +220,16 @@ export class ModularTankRenderer {
     const ay = this.anchorWorld.y;
     const bodyDir = this.bodyDir;
 
-    // Hull position = anchor + hullOffset[bodyDir]
-    const hullOff = MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir];
+    // Hull position = anchor + scaleTransform(hullOffset[bodyDir])
+    const hullOff = applyScaleTransform(MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir]);
     const hullX = ax + hullOff.x;
     const hullY = ay + hullOff.y;
     this.hull.setPosition(hullX, hullY);
 
-    // Turret mount position = anchor + turretMount[bodyDir]
-    const turretMount = MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir];
-    const turretX = ax + turretMount.x;
-    const turretY = ay + turretMount.y;
+    // Turret mount position = anchor + scaleTransform(turretMount[bodyDir])
+    const turretMountOff = applyScaleTransform(MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir]);
+    const turretX = ax + turretMountOff.x;
+    const turretY = ay + turretMountOff.y;
     this.turret.setPosition(turretX, turretY);
 
     this.debugOverlay?.rebuild({
