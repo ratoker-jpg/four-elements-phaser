@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-26T12:00:00Z",
+  "families": {
+    "terrain": {
+      "keys": ["terrain_sand", "terrain_sand_dark", "terrain_sand_light"],
+      "loadType": "image",
+      "enabled": true
+    },
+    "buildings": {
+      "keys": ["building_cyan_separator", "building_cyan_power_plant"],
+      "loadType": "image",
+      "enabled": true
+    },
+    "hq": {
+      "keys": ["hq_cyan", "hq_green"],
+      "loadType": "image",
+      "enabled": true
+    },
+    "civilUnits": {
+      "keys": ["builder_cyan", "harvester_cyan"],
+      "loadType": "spritesheet",
+      "frameConfig": { "frameWidth": 256, "frameHeight": 256, "endFrame": 63 },
+      "enabled": true
+    },
+    "modularUnits": {
+      "keys": ["wasp_m0_hull_cyan_dir0", "smoky_m0_turret_cyan_dir0"],
+      "loadType": "image",
+      "enabled": true
+    },
+    "resources": {
+      "keys": ["mineral_small", "mineral_medium", "mineral_large"],
+      "loadType": "image",
+      "enabled": true
+    },
+    "decor": {
+      "keys": [],
+      "loadType": "image",
+      "enabled": false
+    },
+    "fx": {
+      "keys": [],
+      "loadType": "image",
+      "enabled": false
+    },
+    "ui": {
+      "keys": [],
+      "loadType": "image",
+      "enabled": false
+    }
+  },
+  "paths": {
+    "terrain_sand": "assets/tiles/sand_tile.png",
+    "terrain_sand_dark": "assets/tiles/sand_tile_dark.png",
+    "terrain_sand_light": "assets/tiles/sand_tile_light.png",
+    "building_cyan_separator": "assets/factions/cyan/buildings/separator.png",
+    "building_cyan_power_plant": "assets/factions/cyan/buildings/power_plant.png",
+    "hq_cyan": "assets/factions/cyan/buildings/hq_t1.png",
+    "hq_green": "assets/factions/green/buildings/hq_t1.png",
+    "builder_cyan": "assets/factions/cyan/units/builder_8x8_256.png",
+    "harvester_cyan": "assets/factions/cyan/units/harvester_8x8_256.png",
+    "wasp_m0_hull_cyan_dir0": "assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir0_0.png",
+    "smoky_m0_turret_cyan_dir0": "assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir0_0.png",
+    "mineral_small": "assets/environment/mineral_small_02.png",
+    "mineral_medium": "assets/environment/mineral_medium_02.png",
+    "mineral_large": "assets/environment/mineral_large_02.png"
+  }
+}
