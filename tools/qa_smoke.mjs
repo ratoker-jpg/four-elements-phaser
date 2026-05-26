@@ -103,7 +103,12 @@ async function main() {
     console.log('[qa_smoke] Preview server ready.');
   } catch (err) {
     console.error('[qa_smoke] Failed to start preview server:', err.message);
-    const report = buildFailReport(`Preview server failed: ${err.message}`, Date.now() - startTime);
+    // Fix 3: Kill preview process on startup failure
+    if (previewProcess) {
+      previewProcess.kill('SIGTERM');
+    }
+    // Fix 2: Report build as OK, only preview as failed
+    const report = previewFailReport(err.message, Date.now() - startTime);
     writeReports(report);
     process.exit(1);
   }
@@ -117,6 +122,7 @@ async function main() {
   const pageErrors = [];
   const failedRequests = [];
   const foundMarkers = new Set();
+  const smokeErrors = [];
 
   try {
     browser = await chromium.launch({ headless: true });
@@ -176,13 +182,16 @@ async function main() {
     // Check for canvas element
     hasCanvas = await page.locator('canvas').count() > 0;
 
-    // Take screenshot
+    // Take screenshot (ensure _reports exists)
+    mkdirSync(REPORTS_DIR, { recursive: true });
     const screenshotPath = resolve(REPORTS_DIR, 'qa-smoke-screenshot.png');
     await page.screenshot({ path: screenshotPath, fullPage: false });
     console.log(`[qa_smoke] Screenshot saved to ${screenshotPath}`);
 
   } catch (err) {
     console.error('[qa_smoke] Playwright error:', err.message);
+    // Fix 1: Track Playwright/script errors so they cause explicit failure
+    smokeErrors.push(err.message);
   } finally {
     // Cleanup
     if (browser) {
@@ -203,6 +212,7 @@ async function main() {
   const duration = Date.now() - startTime;
 
   const pass =
+    smokeErrors.length === 0 &&
     consoleErrors.length === 0 &&
     pageErrors.length === 0 &&
     failedRequests.length === 0 &&
@@ -221,6 +231,7 @@ async function main() {
       found_markers: [...foundMarkers],
       missing_markers: missingMarkers,
     },
+    smoke_errors: smokeErrors,
     console_errors: consoleErrors,
     console_warnings: consoleWarnings,
     page_errors: pageErrors,
@@ -233,6 +244,7 @@ async function main() {
 
   console.log(`[qa_smoke] Result: ${report.result} (${formatDuration(duration)})`);
   if (!pass) {
+    if (smokeErrors.length > 0) console.log(`[qa_smoke] Smoke/script errors: ${smokeErrors.length}`);
     if (consoleErrors.length > 0) console.log(`[qa_smoke] Console errors: ${consoleErrors.length}`);
     if (pageErrors.length > 0) console.log(`[qa_smoke] Page errors: ${pageErrors.length}`);
     if (failedRequests.length > 0) console.log(`[qa_smoke] Failed requests: ${failedRequests.length}`);
@@ -258,6 +270,31 @@ function buildFailReport(error, durationMs) {
       found_markers: [],
       missing_markers: [...REQUIRED_MARKERS],
     },
+    smoke_errors: [],
+    console_errors: [],
+    console_warnings: [],
+    page_errors: [],
+    failed_requests: [],
+    has_canvas: false,
+    screenshot: null,
+  };
+}
+
+/** Fix 2: Report for preview startup failure — build was OK, preview failed. */
+function previewFailReport(error, durationMs) {
+  return {
+    result: 'FAIL',
+    url: PREVIEW_URL,
+    duration_ms: durationMs,
+    duration_human: formatDuration(durationMs),
+    build: { ok: true },
+    preview: { ok: false, error },
+    readiness: {
+      required_markers: REQUIRED_MARKERS,
+      found_markers: [],
+      missing_markers: [...REQUIRED_MARKERS],
+    },
+    smoke_errors: [],
     console_errors: [],
     console_warnings: [],
     page_errors: [],
@@ -308,6 +345,9 @@ function generateMarkdown(r) {
     lines.push(`  - Error: \`${r.build.error.substring(0, 200)}\``);
   }
   lines.push(`- **Preview server:** ${r.preview.ok ? 'OK' : 'FAILED'}`);
+  if (!r.preview.ok && r.preview.error) {
+    lines.push(`  - Error: \`${r.preview.error.substring(0, 200)}\``);
+  }
   lines.push('');
 
   // Readiness markers
@@ -373,6 +413,18 @@ function generateMarkdown(r) {
   } else {
     for (const req of r.failed_requests) {
       lines.push(`- \`${req.url}\` — ${req.failure}`);
+    }
+  }
+  lines.push('');
+
+  // Smoke/script errors
+  lines.push(`## Smoke/Script Errors (${r.smoke_errors?.length || 0})`);
+  lines.push('');
+  if (!r.smoke_errors || r.smoke_errors.length === 0) {
+    lines.push('None.');
+  } else {
+    for (const err of r.smoke_errors) {
+      lines.push(`- \`${err.substring(0, 200)}\``);
     }
   }
   lines.push('');
