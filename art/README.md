@@ -39,9 +39,11 @@ Output of the asset processor and validation tools:
 - `audit-report.json` — validation results, warnings, and errors
 - Family subdirectories with runtime-ready PNGs (future)
 
-**Runtime integration is not yet active.** The current runtime loaders in
-`src/assets/` continue to load directly from `public/assets/`. Migration to
-manifest-driven loading is planned for ARCH-02F.
+**Runtime integration is active for hq + buildings families (ARCH-02F).**
+The processor now also generates `src/assets/generatedAssetManifest.ts`, which
+is imported by PreloadScene via `loadGeneratedBuildingAndHqAssets()`. Other
+asset families (terrain, units, resources) still use their original loaders
+until later PRs.
 
 ## Pipeline flow
 
@@ -63,24 +65,27 @@ Steps 2–4 are tooling-supported. Step 1 is always manual.
 
 | Script | Command | Purpose |
 |--------|---------|--------|
-| `tools/process_art_assets.mjs` | `npm run process:art-assets` | Generate manifest + audit report for buildings family |
+| `tools/process_art_assets.mjs` | `npm run process:art-assets` | Generate manifest, audit report, and runtime TS manifest for buildings family |
 | `tools/validate_manifest.mjs` | `npm run validate:asset-manifest` | Validate manifest JSON structure, keys, naming |
 | `tools/generate_building_meta.py` | `npm run generate:building-meta` | Building placement metadata generator |
 
 ### process:art-assets
 
-The building asset processor MVP scans current approved runtime assets under
+The building asset processor scans current approved runtime assets under
 `public/assets/factions/{cyan,green,yellow,purple}/buildings/` and produces:
 
 - `art/generated/manifest.generated.json` — manifest with hq + buildings families
 - `art/generated/audit-report.json` — validation results
+- `src/assets/generatedAssetManifest.ts` — committed TypeScript manifest for runtime
 
-Current MVP behavior:
+Current behavior:
 - Processes buildings family only.
 - Scans runtime assets in `public/assets/` as input (not `art/staged/`).
 - No PNG copying or modification.
 - Runs the existing building metadata generator as a sub-step.
-- Runtime integration remains ARCH-02F.
+- Generates a TypeScript runtime manifest consumed by PreloadScene.
+- Runtime currently loads only hq + buildings from generated manifest.
+- Other families (terrain, units, resources) remain on existing loaders.
 
 ## Sample viewer
 

@@ -5,6 +5,13 @@
  * or rendering. Buildings still render as placeholder diamonds;
  * HQs still use the existing hq_cyan key from assetManifest.ts.
  *
+ * ARCH-02F NOTE: loadBuildingAssets() is now a legacy fallback.
+ * The primary loading path is loadGeneratedBuildingAndHqAssets()
+ * from runtimeGeneratedAssets.ts, which reads from the committed
+ * generated manifest. This module is kept for its key/path helper
+ * exports (getBuildingAssetKey, getHqAssetKey, etc.) which may be
+ * used by other modules.
+ *
  * Asset key convention:
  *   hq_{faction}                — e.g. hq_green, hq_yellow
  *   building_{faction}_{suffix} — e.g. building_cyan_separator, building_cyan_raw_storage
@@ -107,6 +114,10 @@ export function getHqAssetPath(faction: Faction): string {
 
 /**
  * Load all building and HQ image assets into the Phaser loader queue.
+ *
+ * @deprecated Use loadGeneratedBuildingAndHqAssets() from
+ *   runtimeGeneratedAssets.ts instead. This function is kept as a
+ *   legacy fallback but is no longer called by PreloadScene.
  *
  * - Building PNGs: all 6 types × 4 factions = 24 images.
  * - HQ PNGs: only green, yellow, purple (cyan is already loaded by
