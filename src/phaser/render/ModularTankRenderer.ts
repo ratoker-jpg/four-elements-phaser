@@ -24,13 +24,14 @@ import {
 } from '../../config/worldConfig';
 import { tileToScreen, type IsoPoint } from './isometric';
 import type { RenderableEntity, Faction } from '../../state/types';
+import { MODULAR_RENDER_SCALE } from '../../config/unitRenderConfig';
 import { ModularTankDebugOverlay } from '../debug/ModularTankDebugOverlay';
 
 /** Default initial visibility for the debug overlay. */
 const MODULAR_TANK_DEBUG = false;
 
-/** Render scale for the modular tank sprites. */
-export const MODULAR_TANK_SCALE = 0.32;
+/** Render scale for the modular tank sprites (ARCH-05A: 25% reduction). */
+export const MODULAR_TANK_SCALE = MODULAR_RENDER_SCALE;
 
 /** Sprite origin for the hull image. */
 const MODULAR_TANK_HULL_ORIGIN = { x: 0.5, y: 0.75 };

@@ -15,6 +15,7 @@ import type {
   ResourceNodeState,
 } from '../../state/types';
 import { directionFromDelta } from '../../state/updateGameState';
+import { HARVESTER_RENDER_SCALE } from '../../config/unitRenderConfig';
 
 /**
  * EntityRenderer — renders and syncs entities from GameState onto the scene.
@@ -227,8 +228,7 @@ export class EntityRenderer {
     // Frame index: row S (2) * 8 + col IDLE (0) = frame 16
     const idleFrame = DIR_ROW.S * 8 + IDLE_FRAME;
     const sprite = this.scene.add.sprite(worldX, worldY, ASSET_KEYS.HARVESTER_CYAN, idleFrame);
-    const scale = 41 / 256;
-    sprite.setScale(scale);
+    sprite.setScale(HARVESTER_RENDER_SCALE);
     sprite.setOrigin(0.5, 0.75);
     sprite.setDepth(100 + worldY);
 

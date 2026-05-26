@@ -3,6 +3,8 @@ import { tileToScreen, IsoPoint, footprintSouthVertex } from './isometric';
 import { BUILDING_CONFIG } from '../../state/construction';
 import { getCivilUnitKey } from '../../assets/civilUnitAssets';
 import { DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
+import { BUILDER_RENDER_SCALE } from '../../config/unitRenderConfig';
+import { directionFromDelta } from '../../state/updateGameState';
 import { getBuildingPlacementMeta, type BuildingPlacementMeta } from '../../assets/buildingPlacementMeta';
 import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPlacement, Faction } from '../../state/types';
 
@@ -54,8 +56,8 @@ const PROGRESS_FILL_ALPHA = 0.9;
 const HW = 76 / 2; // TILE_W / 2
 const HH = 38 / 2; // TILE_H / 2
 
-/** Builder spritesheet display scale — conservative, ~16% of 256px frame. */
-const BUILDER_SCALE = 40 / 256;
+// Builder scale is now configured in unitRenderConfig.ts (ARCH-05A: ×1.45).
+// BUILDER_RENDER_SCALE replaces the old BUILDER_SCALE constant.
 
 export class ConstructionRenderer {
   private scene: Phaser.Scene;
@@ -75,6 +77,9 @@ export class ConstructionRenderer {
 
   /** Whether a missing-texture error has already been logged (avoid spam). */
   private builderTextureErrorLogged = false;
+
+  /** Previous builder tile positions for direction calculation. */
+  private builderPrevTile = new Map<number, { ftx: number; fty: number }>();
 
   /** Set of `${faction}_${buildingType}` keys for which a missing-meta/texture
    *  warning has already been logged. Prevents per-frame spam. */
@@ -269,10 +274,11 @@ export class ConstructionRenderer {
 
   /**
    * Sync builder using spritesheet rendering.
-   * Creates the sprite on first call, then updates position each frame.
+   * Creates the sprite on first call, then updates position and facing each frame.
    *
-   * Uses fixed DIR_ROW.S (south-facing) for all phases.
-   * Direction tracking can be added in a future PR.
+   * ARCH-05A: Builder now faces movement direction while moving.
+   * Uses directionFromDelta() from updateGameState to compute facing
+   * from tile-space movement delta, matching harvester facing logic.
    */
   private syncBuilderSprite(
     bi: number,
@@ -284,21 +290,35 @@ export class ConstructionRenderer {
     const worldX = screenPos.x + this.offset.x;
     const worldY = screenPos.y + this.offset.y;
 
-    // Fixed south-facing frame: DIR_ROW.S * 8 + IDLE_FRAME
+    // Default south-facing frame
     const frameIndex = DIR_ROW.S * 8 + IDLE_FRAME;
 
     // Get or create sprite
     let sprite = this.builderSprites.get(bi);
     if (!sprite) {
       sprite = this.scene.add.sprite(worldX, worldY, textureKey, frameIndex);
-      sprite.setScale(BUILDER_SCALE);
+      sprite.setScale(BUILDER_RENDER_SCALE);
       sprite.setOrigin(0.5, 0.75);
       this.builderSprites.set(bi, sprite);
+      this.builderPrevTile.set(bi, { ftx: builder.ftx, fty: builder.fty });
     }
 
     // Update position each frame
     sprite.setPosition(worldX, worldY);
     sprite.setDepth(110 + worldY);
+
+    // Update facing direction based on movement delta
+    const prev = this.builderPrevTile.get(bi);
+    if (prev) {
+      const dtx = builder.ftx - prev.ftx;
+      const dty = builder.fty - prev.fty;
+      if (Math.abs(dtx) > 0.001 || Math.abs(dty) > 0.001) {
+        const dirIndex = directionFromDelta(dtx, dty);
+        const frame = dirIndex * 8 + IDLE_FRAME;
+        sprite.setFrame(frame);
+      }
+    }
+    this.builderPrevTile.set(bi, { ftx: builder.ftx, fty: builder.fty });
   }
 
   // ─── Drawing helpers ───────────────────────────────────────────
@@ -448,5 +468,6 @@ export class ConstructionRenderer {
       sprite.destroy();
     }
     this.builderSprites.clear();
+    this.builderPrevTile.clear();
   }
 }
