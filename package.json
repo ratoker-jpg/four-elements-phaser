@@ -15,7 +15,6 @@
     "validate:asset-manifest": "node tools/validate_manifest.mjs art/generated/manifest.sample.json",
     "test:asset-manifest": "node tools/test_validate_manifest.mjs",
     "process:art-assets": "node tools/process_art_assets.mjs",
-    "process:art-assets:buildings": "node tools/process_art_assets.mjs --family buildings",
     "test:process-art-assets": "node tools/test_process_art_assets.mjs",
     "test:art-sample-viewer": "node tools/test_art_sample_viewer.mjs",
     "view:art-sample": "echo 'Open http://localhost:5173/task/art-sample/index.html after running npm run dev'"

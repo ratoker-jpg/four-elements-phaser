@@ -81,7 +81,7 @@ The building asset processor scans current approved runtime assets under
 
 Current behavior:
 - Processes buildings and civilUnits families by default (`--family all`).
-- Can process individual families: `--family buildings` or `--family civilUnits`.
+- **Always use `npm run process:art-assets` (default `--family all`)** to regenerate the full manifest. Running with a single family (e.g. `--family buildings`) overwrites the generated outputs with a partial manifest, which will break PreloadScene since it expects civilUnits to be present.
 - Scans runtime assets in `public/assets/` as input (not `art/staged/`).
 - No PNG copying or modification.
 - Runs the existing building metadata generator as a sub-step.

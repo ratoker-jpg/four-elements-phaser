@@ -778,6 +778,108 @@ test('generateRuntimeManifestTS includes civilUnits with frameConfig', () => {
   }
 });
 
+// ── Combined default (--family all) output includes civilUnits (ARCH-02G fixup) ──
+
+/** Create a temp directory with both building and civil unit fixtures. */
+function createCombinedFixtures() {
+  const root = mkdtempSync(join(tmpdir(), 'process-art-test-'));
+  const publicDir = join(root, 'public');
+
+  const factions = ['cyan', 'green', 'yellow', 'purple'];
+
+  // Buildings
+  const buildingFiles = [
+    'hq_t1.png', 'separator.png', 'raw_storage.png', 'matter_storage.png',
+    'power_plant.png', 'command_relay.png', 'units_factory.png',
+  ];
+  for (const faction of factions) {
+    const dir = join(publicDir, 'assets', 'factions', faction, 'buildings');
+    mkdirSync(dir, { recursive: true });
+    for (const file of buildingFiles) {
+      writeFileSync(join(dir, file), 'fake-png');
+    }
+  }
+
+  // Civil units
+  const unitFiles = ['builder_8x8_256.png', 'harvester_8x8_256.png'];
+  for (const faction of factions) {
+    const dir = join(publicDir, 'assets', 'factions', faction, 'units');
+    mkdirSync(dir, { recursive: true });
+    for (const file of unitFiles) {
+      writeFileSync(join(dir, file), 'fake-png');
+    }
+  }
+
+  return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+
+test('combined default output includes civilUnits family', () => {
+  const { publicDir, cleanup } = createCombinedFixtures();
+  try {
+    // Simulate --family all (the default): process both families and merge
+    const { manifest: bManifest } = processBuildingsFamily({ publicDir });
+    const { manifest: cuManifest } = processCivilUnitsFamily({ publicDir });
+
+    const merged = {
+      version: 1,
+      generatedAt: '1970-01-01T00:00:00.000Z',
+      families: { ...bManifest.families, ...cuManifest.families },
+      paths: { ...bManifest.paths, ...cuManifest.paths },
+    };
+
+    // Must have all three families
+    assert.ok(merged.families.hq, 'Merged manifest must have hq family');
+    assert.ok(merged.families.buildings, 'Merged manifest must have buildings family');
+    assert.ok(merged.families.civilUnits, 'Merged manifest must have civilUnits family');
+
+    // civilUnits must have spritesheet loadType
+    assert.strictEqual(merged.families.civilUnits.loadType, 'spritesheet');
+    assert.strictEqual(merged.families.civilUnits.keys.length, 8);
+
+    // Total keys: 4 HQ + 24 buildings + 8 civilUnits = 36
+    const totalKeys = Object.keys(merged.paths).length;
+    assert.strictEqual(totalKeys, 36, `Expected 36 total paths, got ${totalKeys}`);
+
+    // Validate the merged manifest
+    const { errors } = validateManifest(merged, { root: publicDir });
+    assert.strictEqual(errors.length, 0, `Merged manifest must pass validation, got: ${JSON.stringify(errors)}`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('generateRuntimeManifestTS for combined output includes civilUnits', () => {
+  const { publicDir, cleanup } = createCombinedFixtures();
+  try {
+    const { manifest: bManifest } = processBuildingsFamily({ publicDir });
+    const { manifest: cuManifest } = processCivilUnitsFamily({ publicDir });
+
+    const merged = {
+      version: 1,
+      generatedAt: '1970-01-01T00:00:00.000Z',
+      families: { ...bManifest.families, ...cuManifest.families },
+      paths: { ...bManifest.paths, ...cuManifest.paths },
+    };
+
+    const ts = generateRuntimeManifestTS(merged);
+
+    // Must have all three families
+    assert.ok(ts.includes('hq:'), 'TS must have hq family');
+    assert.ok(ts.includes('buildings:'), 'TS must have buildings family');
+    assert.ok(ts.includes('civilUnits:'), 'TS must have civilUnits family');
+
+    // Must have spritesheet loadType and frameConfig
+    assert.ok(ts.includes("loadType: 'spritesheet',"), 'TS must have spritesheet loadType');
+    assert.ok(ts.includes('frameConfig:'), 'TS must have frameConfig');
+
+    // Must have civil unit keys in paths
+    assert.ok(ts.includes("'builder_cyan':"), 'TS must have builder_cyan path');
+    assert.ok(ts.includes("'harvester_cyan':"), 'TS must have harvester_cyan path');
+  } finally {
+    cleanup();
+  }
+});
+
 // ── Summary ─────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed, ${passed + failed} total\n`);
