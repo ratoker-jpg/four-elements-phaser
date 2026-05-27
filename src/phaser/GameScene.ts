@@ -423,6 +423,7 @@ export class GameScene extends Phaser.Scene {
             this.scene.restart({ faction: this.setupConfig.faction, mapId: ARENA_MAP_ID });
           }
         },
+        getScene: () => this as Phaser.Scene,
       }, this.arenaMode);
       console.log('[GameScene] Devtools panel enabled.');
     }

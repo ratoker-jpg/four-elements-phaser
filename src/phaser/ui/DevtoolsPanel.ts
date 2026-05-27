@@ -10,6 +10,9 @@
  *
  * ARCH-12A: Arena section with reset button (only when arena=1).
  *
+ * ARCH-17A: Asset diagnostics compact summary in diagnostics section.
+ * ARCH-17B: "Asset Viewer" button opens AssetViewerPanel.
+ *
  * Lifecycle:
  * - Created by GameScene in create() when devtools is enabled.
  * - Updated each frame via update(state).
@@ -31,6 +34,10 @@ import {
   type DevCommandResult,
 } from '../../state/devCommands';
 import { summarizeGeneratedMapQuality, isGeneratedRuntimeState } from '../../state/generatedMap';
+import { AssetViewerPanel } from './AssetViewerPanel';
+import {
+  buildRuntimeAssetDiagnostics,
+} from '../../assets/runtimeAssetDiagnostics';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -42,6 +49,8 @@ export interface DevtoolsCallbacks {
   onToggleOverlay: (overlay: 'passability' | 'footprint' | 'resource') => boolean;
   /** Reset arena state. */
   onResetArena?: () => void;
+  /** Get the Phaser scene for runtime asset checks. */
+  getScene?: () => Phaser.Scene | null;
 }
 
 // ─── DevtoolsPanel class ────────────────────────────────────────────
@@ -50,15 +59,23 @@ export class DevtoolsPanel {
   private container: HTMLDivElement | null = null;
   private content: HTMLDivElement | null = null;
   private diagnosticsEl: HTMLDivElement | null = null;
+  private assetDiagEl: HTMLDivElement | null = null;
   private statusEl: HTMLDivElement | null = null;
   private statusTimer: ReturnType<typeof setTimeout> | null = null;
   private callbacks: DevtoolsCallbacks | null = null;
   private _visible = true;
   private _collapsed = false;
+  private _assetViewer: AssetViewerPanel | null = null;
+  private _lastAssetDiagUpdate = 0;
 
   /** Whether the devtools panel is currently shown. */
   get visible(): boolean {
     return this._visible;
+  }
+
+  /** Get the asset viewer panel (for GameScene lifecycle management). */
+  get assetViewer(): AssetViewerPanel | null {
+    return this._assetViewer;
   }
 
   /**
@@ -173,6 +190,29 @@ export class DevtoolsPanel {
     `;
     content.appendChild(this.diagnosticsEl);
 
+    // ── Asset diagnostics section (ARCH-17A) ───────────────────
+    const assetDiagTitle = document.createElement('div');
+    assetDiagTitle.textContent = 'Assets';
+    assetDiagTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #80c0ff;';
+    content.appendChild(assetDiagTitle);
+
+    this.assetDiagEl = document.createElement('div');
+    this.assetDiagEl.style.cssText = `
+      font-size: 10px;
+      line-height: 1.5;
+      color: #999;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+      padding: 4px 6px;
+      margin-bottom: 4px;
+    `;
+    content.appendChild(this.assetDiagEl);
+
+    const assetBtnRow = document.createElement('div');
+    assetBtnRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 6px;';
+    assetBtnRow.appendChild(this.createDevButton('Asset Viewer', '#80c0ff', () => this.toggleAssetViewer()));
+    content.appendChild(assetBtnRow);
+
     // ── Overlays section ──────────────────────────────────────
     const overlayTitle = document.createElement('div');
     overlayTitle.textContent = 'Overlays';
@@ -223,6 +263,9 @@ export class DevtoolsPanel {
     document.body.appendChild(root);
     this.container = root;
     this.content = content;
+
+    // Initialize asset viewer
+    this._assetViewer = new AssetViewerPanel();
   }
 
   /**
@@ -246,6 +289,18 @@ export class DevtoolsPanel {
       `<div>Builders: ${d.builderCount} | Sites: ${d.constructionSiteCount} | Seps: ${d.separatorCount}</div>` +
       `<div>Factory: ${d.factoryQueueSummary}</div>` +
       this.getGeneratedMapQualityHtml(state);
+
+    // Update asset diagnostics (throttled — once per second)
+    const now = Date.now();
+    if (this.assetDiagEl && now - this._lastAssetDiagUpdate > 1000) {
+      this._lastAssetDiagUpdate = now;
+      this.updateAssetDiagnostics();
+    }
+
+    // Update asset viewer if visible
+    if (this._assetViewer?.visible && now - this._lastAssetDiagUpdate <= 0) {
+      this.updateAssetViewerContent();
+    }
   }
 
   /** Show the devtools panel. */
@@ -315,12 +370,17 @@ export class DevtoolsPanel {
       clearTimeout(this.statusTimer);
       this.statusTimer = null;
     }
+    if (this._assetViewer) {
+      this._assetViewer.destroy();
+      this._assetViewer = null;
+    }
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
     this.container = null;
     this.content = null;
     this.diagnosticsEl = null;
+    this.assetDiagEl = null;
     this.statusEl = null;
     this.callbacks = null;
     this._visible = true;
@@ -329,6 +389,7 @@ export class DevtoolsPanel {
     this._footprintBtn = null;
     this._resourceBtn = null;
     this._isArena = false;
+    this._lastAssetDiagUpdate = 0;
   }
 
   // ─── Internal helpers ──────────────────────────────────────────
@@ -348,6 +409,68 @@ export class DevtoolsPanel {
       `<div>Valid: ${validationIcon} ${q.validationIssues.length > 0 ? q.validationIssues[0] : 'OK'}</div>` +
       `</div>`
     );
+  }
+
+  /** Update asset diagnostics compact summary. */
+  private updateAssetDiagnostics(): void {
+    if (!this.assetDiagEl) return;
+
+    const scene = this.callbacks?.getScene?.();
+    if (!scene) {
+      this.assetDiagEl.innerHTML = '<div style="color:#666;">Scene not available</div>';
+      return;
+    }
+
+    try {
+      const diagnostics = buildRuntimeAssetDiagnostics(scene);
+      const s = diagnostics.summary;
+      const missingColor = s.missing > 0 ? '#ff8888' : '#81c784';
+      const unwiredColor = s.manifestOnly > 0 ? '#ffcc44' : '#999';
+
+      this.assetDiagEl.innerHTML =
+        `<div>Loaded: <b style="color:#81c784">${s.loaded}</b>/${s.checked} | Missing: <b style="color:${missingColor}">${s.missing}</b></div>` +
+        `<div>Unwired: <span style="color:${unwiredColor}">${s.manifestOnly}</span> | Placeholder: ${s.placeholder} | Deferred: ${s.stateOnlyAndDeferred}</div>`;
+
+      // Update asset viewer if visible
+      if (this._assetViewer?.visible) {
+        this._assetViewer.update(diagnostics);
+      }
+    } catch {
+      this.assetDiagEl.innerHTML = '<div style="color:#666;">Asset check unavailable</div>';
+    }
+  }
+
+  /** Update asset viewer content with fresh data. */
+  private updateAssetViewerContent(): void {
+    const scene = this.callbacks?.getScene?.();
+    if (!scene || !this._assetViewer?.visible) return;
+
+    try {
+      const diagnostics = buildRuntimeAssetDiagnostics(scene);
+      this._assetViewer.update(diagnostics);
+    } catch {
+      // Silently ignore — viewer will show stale data
+    }
+  }
+
+  /** Toggle the asset viewer panel. */
+  private toggleAssetViewer(): void {
+    if (!this._assetViewer) return;
+
+    if (this._assetViewer.visible) {
+      this._assetViewer.hide();
+      return;
+    }
+
+    const scene = this.callbacks?.getScene?.();
+    if (!scene) return;
+
+    try {
+      const diagnostics = buildRuntimeAssetDiagnostics(scene);
+      this._assetViewer.show(diagnostics);
+    } catch {
+      // Viewer will not open if diagnostics fail
+    }
   }
 
   /** Collapse label element reference. */
