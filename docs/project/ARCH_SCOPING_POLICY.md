@@ -1,6 +1,6 @@
 # ARCH_SCOPING_POLICY.md
 
-Status: accepted workflow policy v4 — high-controlled default + fix backlog/audit rule  
+Status: accepted workflow policy v5 — high-controlled default + high+ coherent package mode + fix backlog/audit rule  
 Audience: GPT / task planning / PR review  
 Project: Four Elements Phaser
 
@@ -20,8 +20,11 @@ The correct approach is:
 
 ```text
 large ARCH -> accepted audit/design -> risk-based scoped PR package -> implementation -> review/hardening -> merge
+high+ coherent package -> explicit Denis approval -> mini-contract audit inside PR -> validation/review/manual QA -> merge
 failed fix cluster -> fix backlog or fix-cluster audit -> scoped fix package -> implementation -> manual QA -> merge/follow-up
 ```
+
+Detailed expanded-package rules live in `docs/project/ARCH_PACKAGE_POLICY.md`.
 
 ---
 
@@ -56,6 +59,14 @@ preferred implementation PR size = high-controlled
 - Denis performs manual QA for visual/gameplay/UX-sensitive behavior;
 - hardening pass is allowed before merge.
 
+Expanded mode is also allowed:
+
+```text
+Risk: high+ coherent package
+```
+
+Use it only when several adjacent ARCH phases are one connected domain and Denis explicitly approves the package.
+
 This is not blind trust in GLM. GLM remains the executor. GPT and Denis remain the control layer.
 
 ---
@@ -67,8 +78,8 @@ This is not blind trust in GLM. GLM remains the executor. GPT and Denis remain t
 | `low` | Local, simple, easy to test and roll back. | Do not usually make separate low-only implementation PRs. Batch into a coherent larger PR unless an exception applies. |
 | `medium` | One meaningful behavior change or one layer plus a small adjacent update. | Safe, but often too small for current workflow if it can be batched coherently. |
 | `elevated` | Several related phases bundled together, still reviewable and rollback-safe. | Safe working size; no longer the ceiling. |
-| `high-controlled` | Larger coherent implementation across multiple related layers inside one workstream. | New default target for GLM implementation when scope is clear and validation/QA gates exist. |
-| `high+` | Broad, multi-layer implementation with meaningful gameplay/runtime interaction. | Allowed when explicitly approved by Denis and still limited to one connected domain. |
+| `high-controlled` | Larger coherent implementation across multiple related layers inside one workstream. | Default implementation target when scope is clear and validation/QA gates exist. |
+| `high+ coherent package` | Several adjacent ARCH phases bundled into one connected domain/package. | Expanded mode, allowed with explicit Denis approval and mini-contract audit. |
 | `uncontrolled-high` | Unrelated systems mixed into one PR. | Reject/split. |
 
 ---
@@ -85,6 +96,7 @@ Correct model:
 ARCH = large product/system block
 phase = logical part of the ARCH
 PR = risk-based package of one or more phases
+ARCH-package PR = several adjacent phases/ARCHs in one connected domain
 ```
 
 Do not automatically implement:
@@ -99,6 +111,7 @@ Instead, choose PR boundaries by coherence and risk:
 
 ```text
 phase A + phase B + phase C -> one PR if they are one domain and testable together
+ARCH-11B + ARCH-12A -> one high+ coherent package if both are QA/devtools domain
 phase D -> separate PR if it starts another domain or changes rollback story
 ```
 
@@ -119,7 +132,15 @@ ARCH-05 movement/control/passability
 - focused tests
 ```
 
-This is broad, but coherent: one domain is civil unit control/movement.
+```text
+ARCH-11B + ARCH-12A
+- debug overlays
+- QA sandbox/test arena MVP
+- devtools diagnostics
+- one QA acceleration domain
+```
+
+This is broad, but coherent: one domain, one test purpose, one rollback story.
 
 Bad high/high+ examples:
 
@@ -141,7 +162,7 @@ These are unrelated domains. They must be split.
 
 ## Combined risk rule
 
-Current early-project ceiling:
+Current default:
 
 ```text
 maximum normal PR risk = high-controlled
@@ -150,7 +171,7 @@ maximum normal PR risk = high-controlled
 Allowed with Denis approval:
 
 ```text
-high+ in one coherent domain
+high+ coherent package
 ```
 
 Reject or split:
@@ -160,6 +181,37 @@ uncontrolled-high / unrelated-system bundle
 ```
 
 A PR is not rejected just because it is large. It is rejected when it mixes unrelated systems, hides risk, lacks validation, or cannot be reviewed/rolled back.
+
+For detailed package examples and PR-body requirements, use `docs/project/ARCH_PACKAGE_POLICY.md`.
+
+---
+
+## Mini-contract audit requirement for high/high+ work
+
+For `high-controlled` and `high+ coherent package` implementation, GLM must include a short contract check in the PR body or implementation summary.
+
+Required fields:
+
+```text
+Risk level
+Why this package is coherent
+Touched layers
+Touched implicit contracts
+What is explicitly not touched
+Rollback slices
+Manual QA groups
+```
+
+This is not a separate audit PR. It is a small pre/post implementation section that makes hidden layer contracts visible.
+
+Examples of implicit contracts:
+
+```text
+occupancy: soft-occupied does not block isPassable
+renderer lifecycle: state-added dynamic entities need sprites on sync
+save/load: loaded slot id must be preserved for re-save
+DOM overlays: scene shutdown must remove old DOM nodes
+```
 
 ---
 
@@ -188,7 +240,7 @@ Smoke checks do **not** validate:
 Therefore:
 
 ```text
-Green smoke makes high-controlled PRs easier to trust.
+Green smoke makes high-controlled/high+ packages easier to trust.
 Green smoke does not replace GPT review or Denis manual QA.
 ```
 
@@ -310,7 +362,7 @@ A low-risk change can be valid by itself, but isolated low-only implementation P
 Default behavior:
 
 ```text
-batch low-risk implementation work into the next coherent medium/elevated/high-controlled PR
+batch low-risk implementation work into the next coherent high-controlled/high+ package when related
 ```
 
 Allowed low-only exceptions:
@@ -329,18 +381,19 @@ Allowed low-only exceptions:
 
 For a new workstream, GPT should:
 
-1. Read `PROJECT_STATE.md`, this policy, roadmap, and relevant audit/design docs.
+1. Read `PROJECT_STATE.md`, this policy, roadmap, `ARCH_PACKAGE_POLICY.md`, and relevant audit/design docs.
 2. Identify whether the requested work is one coherent domain.
 3. Prefer a larger coherent PR over mechanical micro-splitting.
 4. Use high-controlled as the default implementation target when the scope is clear.
-5. Allow high+ when Denis explicitly approves and the PR remains one connected domain.
+5. Use high+ coherent package when Denis approves adjacent phases in one connected domain.
 6. Reject unrelated-system bundles even if GLM is capable.
 7. Require tests/typecheck/build/qa-smoke for runtime work.
 8. Require manual QA for visual/gameplay/UX-sensitive work.
-9. Use hardening passes before merge when review finds prototype debt.
-10. Park non-blocking failed fixes in the fix backlog instead of derailing the active roadmap.
-11. Use failed-fix audit only when repeated fixes block the active workstream or when a fix phase is intentionally scheduled.
-12. Fall back to smaller elevated PRs if GLM starts requiring too many fixups or the diff becomes unreviewable.
+9. Require mini-contract audit fields for high/high+ work.
+10. Use hardening passes before merge when review finds prototype debt.
+11. Park non-blocking failed fixes in the fix backlog instead of derailing the active roadmap.
+12. Use failed-fix audit only when repeated fixes block the active workstream or when a fix phase is intentionally scheduled.
+13. Fall back to smaller high-controlled/elevated PRs if GLM starts requiring too many fixups or the diff becomes unreviewable.
 
 ---
 
@@ -355,15 +408,18 @@ For already accepted work:
 - do not ask for broad audits unless a real unknown remains;
 - allow high-controlled/high+ implementation when the prompt explicitly scopes it;
 - require PR body layer breakdown for high/high+ PRs;
+- require mini-contract audit fields for high/high+ PRs;
 - keep PRs unmerged until GPT/Denis review.
 
 For high/high+ work, GLM PR body must include:
 
 ```text
 Goal
-Layer breakdown
+Risk level
+Why this package is coherent
+Touched layers
+Touched implicit contracts
 Files changed
-Risk/limitations
 Validation
 Manual QA checklist
 Rollback plan
@@ -387,7 +443,8 @@ GPT should request changes when:
 - runtime/gameplay changes lack tests where testable;
 - manual QA found blockers;
 - prototype debt remains in merge-critical code;
-- rollback is unclear.
+- rollback is unclear;
+- high/high+ PR body does not explain touched implicit contracts.
 
 GPT should stop requesting small fixups when the failed-fix rule is triggered. If the issue is not blocking, it should be parked in the fix backlog. If it is blocking, switch to audit.
 
@@ -408,13 +465,14 @@ A high/high+ PR can be mergeable when:
 Do not mechanically split ARCH phases.
 Do not make low-only implementation PRs by default.
 Current default implementation target: high-controlled.
-High+ is allowed with explicit Denis approval when it stays inside one coherent domain.
-Large PRs are allowed, but only with tests, qa:smoke, GPT review, manual QA, and hardening.
+Expanded implementation mode: high+ coherent package.
+High+ package is allowed with explicit Denis approval when adjacent phases are one connected domain.
+Large PRs are allowed, but only with tests, qa:smoke, GPT review, manual QA, hardening, and mini-contract audit.
 Smoke checks catch technical readiness, not gameplay correctness.
 Manual QA remains mandatory for visual/gameplay/UX-sensitive changes.
 If a non-blocking fix fails after 1-2 attempts, park it in the fix backlog.
 If a blocking fix fails after 1-2 attempts, run FIX-CLUSTER-AUDIT.
 Group recurring related backlog bugs into FIX-ROADMAP-AUDIT when a fix phase is scheduled.
 Reject unrelated-system bundles even if each part looks manageable.
-If GLM starts needing too many fixups or the PR becomes unreviewable, fall back to elevated/smaller PRs.
+If GLM starts needing too many fixups or the PR becomes unreviewable, fall back to smaller high-controlled/elevated PRs.
 ```

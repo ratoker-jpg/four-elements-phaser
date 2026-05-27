@@ -12,13 +12,25 @@ Implementation — larger coherent PRs under accepted roadmap and GPT/Denis cont
 
 Workflow docs and roadmap direction are accepted.
 
-After ARCH-11A and ARCH-05X, the project uses a high-controlled implementation model:
+After ARCH-11A and ARCH-05X, the project uses a high-controlled implementation model with an expanded high+ package option:
 
 ```text
 GLM executes larger coherent PRs.
-GPT reviews scope, diff, validation, and hardening.
+GPT reviews scope, diff, validation, hidden contracts, and hardening.
 Denis performs manual QA for gameplay/visual/UX behavior.
 PRs are not merged by GLM.
+```
+
+Default implementation target:
+
+```text
+high-controlled
+```
+
+Expanded implementation target when Denis explicitly approves one connected domain package:
+
+```text
+high+ coherent package
 ```
 
 This replaces the earlier conservative elevated-ceiling default.
@@ -108,7 +120,8 @@ The project follows a system-first workflow defined in:
 - `docs/project/START_HERE_FOR_GPT.md` — entry point for GPT agent.
 - `docs/project/GPT_WORKFLOW.md` — GPT planner workflow rules.
 - `docs/project/GLM_EXECUTOR_RULES.md` — GLM executor rules.
-- `docs/project/ARCH_SCOPING_POLICY.md` — ARCH phase grouping, high-controlled risk policy, and failed-fix audit rule.
+- `docs/project/ARCH_SCOPING_POLICY.md` — ARCH phase grouping, high-controlled/high+ package risk policy, and failed-fix audit rule.
+- `docs/project/ARCH_PACKAGE_POLICY.md` — expanded high+ coherent package rules.
 - `docs/ROADMAP.md` — 21-ARCH roadmap with scoped PR sequences.
 - `docs/ROADMAP_SYSTEM_AUDIT.md` — roadmap system audit.
 
@@ -116,6 +129,7 @@ Core rule:
 
 ```text
 roadmap -> audit/design -> risk-based scoped PR package -> implementation -> review/hardening -> merge
+high+ coherent package -> explicit Denis approval -> mini-contract audit inside PR -> validation/review/manual QA -> merge
 failed fix cluster -> park in fix backlog or audit immediately if it blocks the active workstream
 fix backlog -> fix-roadmap audit -> scoped fix package -> implementation -> manual QA -> merge/follow-up
 ```
@@ -130,13 +144,21 @@ Current default implementation target:
 high-controlled
 ```
 
+Expanded mode:
+
+```text
+high+ coherent package
+```
+
 Meaning:
 
-- large coherent PRs are allowed;
-- high+ is allowed with explicit Denis approval if it stays inside one connected domain;
+- larger coherent PRs are allowed;
+- adjacent roadmap phases can be bundled when they are one connected domain;
+- high+ requires explicit Denis approval;
 - unrelated-system bundles are still rejected;
 - tests/typecheck/build/qa-smoke are required for runtime PRs;
 - manual QA remains mandatory for visual/gameplay/UX-sensitive changes;
+- high/high+ PRs must include touched layers and implicit contracts;
 - hardening passes are expected when review finds prototype debt;
 - if a fix fails after 1-2 attempts, implementation stops; the issue is either parked in the fix backlog or moved into a FIX-CLUSTER-AUDIT/FIX-ROADMAP-AUDIT if it blocks the active workstream.
 
@@ -254,6 +276,7 @@ Do not start without explicit accepted scope:
 Allowed next direction:
 
 - continue the main roadmap workstream selected by GPT/Denis;
+- use high+ coherent packages when Denis approves adjacent phases in one connected domain;
 - keep unit visual grounding / selection marker / lane readability / harvester reliability / faction asset wiring in the fix backlog until scheduled.
 
 ---
