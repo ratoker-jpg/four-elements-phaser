@@ -38,6 +38,13 @@ import { HARVESTER_RENDER_SCALE } from '../../config/unitRenderConfig';
  *   and ModularTankDebugOverlay. EntityRenderer delegates modular-combat
  *   placement and all tuner/debug methods to ModularTankRenderer.
  *
+ * ARCH-05Y changes:
+ * - Removed render-side smoothing. Harvester sprite position is set directly
+ *   from state ftx/fty each frame. With ARRIVAL_THRESHOLD reduced to 0.03
+ *   (matching builder), the waypoint snap is sub-pixel and invisible.
+ * - Selection ring anchoring is now done in GameScene via tileToScreen from
+ *   state coordinates, not via sprite position queries.
+ *
  * Entities with stateOnly=true are skipped with a console warning.
  */
 
@@ -142,7 +149,9 @@ export class EntityRenderer {
       const sprite = this.harvesterSprites.get(h.id);
       if (!sprite) continue;
 
-      // Compute world position from fractional tile
+      // Set sprite position directly from state (no render-side smoothing).
+      // With ARRIVAL_THRESHOLD = 0.03, waypoint snap is sub-pixel (~0.57px)
+      // and invisible — no smoothing layer needed.
       const screenPos = tileToScreen(h.ftx, h.fty);
       const worldX = screenPos.x + this.offset.x;
       const worldY = screenPos.y + this.offset.y;

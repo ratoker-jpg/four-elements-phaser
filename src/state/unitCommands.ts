@@ -21,8 +21,12 @@ const MANUAL_MOVE_SPEED = 2.5;
 /** Builder movement speed for manual moves (tiles per second). */
 // const BUILDER_MANUAL_SPEED = 3.0; // not currently used directly
 
-/** Distance threshold to consider "arrived" at a path waypoint. */
-const ARRIVAL_THRESHOLD = 0.15;
+/**
+ * Distance threshold to consider "arrived" at a path waypoint.
+ * ARCH-05Y: Reduced from 0.15 to 0.03 to match the harvester auto-move
+ * threshold and eliminate visible waypoint snap. Sub-pixel at this value.
+ */
+const ARRIVAL_THRESHOLD = 0.03;
 
 /** How long (ms) after manual arrival before harvester returns to auto-gather. */
 const MANUAL_COOLDOWN_MS = 800;
