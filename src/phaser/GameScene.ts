@@ -29,6 +29,8 @@ import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
 import { DEFAULT_SETUP, getMapDataById } from '../state/gameSetup';
 import { saveGame } from '../state/saveGame';
+import { DevtoolsPanel } from './ui/DevtoolsPanel';
+import { isDevtoolsEnabled, type DevCommandResult } from '../state/devCommands';
 
 /**
  * GameScene — orchestration-only scene.
@@ -90,6 +92,10 @@ export class GameScene extends Phaser.Scene {
 
   // ARCH-14B: Pause state — when true, update loop is skipped
   private paused = false;
+
+  // ARCH-11A: Devtools panel (only created when devtools is enabled)
+  private devtoolsPanel: DevtoolsPanel | null = null;
+  private devtoolsActive = false;
 
   // ARCH-05X: Unit selection state
   private selectedUnit: UnitSelection = null;
@@ -361,6 +367,31 @@ export class GameScene extends Phaser.Scene {
       this.setupConfig,
     );
 
+    // ARCH-11A: Create devtools panel if activated
+    this.devtoolsActive = isDevtoolsEnabled();
+    if (this.devtoolsActive) {
+      this.devtoolsPanel = new DevtoolsPanel();
+      this.devtoolsPanel.create({
+        onCommand: (command: (state: GameState) => DevCommandResult) => {
+          const result = command(this.gameState);
+          this.devtoolsPanel?.showCommandResult(result);
+        },
+      });
+      console.log('[GameScene] Devtools panel enabled.');
+    }
+
+    // F10 / backtick — toggle devtools panel visibility (ARCH-11A)
+    this.input.keyboard?.on('keydown-F10', () => {
+      if (this.devtoolsPanel) {
+        this.devtoolsPanel.toggle();
+      }
+    });
+    this.input.keyboard?.on('keydown-BACKTICK', () => {
+      if (this.devtoolsPanel) {
+        this.devtoolsPanel.toggle();
+      }
+    });
+
     // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
 
@@ -477,7 +508,10 @@ export class GameScene extends Phaser.Scene {
     // 8. Update selection highlight
     this.updateSelectionHighlight();
 
-    // 9. Debug log on unload completion
+    // 9. ARCH-11A: Update devtools diagnostics
+    this.devtoolsPanel?.update(this.gameState);
+
+    // 10. Debug log on unload completion
     if (this.gameState.economy.raw > this.lastLoggedRaw) {
       console.log(
         `[GameScene] Unloaded! Raw: ${this.gameState.economy.raw}`,
@@ -800,6 +834,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.devtoolsPanel?.destroy();
+    this.devtoolsPanel = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
     this.playtestHud?.destroy();
