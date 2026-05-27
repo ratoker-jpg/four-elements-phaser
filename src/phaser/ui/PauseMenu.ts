@@ -6,9 +6,13 @@
  * Managed by GameScene.
  *
  * ARCH-15A: Added Save button and onSave callback.
+ *
+ * ARCH-15B: Save feedback now shows "Saved" with timestamp.
+ * Clear status on open, no stale status after restart/main menu.
  */
 
 import type { GameSetupConfig } from '../../state/gameSetup';
+import { formatSaveTimestamp } from '../../state/saveGame';
 
 /** Callbacks provided by GameScene for pause menu actions. */
 export interface PauseMenuCallbacks {
@@ -62,6 +66,8 @@ export class PauseMenu {
       z-index: 40;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #e0e0e0;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: center center;
     `;
     root.style.display = 'none';
 
@@ -101,16 +107,23 @@ export class PauseMenu {
       this.callbacks?.onResume();
     }));
 
-    // ARCH-15A: Save button
+    // Save button
     btnContainer.appendChild(this.createMenuButton('Save', '#4fc3f7', () => {
       const result = this.callbacks?.onSave();
       if (result) {
-        this.showStatus(result.message, result.success);
+        if (result.success) {
+          // ARCH-15B: Show timestamp with success message
+          const now = new Date().toISOString();
+          this.showStatus(`Saved — ${formatSaveTimestamp(now)}`, true);
+        } else {
+          this.showStatus('Save failed', false);
+        }
       }
     }));
 
     // Restart button
     btnContainer.appendChild(this.createMenuButton('Restart', '#ffcc44', () => {
+      this.clearStatus();
       this.hide();
       if (this.config) {
         this.callbacks?.onRestart(this.config);
@@ -119,13 +132,14 @@ export class PauseMenu {
 
     // Main Menu button
     btnContainer.appendChild(this.createMenuButton('Main Menu', '#ef9a9a', () => {
+      this.clearStatus();
       this.hide();
       this.callbacks?.onMainMenu();
     }));
 
     panel.appendChild(btnContainer);
 
-    // ARCH-15A: Status feedback area (shows "Saved" or "Save failed")
+    // Status feedback area (shows "Saved — HH:MM" or "Save failed")
     this.statusEl = document.createElement('div');
     this.statusEl.style.cssText = `
       min-height: 18px;
@@ -212,8 +226,9 @@ export class PauseMenu {
     this.container = root;
   }
 
-  /** Show the pause menu. */
+  /** Show the pause menu. Clears stale status. */
   show(): void {
+    this.clearStatus();
     if (this.container) {
       this.container.style.display = 'flex';
       this._visible = true;
@@ -237,7 +252,7 @@ export class PauseMenu {
     }
   }
 
-  /** ARCH-15A: Show a brief status message (e.g. "Saved" / "Save failed"). */
+  /** Show a brief status message (e.g. "Saved — HH:MM" / "Save failed"). */
   private showStatus(message: string, success: boolean): void {
     if (!this.statusEl) return;
 
@@ -253,7 +268,19 @@ export class PauseMenu {
       if (this.statusEl) {
         this.statusEl.style.opacity = '0';
       }
-    }, 2000);
+    }, 3000);
+  }
+
+  /** Clear the status message immediately. */
+  private clearStatus(): void {
+    if (this.statusTimer) {
+      clearTimeout(this.statusTimer);
+      this.statusTimer = null;
+    }
+    if (this.statusEl) {
+      this.statusEl.textContent = '';
+      this.statusEl.style.opacity = '0';
+    }
   }
 
   /** Remove the pause menu DOM overlay. Call on GameScene shutdown. */

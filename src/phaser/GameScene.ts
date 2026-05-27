@@ -29,6 +29,7 @@ import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
 import { DEFAULT_SETUP, getMapDataById } from '../state/gameSetup';
 import { saveGame } from '../state/saveGame';
+import { loadUiSettings, applyUiScale } from '../state/uiSettings';
 import { DevtoolsPanel } from './ui/DevtoolsPanel';
 import { isDevtoolsEnabled, type DevCommandResult } from '../state/devCommands';
 import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
@@ -159,6 +160,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    // ARCH-14C: Apply saved UI scale on game start
+    applyUiScale(loadUiSettings().uiScale);
+
     // ARCH-11B+12A fixup: Compute devtools/arena flags BEFORE any rendering.
     // Arena mode is gated on devtools being active: ?devtools=1&arena=1.
     this.devtoolsActive = isDevtoolsEnabled();

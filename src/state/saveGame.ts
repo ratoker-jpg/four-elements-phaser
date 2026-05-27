@@ -323,3 +323,35 @@ function buildSummary(gs: GameState): SaveSummary {
     harvestersCount: gs.harvesters.length,
   };
 }
+
+/**
+ * ARCH-14C: Format a save slot summary as a short readable string.
+ * Pure function — used by save list UI rows.
+ *
+ * Example: "Raw: 42 | Matter: 80 | Power: 9/25 | Bldgs: 5 | Hrv: 2"
+ */
+export function formatSaveSlotSummary(summary: SaveSummary): string {
+  const parts = [`Raw: ${summary.raw}`, `Matter: ${summary.matter}`];
+  if (summary.powerGenerated > 0) {
+    parts.push(`Power: ${summary.powerConsumed}/${summary.powerGenerated}`);
+  }
+  if (summary.buildingsCount > 0) {
+    parts.push(`Bldgs: ${summary.buildingsCount}`);
+  }
+  if (summary.harvestersCount > 0) {
+    parts.push(`Hrv: ${summary.harvestersCount}`);
+  }
+  return parts.join(' | ');
+}
+
+/**
+ * ARCH-14C: Format a save slot's updatedAt ISO timestamp as a
+ * locale-friendly date/time string. Pure function.
+ */
+export function formatSaveTimestamp(isoString: string): string {
+  const date = new Date(isoString);
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
