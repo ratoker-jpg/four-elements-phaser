@@ -45,8 +45,14 @@ const DEFAULT_CARGO_CAPACITY = 20;
 /** Default harvester movement speed (tiles per second). */
 const DEFAULT_SPEED = 2.5;
 
-/** Distance threshold (in tiles) to consider "arrived" at a target. */
-const ARRIVAL_THRESHOLD = 0.25;
+/**
+ * Distance threshold (in tiles) to consider "arrived" at a target.
+ * ARCH-05Y: Reduced from 0.25 to 0.03 to eliminate visible waypoint snap.
+ * At 0.03 tiles (~0.57px at 19px/tile-Y), the snap is sub-pixel and
+ * invisible — no render-side smoothing layer needed. Matches builder
+ * threshold which has zero visible snap in practice.
+ */
+const ARRIVAL_THRESHOLD = 0.03;
 
 // ─── Public API ─────────────────────────────────────────────────────
 

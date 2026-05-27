@@ -424,45 +424,48 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Draw selection highlight around the selected unit.
+   *
+   * ARCH-05Y: Ring position is derived from the unit's state tile
+   * coordinates (ftx/fty) via tileToScreen, which is the same transform
+   * used to place the sprite. This anchors the ring to the tile ground
+   * (isometric diamond center) rather than to the sprite's art-dependent
+   * origin or PNG frame layout.
    */
   private updateSelectionHighlight(): void {
     this.selectionHighlight.clear();
 
     if (!isUnitSelected(this.selectedUnit)) return;
 
-    let worldX: number;
-    let worldY: number;
+    let ringX: number;
+    let ringY: number; // tile ground position from state
 
     if (this.selectedUnit!.kind === 'builder') {
       const idx = this.selectedUnit!.index;
-      if (idx >= this.gameState.mapData.builders.length) return;
-      const b = this.gameState.mapData.builders[idx];
-      const screenPos = tileToScreen(b.ftx, b.fty);
-      worldX = screenPos.x + this._offset.x;
-      worldY = screenPos.y + this._offset.y;
+      const builder = this.gameState.mapData.builders[idx];
+      if (!builder) return;
+      const screenPos = tileToScreen(builder.ftx, builder.fty);
+      ringX = screenPos.x + this._offset.x;
+      ringY = screenPos.y + this._offset.y;
     } else if (this.selectedUnit!.kind === 'harvester') {
       const sel = this.selectedUnit as { kind: 'harvester'; id: string };
-      const h = this.gameState.harvesters.find(h => h.id === sel.id);
-      if (!h) return;
-      const screenPos = tileToScreen(h.ftx, h.fty);
-      worldX = screenPos.x + this._offset.x;
-      worldY = screenPos.y + this._offset.y;
+      const harvester = this.gameState.harvesters.find(h => h.id === sel.id);
+      if (!harvester) return;
+      const screenPos = tileToScreen(harvester.ftx, harvester.fty);
+      ringX = screenPos.x + this._offset.x;
+      ringY = screenPos.y + this._offset.y;
     } else {
       return;
     }
 
-    // Draw a pulsing cyan circle at ground level under the selected unit.
-    // Both builder and harvester use origin (0.5, 0.75) in the renderer,
-    // so the bottom 25% of the sprite is below the position point.
-    // Ground level ≈ worldY + 14 pixels (256px × ~0.22 scale × 0.25).
-    const GROUND_OFFSET_Y = 14;
-    const HIGHLIGHT_RADIUS = 14;
+    // Draw a pulsing cyan circle at the tile ground position.
+    // Ring radius matches half the tile height (~19px) for readability.
+    const HIGHLIGHT_RADIUS = 16;
 
     const pulse = 0.5 + 0.5 * Math.sin((this.time.now % 1000) / 1000 * Math.PI * 2);
     const alpha = 0.4 + 0.4 * pulse;
 
     this.selectionHighlight.lineStyle(2, 0x00ffff, alpha);
-    this.selectionHighlight.strokeCircle(worldX, worldY + GROUND_OFFSET_Y, HIGHLIGHT_RADIUS);
+    this.selectionHighlight.strokeCircle(ringX, ringY, HIGHLIGHT_RADIUS);
   }
 
   // ─── Command methods (shared by hotkeys and HUD buttons) ────────
