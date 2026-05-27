@@ -26,6 +26,7 @@ import {
   buildBlockLabel,
   productionBlockLabel,
 } from '../../state/statusHelpers';
+import { validateMap, type MapValidationResult } from '../../state/mapValidation';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ export class PlaytestHud {
   private separatorEl: HTMLDivElement | null = null;
   private factoryEl: HTMLDivElement | null = null;
   private statusEl: HTMLDivElement | null = null;
+  private diagnosticsEl: HTMLDivElement | null = null;
   private statusTimer: ReturnType<typeof setTimeout> | null = null;
   private buildButtons: Map<BuildingType, HTMLButtonElement> = new Map();
   private buildReasonEls: Map<BuildingType, HTMLSpanElement> = new Map();
@@ -96,6 +98,9 @@ export class PlaytestHud {
   private deltaActive = false;
   /** Guard to suppress huge initial deltas on the first HUD update. */
   private resourceDeltaInitialized = false;
+
+  /** Cached map validation result (computed once, not every frame). */
+  private cachedValidation: MapValidationResult | null = null;
 
   /**
    * Create the HUD DOM overlay and attach it to the document body.
@@ -274,6 +279,19 @@ export class PlaytestHud {
     `;
     root.appendChild(this.statusEl);
 
+    // ── Diagnostics section (ARCH-08/09/10) ─────────────────────
+    this.diagnosticsEl = document.createElement('div');
+    this.diagnosticsEl.style.cssText = `
+      margin-top: 6px;
+      padding: 4px 6px;
+      font-size: 9px;
+      color: #888;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+      line-height: 1.4;
+    `;
+    root.appendChild(this.diagnosticsEl);
+
     document.body.appendChild(root);
     this.container = root;
   }
@@ -352,6 +370,9 @@ export class PlaytestHud {
       }
     }
 
+    // ── Diagnostics (ARCH-08/09/10) ──────────────────────────────
+    this.updateDiagnostics(s);
+
     // ── Store current values for next frame delta ────────────────
     this.prevRaw = s.economy.raw;
     this.prevMatter = s.economy.matter;
@@ -400,11 +421,13 @@ export class PlaytestHud {
     this.separatorEl = null;
     this.factoryEl = null;
     this.statusEl = null;
+    this.diagnosticsEl = null;
     this.buildButtons.clear();
     this.buildReasonEls.clear();
     this.productionButtons.clear();
     this.prodReasonEls.clear();
     this.resourceDeltaInitialized = false;
+    this.cachedValidation = null;
   }
 
   // ─── Internal handlers ────────────────────────────────────────────
@@ -545,5 +568,35 @@ export class PlaytestHud {
     const sign = delta > 0 ? '+' : '';
     const color = delta > 0 ? '#81c784' : '#ef9a9a';
     return `<span style="color:${color}; font-size:10px;"> ${sign}${Number.isInteger(delta) ? delta : delta.toFixed(1)}</span>`;
+  }
+
+  // ─── Diagnostics section (ARCH-08/09/10) ──────────────────────────────
+
+  private updateDiagnostics(state: GameState): void {
+    if (!this.diagnosticsEl) return;
+
+    // Run validation once and cache the result
+    if (!this.cachedValidation) {
+      this.cachedValidation = validateMap(state);
+    }
+    const v = this.cachedValidation;
+
+    const parts: string[] = [];
+
+    // Reachable resources count
+    parts.push(
+      `<div>Reachable: <span style="color:${v.reachableResourceCount >= 2 ? '#81c784' : '#ef9a9a'};">${v.reachableResourceCount}</span>/${v.totalResourceCount}</div>`,
+    );
+
+    // Show warnings for failed checks
+    for (const check of v.checks) {
+      if (!check.passed) {
+        parts.push(
+          `<div style="color:#ef9a9a;">⚠ ${check.message}</div>`,
+        );
+      }
+    }
+
+    this.diagnosticsEl.innerHTML = parts.join('');
   }
 }

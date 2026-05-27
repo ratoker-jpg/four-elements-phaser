@@ -9,6 +9,7 @@ import type { MapData } from '../../state/types';
  * - Central infinite crystal deposit at (23,22)
  * - Starter resource clusters in upper-left corner
  * - Resource clusters in all four corners
+ * - Nearby starter resources SE of HQ for reliable early harvesting
  * - No obstacles, no decor, no buildings
  */
 
@@ -88,6 +89,14 @@ const RESOURCES: MapData['resources'] = [
   { tx: 3, ty: 2, type: 'small', footprint: 1 },
   { tx: 3, ty: 0, type: 'small', footprint: 1 },
   { tx: 0, ty: 3, type: 'small', footprint: 1 },
+  // ARCH-08/09/10: Nearby starter resources SE of HQ for reliable early harvesting.
+  // Harvesters spawn around (6,5)-(6,6); these are within 3-5 tiles.
+  { tx: 8, ty: 7, type: 'medium', footprint: 1 },
+  { tx: 9, ty: 7, type: 'medium', footprint: 1 },
+  { tx: 10, ty: 8, type: 'medium', footprint: 1 },
+  { tx: 8, ty: 8, type: 'small', footprint: 1 },
+  { tx: 9, ty: 8, type: 'small', footprint: 1 },
+  { tx: 10, ty: 9, type: 'small', footprint: 1 },
   { tx: 22, ty: 24, type: 'large', footprint: 1 },
   { tx: 22, ty: 23, type: 'large', footprint: 1 },
   { tx: 22, ty: 22, type: 'large', footprint: 1 },
