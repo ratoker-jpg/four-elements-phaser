@@ -51,6 +51,9 @@ const PROGRESS_BG_COLOR = 0x333333;
 const PROGRESS_BG_ALPHA = 0.7;
 const PROGRESS_FILL_COLOR = 0x44FF44;
 const PROGRESS_FILL_ALPHA = 0.9;
+/** ARCH-13A: Brighter fill color for active construction (builder present). */
+const CONSTRUCTION_ACTIVE_FILL_COLOR = 0x88FFAA;
+const CONSTRUCTION_ACTIVE_FILL_ALPHA = 1.0;
 
 /** Tile half-dimensions for isometric diamond drawing. */
 const HW = 76 / 2; // TILE_W / 2
@@ -379,13 +382,24 @@ export class ConstructionRenderer {
     // Fill bar (proportional to progress)
     const fillWidth = PROGRESS_BAR_WIDTH * site.progress;
     if (fillWidth > 0) {
-      g.fillStyle(PROGRESS_FILL_COLOR, PROGRESS_FILL_ALPHA);
+      // ARCH-13A: Active construction gets a brighter pulse color
+      const isActive = !site.pending && site.builderIndex >= 0;
+      const fillColor = isActive ? CONSTRUCTION_ACTIVE_FILL_COLOR : PROGRESS_FILL_COLOR;
+      const fillAlpha = isActive ? CONSTRUCTION_ACTIVE_FILL_ALPHA : PROGRESS_FILL_ALPHA;
+      g.fillStyle(fillColor, fillAlpha);
       g.fillRect(barLeft, barTop, fillWidth, PROGRESS_BAR_HEIGHT);
     }
 
     // Border
     g.lineStyle(1, 0x666666, 0.5);
     g.strokeRect(barLeft, barTop, PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
+
+    // ARCH-13A: Active construction glow — subtle outer border pulse
+    if (!site.pending && site.builderIndex >= 0) {
+      const pulse = 0.3 + 0.3 * Math.sin(Date.now() / 400 * Math.PI * 2);
+      g.lineStyle(1, CONSTRUCTION_ACTIVE_FILL_COLOR, pulse);
+      g.strokeRect(barLeft - 1, barTop - 1, PROGRESS_BAR_WIDTH + 2, PROGRESS_BAR_HEIGHT + 2);
+    }
   }
 
   /** Draw green isometric diamonds for each tile in the completed building footprint. */

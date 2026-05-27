@@ -188,13 +188,22 @@ export class BuildingStatusRenderer {
     // Fill (only if processing)
     if (status === 'processing' && sep.progress > 0) {
       const fillWidth = BAR_WIDTH * Math.min(sep.progress, 1);
-      g.fillStyle(SEP_BAR_FILL, SEP_BAR_FILL_ALPHA);
+      // ARCH-13B: Active separator gets a subtle pulse on the fill
+      const pulse = sep.active ? 0.15 * Math.sin(Date.now() / 600 * Math.PI * 2) : 0;
+      g.fillStyle(SEP_BAR_FILL, SEP_BAR_FILL_ALPHA + pulse);
       g.fillRect(barLeft, barTop, fillWidth, BAR_HEIGHT);
     }
 
     // Border
     g.lineStyle(1, 0x666666, 0.5);
     g.strokeRect(barLeft, barTop, BAR_WIDTH, BAR_HEIGHT);
+
+    // ARCH-13B: Active separator glow pulse
+    if (sep.active) {
+      const glowPulse = 0.2 + 0.2 * Math.sin(Date.now() / 500 * Math.PI * 2);
+      g.lineStyle(1, SEP_BAR_FILL, glowPulse);
+      g.strokeRect(barLeft - 1, barTop - 1, BAR_WIDTH + 2, BAR_HEIGHT + 2);
+    }
   }
 
   // ─── Factory status ───────────────────────────────────────────
@@ -293,6 +302,13 @@ export class BuildingStatusRenderer {
       g.fillRect(slotX, slotsY, SLOT_WIDTH, SLOT_HEIGHT);
       g.lineStyle(1, 0x888888, 0.4);
       g.strokeRect(slotX, slotsY, SLOT_WIDTH, SLOT_HEIGHT);
+    }
+
+    // ARCH-13B: Active factory glow pulse
+    if (factory.active) {
+      const glowPulse = 0.2 + 0.2 * Math.sin(Date.now() / 500 * Math.PI * 2);
+      g.lineStyle(1, FACTORY_BAR_FILL, glowPulse);
+      g.strokeRect(barLeft - 1, barTop - 1, BAR_WIDTH + 2, BAR_HEIGHT + 2);
     }
   }
 

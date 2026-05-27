@@ -32,6 +32,7 @@ import { saveGame } from '../state/saveGame';
 import { DevtoolsPanel } from './ui/DevtoolsPanel';
 import { isDevtoolsEnabled, type DevCommandResult } from '../state/devCommands';
 import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
+import { FeedbackRenderer } from './render/FeedbackRenderer';
 import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData } from '../state/devArena';
 
 /**
@@ -103,6 +104,9 @@ export class GameScene extends Phaser.Scene {
   private debugOverlayRenderer: DebugOverlayRenderer | null = null;
   // ARCH-12A: Arena mode flag
   private arenaMode = false;
+
+  // ARCH-13A: Feedback renderer — command indicators and resource flow
+  private feedbackRenderer: FeedbackRenderer | null = null;
 
   // ARCH-05X: Unit selection state
   private selectedUnit: UnitSelection = null;
@@ -204,6 +208,9 @@ export class GameScene extends Phaser.Scene {
 
     // ARCH-07A: Building status renderer (separator progress, factory queue, construction labels)
     this.buildingStatusRenderer = new BuildingStatusRenderer(this, offset);
+
+    // ARCH-13A: Feedback renderer for command indicators and resource flow
+    this.feedbackRenderer = new FeedbackRenderer(this, offset);
 
     // Setup camera
     this.cameraControls = new CameraControls(this);
@@ -549,6 +556,9 @@ export class GameScene extends Phaser.Scene {
     // 9b. ARCH-11B: Sync debug overlays
     this.debugOverlayRenderer?.syncFromState(this.gameState);
 
+    // 9c. ARCH-13A: Sync feedback renderer (command indicators, resource flow)
+    this.feedbackRenderer?.syncFromState(this.gameState, this.time.now);
+
     // 10. Debug log on unload completion
     if (this.gameState.economy.raw > this.lastLoggedRaw) {
       console.log(
@@ -619,8 +629,12 @@ export class GameScene extends Phaser.Scene {
       if (result.ok) {
         const label = this.selectedUnit!.kind === 'builder' ? 'Builder' : 'Harvester';
         this.playtestHud?.showStatus(`${label} → (${targetTx},${targetTy})`, true);
+        // ARCH-13A: Green command indicator on accepted move
+        this.feedbackRenderer?.addCommandOk(targetTx, targetTy, this.time.now);
       } else {
         this.playtestHud?.showStatus(`Move failed: ${result.reason}`, false);
+        // ARCH-13A: Red command indicator on failed move
+        this.feedbackRenderer?.addCommandFail(targetTx, targetTy, this.time.now);
       }
     }
   }
@@ -872,6 +886,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.feedbackRenderer?.destroy();
+    this.feedbackRenderer = null;
     this.debugOverlayRenderer?.destroy();
     this.debugOverlayRenderer = null;
     this.devtoolsPanel?.destroy();
