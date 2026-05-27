@@ -6,6 +6,8 @@
  *
  * Currently only one map (Map 1 / customMap1) is available.
  * Faction selection changes the player's HQ color and economy faction.
+ *
+ * ARCH-14C: Added Esc to go back, consistent button hover/disabled states.
  */
 
 import Phaser from 'phaser';
@@ -34,6 +36,11 @@ export class NewGameSetupScene extends Phaser.Scene {
     // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
 
+    // ARCH-14C: Esc goes back to main menu
+    this.input.keyboard?.on('keydown-ESC', () => {
+      this.scene.start('MainMenuScene');
+    });
+
     console.log('[NewGameSetupScene] Ready.');
   }
 
@@ -52,6 +59,8 @@ export class NewGameSetupScene extends Phaser.Scene {
       z-index: 30;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #e0e0e0;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: center center;
     `;
 
     // Title
@@ -159,7 +168,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     // Back button
     const backBtn = document.createElement('button');
     backBtn.textContent = 'Back';
-    backBtn.style.cssText = this.actionButtonStyle('#888', 'rgba(150,150,150,0.1)', 'rgba(150,150,150,0.2)');
+    backBtn.style.cssText = this.actionButtonStyle('#888', 'rgba(150,150,150,0.1)', 'rgba(150,150,150,0.2)', 'rgba(150,150,150,0.25)');
     backBtn.addEventListener('click', () => {
       this.scene.start('MainMenuScene');
     });
@@ -168,7 +177,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     // Start Game button
     const startBtn = document.createElement('button');
     startBtn.textContent = 'Start Game';
-    startBtn.style.cssText = this.actionButtonStyle('#4fc3f7', 'rgba(79,195,247,0.15)', 'rgba(79,195,247,0.25)');
+    startBtn.style.cssText = this.actionButtonStyle('#4fc3f7', 'rgba(79,195,247,0.15)', 'rgba(79,195,247,0.25)', 'rgba(79,195,247,0.4)');
     startBtn.addEventListener('click', () => {
       const config: GameSetupConfig = {
         faction: this.selectedFaction,
@@ -203,7 +212,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     `;
   }
 
-  private actionButtonStyle(color: string, bg: string, _hoverBg: string): string {
+  private actionButtonStyle(color: string, bg: string, _hoverBg: string, _hoverBorder: string): string {
     return `
       flex: 1;
       padding: 10px 16px;
@@ -215,7 +224,7 @@ export class NewGameSetupScene extends Phaser.Scene {
       font-family: inherit;
       cursor: pointer;
       text-align: center;
-      transition: background 0.15s;
+      transition: background 0.15s, border-color 0.15s;
     `;
   }
 

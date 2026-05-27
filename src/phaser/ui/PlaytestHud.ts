@@ -133,6 +133,8 @@ export class PlaytestHud {
       user-select: none;
       max-height: calc(100vh - 60px);
       overflow-y: auto;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: top right;
     `;
 
     // ── Economy section ──────────────────────────────────────────

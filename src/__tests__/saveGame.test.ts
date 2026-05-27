@@ -14,7 +14,10 @@ import {
   loadGame,
   deleteSave,
   clearAllSaves,
+  formatSaveSlotSummary,
+  formatSaveTimestamp,
   type SaveStorage,
+  type SaveSummary,
 } from '../state/saveGame';
 import type { GameState, Faction } from '../state/types';
 import { createInitialState } from '../state/createInitialState';
@@ -316,5 +319,84 @@ describe('saveGame', () => {
 
     expect(updateResult.success).toBe(false);
     expect(updateResult.message).toBe('Save failed');
+  });
+});
+
+describe('formatSaveSlotSummary', () => {
+  it('formats basic summary with raw and matter', () => {
+    const summary: SaveSummary = {
+      raw: 42,
+      matter: 80,
+      powerConsumed: 0,
+      powerGenerated: 0,
+      resourcesCount: 3,
+      buildingsCount: 0,
+      harvestersCount: 0,
+    };
+    const result = formatSaveSlotSummary(summary);
+    expect(result).toContain('Raw: 42');
+    expect(result).toContain('Matter: 80');
+    expect(result).not.toContain('Power');
+    expect(result).not.toContain('Bldgs');
+    expect(result).not.toContain('Hrv');
+  });
+
+  it('includes power when generated > 0', () => {
+    const summary: SaveSummary = {
+      raw: 10,
+      matter: 20,
+      powerConsumed: 9,
+      powerGenerated: 25,
+      resourcesCount: 3,
+      buildingsCount: 0,
+      harvestersCount: 0,
+    };
+    const result = formatSaveSlotSummary(summary);
+    expect(result).toContain('Power: 9/25');
+  });
+
+  it('includes buildings and harvesters counts', () => {
+    const summary: SaveSummary = {
+      raw: 5,
+      matter: 10,
+      powerConsumed: 5,
+      powerGenerated: 15,
+      resourcesCount: 2,
+      buildingsCount: 5,
+      harvestersCount: 3,
+    };
+    const result = formatSaveSlotSummary(summary);
+    expect(result).toContain('Bldgs: 5');
+    expect(result).toContain('Hrv: 3');
+  });
+
+  it('omits zero counts', () => {
+    const summary: SaveSummary = {
+      raw: 5,
+      matter: 10,
+      powerConsumed: 0,
+      powerGenerated: 0,
+      resourcesCount: 2,
+      buildingsCount: 0,
+      harvestersCount: 0,
+    };
+    const result = formatSaveSlotSummary(summary);
+    expect(result).not.toContain('Bldgs');
+    expect(result).not.toContain('Hrv');
+  });
+});
+
+describe('formatSaveTimestamp', () => {
+  it('formats an ISO timestamp as a readable date/time', () => {
+    const iso = '2026-05-27T18:05:19.000Z';
+    const result = formatSaveTimestamp(iso);
+    // Should contain a date and a time, not the raw ISO string
+    expect(result).not.toBe(iso);
+    expect(result.length).toBeGreaterThan(5);
+  });
+
+  it('handles various ISO timestamps', () => {
+    const result = formatSaveTimestamp('2026-01-15T08:30:00.000Z');
+    expect(result).toContain('2026');
   });
 });

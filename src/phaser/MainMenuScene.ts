@@ -11,18 +11,38 @@
  * ARCH-15A: Continue button is enabled when saves exist.
  * Clicking Continue shows a save list overlay where the player
  * can select a save to load.
+ *
+ * ARCH-14C+15B: Save list now shows empty state, delete per slot
+ * with confirmation, clear all saves, and richer slot summaries.
+ * Settings screen now has UI Scale (100/125/150%).
  */
 
 import Phaser from 'phaser';
-import { DEFAULT_SETUP, shouldSkipMenu } from '../state/gameSetup';
+import { DEFAULT_SETUP, shouldSkipMenu, FACTION_CSS_COLORS } from '../state/gameSetup';
 import type { GameSetupConfig } from '../state/gameSetup';
-import { hasSaves, getSaveSlotMetas, loadGame, type SaveSlotMeta } from '../state/saveGame';
+import {
+  hasSaves,
+  getSaveSlotMetas,
+  loadGame,
+  deleteSave,
+  clearAllSaves,
+  formatSaveSlotSummary,
+  formatSaveTimestamp,
+  type SaveSlotMeta,
+} from '../state/saveGame';
 import type { Faction } from '../state/types';
-import { FACTION_CSS_COLORS } from '../state/gameSetup';
+import {
+  loadUiSettings,
+  saveUiSettings,
+  applyUiScale,
+  UI_SCALE_OPTIONS,
+} from '../state/uiSettings';
 
 export class MainMenuScene extends Phaser.Scene {
   private container: HTMLDivElement | null = null;
   private saveListContainer: HTMLDivElement | null = null;
+  private settingsContainer: HTMLDivElement | null = null;
+  private continueBtn: HTMLButtonElement | null = null;
 
   constructor() {
     super({ key: 'MainMenuScene' });
@@ -34,6 +54,10 @@ export class MainMenuScene extends Phaser.Scene {
       this.startGame(DEFAULT_SETUP);
       return;
     }
+
+    // Apply saved UI scale on startup
+    const settings = loadUiSettings();
+    applyUiScale(settings.uiScale);
 
     this.cameras.main.setBackgroundColor('#1a1a2e');
     this.createDomOverlay();
@@ -59,6 +83,8 @@ export class MainMenuScene extends Phaser.Scene {
       z-index: 30;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #e0e0e0;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: center center;
     `;
 
     // Title
@@ -98,22 +124,24 @@ export class MainMenuScene extends Phaser.Scene {
     });
     btnContainer.appendChild(newGameBtn);
 
-    // ARCH-15A: Continue button — enabled only if saves exist
+    // Continue button — enabled only if saves exist
     const savesExist = hasSaves();
-    const continueBtn = this.createButton('Continue', '#81c784', savesExist ? () => {
+    this.continueBtn = this.createButton('Continue', '#81c784', savesExist ? () => {
       this.showSaveList();
     } : null, !savesExist);
-    btnContainer.appendChild(continueBtn);
+    btnContainer.appendChild(this.continueBtn);
 
-    // Settings button (disabled placeholder)
-    const settingsBtn = this.createButton('Settings', '#666', null, true);
+    // Settings button — now functional
+    const settingsBtn = this.createButton('Settings', '#4fc3f7', () => {
+      this.showSettings();
+    });
     btnContainer.appendChild(settingsBtn);
 
     root.appendChild(btnContainer);
 
     // Version hint
     const version = document.createElement('div');
-    version.textContent = 'v0.1 — ARCH-15A';
+    version.textContent = 'v0.1 — ARCH-14C-15B';
     version.style.cssText = `
       position: absolute;
       bottom: 16px;
@@ -127,15 +155,15 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   /**
-   * ARCH-15A: Show save list overlay.
-   * Lists all saves with metadata, allows the player to pick one to load.
+   * ARCH-15B: Show save list overlay with delete controls.
+   * Lists all saves with metadata, allows the player to pick one to load,
+   * delete a slot (with confirmation), or clear all saves.
    */
   private showSaveList(): void {
-    // Remove existing save list if any
     this.hideSaveList();
+    this.hideSettings();
 
     const metas = getSaveSlotMetas();
-    if (metas.length === 0) return;
 
     const overlay = document.createElement('div');
     overlay.id = 'save-list-overlay';
@@ -157,8 +185,8 @@ export class MainMenuScene extends Phaser.Scene {
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 8px;
       padding: 24px 28px;
-      min-width: 340px;
-      max-width: 420px;
+      min-width: 380px;
+      max-width: 460px;
       max-height: 70vh;
       overflow-y: auto;
     `;
@@ -175,32 +203,96 @@ export class MainMenuScene extends Phaser.Scene {
     `;
     panel.appendChild(title);
 
-    // Save slots
-    for (const meta of metas) {
-      const row = this.createSaveRow(meta);
-      panel.appendChild(row);
+    if (metas.length === 0) {
+      // ARCH-15B: Empty state
+      const emptyMsg = document.createElement('div');
+      emptyMsg.textContent = 'No saves yet';
+      emptyMsg.style.cssText = `
+        text-align: center;
+        color: #666;
+        font-size: 14px;
+        padding: 20px 0;
+      `;
+      panel.appendChild(emptyMsg);
+    } else {
+      // Save slots
+      for (const meta of metas) {
+        const row = this.createSaveRow(meta);
+        panel.appendChild(row);
+      }
+    }
+
+    // Button row: Clear All + Back
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = `
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    `;
+
+    // Clear All button (only if saves exist)
+    if (metas.length > 0) {
+      const clearAllBtn = document.createElement('button');
+      clearAllBtn.textContent = 'Clear All';
+      clearAllBtn.style.cssText = `
+        flex: 1;
+        padding: 10px 12px;
+        background: rgba(239, 154, 154, 0.1);
+        border: 1px solid rgba(239, 154, 154, 0.25);
+        border-radius: 4px;
+        color: #ef9a9a;
+        font-size: 13px;
+        font-family: inherit;
+        cursor: pointer;
+        text-align: center;
+        transition: background 0.15s;
+      `;
+      clearAllBtn.addEventListener('mouseenter', () => {
+        clearAllBtn.style.background = 'rgba(239, 154, 154, 0.2)';
+      });
+      clearAllBtn.addEventListener('mouseleave', () => {
+        clearAllBtn.style.background = 'rgba(239, 154, 154, 0.1)';
+      });
+      clearAllBtn.addEventListener('click', () => {
+        if (confirm('Delete all save data? This cannot be undone.')) {
+          clearAllSaves();
+          // Refresh the save list
+          this.hideSaveList();
+          this.showSaveList();
+          this.updateContinueButton();
+        }
+      });
+      btnRow.appendChild(clearAllBtn);
     }
 
     // Back button
     const backBtn = document.createElement('button');
     backBtn.textContent = 'Back';
     backBtn.style.cssText = `
-      width: 100%;
-      margin-top: 12px;
-      padding: 10px 16px;
+      flex: 1;
+      padding: 10px 12px;
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.15);
       border-radius: 4px;
       color: #999;
-      font-size: 14px;
+      font-size: 13px;
       font-family: inherit;
       cursor: pointer;
       text-align: center;
+      transition: background 0.15s;
     `;
+    backBtn.addEventListener('mouseenter', () => {
+      backBtn.style.background = 'rgba(255,255,255,0.08)';
+    });
+    backBtn.addEventListener('mouseleave', () => {
+      backBtn.style.background = 'rgba(255,255,255,0.03)';
+    });
     backBtn.addEventListener('click', () => {
       this.hideSaveList();
     });
-    panel.appendChild(backBtn);
+    btnRow.appendChild(backBtn);
+
+    panel.appendChild(btnRow);
 
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
@@ -219,14 +311,14 @@ export class MainMenuScene extends Phaser.Scene {
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 4px;
-      cursor: pointer;
       transition: background 0.15s, border-color 0.15s;
     `;
 
     const factionColor = FACTION_CSS_COLORS[meta.faction as Faction] ?? '#4fc3f7';
 
+    // Left: info (clickable to load)
     const info = document.createElement('div');
-    info.style.cssText = 'flex: 1;';
+    info.style.cssText = 'flex: 1; cursor: pointer;';
 
     const nameLine = document.createElement('div');
     nameLine.style.cssText = `font-size: 13px; font-weight: 600; color: ${factionColor};`;
@@ -235,20 +327,19 @@ export class MainMenuScene extends Phaser.Scene {
 
     const detailLine = document.createElement('div');
     detailLine.style.cssText = 'font-size: 10px; color: #888; margin-top: 2px;';
-    const date = new Date(meta.updatedAt);
-    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    detailLine.textContent = `Raw: ${meta.summary.raw} | Matter: ${meta.summary.matter} | ${dateStr}`;
+    detailLine.textContent = formatSaveSlotSummary(meta.summary);
     info.appendChild(detailLine);
 
-    row.appendChild(info);
+    const timeLine = document.createElement('div');
+    timeLine.style.cssText = 'font-size: 10px; color: #666; margin-top: 1px;';
+    timeLine.textContent = formatSaveTimestamp(meta.updatedAt);
+    info.appendChild(timeLine);
 
     // Click to load
-    row.addEventListener('click', () => {
+    info.addEventListener('click', () => {
       const result = loadGame(meta.id);
       if (result.success && result.gameState) {
         this.hideSaveList();
-        // Start GameScene with loaded state
-        // Fix 1: Pass saveSlotId so GameScene can update the same slot on re-save
         this.scene.start('GameScene', {
           loadedGameState: result.gameState,
           mapId: meta.mapId,
@@ -259,16 +350,210 @@ export class MainMenuScene extends Phaser.Scene {
       }
     });
 
-    row.addEventListener('mouseenter', () => {
+    info.addEventListener('mouseenter', () => {
       row.style.background = 'rgba(79, 195, 247, 0.08)';
       row.style.borderColor = 'rgba(79, 195, 247, 0.2)';
     });
-    row.addEventListener('mouseleave', () => {
+    info.addEventListener('mouseleave', () => {
       row.style.background = 'rgba(255,255,255,0.03)';
       row.style.borderColor = 'rgba(255,255,255,0.08)';
     });
 
+    row.appendChild(info);
+
+    // Right: delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.style.cssText = `
+      padding: 4px 8px;
+      background: rgba(239, 154, 154, 0.08);
+      border: 1px solid rgba(239, 154, 154, 0.2);
+      border-radius: 3px;
+      color: #ef9a9a;
+      font-size: 10px;
+      font-family: inherit;
+      cursor: pointer;
+      margin-left: 8px;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    `;
+    deleteBtn.addEventListener('mouseenter', () => {
+      deleteBtn.style.background = 'rgba(239, 154, 154, 0.2)';
+    });
+    deleteBtn.addEventListener('mouseleave', () => {
+      deleteBtn.style.background = 'rgba(239, 154, 154, 0.08)';
+    });
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm(`Delete this save (${meta.faction} — ${meta.mapName})?`)) {
+        deleteSave(meta.id);
+        // Refresh the save list
+        this.hideSaveList();
+        this.showSaveList();
+        this.updateContinueButton();
+      }
+    });
+    row.appendChild(deleteBtn);
+
     return row;
+  }
+
+  /** Update the Continue button's enabled/disabled state. */
+  private updateContinueButton(): void {
+    if (!this.continueBtn) return;
+    const savesExist = hasSaves();
+    this.continueBtn.disabled = !savesExist;
+    this.continueBtn.style.background = savesExist ? 'rgba(129, 199, 132, 0.1)' : 'rgba(100,100,100,0.1)';
+    this.continueBtn.style.borderColor = savesExist ? 'rgba(129, 199, 132, 0.3)' : 'rgba(100,100,100,0.2)';
+    this.continueBtn.style.color = savesExist ? '#81c784' : '#555';
+    this.continueBtn.style.cursor = savesExist ? 'pointer' : 'not-allowed';
+  }
+
+  /**
+   * ARCH-14C: Show settings overlay with UI Scale option.
+   */
+  private showSettings(): void {
+    this.hideSettings();
+    this.hideSaveList();
+
+    const currentSettings = loadUiSettings();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'settings-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 35;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e0e0e0;
+    `;
+
+    const panel = document.createElement('div');
+    panel.style.cssText = `
+      background: rgba(26, 26, 46, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 24px 28px;
+      min-width: 340px;
+      max-width: 420px;
+    `;
+
+    // Title
+    const title = document.createElement('div');
+    title.textContent = 'Settings';
+    title.style.cssText = `
+      font-size: 22px;
+      font-weight: 600;
+      color: #4fc3f7;
+      margin-bottom: 20px;
+      text-align: center;
+    `;
+    panel.appendChild(title);
+
+    // UI Scale section
+    const scaleLabel = document.createElement('div');
+    scaleLabel.textContent = 'UI Scale';
+    scaleLabel.style.cssText = `
+      font-size: 12px;
+      font-weight: 600;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    `;
+    panel.appendChild(scaleLabel);
+
+    const scaleRow = document.createElement('div');
+    scaleRow.style.cssText = `
+      display: flex;
+      gap: 8px;
+    `;
+
+    for (const scaleOption of UI_SCALE_OPTIONS) {
+      const btn = document.createElement('button');
+      btn.textContent = `${scaleOption}%`;
+      const isSelected = scaleOption === currentSettings.uiScale;
+      btn.style.cssText = this.scaleButtonStyle(isSelected);
+
+      btn.addEventListener('click', () => {
+        // Update UI scale immediately
+        applyUiScale(scaleOption);
+        saveUiSettings({ uiScale: scaleOption });
+
+        // Update all scale button styles
+        const buttons = scaleRow.querySelectorAll('button');
+        buttons.forEach(b => {
+          b.style.cssText = this.scaleButtonStyle(false);
+        });
+        btn.style.cssText = this.scaleButtonStyle(true);
+      });
+
+      scaleRow.appendChild(btn);
+    }
+    panel.appendChild(scaleRow);
+
+    // Limitation note
+    const note = document.createElement('div');
+    note.textContent = 'Applies to DOM overlays. Game canvas zoom is unchanged.';
+    note.style.cssText = `
+      font-size: 10px;
+      color: #555;
+      margin-top: 6px;
+    `;
+    panel.appendChild(note);
+
+    // Back button
+    const backBtn = document.createElement('button');
+    backBtn.textContent = 'Back';
+    backBtn.style.cssText = `
+      width: 100%;
+      margin-top: 20px;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      color: #999;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s;
+    `;
+    backBtn.addEventListener('mouseenter', () => {
+      backBtn.style.background = 'rgba(255,255,255,0.08)';
+    });
+    backBtn.addEventListener('mouseleave', () => {
+      backBtn.style.background = 'rgba(255,255,255,0.03)';
+    });
+    backBtn.addEventListener('click', () => {
+      this.hideSettings();
+    });
+    panel.appendChild(backBtn);
+
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    this.settingsContainer = overlay;
+  }
+
+  private scaleButtonStyle(selected: boolean): string {
+    return `
+      flex: 1;
+      padding: 10px 12px;
+      background: ${selected ? 'rgba(79, 195, 247, 0.2)' : 'rgba(255,255,255,0.03)'};
+      border: 2px solid ${selected ? '#4fc3f7' : 'rgba(255,255,255,0.1)'};
+      border-radius: 4px;
+      color: ${selected ? '#4fc3f7' : '#888'};
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: ${selected ? '600' : '400'};
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, border-color 0.15s;
+    `;
   }
 
   /** Hide and remove the save list overlay. */
@@ -277,6 +562,14 @@ export class MainMenuScene extends Phaser.Scene {
       this.saveListContainer.parentNode.removeChild(this.saveListContainer);
     }
     this.saveListContainer = null;
+  }
+
+  /** Hide and remove the settings overlay. */
+  private hideSettings(): void {
+    if (this.settingsContainer && this.settingsContainer.parentNode) {
+      this.settingsContainer.parentNode.removeChild(this.settingsContainer);
+    }
+    this.settingsContainer = null;
   }
 
   private createButton(
@@ -288,11 +581,13 @@ export class MainMenuScene extends Phaser.Scene {
     const btn = document.createElement('button');
     btn.textContent = text;
     btn.disabled = disabled;
+    const baseBg = disabled ? 'rgba(100,100,100,0.1)' : 'rgba(79, 195, 247, 0.1)';
+    const baseBorder = disabled ? 'rgba(100,100,100,0.2)' : 'rgba(79, 195, 247, 0.3)';
     btn.style.cssText = `
       width: 100%;
       padding: 12px 20px;
-      background: ${disabled ? 'rgba(100,100,100,0.1)' : `rgba(79, 195, 247, 0.1)`};
-      border: 1px solid ${disabled ? 'rgba(100,100,100,0.2)' : `rgba(79, 195, 247, 0.3)`};
+      background: ${baseBg};
+      border: 1px solid ${baseBorder};
       border-radius: 4px;
       color: ${disabled ? '#555' : color};
       font-size: 16px;
@@ -308,8 +603,8 @@ export class MainMenuScene extends Phaser.Scene {
         btn.style.borderColor = 'rgba(79, 195, 247, 0.5)';
       });
       btn.addEventListener('mouseleave', () => {
-        btn.style.background = 'rgba(79, 195, 247, 0.1)';
-        btn.style.borderColor = 'rgba(79, 195, 247, 0.3)';
+        btn.style.background = baseBg;
+        btn.style.borderColor = baseBorder;
       });
       btn.addEventListener('click', onClick);
     }
@@ -323,9 +618,11 @@ export class MainMenuScene extends Phaser.Scene {
 
   shutdown(): void {
     this.hideSaveList();
+    this.hideSettings();
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
     this.container = null;
+    this.continueBtn = null;
   }
 }
