@@ -30,6 +30,10 @@ export class NewGameSetupScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     this.createDomOverlay();
+
+    // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+
     console.log('[NewGameSetupScene] Ready.');
   }
 

@@ -311,6 +311,9 @@ export class GameScene extends Phaser.Scene {
       this.setupConfig,
     );
 
+    // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+
     // Set world background color
     this.cameras.main.setBackgroundColor('#1a1a2e');
 
