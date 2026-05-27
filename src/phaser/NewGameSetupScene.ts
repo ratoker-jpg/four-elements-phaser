@@ -1,13 +1,13 @@
 /**
- * NewGameSetupScene — faction and map selection.
+ * NewGameSetupScene — faction, map mode, size, and seed selection.
  *
  * ARCH-14B: Allows the player to choose their faction and (when more
  * maps exist) select a map before starting the game.
  *
- * Currently only one map (Map 1 / customMap1) is available.
- * Faction selection changes the player's HQ color and economy faction.
+ * ARCH-16A: Expanded with map mode (fixed/generated), map size
+ * (small/standard/large), and seed input with random seed button.
  *
- * ARCH-14C: Added Esc to go back, consistent button hover/disabled states.
+ * ARCH-14C: Esc goes back, consistent button hover/disabled states.
  */
 
 import Phaser from 'phaser';
@@ -15,15 +15,24 @@ import {
   FACTION_LIST,
   FACTION_CSS_COLORS,
   MAP_LIST,
+  MAP_SIZE_OPTIONS,
   DEFAULT_SETUP,
 } from '../state/gameSetup';
-import type { GameSetupConfig } from '../state/gameSetup';
+import type { GameSetupConfig, MapMode } from '../state/gameSetup';
 import type { Faction } from '../state/types';
+import type { MapSizeOption } from '../state/generatedMap';
+import { createRandomSeed, generatedMapId, mapSizeToDimensions } from '../state/generatedMap';
 
 export class NewGameSetupScene extends Phaser.Scene {
   private container: HTMLDivElement | null = null;
   private selectedFaction: Faction = DEFAULT_SETUP.faction;
+  private selectedMapMode: MapMode = DEFAULT_SETUP.mapMode;
   private selectedMapId: string = DEFAULT_SETUP.mapId;
+  private selectedMapSize: MapSizeOption = DEFAULT_SETUP.mapSize;
+  private seedInput: HTMLInputElement | null = null;
+  private sizeContainer: HTMLDivElement | null = null;
+  private seedContainer: HTMLDivElement | null = null;
+  private mapSummary: HTMLDivElement | null = null;
 
   constructor() {
     super({ key: 'NewGameSetupScene' });
@@ -79,8 +88,8 @@ export class NewGameSetupScene extends Phaser.Scene {
     setupBox.style.cssText = `
       display: flex;
       flex-direction: column;
-      gap: 24px;
-      width: 360px;
+      gap: 20px;
+      width: 400px;
     `;
 
     // ── Faction selection ────────────────────────────────────────
@@ -111,7 +120,6 @@ export class NewGameSetupScene extends Phaser.Scene {
 
       btn.addEventListener('click', () => {
         this.selectedFaction = faction;
-        // Update all faction button styles
         const buttons = factionGrid.querySelectorAll('button');
         buttons.forEach(b => {
           const f = (b as HTMLButtonElement).dataset.faction as Faction;
@@ -124,7 +132,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     factionSection.appendChild(factionGrid);
     setupBox.appendChild(factionSection);
 
-    // ── Map selection ────────────────────────────────────────────
+    // ── Map mode selection ────────────────────────────────────────
     const mapSection = document.createElement('div');
     const mapLabel = document.createElement('div');
     mapLabel.textContent = 'Map';
@@ -138,37 +146,185 @@ export class NewGameSetupScene extends Phaser.Scene {
     `;
     mapSection.appendChild(mapLabel);
 
+    const mapGrid = document.createElement('div');
+    mapGrid.style.cssText = `
+      display: flex;
+      gap: 8px;
+    `;
+
     for (const map of MAP_LIST) {
       const btn = document.createElement('button');
       btn.textContent = map.name;
-      btn.style.cssText = `
-        padding: 8px 16px;
-        background: rgba(79, 195, 247, 0.15);
-        border: 1px solid rgba(79, 195, 247, 0.3);
-        border-radius: 4px;
-        color: #4fc3f7;
-        font-size: 14px;
-        font-family: inherit;
-        cursor: default;
-        width: 100%;
-        text-align: left;
-      `;
-      mapSection.appendChild(btn);
+      btn.dataset.mapId = map.id;
+      btn.dataset.mapMode = map.mode;
+      const isSelected = map.id === this.selectedMapId && map.mode === this.selectedMapMode;
+      btn.style.cssText = this.mapButtonStyle(isSelected);
+
+      btn.addEventListener('click', () => {
+        this.selectedMapMode = map.mode as MapMode;
+        this.selectedMapId = map.id;
+        // Update all map button styles
+        const buttons = mapGrid.querySelectorAll('button');
+        buttons.forEach(b => {
+          const bMapId = (b as HTMLButtonElement).dataset.mapId!;
+          const bMode = (b as HTMLButtonElement).dataset.mapMode as MapMode;
+          b.style.cssText = this.mapButtonStyle(bMapId === this.selectedMapId && bMode === this.selectedMapMode);
+        });
+        this.updateConditionalSections();
+        this.updateMapSummary();
+      });
+
+      mapGrid.appendChild(btn);
     }
+    mapSection.appendChild(mapGrid);
     setupBox.appendChild(mapSection);
+
+    // ── Size selection (only for generated maps) ──────────────────
+    const sizeSection = document.createElement('div');
+    const sizeLabel = document.createElement('div');
+    sizeLabel.textContent = 'Map Size';
+    sizeLabel.style.cssText = `
+      font-size: 14px;
+      font-weight: 600;
+      color: #999;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    `;
+    sizeSection.appendChild(sizeLabel);
+
+    this.sizeContainer = document.createElement('div');
+    this.sizeContainer.style.cssText = `
+      display: flex;
+      gap: 8px;
+    `;
+
+    for (const size of MAP_SIZE_OPTIONS) {
+      const btn = document.createElement('button');
+      btn.textContent = size.charAt(0).toUpperCase() + size.slice(1);
+      btn.dataset.mapSize = size;
+      btn.style.cssText = this.sizeButtonStyle(size === this.selectedMapSize);
+
+      btn.addEventListener('click', () => {
+        this.selectedMapSize = size;
+        const buttons = this.sizeContainer!.querySelectorAll('button');
+        buttons.forEach(b => {
+          const s = (b as HTMLButtonElement).dataset.mapSize as MapSizeOption;
+          b.style.cssText = this.sizeButtonStyle(s === this.selectedMapSize);
+        });
+        this.updateMapSummary();
+      });
+
+      this.sizeContainer.appendChild(btn);
+    }
+    sizeSection.appendChild(this.sizeContainer);
+    setupBox.appendChild(sizeSection);
+
+    // ── Seed input (only for generated maps) ─────────────────────
+    const seedSection = document.createElement('div');
+    const seedLabel = document.createElement('div');
+    seedLabel.textContent = 'Seed';
+    seedLabel.style.cssText = `
+      font-size: 14px;
+      font-weight: 600;
+      color: #999;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    `;
+    seedSection.appendChild(seedLabel);
+
+    this.seedContainer = document.createElement('div');
+    this.seedContainer.style.cssText = `
+      display: flex;
+      gap: 8px;
+    `;
+
+    this.seedInput = document.createElement('input');
+    this.seedInput.type = 'text';
+    this.seedInput.value = DEFAULT_SETUP.seed;
+    this.seedInput.placeholder = 'Enter seed...';
+    this.seedInput.style.cssText = `
+      flex: 1;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-size: 14px;
+      font-family: monospace;
+      outline: none;
+    `;
+    this.seedInput.addEventListener('input', () => {
+      this.updateMapSummary();
+    });
+    this.seedInput.addEventListener('focus', () => {
+      this.seedInput!.style.borderColor = 'rgba(79, 195, 247, 0.5)';
+    });
+    this.seedInput.addEventListener('blur', () => {
+      this.seedInput!.style.borderColor = 'rgba(255,255,255,0.15)';
+    });
+    this.seedContainer.appendChild(this.seedInput);
+
+    // Random seed button
+    const randomSeedBtn = document.createElement('button');
+    randomSeedBtn.textContent = 'Random';
+    randomSeedBtn.style.cssText = `
+      padding: 8px 12px;
+      background: rgba(79, 195, 247, 0.1);
+      border: 1px solid rgba(79, 195, 247, 0.3);
+      border-radius: 4px;
+      color: #4fc3f7;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    `;
+    randomSeedBtn.addEventListener('mouseenter', () => {
+      randomSeedBtn.style.background = 'rgba(79, 195, 247, 0.2)';
+    });
+    randomSeedBtn.addEventListener('mouseleave', () => {
+      randomSeedBtn.style.background = 'rgba(79, 195, 247, 0.1)';
+    });
+    randomSeedBtn.addEventListener('click', () => {
+      if (this.seedInput) {
+        this.seedInput.value = createRandomSeed();
+        this.updateMapSummary();
+      }
+    });
+    this.seedContainer.appendChild(randomSeedBtn);
+
+    seedSection.appendChild(this.seedContainer);
+    setupBox.appendChild(seedSection);
+
+    // ── Map summary (text-only) ──────────────────────────────────
+    this.mapSummary = document.createElement('div');
+    this.mapSummary.style.cssText = `
+      font-size: 11px;
+      color: #666;
+      min-height: 16px;
+    `;
+    setupBox.appendChild(this.mapSummary);
 
     // ── Buttons row ──────────────────────────────────────────────
     const buttonRow = document.createElement('div');
     buttonRow.style.cssText = `
       display: flex;
       gap: 12px;
-      margin-top: 12px;
+      margin-top: 8px;
     `;
 
     // Back button
     const backBtn = document.createElement('button');
     backBtn.textContent = 'Back';
-    backBtn.style.cssText = this.actionButtonStyle('#888', 'rgba(150,150,150,0.1)', 'rgba(150,150,150,0.2)', 'rgba(150,150,150,0.25)');
+    backBtn.style.cssText = this.actionButtonStyle('#888', 'rgba(150,150,150,0.1)');
+    backBtn.addEventListener('mouseenter', () => {
+      backBtn.style.background = 'rgba(150,150,150,0.2)';
+    });
+    backBtn.addEventListener('mouseleave', () => {
+      backBtn.style.background = 'rgba(150,150,150,0.1)';
+    });
     backBtn.addEventListener('click', () => {
       this.scene.start('MainMenuScene');
     });
@@ -177,11 +333,23 @@ export class NewGameSetupScene extends Phaser.Scene {
     // Start Game button
     const startBtn = document.createElement('button');
     startBtn.textContent = 'Start Game';
-    startBtn.style.cssText = this.actionButtonStyle('#4fc3f7', 'rgba(79,195,247,0.15)', 'rgba(79,195,247,0.25)', 'rgba(79,195,247,0.4)');
+    startBtn.style.cssText = this.actionButtonStyle('#4fc3f7', 'rgba(79,195,247,0.15)');
+    startBtn.addEventListener('mouseenter', () => {
+      startBtn.style.background = 'rgba(79,195,247,0.25)';
+    });
+    startBtn.addEventListener('mouseleave', () => {
+      startBtn.style.background = 'rgba(79,195,247,0.15)';
+    });
     startBtn.addEventListener('click', () => {
+      const seed = this.seedInput?.value.trim() || DEFAULT_SETUP.seed;
       const config: GameSetupConfig = {
         faction: this.selectedFaction,
-        mapId: this.selectedMapId,
+        mapId: this.selectedMapMode === 'generated'
+          ? generatedMapId(seed, this.selectedMapSize)
+          : this.selectedMapId,
+        mapMode: this.selectedMapMode,
+        mapSize: this.selectedMapSize,
+        seed,
       };
       this.scene.start('GameScene', config);
     });
@@ -192,6 +360,34 @@ export class NewGameSetupScene extends Phaser.Scene {
 
     document.body.appendChild(root);
     this.container = root;
+
+    // Initialize visibility and summary
+    this.updateConditionalSections();
+    this.updateMapSummary();
+  }
+
+  /** Show/hide size and seed sections based on map mode. */
+  private updateConditionalSections(): void {
+    const isGenerated = this.selectedMapMode === 'generated';
+    if (this.sizeContainer) {
+      this.sizeContainer.parentElement!.style.display = isGenerated ? '' : 'none';
+    }
+    if (this.seedContainer) {
+      this.seedContainer.parentElement!.style.display = isGenerated ? '' : 'none';
+    }
+  }
+
+  /** Update the text-only map summary. */
+  private updateMapSummary(): void {
+    if (!this.mapSummary) return;
+
+    if (this.selectedMapMode === 'generated') {
+      const dims = mapSizeToDimensions(this.selectedMapSize);
+      const seed = this.seedInput?.value.trim() || DEFAULT_SETUP.seed;
+      this.mapSummary.textContent = `${dims.width}x${dims.height} tiles — seed: ${seed}`;
+    } else {
+      this.mapSummary.textContent = '48x48 tiles — predefined map';
+    }
   }
 
   private factionButtonStyle(faction: Faction, selected: boolean): string {
@@ -212,7 +408,41 @@ export class NewGameSetupScene extends Phaser.Scene {
     `;
   }
 
-  private actionButtonStyle(color: string, bg: string, _hoverBg: string, _hoverBorder: string): string {
+  private mapButtonStyle(selected: boolean): string {
+    return `
+      flex: 1;
+      padding: 10px 12px;
+      background: ${selected ? 'rgba(79, 195, 247, 0.2)' : 'rgba(255,255,255,0.03)'};
+      border: 2px solid ${selected ? '#4fc3f7' : 'rgba(255,255,255,0.1)'};
+      border-radius: 4px;
+      color: ${selected ? '#4fc3f7' : '#888'};
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: ${selected ? '600' : '400'};
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, border-color 0.15s;
+    `;
+  }
+
+  private sizeButtonStyle(selected: boolean): string {
+    return `
+      flex: 1;
+      padding: 8px 10px;
+      background: ${selected ? 'rgba(129, 199, 132, 0.2)' : 'rgba(255,255,255,0.03)'};
+      border: 2px solid ${selected ? '#81c784' : 'rgba(255,255,255,0.1)'};
+      border-radius: 4px;
+      color: ${selected ? '#81c784' : '#888'};
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: ${selected ? '600' : '400'};
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, border-color 0.15s;
+    `;
+  }
+
+  private actionButtonStyle(color: string, bg: string): string {
     return `
       flex: 1;
       padding: 10px 16px;
@@ -233,5 +463,9 @@ export class NewGameSetupScene extends Phaser.Scene {
       this.container.parentNode.removeChild(this.container);
     }
     this.container = null;
+    this.seedInput = null;
+    this.sizeContainer = null;
+    this.seedContainer = null;
+    this.mapSummary = null;
   }
 }
