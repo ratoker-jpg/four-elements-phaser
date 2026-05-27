@@ -24,6 +24,7 @@ import {
 import type { UnitSelection } from '../state/unitSelection';
 import { selectBuilder, selectHarvester, clearSelection, isUnitSelected } from '../state/unitSelection';
 import { issueManualMove } from '../state/unitCommands';
+import { validateMap } from '../state/mapValidation';
 
 /**
  * GameScene — orchestration-only scene.
@@ -311,6 +312,23 @@ export class GameScene extends Phaser.Scene {
 
     // Log state summary
     const s = this.gameState;
+
+    // ARCH-08/09/10: Run map validation and log diagnostics
+    const validation = validateMap(s);
+    if (!validation.valid) {
+      console.warn('[GameScene] Map validation issues:');
+      for (const check of validation.checks) {
+        if (!check.passed) {
+          console.warn(`  [WARN] ${check.id}: ${check.message}`);
+        }
+      }
+    } else {
+      console.log('[GameScene] Map validation passed.');
+    }
+    console.log(
+      `[GameScene] Reachable resources near base: ${validation.reachableResourceCount}/${validation.totalResourceCount}`,
+    );
+
     console.log(
       `[GameScene] State-driven scene ready. Map: ${s.mapName} | ` +
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
@@ -651,7 +669,7 @@ export class GameScene extends Phaser.Scene {
   private drawGridLines(offset: { x: number; y: number }): void {
     const graphics = this.add.graphics();
     graphics.setDefaultStyles({
-      lineStyle: { width: 0.5, color: 0x4a4a6a, alpha: 0.4 },
+      lineStyle: { width: 0.5, color: 0x4a4a6a, alpha: 0.2 },
     });
 
     const hw = 76 / 2; // TILE_W / 2
