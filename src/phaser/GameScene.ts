@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets/assetManifest';
 import { TerrainRenderer } from './render/TerrainRenderer';
 import { EntityRenderer } from './render/EntityRenderer';
+import { BuildingStatusRenderer } from './render/BuildingStatusRenderer';
 import { CameraControls } from './input/CameraControls';
 import { PlaytestHud } from './ui/PlaytestHud';
 import type { BuildRequestResult, ProductionRequestResult } from './ui/PlaytestHud';
@@ -51,6 +52,7 @@ const PHASE_LABEL: Record<HarvesterPhase, string> = {
 export class GameScene extends Phaser.Scene {
   private terrainRenderer: TerrainRenderer | null = null;
   private entityRenderer: EntityRenderer | null = null;
+  private buildingStatusRenderer: BuildingStatusRenderer | null = null;
   private cameraControls: CameraControls | null = null;
   private playtestHud: PlaytestHud | null = null;
   private gameState!: GameState;
@@ -114,6 +116,9 @@ export class GameScene extends Phaser.Scene {
       this.gameState.harvesters,
       this.gameState.resourceNodes,
     );
+
+    // ARCH-07A: Building status renderer (separator progress, factory queue, construction labels)
+    this.buildingStatusRenderer = new BuildingStatusRenderer(this, offset);
 
     // Setup camera
     this.cameraControls = new CameraControls(this);
@@ -336,6 +341,9 @@ export class GameScene extends Phaser.Scene {
 
     // 5. Sync render layer
     this.entityRenderer?.syncFromState(this.gameState);
+
+    // 5b. Sync building status indicators (ARCH-07A)
+    this.buildingStatusRenderer?.syncFromState(this.gameState);
 
     // 6. Update HUD (legacy top bar)
     this.updateHUD();
@@ -671,6 +679,8 @@ export class GameScene extends Phaser.Scene {
   shutdown(): void {
     this.playtestHud?.destroy();
     this.playtestHud = null;
+    this.buildingStatusRenderer?.destroy();
+    this.buildingStatusRenderer = null;
     this.cameraControls?.destroy();
     this.entityRenderer?.destroy();
     this.terrainRenderer?.destroy();
