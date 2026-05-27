@@ -28,6 +28,7 @@ import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
 import { DEFAULT_SETUP, getMapDataById } from '../state/gameSetup';
+import { saveGame } from '../state/saveGame';
 
 /**
  * GameScene — orchestration-only scene.
@@ -42,6 +43,20 @@ import { DEFAULT_SETUP, getMapDataById } from '../state/gameSetup';
  * ARCH-14A: PlaytestHud provides clickable build/production buttons
  * that call the same command paths as the debug hotkeys.
  */
+
+/**
+ * ARCH-15A: Scene data for loading a saved game.
+ * When MainMenuScene loads a save, it passes this to GameScene.init().
+ *
+ * Fix 1: Includes saveSlotId so GameScene can update the same slot
+ * on subsequent saves instead of creating duplicates.
+ */
+export interface LoadSceneData {
+  loadedGameState: GameState;
+  mapId?: string;
+  /** Slot ID of the loaded save, used to update the same slot on re-save. */
+  saveSlotId?: string;
+}
 
 /** Phase labels for HUD display. */
 const PHASE_LABEL: Record<HarvesterPhase, string> = {
@@ -66,6 +81,12 @@ export class GameScene extends Phaser.Scene {
 
   // ARCH-14B: Setup config stored for restart functionality
   private setupConfig: GameSetupConfig = DEFAULT_SETUP;
+
+  // ARCH-15A: Loaded game state from save (null for new games)
+  private loadedGameState: GameState | null = null;
+
+  // Fix 1: Track current save slot so subsequent saves update the same slot
+  private currentSaveSlotId: string | null = null;
 
   // ARCH-14B: Pause state — when true, update loop is skipped
   private paused = false;
@@ -99,17 +120,37 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Receive scene data from MainMenu/NewGameSetup.
+   * Receive scene data from MainMenu/NewGameSetup or from a loaded save.
    * Called by Phaser before create().
+   *
+   * ARCH-15A: Accepts either a GameSetupConfig (new game) or a
+   * LoadSceneData (loaded save). If loadedGameState is present,
+   * the saved state is used directly instead of createInitialState.
    */
-  init(data: GameSetupConfig): void {
-    this.setupConfig = { ...DEFAULT_SETUP, ...data };
+  init(data: GameSetupConfig | LoadSceneData): void {
+    if ('loadedGameState' in data && data.loadedGameState) {
+      this.setupConfig = { faction: data.loadedGameState.playerFaction, mapId: data.mapId ?? 'customMap1' };
+      this.loadedGameState = data.loadedGameState;
+      // Fix 1: Preserve loaded slot ID for re-save
+      this.currentSaveSlotId = data.saveSlotId ?? null;
+    } else {
+      this.setupConfig = { ...DEFAULT_SETUP, ...data as GameSetupConfig };
+      this.loadedGameState = null;
+      // Fix 1: New game starts with no save slot
+      this.currentSaveSlotId = null;
+    }
   }
 
   create(): void {
-    // Initialize game state from setup config (faction + map)
-    const mapData = getMapDataById(this.setupConfig.mapId);
-    this.gameState = createInitialState(mapData, this.setupConfig.faction);
+    // ARCH-15A: Use loaded state if available, otherwise create new state
+    if (this.loadedGameState) {
+      this.gameState = this.loadedGameState;
+      this.loadedGameState = null;
+      console.log('[GameScene] Loaded saved game state.');
+    } else {
+      const mapData = getMapDataById(this.setupConfig.mapId);
+      this.gameState = createInitialState(mapData, this.setupConfig.faction);
+    }
 
     // Verify all required assets are loaded
     this.verifyAssets();
@@ -291,6 +332,7 @@ export class GameScene extends Phaser.Scene {
     );
 
     // ARCH-14B: Create pause menu with callbacks
+    // ARCH-15A: Added onSave callback
     this.pauseMenu = new PauseMenu();
     this.pauseMenu.create(
       {
@@ -306,6 +348,14 @@ export class GameScene extends Phaser.Scene {
           // Stop GameScene, return to main menu
           this.paused = false;
           this.scene.start('MainMenuScene');
+        },
+        onSave: () => {
+          const result = saveGame(this.gameState, this.setupConfig.mapId, this.currentSaveSlotId ?? undefined);
+          // Fix 1: Store the slot ID from the first save so subsequent saves update it
+          if (result.success && result.slotId) {
+            this.currentSaveSlotId = result.slotId;
+          }
+          return { success: result.success, message: result.message };
         },
       },
       this.setupConfig,

@@ -4,6 +4,8 @@
  * ARCH-14B: Provides Continue / Restart / Main Menu options
  * and a hotkey help reference. Opened by Esc during gameplay.
  * Managed by GameScene.
+ *
+ * ARCH-15A: Added Save button and onSave callback.
  */
 
 import type { GameSetupConfig } from '../../state/gameSetup';
@@ -16,6 +18,14 @@ export interface PauseMenuCallbacks {
   onRestart: (config: GameSetupConfig) => void;
   /** Return to the main menu scene. */
   onMainMenu: () => void;
+  /** ARCH-15A: Save the current game. */
+  onSave: () => SaveResult;
+}
+
+/** Result of a save operation from the pause menu. */
+export interface SaveResult {
+  success: boolean;
+  message: string;
 }
 
 export class PauseMenu {
@@ -23,6 +33,8 @@ export class PauseMenu {
   private callbacks: PauseMenuCallbacks | null = null;
   private config: GameSetupConfig | null = null;
   private _visible = false;
+  private statusEl: HTMLDivElement | null = null;
+  private statusTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Whether the pause menu is currently shown. */
   get visible(): boolean {
@@ -80,13 +92,21 @@ export class PauseMenu {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      margin-bottom: 20px;
+      margin-bottom: 12px;
     `;
 
     // Continue button
     btnContainer.appendChild(this.createMenuButton('Continue', '#81c784', () => {
       this.hide();
       this.callbacks?.onResume();
+    }));
+
+    // ARCH-15A: Save button
+    btnContainer.appendChild(this.createMenuButton('Save', '#4fc3f7', () => {
+      const result = this.callbacks?.onSave();
+      if (result) {
+        this.showStatus(result.message, result.success);
+      }
     }));
 
     // Restart button
@@ -104,6 +124,18 @@ export class PauseMenu {
     }));
 
     panel.appendChild(btnContainer);
+
+    // ARCH-15A: Status feedback area (shows "Saved" or "Save failed")
+    this.statusEl = document.createElement('div');
+    this.statusEl.style.cssText = `
+      min-height: 18px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      text-align: center;
+      transition: opacity 0.3s;
+      opacity: 0;
+    `;
+    panel.appendChild(this.statusEl);
 
     // ── Hotkey help section ──────────────────────────────────────
     const helpDivider = document.createElement('div');
@@ -205,8 +237,31 @@ export class PauseMenu {
     }
   }
 
+  /** ARCH-15A: Show a brief status message (e.g. "Saved" / "Save failed"). */
+  private showStatus(message: string, success: boolean): void {
+    if (!this.statusEl) return;
+
+    if (this.statusTimer) {
+      clearTimeout(this.statusTimer);
+    }
+
+    this.statusEl.textContent = message;
+    this.statusEl.style.color = success ? '#81c784' : '#ef9a9a';
+    this.statusEl.style.opacity = '1';
+
+    this.statusTimer = setTimeout(() => {
+      if (this.statusEl) {
+        this.statusEl.style.opacity = '0';
+      }
+    }, 2000);
+  }
+
   /** Remove the pause menu DOM overlay. Call on GameScene shutdown. */
   destroy(): void {
+    if (this.statusTimer) {
+      clearTimeout(this.statusTimer);
+      this.statusTimer = null;
+    }
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
@@ -214,6 +269,7 @@ export class PauseMenu {
     this._visible = false;
     this.callbacks = null;
     this.config = null;
+    this.statusEl = null;
   }
 
   private createMenuButton(text: string, color: string, onClick: () => void): HTMLButtonElement {
