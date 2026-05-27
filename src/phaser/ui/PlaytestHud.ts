@@ -589,11 +589,21 @@ export class PlaytestHud {
     );
 
     // Show warnings for failed checks
+    // Critical checks (red warning): hq-adjacent-passable, reachable-resources, harvester-not-trapped
+    // Soft informational check (muted): resources-not-in-impassable
     for (const check of v.checks) {
       if (!check.passed) {
-        parts.push(
-          `<div style="color:#ef9a9a;">⚠ ${check.message}</div>`,
-        );
+        if (check.id === 'resources-not-in-impassable') {
+          // Soft informational — show as muted, not a blocking warning
+          parts.push(
+            `<div style="color:#777;">ℹ ${check.message}</div>`,
+          );
+        } else {
+          // Critical — show as red warning
+          parts.push(
+            `<div style="color:#ef9a9a;">⚠ ${check.message}</div>`,
+          );
+        }
       }
     }
 

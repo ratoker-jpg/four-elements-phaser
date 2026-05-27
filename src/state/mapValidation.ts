@@ -110,23 +110,27 @@ export function countReachableResources(state: GameState, occupancy: ReturnType<
   const spawnTiles = getHqAdjacentPassableTiles(state, occupancy);
   if (spawnTiles.length === 0) return 0;
 
-  const startTile = spawnTiles[0]; // Use the first adjacent tile as representative start
-
   let reachable = 0;
   for (const resource of state.resourceNodes) {
     if (resource.depleted) continue;
-    const path = findPathToAdjacent(
-      occupancy,
-      startTile.tx, startTile.ty,
-      resource.tx, resource.ty,
-      resource.footprint, resource.footprint,
-    );
-    if (path !== null) {
-      // Check if within reasonable distance
-      const dist = path.length;
-      if (dist <= NEAR_BASE_DISTANCE) {
-        reachable++;
+    // A resource is reachable if ANY HQ-adjacent passable tile can reach it.
+    // We don't just use spawnTiles[0] because the first tile in enumeration
+    // order may not be representative of actual harvester exit routes.
+    let found = false;
+    for (const spawnTile of spawnTiles) {
+      const path = findPathToAdjacent(
+        occupancy,
+        spawnTile.tx, spawnTile.ty,
+        resource.tx, resource.ty,
+        resource.footprint, resource.footprint,
+      );
+      if (path !== null && path.length <= NEAR_BASE_DISTANCE) {
+        found = true;
+        break;
       }
+    }
+    if (found) {
+      reachable++;
     }
   }
   return reachable;
@@ -245,20 +249,26 @@ function checkResourcesNotInImpassable(
     };
   }
 
-  const startTile = spawnTiles[0];
   let unreachableCount = 0;
   const details: string[] = [];
 
   for (const resource of state.mapData.resources) {
     // A resource is considered "in impassable" (unreachable) if there's
-    // no BFS path from the HQ spawn area to a tile adjacent to it.
-    const path = findPathToAdjacent(
-      occupancy,
-      startTile.tx, startTile.ty,
-      resource.tx, resource.ty,
-      resource.footprint, resource.footprint,
-    );
-    if (path === null) {
+    // no BFS path from ANY HQ-adjacent passable tile to a tile adjacent to it.
+    let reachableFromAny = false;
+    for (const spawnTile of spawnTiles) {
+      const path = findPathToAdjacent(
+        occupancy,
+        spawnTile.tx, spawnTile.ty,
+        resource.tx, resource.ty,
+        resource.footprint, resource.footprint,
+      );
+      if (path !== null) {
+        reachableFromAny = true;
+        break;
+      }
+    }
+    if (!reachableFromAny) {
       unreachableCount++;
       if (details.length < 5) { // Limit detail messages
         details.push(`resource at (${resource.tx},${resource.ty}) has no path from HQ`);

@@ -193,6 +193,39 @@ describe('ARCH-08/09/10: countReachableResources', () => {
     const count = countReachableResources(state, occupancy);
     expect(count).toBe(0);
   });
+
+  it('counts resource as reachable when first HQ-adjacent tile cannot reach it but another can', () => {
+    // HQ at (4,4). First spawn tile in enumeration is (4,3) on north border.
+    // Place a horizontal wall just north of HQ that blocks paths from
+    // north-side spawn tiles, but leave east-side spawn tiles open.
+    // Resource at (8,4) is reachable from east side (7,4) but not from north.
+    const state = makeTestState({
+      mapW: 15, mapH: 15, hqTx: 4, hqTy: 4,
+      resources: [
+        { tx: 8, ty: 4, type: 'small' },
+      ],
+      obstacles: [
+        // Horizontal wall at y=2, blocking north spawn tiles from reaching east
+        { tx: 4, ty: 2, footprint: 1 },
+        { tx: 5, ty: 2, footprint: 1 },
+        { tx: 6, ty: 2, footprint: 1 },
+        { tx: 7, ty: 2, footprint: 1 },
+        { tx: 8, ty: 2, footprint: 1 },
+        // Also block the row y=3 from extending east past col 5
+        // so that (4,3), (5,3), (6,3) north spawn tiles can't go around
+        { tx: 5, ty: 3, footprint: 1 },
+        { tx: 6, ty: 3, footprint: 1 },
+      ],
+    });
+    const occupancy = buildOccupancyMap(state);
+    const spawnTiles = getHqAdjacentPassableTiles(state, occupancy);
+    // Verify the first spawn tile is on the north border (y=3)
+    expect(spawnTiles[0].ty).toBe(3);
+
+    // The resource should still be counted as reachable via east-side spawn tiles
+    const count = countReachableResources(state, occupancy);
+    expect(count).toBe(1);
+  });
 });
 
 // ─── validateMap tests ─────────────────────────────────────────────
