@@ -28,8 +28,9 @@ function createMockStorage(): SaveStorage {
     getItem(key: string): string | null {
       return store[key] ?? null;
     },
-    setItem(key: string, value: string): void {
+    setItem(key: string, value: string): boolean {
       store[key] = value;
+      return true;
     },
     removeItem(key: string): void {
       delete store[key];
@@ -266,5 +267,54 @@ describe('saveGame', () => {
 
     expect(loadResult.success).toBe(true);
     expect(loadResult.gameState!.production.factories.length).toBe(factoryCount);
+  });
+
+  // Fix 2: Storage write failure must be detectable
+  it('saveGame returns success:false when storage write fails', () => {
+    // Create a mock storage whose setItem always fails
+    const failingStorage: SaveStorage = {
+      getItem(): string | null {
+        return null;
+      },
+      setItem(): boolean {
+        return false; // Simulate localStorage quota/unavailable
+      },
+      removeItem(): void {},
+    };
+    setSaveStorage(failingStorage);
+
+    const gs = makeGameState();
+    const result = saveGame(gs, 'customMap1');
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe('Save failed');
+  });
+
+  it('saveGame returns success:false when updating slot and storage write fails', () => {
+    // First, save successfully with a working storage
+    const gs = makeGameState();
+    const saveResult = saveGame(gs, 'customMap1');
+    expect(saveResult.success).toBe(true);
+    const slotId = saveResult.slotId!;
+
+    // Now swap to a failing storage for the update
+    const store = mockStorage; // capture the working store data
+    const rawData = store.getItem('four-elements-save-slots');
+    const failingStorage: SaveStorage = {
+      getItem(): string | null {
+        return rawData; // Still reads the existing data
+      },
+      setItem(): boolean {
+        return false; // But writes fail
+      },
+      removeItem(): void {},
+    };
+    setSaveStorage(failingStorage);
+
+    gs.economy.raw = 999;
+    const updateResult = saveGame(gs, 'customMap1', slotId);
+
+    expect(updateResult.success).toBe(false);
+    expect(updateResult.message).toBe('Save failed');
   });
 });

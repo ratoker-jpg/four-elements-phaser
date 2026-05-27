@@ -85,7 +85,8 @@ export interface LoadResult {
 /** Storage interface matching localStorage's async-safe subset. */
 export interface SaveStorage {
   getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
+  /** Returns true on success, false on failure (quota, unavailable, etc.). */
+  setItem(key: string, value: string): boolean;
   removeItem(key: string): void;
 }
 
@@ -99,12 +100,14 @@ const browserStorage: SaveStorage = {
       return null;
     }
   },
-  setItem(key: string, value: string): void {
+  setItem(key: string, value: string): boolean {
     try {
       localStorage.setItem(key, value);
+      return true;
     } catch {
-      // Quota exceeded or unavailable — silently fail
+      // Quota exceeded or unavailable
       console.warn('[saveGame] localStorage.setItem failed');
+      return false;
     }
   },
   removeItem(key: string): void {
@@ -148,9 +151,9 @@ function readSlots(): SaveSlot[] {
   }
 }
 
-/** Write all save slots to storage. */
-function writeSlots(slots: SaveSlot[]): void {
-  storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(slots));
+/** Write all save slots to storage. Returns true on success. */
+function writeSlots(slots: SaveSlot[]): boolean {
+  return storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(slots));
 }
 
 /** Validate a single slot has the required structure and version. */
@@ -225,7 +228,9 @@ export function saveGame(
       version: SAVE_VERSION,
       gameState,
     };
-    writeSlots(slots);
+    if (!writeSlots(slots)) {
+      return { success: false, message: 'Save failed' };
+    }
     return { success: true, message: 'Saved', slotId };
   }
 
@@ -248,7 +253,9 @@ export function saveGame(
   };
 
   slots.push(newSlot);
-  writeSlots(slots);
+  if (!writeSlots(slots)) {
+    return { success: false, message: 'Save failed' };
+  }
   return { success: true, message: 'Saved', slotId: newId };
 }
 
@@ -292,8 +299,7 @@ export function deleteSave(slotId: string): boolean {
   const slots = readSlots();
   const filtered = slots.filter(s => s.id !== slotId);
   if (filtered.length === slots.length) return false;
-  writeSlots(filtered);
-  return true;
+  return writeSlots(filtered);
 }
 
 /**

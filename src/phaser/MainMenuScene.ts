@@ -248,9 +248,11 @@ export class MainMenuScene extends Phaser.Scene {
       if (result.success && result.gameState) {
         this.hideSaveList();
         // Start GameScene with loaded state
+        // Fix 1: Pass saveSlotId so GameScene can update the same slot on re-save
         this.scene.start('GameScene', {
           loadedGameState: result.gameState,
           mapId: meta.mapId,
+          saveSlotId: meta.id,
         });
       } else {
         console.warn(`[MainMenuScene] Load failed: ${result.message}`);
