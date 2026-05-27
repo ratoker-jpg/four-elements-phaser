@@ -27,8 +27,7 @@ import { issueManualMove } from '../state/unitCommands';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
-import { DEFAULT_SETUP, getMapDataFromConfig } from '../state/gameSetup';
-import { generatedMapName } from '../state/generatedMap';
+import { DEFAULT_SETUP, getMapDataFromConfig, getMapDisplayName } from '../state/gameSetup';
 import { saveGame } from '../state/saveGame';
 import { loadUiSettings, applyUiScale } from '../state/uiSettings';
 import { DevtoolsPanel } from './ui/DevtoolsPanel';
@@ -178,13 +177,11 @@ export class GameScene extends Phaser.Scene {
     } else if (this.arenaMode) {
       // Arena mode: create arena state (devtools-gated)
       const arenaMapData = createArenaMapData();
-      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction);
+      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction, 'QA Arena');
       console.log('[GameScene] Arena mode active. Map: QA Arena (20x20)');
     } else {
       const mapData = getMapDataFromConfig(this.setupConfig);
-      const mapNameOverride = this.setupConfig.mapMode === 'generated'
-        ? generatedMapName(this.setupConfig.seed, this.setupConfig.mapSize)
-        : undefined;
+      const mapNameOverride = getMapDisplayName(this.setupConfig);
       this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride);
     }
 

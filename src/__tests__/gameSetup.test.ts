@@ -14,6 +14,7 @@ import {
   DEFAULT_SETUP,
   getMapDataById,
   getMapDataFromConfig,
+  getMapDisplayName,
   type GameSetupConfig,
 } from '../state/gameSetup';
 
@@ -152,6 +153,86 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
       };
       const mapData = getMapDataFromConfig(config);
       expect(mapData.width).toBe(20);
+    });
+  });
+
+  // ── Fix 1: getMapDisplayName — readable map names ──────────────
+
+  describe('getMapDisplayName', () => {
+    it('fixed customMap1 config displays as "Map 1"', () => {
+      const config: GameSetupConfig = {
+        faction: 'cyan',
+        mapId: 'customMap1',
+        mapMode: 'fixed',
+        mapSize: 'standard',
+        seed: 'default',
+      };
+      expect(getMapDisplayName(config)).toBe('Map 1');
+    });
+
+    it('generated config display name includes size and seed', () => {
+      const config: GameSetupConfig = {
+        faction: 'cyan',
+        mapId: 'generated-standard-abc123',
+        mapMode: 'generated',
+        mapSize: 'standard',
+        seed: 'abc123',
+      };
+      const name = getMapDisplayName(config);
+      expect(name).toContain('standard');
+      expect(name).toContain('abc123');
+      expect(name).toContain('Generated');
+    });
+
+    it('arena config display name is "QA Arena"', () => {
+      const config: GameSetupConfig = {
+        faction: 'cyan',
+        mapId: 'arena1',
+        mapMode: 'fixed',
+        mapSize: 'standard',
+        seed: '',
+      };
+      expect(getMapDisplayName(config)).toBe('QA Arena');
+    });
+
+    it('unknown fixed map ID falls back to "Map {id}"', () => {
+      const config: GameSetupConfig = {
+        faction: 'cyan',
+        mapId: 'someFutureMap',
+        mapMode: 'fixed',
+        mapSize: 'standard',
+        seed: '',
+      };
+      expect(getMapDisplayName(config)).toBe('Map someFutureMap');
+    });
+  });
+
+  // ── Fix 2: getMapDataById — malformed generated ID hardening ───
+
+  describe('getMapDataById malformed generated IDs', () => {
+    it('valid generated ID still returns generated map', () => {
+      const mapData = getMapDataById('generated-small-testseed');
+      expect(mapData.width).toBe(32);
+      expect(mapData.height).toBe(32);
+    });
+
+    it('malformed generated ID with invalid size falls back to customMap1', () => {
+      const mapData = getMapDataById('generated-weird-seed');
+      // "weird" is not a valid MapSizeOption, should fall back to customMap1
+      expect(mapData.width).toBe(48);
+      expect(mapData.height).toBe(48);
+    });
+
+    it('generated ID with only prefix falls back to customMap1', () => {
+      const mapData = getMapDataById('generated-');
+      // Not enough parts to have size + seed
+      expect(mapData.width).toBe(48);
+    });
+
+    it('generated ID with only prefix-size falls back to customMap1', () => {
+      const mapData = getMapDataById('generated-small');
+      // Only 2 parts, need at least 3 for size + seed
+      expect(mapData.width).toBe(48);
     });
   });
 });

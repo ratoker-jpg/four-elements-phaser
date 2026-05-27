@@ -16,6 +16,7 @@ import {
   createGeneratedMapData,
   type MapSizeOption,
   GENERATED_MAP_ID_PREFIX,
+  generatedMapName,
 } from './generatedMap';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -81,6 +82,31 @@ export const DEFAULT_SETUP: GameSetupConfig = {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
+/** Valid map size strings for validation. */
+const VALID_MAP_SIZES: ReadonlySet<string> = new Set<string>(MAP_SIZE_OPTIONS);
+
+/** Get a readable map display name from setup config. */
+export function getMapDisplayName(config: GameSetupConfig): string {
+  // Arena map (dev-only)
+  if (config.mapId === ARENA_MAP_ID) {
+    return 'QA Arena';
+  }
+
+  // Generated map
+  if (config.mapMode === 'generated') {
+    return generatedMapName(config.seed, config.mapSize);
+  }
+
+  // Fixed map — look up name from MAP_LIST
+  const mapEntry = MAP_LIST.find(m => m.id === config.mapId);
+  if (mapEntry) {
+    return mapEntry.name;
+  }
+
+  // Fallback for unknown fixed map IDs
+  return `Map ${config.mapId}`;
+}
+
 /** Get MapData by setup config. Handles fixed, generated, and arena maps. */
 export function getMapDataFromConfig(config: GameSetupConfig): MapData {
   // Arena map (dev-only)
@@ -110,10 +136,15 @@ export function getMapDataById(id: string): MapData {
         // Parse generated map ID: "generated-{size}-{seed}"
         const parts = id.split('-');
         if (parts.length >= 3) {
-          const size = parts[1] as MapSizeOption;
-          const seed = parts.slice(2).join('-');
-          return createGeneratedMapData(seed, size);
+          const size = parts[1];
+          // Validate size before using it — malformed IDs must fall back safely
+          if (VALID_MAP_SIZES.has(size)) {
+            const seed = parts.slice(2).join('-');
+            return createGeneratedMapData(seed, size as MapSizeOption);
+          }
         }
+        // Malformed generated ID — fall back to customMap1
+        return customMap1;
       }
       return customMap1;
   }
