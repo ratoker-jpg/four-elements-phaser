@@ -41,6 +41,6 @@ export class PreloadScene extends Phaser.Scene {
 
   create(): void {
     console.log('[PreloadScene] All assets loaded.');
-    this.scene.start('GameScene');
+    this.scene.start('MainMenuScene');
   }
 }

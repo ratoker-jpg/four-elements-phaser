@@ -25,6 +25,9 @@ import type { UnitSelection } from '../state/unitSelection';
 import { selectBuilder, selectHarvester, clearSelection, isUnitSelected } from '../state/unitSelection';
 import { issueManualMove } from '../state/unitCommands';
 import { validateMap } from '../state/mapValidation';
+import { PauseMenu } from './ui/PauseMenu';
+import type { GameSetupConfig } from '../state/gameSetup';
+import { DEFAULT_SETUP, getMapDataById } from '../state/gameSetup';
 
 /**
  * GameScene — orchestration-only scene.
@@ -56,9 +59,16 @@ export class GameScene extends Phaser.Scene {
   private buildingStatusRenderer: BuildingStatusRenderer | null = null;
   private cameraControls: CameraControls | null = null;
   private playtestHud: PlaytestHud | null = null;
+  private pauseMenu: PauseMenu | null = null;
   private gameState!: GameState;
   private hqWorldX: number = 0;
   private hqWorldY: number = 0;
+
+  // ARCH-14B: Setup config stored for restart functionality
+  private setupConfig: GameSetupConfig = DEFAULT_SETUP;
+
+  // ARCH-14B: Pause state — when true, update loop is skipped
+  private paused = false;
 
   // ARCH-05X: Unit selection state
   private selectedUnit: UnitSelection = null;
@@ -88,9 +98,18 @@ export class GameScene extends Phaser.Scene {
     super({ key: 'GameScene' });
   }
 
+  /**
+   * Receive scene data from MainMenu/NewGameSetup.
+   * Called by Phaser before create().
+   */
+  init(data: GameSetupConfig): void {
+    this.setupConfig = { ...DEFAULT_SETUP, ...data };
+  }
+
   create(): void {
-    // Initialize game state from saved map
-    this.gameState = createInitialState();
+    // Initialize game state from setup config (faction + map)
+    const mapData = getMapDataById(this.setupConfig.mapId);
+    this.gameState = createInitialState(mapData, this.setupConfig.faction);
 
     // Verify all required assets are loaded
     this.verifyAssets();
@@ -271,6 +290,27 @@ export class GameScene extends Phaser.Scene {
       (unitType: ProducibleUnitType) => this.requestQueueUnit(unitType),
     );
 
+    // ARCH-14B: Create pause menu with callbacks
+    this.pauseMenu = new PauseMenu();
+    this.pauseMenu.create(
+      {
+        onResume: () => {
+          this.paused = false;
+        },
+        onRestart: (config: GameSetupConfig) => {
+          // Restart GameScene with the same config
+          this.paused = false;
+          this.scene.restart(config);
+        },
+        onMainMenu: () => {
+          // Stop GameScene, return to main menu
+          this.paused = false;
+          this.scene.start('MainMenuScene');
+        },
+      },
+      this.setupConfig,
+    );
+
     // Set world background color
     this.cameras.main.setBackgroundColor('#1a1a2e');
 
@@ -305,9 +345,18 @@ export class GameScene extends Phaser.Scene {
       this.handleLeftClick(pointer);
     });
 
-    // ESC: deselect
+    // ESC: toggle pause menu (ARCH-14B)
     this.input.keyboard?.on('keydown-ESC', () => {
-      this.selectedUnit = clearSelection();
+      if (this.pauseMenu?.visible) {
+        // Menu is open → close it (resume)
+        this.pauseMenu.hide();
+        this.paused = false;
+      } else {
+        // Menu is closed → open it (pause)
+        this.selectedUnit = clearSelection();
+        this.pauseMenu?.show();
+        this.paused = true;
+      }
     });
 
     // Log state summary
@@ -339,6 +388,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    // ARCH-14B: Skip game loop when paused
+    if (this.paused) return;
+
     // 1. Advance game state (harvester civil loop)
     updateGameState(this.gameState, delta);
 
@@ -695,6 +747,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.pauseMenu?.destroy();
+    this.pauseMenu = null;
     this.playtestHud?.destroy();
     this.playtestHud = null;
     this.buildingStatusRenderer?.destroy();
@@ -702,5 +756,6 @@ export class GameScene extends Phaser.Scene {
     this.cameraControls?.destroy();
     this.entityRenderer?.destroy();
     this.terrainRenderer?.destroy();
+    this.paused = false;
   }
 }
