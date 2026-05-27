@@ -177,6 +177,8 @@ export class MainMenuScene extends Phaser.Scene {
       z-index: 35;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #e0e0e0;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: center center;
     `;
 
     const panel = document.createElement('div');
@@ -430,6 +432,8 @@ export class MainMenuScene extends Phaser.Scene {
       z-index: 35;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #e0e0e0;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: center center;
     `;
 
     const panel = document.createElement('div');
