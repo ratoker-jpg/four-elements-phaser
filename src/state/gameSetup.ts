@@ -41,10 +41,9 @@ export const FACTION_CSS_COLORS: Record<Faction, string> = {
   purple: '#cc66ff',
 };
 
-/** Available maps for map selection UI. */
+/** Available maps for map selection UI. QA Arena is NOT exposed here — it is dev-only. */
 export const MAP_LIST: ReadonlyArray<{ id: string; name: string }> = [
   { id: 'customMap1', name: 'Map 1' },
-  { id: ARENA_MAP_ID, name: 'QA Arena' },
 ];
 
 /** Default setup configuration (cyan faction, Map 1). */

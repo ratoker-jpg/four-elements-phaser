@@ -155,11 +155,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    // ARCH-15A: Use loaded state if available, otherwise create new state
+    // ARCH-11B+12A fixup: Compute devtools/arena flags BEFORE any rendering.
+    // Arena mode is gated on devtools being active: ?devtools=1&arena=1.
+    this.devtoolsActive = isDevtoolsEnabled();
+    this.arenaMode = this.devtoolsActive && isArenaEnabled();
+
+    // Determine the game state source — loaded save takes priority,
+    // then arena (dev-only), then normal setup config.
     if (this.loadedGameState) {
       this.gameState = this.loadedGameState;
       this.loadedGameState = null;
       console.log('[GameScene] Loaded saved game state.');
+    } else if (this.arenaMode) {
+      // Arena mode: create arena state (devtools-gated)
+      const arenaMapData = createArenaMapData();
+      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction);
+      console.log('[GameScene] Arena mode active. Map: QA Arena (20x20)');
     } else {
       const mapData = getMapDataById(this.setupConfig.mapId);
       this.gameState = createInitialState(mapData, this.setupConfig.faction);
@@ -374,59 +385,13 @@ export class GameScene extends Phaser.Scene {
       this.setupConfig,
     );
 
-    // ARCH-11A: Create devtools panel if activated
-    this.devtoolsActive = isDevtoolsEnabled();
-    this.arenaMode = isArenaEnabled();
-
     // ARCH-11B: Create debug overlay renderer if devtools is active
     if (this.devtoolsActive) {
       this.debugOverlayRenderer = new DebugOverlayRenderer(this, this._offset as IsoPoint);
     }
 
-    // ARCH-12A: Arena mode — override initial state if arena=1
-    if (this.arenaMode && !this.loadedGameState) {
-      const arenaMapData = createArenaMapData();
-      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction);
-      // Re-render terrain and entities for arena map
-      this.terrainRenderer?.destroy();
-      this.terrainRenderer = new TerrainRenderer(
-        this,
-        this.gameState.mapData.terrain,
-        this.gameState.mapWidth,
-        this.gameState.mapHeight,
-      );
-      const arenaOffset = mapOriginOffset(this.gameState.mapWidth, this.gameState.mapHeight);
-      this._offset = arenaOffset;
-
-      // Re-create entity renderer for arena
-      this.entityRenderer?.destroy();
-      this.entityRenderer = new EntityRenderer(this, arenaOffset);
-      this.entityRenderer.renderStaticEntities(this.gameState.entities);
-      this.entityRenderer.renderDynamicInit(
-        this.gameState.harvesters,
-        this.gameState.resourceNodes,
-      );
-
-      // Re-create building status renderer
-      this.buildingStatusRenderer?.destroy();
-      this.buildingStatusRenderer = new BuildingStatusRenderer(this, arenaOffset);
-
-      // Re-create debug overlay renderer with new offset
-      this.debugOverlayRenderer?.destroy();
-      this.debugOverlayRenderer = new DebugOverlayRenderer(this, arenaOffset);
-
-      // Re-center camera on HQ
-      const hq = this.gameState.mapData.hq;
-      const hqCenterTx = hq.tx + 1;
-      const hqCenterTy = hq.ty + 1;
-      const hqScreen = tileToScreen(hqCenterTx, hqCenterTy);
-      this.hqWorldX = hqScreen.x + arenaOffset.x;
-      this.hqWorldY = hqScreen.y + arenaOffset.y;
-      this.cameraControls?.centerOn(this.hqWorldX, this.hqWorldY);
-
-      console.log('[GameScene] Arena mode active. Map: QA Arena (20x20)');
-    }
-
+    // ARCH-11A: Create devtools panel if activated
+    // (devtoolsActive/arenaMode already computed at top of create())
     if (this.devtoolsActive) {
       this.devtoolsPanel = new DevtoolsPanel();
       this.devtoolsPanel.create({
