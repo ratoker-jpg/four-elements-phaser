@@ -62,17 +62,21 @@ render-side smoothing removed
 selection ring / unit grounding / lane readability not fully solved
 ```
 
-### Immediate next planning step
+### Current roadmap direction
 
-Next work should **not** continue ad-hoc selection-ring or anchor tweaks.
+Continue the main roadmap workstream.
 
-Run a fix roadmap audit first:
+Do **not** switch the immediate next step to the fix roadmap audit by default.
+
+Known unresolved visual/movement issues from ARCH-05Y should be parked in the fix backlog until the project intentionally schedules a fix roadmap audit.
+
+Current fix backlog candidate:
 
 ```text
 FIX-ROADMAP-AUDIT — Unit visual grounding, selection marker, lane movement readability
 ```
 
-This audit should group and plan the recurring visual/movement issues:
+This future audit should group and plan the recurring visual/movement issues:
 
 - selection marker model;
 - unit ground anchor model;
@@ -80,6 +84,8 @@ This audit should group and plan the recurring visual/movement issues:
 - tile-lane movement readability;
 - civil unit movement through/across cells;
 - debug tools for anchor/tile/lane visualization if needed.
+
+Small fixes can still be handled inside the currently active roadmap ARCH when they are directly related to that ARCH and do not require a separate system model.
 
 ---
 
@@ -98,7 +104,8 @@ Core rule:
 
 ```text
 roadmap -> audit/design -> risk-based scoped PR package -> implementation -> review/hardening -> merge
-failed fix cluster -> fix-cluster audit -> scoped fix package -> implementation -> manual QA -> merge/follow-up
+failed fix cluster -> park in fix backlog or audit immediately if it blocks the active workstream
+fix backlog -> fix-roadmap audit -> scoped fix package -> implementation -> manual QA -> merge/follow-up
 ```
 
 ---
@@ -119,7 +126,7 @@ Meaning:
 - tests/typecheck/build/qa-smoke are required for runtime PRs;
 - manual QA remains mandatory for visual/gameplay/UX-sensitive changes;
 - hardening passes are expected when review finds prototype debt;
-- if a fix fails after 1-2 attempts, implementation stops and a FIX-CLUSTER-AUDIT or FIX-ROADMAP-AUDIT is required.
+- if a fix fails after 1-2 attempts, implementation stops; the issue is either parked in the fix backlog or moved into a FIX-CLUSTER-AUDIT/FIX-ROADMAP-AUDIT if it blocks the active workstream.
 
 ---
 
@@ -230,11 +237,12 @@ Do not start without explicit accepted scope:
 - save/load;
 - random / unscoped implementation work;
 - unrelated-system high+ bundles;
-- more ad-hoc selection-ring / unit-anchor tweaks before fix roadmap audit.
+- more ad-hoc selection-ring / unit-anchor tweaks outside an active ARCH or without fix-roadmap audit.
 
-Allowed next planning workstream:
+Allowed next direction:
 
-- FIX-ROADMAP-AUDIT — Unit visual grounding, selection marker, lane movement readability.
+- continue the main roadmap workstream selected by GPT/Denis;
+- keep unit visual grounding / selection marker / lane readability in the fix backlog until scheduled.
 
 ---
 
