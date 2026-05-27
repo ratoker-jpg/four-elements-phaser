@@ -27,7 +27,7 @@ import { issueManualMove } from '../state/unitCommands';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
-import { DEFAULT_SETUP, getMapDataById } from '../state/gameSetup';
+import { DEFAULT_SETUP, getMapDataFromConfig, getMapDisplayName } from '../state/gameSetup';
 import { saveGame } from '../state/saveGame';
 import { loadUiSettings, applyUiScale } from '../state/uiSettings';
 import { DevtoolsPanel } from './ui/DevtoolsPanel';
@@ -147,7 +147,7 @@ export class GameScene extends Phaser.Scene {
    */
   init(data: GameSetupConfig | LoadSceneData): void {
     if ('loadedGameState' in data && data.loadedGameState) {
-      this.setupConfig = { faction: data.loadedGameState.playerFaction, mapId: data.mapId ?? 'customMap1' };
+      this.setupConfig = { ...DEFAULT_SETUP, faction: data.loadedGameState.playerFaction, mapId: data.mapId ?? 'customMap1' };
       this.loadedGameState = data.loadedGameState;
       // Fix 1: Preserve loaded slot ID for re-save
       this.currentSaveSlotId = data.saveSlotId ?? null;
@@ -177,11 +177,12 @@ export class GameScene extends Phaser.Scene {
     } else if (this.arenaMode) {
       // Arena mode: create arena state (devtools-gated)
       const arenaMapData = createArenaMapData();
-      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction);
+      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction, 'QA Arena');
       console.log('[GameScene] Arena mode active. Map: QA Arena (20x20)');
     } else {
-      const mapData = getMapDataById(this.setupConfig.mapId);
-      this.gameState = createInitialState(mapData, this.setupConfig.faction);
+      const mapData = getMapDataFromConfig(this.setupConfig);
+      const mapNameOverride = getMapDisplayName(this.setupConfig);
+      this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride);
     }
 
     // Verify all required assets are loaded

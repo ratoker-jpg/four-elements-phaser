@@ -36,7 +36,7 @@ import { customMap1 } from '../data/maps/customMap1';
  * gather/deliver loop. Extra harvesters are also tracked as runtime
  * state units.
  */
-export function createInitialState(mapData: MapData = customMap1, playerFaction?: Faction): GameState {
+export function createInitialState(mapData: MapData = customMap1, playerFaction?: Faction, mapNameOverride?: string): GameState {
   // Resolve player faction: explicit override > map data default
   const faction = playerFaction ?? (mapData.hq.faction as Faction);
 
@@ -76,9 +76,12 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
   const resourceNodes = buildResourceNodeStates(mapData);
   const hqPosition = { tx: mapData.hq.tx + 1, ty: mapData.hq.ty + 1 }; // HQ center (3×3 footprint)
 
+  // ARCH-16B: Derive mapName from mapData or use override
+  const mapName = mapNameOverride ?? `Map ${mapData.width}x${mapData.height}`;
+
   return {
     mapId: `map-${faction}-${mapData.width}x${mapData.height}`,
-    mapName: 'Карта 1',
+    mapName,
     mapWidth: mapData.width,
     mapHeight: mapData.height,
     mapData,
