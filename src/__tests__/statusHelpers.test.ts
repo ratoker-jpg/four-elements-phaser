@@ -218,12 +218,14 @@ describe('ARCH-07A: getFactoryStatus', () => {
     expect(getFactoryStatus(state, factory)).toBe('producing-harvester');
   });
 
-  it('returns "blocked-queue-full" when queue is at limit', () => {
+  it('returns "blocked-queue-full" when queue is at limit with all items completed', () => {
     const state = makeStateWithFactory();
     const factory = state.production.factories[0];
+    // Both items completed — no unfinished item, so blocked-power does not apply;
+    // the queue is simply full with items waiting to spawn.
     factory.queue = [
-      { unitType: 'builder', elapsedMs: 5000, durationMs: 15000, progress: 0.33, completed: false },
-      { unitType: 'harvester', elapsedMs: 0, durationMs: 20000, progress: 0, completed: false },
+      { unitType: 'builder', elapsedMs: 15000, durationMs: 15000, progress: 1, completed: true },
+      { unitType: 'harvester', elapsedMs: 20000, durationMs: 20000, progress: 1, completed: true },
     ];
     expect(getFactoryStatus(state, factory)).toBe('blocked-queue-full');
   });
@@ -253,6 +255,28 @@ describe('ARCH-07A: getFactoryStatus', () => {
       { tx: 10, ty: 10, type: 'units-factory' },
     ];
     const factory = state.production.factories[0];
+    expect(getFactoryStatus(state, factory)).toBe('blocked-power');
+  });
+
+  it('returns "blocked-power" when queue is full with unfinished item and factory is inactive (power blocked)', () => {
+    // Queue full (2 items), first item unfinished, factory not active → blocked-power
+    // This should report blocked-power (root cause) not blocked-queue-full (secondary symptom)
+    const state = makeStateWithFactory({ factoryActive: false });
+    // Add power-consuming separators to starve the factory
+    state.economy.separators.push(
+      { tx: 5, ty: 5, progress: 0, active: true },
+      { tx: 7, ty: 7, progress: 0, active: true },
+    );
+    state.mapData.buildings = [
+      { tx: 5, ty: 5, type: 'separator' },
+      { tx: 7, ty: 7, type: 'separator' },
+      { tx: 10, ty: 10, type: 'units-factory' },
+    ];
+    const factory = state.production.factories[0];
+    factory.queue = [
+      { unitType: 'builder', elapsedMs: 5000, durationMs: 15000, progress: 0.33, completed: false },
+      { unitType: 'harvester', elapsedMs: 0, durationMs: 20000, progress: 0, completed: false },
+    ];
     expect(getFactoryStatus(state, factory)).toBe('blocked-power');
   });
 

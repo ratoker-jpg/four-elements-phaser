@@ -145,6 +145,14 @@ export function getFactoryStatus(
       : 'producing-harvester';
   }
 
+  // If there's an unfinished item but factory is not active, it's power-blocked.
+  // This must be checked before queue-full so that a full queue with an
+  // unfinished item that can't progress reports the root cause (no power),
+  // not a secondary symptom (queue full).
+  if (activeItem && !factory.active) {
+    return 'blocked-power';
+  }
+
   // If queue is full, report that
   if (factory.queue.length >= QUEUE_LIMIT) {
     return 'blocked-queue-full';
@@ -165,11 +173,6 @@ export function getFactoryStatus(
     if (state.economy.elements[state.playerFaction] < elementCost) {
       return 'blocked-no-element';
     }
-  }
-
-  // If there's an active item but factory is not active, it's likely power-blocked
-  if (activeItem && !factory.active) {
-    return 'blocked-power';
   }
 
   // Factory has room in queue and no active item — idle

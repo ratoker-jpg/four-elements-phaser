@@ -94,6 +94,8 @@ export class PlaytestHud {
   private matterDelta = 0;
   private deltaTimer: ReturnType<typeof setTimeout> | null = null;
   private deltaActive = false;
+  /** Guard to suppress huge initial deltas on the first HUD update. */
+  private resourceDeltaInitialized = false;
 
   /**
    * Create the HUD DOM overlay and attach it to the document body.
@@ -402,6 +404,7 @@ export class PlaytestHud {
     this.buildReasonEls.clear();
     this.productionButtons.clear();
     this.prodReasonEls.clear();
+    this.resourceDeltaInitialized = false;
   }
 
   // ─── Internal handlers ────────────────────────────────────────────
@@ -504,9 +507,21 @@ export class PlaytestHud {
   // ─── Resource delta tracking ──────────────────────────────────────
 
   private trackResourceDeltas(state: GameState): void {
+    const factionElRaw = state.economy.elements[state.playerFaction];
+
+    // On the very first update, initialize prev values from current state
+    // so that no huge spurious deltas appear from the 0→actual jump.
+    if (!this.resourceDeltaInitialized) {
+      this.prevRaw = state.economy.raw;
+      this.prevMatter = state.economy.matter;
+      this.prevElementUnits = factionElRaw;
+      this.resourceDeltaInitialized = true;
+      return;
+    }
+
     const rawDelta = state.economy.raw - this.prevRaw;
     const matterDelta = state.economy.matter - this.prevMatter;
-    const elDelta = state.economy.elements[state.playerFaction] - this.prevElementUnits;
+    const elDelta = factionElRaw - this.prevElementUnits;
 
     // Only update if something changed
     if (rawDelta !== 0 || matterDelta !== 0 || elDelta !== 0) {
