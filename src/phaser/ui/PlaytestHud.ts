@@ -4,6 +4,9 @@
  * ARCH-14A: MVP playtest HUD with economy readout, build buttons,
  * production buttons, and status feedback. No framework, no dependencies.
  *
+ * ARCH-07A: Extended with separator status, factory queue/progress,
+ * button disable reasons, and resource change feedback.
+ *
  * Lifecycle:
  * - Created by GameScene in create().
  * - Updated each frame via update(state).
@@ -13,6 +16,16 @@
 import type { GameState, BuildingType, ProducibleUnitType } from '../../state/types';
 import { ELEMENT_UNITS_PER_ELEMENT } from '../../state/types';
 import { BUILDING_CONFIG } from '../../state/construction';
+import {
+  getSeparatorStatus,
+  getFactoryStatus,
+  getBuildBlockReason,
+  getProductionBlockReason,
+  separatorStatusLabel,
+  factoryStatusLabel,
+  buildBlockLabel,
+  productionBlockLabel,
+} from '../../state/statusHelpers';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -39,6 +52,9 @@ export interface ProductionRequestResult {
 /** How long status messages are displayed before fading (ms). */
 const STATUS_DISPLAY_MS = 3000;
 
+/** How long resource delta indicators are shown (ms). */
+const DELTA_DISPLAY_MS = 2000;
+
 /** Build button definitions. */
 const BUILD_BUTTONS: Array<{ buildingType: BuildingType; label: string; hotkey: string }> = [
   { buildingType: 'separator', label: 'Separator', hotkey: 'B' },
@@ -57,14 +73,27 @@ const PRODUCTION_BUTTONS: Array<{ unitType: ProducibleUnitType; label: string; h
 export class PlaytestHud {
   private container: HTMLDivElement | null = null;
   private economyEl: HTMLDivElement | null = null;
+  private separatorEl: HTMLDivElement | null = null;
+  private factoryEl: HTMLDivElement | null = null;
   private statusEl: HTMLDivElement | null = null;
   private statusTimer: ReturnType<typeof setTimeout> | null = null;
   private buildButtons: Map<BuildingType, HTMLButtonElement> = new Map();
+  private buildReasonEls: Map<BuildingType, HTMLSpanElement> = new Map();
   private productionButtons: Map<ProducibleUnitType, HTMLButtonElement> = new Map();
+  private prodReasonEls: Map<ProducibleUnitType, HTMLSpanElement> = new Map();
 
   // Callbacks — set by GameScene
   private onBuildRequest: BuildRequestCallback | null = null;
   private onProductionRequest: ProductionRequestCallback | null = null;
+
+  // Resource delta tracking
+  private prevRaw = 0;
+  private prevMatter = 0;
+  private prevElementUnits = 0;
+  private rawDelta = 0;
+  private matterDelta = 0;
+  private deltaTimer: ReturnType<typeof setTimeout> | null = null;
+  private deltaActive = false;
 
   /**
    * Create the HUD DOM overlay and attach it to the document body.
@@ -84,7 +113,7 @@ export class PlaytestHud {
       position: fixed;
       top: 48px;
       right: 8px;
-      width: 220px;
+      width: 228px;
       background: rgba(0, 0, 0, 0.75);
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 6px;
@@ -95,6 +124,8 @@ export class PlaytestHud {
       z-index: 20;
       pointer-events: auto;
       user-select: none;
+      max-height: calc(100vh - 60px);
+      overflow-y: auto;
     `;
 
     // ── Economy section ──────────────────────────────────────────
@@ -104,8 +135,28 @@ export class PlaytestHud {
     root.appendChild(econTitle);
 
     this.economyEl = document.createElement('div');
-    this.economyEl.style.cssText = 'line-height: 1.6; margin-bottom: 10px; color: #c0c0c0;';
+    this.economyEl.style.cssText = 'line-height: 1.6; margin-bottom: 8px; color: #c0c0c0;';
     root.appendChild(this.economyEl);
+
+    // ── Separator section ────────────────────────────────────────
+    const sepTitle = document.createElement('div');
+    sepTitle.textContent = 'Separators';
+    sepTitle.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #66bbff;';
+    root.appendChild(sepTitle);
+
+    this.separatorEl = document.createElement('div');
+    this.separatorEl.style.cssText = 'line-height: 1.5; margin-bottom: 8px; color: #b0b0b0; font-size: 11px;';
+    root.appendChild(this.separatorEl);
+
+    // ── Factory section ──────────────────────────────────────────
+    const factTitle = document.createElement('div');
+    factTitle.textContent = 'Factory';
+    factTitle.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #ffcc44;';
+    root.appendChild(factTitle);
+
+    this.factoryEl = document.createElement('div');
+    this.factoryEl.style.cssText = 'line-height: 1.5; margin-bottom: 8px; color: #b0b0b0; font-size: 11px;';
+    root.appendChild(this.factoryEl);
 
     // ── Build section ────────────────────────────────────────────
     const buildTitle = document.createElement('div');
@@ -114,14 +165,15 @@ export class PlaytestHud {
     root.appendChild(buildTitle);
 
     for (const def of BUILD_BUTTONS) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display: flex; align-items: center; margin: 2px 0;';
+
       const btn = document.createElement('button');
       const config = BUILDING_CONFIG[def.buildingType];
       const costStr = config ? ` (${config.costMatter}m)` : '';
       btn.textContent = `${def.hotkey} = ${def.label}${costStr}`;
       btn.style.cssText = `
-        display: block;
-        width: 100%;
-        margin: 2px 0;
+        flex: 1;
         padding: 4px 8px;
         background: rgba(129, 199, 132, 0.15);
         border: 1px solid rgba(129, 199, 132, 0.3);
@@ -139,8 +191,22 @@ export class PlaytestHud {
       btn.addEventListener('mouseleave', () => {
         btn.style.background = 'rgba(129, 199, 132, 0.15)';
       });
-      root.appendChild(btn);
+      row.appendChild(btn);
+
+      // Reason label (shown when disabled)
+      const reasonSpan = document.createElement('span');
+      reasonSpan.style.cssText = `
+        font-size: 9px;
+        color: #ef9a9a;
+        margin-left: 4px;
+        white-space: nowrap;
+        display: none;
+      `;
+      row.appendChild(reasonSpan);
+
+      root.appendChild(row);
       this.buildButtons.set(def.buildingType, btn);
+      this.buildReasonEls.set(def.buildingType, reasonSpan);
     }
 
     // ── Production section ───────────────────────────────────────
@@ -150,12 +216,13 @@ export class PlaytestHud {
     root.appendChild(prodTitle);
 
     for (const def of PRODUCTION_BUTTONS) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display: flex; align-items: center; margin: 2px 0;';
+
       const btn = document.createElement('button');
       btn.textContent = `${def.hotkey} = ${def.label}`;
       btn.style.cssText = `
-        display: block;
-        width: 100%;
-        margin: 2px 0;
+        flex: 1;
         padding: 4px 8px;
         background: rgba(255, 183, 77, 0.15);
         border: 1px solid rgba(255, 183, 77, 0.3);
@@ -173,8 +240,22 @@ export class PlaytestHud {
       btn.addEventListener('mouseleave', () => {
         btn.style.background = 'rgba(255, 183, 77, 0.15)';
       });
-      root.appendChild(btn);
+      row.appendChild(btn);
+
+      // Reason label (shown when disabled)
+      const reasonSpan = document.createElement('span');
+      reasonSpan.style.cssText = `
+        font-size: 9px;
+        color: #ef9a9a;
+        margin-left: 4px;
+        white-space: nowrap;
+        display: none;
+      `;
+      row.appendChild(reasonSpan);
+
+      root.appendChild(row);
       this.productionButtons.set(def.unitType, btn);
+      this.prodReasonEls.set(def.unitType, reasonSpan);
     }
 
     // ── Status section ───────────────────────────────────────────
@@ -208,31 +289,71 @@ export class PlaytestHud {
     const elCapDisplayed = (s.economy.elementCap / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
     const factionLabel = s.playerFaction.charAt(0).toUpperCase() + s.playerFaction.slice(1);
 
+    // ── Resource delta tracking ──────────────────────────────────
+    this.trackResourceDeltas(s);
+
+    const rawDeltaStr = this.formatDelta(this.rawDelta, s.economy.raw !== this.prevRaw);
+    const matterDeltaStr = this.formatDelta(this.matterDelta, s.economy.matter !== this.prevMatter);
+    const elDeltaRaw = factionElRaw - this.prevElementUnits;
+    const elDeltaStr = this.formatDelta(
+      elDeltaRaw / ELEMENT_UNITS_PER_ELEMENT,
+      factionElRaw !== this.prevElementUnits,
+    );
+
     this.economyEl.innerHTML =
-      `<div>Raw: <b>${s.economy.raw}</b>/${s.economy.rawCap}</div>` +
-      `<div>Matter: <b>${s.economy.matter}</b>/${s.economy.matterCap}</div>` +
-      `<div>${factionLabel}: <b>${factionElDisplayed}</b>/${elCapDisplayed}</div>` +
+      `<div>Raw: <b>${s.economy.raw}</b>/${s.economy.rawCap} ${rawDeltaStr}</div>` +
+      `<div>Matter: <b>${s.economy.matter}</b>/${s.economy.matterCap} ${matterDeltaStr}</div>` +
+      `<div>${factionLabel}: <b>${factionElDisplayed}</b>/${elCapDisplayed} ${elDeltaStr}</div>` +
       `<div>Power: <b>${s.economy.powerConsumed}</b>/${s.economy.powerGenerated}</div>`;
 
-    // Update button disable states based on affordability
+    // ── Separator status section ─────────────────────────────────
+    this.updateSeparatorSection(s);
+
+    // ── Factory queue section ────────────────────────────────────
+    this.updateFactorySection(s);
+
+    // ── Build button disable states + reasons ────────────────────
     for (const [buildingType, btn] of this.buildButtons) {
-      const config = BUILDING_CONFIG[buildingType];
-      const canAfford = config ? s.economy.matter >= config.costMatter : false;
-      const hasIdleBuilder = s.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
-      const disabled = !canAfford || !hasIdleBuilder;
+      const reason = getBuildBlockReason(s, buildingType);
+      const disabled = reason !== null;
       btn.disabled = disabled;
       btn.style.opacity = disabled ? '0.4' : '1';
       btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+
+      const reasonEl = this.buildReasonEls.get(buildingType);
+      if (reasonEl) {
+        if (disabled && reason) {
+          reasonEl.textContent = buildBlockLabel(reason);
+          reasonEl.style.display = 'inline';
+        } else {
+          reasonEl.style.display = 'none';
+        }
+      }
     }
 
-    for (const [_unitType, btn] of this.productionButtons) {
-      const hasFactory = s.production.factories.length > 0;
-      const hasQueueRoom = s.production.factories.some(f => f.queue.length < 2);
-      const disabled = !hasFactory || !hasQueueRoom;
+    // ── Production button disable states + reasons ───────────────
+    for (const [unitType, btn] of this.productionButtons) {
+      const reason = getProductionBlockReason(s, unitType);
+      const disabled = reason !== null;
       btn.disabled = disabled;
       btn.style.opacity = disabled ? '0.4' : '1';
       btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+
+      const reasonEl = this.prodReasonEls.get(unitType);
+      if (reasonEl) {
+        if (disabled && reason) {
+          reasonEl.textContent = productionBlockLabel(reason);
+          reasonEl.style.display = 'inline';
+        } else {
+          reasonEl.style.display = 'none';
+        }
+      }
     }
+
+    // ── Store current values for next frame delta ────────────────
+    this.prevRaw = s.economy.raw;
+    this.prevMatter = s.economy.matter;
+    this.prevElementUnits = factionElRaw;
   }
 
   /**
@@ -264,15 +385,23 @@ export class PlaytestHud {
       clearTimeout(this.statusTimer);
       this.statusTimer = null;
     }
+    if (this.deltaTimer) {
+      clearTimeout(this.deltaTimer);
+      this.deltaTimer = null;
+    }
 
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
     this.container = null;
     this.economyEl = null;
+    this.separatorEl = null;
+    this.factoryEl = null;
     this.statusEl = null;
     this.buildButtons.clear();
+    this.buildReasonEls.clear();
     this.productionButtons.clear();
+    this.prodReasonEls.clear();
   }
 
   // ─── Internal handlers ────────────────────────────────────────────
@@ -287,5 +416,119 @@ export class PlaytestHud {
     if (!this.onProductionRequest) return;
     const result = this.onProductionRequest(unitType);
     this.showStatus(result.message, result.success);
+  }
+
+  // ─── Separator section ────────────────────────────────────────────
+
+  private updateSeparatorSection(state: GameState): void {
+    if (!this.separatorEl) return;
+
+    if (state.economy.separators.length === 0) {
+      this.separatorEl.innerHTML = '<div style="color:#666;">None built</div>';
+      return;
+    }
+
+    const parts: string[] = [];
+    for (let i = 0; i < state.economy.separators.length; i++) {
+      const sep = state.economy.separators[i];
+      const status = getSeparatorStatus(state, sep);
+      const label = separatorStatusLabel(status);
+      const color = this.separatorStatusColor(status);
+      const progressStr = status === 'processing'
+        ? ` ${Math.round(sep.progress * 100)}%`
+        : '';
+      parts.push(
+        `<div><span style="color:${color};">Sep ${i + 1}:</span> ${label}${progressStr}</div>`,
+      );
+    }
+    this.separatorEl.innerHTML = parts.join('');
+  }
+
+  private separatorStatusColor(status: string): string {
+    switch (status) {
+      case 'processing': return '#66bbff';
+      case 'idle': return '#999';
+      default: return '#ff8866'; // blocked
+    }
+  }
+
+  // ─── Factory section ──────────────────────────────────────────────
+
+  private updateFactorySection(state: GameState): void {
+    if (!this.factoryEl) return;
+
+    if (state.production.factories.length === 0) {
+      this.factoryEl.innerHTML = '<div style="color:#666;">None built</div>';
+      return;
+    }
+
+    const parts: string[] = [];
+    for (let i = 0; i < state.production.factories.length; i++) {
+      const factory = state.production.factories[i];
+      const status = getFactoryStatus(state, factory);
+      const label = factoryStatusLabel(status);
+      const color = this.factoryStatusColor(status);
+
+      // Queue display
+      let queueStr = '';
+      if (factory.queue.length === 0) {
+        queueStr = '<span style="color:#666;">Queue: empty</span>';
+      } else {
+        const slots: string[] = [];
+        for (const item of factory.queue) {
+          const typeChar = item.unitType === 'builder' ? 'B' : 'H';
+          const pct = item.completed ? 'done' : `${Math.round(item.progress * 100)}%`;
+          slots.push(`${typeChar}${pct}`);
+        }
+        queueStr = `Queue: ${slots.join(' | ')}${factory.queue.length < 2 ? ' + empty' : ''}`;
+      }
+
+      parts.push(
+        `<div><span style="color:${color};">Factory ${i + 1}:</span> ${label}</div>` +
+        `<div style="margin-left:8px; font-size:10px;">${queueStr}</div>`,
+      );
+    }
+    this.factoryEl.innerHTML = parts.join('');
+  }
+
+  private factoryStatusColor(status: string): string {
+    switch (status) {
+      case 'producing-builder':
+      case 'producing-harvester':
+        return '#ffcc44';
+      case 'idle': return '#999';
+      default: return '#ff8866'; // blocked
+    }
+  }
+
+  // ─── Resource delta tracking ──────────────────────────────────────
+
+  private trackResourceDeltas(state: GameState): void {
+    const rawDelta = state.economy.raw - this.prevRaw;
+    const matterDelta = state.economy.matter - this.prevMatter;
+    const elDelta = state.economy.elements[state.playerFaction] - this.prevElementUnits;
+
+    // Only update if something changed
+    if (rawDelta !== 0 || matterDelta !== 0 || elDelta !== 0) {
+      this.rawDelta = rawDelta;
+      this.matterDelta = matterDelta;
+      this.deltaActive = true;
+
+      // Reset the delta fade timer
+      if (this.deltaTimer) clearTimeout(this.deltaTimer);
+      this.deltaTimer = setTimeout(() => {
+        this.deltaActive = false;
+        this.rawDelta = 0;
+        this.matterDelta = 0;
+      }, DELTA_DISPLAY_MS);
+    }
+  }
+
+  /** Format a resource delta as a colored string like "+5" or "-3". */
+  private formatDelta(delta: number, changed: boolean): string {
+    if (!this.deltaActive || !changed || delta === 0) return '';
+    const sign = delta > 0 ? '+' : '';
+    const color = delta > 0 ? '#81c784' : '#ef9a9a';
+    return `<span style="color:${color}; font-size:10px;"> ${sign}${Number.isInteger(delta) ? delta : delta.toFixed(1)}</span>`;
   }
 }
