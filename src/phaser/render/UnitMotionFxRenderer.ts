@@ -105,6 +105,7 @@ export class UnitMotionFxRenderer {
 
     // 3. Clean up stale tracks (units removed from state)
     this.cleanStaleHarvesterTracks(state.harvesters);
+    this.cleanStaleBuilderTracks(state.mapData.builders);
 
     // 4. Render all active particles
     this.renderParticles(now);
@@ -225,6 +226,15 @@ export class UnitMotionFxRenderer {
     for (const [id] of this.harvesterTracks) {
       if (!activeIds.has(id)) {
         this.harvesterTracks.delete(id);
+      }
+    }
+  }
+
+  /** Clean up builder tracks for indices no longer in the builders array. */
+  private cleanStaleBuilderTracks(builders: BuilderPlacement[]): void {
+    for (const [bi] of this.builderTracks) {
+      if (bi >= builders.length) {
+        this.builderTracks.delete(bi);
       }
     }
   }
