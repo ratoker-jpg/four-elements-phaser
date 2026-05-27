@@ -78,12 +78,12 @@ Continue the main roadmap workstream.
 
 Do **not** switch the immediate next step to the fix roadmap audit by default.
 
-Known unresolved visual/movement/economy-loop issues should be parked in the fix backlog until the project intentionally schedules a fix roadmap audit.
+Known unresolved visual/movement/economy-loop/faction-asset issues should be parked in the fix backlog until the project intentionally schedules a fix roadmap audit.
 
 Current fix backlog candidate:
 
 ```text
-FIX-ROADMAP-AUDIT — Unit visual grounding, selection marker, lane movement readability, and harvester reliability
+FIX-ROADMAP-AUDIT — Unit visual grounding, selection marker, lane movement readability, harvester reliability, and faction asset wiring
 ```
 
 This future audit should group and plan the recurring issues:
@@ -94,7 +94,8 @@ This future audit should group and plan the recurring issues:
 - tile-lane movement readability;
 - civil unit movement through/across cells;
 - harvester reliability: harvesters can gather for a while and then stop gathering later in the session;
-- debug tools for anchor/tile/lane/harvester-state visualization if needed.
+- faction asset wiring: non-cyan factions can have missing/invisible HQ/base and cyan harvester visuals even when green/yellow/purple is selected;
+- debug tools for anchor/tile/lane/harvester-state/faction-asset visualization if needed.
 
 Small fixes can still be handled inside the currently active roadmap ARCH when they are directly related to that ARCH and do not require a separate system model.
 
@@ -248,12 +249,12 @@ Do not start without explicit accepted scope:
 - save/load;
 - random / unscoped implementation work;
 - unrelated-system high+ bundles;
-- more ad-hoc selection-ring / unit-anchor / harvester reliability tweaks outside an active ARCH or without fix-roadmap audit.
+- more ad-hoc selection-ring / unit-anchor / harvester reliability / faction-asset wiring tweaks outside an active ARCH or without fix-roadmap audit.
 
 Allowed next direction:
 
 - continue the main roadmap workstream selected by GPT/Denis;
-- keep unit visual grounding / selection marker / lane readability / harvester reliability in the fix backlog until scheduled.
+- keep unit visual grounding / selection marker / lane readability / harvester reliability / faction asset wiring in the fix backlog until scheduled.
 
 ---
 
