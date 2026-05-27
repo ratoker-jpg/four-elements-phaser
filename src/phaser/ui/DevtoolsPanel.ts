@@ -30,6 +30,7 @@ import {
   devGetDiagnostics,
   type DevCommandResult,
 } from '../../state/devCommands';
+import { summarizeGeneratedMapQuality, isGeneratedRuntimeState } from '../../state/generatedMap';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -243,7 +244,8 @@ export class DevtoolsPanel {
       `<div>${factionLabel}: <b>${elDisplayed}</b>/${elCapDisplayed} | Power: ${d.powerConsumed}/${d.powerGenerated}</div>` +
       `<div>Resources: ${d.resourceNodeCount} | Harvesters: ${d.activeHarvesterCount} active</div>` +
       `<div>Builders: ${d.builderCount} | Sites: ${d.constructionSiteCount} | Seps: ${d.separatorCount}</div>` +
-      `<div>Factory: ${d.factoryQueueSummary}</div>`;
+      `<div>Factory: ${d.factoryQueueSummary}</div>` +
+      this.getGeneratedMapQualityHtml(state);
   }
 
   /** Show the devtools panel. */
@@ -330,6 +332,23 @@ export class DevtoolsPanel {
   }
 
   // ─── Internal helpers ──────────────────────────────────────────
+
+  /** Get generated map quality HTML for devtools diagnostics. Shown only for generated maps. */
+  private getGeneratedMapQualityHtml(state: GameState): string {
+    // Only show for generated maps — detected via mapName, not mapId,
+    // because runtime mapId is "map-{faction}-{W}x{H}" not "generated-..."
+    if (!isGeneratedRuntimeState(state)) return '';
+
+    const q = summarizeGeneratedMapQuality(state.mapData);
+    const validationIcon = q.validationPassed ? '\u2713' : '\u2717';
+    return (
+      `<div style="margin-top:2px;border-top:1px solid rgba(180,100,255,0.15);padding-top:2px;">` +
+      `<div>GenMap: ${q.width}x${q.height} | Res: ${q.resourceCount} (S${q.resourcesByType.small} M${q.resourcesByType.medium} L${q.resourcesByType.large})</div>` +
+      `<div>Starter: ${q.starterResourceCount} | Infinite: ${q.hasInfiniteDeposit ? 'Y' : 'N'} | Obs: ${q.obstacleCount} | Dec: ${q.decorCount}</div>` +
+      `<div>Valid: ${validationIcon} ${q.validationIssues.length > 0 ? q.validationIssues[0] : 'OK'}</div>` +
+      `</div>`
+    );
+  }
 
   /** Collapse label element reference. */
   private _collapseLabel: HTMLSpanElement | null = null;

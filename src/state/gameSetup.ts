@@ -14,6 +14,7 @@ import { customMap1 } from '../data/maps/customMap1';
 import { createArenaMapData, ARENA_MAP_ID } from './devArena';
 import {
   createGeneratedMapData,
+  createValidatedGeneratedMapData,
   type MapSizeOption,
   GENERATED_MAP_ID_PREFIX,
   generatedMapName,
@@ -114,9 +115,13 @@ export function getMapDataFromConfig(config: GameSetupConfig): MapData {
     return createArenaMapData();
   }
 
-  // Generated map
+  // Generated map — use validated creation with retry fallback
   if (config.mapMode === 'generated') {
-    return createGeneratedMapData(config.seed, config.mapSize, config.faction);
+    const result = createValidatedGeneratedMapData(config.seed, config.mapSize, config.faction);
+    if (!result.valid && result.warnings.length > 0) {
+      console.warn('[gameSetup] Generated map validation warnings:', result.warnings);
+    }
+    return result.mapData;
   }
 
   // Fixed map
