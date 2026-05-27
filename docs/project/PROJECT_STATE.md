@@ -54,19 +54,32 @@ builder manual move baseline
 state tests + qa smoke gates
 ```
 
-### Immediate next mini-stage
-
-Next mini-stage:
+ARCH-05Y was merged as a **partial** visual/motion fix:
 
 ```text
-ARCH-05Y — Selection ring ground anchor + harvester movement smoothing
+harvester micro-teleport reduced/fixed via lower arrival threshold
+render-side smoothing removed
+selection ring / unit grounding / lane readability not fully solved
 ```
 
-Scope:
+### Immediate next planning step
 
-- fix selection ring so it is anchored to the real unit ground footprint, not the PNG anchor point;
-- fix harvester micro-teleport / movement smoothing issue;
-- do not change pathfinding, passability, economy, asset pipeline, or selection model unless directly required.
+Next work should **not** continue ad-hoc selection-ring or anchor tweaks.
+
+Run a fix roadmap audit first:
+
+```text
+FIX-ROADMAP-AUDIT — Unit visual grounding, selection marker, lane movement readability
+```
+
+This audit should group and plan the recurring visual/movement issues:
+
+- selection marker model;
+- unit ground anchor model;
+- builder/harvester visual centering;
+- tile-lane movement readability;
+- civil unit movement through/across cells;
+- debug tools for anchor/tile/lane visualization if needed.
 
 ---
 
@@ -77,7 +90,7 @@ The project follows a system-first workflow defined in:
 - `docs/project/START_HERE_FOR_GPT.md` — entry point for GPT agent.
 - `docs/project/GPT_WORKFLOW.md` — GPT planner workflow rules.
 - `docs/project/GLM_EXECUTOR_RULES.md` — GLM executor rules.
-- `docs/project/ARCH_SCOPING_POLICY.md` — ARCH phase grouping and high-controlled risk policy.
+- `docs/project/ARCH_SCOPING_POLICY.md` — ARCH phase grouping, high-controlled risk policy, and failed-fix audit rule.
 - `docs/ROADMAP.md` — 21-ARCH roadmap with scoped PR sequences.
 - `docs/ROADMAP_SYSTEM_AUDIT.md` — roadmap system audit.
 
@@ -85,6 +98,7 @@ Core rule:
 
 ```text
 roadmap -> audit/design -> risk-based scoped PR package -> implementation -> review/hardening -> merge
+failed fix cluster -> fix-cluster audit -> scoped fix package -> implementation -> manual QA -> merge/follow-up
 ```
 
 ---
@@ -104,7 +118,8 @@ Meaning:
 - unrelated-system bundles are still rejected;
 - tests/typecheck/build/qa-smoke are required for runtime PRs;
 - manual QA remains mandatory for visual/gameplay/UX-sensitive changes;
-- hardening passes are expected when review finds prototype debt.
+- hardening passes are expected when review finds prototype debt;
+- if a fix fails after 1-2 attempts, implementation stops and a FIX-CLUSTER-AUDIT or FIX-ROADMAP-AUDIT is required.
 
 ---
 
@@ -214,11 +229,12 @@ Do not start without explicit accepted scope:
 - enemy AI;
 - save/load;
 - random / unscoped implementation work;
-- unrelated-system high+ bundles.
+- unrelated-system high+ bundles;
+- more ad-hoc selection-ring / unit-anchor tweaks before fix roadmap audit.
 
-Allowed next workstream:
+Allowed next planning workstream:
 
-- ARCH-05Y — Selection ring ground anchor + harvester movement smoothing.
+- FIX-ROADMAP-AUDIT — Unit visual grounding, selection marker, lane movement readability.
 
 ---
 
