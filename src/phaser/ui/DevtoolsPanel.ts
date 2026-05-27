@@ -30,7 +30,7 @@ import {
   devGetDiagnostics,
   type DevCommandResult,
 } from '../../state/devCommands';
-import { summarizeGeneratedMapQuality } from '../../state/generatedMap';
+import { summarizeGeneratedMapQuality, isGeneratedRuntimeState } from '../../state/generatedMap';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -335,8 +335,9 @@ export class DevtoolsPanel {
 
   /** Get generated map quality HTML for devtools diagnostics. Shown only for generated maps. */
   private getGeneratedMapQualityHtml(state: GameState): string {
-    // Only show for generated maps (mapId starts with "generated-")
-    if (!state.mapId.startsWith('generated-')) return '';
+    // Only show for generated maps — detected via mapName, not mapId,
+    // because runtime mapId is "map-{faction}-{W}x{H}" not "generated-..."
+    if (!isGeneratedRuntimeState(state)) return '';
 
     const q = summarizeGeneratedMapQuality(state.mapData);
     const validationIcon = q.validationPassed ? '\u2713' : '\u2717';

@@ -17,20 +17,21 @@
  * deterministic seed offset up to MAX_VALIDATION_ATTEMPTS if
  * generated map fails validation.
  *
- * ARCH-08B: Sparse deterministic obstacles and decor — runtime already
- * supports both types (obstacles block, decor is non-blocking).
- * HQ/start zone and starter resource access are kept clear.
+ * ARCH-08B: Sparse deterministic obstacles and decor — DEFERRED until
+ * visual asset/placeholder rendering exists. Generated maps currently
+ * have empty obstacles[] and decor[] arrays. The generation functions
+ * are preserved in git history for future re-enablement.
  *
  * Design decisions:
  * - PRNG: simple mulberry32 — fast, deterministic, well-distributed
  * - Terrain: patch-based using PRNG cluster centers, not per-cell noise
  * - Resources: fixed starter cluster + PRNG scattered clusters + center infinite
- * - Obstacles: sparse mountain/rock clusters, kept away from HQ/start
- * - Decor: sparse bush/sand-bump, non-blocking
+ * - Obstacles: deferred (empty) — no visual assets yet, invisible blocking is worse than none
+ * - Decor: deferred (empty) — non-blocking but invisible without rendering support
  * - Validation: uses mapValidation helpers for starter reachability
  */
 
-import type { MapData, TerrainType, ResourceType, ObstacleType, DecorType, Faction } from './types';
+import type { MapData, TerrainType, ResourceType, Faction } from './types';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -122,6 +123,20 @@ export function generatedMapId(seed: string, size: MapSizeOption): string {
   return `${GENERATED_MAP_ID_PREFIX}-${size}-${seed}`;
 }
 
+/**
+ * Check if a runtime GameState belongs to a generated map.
+ *
+ * Runtime GameState.mapId is NOT "generated-..." — it is "map-{faction}-{W}x{H}".
+ * But GameState.mapName for generated maps starts with "Generated" (set via
+ * generatedMapName). This helper centralizes that detection so callers don't
+ * need to know the naming convention.
+ *
+ * Works for both new generated games and loaded generated saves.
+ */
+export function isGeneratedRuntimeState(state: { mapName: string }): boolean {
+  return state.mapName.startsWith('Generated');
+}
+
 // ─── Generated map creation ─────────────────────────────────────────
 
 /** HQ position offset from top-left (same for all generated maps). */
@@ -138,8 +153,7 @@ const HQ_OFFSET_TY = 4;
  * - Starter resource cluster near HQ (reliable small + medium resources)
  * - Central infinite resource deposit
  * - Distance-based resource clusters (more medium/large farther from HQ)
- * - Sparse obstacles (mountain/rock clusters) away from HQ/start zone
- * - Sparse decor (bush/sand-bump) — non-blocking
+ * - Obstacles and decor are deferred (empty arrays) — no visual assets yet
  * - No buildings (MVP)
  */
 export function createGeneratedMapData(seed: string, size: MapSizeOption, faction: Faction = 'cyan'): MapData {
@@ -186,10 +200,17 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
   const resources = generateResources(rng, W, H, hq, occupied);
 
   // ── Obstacles ──
-  const obstacles = generateObstacles(rng, W, H, hq, occupied);
+  // Obstacles are NOT placed in player-facing generated maps because they
+  // affect passability (blocking) but have no visual assets yet (renderer
+  // skips stateOnly entities). Re-enable after visual asset/placeholder
+  // rendering exists. See follow-up in PR body.
+  const obstacles: MapData['obstacles'] = [];
 
   // ── Decor ──
-  const decor = generateDecor(rng, W, H, hq, occupied);
+  // Decor is non-blocking but also invisible (stateOnly rendering).
+  // Omitted from player-facing maps to avoid invisible clutter.
+  // Re-enable after visual rendering support exists.
+  const decor: MapData['decor'] = [];
 
   return {
     width: W,
@@ -411,141 +432,21 @@ function generateResources(
   return resources;
 }
 
-// ─── Obstacle generation ────────────────────────────────────────────
-
-/** Obstacle types available for generated maps. */
-const OBSTACLE_TYPES: ObstacleType[] = ['mountain-small', 'mountain-medium', 'rock-cluster'];
-
-/**
- * Generate sparse deterministic obstacles.
- *
- * Strategy:
- * - Place small clusters of obstacles at PRNG-determined positions.
- * - Keep HQ area and starter resource corridor clear.
- * - Obstacle count scales with map size.
- * - All obstacles affect passability through existing occupancy model.
- */
-function generateObstacles(
-  rng: () => number,
-  W: number,
-  H: number,
-  hq: { tx: number; ty: number },
-  occupied: Set<string>,
-): MapData['obstacles'] {
-  const obstacles: MapData['obstacles'] = [];
-
-  // HQ exclusion zone: no obstacles within 10 tiles of HQ center
-  const hqCenterX = hq.tx + 1;
-  const hqCenterY = hq.ty + 1;
-  const HQ_OBSTACLE_CLEARANCE = 10;
-
-  // Number of obstacle clusters scales with map size
-  const clusterCount = Math.floor((W * H) / 1200); // ~0 for small, ~1 for standard, ~3 for large
-
-  for (let c = 0; c < clusterCount; c++) {
-    const clusterTx = 4 + Math.floor(rng() * (W - 10));
-    const clusterTy = 4 + Math.floor(rng() * (H - 10));
-
-    // Skip if too close to HQ
-    const distFromHQ = Math.sqrt(
-      (clusterTx - hqCenterX) ** 2 + (clusterTy - hqCenterY) ** 2
-    );
-    if (distFromHQ < HQ_OBSTACLE_CLEARANCE) continue;
-
-    // Each cluster has 1-3 obstacles
-    const clusterSize = 1 + Math.floor(rng() * 3);
-    for (let i = 0; i < clusterSize; i++) {
-      const dx = Math.floor(rng() * 3) - 1;
-      const dy = Math.floor(rng() * 3) - 1;
-      const otx = clusterTx + dx;
-      const oty = clusterTy + dy;
-
-      // Bounds check
-      if (otx < 0 || oty < 0 || otx >= W || oty >= H) continue;
-
-      // Check clearance from HQ
-      const odist = Math.sqrt((otx - hqCenterX) ** 2 + (oty - hqCenterY) ** 2);
-      if (odist < HQ_OBSTACLE_CLEARANCE) continue;
-
-      const typeIdx = Math.floor(rng() * OBSTACLE_TYPES.length);
-      const type = OBSTACLE_TYPES[typeIdx];
-      const footprint = type === 'mountain-medium' ? 2 : 1;
-
-      // Bounds check for footprint
-      if (otx + footprint > W || oty + footprint > H) continue;
-
-      // Overlap check
-      let overlap = false;
-      for (let fdy = 0; fdy < footprint; fdy++) {
-        for (let fdx = 0; fdx < footprint; fdx++) {
-          if (occupied.has(`${otx + fdx},${oty + fdy}`)) {
-            overlap = true;
-            break;
-          }
-        }
-        if (overlap) break;
-      }
-      if (overlap) continue;
-
-      obstacles.push({ tx: otx, ty: oty, type, footprint });
-
-      // Mark occupied
-      for (let fdy = 0; fdy < footprint; fdy++) {
-        for (let fdx = 0; fdx < footprint; fdx++) {
-          occupied.add(`${otx + fdx},${oty + fdy}`);
-        }
-      }
-    }
-  }
-
-  return obstacles;
-}
-
-// ─── Decor generation ───────────────────────────────────────────────
-
-/** Decor types available for generated maps. */
-const DECOR_TYPES: DecorType[] = ['bush', 'sand-bump'];
-
-/**
- * Generate sparse deterministic decor.
- *
- * Decor is non-blocking — it does not affect passability or buildability.
- * Kept away from HQ area for visual clarity at start.
- */
-function generateDecor(
-  rng: () => number,
-  W: number,
-  H: number,
-  hq: { tx: number; ty: number },
-  occupied: Set<string>,
-): MapData['decor'] {
-  const decor: MapData['decor'] = [];
-
-  // HQ decor clearance: no decor within 5 tiles of HQ center
-  const hqCenterX = hq.tx + 1;
-  const hqCenterY = hq.ty + 1;
-  const HQ_DECOR_CLEARANCE = 5;
-
-  // Number of decor items scales with map size
-  const decorCount = Math.floor((W * H) / 200); // ~5 for small, ~11 for standard, ~20 for large
-
-  for (let i = 0; i < decorCount; i++) {
-    const dtx = Math.floor(rng() * W);
-    const dty = Math.floor(rng() * H);
-
-    // Skip if too close to HQ
-    const distFromHQ = Math.sqrt((dtx - hqCenterX) ** 2 + (dty - hqCenterY) ** 2);
-    if (distFromHQ < HQ_DECOR_CLEARANCE) continue;
-
-    // Decor doesn't block, but skip if occupied by a resource/obstacle for tidiness
-    if (occupied.has(`${dtx},${dty}`)) continue;
-
-    const typeIdx = Math.floor(rng() * DECOR_TYPES.length);
-    decor.push({ tx: dtx, ty: dty, type: DECOR_TYPES[typeIdx] });
-  }
-
-  return decor;
-}
+// ─── Obstacle/Decor generation (DEFERRED) ──────────────────────────
+//
+// Obstacle and decor placement is intentionally removed from player-facing
+// generated maps in this PR because:
+// - Obstacles affect passability (blocking) but have no visual assets yet.
+//   The renderer treats them as stateOnly and skips them, creating invisible
+//   blocking tiles — worse than no obstacles.
+// - Decor is non-blocking but also invisible (stateOnly rendering), creating
+//   invisible clutter on the map.
+//
+// To re-enable after visual asset/placeholder rendering support exists:
+// 1. Uncomment/restore generateObstacles() and generateDecor() from git history.
+// 2. Call them in createGeneratedMapData() and wire their results into the
+//    MapData return value.
+// 3. Update tests and QA checklist accordingly.
 
 // ─── Validation / fallback ──────────────────────────────────────────
 

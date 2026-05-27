@@ -8,7 +8,7 @@
  * - Patch-based terrain (clustered, not checkerboard)
  * - Distance-based resource balance
  * - Starter resource reliability
- * - Obstacle/decor placement
+ * - Obstacle/decor placement (deferred — no invisible blocking obstacles)
  * - Validation/fallback retry
  * - Quality summary diagnostics
  */
@@ -20,6 +20,7 @@ import {
   mapSizeToDimensions,
   generatedMapName,
   generatedMapId,
+  isGeneratedRuntimeState,
   createGeneratedMapData,
   createValidatedGeneratedMapData,
   summarizeGeneratedMapQuality,
@@ -383,79 +384,59 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
     });
   });
 
-  // ── Obstacles and decor (ARCH-08B) ─────────────────────────────
+  // ── Obstacles and decor (ARCH-08B — DEFERRED) ────────────────
 
-  describe('obstacles and decor', () => {
-    it('obstacles are not placed within HQ clearance zone', () => {
-      const map = createGeneratedMapData('obstacle-clearance', 'large');
-      const hqCenterX = map.hq.tx + 1;
-      const hqCenterY = map.hq.ty + 1;
-      for (const o of map.obstacles) {
-        for (let dy = 0; dy < o.footprint; dy++) {
-          for (let dx = 0; dx < o.footprint; dx++) {
-            const dist = Math.sqrt(
-              (o.tx + dx - hqCenterX) ** 2 + (o.ty + dy - hqCenterY) ** 2
-            );
-            expect(dist).toBeGreaterThanOrEqual(10);
-          }
-        }
-      }
+  describe('obstacles and decor (deferred)', () => {
+    it('generated maps have no obstacles (deferred until visual assets exist)', () => {
+      const map = createGeneratedMapData('no-obstacles', 'large');
+      expect(map.obstacles).toEqual([]);
     });
 
-    it('decor is not placed within HQ decor clearance zone', () => {
-      const map = createGeneratedMapData('decor-clearance', 'large');
-      const hqCenterX = map.hq.tx + 1;
-      const hqCenterY = map.hq.ty + 1;
-      for (const d of map.decor) {
-        const dist = Math.sqrt((d.tx - hqCenterX) ** 2 + (d.ty - hqCenterY) ** 2);
-        expect(dist).toBeGreaterThanOrEqual(5);
-      }
+    it('generated maps have no decor (deferred until visual assets exist)', () => {
+      const map = createGeneratedMapData('no-decor', 'large');
+      expect(map.decor).toEqual([]);
     });
 
-    it('obstacles use valid obstacle types', () => {
-      const map = createGeneratedMapData('obstacle-types', 'large');
-      const validTypes = new Set(['mountain-small', 'mountain-medium', 'volcano-small', 'volcano-medium', 'rock-cluster']);
-      for (const o of map.obstacles) {
-        expect(validTypes.has(o.type)).toBe(true);
+    it('no invisible blocking obstacles on any map size', () => {
+      for (const size of ['small', 'standard', 'large'] as MapSizeOption[]) {
+        const map = createGeneratedMapData('invis-check', size);
+        // Obstacles would be invisible (stateOnly) but blocking — must be empty
+        expect(map.obstacles).toEqual([]);
       }
     });
+  });
 
-    it('decor uses valid decor types', () => {
-      const map = createGeneratedMapData('decor-types', 'large');
-      const validTypes = new Set(['bush', 'sand-bump']);
-      for (const d of map.decor) {
-        expect(validTypes.has(d.type)).toBe(true);
-      }
+  // ── isGeneratedRuntimeState (devtools detection) ──────────────
+
+  describe('isGeneratedRuntimeState', () => {
+    it('returns true for generated map name', () => {
+      const state = { mapName: generatedMapName('abc123', 'standard') };
+      expect(isGeneratedRuntimeState(state)).toBe(true);
     });
 
-    it('large maps have more obstacles than standard maps', () => {
-      // Run multiple seeds to get a representative sample
-      let largeTotal = 0;
-      let standardTotal = 0;
-      for (let i = 0; i < 5; i++) {
-        largeTotal += createGeneratedMapData(`obs-count-${i}`, 'large').obstacles.length;
-        standardTotal += createGeneratedMapData(`obs-count-${i}`, 'standard').obstacles.length;
-      }
-      expect(largeTotal).toBeGreaterThanOrEqual(standardTotal);
+    it('returns true for generated map name with different seed', () => {
+      const state = { mapName: generatedMapName('test-seed-42', 'large') };
+      expect(isGeneratedRuntimeState(state)).toBe(true);
     });
 
-    it('obstacles and resources do not overlap', () => {
-      const map = createGeneratedMapData('no-overlap', 'large');
-      const resourceTiles = new Set<string>();
-      for (const r of map.resources) {
-        for (let dy = 0; dy < r.footprint; dy++) {
-          for (let dx = 0; dx < r.footprint; dx++) {
-            resourceTiles.add(`${r.tx + dx},${r.ty + dy}`);
-          }
-        }
-      }
-      for (const o of map.obstacles) {
-        for (let dy = 0; dy < o.footprint; dy++) {
-          for (let dx = 0; dx < o.footprint; dx++) {
-            expect(resourceTiles.has(`${o.tx + dx},${o.ty + dy}`)).toBe(false);
-          }
-        }
-      }
+    it('returns false for fixed map name', () => {
+      const state = { mapName: 'Map 1' };
+      expect(isGeneratedRuntimeState(state)).toBe(false);
+    });
+
+    it('returns false for QA Arena map name', () => {
+      const state = { mapName: 'QA Arena' };
+      expect(isGeneratedRuntimeState(state)).toBe(false);
+    });
+
+    it('returns false for dimension-based fallback map name', () => {
+      const state = { mapName: 'Map 48x48' };
+      expect(isGeneratedRuntimeState(state)).toBe(false);
+    });
+
+    it('returns false for empty map name', () => {
+      const state = { mapName: '' };
+      expect(isGeneratedRuntimeState(state)).toBe(false);
     });
   });
 
