@@ -607,6 +607,11 @@ export class PlaytestHud {
       }
     }
 
+    // ARCH-14B: Quick hint about pause menu for controls reference
+    parts.push(
+      `<div style="margin-top:4px; color:#555;">Esc = Pause & Controls</div>`,
+    );
+
     this.diagnosticsEl.innerHTML = parts.join('');
   }
 }

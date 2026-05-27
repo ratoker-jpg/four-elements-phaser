@@ -36,13 +36,16 @@ import { customMap1 } from '../data/maps/customMap1';
  * gather/deliver loop. Extra harvesters are also tracked as runtime
  * state units.
  */
-export function createInitialState(mapData: MapData = customMap1): GameState {
+export function createInitialState(mapData: MapData = customMap1, playerFaction?: Faction): GameState {
+  // Resolve player faction: explicit override > map data default
+  const faction = playerFaction ?? (mapData.hq.faction as Faction);
+
   // Flatten all map entities into a unified renderable entity list
-  const entities = flattenMapEntities(mapData);
+  const entities = flattenMapEntities(mapData, faction);
 
   // Add extra starter units not present in the original saved map
-  const extraHarvesters = createExtraHarvesters(mapData);
-  const extraModularCombat = createExtraModularCombat(mapData, extraHarvesters);
+  const extraHarvesters = createExtraHarvesters(mapData, faction);
+  const extraModularCombat = createExtraModularCombat(mapData, extraHarvesters, faction);
 
   // Add extra harvesters to the entity list
   for (const h of extraHarvesters) {
@@ -74,20 +77,20 @@ export function createInitialState(mapData: MapData = customMap1): GameState {
   const hqPosition = { tx: mapData.hq.tx + 1, ty: mapData.hq.ty + 1 }; // HQ center (3×3 footprint)
 
   return {
-    mapId: `map-${mapData.hq.faction}-${mapData.width}x${mapData.height}`,
+    mapId: `map-${faction}-${mapData.width}x${mapData.height}`,
     mapName: 'Карта 1',
     mapWidth: mapData.width,
     mapHeight: mapData.height,
     mapData,
     entities,
-    playerFaction: mapData.hq.faction as Faction,
+    playerFaction: faction,
     extraHarvesters,
     extraModularCombat,
 
     // PR3 runtime state
     harvesters,
     resourceNodes,
-    economy: createInitialEconomy(mapData.hq.faction as Faction, mapData),
+    economy: createInitialEconomy(faction, mapData),
     hqPosition,
     nextConstructionId: 0,
     production: createInitialProduction(mapData),
@@ -186,7 +189,7 @@ function createInitialProduction(mapData: MapData): ProductionState {
 
 // ─── Flatten helpers (PR2 unchanged) ────────────────────────────────
 
-function flattenMapEntities(mapData: MapData): RenderableEntity[] {
+function flattenMapEntities(mapData: MapData, faction: Faction): RenderableEntity[] {
   const entities: RenderableEntity[] = [];
   let nextId = 1;
   const id = (prefix: string) => `${prefix}-${nextId++}`;
@@ -197,7 +200,7 @@ function flattenMapEntities(mapData: MapData): RenderableEntity[] {
     kind: 'hq',
     tx: mapData.hq.tx,
     ty: mapData.hq.ty,
-    faction: mapData.hq.faction as Faction,
+    faction,
   });
 
   // Builders from saved map
@@ -207,7 +210,7 @@ function flattenMapEntities(mapData: MapData): RenderableEntity[] {
       kind: 'builder',
       tx: builder.tx,
       ty: builder.ty,
-      faction: mapData.hq.faction as Faction,
+      faction,
     });
   }
 
@@ -253,7 +256,7 @@ function flattenMapEntities(mapData: MapData): RenderableEntity[] {
       kind: 'hq',
       tx: building.tx,
       ty: building.ty,
-      faction: mapData.hq.faction as Faction,
+      faction,
       stateOnly: true,
     });
   }
@@ -261,8 +264,7 @@ function flattenMapEntities(mapData: MapData): RenderableEntity[] {
   return entities;
 }
 
-function createExtraHarvesters(mapData: MapData): Array<{ tx: number; ty: number; faction: Faction }> {
-  const faction = mapData.hq.faction as Faction;
+function createExtraHarvesters(mapData: MapData, faction: Faction): Array<{ tx: number; ty: number; faction: Faction }> {
   const hqCx = mapData.hq.tx + 1; // HQ footprint center x (approx)
   const hqCy = mapData.hq.ty + 1;
 
@@ -292,6 +294,7 @@ function createExtraHarvesters(mapData: MapData): Array<{ tx: number; ty: number
 function createExtraModularCombat(
   mapData: MapData,
   extraHarvesters: Array<{ tx: number; ty: number; faction: Faction }>,
+  faction: Faction,
 ): Array<{
   tx: number;
   ty: number;
@@ -300,7 +303,6 @@ function createExtraModularCombat(
   mod: 'm0';
   faction: Faction;
 }> {
-  const faction = mapData.hq.faction as Faction;
   const occupied = buildStarterOccupiedSet(mapData, extraHarvesters);
   const hq = mapData.hq;
 

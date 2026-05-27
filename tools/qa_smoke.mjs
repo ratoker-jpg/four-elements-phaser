@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 // ─── Configuration ──────────────────────────────────────────────────
 
 const PREVIEW_PORT = 4173;
-const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}`;
+const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}?skipMenu`;
 const READINESS_TIMEOUT_MS = 30_000;
 const REPORTS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '_reports');
 

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { BootScene } from '../phaser/BootScene';
 import { PreloadScene } from '../phaser/PreloadScene';
+import { MainMenuScene } from '../phaser/MainMenuScene';
+import { NewGameSetupScene } from '../phaser/NewGameSetupScene';
 import { GameScene } from '../phaser/GameScene';
 
 export function createGameConfig(): Phaser.Types.Core.GameConfig {
@@ -26,7 +28,7 @@ export function createGameConfig(): Phaser.Types.Core.GameConfig {
       transparent: false,
     },
 
-    scene: [BootScene, PreloadScene, GameScene],
+    scene: [BootScene, PreloadScene, MainMenuScene, NewGameSetupScene, GameScene],
 
     // Disable physics — PR1 is static scene only
     physics: undefined,
