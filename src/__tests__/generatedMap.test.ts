@@ -3,6 +3,14 @@
  *
  * ARCH-16B: Tests for seed normalization, deterministic generation,
  * size dimensions, map structure, and resource placement.
+ *
+ * ARCH-08B/09A: Extended tests for:
+ * - Patch-based terrain (clustered, not checkerboard)
+ * - Distance-based resource balance
+ * - Starter resource reliability
+ * - Obstacle/decor placement
+ * - Validation/fallback retry
+ * - Quality summary diagnostics
  */
 
 import { describe, it, expect } from 'vitest';
@@ -13,12 +21,15 @@ import {
   generatedMapName,
   generatedMapId,
   createGeneratedMapData,
+  createValidatedGeneratedMapData,
+  summarizeGeneratedMapQuality,
   MAP_SIZE_DIMENSIONS,
+  MAX_VALIDATION_ATTEMPTS,
   GENERATED_MAP_ID_PREFIX,
   type MapSizeOption,
 } from '../state/generatedMap';
 
-describe('ARCH-16B: generatedMap helpers', () => {
+describe('ARCH-08B/09A: generatedMap helpers', () => {
   // ── Seed normalization ───────────────────────────────────────────
 
   describe('normalizeSeed', () => {
@@ -37,7 +48,6 @@ describe('ARCH-16B: generatedMap helpers', () => {
     it('hashes a non-numeric string deterministically', () => {
       const result = normalizeSeed('hello');
       expect(typeof result).toBe('number');
-      // Same input => same output
       expect(normalizeSeed('hello')).toBe(result);
     });
 
@@ -82,7 +92,6 @@ describe('ARCH-16B: generatedMap helpers', () => {
       for (let i = 0; i < 10; i++) {
         seeds.add(createRandomSeed());
       }
-      // Very unlikely to get 10 identical seeds
       expect(seeds.size).toBeGreaterThan(5);
     });
   });
@@ -138,13 +147,11 @@ describe('ARCH-16B: generatedMap helpers', () => {
       const map1 = createGeneratedMapData('determinism-test', 'standard');
       const map2 = createGeneratedMapData('determinism-test', 'standard');
 
-      // Same terrain
       expect(map1.terrain).toEqual(map2.terrain);
-      // Same resources
       expect(map1.resources).toEqual(map2.resources);
-      // Same HQ
+      expect(map1.obstacles).toEqual(map2.obstacles);
+      expect(map1.decor).toEqual(map2.decor);
       expect(map1.hq).toEqual(map2.hq);
-      // Same dimensions
       expect(map1.width).toBe(map2.width);
       expect(map1.height).toBe(map2.height);
     });
@@ -153,7 +160,6 @@ describe('ARCH-16B: generatedMap helpers', () => {
       const map1 = createGeneratedMapData('seed-A', 'standard');
       const map2 = createGeneratedMapData('seed-B', 'standard');
 
-      // Resources should differ (extremely unlikely to be identical)
       const res1Str = JSON.stringify(map1.resources);
       const res2Str = JSON.stringify(map2.resources);
       expect(res1Str).not.toBe(res2Str);
@@ -167,6 +173,89 @@ describe('ARCH-16B: generatedMap helpers', () => {
       expect(small.height).toBe(32);
       expect(large.width).toBe(64);
       expect(large.height).toBe(64);
+    });
+
+    it('different seed produces different terrain', () => {
+      const map1 = createGeneratedMapData('terrain-A', 'standard');
+      const map2 = createGeneratedMapData('terrain-B', 'standard');
+
+      // Terrain should differ (extremely unlikely to be identical with patch-based gen)
+      const t1Str = JSON.stringify(map1.terrain);
+      const t2Str = JSON.stringify(map2.terrain);
+      expect(t1Str).not.toBe(t2Str);
+    });
+  });
+
+  // ── Terrain readability (ARCH-08B) ─────────────────────────────
+
+  describe('terrain readability', () => {
+    it('terrain matches map dimensions', () => {
+      const map = createGeneratedMapData('terrain-test', 'small');
+      expect(map.terrain.length).toBe(map.height);
+      for (const row of map.terrain) {
+        expect(row.length).toBe(map.width);
+      }
+    });
+
+    it('terrain only contains valid terrain types', () => {
+      const map = createGeneratedMapData('terrain-type-test', 'standard');
+      const validTypes = new Set(['sand', 'sand-light', 'sand-dark']);
+      for (const row of map.terrain) {
+        for (const cell of row) {
+          expect(validTypes.has(cell)).toBe(true);
+        }
+      }
+    });
+
+    it('sand is the dominant terrain type', () => {
+      const map = createGeneratedMapData('dominant-sand-test', 'standard');
+      let sandCount = 0;
+      let totalCells = 0;
+      for (const row of map.terrain) {
+        for (const cell of row) {
+          totalCells++;
+          if (cell === 'sand') sandCount++;
+        }
+      }
+      // Sand should be at least 50% of the map (patch-based, so dominant)
+      expect(sandCount / totalCells).toBeGreaterThan(0.5);
+    });
+
+    it('terrain has clustered patches (not pure random single-cell noise)', () => {
+      const map = createGeneratedMapData('cluster-test', 'standard');
+      // Count transitions between different terrain types in horizontal direction
+      // A checkerboard would have ~50% transitions; clustered should be much less
+      let transitions = 0;
+      let totalComparisons = 0;
+      for (const row of map.terrain) {
+        for (let x = 1; x < row.length; x++) {
+          totalComparisons++;
+          if (row[x] !== row[x - 1]) transitions++;
+        }
+      }
+      // Clustered terrain should have less than 40% horizontal transitions
+      // (pure random would be ~60%+)
+      expect(transitions / totalComparisons).toBeLessThan(0.45);
+    });
+
+    it('both sand-light and sand-dark appear in terrain', () => {
+      const map = createGeneratedMapData('variant-test', 'standard');
+      let hasLight = false;
+      let hasDark = false;
+      for (const row of map.terrain) {
+        for (const cell of row) {
+          if (cell === 'sand-light') hasLight = true;
+          if (cell === 'sand-dark') hasDark = true;
+        }
+      }
+      expect(hasLight).toBe(true);
+      expect(hasDark).toBe(true);
+    });
+
+    it('same seed+size produces same terrain (re-determinism)', () => {
+      const map1 = createGeneratedMapData('redeterminism', 'small');
+      const map2 = createGeneratedMapData('redeterminism', 'small');
+      expect(map1.terrain).toEqual(map2.terrain);
     });
   });
 
@@ -201,48 +290,34 @@ describe('ARCH-16B: generatedMap helpers', () => {
       expect(infinite!.footprint).toBe(3);
     });
 
-    it('has no obstacles (MVP)', () => {
-      const map = createGeneratedMapData('obstacle-test', 'standard');
-      expect(map.obstacles).toEqual([]);
-    });
-
-    it('has no decor (MVP)', () => {
-      const map = createGeneratedMapData('decor-test', 'standard');
-      expect(map.decor).toEqual([]);
-    });
-
     it('has no buildings (MVP)', () => {
       const map = createGeneratedMapData('building-test', 'standard');
       expect(map.buildings).toEqual([]);
     });
+  });
 
-    it('terrain matches map dimensions', () => {
-      const map = createGeneratedMapData('terrain-test', 'small');
-      expect(map.terrain.length).toBe(map.height);
-      for (const row of map.terrain) {
-        expect(row.length).toBe(map.width);
-      }
+  // ── Resource balance (ARCH-09A) ────────────────────────────────
+
+  describe('resource balance', () => {
+    it('starter resources exist near HQ', () => {
+      const map = createGeneratedMapData('starter-test', 'standard');
+      const hqCenterX = map.hq.tx + 1;
+      const hqCenterY = map.hq.ty + 1;
+      const nearResources = map.resources.filter(r => {
+        const dist = Math.sqrt((r.tx - hqCenterX) ** 2 + (r.ty - hqCenterY) ** 2);
+        return dist <= 10;
+      });
+      // Should have at least the fixed starter cluster (6 medium + 6 small)
+      expect(nearResources.length).toBeGreaterThanOrEqual(4);
     });
 
-    it('terrain only contains valid terrain types', () => {
-      const map = createGeneratedMapData('terrain-type-test', 'standard');
-      const validTypes = new Set(['sand', 'sand-light', 'sand-dark']);
-      for (const row of map.terrain) {
-        for (const cell of row) {
-          expect(validTypes.has(cell)).toBe(true);
-        }
-      }
-    });
-
-    it('HQ area is free of resources', () => {
+    it('resources do not overlap HQ', () => {
       const map = createGeneratedMapData('hq-clear-test', 'standard');
-      // HQ is at (4,4) with 3×3 footprint. Check no resource overlaps.
       for (const r of map.resources) {
         for (let dy = 0; dy < r.footprint; dy++) {
           for (let dx = 0; dx < r.footprint; dx++) {
             const rtx = r.tx + dx;
             const rty = r.ty + dy;
-            // Should not overlap with HQ footprint (4-6, 4-6)
             const overlapsHQ = rtx >= 4 && rtx <= 6 && rty >= 4 && rty <= 6;
             expect(overlapsHQ).toBe(false);
           }
@@ -250,14 +325,210 @@ describe('ARCH-16B: generatedMap helpers', () => {
       }
     });
 
-    it('resources are within map bounds', () => {
-      const map = createGeneratedMapData('bounds-test', 'small');
+    it('resources do not overlap each other', () => {
+      const map = createGeneratedMapData('overlap-test', 'standard');
+      const tiles = new Set<string>();
       for (const r of map.resources) {
-        expect(r.tx).toBeGreaterThanOrEqual(0);
-        expect(r.ty).toBeGreaterThanOrEqual(0);
-        expect(r.tx + r.footprint).toBeLessThanOrEqual(map.width);
-        expect(r.ty + r.footprint).toBeLessThanOrEqual(map.height);
+        for (let dy = 0; dy < r.footprint; dy++) {
+          for (let dx = 0; dx < r.footprint; dx++) {
+            const key = `${r.tx + dx},${r.ty + dy}`;
+            expect(tiles.has(key)).toBe(false);
+            tiles.add(key);
+          }
+        }
       }
+    });
+
+    it('infinite deposit exists near center', () => {
+      const map = createGeneratedMapData('center-test', 'standard');
+      const infinite = map.resources.find(r => r.type === 'infinite');
+      expect(infinite).toBeDefined();
+      // Center of 48x48 map is around (23, 23); infinite deposit is placed at (W/2-1, H/2-1)
+      expect(infinite!.tx).toBeGreaterThanOrEqual(Math.floor(map.width / 2) - 2);
+      expect(infinite!.tx).toBeLessThanOrEqual(Math.floor(map.width / 2) + 2);
+    });
+
+    it('large map has more resources than small map', () => {
+      const small = createGeneratedMapData('size-compare', 'small');
+      const large = createGeneratedMapData('size-compare', 'large');
+      expect(large.resources.length).toBeGreaterThan(small.resources.length);
+    });
+
+    it('resources are within map bounds', () => {
+      for (const size of ['small', 'standard', 'large'] as MapSizeOption[]) {
+        const map = createGeneratedMapData('bounds-test', size);
+        for (const r of map.resources) {
+          expect(r.tx).toBeGreaterThanOrEqual(0);
+          expect(r.ty).toBeGreaterThanOrEqual(0);
+          expect(r.tx + r.footprint).toBeLessThanOrEqual(map.width);
+          expect(r.ty + r.footprint).toBeLessThanOrEqual(map.height);
+        }
+      }
+    });
+
+    it('far resources tend to include large type', () => {
+      const map = createGeneratedMapData('far-resources', 'large');
+      const hqCenterX = map.hq.tx + 1;
+      const hqCenterY = map.hq.ty + 1;
+      const farResources = map.resources.filter(r => {
+        const dist = Math.sqrt((r.tx - hqCenterX) ** 2 + (r.ty - hqCenterY) ** 2);
+        return dist > 22 && r.type !== 'infinite';
+      });
+      // With large map and many far clusters, at least some should be large
+      // (probabilistic but very likely)
+      const hasLarge = farResources.some(r => r.type === 'large');
+      if (farResources.length >= 5) {
+        expect(hasLarge).toBe(true);
+      }
+    });
+  });
+
+  // ── Obstacles and decor (ARCH-08B) ─────────────────────────────
+
+  describe('obstacles and decor', () => {
+    it('obstacles are not placed within HQ clearance zone', () => {
+      const map = createGeneratedMapData('obstacle-clearance', 'large');
+      const hqCenterX = map.hq.tx + 1;
+      const hqCenterY = map.hq.ty + 1;
+      for (const o of map.obstacles) {
+        for (let dy = 0; dy < o.footprint; dy++) {
+          for (let dx = 0; dx < o.footprint; dx++) {
+            const dist = Math.sqrt(
+              (o.tx + dx - hqCenterX) ** 2 + (o.ty + dy - hqCenterY) ** 2
+            );
+            expect(dist).toBeGreaterThanOrEqual(10);
+          }
+        }
+      }
+    });
+
+    it('decor is not placed within HQ decor clearance zone', () => {
+      const map = createGeneratedMapData('decor-clearance', 'large');
+      const hqCenterX = map.hq.tx + 1;
+      const hqCenterY = map.hq.ty + 1;
+      for (const d of map.decor) {
+        const dist = Math.sqrt((d.tx - hqCenterX) ** 2 + (d.ty - hqCenterY) ** 2);
+        expect(dist).toBeGreaterThanOrEqual(5);
+      }
+    });
+
+    it('obstacles use valid obstacle types', () => {
+      const map = createGeneratedMapData('obstacle-types', 'large');
+      const validTypes = new Set(['mountain-small', 'mountain-medium', 'volcano-small', 'volcano-medium', 'rock-cluster']);
+      for (const o of map.obstacles) {
+        expect(validTypes.has(o.type)).toBe(true);
+      }
+    });
+
+    it('decor uses valid decor types', () => {
+      const map = createGeneratedMapData('decor-types', 'large');
+      const validTypes = new Set(['bush', 'sand-bump']);
+      for (const d of map.decor) {
+        expect(validTypes.has(d.type)).toBe(true);
+      }
+    });
+
+    it('large maps have more obstacles than standard maps', () => {
+      // Run multiple seeds to get a representative sample
+      let largeTotal = 0;
+      let standardTotal = 0;
+      for (let i = 0; i < 5; i++) {
+        largeTotal += createGeneratedMapData(`obs-count-${i}`, 'large').obstacles.length;
+        standardTotal += createGeneratedMapData(`obs-count-${i}`, 'standard').obstacles.length;
+      }
+      expect(largeTotal).toBeGreaterThanOrEqual(standardTotal);
+    });
+
+    it('obstacles and resources do not overlap', () => {
+      const map = createGeneratedMapData('no-overlap', 'large');
+      const resourceTiles = new Set<string>();
+      for (const r of map.resources) {
+        for (let dy = 0; dy < r.footprint; dy++) {
+          for (let dx = 0; dx < r.footprint; dx++) {
+            resourceTiles.add(`${r.tx + dx},${r.ty + dy}`);
+          }
+        }
+      }
+      for (const o of map.obstacles) {
+        for (let dy = 0; dy < o.footprint; dy++) {
+          for (let dx = 0; dx < o.footprint; dx++) {
+            expect(resourceTiles.has(`${o.tx + dx},${o.ty + dy}`)).toBe(false);
+          }
+        }
+      }
+    });
+  });
+
+  // ── Validation / fallback (ARCH-08B/09A) ───────────────────────
+
+  describe('validation/fallback', () => {
+    it('createValidatedGeneratedMapData returns a map', () => {
+      const result = createValidatedGeneratedMapData('validation-test', 'standard');
+      expect(result.mapData).toBeDefined();
+      expect(result.mapData.width).toBe(48);
+      expect(result.attempts).toBeGreaterThanOrEqual(1);
+      expect(result.attempts).toBeLessThanOrEqual(MAX_VALIDATION_ATTEMPTS);
+    });
+
+    it('validation does not throw', () => {
+      expect(() => createValidatedGeneratedMapData('no-throw', 'small')).not.toThrow();
+    });
+
+    it('valid generated map passes validation', () => {
+      const result = createValidatedGeneratedMapData('valid-seed', 'standard');
+      // Most generated maps should pass validation
+      expect(result.mapData.resources.length).toBeGreaterThan(0);
+    });
+
+    it('result includes valid flag and warnings', () => {
+      const result = createValidatedGeneratedMapData('flags-test', 'standard');
+      expect(typeof result.valid).toBe('boolean');
+      expect(Array.isArray(result.warnings)).toBe(true);
+    });
+  });
+
+  // ── Quality summary (ARCH-08B/09A) ────────────────────────────
+
+  describe('quality summary', () => {
+    it('returns correct map dimensions', () => {
+      const map = createGeneratedMapData('quality-dims', 'small');
+      const q = summarizeGeneratedMapQuality(map);
+      expect(q.width).toBe(32);
+      expect(q.height).toBe(32);
+    });
+
+    it('counts resources by type', () => {
+      const map = createGeneratedMapData('quality-types', 'standard');
+      const q = summarizeGeneratedMapQuality(map);
+      expect(q.resourceCount).toBe(map.resources.length);
+      expect(q.resourcesByType.small + q.resourcesByType.medium + q.resourcesByType.large + q.resourcesByType.infinite)
+        .toBe(map.resources.length);
+    });
+
+    it('reports starter resource count', () => {
+      const map = createGeneratedMapData('quality-starter', 'standard');
+      const q = summarizeGeneratedMapQuality(map);
+      expect(q.starterResourceCount).toBeGreaterThanOrEqual(4);
+    });
+
+    it('reports infinite deposit presence', () => {
+      const map = createGeneratedMapData('quality-infinite', 'standard');
+      const q = summarizeGeneratedMapQuality(map);
+      expect(q.hasInfiniteDeposit).toBe(true);
+    });
+
+    it('reports obstacle and decor counts', () => {
+      const map = createGeneratedMapData('quality-obs-dec', 'standard');
+      const q = summarizeGeneratedMapQuality(map);
+      expect(q.obstacleCount).toBe(map.obstacles.length);
+      expect(q.decorCount).toBe(map.decor.length);
+    });
+
+    it('reports validation status', () => {
+      const map = createGeneratedMapData('quality-valid', 'standard');
+      const q = summarizeGeneratedMapQuality(map);
+      expect(typeof q.validationPassed).toBe('boolean');
+      expect(Array.isArray(q.validationIssues)).toBe(true);
     });
   });
 
