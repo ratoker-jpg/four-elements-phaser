@@ -34,6 +34,7 @@ import { DevtoolsPanel } from './ui/DevtoolsPanel';
 import { isDevtoolsEnabled, type DevCommandResult } from '../state/devCommands';
 import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
 import { FeedbackRenderer } from './render/FeedbackRenderer';
+import { UnitMotionFxRenderer } from './render/UnitMotionFxRenderer';
 import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData } from '../state/devArena';
 
 /**
@@ -108,6 +109,9 @@ export class GameScene extends Phaser.Scene {
 
   // ARCH-13A: Feedback renderer — command indicators and resource flow
   private feedbackRenderer: FeedbackRenderer | null = null;
+
+  // ARCH-13C-LITE: Motion dust renderer — render-only movement dust particles
+  private motionFxRenderer: UnitMotionFxRenderer | null = null;
 
   // ARCH-05X: Unit selection state
   private selectedUnit: UnitSelection = null;
@@ -216,6 +220,9 @@ export class GameScene extends Phaser.Scene {
 
     // ARCH-13A: Feedback renderer for command indicators and resource flow
     this.feedbackRenderer = new FeedbackRenderer(this, offset);
+
+    // ARCH-13C-LITE: Motion dust renderer — render-only movement dust
+    this.motionFxRenderer = new UnitMotionFxRenderer(this, offset);
 
     // Setup camera
     this.cameraControls = new CameraControls(this);
@@ -565,6 +572,9 @@ export class GameScene extends Phaser.Scene {
     // 9c. ARCH-13A: Sync feedback renderer (command indicators, resource flow)
     this.feedbackRenderer?.syncFromState(this.gameState, this.time.now);
 
+    // 9d. ARCH-13C-LITE: Sync motion dust renderer (movement particles)
+    this.motionFxRenderer?.syncFromState(this.gameState, this.time.now);
+
     // 10. Debug log on unload completion
     if (this.gameState.economy.raw > this.lastLoggedRaw) {
       console.log(
@@ -892,6 +902,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.motionFxRenderer?.destroy();
+    this.motionFxRenderer = null;
     this.feedbackRenderer?.destroy();
     this.feedbackRenderer = null;
     this.debugOverlayRenderer?.destroy();
