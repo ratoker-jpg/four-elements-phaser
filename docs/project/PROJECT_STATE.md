@@ -62,28 +62,39 @@ render-side smoothing removed
 selection ring / unit grounding / lane readability not fully solved
 ```
 
+ARCH-07A production loop readability was merged:
+
+```text
+construction labels/status
+separator status/progress readability
+units-factory queue/progress readability
+HUD disabled reasons
+resource delta feedback
+```
+
 ### Current roadmap direction
 
 Continue the main roadmap workstream.
 
 Do **not** switch the immediate next step to the fix roadmap audit by default.
 
-Known unresolved visual/movement issues from ARCH-05Y should be parked in the fix backlog until the project intentionally schedules a fix roadmap audit.
+Known unresolved visual/movement/economy-loop issues should be parked in the fix backlog until the project intentionally schedules a fix roadmap audit.
 
 Current fix backlog candidate:
 
 ```text
-FIX-ROADMAP-AUDIT — Unit visual grounding, selection marker, lane movement readability
+FIX-ROADMAP-AUDIT — Unit visual grounding, selection marker, lane movement readability, and harvester reliability
 ```
 
-This future audit should group and plan the recurring visual/movement issues:
+This future audit should group and plan the recurring issues:
 
 - selection marker model;
 - unit ground anchor model;
 - builder/harvester visual centering;
 - tile-lane movement readability;
 - civil unit movement through/across cells;
-- debug tools for anchor/tile/lane visualization if needed.
+- harvester reliability: harvesters can gather for a while and then stop gathering later in the session;
+- debug tools for anchor/tile/lane/harvester-state visualization if needed.
 
 Small fixes can still be handled inside the currently active roadmap ARCH when they are directly related to that ARCH and do not require a separate system model.
 
@@ -237,12 +248,12 @@ Do not start without explicit accepted scope:
 - save/load;
 - random / unscoped implementation work;
 - unrelated-system high+ bundles;
-- more ad-hoc selection-ring / unit-anchor tweaks outside an active ARCH or without fix-roadmap audit.
+- more ad-hoc selection-ring / unit-anchor / harvester reliability tweaks outside an active ARCH or without fix-roadmap audit.
 
 Allowed next direction:
 
 - continue the main roadmap workstream selected by GPT/Denis;
-- keep unit visual grounding / selection marker / lane readability in the fix backlog until scheduled.
+- keep unit visual grounding / selection marker / lane readability / harvester reliability in the fix backlog until scheduled.
 
 ---
 
