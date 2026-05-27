@@ -1,6 +1,6 @@
 # ARCH_SCOPING_POLICY.md
 
-Status: accepted workflow policy v3 — high-controlled default + failed-fix audit rule  
+Status: accepted workflow policy v4 — high-controlled default + fix backlog/audit rule  
 Audience: GPT / task planning / PR review  
 Project: Four Elements Phaser
 
@@ -20,7 +20,7 @@ The correct approach is:
 
 ```text
 large ARCH -> accepted audit/design -> risk-based scoped PR package -> implementation -> review/hardening -> merge
-failed fix cluster -> fix-cluster audit -> scoped fix package -> implementation -> manual QA -> merge/follow-up
+failed fix cluster -> fix backlog or fix-cluster audit -> scoped fix package -> implementation -> manual QA -> merge/follow-up
 ```
 
 ---
@@ -212,9 +212,14 @@ A hardening pass should not expand the product scope. If a fix starts a new doma
 
 ---
 
-## Failed-fix audit rule
+## Failed-fix backlog/audit rule
 
-When a fix does not converge after one or two focused implementation attempts, stop implementation and switch to a small audit.
+When a fix does not converge after one or two focused implementation attempts, stop ad-hoc implementation.
+
+The issue then goes to one of two places:
+
+1. **Fix backlog** — default when the issue does not block the currently active roadmap workstream.
+2. **Fix-cluster audit** — only when the issue blocks the active workstream or must be solved before the next planned step.
 
 Trigger this rule when any of the following happens:
 
@@ -228,15 +233,31 @@ Trigger this rule when any of the following happens:
 Required response:
 
 ```text
-STOP implementation.
-Run FIX-CLUSTER-AUDIT or FIX-ROADMAP-AUDIT.
-Return audit report only.
+STOP ad-hoc implementation.
+If it blocks the active ARCH: run FIX-CLUSTER-AUDIT.
+If it does not block the active ARCH: park it in the fix backlog.
 Do not add another blind tweak.
 ```
 
+### Fix backlog
+
+Use for known issues that are real but not blocking the current roadmap step.
+
+Examples:
+
+```text
+selection marker grounding
+unit visual centering
+tile-lane movement readability
+minor visual polish
+non-critical UX inconsistency
+```
+
+Fix backlog items should be grouped later into a `FIX-ROADMAP-AUDIT` when Denis/GPT decide to schedule a fix phase.
+
 ### FIX-CLUSTER-AUDIT
 
-Use for one bug cluster inside one PR or one feature area.
+Use for one bug cluster that blocks the active workstream or current PR.
 
 Output should include:
 
@@ -255,7 +276,7 @@ final implementation prompt
 
 ### FIX-ROADMAP-AUDIT
 
-Use when several related follow-up bugs should be grouped into a mini-roadmap.
+Use when several related backlog bugs should be grouped into a mini-roadmap.
 
 Example:
 
@@ -271,12 +292,12 @@ The output should group fixes into coherent PR packages, just like a normal ARCH
 
 ### Merge with known follow-up
 
-If a PR partially fixes the problem and the remaining issues belong to a broader fix cluster, it may be merged only when:
+If a PR partially fixes the problem and the remaining issues belong to the fix backlog, it may be merged only when:
 
 - the partial fix has standalone value;
 - remaining issues are documented in the PR comments/body;
 - Denis explicitly accepts the follow-up;
-- the follow-up will be handled through fix-cluster or fix-roadmap audit, not ad-hoc tweaks.
+- the follow-up will be handled through a scheduled fix-roadmap audit or an active-ARCH fix, not ad-hoc tweaks.
 
 ---
 
@@ -317,8 +338,9 @@ For a new workstream, GPT should:
 7. Require tests/typecheck/build/qa-smoke for runtime work.
 8. Require manual QA for visual/gameplay/UX-sensitive work.
 9. Use hardening passes before merge when review finds prototype debt.
-10. Use failed-fix audit when repeated fixes stop converging.
-11. Fall back to smaller elevated PRs if GLM starts requiring too many fixups or the diff becomes unreviewable.
+10. Park non-blocking failed fixes in the fix backlog instead of derailing the active roadmap.
+11. Use failed-fix audit only when repeated fixes block the active workstream or when a fix phase is intentionally scheduled.
+12. Fall back to smaller elevated PRs if GLM starts requiring too many fixups or the diff becomes unreviewable.
 
 ---
 
@@ -367,7 +389,7 @@ GPT should request changes when:
 - prototype debt remains in merge-critical code;
 - rollback is unclear.
 
-GPT should stop requesting small fixups and switch to audit when the failed-fix audit rule is triggered.
+GPT should stop requesting small fixups when the failed-fix rule is triggered. If the issue is not blocking, it should be parked in the fix backlog. If it is blocking, switch to audit.
 
 A high/high+ PR can be mergeable when:
 
@@ -390,8 +412,9 @@ High+ is allowed with explicit Denis approval when it stays inside one coherent 
 Large PRs are allowed, but only with tests, qa:smoke, GPT review, manual QA, and hardening.
 Smoke checks catch technical readiness, not gameplay correctness.
 Manual QA remains mandatory for visual/gameplay/UX-sensitive changes.
-If a fix fails after 1-2 attempts, stop implementation and run FIX-CLUSTER-AUDIT.
-Group recurring related bugs into FIX-ROADMAP-AUDIT instead of ad-hoc tweaks.
+If a non-blocking fix fails after 1-2 attempts, park it in the fix backlog.
+If a blocking fix fails after 1-2 attempts, run FIX-CLUSTER-AUDIT.
+Group recurring related backlog bugs into FIX-ROADMAP-AUDIT when a fix phase is scheduled.
 Reject unrelated-system bundles even if each part looks manageable.
 If GLM starts needing too many fixups or the PR becomes unreviewable, fall back to elevated/smaller PRs.
 ```
