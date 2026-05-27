@@ -45,8 +45,11 @@ export const FEEDBACK_DURATIONS: Record<FeedbackEventType, number> = {
   'command-ok': 800,
   'command-fail': 800,
   'resource-raw-gain': 1500,
-  'gathering-activity': 600,
+  'gathering-activity': 700,
 };
+
+/** Interval between gathering activity pulses (ms). */
+export const GATHERING_PULSE_INTERVAL = 600;
 
 // ─── FeedbackEventQueue ──────────────────────────────────────────────
 
@@ -166,4 +169,41 @@ export function getGatheringHarvesters(
     }
   }
   return positions;
+}
+
+/**
+ * Determine which gathering positions need a new activity pulse.
+ *
+ * Compares current gathering positions against a map of last-pulse times.
+ * Emits a pulse for a position if:
+ *   - it has never been pulsed before (new gathering start), or
+ *   - GATHERING_PULSE_INTERVAL has elapsed since the last pulse.
+ * Stale keys (positions no longer gathering) are dropped from the
+ * returned map automatically.
+ *
+ * Pure function — reads tracking map, returns pulses and updated map.
+ */
+export function getGatheringPulses(
+  currentPositions: ReadonlyArray<{ tx: number; ty: number }>,
+  lastPulseTime: Map<string, number>,
+  now: number,
+): { pulses: Array<{ tx: number; ty: number }>; updatedMap: Map<string, number> } {
+  const updatedMap = new Map<string, number>();
+  const pulses: Array<{ tx: number; ty: number }> = [];
+
+  for (const pos of currentPositions) {
+    const key = `${pos.tx},${pos.ty}`;
+    const lastTime = lastPulseTime.get(key);
+    if (lastTime === undefined || now - lastTime >= GATHERING_PULSE_INTERVAL) {
+      pulses.push(pos);
+      updatedMap.set(key, now);
+    } else {
+      updatedMap.set(key, lastTime);
+    }
+  }
+
+  // Keys not in currentPositions are stale — they are simply not copied
+  // to updatedMap, so they disappear automatically.
+
+  return { pulses, updatedMap };
 }

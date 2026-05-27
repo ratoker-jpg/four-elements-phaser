@@ -4,6 +4,7 @@ import {
   FeedbackEventQueue,
   detectEconomyChanges,
   getGatheringHarvesters,
+  getGatheringPulses,
   type EconomySnapshot,
 } from '../../state/feedbackEvents';
 import type { GameState } from '../../state/types';
@@ -69,8 +70,8 @@ export class FeedbackRenderer {
   private prevEconomy: EconomySnapshot = { raw: 0, matter: 0 };
   private economyInitialized = false;
 
-  /** Previous gathering harvester positions (to avoid duplicates). */
-  private prevGatheringPositions = new Set<string>();
+  /** Last pulse time per gathering tile key (for repeating activity pulses). */
+  private lastGatheringPulseTime = new Map<string, number>();
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
@@ -117,17 +118,17 @@ export class FeedbackRenderer {
       this.prevEconomy = { raw: state.economy.raw, matter: state.economy.matter };
     }
 
-    // Detect gathering activity (pulse indicator near gathering harvesters)
+    // Detect gathering activity (repeating pulse while harvester is gathering)
     const gatheringPositions = getGatheringHarvesters(state.harvesters);
-    const currentGatheringKeys = new Set<string>();
-    for (const pos of gatheringPositions) {
-      const key = `${pos.tx},${pos.ty}`;
-      currentGatheringKeys.add(key);
-      if (!this.prevGatheringPositions.has(key)) {
-        this.queue.add('gathering-activity', pos.tx, pos.ty, now);
-      }
+    const { pulses, updatedMap } = getGatheringPulses(
+      gatheringPositions,
+      this.lastGatheringPulseTime,
+      now,
+    );
+    for (const pos of pulses) {
+      this.queue.add('gathering-activity', pos.tx, pos.ty, now);
     }
-    this.prevGatheringPositions = currentGatheringKeys;
+    this.lastGatheringPulseTime = updatedMap;
 
     // Render all active feedback events
     this.renderFeedback(now);
@@ -223,6 +224,7 @@ export class FeedbackRenderer {
     for (const t of this.activeTexts) t.destroy();
     this.textPool = [];
     this.activeTexts = [];
+    this.lastGatheringPulseTime.clear();
     this.queue.clear();
   }
 }

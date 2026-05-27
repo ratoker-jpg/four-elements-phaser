@@ -9,7 +9,9 @@ import {
   FeedbackEventQueue,
   detectEconomyChanges,
   getGatheringHarvesters,
+  getGatheringPulses,
   FEEDBACK_DURATIONS,
+  GATHERING_PULSE_INTERVAL,
   type EconomySnapshot,
 } from '../state/feedbackEvents';
 
@@ -193,5 +195,100 @@ describe('FEEDBACK_DURATIONS', () => {
     for (const t of types) {
       expect(FEEDBACK_DURATIONS[t]).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('getGatheringPulses', () => {
+  it('emits a pulse for a new gathering position', () => {
+    const { pulses, updatedMap } = getGatheringPulses(
+      [{ tx: 5, ty: 3 }],
+      new Map(),
+      1000,
+    );
+    expect(pulses.length).toBe(1);
+    expect(pulses[0]).toEqual({ tx: 5, ty: 3 });
+    expect(updatedMap.get('5,3')).toBe(1000);
+  });
+
+  it('does not emit a pulse before the interval elapses', () => {
+    const lastPulseTime = new Map<string, number>();
+    lastPulseTime.set('5,3', 1000);
+
+    const { pulses, updatedMap } = getGatheringPulses(
+      [{ tx: 5, ty: 3 }],
+      lastPulseTime,
+      1000 + GATHERING_PULSE_INTERVAL - 1,
+    );
+    expect(pulses.length).toBe(0);
+    expect(updatedMap.get('5,3')).toBe(1000); // unchanged
+  });
+
+  it('emits a repeat pulse when the interval elapses', () => {
+    const lastPulseTime = new Map<string, number>();
+    lastPulseTime.set('5,3', 1000);
+
+    const { pulses, updatedMap } = getGatheringPulses(
+      [{ tx: 5, ty: 3 }],
+      lastPulseTime,
+      1000 + GATHERING_PULSE_INTERVAL,
+    );
+    expect(pulses.length).toBe(1);
+    expect(pulses[0]).toEqual({ tx: 5, ty: 3 });
+    expect(updatedMap.get('5,3')).toBe(1000 + GATHERING_PULSE_INTERVAL);
+  });
+
+  it('removes stale keys when the harvester stops gathering', () => {
+    const lastPulseTime = new Map<string, number>();
+    lastPulseTime.set('5,3', 1000);
+    lastPulseTime.set('8,8', 1000);
+
+    // Only position (5,3) is still gathering
+    const { updatedMap } = getGatheringPulses(
+      [{ tx: 5, ty: 3 }],
+      lastPulseTime,
+      2000,
+    );
+    expect(updatedMap.has('8,8')).toBe(false); // stale key removed
+    expect(updatedMap.has('5,3')).toBe(true);
+  });
+
+  it('handles multiple gathering positions independently', () => {
+    const lastPulseTime = new Map<string, number>();
+    lastPulseTime.set('5,3', 1000); // pulsed recently
+    // (8,8) has never been pulsed
+
+    const { pulses, updatedMap } = getGatheringPulses(
+      [{ tx: 5, ty: 3 }, { tx: 8, ty: 8 }],
+      lastPulseTime,
+      1100, // only 100ms since last pulse for (5,3)
+    );
+    expect(pulses.length).toBe(1);
+    expect(pulses[0]).toEqual({ tx: 8, ty: 8 }); // new position pulses
+    expect(updatedMap.get('5,3')).toBe(1000); // kept old time
+    expect(updatedMap.get('8,8')).toBe(1100); // new position got pulse time
+  });
+
+  it('returns empty pulses for no gathering positions', () => {
+    const { pulses, updatedMap } = getGatheringPulses(
+      [],
+      new Map(),
+      1000,
+    );
+    expect(pulses.length).toBe(0);
+    expect(updatedMap.size).toBe(0);
+  });
+
+  it('cleans all stale keys when positions go empty', () => {
+    const lastPulseTime = new Map<string, number>();
+    lastPulseTime.set('5,3', 1000);
+    lastPulseTime.set('8,8', 1000);
+
+    const { pulses, updatedMap } = getGatheringPulses(
+      [],
+      lastPulseTime,
+      2000,
+    );
+    expect(pulses.length).toBe(0);
+    expect(updatedMap.size).toBe(0); // all stale keys removed
   });
 });
