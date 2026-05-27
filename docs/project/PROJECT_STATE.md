@@ -1,297 +1,162 @@
 # PROJECT_STATE.md
 
-Status: operational project state  
+Status: Phase 1 Foundation frozen  
 Project: Four Elements Phaser  
-Repo: `ratoker-jpg/four-elements-phaser`
+Repo: `ratoker-jpg/four-elements-phaser`  
+Updated: 2026-05-27
 
 ---
 
 ## Current mode
 
-Implementation — larger coherent PRs under accepted roadmap and GPT/Denis control.
+Planning checkpoint after fast Phase 1 Foundation work.
 
-Workflow docs and roadmap direction are accepted.
+Implementation is paused until the next roadmap/audit is created.
 
-After ARCH-11A and ARCH-05X, the project uses a high-controlled implementation model with an expanded high+ package option:
-
-```text
-GLM executes larger coherent PRs.
-GPT reviews scope, diff, validation, hidden contracts, and hardening.
-Denis performs manual QA for gameplay/visual/UX behavior.
-PRs are not merged by GLM.
-```
-
-Default implementation target:
+Current rule:
 
 ```text
-high-controlled
+Do not start new runtime ARCH packages immediately.
+Next step is Sandbox MVP audit/roadmap.
 ```
-
-Expanded implementation target when Denis explicitly approves one connected domain package:
-
-```text
-high+ coherent package
-```
-
-This replaces the earlier conservative elevated-ceiling default.
 
 ---
 
-## Current priority
+## Recently completed foundation work
 
-### Completed recently
-
-ARCH-02 asset pipeline migration for current runtime-approved assets is **complete**.
-
-ARCH-11A QA smoke automation is **complete**:
+Recently merged foundation packages include:
 
 ```text
-npm run qa:smoke
-CI QA Smoke Test
-_reports report/screenshot artifacts
+ARCH-11A — Devtools QA sandbox MVP
+ARCH-11B-12A — Debug overlays + QA arena MVP
+ARCH-13A-13B — Gameplay feedback / VFX MVP
+ARCH-14B — Main menu / New Game / Pause shell
+ARCH-14C-15B — UI shell polish + save management UX
+ARCH-15A — Local save/load skeleton
+ARCH-16A-16B — Map setup options + deterministic generated map MVP
+ARCH-08B-09A — Generated map terrain/resource balance MVP
+ARCH-17A-17B — Asset diagnostics and asset viewer MVP
+ARCH-13C-LITE — Render-only unit motion dust polish MVP
 ```
 
-ARCH-05X high-risk civil movement/control/passability probe was merged and accepted as proof that GLM can handle larger coherent PRs when GPT/Denis actively control review and QA.
-
-Implemented ARCH-05X direction:
+The project now has:
 
 ```text
-civil unit selection
-LMB manual move command
-harvester manual move override
-resource-adjacent harvesting approach
-resource/building passability for movement
-civil unit dynamic blockers for manual move
-builder manual move baseline
-state tests + qa smoke gates
+- main menu / new game setup;
+- faction and map selection;
+- generated maps with seed/size;
+- save/load/continue and save management;
+- settings with UI scale;
+- devtools and QA arena;
+- debug overlays;
+- gameplay feedback/VFX;
+- render-only dust MVP;
+- asset diagnostics/viewer;
+- civil economy, construction, separator and factory loop;
+- tests + build + QA smoke CI gates.
 ```
 
-ARCH-05Y was merged as a **partial** visual/motion fix:
+---
+
+## Current active docs
+
+Use these docs after freeze:
 
 ```text
-harvester micro-teleport reduced/fixed via lower arrival threshold
-render-side smoothing removed
-selection ring / unit grounding / lane readability not fully solved
+docs/project/NEW_CHAT_HANDOFF.md
+docs/project/PHASE_1_FREEZE.md
+docs/project/FIX_BACKLOG.md
+docs/project/PROJECT_STATE.md
 ```
 
-ARCH-07A production loop readability was merged:
+`docs/ROADMAP.md` is now inactive/archived and must not be used as active task source.
+
+---
+
+## Next step
+
+Create a new Sandbox MVP audit/roadmap.
+
+The audit should define:
 
 ```text
-construction labels/status
-separator status/progress readability
-units-factory queue/progress readability
-HUD disabled reasons
-resource delta feedback
+- Sandbox MVP exit criteria;
+- fix groups;
+- which issues block MVP;
+- which issues are polish-only;
+- recommended implementation packages;
+- manual QA plan;
+- what moves to Phase 2.
 ```
 
-### Current roadmap direction
+Do not start implementation before Denis approves the audit/roadmap.
 
-Continue the main roadmap workstream.
+---
 
-Do **not** switch the immediate next step to the fix roadmap audit by default.
+## Parked until later phase
 
-Known unresolved visual/movement/economy-loop/faction-asset issues should be parked in the fix backlog until the project intentionally schedules a fix roadmap audit.
-
-Current fix backlog candidate:
+Do not schedule as immediate next work:
 
 ```text
-FIX-ROADMAP-AUDIT — Unit visual grounding, selection marker, lane movement readability, harvester reliability, and faction asset wiring
+- enemy AI / bot;
+- full combat system;
+- attack waves;
+- enemy economy;
+- upgrades;
+- progression;
+- broad balance progression;
+- map editor.
 ```
 
-This future audit should group and plan the recurring issues:
+These are not deleted. They are postponed until after Sandbox MVP planning.
 
+---
+
+## Known fix backlog candidate groups
+
+See `docs/project/FIX_BACKLOG.md`.
+
+Current groups:
+
+```text
+- faction asset wiring;
+- harvester reliability;
+- unit grounding / centering;
 - selection marker model;
-- unit ground anchor model;
-- builder/harvester visual centering;
-- tile-lane movement readability;
-- civil unit movement through/across cells;
-- harvester reliability: harvesters can gather for a while and then stop gathering later in the session;
-- faction asset wiring: non-cyan factions can have missing/invisible HQ/base and cyan harvester visuals even when green/yellow/purple is selected;
-- debug tools for anchor/tile/lane/harvester-state/faction-asset visualization if needed.
-
-Small fixes can still be handled inside the currently active roadmap ARCH when they are directly related to that ARCH and do not require a separate system model.
+- lane movement / diagonal cut-through readability;
+- optional player tank control baseline;
+- movement dust style rework;
+- controlled render-only unit bobbing/suspension.
+```
 
 ---
 
-## Accepted workflow
+## Accepted workflow reminder
 
-The project follows a system-first workflow defined in:
-
-- `docs/project/START_HERE_FOR_GPT.md` — entry point for GPT agent.
-- `docs/project/GPT_WORKFLOW.md` — GPT planner workflow rules.
-- `docs/project/GLM_EXECUTOR_RULES.md` — GLM executor rules.
-- `docs/project/ARCH_SCOPING_POLICY.md` — ARCH phase grouping, high-controlled/high+ package risk policy, and failed-fix audit rule.
-- `docs/project/ARCH_PACKAGE_POLICY.md` — expanded high+ coherent package rules.
-- `docs/ROADMAP.md` — 21-ARCH roadmap with scoped PR sequences.
-- `docs/ROADMAP_SYSTEM_AUDIT.md` — roadmap system audit.
-
-Core rule:
+The project still follows:
 
 ```text
-roadmap -> audit/design -> risk-based scoped PR package -> implementation -> review/hardening -> merge
-high+ coherent package -> explicit Denis approval -> mini-contract audit inside PR -> validation/review/manual QA -> merge
-failed fix cluster -> park in fix backlog or audit immediately if it blocks the active workstream
+roadmap -> audit/design -> scoped package -> implementation -> GPT review -> Denis manual QA -> merge
+```
+
+For fix work:
+
+```text
 fix backlog -> fix-roadmap audit -> scoped fix package -> implementation -> manual QA -> merge/follow-up
 ```
 
+If a fix fails after 1-2 attempts, stop and return to audit instead of guessing.
+
 ---
 
-## Current risk policy summary
+## Telegram notification rule
 
-Current default implementation target:
+When preparing GLM prompts, include:
 
 ```text
-high-controlled
+Telegram notification:
+At task completion, send Telegram notification using /home/z/my-project/.telegram-notify.json if available.
+Do not expose token. Missing/invalid config or send failure must not block the task.
 ```
 
-Expanded mode:
-
-```text
-high+ coherent package
-```
-
-Meaning:
-
-- larger coherent PRs are allowed;
-- adjacent roadmap phases can be bundled when they are one connected domain;
-- high+ requires explicit Denis approval;
-- unrelated-system bundles are still rejected;
-- tests/typecheck/build/qa-smoke are required for runtime PRs;
-- manual QA remains mandatory for visual/gameplay/UX-sensitive changes;
-- high/high+ PRs must include touched layers and implicit contracts;
-- hardening passes are expected when review finds prototype debt;
-- if a fix fails after 1-2 attempts, implementation stops; the issue is either parked in the fix backlog or moved into a FIX-CLUSTER-AUDIT/FIX-ROADMAP-AUDIT if it blocks the active workstream.
-
----
-
-## ARCH-02 asset pipeline status
-
-PreloadScene loads all current runtime-approved assets from
-`src/assets/generatedAssetManifest.ts` via `src/assets/runtimeGeneratedAssets.ts`.
-
-Generated manifest families and counts:
-
-```text
-hq:            4  (image)
-buildings:    24  (image)
-civilUnits:    8  (spritesheet)
-modularUnits: 64  (image)
-terrain:       3  (image)
-resources:     3  (image)
-total:       106 assets
-```
-
-Legacy files remain for compatibility and are no longer called by PreloadScene:
-
-- `src/assets/assetManifest.ts` — original base manifest (terrain, harvester, minerals)
-- `src/assets/buildingAssets.ts` — building loader (deprecated fallback)
-- `src/assets/civilUnitAssets.ts` — civil unit loader (deprecated fallback)
-- `src/assets/modularUnitAssets.ts` — modular unit loader (deprecated fallback)
-
-Possible follow-up items:
-
-- ARCH-02J — optional legacy cleanup only when useful;
-- future decor/fx/ui families only when approved assets are introduced.
-
----
-
-## Recently completed ARCH-01 economy baseline
-
-Important PRs:
-
-- PR #36 — `ARCH-01B: EconomyState + matter-based construction baseline` — merged.
-- PR #37 — `ARCH-01C: Separator processing cycle` — merged.
-- PR #39 — `ARCH-01D: Storage caps + cap-safe economy processing` — merged.
-- PR #40 — `ARCH-01E: Power baseline + separator power gating` — merged.
-- PR #41 — `ARCH-01F: Units-factory production baseline` — merged.
-
-Implemented economy direction:
-
-```text
-raw gathering
-matter/elements economy
-separator conversion cycle
-storage caps
-power generation and active consumption
-power-plant config
-units-factory production queue
-builder/harvester matter + element costs
-builder/harvester production and spawn
-```
-
----
-
-## Recently completed ARCH-03 building placement work
-
-The ARCH-03 building PNG placement sequence was completed before returning to ARCH-01 because the renderer needed a systemic metadata-driven placement path and PR #28 had been closed as manual-tuning based.
-
-Important PRs:
-
-- PR #29 — `DOC-01: Building placement strategy` — merged.
-- PR #30 — `BUILD-ANCHOR-01: BuildingPlacementMeta data model` — merged.
-- PR #31 — `ARCH-00-docs: Workflow, roadmap, and roadmap system audit docs` — merged.
-- PR #32 — `BUILD-ANCHOR-02: Offline alpha-bounds generator` — merged.
-- PR #33 — `BUILD-ANCHOR-03: Render completed buildings with placement metadata` — merged.
-
-Completed building placement direction:
-
-```text
-offline metadata / alpha bounds
-alpha-bottom ground line
-south-vertex footprint anchoring
-generic renderer formula
-footprint-based target display width
-fallback diamond only for missing metadata/texture
-dev tuner only as diagnostic
-```
-
-Manual `displayWidth / origin / offset` tuning per PNG is not the production path.
-
----
-
-## Closed / superseded work
-
-PR #28 — `BUILD-01: Render Completed Separator from PNG` — closed, not merged.
-
-Reason:
-
-```text
-It helped diagnose the problem,
-but its production approach relied too much on manual per-PNG tuning.
-```
-
----
-
-## Hard stop
-
-Do not start without explicit accepted scope:
-
-- full combat system;
-- enemy AI;
-- save/load;
-- random / unscoped implementation work;
-- unrelated-system high+ bundles;
-- more ad-hoc selection-ring / unit-anchor / harvester reliability / faction-asset wiring tweaks outside an active ARCH or without fix-roadmap audit.
-
-Allowed next direction:
-
-- continue the main roadmap workstream selected by GPT/Denis;
-- use high+ coherent packages when Denis approves adjacent phases in one connected domain;
-- keep unit visual grounding / selection marker / lane readability / harvester reliability / faction asset wiring in the fix backlog until scheduled.
-
----
-
-## Maintenance policy
-
-This file should stay short.
-
-It may be updated after important PRs or direction changes.
-
-Small updates to this file do not always require a dedicated docs-only PR if they are part of a related documentation update.
-
-Detailed history belongs in:
-
-- PR bodies;
-- roadmap docs;
-- audit docs;
-- architecture docs.
+This is also documented in `docs/project/GLM_EXECUTOR_RULES.md` and repeated in `NEW_CHAT_HANDOFF.md`.

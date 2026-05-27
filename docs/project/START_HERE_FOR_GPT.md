@@ -10,8 +10,21 @@ Repo: `ratoker-jpg/four-elements-phaser`
 
 This file is the entry point for a new GPT chat.
 
-It does not contain the full workflow, roadmap, or current task details.  
-Its job is to tell GPT what to read first and how to avoid starting work without project context.
+It tells GPT what to read first and how to avoid starting work without project context.
+
+---
+
+## Phase 1 freeze note
+
+After PR #80, Phase 1 Foundation feature work is frozen.
+
+Do not continue from the old `docs/ROADMAP.md` as an active roadmap.
+
+For the next chat, the active entry point is:
+
+```text
+docs/project/NEW_CHAT_HANDOFF.md
+```
 
 ---
 
@@ -19,24 +32,28 @@ Its job is to tell GPT what to read first and how to avoid starting work without
 
 Before helping with the project, read these files in this order:
 
-1. `docs/project/GPT_WORKFLOW.md`  
-   Main working rules for GPT: how to manage tasks, avoid bad patterns, prepare GLM prompts, review PRs, and keep the project systematic.
+1. `docs/project/NEW_CHAT_HANDOFF.md`  
+   Current handoff after Phase 1 freeze. Start here.
 
-2. `docs/project/PROJECT_STATE.md`  
-   Short current status: what is merged, what is on hold, what must not be touched, and what the next planned discussion/task is.
+2. `docs/project/PHASE_1_FREEZE.md`  
+   Freeze decision, what is parked, and what the next planning step is.
 
-3. `docs/ROADMAP.md`  
-   Read only when planning the next phase, changing direction, generating roadmap tasks, or preparing a large audit.
+3. `docs/project/FIX_BACKLOG.md`  
+   Known fix/polish groups to audit for Sandbox MVP.
 
-4. `docs/project/ARCH_SCOPING_POLICY.md`  
-   Read when planning an `ARCH-*` workstream or deciding whether to combine/split implementation PRs by risk.
+4. `docs/project/PROJECT_STATE.md`  
+   Short current operational state.
 
-5. `docs/project/GLM_EXECUTOR_RULES.md`  
-   Read when preparing a task for GLM. This file is for executor instructions only.
+5. `docs/project/GPT_WORKFLOW.md`  
+   GPT planner/reviewer workflow rules.
 
-6. Topic-specific docs when relevant, for example:
+6. `docs/project/GLM_EXECUTOR_RULES.md`  
+   GLM executor rules and Telegram notification requirement.
+
+7. Topic-specific docs only when relevant, for example:
    - `docs/BUILDING_PLACEMENT_STRATEGY.md` for building PNG placement / anchoring.
-   - Other architecture docs only when the current task directly touches that system.
+
+`docs/ROADMAP.md` is now inactive/archived. Read it only as historical reference.
 
 ---
 
@@ -47,6 +64,7 @@ Before helping with the project, read these files in this order:
 GPT is the project coordinator and reviewer.
 
 GPT should:
+
 - keep project context consistent;
 - challenge weak, manual, or non-systemic approaches;
 - prepare compact GLM tasks;
@@ -59,11 +77,13 @@ GPT should:
 GLM is an executor.
 
 GLM should:
+
 - follow a concrete task scope;
 - read `GLM_EXECUTOR_RULES.md`;
 - read only the files listed in the task's `Read first` section;
 - open PRs but not merge them;
 - run validation;
+- send Telegram notification at completion if configured;
 - not plan roadmap unless explicitly asked.
 
 ### Denis role
@@ -71,37 +91,46 @@ GLM should:
 Denis is the project owner.
 
 Denis decides:
+
 - product direction;
 - economy and gameplay design;
 - whether a PR is merged;
 - whether roadmap changes are accepted.
 
-Important: new product ideas from Denis still go through roadmap discipline.  
-They are not automatically inserted into the current implementation phase.
+Important: new product ideas from Denis still go through roadmap discipline.
 
 ---
 
-## Important process rule
+## Immediate process rule
+
+Current next step is planning, not implementation:
+
+```text
+Create Sandbox MVP audit/roadmap.
+```
 
 Do not start code work if project rules, current state, or roadmap are unclear.
 
 When context is unclear:
+
 1. stop;
-2. ask for or inspect the relevant project docs;
+2. inspect the relevant project docs;
 3. update docs first if the documented direction is stale;
 4. only then continue with implementation.
 
 ---
 
-## Current-state file policy
+## Telegram notification rule for GLM prompts
 
-`PROJECT_STATE.md` is intentionally short and operational.
+When GPT prepares GLM tasks or fixup prompts, include:
 
-It may be updated frequently after important PRs or direction changes.  
-Small updates to `PROJECT_STATE.md` do not always require a dedicated docs-only PR if the team agrees to update it directly as part of a related PR.
+```text
+Telegram notification:
+At task completion, send Telegram notification using /home/z/my-project/.telegram-notify.json if available.
+Do not expose token. Missing/invalid config or send failure must not block the task.
+```
 
-It must not become a long history log.  
-Detailed history belongs in PR bodies, architecture docs, or roadmap/audit documents.
+This is repeated here because small fixup prompts may not always include the full executor rules context.
 
 ---
 
@@ -109,57 +138,19 @@ Detailed history belongs in PR bodies, architecture docs, or roadmap/audit docum
 
 Avoid manual tuning as a production strategy.
 
-Manual values, visual tuners, and one-off offsets are allowed only as diagnostics or rare exceptions.  
-The preferred approach is:
+Manual values, visual tuners, and one-off offsets are allowed only as diagnostics or rare exceptions.
+
+Preferred approach:
 
 ```text
 system model -> metadata/config -> generic implementation -> objects fit into the system
 ```
 
-Do not lead the project into repeated per-object calibration unless Denis explicitly accepts that tradeoff.
-
 If a task starts turning into repeated hand-tuned coordinates, offsets, anchors, or per-object exceptions, GPT must stop and challenge the approach.
-
-Correct response pattern:
-
-```text
-This looks like a manual calibration path.
-Before implementation, we need a system/model/metadata approach or an explicit decision to accept manual tuning.
-```
 
 ---
 
 ## Roadmap discipline
-
-Work must follow the accepted roadmap.
-
-Denis owns product direction, but even Denis's new idea does not automatically enter the current workstream.
-
-If a new idea appears during an active phase, GPT must classify it:
-
-1. **Fits current roadmap and current phase**  
-   It can be considered for the current plan, but only if it does not break scope.
-
-2. **Fits roadmap, but not current phase**  
-   Add it to backlog / future phase. Do not implement now.
-
-3. **Changes roadmap direction**  
-   Stop implementation. First update the roadmap, then update or create the relevant roadmap audit/design document. Only after that can implementation tasks be created.
-
-4. **Contradicts current architecture or system approach**  
-   Stop and challenge the idea. Do not force it into the current PR sequence.
-
-Example:
-
-If the current phase is building PNG placement and Denis says “let's quickly add another tank asset”, GPT must not push that into the current phase.
-
-Correct behavior:
-
-```text
-This is outside the current roadmap phase.
-We can add it to backlog or reopen roadmap planning,
-but we should not inject it into the active BUILD/ANCHOR sequence.
-```
 
 Roadmap can change, but not silently.
 
@@ -169,52 +160,16 @@ Any roadmap change must be explicit:
 new idea -> roadmap update -> audit/design update if needed -> then implementation
 ```
 
----
-
-## ARCH planning and PR grouping
-
-When planning a large `ARCH-*` workstream, read `docs/project/ARCH_SCOPING_POLICY.md`.
-
-Default model:
+After Phase 1 freeze:
 
 ```text
-large ARCH -> accepted audit/design -> risk-based scoped PR sequence -> implementation
+FIX_BACKLOG -> Sandbox MVP audit -> new Sandbox MVP roadmap -> scoped implementation packages
 ```
-
-Do not mechanically split every small phase into a separate PR.  
-Do not bundle a whole ARCH into one risky PR.
-
-Implementation PRs may combine adjacent low-risk phases when they are same-layer, easy to test, and easy to roll back.
-
-Split work when it crosses layers, adds a new runtime loop, affects multiple gameplay systems, or makes rollback unclear.
-
----
-
-## When preparing a GLM task
-
-Do not write huge prompt walls by default.
-
-Use a compact task brief:
-
-```text
-Task:
-Mode:
-Read first:
-Goal:
-Scope:
-Hard rules:
-Output:
-Validation:
-Open PR:
-Do not merge.
-```
-
-GLM should not receive roadmap/state context unless the task is specifically about roadmap, audit, or architecture planning.
 
 ---
 
 ## After reading this file
 
-Read `GPT_WORKFLOW.md` and `PROJECT_STATE.md`.
+Read `NEW_CHAT_HANDOFF.md`, `PHASE_1_FREEZE.md`, `FIX_BACKLOG.md`, and `PROJECT_STATE.md`.
 
 Only after that, continue the project conversation.
