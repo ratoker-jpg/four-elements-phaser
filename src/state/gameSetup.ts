@@ -8,6 +8,7 @@
 
 import type { Faction, MapData } from './types';
 import { customMap1 } from '../data/maps/customMap1';
+import { createArenaMapData, ARENA_MAP_ID } from './devArena';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -43,6 +44,7 @@ export const FACTION_CSS_COLORS: Record<Faction, string> = {
 /** Available maps for map selection UI. */
 export const MAP_LIST: ReadonlyArray<{ id: string; name: string }> = [
   { id: 'customMap1', name: 'Map 1' },
+  { id: ARENA_MAP_ID, name: 'QA Arena' },
 ];
 
 /** Default setup configuration (cyan faction, Map 1). */
@@ -56,6 +58,8 @@ export const DEFAULT_SETUP: GameSetupConfig = {
 /** Get MapData by map ID. Returns default map for unknown IDs. */
 export function getMapDataById(id: string): MapData {
   switch (id) {
+    case ARENA_MAP_ID:
+      return createArenaMapData();
     case 'customMap1':
       return customMap1;
     default:

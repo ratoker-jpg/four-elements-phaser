@@ -6,7 +6,7 @@ import { BuildingStatusRenderer } from './render/BuildingStatusRenderer';
 import { CameraControls } from './input/CameraControls';
 import { PlaytestHud } from './ui/PlaytestHud';
 import type { BuildRequestResult, ProductionRequestResult } from './ui/PlaytestHud';
-import { tileToScreen, screenToTile, mapOriginOffset } from './render/isometric';
+import { tileToScreen, screenToTile, mapOriginOffset, type IsoPoint } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
 import { placeConstructionSite, updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/construction';
@@ -31,6 +31,8 @@ import { DEFAULT_SETUP, getMapDataById } from '../state/gameSetup';
 import { saveGame } from '../state/saveGame';
 import { DevtoolsPanel } from './ui/DevtoolsPanel';
 import { isDevtoolsEnabled, type DevCommandResult } from '../state/devCommands';
+import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
+import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData } from '../state/devArena';
 
 /**
  * GameScene — orchestration-only scene.
@@ -96,6 +98,11 @@ export class GameScene extends Phaser.Scene {
   // ARCH-11A: Devtools panel (only created when devtools is enabled)
   private devtoolsPanel: DevtoolsPanel | null = null;
   private devtoolsActive = false;
+
+  // ARCH-11B: Debug overlay renderer (only when devtools is enabled)
+  private debugOverlayRenderer: DebugOverlayRenderer | null = null;
+  // ARCH-12A: Arena mode flag
+  private arenaMode = false;
 
   // ARCH-05X: Unit selection state
   private selectedUnit: UnitSelection = null;
@@ -369,6 +376,57 @@ export class GameScene extends Phaser.Scene {
 
     // ARCH-11A: Create devtools panel if activated
     this.devtoolsActive = isDevtoolsEnabled();
+    this.arenaMode = isArenaEnabled();
+
+    // ARCH-11B: Create debug overlay renderer if devtools is active
+    if (this.devtoolsActive) {
+      this.debugOverlayRenderer = new DebugOverlayRenderer(this, this._offset as IsoPoint);
+    }
+
+    // ARCH-12A: Arena mode — override initial state if arena=1
+    if (this.arenaMode && !this.loadedGameState) {
+      const arenaMapData = createArenaMapData();
+      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction);
+      // Re-render terrain and entities for arena map
+      this.terrainRenderer?.destroy();
+      this.terrainRenderer = new TerrainRenderer(
+        this,
+        this.gameState.mapData.terrain,
+        this.gameState.mapWidth,
+        this.gameState.mapHeight,
+      );
+      const arenaOffset = mapOriginOffset(this.gameState.mapWidth, this.gameState.mapHeight);
+      this._offset = arenaOffset;
+
+      // Re-create entity renderer for arena
+      this.entityRenderer?.destroy();
+      this.entityRenderer = new EntityRenderer(this, arenaOffset);
+      this.entityRenderer.renderStaticEntities(this.gameState.entities);
+      this.entityRenderer.renderDynamicInit(
+        this.gameState.harvesters,
+        this.gameState.resourceNodes,
+      );
+
+      // Re-create building status renderer
+      this.buildingStatusRenderer?.destroy();
+      this.buildingStatusRenderer = new BuildingStatusRenderer(this, arenaOffset);
+
+      // Re-create debug overlay renderer with new offset
+      this.debugOverlayRenderer?.destroy();
+      this.debugOverlayRenderer = new DebugOverlayRenderer(this, arenaOffset);
+
+      // Re-center camera on HQ
+      const hq = this.gameState.mapData.hq;
+      const hqCenterTx = hq.tx + 1;
+      const hqCenterTy = hq.ty + 1;
+      const hqScreen = tileToScreen(hqCenterTx, hqCenterTy);
+      this.hqWorldX = hqScreen.x + arenaOffset.x;
+      this.hqWorldY = hqScreen.y + arenaOffset.y;
+      this.cameraControls?.centerOn(this.hqWorldX, this.hqWorldY);
+
+      console.log('[GameScene] Arena mode active. Map: QA Arena (20x20)');
+    }
+
     if (this.devtoolsActive) {
       this.devtoolsPanel = new DevtoolsPanel();
       this.devtoolsPanel.create({
@@ -376,7 +434,19 @@ export class GameScene extends Phaser.Scene {
           const result = command(this.gameState);
           this.devtoolsPanel?.showCommandResult(result);
         },
-      });
+        onToggleOverlay: (overlay: 'passability' | 'footprint' | 'resource') => {
+          if (!this.debugOverlayRenderer) return false;
+          if (overlay === 'passability') return this.debugOverlayRenderer.togglePassability();
+          if (overlay === 'footprint') return this.debugOverlayRenderer.toggleFootprint();
+          if (overlay === 'resource') return this.debugOverlayRenderer.toggleResource();
+          return false;
+        },
+        onResetArena: () => {
+          if (this.arenaMode) {
+            this.scene.restart({ faction: this.setupConfig.faction, mapId: ARENA_MAP_ID });
+          }
+        },
+      }, this.arenaMode);
       console.log('[GameScene] Devtools panel enabled.');
     }
 
@@ -510,6 +580,9 @@ export class GameScene extends Phaser.Scene {
 
     // 9. ARCH-11A: Update devtools diagnostics
     this.devtoolsPanel?.update(this.gameState);
+
+    // 9b. ARCH-11B: Sync debug overlays
+    this.debugOverlayRenderer?.syncFromState(this.gameState);
 
     // 10. Debug log on unload completion
     if (this.gameState.economy.raw > this.lastLoggedRaw) {
@@ -834,6 +907,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.debugOverlayRenderer?.destroy();
+    this.debugOverlayRenderer = null;
     this.devtoolsPanel?.destroy();
     this.devtoolsPanel = null;
     this.pauseMenu?.destroy();

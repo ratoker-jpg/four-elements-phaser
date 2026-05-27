@@ -16,6 +16,7 @@ import type { Faction, GameState } from './types';
 import { ELEMENT_UNITS_PER_ELEMENT } from './types';
 import { buildOccupancyMap, isPassable, isTileOccupiedByUnit } from './occupancy';
 import { createHarvester } from './updateGameState';
+import { isArenaEnabled, ARENA_MAP_ID } from './devArena';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -47,6 +48,13 @@ export function isDevtoolsEnabled(): boolean {
   const params = new URLSearchParams(window.location.search);
   return params.get('devtools') === '1' || params.get('devtools') === 'true';
 }
+
+/**
+ * Check whether arena mode should be active based on URL params.
+ * Checks for ?arena=1 (or ?arena=true).
+ * Exported for testing and GameScene wiring.
+ */
+export { isArenaEnabled, ARENA_MAP_ID };
 
 // ─── Resource commands ──────────────────────────────────────────────
 
@@ -113,6 +121,15 @@ export function devZeroResources(state: GameState): DevCommandResult {
   state.economy.matter = 0;
   state.economy.elements[state.playerFaction] = 0;
   return { success: true, message: 'All resources zeroed' };
+}
+
+/**
+ * Reset state to a fresh arena preset.
+ * Returns mapId so GameScene can create a new GameState.
+ * DEV-ONLY: This is a full state reset, not a partial modification.
+ */
+export function devResetArenaCommand(): DevCommandResult {
+  return { success: true, message: `Arena reset. mapId=${ARENA_MAP_ID}` };
 }
 
 // ─── Spawn commands ─────────────────────────────────────────────────

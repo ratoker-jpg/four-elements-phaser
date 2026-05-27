@@ -5,6 +5,11 @@
  * diagnostics readout, and overlay toggles. Only shown when devtools
  * is activated (?devtools=1 or F10 toggle).
  *
+ * ARCH-11B: Overlay toggles for passability, building footprints,
+ * and resource markers.
+ *
+ * ARCH-12A: Arena section with reset button (only when arena=1).
+ *
  * Lifecycle:
  * - Created by GameScene in create() when devtools is enabled.
  * - Updated each frame via update(state).
@@ -32,6 +37,10 @@ import {
 export interface DevtoolsCallbacks {
   /** Run a dev command that mutates game state. */
   onCommand: (command: (state: GameState) => DevCommandResult) => void;
+  /** Toggle a debug overlay. Returns new visibility state. */
+  onToggleOverlay: (overlay: 'passability' | 'footprint' | 'resource') => boolean;
+  /** Reset arena state. */
+  onResetArena?: () => void;
 }
 
 // ─── DevtoolsPanel class ────────────────────────────────────────────
@@ -54,7 +63,7 @@ export class DevtoolsPanel {
   /**
    * Create the devtools panel DOM overlay. Call once when GameScene starts.
    */
-  create(callbacks: DevtoolsCallbacks): void {
+  create(callbacks: DevtoolsCallbacks, isArena?: boolean): void {
     this.destroy();
     this.callbacks = callbacks;
 
@@ -163,6 +172,40 @@ export class DevtoolsPanel {
     `;
     content.appendChild(this.diagnosticsEl);
 
+    // ── Overlays section ──────────────────────────────────────
+    const overlayTitle = document.createElement('div');
+    overlayTitle.textContent = 'Overlays';
+    overlayTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #ce93d8;';
+    content.appendChild(overlayTitle);
+
+    const overlayRow = document.createElement('div');
+    overlayRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 2px; flex-wrap: wrap;';
+    this._passabilityBtn = this.createToggleButton('Pass', '#ce93d8', () => this.toggleOverlay('passability'));
+    this._footprintBtn = this.createToggleButton('Foot', '#ce93d8', () => this.toggleOverlay('footprint'));
+    this._resourceBtn = this.createToggleButton('Res', '#ce93d8', () => this.toggleOverlay('resource'));
+    overlayRow.appendChild(this._passabilityBtn);
+    overlayRow.appendChild(this._footprintBtn);
+    overlayRow.appendChild(this._resourceBtn);
+    content.appendChild(overlayRow);
+
+    // ── Arena section (only when arena mode is active) ────────
+    this._isArena = isArena ?? false;
+    if (this._isArena) {
+      const arenaTitle = document.createElement('div');
+      arenaTitle.textContent = 'Arena';
+      arenaTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; margin-top: 4px; color: #ffab40;';
+      content.appendChild(arenaTitle);
+
+      const arenaRow = document.createElement('div');
+      arenaRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 6px;';
+      arenaRow.appendChild(this.createDevButton('Reset Arena', '#ffab40', () => {
+        if (this.callbacks?.onResetArena) {
+          this.callbacks.onResetArena();
+        }
+      }));
+      content.appendChild(arenaRow);
+    }
+
     // ── Status feedback ────────────────────────────────────────
     this.statusEl = document.createElement('div');
     this.statusEl.style.cssText = `
@@ -173,17 +216,6 @@ export class DevtoolsPanel {
       opacity: 0;
     `;
     content.appendChild(this.statusEl);
-
-    // ── Overlays section (ARCH-11B follow-up) ──────────────────
-    const overlayTitle = document.createElement('div');
-    overlayTitle.textContent = 'Overlays';
-    overlayTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #777;';
-    content.appendChild(overlayTitle);
-
-    const overlayNote = document.createElement('div');
-    overlayNote.textContent = 'Follow-up: ARCH-11B';
-    overlayNote.style.cssText = 'font-size: 9px; color: #555; font-style: italic;';
-    content.appendChild(overlayNote);
 
     root.appendChild(content);
 
@@ -291,12 +323,43 @@ export class DevtoolsPanel {
     this.callbacks = null;
     this._visible = true;
     this._collapsed = false;
+    this._passabilityBtn = null;
+    this._footprintBtn = null;
+    this._resourceBtn = null;
+    this._isArena = false;
   }
 
   // ─── Internal helpers ──────────────────────────────────────────
 
   /** Collapse label element reference. */
   private _collapseLabel: HTMLSpanElement | null = null;
+
+  /** Overlay toggle button references. */
+  private _passabilityBtn: HTMLButtonElement | null = null;
+  private _footprintBtn: HTMLButtonElement | null = null;
+  private _resourceBtn: HTMLButtonElement | null = null;
+
+  /** Whether arena mode is active. */
+  private _isArena = false;
+
+  /** Toggle an overlay and update button visual state. */
+  private toggleOverlay(overlay: 'passability' | 'footprint' | 'resource'): void {
+    if (!this.callbacks) return;
+    const visible = this.callbacks.onToggleOverlay(overlay);
+    const btn = overlay === 'passability' ? this._passabilityBtn
+      : overlay === 'footprint' ? this._footprintBtn
+      : this._resourceBtn;
+    if (btn) {
+      btn.style.background = visible ? 'rgba(206, 147, 216, 0.3)' : 'rgba(255, 255, 255, 0.04)';
+    }
+  }
+
+  /** Create a toggle-style button (flex: 1, same base style as dev buttons). */
+  private createToggleButton(text: string, color: string, onClick: () => void): HTMLButtonElement {
+    const btn = this.createDevButton(text, color, onClick);
+    btn.style.flex = '1';
+    return btn;
+  }
 
   private createDevButton(text: string, color: string, onClick: () => void): HTMLButtonElement {
     const btn = document.createElement('button');
