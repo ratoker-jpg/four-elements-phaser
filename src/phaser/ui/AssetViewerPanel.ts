@@ -61,6 +61,8 @@ export class AssetViewerPanel {
       z-index: 26;
       pointer-events: auto;
       user-select: none;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: top left;
     `;
 
     // ── Header ────────────────────────────────────────────────
@@ -151,15 +153,15 @@ export class AssetViewerPanel {
 
   private renderSummary(parent: HTMLDivElement, diagnostics: RuntimeAssetDiagnostics): void {
     const s = diagnostics.summary;
-    const section = this.createSection('Summary', '#80c0ff');
-    section.innerHTML =
+    const { section, body } = this.createSection('Summary', '#80c0ff');
+    body.innerHTML =
       `<div>Manifest keys: <b>${s.checked}</b> checked | <b>${s.loaded}</b> loaded | <b style="color:#ff8888">${s.missing}</b> missing</div>` +
       `<div>Unwired: ${s.manifestOnly} | Placeholder: ${s.placeholder} | Deferred: ${s.stateOnlyAndDeferred}</div>`;
     parent.appendChild(section);
   }
 
   private renderFactionGaps(parent: HTMLDivElement, diagnostics: RuntimeAssetDiagnostics): void {
-    const section = this.createSection('Faction Gaps', '#ffcc44');
+    const { section, body } = this.createSection('Faction Gaps', '#ffcc44');
 
     // Collect faction info from entries
     const factionMap = new Map<string, { hq: boolean; hqWired: boolean; builder: boolean; builderWired: boolean; harvester: boolean; harvesterWired: boolean }>();
@@ -201,12 +203,12 @@ export class AssetViewerPanel {
         `</div>`;
     }
     html += `<div style="margin-top:3px;font-size:9px;color:#888;">✓=wired ⚠=manifest-only ✗=missing</div>`;
-    section.innerHTML = html;
+    body.innerHTML = html;
     parent.appendChild(section);
   }
 
   private renderCategories(parent: HTMLDivElement, diagnostics: RuntimeAssetDiagnostics): void {
-    const section = this.createSection('Asset Categories', '#81c784');
+    const { section, body } = this.createSection('Asset Categories', '#81c784');
 
     const categories: Array<{ name: string; cat: string }> = [
       { name: 'Terrain', cat: 'terrain' },
@@ -250,7 +252,7 @@ export class AssetViewerPanel {
       }
     }
 
-    section.innerHTML = html;
+    body.innerHTML = html;
     parent.appendChild(section);
   }
 
@@ -258,7 +260,7 @@ export class AssetViewerPanel {
     const deferredEntries = diagnostics.entries.filter(e => e.status === 'deferred' || e.status === 'placeholder');
     if (deferredEntries.length === 0) return;
 
-    const section = this.createSection('Deferred / State-Only', '#888');
+    const { section, body } = this.createSection('Deferred / State-Only', '#888');
 
     let html = '';
     for (const entry of deferredEntries) {
@@ -267,11 +269,11 @@ export class AssetViewerPanel {
     }
     html += `<div style="margin-top:3px;font-size:9px;color:#666;">⏸=deferred ◇=placeholder</div>`;
 
-    section.innerHTML = html;
+    body.innerHTML = html;
     parent.appendChild(section);
   }
 
-  private createSection(title: string, color: string): HTMLDivElement {
+  private createSection(title: string, color: string): { section: HTMLDivElement; body: HTMLDivElement } {
     const section = document.createElement('div');
     section.style.cssText = `
       margin-bottom: 8px;
@@ -289,9 +291,6 @@ export class AssetViewerPanel {
     body.style.cssText = 'font-size: 10px; line-height: 1.5; color: #999;';
     section.appendChild(body);
 
-    // Return body for innerHTML — title is already appended
-    // We'll repurpose: remove the body placeholder, use section directly
-    section.removeChild(body);
-    return section;
+    return { section, body };
   }
 }
