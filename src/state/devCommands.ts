@@ -14,7 +14,7 @@
 
 import type { Faction, GameState } from './types';
 import { ELEMENT_UNITS_PER_ELEMENT } from './types';
-import { buildOccupancyMap, isPassable } from './occupancy';
+import { buildOccupancyMap, isPassable, isTileOccupiedByUnit } from './occupancy';
 import { createHarvester } from './updateGameState';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -186,6 +186,11 @@ export function devSpawnHarvester(state: GameState): DevCommandResult {
  * Uses the occupancy map to avoid spawning inside buildings,
  * resources, or other impassable tiles.
  *
+ * ARCH-11A fixup: Also rejects tiles currently occupied by
+ * civil units (builders/harvesters) so repeated spawns
+ * do not stack on the same tile. This is dev-spawn validation
+ * only — it does not change the global passability model.
+ *
  * Exported for testing.
  */
 export function findSpawnTileNearHq(state: GameState): { tx: number; ty: number } | null {
@@ -201,9 +206,14 @@ export function findSpawnTileNearHq(state: GameState): { tx: number; ty: number 
           pos.tx >= state.mapWidth || pos.ty >= state.mapHeight) {
         continue;
       }
-      if (isPassable(occupancyMap, pos.tx, pos.ty)) {
-        return pos;
+      if (!isPassable(occupancyMap, pos.tx, pos.ty)) {
+        continue;
       }
+      // Reject tiles already occupied by civil units (dev-spawn validation only)
+      if (isTileOccupiedByUnit(state, pos.tx, pos.ty)) {
+        continue;
+      }
+      return pos;
     }
   }
 

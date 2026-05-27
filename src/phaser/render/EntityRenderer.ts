@@ -145,9 +145,20 @@ export class EntityRenderer {
   }
 
   private syncHarvesters(harvesters: HarvesterState[]): void {
+    // Track which harvester IDs are still in state so we can clean up stale sprites
+    const activeIds = new Set<string>();
+
     for (const h of harvesters) {
-      const sprite = this.harvesterSprites.get(h.id);
-      if (!sprite) continue;
+      activeIds.add(h.id);
+
+      let sprite = this.harvesterSprites.get(h.id);
+      if (!sprite) {
+        // ARCH-11A fixup: Create sprite on-the-fly for dev-spawned harvesters
+        // so they become visible immediately without scene restart.
+        this.createHarvesterSprite(h);
+        sprite = this.harvesterSprites.get(h.id);
+        if (!sprite) continue; // safety guard
+      }
 
       // Set sprite position directly from state (no render-side smoothing).
       // With ARRIVAL_THRESHOLD = 0.03, waypoint snap is sub-pixel (~0.57px)
@@ -171,6 +182,15 @@ export class EntityRenderer {
         }
       }
       this.harvesterPrevTile.set(h.id, { ftx: h.ftx, fty: h.fty });
+    }
+
+    // Clean up stale harvester sprites (sprites for harvesters no longer in state)
+    for (const [id, sprite] of this.harvesterSprites) {
+      if (!activeIds.has(id)) {
+        sprite.destroy();
+        this.harvesterSprites.delete(id);
+        this.harvesterPrevTile.delete(id);
+      }
     }
   }
 

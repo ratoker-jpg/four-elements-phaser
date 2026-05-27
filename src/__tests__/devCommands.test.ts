@@ -224,6 +224,53 @@ describe('devCommands', () => {
       expect(pos!.tx).toBeLessThan(gs.mapWidth);
       expect(pos!.ty).toBeLessThan(gs.mapHeight);
     });
+
+    it('spawning twice does not place both units on the same tile when alternatives exist', () => {
+      const gs = makeGameState();
+      const result1 = devSpawnBuilder(gs);
+      expect(result1.success).toBe(true);
+
+      const result2 = devSpawnBuilder(gs);
+      expect(result2.success).toBe(true);
+
+      // The two builders should be on different tiles
+      const b1 = gs.mapData.builders[gs.mapData.builders.length - 2];
+      const b2 = gs.mapData.builders[gs.mapData.builders.length - 1];
+      const sameTile = Math.round(b1.ftx) === Math.round(b2.ftx) &&
+                       Math.round(b1.fty) === Math.round(b2.fty);
+      expect(sameTile).toBe(false);
+    });
+
+    it('spawning builder then harvester does not reuse the same tile', () => {
+      const gs = makeGameState();
+      const result1 = devSpawnBuilder(gs);
+      expect(result1.success).toBe(true);
+
+      const result2 = devSpawnHarvester(gs);
+      expect(result2.success).toBe(true);
+
+      // Builder and harvester should be on different tiles
+      const builder = gs.mapData.builders[gs.mapData.builders.length - 1];
+      const harvester = gs.harvesters[gs.harvesters.length - 1];
+      const sameTile = Math.round(builder.ftx) === Math.round(harvester.ftx) &&
+                       Math.round(builder.fty) === Math.round(harvester.fty);
+      expect(sameTile).toBe(false);
+    });
+
+    it('returns failure when all nearby candidate tiles are occupied', () => {
+      const gs = makeGameState();
+
+      // Spawn many builders to exhaust nearby tiles (8 rings * many candidates)
+      // Keep spawning until it fails
+      let lastResult = { success: true, message: '' };
+      for (let i = 0; i < 200; i++) {
+        lastResult = devSpawnBuilder(gs);
+        if (!lastResult.success) break;
+      }
+
+      expect(lastResult.success).toBe(false);
+      expect(lastResult.message).toContain('No valid spawn tile');
+    });
   });
 
   describe('devGetDiagnostics', () => {
