@@ -6,7 +6,7 @@ import { BuildingStatusRenderer } from './render/BuildingStatusRenderer';
 import { CameraControls } from './input/CameraControls';
 import { PlaytestHud } from './ui/PlaytestHud';
 import type { BuildRequestResult, ProductionRequestResult } from './ui/PlaytestHud';
-import { tileToScreen, screenToTile, mapOriginOffset } from './render/isometric';
+import { tileToScreen, screenToTile, mapOriginOffset, type IsoPoint } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
 import { placeConstructionSite, updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/construction';
@@ -31,6 +31,8 @@ import { DEFAULT_SETUP, getMapDataById } from '../state/gameSetup';
 import { saveGame } from '../state/saveGame';
 import { DevtoolsPanel } from './ui/DevtoolsPanel';
 import { isDevtoolsEnabled, type DevCommandResult } from '../state/devCommands';
+import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
+import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData } from '../state/devArena';
 
 /**
  * GameScene — orchestration-only scene.
@@ -97,6 +99,11 @@ export class GameScene extends Phaser.Scene {
   private devtoolsPanel: DevtoolsPanel | null = null;
   private devtoolsActive = false;
 
+  // ARCH-11B: Debug overlay renderer (only when devtools is enabled)
+  private debugOverlayRenderer: DebugOverlayRenderer | null = null;
+  // ARCH-12A: Arena mode flag
+  private arenaMode = false;
+
   // ARCH-05X: Unit selection state
   private selectedUnit: UnitSelection = null;
 
@@ -148,11 +155,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    // ARCH-15A: Use loaded state if available, otherwise create new state
+    // ARCH-11B+12A fixup: Compute devtools/arena flags BEFORE any rendering.
+    // Arena mode is gated on devtools being active: ?devtools=1&arena=1.
+    this.devtoolsActive = isDevtoolsEnabled();
+    this.arenaMode = this.devtoolsActive && isArenaEnabled();
+
+    // Determine the game state source — loaded save takes priority,
+    // then arena (dev-only), then normal setup config.
     if (this.loadedGameState) {
       this.gameState = this.loadedGameState;
       this.loadedGameState = null;
       console.log('[GameScene] Loaded saved game state.');
+    } else if (this.arenaMode) {
+      // Arena mode: create arena state (devtools-gated)
+      const arenaMapData = createArenaMapData();
+      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction);
+      console.log('[GameScene] Arena mode active. Map: QA Arena (20x20)');
     } else {
       const mapData = getMapDataById(this.setupConfig.mapId);
       this.gameState = createInitialState(mapData, this.setupConfig.faction);
@@ -367,8 +385,13 @@ export class GameScene extends Phaser.Scene {
       this.setupConfig,
     );
 
+    // ARCH-11B: Create debug overlay renderer if devtools is active
+    if (this.devtoolsActive) {
+      this.debugOverlayRenderer = new DebugOverlayRenderer(this, this._offset as IsoPoint);
+    }
+
     // ARCH-11A: Create devtools panel if activated
-    this.devtoolsActive = isDevtoolsEnabled();
+    // (devtoolsActive/arenaMode already computed at top of create())
     if (this.devtoolsActive) {
       this.devtoolsPanel = new DevtoolsPanel();
       this.devtoolsPanel.create({
@@ -376,7 +399,19 @@ export class GameScene extends Phaser.Scene {
           const result = command(this.gameState);
           this.devtoolsPanel?.showCommandResult(result);
         },
-      });
+        onToggleOverlay: (overlay: 'passability' | 'footprint' | 'resource') => {
+          if (!this.debugOverlayRenderer) return false;
+          if (overlay === 'passability') return this.debugOverlayRenderer.togglePassability();
+          if (overlay === 'footprint') return this.debugOverlayRenderer.toggleFootprint();
+          if (overlay === 'resource') return this.debugOverlayRenderer.toggleResource();
+          return false;
+        },
+        onResetArena: () => {
+          if (this.arenaMode) {
+            this.scene.restart({ faction: this.setupConfig.faction, mapId: ARENA_MAP_ID });
+          }
+        },
+      }, this.arenaMode);
       console.log('[GameScene] Devtools panel enabled.');
     }
 
@@ -510,6 +545,9 @@ export class GameScene extends Phaser.Scene {
 
     // 9. ARCH-11A: Update devtools diagnostics
     this.devtoolsPanel?.update(this.gameState);
+
+    // 9b. ARCH-11B: Sync debug overlays
+    this.debugOverlayRenderer?.syncFromState(this.gameState);
 
     // 10. Debug log on unload completion
     if (this.gameState.economy.raw > this.lastLoggedRaw) {
@@ -834,6 +872,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.debugOverlayRenderer?.destroy();
+    this.debugOverlayRenderer = null;
     this.devtoolsPanel?.destroy();
     this.devtoolsPanel = null;
     this.pauseMenu?.destroy();

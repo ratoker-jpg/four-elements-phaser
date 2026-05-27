@@ -16,6 +16,7 @@ import {
   findSpawnTileNearHq,
   devGetDiagnostics,
   isDevtoolsEnabled,
+  devResetArenaCommand,
 } from '../state/devCommands';
 import type { GameState, Faction } from '../state/types';
 import { createInitialState } from '../state/createInitialState';
@@ -295,6 +296,14 @@ describe('devCommands', () => {
       devGetDiagnostics(gs);
 
       expect(gs.economy.raw).toBe(rawBefore);
+    });
+  });
+
+  describe('devResetArenaCommand', () => {
+    it('returns success with arena mapId', () => {
+      const result = devResetArenaCommand();
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('arena');
     });
   });
 });

@@ -574,6 +574,25 @@ manual QA notes, if applicable
 next recommended step
 ```
 
+### Telegram notification
+
+After completing a task (successful or blocked), send a brief notification via Telegram if the config file exists:
+
+```text
+Config file: /home/z/my-project/.telegram-notify.json
+Format: { "bot_token": "...", "chat_id": 123456 }
+```
+
+Rules:
+
+```text
+Read the config file at task completion.
+If the file exists and is valid, send a Telegram message.
+Message format: brief status, PR number, validation result.
+Do NOT include the bot token in commits, PR body, logs, or code.
+If the config file is missing or invalid, skip silently — do not block the task.
+```
+
 If blocked, report:
 
 ```text
