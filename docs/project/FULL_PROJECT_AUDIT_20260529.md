@@ -201,7 +201,7 @@ Sandbox MVP **функционально работает**, но **не ощу�
 
 | Проблема | Серьёзность | Описание |
 |----------|-------------|----------|
-| Нет мягкой цели | **blocker** | Игрок не знает, к чему стремиться. "Построй базу" — не цель для 15 минут |
+| Нет мягкой цели | **high** | Игрок не знает, к чему стремиться. "Построй базу" — не цель для 15 минут. Не ломает текущую функциональность, но снижает качество сессии |
 | Харвестеры застревают | **blocker** | Харвестер может перейти в idle без видимой причины. Известная проблема |
 | Два HUD | **high** | Legacy + PlaytestHud путают. Две панели с экономикой, разный формат |
 | Blocked feedback технический | **high** | "No Approach Path" — непонятно игроку. Нужно "Resource blocked by buildings" |
@@ -817,7 +817,7 @@ Sandbox MVP **функционально работает**, но **не ощу�
 | # | Нахождение | Серьёзность | Вероятность | Влияние | Рекомендуемый тайминг | Первый PR |
 |---|-----------|-------------|-------------|---------|----------------------|-----------|
 | 1 | Харвестеры застревают | blocker | high | Нег playable session | Now | SP-01 audit |
-| 2 | Нет soft goal/objective | blocker | certain | Нет мотивации играть 15 мин | Now | PLAY-01 |
+| 2 | Нет soft goal/objective | high | certain | Нет мотивации играть 15 мин | Now | PLAY-01 |
 | 3 | Два HUD | high | certain | Игрок путается | Now (Next) | HUD-01 |
 | 4 | CameraControls.destroy() | medium | low-medium | Сломает input при частичном cleanup | Now | FIX-05 |
 | 5 | updateGameState монолит | medium | medium | Сложность изменений | Next | DECOMP-01 |
@@ -930,6 +930,8 @@ Sandbox MVP **функционально работает**, но **не ощу�
 
 ## 15. Первые 3 готовых GLM-промпта
 
+> **Примечание о порядке промптов vs roadmap.** Первые 3 готовых промпта (SP-01, HUD-01, BUILDER-ID) не совпадают с первыми 3 задачами roadmap (SP-01, SP-02, PLAY-01). SP-02 зависит от результатов SP-01, поэтому его промпт должен быть сгенерирован после завершения SP-01. PLAY-01 лучше генерировать после подтверждения roadmap. Включённые промпты покрывают первую задачу audit/design плюс два вероятных кандидата на implementation, но порядок roadmap остаётся авторитетным.
+
 ### Промпт 1: SP-01 — Harvester/pathfinding reliability audit/design
 
 ```markdown
@@ -952,10 +954,15 @@ Do not treat it as active implementation baseline.
 Before doing anything:
 1. Confirm active repo is ratoker-jpg/four-elements-phaser.
 2. Confirm package.json has "phaser": "4.1.0".
-3. If repo/version mismatch, stop and report.
+3. Confirm main includes merged PR #96 / FULL-PROJECT-AUDIT-01.
+4. Read docs/project/FULL_PROJECT_AUDIT_20260529.md.
+5. If repo/version/docs/main mismatch, stop and report.
 
 Read first:
 - docs/project/GLM_EXECUTOR_RULES.md
+- docs/project/GPT_WORKFLOW.md
+- docs/project/PROJECT_STATE.md
+- docs/project/CURRENT_NEXT_STEP.md
 - docs/project/FULL_PROJECT_AUDIT_20260529.md
 - src/state/updateGameState.ts
 - src/state/pathfinding.ts
@@ -973,6 +980,7 @@ The harvester state machine is in updateGameState.ts (~370 LOC of harvester logi
 BFS pathfinding is in pathfinding.ts.
 The player experience goal is: harvesters should never appear "stuck" without
 a clear, actionable reason shown to the player.
+Harvester reliability is the #1 blocker for playable MVP (per FULL_PROJECT_AUDIT_20260529).
 
 Goal:
 Produce a detailed audit/design report that:
@@ -986,20 +994,45 @@ Produce a detailed audit/design report that:
 7. Proposes player-facing improvements (what the player should see)
 
 Scope:
-- Read-only audit. Do not edit files.
+- Read-only audit. Do not edit runtime files.
 - Focus on harvester reliability first, builder second.
 - Do not recommend combat, enemy, bot, GPU, elements, or faction-aware loading.
 - Do not recommend a giant updateGameState rewrite.
 - Do recommend staged, scoped PR sequence with risk assessment.
 
-Output:
-Markdown report only. Do not create branches or PRs.
+Hard rules:
+- Do not edit runtime code
+- Do not edit tests
+- Do not edit package files
+- Do not edit assets
+- Do not start implementation
+- Do not merge
 
-Include:
+Output:
+- Create docs/project/SP_01_HARVESTER_RELIABILITY_AUDIT.md
+- Open docs-only PR into main
+- Do not merge
+
+Include in the audit report:
 - Root cause analysis for each stuck scenario
 - Recommended PR sequence (task IDs, risk, touched files, validation)
 - What NOT to do
 - Whether builder stable IDs should be in the same PR sequence
+
+Validation:
+- Audit report only — no runtime validation required
+- Confirm audit file exists and is complete
+- Confirm PR is docs-only (no src/ changes)
+
+PR body must include:
+- Goal
+- Files changed
+- Root cause / current limitation
+- What changed or findings
+- What was intentionally not changed
+- Validation results / commands run
+- Risks / rollback
+- Next recommended task
 
 Telegram notification:
 At task completion, send Telegram notification using
@@ -1034,10 +1067,15 @@ Do not treat it as active implementation baseline.
 Before doing anything:
 1. Confirm active repo is ratoker-jpg/four-elements-phaser.
 2. Confirm package.json has "phaser": "4.1.0".
-3. If repo/version mismatch, stop and report.
+3. Confirm main includes merged PR #96 / FULL-PROJECT-AUDIT-01.
+4. Read docs/project/FULL_PROJECT_AUDIT_20260529.md.
+5. If repo/version/docs/main mismatch, stop and report.
 
 Read first:
 - docs/project/GLM_EXECUTOR_RULES.md
+- docs/project/GPT_WORKFLOW.md
+- docs/project/PROJECT_STATE.md
+- docs/project/CURRENT_NEXT_STEP.md
 - docs/project/FULL_PROJECT_AUDIT_20260529.md
 - src/phaser/GameScene.ts
 - src/phaser/ui/PlaytestHud.ts
@@ -1052,6 +1090,7 @@ The project currently has two HUD systems:
 The audit determined that the legacy HUD should be removed and PlaytestHud
 should become the single main HUD. Camera info (zoom, scroll position)
 should be moved into PlaytestHud or removed.
+Two HUDs are rated high severity in the project audit — they confuse new players.
 
 Goal:
 Remove the legacy HUD system and make PlaytestHud the single source of
@@ -1075,6 +1114,7 @@ Hard rules:
 - Do not break qa:smoke (DOM assertion for #hud-economy must still work)
 - If removing #hud-economy from legacy HUD, ensure PlaytestHud has an
   equivalent element that qa:smoke can assert
+- Do not merge
 
 Validation:
 - npm test
@@ -1089,6 +1129,16 @@ Manual QA:
 - Camera info visible somewhere
 - No empty DOM areas where legacy HUD was
 - qa:smoke passes
+
+PR body must include:
+- Goal
+- Files changed
+- Root cause / current limitation
+- What changed or findings
+- What was intentionally not changed
+- Validation results / commands run
+- Risks / rollback
+- Next recommended task
 
 Open PR into main.
 Do not merge.
@@ -1126,10 +1176,15 @@ Do not treat it as active implementation baseline.
 Before doing anything:
 1. Confirm active repo is ratoker-jpg/four-elements-phaser.
 2. Confirm package.json has "phaser": "4.1.0".
-3. If repo/version mismatch, stop and report.
+3. Confirm main includes merged PR #96 / FULL-PROJECT-AUDIT-01.
+4. Read docs/project/FULL_PROJECT_AUDIT_20260529.md.
+5. If repo/version/docs/main mismatch, stop and report.
 
 Read first:
 - docs/project/GLM_EXECUTOR_RULES.md
+- docs/project/GPT_WORKFLOW.md
+- docs/project/PROJECT_STATE.md
+- docs/project/CURRENT_NEXT_STEP.md
 - docs/project/FULL_PROJECT_AUDIT_20260529.md
 - src/state/types.ts
 - src/state/builder.ts
@@ -1145,6 +1200,8 @@ Builders currently use array index for identification (builderIndex).
 This is fragile: if the builders array is reordered or an element is removed,
 all indices shift. Harvesters use stable string IDs (e.g., "harvester-spawn-...").
 Builders should follow the same pattern for consistency and safety.
+Builder array index is rated medium severity in the project audit —
+it causes save/load and selection bugs with multiple builders.
 
 Goal:
 Add stable string IDs to BuilderPlacement and update all references
@@ -1171,6 +1228,7 @@ Hard rules:
   should still load — map old index to new ID)
 - Do not change BUILDING_CONFIG
 - Do not start other tasks
+- Do not merge
 
 Validation:
 - npm test (all 751+ tests must pass)
@@ -1185,6 +1243,16 @@ Manual QA:
 - Select builder via click — works correctly
 - Multiple builders — no confusion
 - Factory spawn builder — gets stable ID
+
+PR body must include:
+- Goal
+- Files changed
+- Root cause / current limitation
+- What changed or findings
+- What was intentionally not changed
+- Validation results / commands run
+- Risks / rollback
+- Next recommended task
 
 Open PR into main.
 Do not merge.
