@@ -3,10 +3,11 @@ import { TILE_W, TILE_H } from '../../config/worldConfig';
 import { ASSET_KEYS } from '../../assets/assetManifest';
 import { tileToScreen, mapOriginOffset, IsoPoint } from './isometric';
 import type { TerrainType } from '../../state/types';
+import { applyTerrainSmoothing, computeTerrainTint } from '../../state/terrainClustering';
 
 /**
  * Asset key mapping for each terrain type.
- * Only the 3 legacy tiles used by the donor game's active render path.
+ * Only the 3 approved tiles used by the active render path.
  */
 const TERRAIN_KEY_MAP: Record<TerrainType, string> = {
   sand: ASSET_KEYS.TERRAIN_SAND,
@@ -27,6 +28,12 @@ const TERRAIN_STAMP_CONFIG: Phaser.Types.Textures.StampConfig = {
  *
  * Receives terrain data from GameState (not hardcoded).
  * Creates a static RenderTexture that the camera scrolls over.
+ *
+ * TERRAIN-01: Applies visual smoothing to merge isolated single-tile
+ * terrain variants into larger clusters, and adds deterministic
+ * per-tile tint variation to reduce visual repetition without
+ * requiring new asset files. The smoothing is visual-only — the
+ * original terrain data in MapData is not modified.
  */
 export class TerrainRenderer {
   private renderTexture: Phaser.GameObjects.RenderTexture;
@@ -62,7 +69,12 @@ export class TerrainRenderer {
     this.renderTexture.setOrigin(0, 0);
     this.renderTexture.setDepth(0);
 
-    this.stampTerrainTiles(terrainMap);
+    // TERRAIN-01: Apply visual smoothing to create larger clusters
+    // from scattered single-tile variants. This is a visual-only
+    // operation — the original MapData terrain is not modified.
+    const smoothedTerrain = applyTerrainSmoothing(terrainMap, 2);
+
+    this.stampTerrainTiles(smoothedTerrain);
     this.renderTexture.render();
   }
 
@@ -75,7 +87,18 @@ export class TerrainRenderer {
         const worldX = screenPos.x + this.offset.x;
         const worldY = screenPos.y + this.offset.y;
 
-        this.renderTexture.stamp(assetKey, undefined, worldX, worldY, TERRAIN_STAMP_CONFIG);
+        // TERRAIN-01: Per-tile deterministic tint for visual variation.
+        // Uses a fast hash of tile coordinates to produce subtle color
+        // shifts (within ±3% of neutral) that break up visual repetition
+        // of identical textures without requiring new asset files.
+        const tint = computeTerrainTint(tx, ty, terrainType);
+
+        const stampConfig: Phaser.Types.Textures.StampConfig = {
+          ...TERRAIN_STAMP_CONFIG,
+          tint,
+        };
+
+        this.renderTexture.stamp(assetKey, undefined, worldX, worldY, stampConfig);
       }
     }
   }
