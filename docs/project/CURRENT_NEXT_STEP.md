@@ -1,7 +1,7 @@
 # CURRENT_NEXT_STEP.md
 
-Status: updated / redirected checkpoint
-Project: Four Elements Phaser
+Status: active next-step checkpoint  
+Project: Four Elements Phaser  
 Date: 2026-05-29
 
 ---
@@ -14,42 +14,82 @@ Use `PROJECT_STATE.md` as the primary operational source of truth.
 
 ---
 
-## Obsolete guidance
+## Current source of truth
 
-Previous content (ARCH-02 — Art / sprite pipeline) is **obsolete**.
-
-ARCH-02 was completed in PRs #38–#53 long ago. The file was not updated after Phase 1 freeze and the Sandbox MVP engine roadmap.
-
-Do not follow any ARCH-02 guidance from this file's earlier versions.
-
----
-
-## Recently completed work
-
-Sandbox MVP engine/foundation roadmap (PR #83–#92) is fully merged:
+Phase 2 is active after:
 
 ```text
-FIX-01, PHASER4-ANIM-01, PHASER4-ANIM-02, ARCH-18A-LITE,
-FIX-02, FIX-03, FIX-04, PHASER4-LOAD-01, PHASER4-LOAD-02,
-PHASER4-GPU-01
+PR #97 — DOCS-P2-ROADMAP
+PR #98 — PHASE-2-ROADMAP-AUDIT
 ```
+
+`PHASE_2_ROADMAP_AUDIT.md` is the accepted audit gate for Phase 2 implementation.
+
+Do not use PR #96 / `FULL_PROJECT_AUDIT_20260529.md` as active baseline. PR #96 was not merged and was superseded by the Phase 2 direction.
 
 ---
 
 ## Current next step
 
 ```text
-ARCH-11A — QA smoke automation / Sandbox MVP regression coverage
+DOCS-P2-00 — update project docs for Phase 2
+```
+
+This file is part of DOCS-P2-00.
+
+After DOCS-P2-00 is merged, the next implementation task is:
+
+```text
+MENU-01 — Main menu mode selection via controlled URL launch
+```
+
+Accepted model from PR #98:
+
+```text
+Standard → start normally
+Debug → reload with ?devtools=1
+Arena → reload with ?devtools=1&arena=1
+```
+
+MENU-01 must not implement late-loading. Late-loading is MENU-02.
+
+---
+
+## Immediate implementation queue
+
+From PR #98:
+
+```text
+1. MENU-01 — Main menu mode selection via controlled URL launch
+2. LOADING-01 — Proper loading screen
+3. HUD-01 — Legacy HUD removal + HUD consolidation
+4. TERRAIN-01 — Sand terrain visual system
+5. BASE-ANCHOR-01 — HQ/building grounding and footprint alignment
+```
+
+Important:
+
+- `TERRAIN-01` must not generate final production PNG assets inside the implementation PR.
+- `ASSET-WORKFLOW-01` must be accepted before unit regeneration tasks.
+- `FOG-01`, `WEAPON-WORKFLOW-01`, and `VISUAL-SPIKE-01` are not immediate implementation tasks.
+
+---
+
+## Read before any Phase 2 task
+
+```text
+docs/project/PROJECT_STATE.md
+docs/project/PHASE_2_ROADMAP.md
+docs/project/PHASE_2_ROADMAP_AUDIT.md
+docs/project/NEW_CHAT_HANDOFF.md
+docs/project/GLM_EXECUTOR_RULES.md
+docs/project/GPT_WORKFLOW.md
 ```
 
 ---
 
-## Reference docs
+## Obsolete guidance
 
-For full context, read:
+Previous references to ARCH-02 or ARCH-11A as active next work are obsolete.
 
-```text
-docs/project/PROJECT_STATE.md
-docs/project/NEW_CHAT_HANDOFF.md
-docs/project/CHECKPOINT_20260528_SANDBOX_MVP_ENGINE.md
-```
+ARCH-11A completed in PR #95.

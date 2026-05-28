@@ -1,23 +1,30 @@
 # NEW_CHAT_HANDOFF.md
 
-Status: active handoff for a new GPT/GLM chat
-Project: Four Elements Phaser
-Repo: `ratoker-jpg/four-elements-phaser`
+Status: active handoff for a new GPT/GLM chat  
+Project: Four Elements Phaser  
+Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-05-29
 
 ---
 
 ## 1. Situation
 
-The Sandbox MVP engine/foundation roadmap is complete through PR #92 (PHASER4-GPU-01 spike report).
+Phase 1 Sandbox MVP engine/foundation work is complete through PR #95.
 
-All 10 work items from the corrected audit sequence are merged:
+Phase 2 is now active after:
 
 ```text
-FIX-01 through PHASER4-GPU-01 (PR #83–#92)
+PR #97 — DOCS-P2-ROADMAP
+PR #98 — PHASE-2-ROADMAP-AUDIT
 ```
 
-Next work is ARCH-11A — QA smoke automation / Sandbox MVP regression coverage.
+Phase 2 focus:
+
+```text
+playability / visual identity / menu flow / loading screen / animated assets / terrain / arena testbed / map life
+```
+
+The old PR #96 full-project audit was **not merged** and is **not active source-of-truth**.
 
 ---
 
@@ -26,13 +33,16 @@ Next work is ARCH-11A — QA smoke automation / Sandbox MVP regression coverage.
 Read these files first:
 
 ```text
-1. docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md
-2. docs/project/PROJECT_STATE.md
-3. docs/project/FIX_BACKLOG.md
-4. docs/project/PHASE_1_FREEZE.md
-5. docs/project/CHECKPOINT_20260528_SANDBOX_MVP_ENGINE.md
+1. docs/project/PROJECT_STATE.md
+2. docs/project/PHASE_2_ROADMAP.md
+3. docs/project/PHASE_2_ROADMAP_AUDIT.md
+4. docs/project/CURRENT_NEXT_STEP.md
+5. docs/project/FIX_BACKLOG.md
 6. docs/project/GPT_WORKFLOW.md
 7. docs/project/GLM_EXECUTOR_RULES.md
+8. docs/project/PHASER4_GPU_01_SPIKE_REPORT.md, only if GPU/API rendering is discussed
+9. docs/project/PHASER4_LOAD_01_SPIKE_REPORT.md, only if loading/faction-aware loading is discussed
+10. docs/project/PHASER4_ANIM_01_SPIKE_REPORT.md, only if animation pipeline is discussed
 ```
 
 Only read old roadmap/audit files as historical reference if needed.
@@ -54,24 +64,31 @@ Do not copy code directly from Next without adapting to Phaser 4 architecture.
 ```text
 A previous clarification audit accidentally analyzed four-elements-next / Phaser 3.90.
 That audit is invalid for active implementation planning.
-Use docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md as source-of-truth.
+The active repo is four-elements-phaser with Phaser 4.1.0.
 ```
 
 ### 3.3 Always confirm Phaser version before planning
 
 ```text
-Before planning engine API tasks, confirm that package.json has phaser 4.1.0.
-If it does not, stop and report instead of proceeding with wrong assumptions.
+Before planning engine/API tasks, confirm package.json has phaser 4.1.0.
+If it does not, stop and report.
 ```
 
 ### 3.4 Do not implement GPU layers
 
 ```text
-PHASER4-GPU-01 spike (PR #92) confirmed that both TilemapGPULayer and
-SpriteGPULayer are incompatible with the isometric depth model.
-Do not recommend or implement GPU layer usage.
-Reconsider only when: sprite count exceeds 50, combat is implemented, or
-Phaser adds isometric/per-member-depth support.
+PHASER4-GPU-01 spike confirmed that both TilemapGPULayer and SpriteGPULayer
+are incompatible with the current isometric/depth model.
+Do not recommend or implement GPU layer usage unless new source-backed evidence
+changes that conclusion.
+```
+
+### 3.5 Do not treat PR #96 as active source-of-truth
+
+```text
+PR #96 / FULL_PROJECT_AUDIT_20260529.md was not merged.
+It was superseded by Phase 2 roadmap direction.
+Use PR #98 / PHASE_2_ROADMAP_AUDIT.md as the Phase 2 audit gate.
 ```
 
 ---
@@ -90,15 +107,15 @@ Phaser version:
 4.1.0
 ```
 
-Last merged Sandbox MVP engine PR:
+Current accepted audit gate:
 
 ```text
-PR #92 — PHASER4-GPU-01: SpriteGPULayer / TilemapGPULayer spike report
+PR #98 — PHASE-2-ROADMAP-AUDIT
 ```
 
 ---
 
-## 5. Completed work (PR #83–#92)
+## 5. Completed foundation work
 
 | PR | Task | Summary |
 |----|------|---------|
@@ -112,65 +129,115 @@ PR #92 — PHASER4-GPU-01: SpriteGPULayer / TilemapGPULayer spike report
 | #90 | PHASER4-LOAD-01 | Conditional asset loading spike report |
 | #91 | PHASER4-LOAD-02 | Dev/arena-only modularUnits loading |
 | #92 | PHASER4-GPU-01 | GPU layer spike; no implementation recommended |
+| #93 | DOCS-CHECKPOINT-01 | Sandbox MVP engine checkpoint |
+| #94 | ARCH-11A-AUDIT | QA smoke automation audit |
+| #95 | ARCH-11A | Dual-mode QA smoke automation |
+| #97 | DOCS-P2-ROADMAP | Phase 2 roadmap + audit prompt |
+| #98 | PHASE-2-ROADMAP-AUDIT | Accepted Phase 2 roadmap audit |
 
 ---
 
 ## 6. Active next work
 
-Next work is ARCH-11A — QA smoke automation / Sandbox MVP regression coverage.
+Current task:
 
-Purpose: Strengthen automated coverage for features shipped in PR #83–#92.
+```text
+DOCS-P2-00 — update stale docs for Phase 2
+```
 
-Coverage targets:
+After DOCS-P2-00:
 
-- new game start
-- faction selection
-- harvester movement and animation
-- harvester blocked status
-- factory production
-- unit cap
-- factory cancel
-- standard mode: modularUnits skipped
-- devtools/arena mode: modularUnits enabled
-- no console errors
+```text
+MENU-01 — Main menu mode selection via controlled URL launch
+```
 
-Do not start implementation until the appropriate audit/design is accepted.
+Accepted MENU-01 model:
+
+```text
+Standard → start normally
+Debug → reload with ?devtools=1
+Arena → reload with ?devtools=1&arena=1
+```
+
+MENU-01 must preserve `?skipMenu`, `?devtools=1`, and `?arena=1` shortcuts.
+
+Do not implement late-loading in MENU-01. Late-loading is MENU-02.
 
 ---
 
-## 7. Things not to plan now
+## 7. Phase 2 implementation queue
 
-Do not plan these as immediate next tasks:
+```text
+1. DOCS-P2-00 — docs checkpoint
+2. MENU-01 — Main menu mode selection via controlled URL launch
+3. LOADING-01 — Proper loading screen
+4. HUD-01 — Legacy HUD removal + HUD consolidation
+5. TERRAIN-01 — Sand terrain visual system
+6. BASE-ANCHOR-01 — HQ/building grounding and footprint alignment
+7. MENU-02 — Mode-aware late-loading / seamless mode switching
+8. ASSET-WORKFLOW-01 — Animated unit asset pipeline design
+9. UNIT-ANIM-01 — Regenerate harvester animated spritesheet
+10. UNIT-ANIM-02 — Regenerate builder animated spritesheet
+11. HOTKEYS-01 — Command registry / hotkey system
+12. RESOURCE-01 — Resource node polish + depleted occupancy fix
+13. BUILDER-ID — Builder stable IDs
+14. FIX-05 — CameraControls.destroy() bound handler fix
+15. MAPLIFE-01 — Environment props / doodads / decals
+16. ARENA-01 — Arena mode from menu
+17. FOG-01 — Two-layer fog of war
+18. WEAPON-WORKFLOW-01 — Weapon VFX / recoil design
+19. VISUAL-SPIKE-01 — Normal maps / lighting feasibility
+```
+
+---
+
+## 8. Direct implementation rule
+
+Phase 2 has one accepted large roadmap audit: `PHASE_2_ROADMAP_AUDIT.md`.
+
+Tasks covered by the audit can go directly to implementation if:
+
+```text
+- implementation prompt checks merged PR #98;
+- scope stays inside audit constraints;
+- no new unknown high-risk issue appears;
+- task is not marked as design/spike-only.
+```
+
+Tasks requiring design/spike before implementation:
+
+```text
+ASSET-WORKFLOW-01
+HOTKEYS-01 design part
+FOG-01
+WEAPON-WORKFLOW-01
+VISUAL-SPIKE-01
+```
+
+---
+
+## 9. Things not to plan now
+
+Do not plan these as immediate implementation:
 
 ```text
 - bot;
 - enemy AI;
-- enemy economy;
-- attack waves;
-- full combat system;
+- full combat system in main sandbox;
+- elements economy;
 - upgrades;
 - progression systems;
-- broad balance/progression pass;
-- map editor;
-- faction-aware loading (premature);
-- asset unloading (premature);
-- SpriteGPULayer / TilemapGPULayer implementation (rejected);
-- command relay economy expansion;
-- refund economy;
-- full UI redesign.
+- SpriteGPULayer / TilemapGPULayer implementation;
+- normal maps implementation before VISUAL-SPIKE-01;
+- production PNG asset generation inside code PRs;
+- asset regeneration without ASSET-WORKFLOW-01;
+- broad UI framework;
+- giant updateGameState rewrite.
 ```
 
-They are parked for a later phase.
-
 ---
 
-## 8. Known fix/polish groups
-
-Use `docs/project/FIX_BACKLOG.md` as the source.
-
----
-
-## 9. Telegram notification rule
+## 10. Telegram notification rule
 
 When preparing GLM tasks or fixup prompts, always include Telegram notification instructions.
 
@@ -186,16 +253,16 @@ Never put the bot token in commits, PR bodies, logs, screenshots, or code.
 
 ---
 
-## 10. Working style reminders
+## 11. Working style reminders
 
 GPT should:
 
 ```text
-- be strict about roadmap discipline;
-- challenge implementation without audit;
-- prefer larger coherent packages only after audit;
-- keep bot/enemy/upgrades out of the immediate roadmap;
-- avoid one-off fix guessing;
-- stop after 1-2 failed fix attempts and return to audit;
-- keep docs short and operational.
+- keep Phase 2 source-of-truth centered on PR #98;
+- avoid drifting back to the old technical roadmap;
+- challenge implementation outside Phase 2 audit scope;
+- keep bot/enemy/full combat out of immediate work;
+- prefer scoped implementation PRs;
+- avoid production asset generation in code PRs unless explicitly approved;
+- stop after 1-2 failed fix attempts and return to audit/design.
 ```

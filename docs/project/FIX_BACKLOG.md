@@ -1,228 +1,296 @@
 # FIX_BACKLOG.md
 
-Status: active backlog for Sandbox MVP stability work
-Project: Four Elements Phaser
-Repo: `ratoker-jpg/four-elements-phaser`
+Status: active backlog / Phase 2 task index  
+Project: Four Elements Phaser  
+Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-05-29
 
 ---
 
 ## 1. Purpose
 
-This file collects known issues and work groups after Phase 1 Foundation.
+This file summarizes known work groups after Phase 1 Foundation.
 
-It is not an implementation plan by itself.
-
-Required flow:
+Phase 2 source-of-truth is:
 
 ```text
-FIX_BACKLOG -> audit/design -> scoped package -> implementation -> manual QA -> merge
+docs/project/PHASE_2_ROADMAP.md
+docs/project/PHASE_2_ROADMAP_AUDIT.md
 ```
 
-Do not pick items from this file and implement them directly unless the audit/roadmap has accepted the package.
+This backlog is not an implementation plan by itself.
+
+Use it as a short index and status tracker.
 
 ---
 
-## 2. Completed work groups
+## 2. Required flow
 
-These items from the corrected audit sequence are now merged.
-
-### FIX-01 — Faction asset wiring (PR #83)
+For Phase 2 tasks covered by PR #98:
 
 ```text
-Status: DONE
-What: Wired faction-specific HQ and harvester asset keys in EntityRenderer.
-Result: Non-cyan factions now display correct HQ and harvester visuals.
+PHASE_2_ROADMAP_AUDIT -> scoped implementation prompt -> implementation PR -> validation -> manual QA -> merge
 ```
 
-### PHASER4-ANIM-01 — Animation Manager spike (PR #84)
+Do not implement items directly from this file unless they are covered by the accepted Phase 2 audit and the prompt checks merged PR #98.
 
-```text
-Status: DONE
-What: Validated Phaser 4.1.0 Animation Manager API.
-Result: Spike report confirms API works with current spritesheet layout.
-        Recommended harvester-first migration for PHASER4-ANIM-02.
-```
-
-### ARCH-18A-LITE — GameScene input/command extraction (PR #86)
-
-```text
-Status: DONE
-What: Extracted GameInputController from GameScene.
-Result: Input handling and command dispatch in dedicated module.
-        GameScene no longer owns pointer/keyboard logic directly.
-```
-
-### FIX-02 — Harvester idle-forever UI feedback (PR #87)
-
-```text
-Status: DONE
-What: Added blockedReason telemetry and idle-state visual indicator.
-Result: Harvesters show feedback when blocked (no resource, no path, storage full).
-```
-
-### FIX-03 — Unit cap / ControlState (PR #88)
-
-```text
-Status: DONE
-What: Added ControlState with unit cap enforcement and HUD display.
-Result: Unit production respects cap; cap info visible in HUD.
-```
-
-### FIX-04 — Factory spawn blockage UI feedback + cancel (PR #89)
-
-```text
-Status: DONE
-What: Added blockage reason display and cancel button for factory queue.
-Result: Player sees why factory cannot spawn; can cancel queued units.
-```
-
-### PHASER4-ANIM-02 — Animation Manager migration (PR #85)
-
-```text
-Status: DONE
-What: Migrated harvester walk cycle to Phaser Animation Manager.
-Result: Harvesters use sprite.anims.play() instead of manual frame indexing.
-        Direction-based animation keys per faction.
-```
-
-### PHASER4-LOAD-01 — Conditional asset loading spike (PR #90)
-
-```text
-Status: DONE
-What: Validated Phaser 4.1.0 Loader/Pack for conditional loading.
-Result: Spike report recommends dev/arena-only modularUnits loading.
-        Faction-aware loading is feasible but premature.
-```
-
-### PHASER4-LOAD-02 — Dev/arena-only modularUnits loading (PR #91)
-
-```text
-Status: DONE
-What: Gated modularUnits loading behind isDevtoolsEnabled().
-       Added stripModularCombatFromState() for old saves in standard mode.
-Result: Standard mode skips 64 modular combat assets.
-        Devtools/arena mode loads them normally.
-        Old saves with modular-combat entities are sanitized in standard mode.
-```
-
-### PHASER4-GPU-01 — SpriteGPULayer / TilemapGPULayer spike (PR #92)
-
-```text
-Status: DONE
-What: Validated Phaser 4.1.0 GPU layer APIs.
-Result: TilemapGPULayer is orthographic-only (hard blocker for isometric).
-        SpriteGPULayer has no per-member depth (hard blocker for depth-sorted entities).
-        Recommendation: no GPU layer implementation now.
-        Reconsider when sprite count exceeds 50 or Phaser adds isometric/depth support.
-```
+A separate design/spike is required only when PR #98 marks the task as design/spike-first or the implementation reveals a new unknown risk.
 
 ---
 
-## 3. Active next work group
+## 3. Completed foundation work
 
-### ARCH-11A — QA smoke automation
+These are merged and no longer active backlog.
+
+| PR | Task | Status |
+|----|------|--------|
+| #83 | FIX-01 — Faction asset wiring | DONE |
+| #84 | PHASER4-ANIM-01 — Animation Manager spike | DONE |
+| #85 | PHASER4-ANIM-02 — Harvester Animation Manager migration | DONE |
+| #86 | ARCH-18A-LITE — GameInputController extraction | DONE |
+| #87 | FIX-02 — Harvester idle/blocked feedback | DONE |
+| #88 | FIX-03 — Unit cap / ControlState | DONE |
+| #89 | FIX-04 — Factory spawn blockage + cancel | DONE |
+| #90 | PHASER4-LOAD-01 — Conditional loading spike | DONE |
+| #91 | PHASER4-LOAD-02 — Dev/arena-only modularUnits loading | DONE |
+| #92 | PHASER4-GPU-01 — GPU layer spike / no implementation | DONE |
+| #93 | DOCS-CHECKPOINT-01 | DONE |
+| #94 | ARCH-11A-AUDIT | DONE |
+| #95 | ARCH-11A — Dual-mode QA smoke automation | DONE |
+| #97 | DOCS-P2-ROADMAP | DONE |
+| #98 | PHASE-2-ROADMAP-AUDIT | DONE |
+
+---
+
+## 4. Active Phase 2 queue
+
+### 4.1 DOCS-P2-00 — Phase 2 docs checkpoint
 
 ```text
+Status: ACTIVE NOW
+Type: docs
+Risk: low
+Scope: update stale docs after PR #98
+Files: PROJECT_STATE.md, CURRENT_NEXT_STEP.md, NEW_CHAT_HANDOFF.md, FIX_BACKLOG.md
+```
+
+### 4.2 MENU-01 — Main menu mode selection
+
+```text
+Status: NEXT IMPLEMENTATION AFTER DOCS-P2-00
+Type: implementation
+Risk: medium
+Accepted model: controlled URL launch
+Standard -> start normally
+Debug -> reload with ?devtools=1
+Arena -> reload with ?devtools=1&arena=1
+Do not implement late-loading in MENU-01.
+```
+
+### 4.3 LOADING-01 — Proper loading screen
+
+```text
+Status: READY AFTER PR #98
+Type: implementation
+Risk: medium
+Scope: Phaser Loader progress UI, no fake progress, no asset loading behavior changes.
+```
+
+### 4.4 HUD-01 — Legacy HUD removal + HUD consolidation
+
+```text
+Status: READY AFTER PR #98
+Type: implementation
+Risk: medium
+Scope: remove legacy top HUD, keep PlaytestHud as single HUD, preserve qa:smoke DOM assertion.
+```
+
+### 4.5 TERRAIN-01 — Sand terrain visual system
+
+```text
+Status: READY AFTER PR #98 WITH ASSET CONSTRAINTS
+Type: implementation / asset integration
+Risk: medium-high
+Scope: cluster-based terrain variation, decals if approved assets exist, preserve RenderTexture.
+Hard rule: do not generate final production PNG assets in code PR.
+```
+
+### 4.6 BASE-ANCHOR-01 — HQ/building grounding and footprint alignment
+
+```text
+Status: READY AFTER PR #98
+Type: implementation
 Risk: low-medium
-Scope: tooling
-Purpose: Automate more comprehensive QA smoke checks for the features
-         shipped in PR #83–#92.
-Coverage targets:
-  - new game start
-  - faction selection
-  - harvester movement and animation
-  - harvester blocked status
-  - factory production
-  - unit cap
-  - factory cancel
-  - standard mode: modularUnits skipped
-  - devtools/arena mode: modularUnits enabled
-  - no console errors
-Current state: qa_smoke.mjs verifies 3 console markers + screenshot.
+Scope: fix HQ/building visual anchor/footprint alignment without global blind shifts.
+```
+
+### 4.7 MENU-02 — Mode-aware late-loading
+
+```text
+Status: LATER PHASE 2
+Type: implementation
+Risk: medium-high
+Scope: replace MENU-01 controlled reload with seamless late-loading if still needed.
+```
+
+### 4.8 ASSET-WORKFLOW-01 — Animated unit asset pipeline design
+
+```text
+Status: DESIGN REQUIRED BEFORE UNIT REGENERATION
+Type: docs/design + tooling
+Risk: high
+Scope: spritesheet layout, directions, states, naming, anchors, scale, validation preview.
+```
+
+### 4.9 UNIT-ANIM-01 — Regenerate harvester animated spritesheet
+
+```text
+Status: BLOCKED BY ASSET-WORKFLOW-01
+Type: asset + integration
+Risk: high
+Scope: animated harvester states using accepted workflow.
+```
+
+### 4.10 UNIT-ANIM-02 — Regenerate builder animated spritesheet
+
+```text
+Status: BLOCKED BY ASSET-WORKFLOW-01 AND PREFERABLY UNIT-ANIM-01
+Type: asset + integration
+Risk: high
+Scope: builder movement/build animation and Animation Manager migration.
+```
+
+### 4.11 HOTKEYS-01 — Command registry / hotkey system
+
+```text
+Status: DESIGN PART REQUIRED BEFORE IMPLEMENTATION
+Type: audit/design + implementation
+Risk: medium-high
+Scope: command registry, hotkey labels, limited command card; no combat commands yet.
+```
+
+### 4.12 RESOURCE-01 — Resource node polish + depleted occupancy
+
+```text
+Status: READY AFTER PR #98
+Type: implementation
+Risk: medium
+Scope: fix ghost occupancy for depleted resources, resource visual polish if assets available.
+```
+
+### 4.13 BUILDER-ID — Builder stable IDs
+
+```text
+Status: READY AFTER PR #98 / BEFORE BUILDER ANIMATION WORK
+Type: implementation
+Risk: medium
+Scope: replace builder array-index identity with stable IDs where needed.
+```
+
+### 4.14 FIX-05 — CameraControls.destroy bound handler fix
+
+```text
+Status: READY AFTER PR #98
+Type: implementation
+Risk: low-medium
+Scope: remove only CameraControls listeners on destroy, not all scene input listeners.
+```
+
+### 4.15 MAPLIFE-01 — Environment props / doodads / decals
+
+```text
+Status: LATER PHASE 2
+Type: asset + implementation
+Risk: medium-high
+Scope: props/doodads/decals; validate blocking props against pathfinding.
+```
+
+### 4.16 ARENA-01 — Arena mode from menu
+
+```text
+Status: AFTER MENU-01 / MENU-02
+Type: implementation
+Risk: medium
+Scope: arena as first-class test mode; no full combat in main sandbox.
+```
+
+### 4.17 FOG-01 — Two-layer fog of war
+
+```text
+Status: DESIGN REQUIRED, LATER PHASE 2
+Type: design + implementation
+Risk: high
+Scope: black unexplored / grey explored / visible; requires dedicated design.
+```
+
+### 4.18 WEAPON-WORKFLOW-01 — Weapon VFX / recoil design
+
+```text
+Status: DESIGN REQUIRED, LATER PHASE 2
+Type: audit/design
+Risk: high
+Scope: recoil/projectiles/smoke/railgun/Smoky visual model before combat implementation.
+```
+
+### 4.19 VISUAL-SPIKE-01 — Normal maps / lighting feasibility
+
+```text
+Status: SPIKE REQUIRED, LATER PHASE 2
+Type: spike
+Risk: high
+Scope: evaluate normal maps/custom shader feasibility. No production implementation before spike.
 ```
 
 ---
 
-## 4. Additional known issues (not yet in active sequence)
-
-### 4.1 Harvester reliability
+## 5. Explicitly parked / not immediate
 
 ```text
-Harvesters can gather and work for a while, then later stop gathering.
-This existed before the recent UI/map/devtools work. It was parked intentionally.
-Must audit before implementing fixes.
-```
-
-### 4.2 Unit grounding / centering / selection marker
-
-```text
-- selection marker/ring not properly grounded under unit;
-- some units not centered on intended tile;
-- unit visual anchor and tile anchor not consistently modeled.
-Must stay system-first: no random per-unit offsets.
-```
-
-### 4.3 Lane movement / diagonal cut-through readability
-
-```text
-Units can visually appear to cut through cells / move diagonally.
-Audit must separate actual state movement from visual readability.
-```
-
-### 4.4 Movement dust rework
-
-```text
-Current dust is acceptable as MVP but style should be redesigned later.
-Future: softer shape, better placement, less circular look.
-```
-
-### 4.5 Controlled unit bobbing / suspension
-
-```text
-Future render-only visual: bobbing/suspension while moving.
-Rules: no gameplay state changes, no idle bobbing for stationary units.
-Must be planned in audit before implementation.
-```
-
----
-
-## 5. Explicitly parked / out of scope
-
-```text
-- combat foundation;
-- enemy AI / bot;
+- bot;
+- enemy AI;
+- full combat in main sandbox;
 - attack waves;
+- elements economy;
 - upgrades;
-- progression;
-- balance progression;
-- map editor;
-- advanced asset previews;
-- obstacle/decor visual placeholders;
-- asset diagnostics CI integration;
-- faction-aware loading (premature per PHASER4-LOAD-01);
-- asset unloading (premature per PHASER4-LOAD-01);
-- SpriteGPULayer / TilemapGPULayer implementation (rejected per PHASER4-GPU-01);
-- command relay economy expansion;
-- refund economy;
-- full UI redesign.
+- progression systems;
+- SpriteGPULayer / TilemapGPULayer implementation;
+- normal maps implementation before VISUAL-SPIKE-01;
+- production asset generation inside code PRs;
+- unapproved asset regeneration;
+- broad UI framework;
+- giant updateGameState rewrite;
+- faction-aware loading unless a new accepted reason appears;
+- asset unloading unless a new accepted reason appears.
 ```
 
 ---
 
-## 6. Fix package rule
+## 6. Notes from Phase 2 audit
 
-Do not implement one-off fixes directly from this backlog.
+### MENU-01
 
-Required flow:
+Use controlled URL launch:
 
 ```text
-1. Audit issue cluster.
-2. Identify root cause and touched contracts.
-3. Group into coherent fix package.
-4. Define manual QA checklist.
-5. Implement with validation.
-6. Merge only after Denis manual QA.
+Standard -> normal start
+Debug -> ?devtools=1
+Arena -> ?devtools=1&arena=1
 ```
 
-If a fix fails after 1-2 attempts, stop and return to audit instead of guessing.
+### TERRAIN-01
+
+Do not generate final terrain/decal PNGs inside a code PR.
+
+If assets are missing:
+
+```text
+create asset requirements / placeholder integration plan -> stop or request assets
+```
+
+### GPU layers
+
+Do not implement SpriteGPULayer / TilemapGPULayer. PHASER4-GPU-01 rejected them for current isometric/depth needs.
+
+### Normal maps
+
+Normal maps / lighting require VISUAL-SPIKE-01 first. No production implementation before spike acceptance.
