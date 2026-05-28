@@ -3,7 +3,7 @@ import { ASSET_KEYS, DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
 import {
   type ModularTankDirection,
 } from '../../config/worldConfig';
-import { tileToScreen, IsoPoint } from './isometric';
+import { tileToScreen, footprintSouthVertex, IsoPoint } from './isometric';
 import { ModularTankRenderer } from './ModularTankRenderer';
 import { ConstructionRenderer } from './ConstructionRenderer';
 import type {
@@ -18,6 +18,7 @@ import type {
 import { directionFromDelta } from '../../state/updateGameState';
 import { HARVESTER_RENDER_SCALE } from '../../config/unitRenderConfig';
 import { getHqAssetKey } from '../../assets/buildingAssets';
+import { computeTargetDisplayWidth } from '../../assets/buildingPlacementMeta';
 import { getCivilUnitKey, CIVIL_FACTIONS } from '../../assets/civilUnitAssets';
 
 /**
@@ -246,26 +247,51 @@ export class EntityRenderer {
   // ─── Static entity factory ─────────────────────────────────────
 
   private renderStaticEntity(entity: RenderableEntity): void {
-    const screenPos = tileToScreen(entity.tx, entity.ty);
-    const worldX = screenPos.x + this.offset.x;
-    const worldY = screenPos.y + this.offset.y;
-
     switch (entity.kind) {
       case 'hq':
-        this.placeHQ(worldX, worldY, entity.faction);
+        // BASE-ANCHOR-01: HQ uses south-vertex placement (like other buildings),
+        // not top-left tile center. Pass tile coords so placeHQ can compute
+        // the correct footprint south vertex.
+        this.placeHQ(entity.tx, entity.ty, entity.faction);
         break;
       case 'builder':
-        this.placeBuilder(worldX, worldY, entity);
+      case 'modular-combat': {
+        const screenPos = tileToScreen(entity.tx, entity.ty);
+        const worldX = screenPos.x + this.offset.x;
+        const worldY = screenPos.y + this.offset.y;
+        if (entity.kind === 'builder') {
+          this.placeBuilder(worldX, worldY, entity);
+        } else {
+          this.modularTankRenderer.place(entity);
+        }
         break;
-      case 'modular-combat':
-        this.modularTankRenderer.place(entity);
-        break;
+      }
       default:
         break;
     }
   }
 
-  private placeHQ(x: number, y: number, faction?: string): void {
+  /**
+   * HQ footprint dimensions — 3×3 tiles.
+   *
+   * BASE-ANCHOR-01: HQ now uses south-vertex placement, matching the
+   * metadata-driven model used by ConstructionRenderer for other buildings.
+   * Previously HQ was placed at the top-left tile center with origin(0.5, 0.75),
+   * causing the building to visually float above its 3×3 footprint.
+   */
+  private static readonly HQ_FOOTPRINT_W = 3;
+  private static readonly HQ_FOOTPRINT_H = 3;
+
+  /**
+   * HQ ground-line ratio — alpha bounds bottom / source height.
+   *
+   * All four faction HQ PNGs are 1114×835 with alpha bounds [3, 3, 1111, 832],
+   * giving groundLineRatio = 832 / 835 = 0.996407.
+   * This is consistent with other buildings (all ~0.996).
+   */
+  private static readonly HQ_GROUND_LINE_RATIO = 0.996407;
+
+  private placeHQ(tx: number, ty: number, faction?: string): void {
     const effectiveFaction: Faction =
       (faction === 'cyan' || faction === 'green' || faction === 'yellow' || faction === 'purple')
         ? (faction as Faction)
@@ -286,11 +312,28 @@ export class EntityRenderer {
       }
     }
 
-    const img = this.scene.add.image(x, y, hqKey);
-    const scale = 120 / img.width;
+    // BASE-ANCHOR-01: South-vertex placement — same model as ConstructionRenderer.
+    // Compute the south vertex of the 3×3 isometric footprint diamond.
+    const sv = footprintSouthVertex(tx, ty, EntityRenderer.HQ_FOOTPRINT_W, EntityRenderer.HQ_FOOTPRINT_H);
+    const worldX = sv.x + this.offset.x;
+    const worldY = sv.y + this.offset.y;
+
+    const img = this.scene.add.image(worldX, worldY, hqKey);
+
+    // Scale from metadata-driven display width (3×3 footprint → 200px)
+    const targetWidth = computeTargetDisplayWidth(EntityRenderer.HQ_FOOTPRINT_W, EntityRenderer.HQ_FOOTPRINT_H);
+    const scale = targetWidth / img.width;
     img.setScale(scale);
-    img.setOrigin(0.5, 0.75);
-    img.setDepth(100 + y);
+
+    // Origin: center-X, ground-line ratio (consistent with other buildings ~0.996)
+    img.setOrigin(0.5, EntityRenderer.HQ_GROUND_LINE_RATIO);
+
+    // Depth from bottom-right footprint tile (same formula as ConstructionRenderer)
+    const depthTx = tx + EntityRenderer.HQ_FOOTPRINT_W - 1;
+    const depthTy = ty + EntityRenderer.HQ_FOOTPRINT_H - 1;
+    const depthScreenPos = tileToScreen(depthTx, depthTy);
+    img.setDepth(100 + depthScreenPos.y + this.offset.y);
+
     this.staticObjects.push(img);
   }
 
