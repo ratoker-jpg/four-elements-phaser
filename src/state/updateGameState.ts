@@ -132,7 +132,10 @@ function handleIdle(state: GameState, h: HarvesterState): void {
   }
 
   h.targetResourceId = target.id;
-  h.blockedReason = undefined;
+  // Do NOT clear blockedReason here — it persists until actual progress is
+  // confirmed (approach path assigned, gathering started, unload progress,
+  // or manual move issued). Clearing it just because a target was selected
+  // causes the UI to flicker between blocked and moving on repeat failures.
   h.phase = 'moving-to-resource';
 }
 

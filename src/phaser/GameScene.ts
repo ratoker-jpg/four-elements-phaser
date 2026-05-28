@@ -428,11 +428,9 @@ export class GameScene extends Phaser.Scene {
 
       // Harvester status summary
       const phaseCounts: Record<string, number> = {};
-      let blockedCount = 0;
       for (const h of s.harvesters) {
         const status = getHarvesterStatus(h);
         if (isHarvesterBlocked(status)) {
-          blockedCount++;
           const label = 'Blocked';
           phaseCounts[label] = (phaseCounts[label] || 0) + 1;
         } else {
@@ -443,7 +441,6 @@ export class GameScene extends Phaser.Scene {
       const phaseStr = Object.entries(phaseCounts)
         .map(([label, count]) => `${count} ${label}`)
         .join(', ');
-      const blockedStr = blockedCount > 0 ? ` — ${blockedCount} blocked` : '';
 
       const factionElementRaw = s.economy.elements[s.playerFaction];
       const factionElementDisplayed = (factionElementRaw / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
@@ -471,7 +468,7 @@ export class GameScene extends Phaser.Scene {
       this.hudEconomy.textContent =
         `Raw: ${s.economy.raw}/${s.economy.rawCap} | Matter: ${s.economy.matter}/${s.economy.matterCap} | ${factionLabel}: ${factionElementDisplayed}/${elementCapDisplayed} | Power: ${s.economy.powerConsumed}/${s.economy.powerGenerated} | Resources: ${activeResources}/${totalResources} | ` +
         `Sites: ${s.mapData.constructionSites.length} | ` +
-        `Harvesters: ${s.harvesters.length} (${phaseStr})${blockedStr}${factoryStr}`;
+        `Harvesters: ${s.harvesters.length} (${phaseStr})${factoryStr}`;
     }
 
     // ARCH-13F1: Build status line
