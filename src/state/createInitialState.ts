@@ -25,6 +25,17 @@ import {
 import { createHarvester } from './updateGameState';
 import { customMap1 } from '../data/maps/customMap1';
 
+/** Options for createInitialState. */
+export interface CreateInitialStateOptions {
+  /**
+   * Whether to include the starter modular-combat entity.
+   * PHASER4-LOAD-02: Default false — standard mode does not create
+   * modular-combat entities because modularUnits textures are not loaded.
+   * Set to true when devtools/arena mode is active.
+   */
+  includeModularCombat?: boolean;
+}
+
 /**
  * Create the initial GameState from a saved MapData definition.
  *
@@ -35,8 +46,11 @@ import { customMap1 } from '../data/maps/customMap1';
  * state arrays (HarvesterState[], ResourceNodeState[]) for the civil
  * gather/deliver loop. Extra harvesters are also tracked as runtime
  * state units.
+ *
+ * PHASER4-LOAD-02: modular-combat starter entity is only created when
+ * options.includeModularCombat is true (devtools/arena mode).
  */
-export function createInitialState(mapData: MapData = customMap1, playerFaction?: Faction, mapNameOverride?: string): GameState {
+export function createInitialState(mapData: MapData = customMap1, playerFaction?: Faction, mapNameOverride?: string, options?: CreateInitialStateOptions): GameState {
   // Resolve player faction: explicit override > map data default
   const faction = playerFaction ?? (mapData.hq.faction as Faction);
 
@@ -45,7 +59,13 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
 
   // Add extra starter units not present in the original saved map
   const extraHarvesters = createExtraHarvesters(mapData, faction);
-  const extraModularCombat = createExtraModularCombat(mapData, extraHarvesters, faction);
+
+  // PHASER4-LOAD-02: Only create modular-combat starter entity in devtools/arena mode.
+  // Standard mode skips it because modularUnits textures are not loaded.
+  const includeModularCombat = options?.includeModularCombat ?? false;
+  const extraModularCombat = includeModularCombat
+    ? createExtraModularCombat(mapData, extraHarvesters, faction)
+    : [];
 
   // Add extra harvesters to the entity list
   for (const h of extraHarvesters) {
@@ -97,6 +117,42 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     hqPosition,
     nextConstructionId: 0,
     production: createInitialProduction(mapData),
+  };
+}
+
+// ─── PHASER4-LOAD-02: Loaded-save sanitization ─────────────────────
+
+/**
+ * Strip modular-combat entities from a loaded GameState when running
+ * in standard mode (devtools disabled).
+ *
+ * PHASER4-LOAD-02: Older saves created before this PR may contain
+ * `extraModularCombat` entries and `modular-combat` entities. In
+ * standard mode, PreloadScene skips modularUnits textures, so
+ * rendering those entities would hit missing textures. This helper
+ * removes them so the loaded state is safe for the current runtime mode.
+ *
+ * When `includeModularCombat` is true (devtools/arena mode), the
+ * state is returned unchanged — modular-combat entities are preserved
+ * because their textures were loaded.
+ *
+ * This is a **pure function** — it does not mutate the input.
+ */
+export function stripModularCombatFromState(
+  state: GameState,
+  { includeModularCombat }: { includeModularCombat: boolean },
+): GameState {
+  if (includeModularCombat) return state;
+
+  // Nothing to strip if state already has no modular-combat
+  const hasModularEntities = state.entities.some(e => e.kind === 'modular-combat');
+  const hasExtraModular = state.extraModularCombat && state.extraModularCombat.length > 0;
+  if (!hasModularEntities && !hasExtraModular) return state;
+
+  return {
+    ...state,
+    entities: state.entities.filter(e => e.kind !== 'modular-combat'),
+    extraModularCombat: [],
   };
 }
 

@@ -8,7 +8,7 @@ import { GameInputController } from './input/GameInputController';
 import { PlaytestHud } from './ui/PlaytestHud';
 
 import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric';
-import { createInitialState } from '../state/createInitialState';
+import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
 import { updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/construction';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
@@ -155,18 +155,29 @@ export class GameScene extends Phaser.Scene {
     // Determine the game state source — loaded save takes priority,
     // then arena (dev-only), then normal setup config.
     if (this.loadedGameState) {
-      this.gameState = this.loadedGameState;
+      // PHASER4-LOAD-02: Strip modular-combat entities from old saves in standard mode.
+      // Older saves may contain modular-combat entities whose textures are not loaded
+      // when devtools is disabled. Devtools/arena mode preserves them (textures loaded).
+      this.gameState = stripModularCombatFromState(this.loadedGameState, {
+        includeModularCombat: this.devtoolsActive,
+      });
       this.loadedGameState = null;
-      console.log('[GameScene] Loaded saved game state.');
+      const stripped = this.gameState.entities.filter(e => e.kind === 'modular-combat').length === 0
+        && (this.gameState.extraModularCombat?.length ?? 0) === 0;
+      if (!stripped) {
+        console.log('[GameScene] Loaded saved game state (modular-combat preserved: devtools mode).');
+      } else {
+        console.log('[GameScene] Loaded saved game state.');
+      }
     } else if (this.arenaMode) {
       // Arena mode: create arena state (devtools-gated)
       const arenaMapData = createArenaMapData();
-      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction, 'QA Arena');
+      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction, 'QA Arena', { includeModularCombat: true });
       console.log('[GameScene] Arena mode active. Map: QA Arena (20x20)');
     } else {
       const mapData = getMapDataFromConfig(this.setupConfig);
       const mapNameOverride = getMapDisplayName(this.setupConfig);
-      this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride);
+      this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride, { includeModularCombat: this.devtoolsActive });
     }
 
     // Verify all required assets are loaded

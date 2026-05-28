@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
 import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadGeneratedModularUnitAssets, loadGeneratedTerrainAndResourceAssets } from '../assets/runtimeGeneratedAssets';
+import { isDevtoolsEnabled } from '../state/devCommands';
 
 /**
  * PreloadScene — load all runtime-approved assets, then start GameScene.
+ *
+ * PHASER4-LOAD-02: modularUnits (64 combat images) are only loaded when
+ * devtools/arena mode is active. Standard game startup skips them.
  */
 export class PreloadScene extends Phaser.Scene {
   private lastLoggedProgressMilestone = -1;
@@ -21,8 +25,13 @@ export class PreloadScene extends Phaser.Scene {
     // --- Civil unit spritesheets (loaded from generated manifest) ---
     loadGeneratedCivilUnitAssets(this);
 
-    // --- Modular combat images (loaded from generated manifest) ---
-    loadGeneratedModularUnitAssets(this);
+    // --- Modular combat images (PHASER4-LOAD-02: devtools/arena only) ---
+    if (isDevtoolsEnabled()) {
+      loadGeneratedModularUnitAssets(this);
+      console.log('[PreloadScene] modularUnits loading enabled (devtools/arena mode).');
+    } else {
+      console.log('[PreloadScene] modularUnits loading skipped (standard mode).');
+    }
 
     // Loading progress — log only at 0%, 25%, 50%, 75%, 100% milestones
     this.load.on('progress', (value: number) => {
