@@ -34,8 +34,16 @@ Risk: high-controlled
 Scope: runtime
 Problem: Non-cyan faction HQ and harvester use hardcoded cyan assets.
          Other factions can be selected but show wrong or missing visuals.
-Solution: Wire faction-specific asset keys in renderers and state builders.
-Touched: EntityRenderer, ConstructionRenderer, asset key mapping, state init
+Solution: Wire faction-specific asset keys in renderers.
+Touched:
+  - EntityRenderer is the expected primary file.
+  - Use getHqAssetKey(faction) and getCivilUnitKey(faction, 'harvester')
+    if those helpers exist.
+  - Do not change ConstructionRenderer, PreloadScene,
+    generatedAssetManifest, state init, or asset files unless a direct
+    implementation-time code check proves they are part of the root cause.
+  - Builder/building rendering is believed to already be faction-aware
+    and should not be changed in FIX-01 unless disproven.
 Blocks: Multi-faction playtesting
 ```
 
