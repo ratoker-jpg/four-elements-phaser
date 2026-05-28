@@ -78,4 +78,27 @@ describe('createInitialState', () => {
     expect(state.economy.matterCap).toBe(HQ_MATTER_CAP);
     expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP);
   });
+
+  // ── PHASER4-LOAD-02: modular-combat entity gating ──────────────────
+
+  it('does not include modular-combat entities by default (standard mode)', () => {
+    const state = createInitialState();
+    expect(state.extraModularCombat).toEqual([]);
+    expect(state.entities.find(e => e.kind === 'modular-combat')).toBeUndefined();
+  });
+
+  it('includes modular-combat entity when includeModularCombat is true (devtools/arena mode)', () => {
+    const state = createInitialState(undefined, undefined, undefined, { includeModularCombat: true });
+    expect(state.extraModularCombat.length).toBeGreaterThan(0);
+    expect(state.entities.find(e => e.kind === 'modular-combat')).toBeDefined();
+  });
+
+  it('still includes civil units when modular-combat is disabled', () => {
+    const state = createInitialState();
+    // Harvesters and builders should still be present
+    expect(state.harvesters.length).toBeGreaterThan(0);
+    expect(state.entities.find(e => e.kind === 'harvester')).toBeDefined();
+    // HQ should still be present
+    expect(state.entities.find(e => e.kind === 'hq')).toBeDefined();
+  });
 });

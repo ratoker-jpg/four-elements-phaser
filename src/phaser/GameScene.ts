@@ -161,12 +161,12 @@ export class GameScene extends Phaser.Scene {
     } else if (this.arenaMode) {
       // Arena mode: create arena state (devtools-gated)
       const arenaMapData = createArenaMapData();
-      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction, 'QA Arena');
+      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction, 'QA Arena', { includeModularCombat: true });
       console.log('[GameScene] Arena mode active. Map: QA Arena (20x20)');
     } else {
       const mapData = getMapDataFromConfig(this.setupConfig);
       const mapNameOverride = getMapDisplayName(this.setupConfig);
-      this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride);
+      this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride, { includeModularCombat: this.devtoolsActive });
     }
 
     // Verify all required assets are loaded
