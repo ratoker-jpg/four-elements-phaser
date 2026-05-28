@@ -1,137 +1,123 @@
 # PROJECT_STATE.md
 
-Status: operational project state  
-Project: Four Elements Phaser  
-Repo: `ratoker-jpg/four-elements-phaser`  
-Updated: 2026-05-28
-
----
-
-## Active repo
-
-```text
-ratoker-jpg/four-elements-phaser
-```
-
-## Phaser version
-
-```text
-4.1.0
-```
-
-Verified from `package.json`.
-
-## Reference repo
-
-```text
-ratoker-jpg/four-elements-next
-```
-
-Reference/donor only. Must never be used as active implementation baseline.
+Status: operational project state
+Project: Four Elements Phaser
+Repo: `ratoker-jpg/four-elements-phaser`
 
 ---
 
 ## Current mode
 
-Sandbox MVP stability + Phaser 4 API adoption roadmap.
+Sandbox MVP engine/foundation roadmap complete through PR #92.
 
-Phase 1 Foundation frozen after PR #80 / ARCH-13C-LITE.
+Phase 1 Foundation freeze remains active. All Sandbox MVP stability work (FIX-01 through PHASER4-GPU-01) is merged.
 
-Current rule:
+Next work: ARCH-11A — QA smoke automation / Sandbox MVP regression coverage.
+
+---
+
+## Current Phaser version
 
 ```text
-No broad feature expansion.
-Next work follows the corrected audit sequence.
-Combat/enemy/bot/upgrades/progression are parked.
-Phaser 4 API adoption is allowed only via spike -> decision -> scoped implementation.
+4.1.0
 ```
 
 ---
 
-## Source-of-truth audit
+## Completed Sandbox MVP engine roadmap (PR #83–#92)
 
-```text
-docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md
-```
-
-All roadmap and future prompts must use this as the current source-of-truth.
-
-Do not use the old Phaser 3.90 clarification as source-of-truth.
-
----
-
-## Recently completed foundation work
-
-Recently merged foundation packages include:
-
-```text
-ARCH-11A — Devtools QA sandbox MVP
-ARCH-11B-12A — Debug overlays + QA arena MVP
-ARCH-13A-13B — Gameplay feedback / VFX MVP
-ARCH-14B — Main menu / New Game / Pause shell
-ARCH-14C-15B — UI shell polish + save management UX
-ARCH-15A — Local save/load skeleton
-ARCH-16A-16B — Map setup options + deterministic generated map MVP
-ARCH-08B-09A — Generated map terrain/resource balance MVP
-ARCH-17A-17B — Asset diagnostics and asset viewer MVP
-ARCH-13C-LITE — Render-only unit motion dust polish MVP
-```
+| PR | Task | What changed |
+|----|------|--------------|
+| #83 | FIX-01 | Wired faction-specific HQ and harvester asset keys; non-cyan factions now display correct visuals |
+| #84 | PHASER4-ANIM-01 | Animation Manager spike; confirmed Phaser 4.1.0 API works with current spritesheet layout; recommended harvester-first migration |
+| #85 | PHASER4-ANIM-02 | Migrated harvester walk cycle from manual frame indexing to Phaser Animation Manager |
+| #86 | ARCH-18A-LITE | Extracted GameInputController from GameScene; input/command dispatch now in dedicated module |
+| #87 | FIX-02 | Added harvester blocked-reason telemetry and idle-state visual feedback |
+| #88 | FIX-03 | Added ControlState with unit cap; cap display in HUD |
+| #89 | FIX-04 | Added factory spawn blockage UI feedback + cancel button for factory queue |
+| #90 | PHASER4-LOAD-01 | Conditional asset loading spike; recommended dev/arena-only modularUnits loading |
+| #91 | PHASER4-LOAD-02 | Gated modularUnits loading behind devtools/arena; stripped modular-combat from old saves in standard mode |
+| #92 | PHASER4-GPU-01 | GPU layer spike; TilemapGPULayer incompatible (orthographic only); SpriteGPULayer incompatible (no per-member depth); recommendation: no GPU implementation now |
 
 ---
 
-## Current active docs
+## Current Sandbox MVP status
 
-```text
-docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md — source-of-truth audit
-docs/project/PROJECT_STATE.md — this file
-docs/project/FIX_BACKLOG.md — known fix groups
-docs/project/PHASE_1_FREEZE.md — freeze checkpoint
-docs/project/NEW_CHAT_HANDOFF.md — new chat handoff
-docs/project/GPT_WORKFLOW.md — GPT planner workflow
-docs/project/GLM_EXECUTOR_RULES.md — GLM executor rules
-```
-
-`docs/ROADMAP.md` is inactive/archived and must not be used as active task source.
+- Civil loop stabilized: gather, convert, build, spawn
+- Faction assets wired for HQ, harvester, builder, buildings
+- Harvester animation migrated to Animation Manager
+- Input/command extracted from GameScene into GameInputController
+- Harvester blocked-reason feedback exists
+- Unit cap / ControlState enforced
+- Factory spawn blockage feedback + cancel exists
+- Modular combat assets are devtools/arena-only (`?devtools=1` / `?arena=1`)
+- GPU layers rejected/postponed: isometric depth constraints block both TilemapGPULayer and SpriteGPULayer
 
 ---
 
-## No immediate enemy/bot/combat/upgrades/progression work
+## Next step
 
-Do not schedule as immediate next work:
+ARCH-11A — QA smoke automation / Sandbox MVP regression coverage.
+
+Purpose: Strengthen automated coverage for the features shipped in PR #83–#92 before moving to post-Sandbox work.
+
+Coverage targets:
+
+- new game start
+- faction selection
+- harvester movement and animation
+- harvester blocked status
+- factory production
+- unit cap
+- factory cancel
+- standard mode: modularUnits skipped
+- devtools/arena mode: modularUnits enabled
+- no console errors
+
+---
+
+## Source-of-truth docs
 
 ```text
-- enemy AI / bot;
-- full combat system;
-- attack waves;
-- enemy economy;
+docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md  — corrected audit (source-of-truth)
+docs/project/PHASE_1_FREEZE.md                      — active freeze checkpoint
+docs/project/FIX_BACKLOG.md                         — known issues and parked items
+docs/project/NEW_CHAT_HANDOFF.md                    — new chat handoff protocol
+docs/project/CHECKPOINT_20260528_SANDBOX_MVP_ENGINE.md — this checkpoint
+```
+
+---
+
+## Hard stop
+
+Do not start:
+
+- combat system code;
+- enemy AI code;
+- bot code;
 - upgrades;
-- progression systems;
-- broad balance progression;
-- map editor.
-```
-
-These are parked until after Sandbox MVP stability is achieved.
-
----
-
-## Accepted workflow reminder
-
-```text
-roadmap -> audit/design -> scoped package -> implementation -> GPT review -> Denis manual QA -> merge
-```
-
-For fix work:
-
-```text
-fix backlog -> fix-roadmap audit -> scoped fix package -> implementation -> manual QA -> merge
-```
+- progression;
+- faction-aware loading (premature);
+- asset unloading (premature);
+- SpriteGPULayer / TilemapGPULayer implementation (rejected by spike);
+- command relay economy expansion;
+- refund economy;
+- full UI redesign;
+- random / unscoped implementation work.
 
 ---
 
 ## Maintenance policy
 
-This file should stay short and operational.
+This file should stay short.
 
 It may be updated after important PRs or direction changes.
 
-Small updates do not always require a dedicated docs-only PR.
+Small updates to this file do not always require a dedicated docs-only PR if they are part of a related documentation update.
+
+Detailed history belongs in:
+
+- PR bodies;
+- roadmap docs;
+- audit docs;
+- architecture docs.
