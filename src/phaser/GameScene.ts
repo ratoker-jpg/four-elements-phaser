@@ -180,6 +180,9 @@ export class GameScene extends Phaser.Scene {
       this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride, { includeModularCombat: this.devtoolsActive });
     }
 
+    // ARCH-11A: Log faction for smoke test verification
+    console.log(`[GameScene] Faction: ${this.gameState.playerFaction}`);
+
     // Verify all required assets are loaded
     this.verifyAssets();
 
@@ -205,6 +208,9 @@ export class GameScene extends Phaser.Scene {
       this.gameState.harvesters,
       this.gameState.resourceNodes,
     );
+
+    // ARCH-11A: Log harvester animation readiness for smoke test verification
+    console.log('[GameScene] Harvester animation ready.');
 
     // ARCH-07A: Building status renderer (separator progress, factory queue, construction labels)
     this.buildingStatusRenderer = new BuildingStatusRenderer(this, offset);
