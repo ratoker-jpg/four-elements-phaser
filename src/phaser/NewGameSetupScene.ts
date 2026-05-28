@@ -17,8 +17,12 @@ import {
   MAP_LIST,
   MAP_SIZE_OPTIONS,
   DEFAULT_SETUP,
+  GAME_MODE_LIST,
+  GAME_MODE_LABELS,
+  buildGameLaunchUrl,
+  saveSetupToSession,
 } from '../state/gameSetup';
-import type { GameSetupConfig, MapMode } from '../state/gameSetup';
+import type { GameSetupConfig, MapMode, GameMode } from '../state/gameSetup';
 import type { Faction } from '../state/types';
 import type { MapSizeOption } from '../state/generatedMap';
 import { createRandomSeed, generatedMapId, mapSizeToDimensions } from '../state/generatedMap';
@@ -29,10 +33,15 @@ export class NewGameSetupScene extends Phaser.Scene {
   private selectedMapMode: MapMode = DEFAULT_SETUP.mapMode;
   private selectedMapId: string = DEFAULT_SETUP.mapId;
   private selectedMapSize: MapSizeOption = DEFAULT_SETUP.mapSize;
+  private selectedGameMode: GameMode = DEFAULT_SETUP.gameMode;
   private seedInput: HTMLInputElement | null = null;
   private sizeContainer: HTMLDivElement | null = null;
   private seedContainer: HTMLDivElement | null = null;
   private mapSummary: HTMLDivElement | null = null;
+  private gameModeNote: HTMLDivElement | null = null;
+  private mapSection: HTMLDivElement | null = null;
+  private sizeSection: HTMLDivElement | null = null;
+  private seedSection: HTMLDivElement | null = null;
 
   constructor() {
     super({ key: 'NewGameSetupScene' });
@@ -132,8 +141,60 @@ export class NewGameSetupScene extends Phaser.Scene {
     factionSection.appendChild(factionGrid);
     setupBox.appendChild(factionSection);
 
+    // ── Game Mode selection (MENU-01) ────────────────────────────
+    const gameModeSection = document.createElement('div');
+    const gameModeLabel = document.createElement('div');
+    gameModeLabel.textContent = 'Game Mode';
+    gameModeLabel.style.cssText = `
+      font-size: 14px;
+      font-weight: 600;
+      color: #999;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    `;
+    gameModeSection.appendChild(gameModeLabel);
+
+    const gameModeGrid = document.createElement('div');
+    gameModeGrid.style.cssText = `
+      display: flex;
+      gap: 8px;
+    `;
+
+    for (const mode of GAME_MODE_LIST) {
+      const btn = document.createElement('button');
+      btn.textContent = GAME_MODE_LABELS[mode];
+      btn.dataset.gameMode = mode;
+      btn.style.cssText = this.gameModeButtonStyle(mode, mode === this.selectedGameMode);
+
+      btn.addEventListener('click', () => {
+        this.selectedGameMode = mode;
+        const buttons = gameModeGrid.querySelectorAll('button');
+        buttons.forEach(b => {
+          const m = (b as HTMLButtonElement).dataset.gameMode as GameMode;
+          b.style.cssText = this.gameModeButtonStyle(m, m === this.selectedGameMode);
+        });
+        this.updateConditionalSections();
+        this.updateMapSummary();
+      });
+
+      gameModeGrid.appendChild(btn);
+    }
+    gameModeSection.appendChild(gameModeGrid);
+    setupBox.appendChild(gameModeSection);
+
+    // ── Game mode note (MENU-01) ─────────────────────────────────
+    this.gameModeNote = document.createElement('div');
+    this.gameModeNote.style.cssText = `
+      font-size: 11px;
+      color: #888;
+      min-height: 16px;
+      font-style: italic;
+    `;
+    setupBox.appendChild(this.gameModeNote);
+
     // ── Map mode selection ────────────────────────────────────────
-    const mapSection = document.createElement('div');
+    this.mapSection = document.createElement('div');
     const mapLabel = document.createElement('div');
     mapLabel.textContent = 'Map';
     mapLabel.style.cssText = `
@@ -144,7 +205,7 @@ export class NewGameSetupScene extends Phaser.Scene {
       text-transform: uppercase;
       letter-spacing: 1px;
     `;
-    mapSection.appendChild(mapLabel);
+    this.mapSection.appendChild(mapLabel);
 
     const mapGrid = document.createElement('div');
     mapGrid.style.cssText = `
@@ -176,11 +237,11 @@ export class NewGameSetupScene extends Phaser.Scene {
 
       mapGrid.appendChild(btn);
     }
-    mapSection.appendChild(mapGrid);
-    setupBox.appendChild(mapSection);
+    this.mapSection.appendChild(mapGrid);
+    setupBox.appendChild(this.mapSection);
 
     // ── Size selection (only for generated maps) ──────────────────
-    const sizeSection = document.createElement('div');
+    this.sizeSection = document.createElement('div');
     const sizeLabel = document.createElement('div');
     sizeLabel.textContent = 'Map Size';
     sizeLabel.style.cssText = `
@@ -191,7 +252,7 @@ export class NewGameSetupScene extends Phaser.Scene {
       text-transform: uppercase;
       letter-spacing: 1px;
     `;
-    sizeSection.appendChild(sizeLabel);
+    this.sizeSection.appendChild(sizeLabel);
 
     this.sizeContainer = document.createElement('div');
     this.sizeContainer.style.cssText = `
@@ -217,11 +278,11 @@ export class NewGameSetupScene extends Phaser.Scene {
 
       this.sizeContainer.appendChild(btn);
     }
-    sizeSection.appendChild(this.sizeContainer);
-    setupBox.appendChild(sizeSection);
+    this.sizeSection.appendChild(this.sizeContainer);
+    setupBox.appendChild(this.sizeSection);
 
     // ── Seed input (only for generated maps) ─────────────────────
-    const seedSection = document.createElement('div');
+    this.seedSection = document.createElement('div');
     const seedLabel = document.createElement('div');
     seedLabel.textContent = 'Seed';
     seedLabel.style.cssText = `
@@ -232,7 +293,7 @@ export class NewGameSetupScene extends Phaser.Scene {
       text-transform: uppercase;
       letter-spacing: 1px;
     `;
-    seedSection.appendChild(seedLabel);
+    this.seedSection.appendChild(seedLabel);
 
     this.seedContainer = document.createElement('div');
     this.seedContainer.style.cssText = `
@@ -295,8 +356,8 @@ export class NewGameSetupScene extends Phaser.Scene {
     });
     this.seedContainer.appendChild(randomSeedBtn);
 
-    seedSection.appendChild(this.seedContainer);
-    setupBox.appendChild(seedSection);
+    this.seedSection.appendChild(this.seedContainer);
+    setupBox.appendChild(this.seedSection);
 
     // ── Map summary (text-only) ──────────────────────────────────
     this.mapSummary = document.createElement('div');
@@ -341,17 +402,7 @@ export class NewGameSetupScene extends Phaser.Scene {
       startBtn.style.background = 'rgba(79,195,247,0.15)';
     });
     startBtn.addEventListener('click', () => {
-      const seed = this.seedInput?.value.trim() || DEFAULT_SETUP.seed;
-      const config: GameSetupConfig = {
-        faction: this.selectedFaction,
-        mapId: this.selectedMapMode === 'generated'
-          ? generatedMapId(seed, this.selectedMapSize)
-          : this.selectedMapId,
-        mapMode: this.selectedMapMode,
-        mapSize: this.selectedMapSize,
-        seed,
-      };
-      this.scene.start('GameScene', config);
+      this.startGameWithMode();
     });
     buttonRow.appendChild(startBtn);
 
@@ -366,20 +417,35 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.updateMapSummary();
   }
 
-  /** Show/hide size and seed sections based on map mode. */
+  /** Show/hide size, seed, and map sections based on map mode and game mode. MENU-01. */
   private updateConditionalSections(): void {
     const isGenerated = this.selectedMapMode === 'generated';
-    if (this.sizeContainer) {
-      this.sizeContainer.parentElement!.style.display = isGenerated ? '' : 'none';
+    const isArena = this.selectedGameMode === 'arena';
+
+    // Hide map, size, and seed sections when Arena mode is selected
+    if (this.mapSection) {
+      this.mapSection.style.display = isArena ? 'none' : '';
     }
-    if (this.seedContainer) {
-      this.seedContainer.parentElement!.style.display = isGenerated ? '' : 'none';
+    if (this.sizeSection) {
+      this.sizeSection.style.display = (isGenerated && !isArena) ? '' : 'none';
     }
+    if (this.seedSection) {
+      this.seedSection.style.display = (isGenerated && !isArena) ? '' : 'none';
+    }
+
+    // Update game mode note
+    this.updateGameModeNote();
   }
 
   /** Update the text-only map summary. */
   private updateMapSummary(): void {
     if (!this.mapSummary) return;
+
+    // Arena mode overrides map display
+    if (this.selectedGameMode === 'arena') {
+      this.mapSummary.textContent = '20x20 tiles — combat sandbox';
+      return;
+    }
 
     if (this.selectedMapMode === 'generated') {
       const dims = mapSizeToDimensions(this.selectedMapSize);
@@ -458,6 +524,84 @@ export class NewGameSetupScene extends Phaser.Scene {
     `;
   }
 
+  /** Game mode button style. MENU-01: orange accent for debug, red for arena. */
+  private gameModeButtonStyle(mode: GameMode, selected: boolean): string {
+    // Color per mode: standard = blue, debug = orange, arena = red-orange
+    const colors: Record<GameMode, string> = {
+      standard: '#4fc3f7',
+      debug: '#ffa726',
+      arena: '#ef5350',
+    };
+    const color = colors[mode];
+    return `
+      flex: 1;
+      padding: 10px 12px;
+      background: ${selected ? `${color}22` : 'rgba(255,255,255,0.03)'};
+      border: 2px solid ${selected ? color : 'rgba(255,255,255,0.1)'};
+      border-radius: 4px;
+      color: ${selected ? color : '#888'};
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: ${selected ? '600' : '400'};
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, border-color 0.15s;
+    `;
+  }
+
+  /** Update game mode note text. MENU-01. */
+  private updateGameModeNote(): void {
+    if (!this.gameModeNote) return;
+
+    switch (this.selectedGameMode) {
+      case 'debug':
+        this.gameModeNote.textContent = 'Developer tools and combat test assets enabled.';
+        break;
+      case 'arena':
+        this.gameModeNote.textContent = 'Combat Sandbox — small test arena with combat units.';
+        break;
+      case 'standard':
+      default:
+        this.gameModeNote.textContent = '';
+        break;
+    }
+  }
+
+  /**
+   * Start game with the selected game mode.
+   * MENU-01: Controlled URL launch model.
+   *
+   * - Standard: start GameScene directly via scene.start()
+   * - Debug: save config to sessionStorage, reload page with ?devtools=1
+   * - Arena: save config to sessionStorage, reload page with ?devtools=1&arena=1
+   */
+  private startGameWithMode(): void {
+    const seed = this.seedInput?.value.trim() || DEFAULT_SETUP.seed;
+    const config: GameSetupConfig = {
+      faction: this.selectedFaction,
+      mapId: this.selectedGameMode === 'arena'
+        ? 'arena1'
+        : this.selectedMapMode === 'generated'
+          ? generatedMapId(seed, this.selectedMapSize)
+          : this.selectedMapId,
+      mapMode: this.selectedGameMode === 'arena' ? 'fixed' : this.selectedMapMode,
+      mapSize: this.selectedMapSize,
+      seed,
+      gameMode: this.selectedGameMode,
+    };
+
+    if (this.selectedGameMode === 'standard') {
+      // Standard mode: start GameScene directly, no page reload needed
+      this.scene.start('GameScene', config);
+    } else {
+      // Debug / Arena mode: controlled URL launch
+      // Save config to sessionStorage so it survives the page reload
+      saveSetupToSession(config);
+      const url = buildGameLaunchUrl(this.selectedGameMode);
+      window.location.href = url;
+    }
+  }
+
   shutdown(): void {
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
@@ -467,5 +611,9 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.sizeContainer = null;
     this.seedContainer = null;
     this.mapSummary = null;
+    this.gameModeNote = null;
+    this.mapSection = null;
+    this.sizeSection = null;
+    this.seedSection = null;
   }
 }

@@ -18,7 +18,7 @@
  */
 
 import Phaser from 'phaser';
-import { DEFAULT_SETUP, shouldSkipMenu, FACTION_CSS_COLORS } from '../state/gameSetup';
+import { DEFAULT_SETUP, shouldSkipMenu, FACTION_CSS_COLORS, loadSetupFromSession, clearSetupSession } from '../state/gameSetup';
 import type { GameSetupConfig } from '../state/gameSetup';
 import {
   hasSaves,
@@ -51,7 +51,16 @@ export class MainMenuScene extends Phaser.Scene {
   create(): void {
     // QA/E2E auto-start: skip menu entirely
     if (shouldSkipMenu()) {
-      this.startGame(DEFAULT_SETUP);
+      // MENU-01: Check for session config from controlled URL launch
+      // When Debug/Arena is selected, NewGameSetupScene saves config to
+      // sessionStorage before reloading the page. Restore it here.
+      const sessionConfig = loadSetupFromSession();
+      if (sessionConfig) {
+        clearSetupSession();
+        this.startGame(sessionConfig);
+      } else {
+        this.startGame(DEFAULT_SETUP);
+      }
       return;
     }
 

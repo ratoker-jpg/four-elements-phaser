@@ -81,6 +81,10 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
       expect(DEFAULT_SETUP.seed).toBe('default');
     });
 
+    it('has standard game mode (MENU-01)', () => {
+      expect(DEFAULT_SETUP.gameMode).toBe('standard');
+    });
+
     it('satisfies GameSetupConfig type', () => {
       const config: GameSetupConfig = DEFAULT_SETUP;
       expect(config.faction).toBeDefined();
@@ -88,6 +92,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
       expect(config.mapMode).toBeDefined();
       expect(config.mapSize).toBeDefined();
       expect(config.seed).toBeDefined();
+      expect(config.gameMode).toBeDefined();
     });
   });
 
@@ -126,6 +131,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         mapMode: 'fixed',
         mapSize: 'standard',
         seed: 'test',
+        gameMode: 'standard',
       };
       const mapData = getMapDataFromConfig(config);
       expect(mapData.width).toBe(48);
@@ -138,6 +144,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         mapMode: 'generated',
         mapSize: 'small',
         seed: 'myseed',
+        gameMode: 'standard',
       };
       const mapData = getMapDataFromConfig(config);
       expect(mapData.width).toBe(32); // small
@@ -150,6 +157,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         mapMode: 'fixed',
         mapSize: 'standard',
         seed: '',
+        gameMode: 'arena',
       };
       const mapData = getMapDataFromConfig(config);
       expect(mapData.width).toBe(20);
@@ -166,6 +174,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         mapMode: 'fixed',
         mapSize: 'standard',
         seed: 'default',
+        gameMode: 'standard',
       };
       expect(getMapDisplayName(config)).toBe('Map 1');
     });
@@ -177,6 +186,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         mapMode: 'generated',
         mapSize: 'standard',
         seed: 'abc123',
+        gameMode: 'standard',
       };
       const name = getMapDisplayName(config);
       expect(name).toContain('standard');
@@ -191,6 +201,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         mapMode: 'fixed',
         mapSize: 'standard',
         seed: '',
+        gameMode: 'arena',
       };
       expect(getMapDisplayName(config)).toBe('QA Arena');
     });
@@ -202,6 +213,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         mapMode: 'fixed',
         mapSize: 'standard',
         seed: '',
+        gameMode: 'standard',
       };
       expect(getMapDisplayName(config)).toBe('Map someFutureMap');
     });
