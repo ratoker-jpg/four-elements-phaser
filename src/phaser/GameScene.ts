@@ -4,26 +4,16 @@ import { TerrainRenderer } from './render/TerrainRenderer';
 import { EntityRenderer } from './render/EntityRenderer';
 import { BuildingStatusRenderer } from './render/BuildingStatusRenderer';
 import { CameraControls } from './input/CameraControls';
+import { GameInputController } from './input/GameInputController';
 import { PlaytestHud } from './ui/PlaytestHud';
-import type { BuildRequestResult, ProductionRequestResult } from './ui/PlaytestHud';
-import { tileToScreen, screenToTile, mapOriginOffset, type IsoPoint } from './render/isometric';
+
+import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric';
 import { createInitialState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
-import { placeConstructionSite, updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/construction';
-import { findBuildSiteNearPlayerBuildings } from '../state/buildSiteSelection';
+import { updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/construction';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
-import { startUnitProduction } from '../state/production';
 import type { GameState, HarvesterPhase, BuildingType, ProducibleUnitType } from '../state/types';
 import { ELEMENT_UNITS_PER_ELEMENT } from '../state/types';
-import {
-  MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
-  MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR,
-  tunerState,
-  type ModularTankDirection,
-} from '../config/worldConfig';
-import type { UnitSelection } from '../state/unitSelection';
-import { selectBuilder, selectHarvester, clearSelection, isUnitSelected } from '../state/unitSelection';
-import { issueManualMove } from '../state/unitCommands';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
@@ -44,11 +34,10 @@ import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData } from '../state/devAr
  * GameScene calls state update + renderer sync + HUD update only.
  * No game logic lives here.
  *
- * PR7: Q/E cycles bodyDir, Z/X cycles turretDir.
- * Arrow tuning targets current bodyDir entry in the offset tables.
- *
- * ARCH-14A: PlaytestHud provides clickable build/production buttons
- * that call the same command paths as the debug hotkeys.
+ * ARCH-18A-LITE: Input handling and command dispatch extracted to
+ * GameInputController. GameScene creates subsystems, wires the
+ * controller, and runs the game loop. No keyboard/pointer handlers
+ * or selection state remain in this file.
  */
 
 /**
@@ -80,6 +69,7 @@ export class GameScene extends Phaser.Scene {
   private entityRenderer: EntityRenderer | null = null;
   private buildingStatusRenderer: BuildingStatusRenderer | null = null;
   private cameraControls: CameraControls | null = null;
+  private inputController: GameInputController | null = null;
   private playtestHud: PlaytestHud | null = null;
   private pauseMenu: PauseMenu | null = null;
   private gameState!: GameState;
@@ -113,18 +103,7 @@ export class GameScene extends Phaser.Scene {
   // ARCH-13C-LITE: Motion dust renderer — render-only movement dust particles
   private motionFxRenderer: UnitMotionFxRenderer | null = null;
 
-  // ARCH-05X: Unit selection state
-  private selectedUnit: UnitSelection = null;
-
-  /** Selection highlight graphics. */
-  private selectionHighlight!: Phaser.GameObjects.Graphics;
-
-  /** Click detection state (distinguish click from drag). */
-  private _clickStartX: number = 0;
-  private _clickStartY: number = 0;
-  private _clickButton: 'left' | 'none' = 'none';
-
-  /** Offset for tile-to-screen conversion (stored for click handlers). */
+  /** Offset for tile-to-screen conversion. */
   private _offset: { x: number; y: number } = { x: 0, y: 0 };
 
   // HUD elements (legacy top bar)
@@ -239,122 +218,6 @@ export class GameScene extends Phaser.Scene {
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
 
-    // ── Debug overlay toggle (T) + tuner controls ────────────
-    this.input.keyboard?.on('keydown-T', () => {
-      const visible = this.entityRenderer?.toggleModularTankDebug();
-      if (visible !== undefined) {
-        console.log(`[GameScene] Modular tank debug overlay: ${visible ? 'ON' : 'OFF'}`);
-      }
-    });
-
-    // H — select hull layer for tuning (only when overlay is ON)
-    this.input.keyboard?.on('keydown-H', () => {
-      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      tunerState.selectedLayer = 'hull';
-      this.entityRenderer?.updateModularTankVisuals();
-      console.log('[Tuner] Selected layer: hull');
-    });
-
-    // J — select turret layer for tuning (only when overlay is ON)
-    this.input.keyboard?.on('keydown-J', () => {
-      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      tunerState.selectedLayer = 'turret';
-      this.entityRenderer?.updateModularTankVisuals();
-      console.log('[Tuner] Selected layer: turret');
-    });
-
-    // C — print mutable runtime offset tables to console (only when overlay is ON)
-    this.input.keyboard?.on('keydown-C', () => {
-      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      this.entityRenderer?.printOffsetTables();
-    });
-
-    // Arrow keys — adjust selected offset for current bodyDir entry (only when overlay is ON)
-    const ARROW_STEP = 1;
-    const ARROW_SHIFT_STEP = 5;
-    const arrowHandler = (event: KeyboardEvent) => {
-      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      event.preventDefault();
-
-      const step = event.shiftKey ? ARROW_SHIFT_STEP : ARROW_STEP;
-      // Arrow tuning targets the current bodyDir entry in the offset tables
-      const bodyDir = tunerState.bodyDir;
-      const offset = tunerState.selectedLayer === 'hull'
-        ? MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir]
-        : MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir];
-
-      switch (event.code) {
-        case 'ArrowLeft':  offset.x -= step; break;
-        case 'ArrowRight': offset.x += step; break;
-        case 'ArrowUp':    offset.y -= step; break;
-        case 'ArrowDown':  offset.y += step; break;
-        default: return; // not an arrow key, ignore
-      }
-
-      this.entityRenderer?.updateModularTankVisuals();
-    };
-
-    this.input.keyboard?.on('keydown', arrowHandler as (event: KeyboardEvent) => void);
-
-    // Q — previous body direction (only when overlay is ON)
-    this.input.keyboard?.on('keydown-Q', () => {
-      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      const next = ((tunerState.bodyDir - 1) + 8) % 8 as ModularTankDirection;
-      this.entityRenderer!.setModularTankBodyDir(next);
-      console.log(`[Tuner] bodyDir: ${next}`);
-    });
-
-    // E — next body direction (only when overlay is ON)
-    this.input.keyboard?.on('keydown-E', () => {
-      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      const next = ((tunerState.bodyDir + 1) % 8) as ModularTankDirection;
-      this.entityRenderer!.setModularTankBodyDir(next);
-      console.log(`[Tuner] bodyDir: ${next}`);
-    });
-
-    // Z — previous turret direction (only when overlay is ON)
-    this.input.keyboard?.on('keydown-Z', () => {
-      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      const next = ((tunerState.turretDir - 1) + 8) % 8 as ModularTankDirection;
-      this.entityRenderer!.setModularTankTurretDir(next);
-      console.log(`[Tuner] turretDir: ${next}`);
-    });
-
-    // X — next turret direction (only when overlay is ON)
-    this.input.keyboard?.on('keydown-X', () => {
-      if (!this.entityRenderer?.isDebugOverlayVisible()) return;
-      const next = ((tunerState.turretDir + 1) % 8) as ModularTankDirection;
-      this.entityRenderer!.setModularTankTurretDir(next);
-      console.log(`[Tuner] turretDir: ${next}`);
-    });
-
-    // ── Build hotkeys — now delegate to extracted command methods ──
-    this.input.keyboard?.on('keydown-B', () => {
-      const result = this.requestBuild('separator');
-      this.playtestHud?.showStatus(result.message, result.success);
-    });
-
-    this.input.keyboard?.on('keydown-F', () => {
-      const result = this.requestBuild('units-factory');
-      this.playtestHud?.showStatus(result.message, result.success);
-    });
-
-    this.input.keyboard?.on('keydown-P', () => {
-      const result = this.requestBuild('power-plant');
-      this.playtestHud?.showStatus(result.message, result.success);
-    });
-
-    // ── Production hotkeys — now delegate to extracted command methods ──
-    this.input.keyboard?.on('keydown-N', () => {
-      const result = this.requestQueueUnit('builder');
-      this.playtestHud?.showStatus(result.message, result.success);
-    });
-
-    this.input.keyboard?.on('keydown-G', () => {
-      const result = this.requestQueueUnit('harvester');
-      this.playtestHud?.showStatus(result.message, result.success);
-    });
-
     // HUD references (legacy top bar)
     this.hudCoords = document.getElementById('hud-coords');
     this.hudMapName = document.getElementById('hud-map-name');
@@ -368,11 +231,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     // ARCH-14A: Create PlaytestHud with build/production callbacks
+    // (wired after input controller is created, see below)
     this.playtestHud = new PlaytestHud();
-    this.playtestHud.create(
-      (buildingType: BuildingType) => this.requestBuild(buildingType),
-      (unitType: ProducibleUnitType) => this.requestQueueUnit(unitType),
-    );
 
     // ARCH-14B: Create pause menu with callbacks
     // ARCH-15A: Added onSave callback
@@ -435,68 +295,33 @@ export class GameScene extends Phaser.Scene {
       console.log('[GameScene] Devtools panel enabled.');
     }
 
-    // F10 / backtick — toggle devtools panel visibility (ARCH-11A)
-    this.input.keyboard?.on('keydown-F10', () => {
-      if (this.devtoolsPanel) {
-        this.devtoolsPanel.toggle();
-      }
+    // ── ARCH-18A-LITE: Create input controller ─────────────────────
+    // All keyboard/pointer input wiring, selection state, and command
+    // methods are now handled by GameInputController.
+    this.inputController = new GameInputController({
+      scene: this,
+      offset: this._offset as IsoPoint,
+      getGameState: () => this.gameState,
+      entityRenderer: this.entityRenderer,
+      feedbackRenderer: this.feedbackRenderer,
+      showStatus: (message: string, success: boolean) => this.playtestHud?.showStatus(message, success),
+      pauseMenu: this.pauseMenu,
+      debugOverlayRenderer: this.debugOverlayRenderer,
+      devtoolsPanel: this.devtoolsPanel,
+      setPaused: (paused: boolean) => { this.paused = paused; },
     });
-    this.input.keyboard?.on('keydown-BACKTICK', () => {
-      if (this.devtoolsPanel) {
-        this.devtoolsPanel.toggle();
-      }
-    });
+
+    // Wire PlaytestHud callbacks to delegate to the input controller
+    this.playtestHud.create(
+      (buildingType: BuildingType) => this.inputController!.requestBuild(buildingType),
+      (unitType: ProducibleUnitType) => this.inputController!.requestQueueUnit(unitType),
+    );
 
     // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
 
     // Set world background color
     this.cameras.main.setBackgroundColor('#1a1a2e');
-
-    // ── ARCH-05X: Unit selection + move input (LMB) ────────────────
-
-    // Selection highlight graphics (drawn each frame under selected unit)
-    this.selectionHighlight = this.add.graphics();
-    this.selectionHighlight.setDepth(150);
-
-    // Prevent browser context menu on the game canvas only
-    this.game.canvas.addEventListener('contextmenu', (e: Event) => e.preventDefault());
-
-    // LMB pointerdown: record click start position
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (!pointer.leftButtonDown()) return;
-
-      this._clickStartX = pointer.x;
-      this._clickStartY = pointer.y;
-      this._clickButton = 'left';
-    });
-
-    // LMB pointerup: if click (not drag), select unit or issue move
-    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      if (this._clickButton !== 'left') return;
-      this._clickButton = 'none';
-
-      const dx = pointer.x - (this._clickStartX ?? 0);
-      const dy = pointer.y - (this._clickStartY ?? 0);
-      const moved = Math.sqrt(dx * dx + dy * dy);
-      if (moved > 4) return; // was a drag, not a click
-
-      this.handleLeftClick(pointer);
-    });
-
-    // ESC: toggle pause menu (ARCH-14B)
-    this.input.keyboard?.on('keydown-ESC', () => {
-      if (this.pauseMenu?.visible) {
-        // Menu is open → close it (resume)
-        this.pauseMenu.hide();
-        this.paused = false;
-      } else {
-        // Menu is closed → open it (pause)
-        this.selectedUnit = clearSelection();
-        this.pauseMenu?.show();
-        this.paused = true;
-      }
-    });
 
     // Log state summary
     const s = this.gameState;
@@ -560,8 +385,8 @@ export class GameScene extends Phaser.Scene {
     // 7. Update PlaytestHud panel
     this.playtestHud?.update(this.gameState);
 
-    // 8. Update selection highlight
-    this.updateSelectionHighlight();
+    // 8. Update input controller (selection highlight)
+    this.inputController?.update();
 
     // 9. ARCH-11A: Update devtools diagnostics
     this.devtoolsPanel?.update(this.gameState);
@@ -581,177 +406,6 @@ export class GameScene extends Phaser.Scene {
         `[GameScene] Unloaded! Raw: ${this.gameState.economy.raw}`,
       );
       this.lastLoggedRaw = this.gameState.economy.raw;
-    }
-  }
-
-  // ─── ARCH-05X: Selection + move input (LMB only) ──────────────────
-
-  /**
-   * Handle left-click:
-   * - If a unit is under cursor → select it
-   * - If no unit under cursor AND a unit is selected → issue move command
-   * - If no unit under cursor AND nothing selected → do nothing
-   */
-  private handleLeftClick(pointer: Phaser.Input.Pointer): void {
-    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-    const tilePos = screenToTile(worldPoint.x - this._offset.x, worldPoint.y - this._offset.y);
-    const clickTx = tilePos.x;
-    const clickTy = tilePos.y;
-
-    // Selection radius in tile units
-    const SELECT_RADIUS = 0.8;
-
-    // Check if there's a unit under the cursor
-    let bestDist = SELECT_RADIUS;
-    let bestSelection: UnitSelection = null;
-
-    for (let i = 0; i < this.gameState.mapData.builders.length; i++) {
-      const b = this.gameState.mapData.builders[i];
-      const dx = b.ftx - clickTx;
-      const dy = b.fty - clickTy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestSelection = selectBuilder(i);
-      }
-    }
-
-    for (const h of this.gameState.harvesters) {
-      const dx = h.ftx - clickTx;
-      const dy = h.fty - clickTy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestSelection = selectHarvester(h.id);
-      }
-    }
-
-    if (bestSelection) {
-      // Unit under cursor → select it
-      this.selectedUnit = bestSelection;
-      const label = bestSelection.kind === 'builder'
-        ? `Builder #${bestSelection.index}`
-        : `Harvester ${(bestSelection as { kind: 'harvester'; id: string }).id}`;
-      this.playtestHud?.showStatus(`Selected: ${label}`, true);
-      return;
-    }
-
-    // No unit under cursor — if a unit is selected, issue move command
-    if (isUnitSelected(this.selectedUnit)) {
-      const targetTx = Math.round(clickTx);
-      const targetTy = Math.round(clickTy);
-
-      const result = issueManualMove(this.gameState, this.selectedUnit, targetTx, targetTy);
-      if (result.ok) {
-        const label = this.selectedUnit!.kind === 'builder' ? 'Builder' : 'Harvester';
-        this.playtestHud?.showStatus(`${label} → (${targetTx},${targetTy})`, true);
-        // ARCH-13A: Green command indicator on accepted move
-        this.feedbackRenderer?.addCommandOk(targetTx, targetTy, this.time.now);
-      } else {
-        this.playtestHud?.showStatus(`Move failed: ${result.reason}`, false);
-        // ARCH-13A: Red command indicator on failed move
-        this.feedbackRenderer?.addCommandFail(targetTx, targetTy, this.time.now);
-      }
-    }
-  }
-
-  /**
-   * Draw selection highlight around the selected unit.
-   *
-   * ARCH-05Y: Ring position is derived from the unit's state tile
-   * coordinates (ftx/fty) via tileToScreen, which is the same transform
-   * used to place the sprite. This anchors the ring to the tile ground
-   * (isometric diamond center) rather than to the sprite's art-dependent
-   * origin or PNG frame layout.
-   */
-  private updateSelectionHighlight(): void {
-    this.selectionHighlight.clear();
-
-    if (!isUnitSelected(this.selectedUnit)) return;
-
-    let ringX: number;
-    let ringY: number; // tile ground position from state
-
-    if (this.selectedUnit!.kind === 'builder') {
-      const idx = this.selectedUnit!.index;
-      const builder = this.gameState.mapData.builders[idx];
-      if (!builder) return;
-      const screenPos = tileToScreen(builder.ftx, builder.fty);
-      ringX = screenPos.x + this._offset.x;
-      ringY = screenPos.y + this._offset.y;
-    } else if (this.selectedUnit!.kind === 'harvester') {
-      const sel = this.selectedUnit as { kind: 'harvester'; id: string };
-      const harvester = this.gameState.harvesters.find(h => h.id === sel.id);
-      if (!harvester) return;
-      const screenPos = tileToScreen(harvester.ftx, harvester.fty);
-      ringX = screenPos.x + this._offset.x;
-      ringY = screenPos.y + this._offset.y;
-    } else {
-      return;
-    }
-
-    // Draw a pulsing cyan circle at the tile ground position.
-    // Ring radius matches half the tile height (~19px) for readability.
-    const HIGHLIGHT_RADIUS = 16;
-
-    const pulse = 0.5 + 0.5 * Math.sin((this.time.now % 1000) / 1000 * Math.PI * 2);
-    const alpha = 0.4 + 0.4 * pulse;
-
-    this.selectionHighlight.lineStyle(2, 0x00ffff, alpha);
-    this.selectionHighlight.strokeCircle(ringX, ringY, HIGHLIGHT_RADIUS);
-  }
-
-  // ─── Command methods (shared by hotkeys and HUD buttons) ────────
-
-  /**
-   * Request a building construction site.
-   *
-   * Checks for idle builder, finds a valid build site, and places
-   * the construction site. Returns a result for status feedback.
-   *
-   * Called by both hotkeys (B, F) and PlaytestHud build buttons.
-   */
-  private requestBuild(buildingType: BuildingType): BuildRequestResult {
-    // ARCH-13F1: Guard — do not create a site if no idle builder is available.
-    const hasIdleBuilder = this.gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
-    if (!hasIdleBuilder) {
-      return { success: false, message: 'no idle builder' };
-    }
-
-    // ARCH-13E4: Automatic build-site selection.
-    const site = findBuildSiteNearPlayerBuildings(this.gameState, buildingType);
-    if (!site.ok) {
-      return { success: false, message: `no valid build site` };
-    }
-
-    const result = placeConstructionSite(this.gameState, buildingType, site.tx, site.ty);
-    if (result.ok) {
-      console.log(`[GameScene] Construction site placed: ${result.siteId} at (${site.tx},${site.ty})`);
-      return { success: true, message: `${buildingType} site placed` };
-    } else {
-      console.warn(`[GameScene] Placement failed at (${site.tx},${site.ty}): ${result.reason}`);
-      return { success: false, message: `placement failed: ${result.reason}` };
-    }
-  }
-
-  /**
-   * Request production of a unit at the oldest completed factory.
-   *
-   * Called by both hotkeys (N, G) and PlaytestHud production buttons.
-   */
-  private requestQueueUnit(unitType: ProducibleUnitType): ProductionRequestResult {
-    const factory = this.gameState.production.factories[0];
-    if (!factory) {
-      return { success: false, message: 'no completed units-factory' };
-    }
-
-    const result = startUnitProduction(this.gameState, factory.tx, factory.ty, unitType);
-    if (result.ok) {
-      console.log(`[GameScene] ${unitType} queued at factory (${factory.tx},${factory.ty})`);
-      return { success: true, message: `${unitType} queued` };
-    } else {
-      this.logDevHotkeyInfo(`[GameScene] ${unitType} queue failed: ${result.reason}`);
-      return { success: false, message: result.reason };
     }
   }
 
@@ -858,11 +512,6 @@ export class GameScene extends Phaser.Scene {
 
   // ─── Helpers ────────────────────────────────────────────────────
 
-  /** Log expected dev-hotkey state at info level to reduce console noise. */
-  private logDevHotkeyInfo(message: string): void {
-    console.info(message);
-  }
-
   private verifyAssets(): void {
     const requiredKeys = Object.values(ASSET_KEYS);
     for (const key of requiredKeys) {
@@ -902,6 +551,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.inputController?.destroy();
+    this.inputController = null;
     this.motionFxRenderer?.destroy();
     this.motionFxRenderer = null;
     this.feedbackRenderer?.destroy();
