@@ -843,3 +843,106 @@ describe('FIX-03: unit cap enforcement', () => {
     }
   });
 });
+
+// ─── Spawn-time cap recheck (FIX-03 review fixup) ──────────────────
+
+describe('FIX-03: spawn-time cap recheck', () => {
+  it('at 9/10 units with two completed queue items, update spawns only one', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+
+    // Fill 9 active units (1 below cap)
+    for (let i = 0; i < 9; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    // Queue two items and mark them as completed (simulating production done)
+    const factory = state.production.factories[0];
+    factory.queue.push(
+      { unitType: 'builder', elapsedMs: BUILDER_PRODUCTION_DURATION_MS, durationMs: BUILDER_PRODUCTION_DURATION_MS, progress: 1, completed: true },
+      { unitType: 'harvester', elapsedMs: HARVESTER_PRODUCTION_DURATION_MS, durationMs: HARVESTER_PRODUCTION_DURATION_MS, progress: 1, completed: true },
+    );
+
+    // Run one update tick
+    updateGameState(state, 200);
+
+    // Only one should have spawned (9 + 1 = 10 = cap), second stays in queue
+    expect(state.mapData.builders.length + state.harvesters.length).toBe(DEFAULT_UNIT_CAP);
+    // Second completed item should still be in queue
+    expect(factory.queue.length).toBe(1);
+    expect(factory.queue[0].completed).toBe(true);
+    expect(factory.queue[0].unitType).toBe('harvester');
+  });
+
+  it('at 10/10 units with one completed queue item, update does not spawn and item remains', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+
+    // Fill to cap with 10 active units
+    for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    // Queue one completed item (simulating production done before cap check)
+    const factory = state.production.factories[0];
+    factory.queue.push(
+      { unitType: 'builder', elapsedMs: BUILDER_PRODUCTION_DURATION_MS, durationMs: BUILDER_PRODUCTION_DURATION_MS, progress: 1, completed: true },
+    );
+
+    // Run one update tick
+    updateGameState(state, 200);
+
+    // Should NOT have spawned — still at cap
+    expect(state.mapData.builders.length).toBe(DEFAULT_UNIT_CAP);
+    // Completed item stays in queue
+    expect(factory.queue.length).toBe(1);
+    expect(factory.queue[0].completed).toBe(true);
+  });
+
+  it('completed item spawns later when cap room becomes available', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+
+    // Fill to cap with 10 active units
+    for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    // Queue one completed item
+    const factory = state.production.factories[0];
+    factory.queue.push(
+      { unitType: 'builder', elapsedMs: BUILDER_PRODUCTION_DURATION_MS, durationMs: BUILDER_PRODUCTION_DURATION_MS, progress: 1, completed: true },
+    );
+
+    // Update: spawn blocked by cap
+    updateGameState(state, 200);
+    expect(factory.queue.length).toBe(1);
+    expect(state.mapData.builders.length).toBe(DEFAULT_UNIT_CAP);
+
+    // Remove a unit to make room
+    state.mapData.builders.pop();
+
+    // Update again: spawn should now succeed
+    updateGameState(state, 200);
+    expect(factory.queue.length).toBe(0);
+    expect(state.mapData.builders.length).toBe(DEFAULT_UNIT_CAP);
+  });
+});

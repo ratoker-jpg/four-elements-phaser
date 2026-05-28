@@ -26,6 +26,7 @@ import {
   POWER_PLANT_GENERATION,
   SEPARATOR_ACTIVE_POWER_CONSUMPTION,
   UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION,
+  DEFAULT_UNIT_CAP,
 } from './types';
 import { buildOccupancyMap, isPassable } from './occupancy';
 import { findPath, findPathToAdjacent } from './pathfinding';
@@ -681,6 +682,15 @@ import type { UnitFactoryRuntimeState, BuilderPlacement } from './types';
  */
 function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState): void {
   while (factory.queue.length > 0 && factory.queue[0].completed) {
+    // FIX-03: Spawn-time cap recheck.
+    // Queued units do NOT count toward cap, but spawning a completed
+    // item must recheck the live unit count. If cap is reached, the
+    // completed item stays in queue and retries on later ticks.
+    const liveUnitCount = state.mapData.builders.length + state.harvesters.length;
+    if (liveUnitCount >= DEFAULT_UNIT_CAP) {
+      break;
+    }
+
     const item = factory.queue[0];
     const spawnPos = findSpawnPosition(state, factory.tx, factory.ty);
 
