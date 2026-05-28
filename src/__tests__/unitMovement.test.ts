@@ -560,7 +560,7 @@ describe('ARCH-05X hardening: no straight-line fallback on return-to-HQ', () => 
     h.targetResourceId = null;
     h.returnPath = undefined;
     h.returnPathIndex = undefined;
-    h.blockedReason = 'test-blocked';
+    h.blockedReason = 'no-path-to-hq';
 
     // Run update — should find path and clear blockedReason
     updateGameState(state, 16);
@@ -584,7 +584,7 @@ describe('ARCH-05X hardening: no straight-line fallback on return-to-HQ', () => 
     h.manualPath = [{ tx: 5, ty: 6 }];
     h.manualPathIndex = 0;
     h.manualCooldownMs = 500;
-    h.blockedReason = 'stale';
+    h.blockedReason = 'no-resources';
     h.phase = 'idle';
     h.targetResourceId = null;
 
@@ -603,7 +603,9 @@ describe('ARCH-05X hardening: no straight-line fallback on return-to-HQ', () => 
     expect(h.manualPath).toBeUndefined();
     expect(h.manualPathIndex).toBeUndefined();
     expect(h.manualCooldownMs).toBeUndefined();
-    expect(h.blockedReason).toBeUndefined();
+    // FIX-02: blockedReason is now set to 'no-resources' when all resources
+    // are depleted, instead of being cleared to undefined.
+    expect(h.blockedReason).toBe('no-resources');
   });
 });
 

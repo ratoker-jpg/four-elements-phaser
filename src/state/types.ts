@@ -178,6 +178,13 @@ export type HarvesterPhase =
   | 'unloading'
   | 'manual-move';
 
+/** Reason a harvester is blocked and cannot make progress. */
+export type HarvesterBlockedReason =
+  | 'no-resources'        // No non-depleted resources available
+  | 'no-approach-path'    // Cannot reach resource (no BFS path to approach tile)
+  | 'no-path-to-hq'       // Cannot reach HQ for dropoff (no BFS path)
+  | 'raw-storage-full';   // Raw storage at capacity, cannot unload cargo
+
 /** Runtime state for a single harvester unit. */
 export interface HarvesterState {
   id: string;
@@ -216,8 +223,8 @@ export interface HarvesterState {
   manualPathIndex?: number;
   /** Cooldown timer (ms) after manual move before auto-gather resumes. */
   manualCooldownMs?: number;
-  /** Debug reason when harvester is blocked (no path to HQ). Cleared on phase change. */
-  blockedReason?: string;
+  /** Reason when harvester is blocked and cannot make progress. Cleared when progress resumes. */
+  blockedReason?: HarvesterBlockedReason;
 }
 
 // ─── Resource Node State (PR3) ─────────────────────────────────────

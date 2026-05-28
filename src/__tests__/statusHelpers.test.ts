@@ -4,16 +4,20 @@ import {
   getFactoryStatus,
   getBuildBlockReason,
   getProductionBlockReason,
+  getHarvesterStatus,
+  isHarvesterBlocked,
   separatorStatusLabel,
   factoryStatusLabel,
   buildBlockLabel,
   productionBlockLabel,
+  harvesterStatusLabel,
   type SeparatorStatus,
   type FactoryStatus,
   type BuildBlockReason,
   type ProductionBlockReason,
+  type HarvesterStatus,
 } from '../state/statusHelpers';
-import type { GameState, MapData, EconomyState } from '../state/types';
+import type { GameState, MapData, EconomyState, HarvesterState } from '../state/types';
 import {
   HQ_BASE_POWER,
 } from '../state/types';
@@ -400,5 +404,91 @@ describe('ARCH-07A: label formatting', () => {
     for (const r of reasons) {
       expect(productionBlockLabel(r).length).toBeGreaterThan(0);
     }
+  });
+
+  it('harvesterStatusLabel covers all statuses', () => {
+    const statuses: HarvesterStatus[] = [
+      'idle', 'moving-to-resource', 'gathering', 'returning-to-hq',
+      'unloading', 'manual-move',
+      'blocked-no-resources', 'blocked-no-approach-path',
+      'blocked-no-path-to-hq', 'blocked-raw-storage-full',
+    ];
+    for (const s of statuses) {
+      expect(harvesterStatusLabel(s).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ─── Harvester status (FIX-02) ──────────────────────────────────────
+
+describe('FIX-02: getHarvesterStatus', () => {
+  function makeHarvester(overrides?: Partial<HarvesterState>): HarvesterState {
+    return {
+      id: 'test-h1',
+      ftx: 5,
+      fty: 5,
+      faction: 'cyan',
+      phase: 'idle',
+      targetResourceId: null,
+      cargoRaw: 0,
+      cargoCapacity: 20,
+      gatherTimer: 0,
+      unloadTimer: 0,
+      speedTilesPerSecond: 2.5,
+      ...overrides,
+    };
+  }
+
+  it('returns phase when not blocked', () => {
+    expect(getHarvesterStatus(makeHarvester({ phase: 'idle' }))).toBe('idle');
+    expect(getHarvesterStatus(makeHarvester({ phase: 'moving-to-resource' }))).toBe('moving-to-resource');
+    expect(getHarvesterStatus(makeHarvester({ phase: 'gathering' }))).toBe('gathering');
+    expect(getHarvesterStatus(makeHarvester({ phase: 'returning-to-hq' }))).toBe('returning-to-hq');
+    expect(getHarvesterStatus(makeHarvester({ phase: 'unloading' }))).toBe('unloading');
+    expect(getHarvesterStatus(makeHarvester({ phase: 'manual-move' }))).toBe('manual-move');
+  });
+
+  it('returns blocked-no-resources when blockedReason is "no-resources"', () => {
+    const h = makeHarvester({ phase: 'idle', blockedReason: 'no-resources' });
+    expect(getHarvesterStatus(h)).toBe('blocked-no-resources');
+  });
+
+  it('returns blocked-no-approach-path when blockedReason is "no-approach-path"', () => {
+    const h = makeHarvester({ phase: 'idle', blockedReason: 'no-approach-path' });
+    expect(getHarvesterStatus(h)).toBe('blocked-no-approach-path');
+  });
+
+  it('returns blocked-no-path-to-hq when blockedReason is "no-path-to-hq"', () => {
+    const h = makeHarvester({ phase: 'returning-to-hq', blockedReason: 'no-path-to-hq' });
+    expect(getHarvesterStatus(h)).toBe('blocked-no-path-to-hq');
+  });
+
+  it('returns blocked-raw-storage-full when blockedReason is "raw-storage-full"', () => {
+    const h = makeHarvester({ phase: 'unloading', blockedReason: 'raw-storage-full' });
+    expect(getHarvesterStatus(h)).toBe('blocked-raw-storage-full');
+  });
+
+  it('blockedReason takes precedence over phase', () => {
+    // Even if phase is 'returning-to-hq', the blocked reason is shown
+    const h = makeHarvester({ phase: 'returning-to-hq', blockedReason: 'no-resources' });
+    expect(getHarvesterStatus(h)).toBe('blocked-no-resources');
+  });
+});
+
+describe('FIX-02: isHarvesterBlocked', () => {
+  it('returns true for blocked statuses', () => {
+    expect(isHarvesterBlocked('blocked-no-resources')).toBe(true);
+    expect(isHarvesterBlocked('blocked-no-approach-path')).toBe(true);
+    expect(isHarvesterBlocked('blocked-no-path-to-hq')).toBe(true);
+    expect(isHarvesterBlocked('blocked-raw-storage-full')).toBe(true);
+  });
+
+  it('returns false for non-blocked statuses', () => {
+    expect(isHarvesterBlocked('idle')).toBe(false);
+    expect(isHarvesterBlocked('moving-to-resource')).toBe(false);
+    expect(isHarvesterBlocked('gathering')).toBe(false);
+    expect(isHarvesterBlocked('returning-to-hq')).toBe(false);
+    expect(isHarvesterBlocked('unloading')).toBe(false);
+    expect(isHarvesterBlocked('manual-move')).toBe(false);
   });
 });

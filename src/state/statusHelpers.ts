@@ -27,6 +27,7 @@ import type {
   UnitFactoryRuntimeState,
   BuildingType,
   ProducibleUnitType,
+  HarvesterState,
 } from './types';
 import {
   SEP_RAW_COST,
@@ -341,6 +342,64 @@ function computeAvailablePowerForBuilding(
 
   // Building not found in iteration — should not happen
   return false;
+}
+
+// ─── Harvester status ───────────────────────────────────────────────
+
+/** Human-readable harvester status. */
+export type HarvesterStatus =
+  | 'idle'
+  | 'moving-to-resource'
+  | 'gathering'
+  | 'returning-to-hq'
+  | 'unloading'
+  | 'manual-move'
+  | 'blocked-no-resources'
+  | 'blocked-no-approach-path'
+  | 'blocked-no-path-to-hq'
+  | 'blocked-raw-storage-full';
+
+/**
+ * Derive the status of a harvester from its current state.
+ *
+ * If blockedReason is set, returns a 'blocked-*' status that takes
+ * precedence over the phase. This gives the player a clear reason
+ * why the harvester is stuck rather than just showing "Idle" or
+ * "Returning" without explanation.
+ *
+ * If not blocked, returns the current phase as-is.
+ */
+export function getHarvesterStatus(h: HarvesterState): HarvesterStatus {
+  if (h.blockedReason) {
+    switch (h.blockedReason) {
+      case 'no-resources': return 'blocked-no-resources';
+      case 'no-approach-path': return 'blocked-no-approach-path';
+      case 'no-path-to-hq': return 'blocked-no-path-to-hq';
+      case 'raw-storage-full': return 'blocked-raw-storage-full';
+    }
+  }
+  return h.phase;
+}
+
+/** Whether a harvester status represents a blocked state. */
+export function isHarvesterBlocked(status: HarvesterStatus): boolean {
+  return status.startsWith('blocked-');
+}
+
+/** Format a HarvesterStatus into a short display string. */
+export function harvesterStatusLabel(status: HarvesterStatus): string {
+  switch (status) {
+    case 'idle': return 'Idle';
+    case 'moving-to-resource': return 'Moving';
+    case 'gathering': return 'Gathering';
+    case 'returning-to-hq': return 'Returning';
+    case 'unloading': return 'Unloading';
+    case 'manual-move': return 'Manual';
+    case 'blocked-no-resources': return 'No Resources';
+    case 'blocked-no-approach-path': return 'No Path to Resource';
+    case 'blocked-no-path-to-hq': return 'No Path to HQ';
+    case 'blocked-raw-storage-full': return 'Storage Full';
+  }
 }
 
 // ─── Label formatting ──────────────────────────────────────────────

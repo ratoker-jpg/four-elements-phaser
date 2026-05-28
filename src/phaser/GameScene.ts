@@ -14,6 +14,7 @@ import { updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/constr
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, HarvesterPhase, BuildingType, ProducibleUnitType } from '../state/types';
 import { ELEMENT_UNITS_PER_ELEMENT } from '../state/types';
+import { isHarvesterBlocked, getHarvesterStatus } from '../state/statusHelpers';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
@@ -428,8 +429,14 @@ export class GameScene extends Phaser.Scene {
       // Harvester status summary
       const phaseCounts: Record<string, number> = {};
       for (const h of s.harvesters) {
-        const label = PHASE_LABEL[h.phase];
-        phaseCounts[label] = (phaseCounts[label] || 0) + 1;
+        const status = getHarvesterStatus(h);
+        if (isHarvesterBlocked(status)) {
+          const label = 'Blocked';
+          phaseCounts[label] = (phaseCounts[label] || 0) + 1;
+        } else {
+          const label = PHASE_LABEL[h.phase];
+          phaseCounts[label] = (phaseCounts[label] || 0) + 1;
+        }
       }
       const phaseStr = Object.entries(phaseCounts)
         .map(([label, count]) => `${count} ${label}`)
