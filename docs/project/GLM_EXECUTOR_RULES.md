@@ -1,6 +1,6 @@
 # GLM_EXECUTOR_RULES.md
 
-Status: accepted draft v0.2  
+Status: accepted draft v0.3  
 Audience: GLM / executor agent  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`
@@ -636,3 +636,24 @@ Do not add polish unless scoped.
 Do not add new systems unless scoped.
 
 Do not "helpfully" expand the PR.
+
+---
+
+## 20. Repo baseline and Phaser version verification
+
+Before performing audits or engine API work, GLM must:
+
+```text
+1. Confirm the active repo is ratoker-jpg/four-elements-phaser.
+2. Confirm package.json has phaser 4.1.0.
+```
+
+Critical rules:
+
+```text
+- If paths mention four-elements-next while the task says four-elements-phaser,
+  stop and report the mismatch. Do not silently switch repo baseline.
+- Do not use the old Phaser 3.90 clarification as source-of-truth.
+- The current source-of-truth audit is docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md.
+- Audit files shared in chat are not source-of-truth until committed into docs/project/.
+```

@@ -1,6 +1,6 @@
 # GPT_WORKFLOW.md
 
-Status: accepted draft v0.3  
+Status: accepted draft v0.4  
 Audience: GPT / new GPT chat  
 Project: Four Elements Phaser  
 Main repo: `ratoker-jpg/four-elements-phaser`  
@@ -966,3 +966,26 @@ If the idea is weak, risky, or outside roadmap, say it directly.
 If data is insufficient, say what must be checked.
 
 Keep responses structured and practical.
+
+---
+
+## 33. Repo baseline and audit source-of-truth rules
+
+Before preparing prompts or planning work, GPT must:
+
+```text
+1. Confirm the active repo is ratoker-jpg/four-elements-phaser.
+2. Confirm package.json has phaser 4.1.0.
+3. Use docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md as source-of-truth audit.
+```
+
+Critical rules:
+
+```text
+- four-elements-next must never be used as active implementation baseline.
+- The old Phaser 3.90 clarification is not source-of-truth.
+- Audit files shared in chat are not source-of-truth until committed into docs/project/.
+- If paths or references mention four-elements-next while the task says
+  four-elements-phaser, stop and report the mismatch.
+- Do not silently switch repo baseline.
+```
