@@ -244,11 +244,11 @@ Civil unit spritesheets are the dominant cost at ~2.5 MB each (256x256, 64 frame
 | Aspect | Detail |
 |---|---|
 | **Risk** | Low — modularUnits are never used in Sandbox MVP; ModularTankRenderer exists but is never called |
-| **Expected benefit** | 64 fewer image loads at startup (~60% of asset count, ~2.7 MB disk). Faster startup, less GPU memory |
+| **Expected benefit** | 64 fewer image loads at startup (~60% of asset key count, ~2.7 MB disk). Modest startup improvement; the dominant memory/disk weight is civil unit spritesheets (~20 MB), not modularUnits. Measurable performance benefit may be small until asset count grows |
 | **Touched files** | `PreloadScene.ts` (add condition around `loadGeneratedModularUnitAssets`), possibly `runtimeGeneratedAssets.ts` (add enabled flag support) |
 | **What could break** | ModularTankRenderer would fail if called without assets loaded. Currently unreachable in MVP. Devtools arena could load them separately |
 | **Validation needed** | `npm test`, `typecheck`, `build`, `qa:smoke`. Manual check: arena mode still works |
-| **Worth doing now?** | **Yes** — clean win, low risk, measurable benefit. Modular units are explicitly parked (combat is parked). No consumer uses these textures in the civil loop |
+| **Worth doing now?** | **Yes** — low-risk loading hygiene. Reduces key count and avoids loading parked combat assets. Measurable performance benefit may be small until asset count grows, but the cleanup is clean and safe |
 
 ### Option C: Faction-aware loading for selected faction + neutral/core assets
 
@@ -352,10 +352,11 @@ This is a clean pattern that doesn't require PreloadScene changes and works for 
 **Why not Option C (faction-aware) now:**
 
 - Current asset count (~36 MB, 106 keys) is manageable for a web game
-- The 64 modular unit keys (60% of count, ~2.7 MB) are the main waste — removing them is 90% of the benefit with 10% of the risk
+- The 64 modular unit keys (60% of key count) are the largest group of unused keys, but they represent only ~2.7 MB of disk — the dominant memory/disk weight is civil unit spritesheets at ~20 MB. Removing modularUnits reduces key count significantly, but the measurable performance benefit may be small until the asset count grows further.
 - Faction-aware loading requires a loading scene, save/load integration, and more testing
 - The EntityRenderer fallback already provides the safety net for future faction-aware loading
 - Asset count will grow with combat, VFX, and more factions — that's when faction-aware loading becomes worth the complexity
+- Option B is still acceptable as low-risk loading hygiene: it reduces key count and avoids loading parked combat assets. But it is not a major memory or startup-size win at current asset volumes.
 
 **What PHASER4-LOAD-02 should NOT do:**
 
@@ -385,7 +386,7 @@ This is a clean pattern that doesn't require PreloadScene changes and works for 
 |---|---|---|---|
 | Startup time grows as assets are added | High (combat will add many assets) | Medium | Implement Option B now, Option C later |
 | GPU memory pressure with all factions loaded | Medium | Medium | Monitor; faction-aware loading when needed |
-- | Asset bloat from VFX/particles | High | Low | VFX assets can be a separate gated group |
+| Asset bloat from VFX/particles | High | Low | VFX assets can be a separate gated group |
 
 ---
 
@@ -424,19 +425,33 @@ Additional validation would be needed:
 Task: PHASER4-LOAD-02 — Dev/arena-only conditional asset loading
 Mode: IMPLEMENTATION ONLY
 
-Read first:
-- docs/project/GLM_EXECUTOR_RULES.md
-- docs/project/PHASER4_LOAD_01_SPIKE_REPORT.md
-- src/phaser/PreloadScene.ts
-- src/assets/runtimeGeneratedAssets.ts
-- src/assets/generatedAssetManifest.ts
+Active repo: ratoker-jpg/four-elements-phaser
+Reference/donor repo: ratoker-jpg/four-elements-next
+four-elements-next is donor/reference only — do not use as implementation baseline.
+
+Before doing anything:
+1. Confirm active repo is ratoker-jpg/four-elements-phaser.
+2. Confirm package.json has "phaser": "4.1.0".
+3. Confirm main includes merged PR #90 / PHASER4-LOAD-01 report.
+4. Read:
+   - docs/project/GLM_EXECUTOR_RULES.md
+   - docs/project/GPT_WORKFLOW.md
+   - docs/project/PROJECT_STATE.md
+   - docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md
+   - docs/project/PHASER4_LOAD_01_SPIKE_REPORT.md
+   - docs/project/FIX_BACKLOG.md
+   - src/phaser/PreloadScene.ts
+   - src/assets/runtimeGeneratedAssets.ts
+   - src/assets/generatedAssetManifest.ts
+   - package.json
+5. If repo/version/docs/main mismatch, stop and report. Do not continue.
 
 Goal:
 Gate modularUnits loading so it only happens when devtools/arena mode
 is active. Standard game startup should skip loading 64 modular combat
 unit images.
 
-Scope:
+Scope (Option B only):
 - PreloadScene: add condition around loadGeneratedModularUnitAssets()
 - Determine how to detect devtools/arena mode at preload time
   (currently devtools is checked in GameScene.create() via
@@ -445,6 +460,9 @@ Scope:
 - Do NOT change generatedAssetManifest.ts
 - Do NOT implement faction-aware loading
 - Do NOT change EntityRenderer fallback behavior
+- Do NOT add asset unloading
+- Do NOT change renderer code
+- Do NOT change save/load logic
 
 Hard rules:
 - Do not change PreloadScene's core loading flow for core assets
@@ -453,6 +471,14 @@ Hard rules:
 - Do not change EntityRenderer, BuildingStatusRenderer, ConstructionRenderer
 - Do not change save/load logic
 - Do not implement faction-aware loading
+- Do not start PHASER4-GPU-01
+- Do not use four-elements-next as implementation baseline
+
+PR body requirements:
+- Title: PHASER4-LOAD-02: Dev/arena-only conditional asset loading
+- Reference this spike report (PHASER4-LOAD-01)
+- List changed files
+- Confirm all validation steps passed
 
 Validation:
 - npm test
@@ -467,6 +493,7 @@ At task completion, send Telegram notification using
 /home/z/my-project/.telegram-notify.json if available.
 Do not expose token.
 Missing/invalid config or send failure must not block the task.
+Report notification status: sent / skipped: config missing / failed: <reason>
 
 Open PR into main.
 Do not merge.
