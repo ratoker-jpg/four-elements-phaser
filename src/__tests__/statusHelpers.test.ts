@@ -6,6 +6,8 @@ import {
   getProductionBlockReason,
   getHarvesterStatus,
   isHarvesterBlocked,
+  getUnitCount,
+  getUnitCap,
   separatorStatusLabel,
   factoryStatusLabel,
   buildBlockLabel,
@@ -20,6 +22,7 @@ import {
 import type { GameState, MapData, EconomyState, HarvesterState } from '../state/types';
 import {
   HQ_BASE_POWER,
+  DEFAULT_UNIT_CAP,
 } from '../state/types';
 
 // ─── Test helpers ──────────────────────────────────────────────────
@@ -384,6 +387,7 @@ describe('ARCH-07A: label formatting', () => {
     const statuses: FactoryStatus[] = [
       'idle', 'producing-builder', 'producing-harvester',
       'blocked-no-matter', 'blocked-no-element', 'blocked-queue-full', 'blocked-power',
+      'blocked-unit-cap',
     ];
     for (const s of statuses) {
       expect(factoryStatusLabel(s).length).toBeGreaterThan(0);
@@ -400,6 +404,7 @@ describe('ARCH-07A: label formatting', () => {
   it('productionBlockLabel covers all reasons', () => {
     const reasons: ProductionBlockReason[] = [
       'no-factory', 'queue-full', 'insufficient-matter', 'insufficient-element',
+      'unit-cap-reached',
     ];
     for (const r of reasons) {
       expect(productionBlockLabel(r).length).toBeGreaterThan(0);
@@ -490,5 +495,109 @@ describe('FIX-02: isHarvesterBlocked', () => {
     expect(isHarvesterBlocked('returning-to-hq')).toBe(false);
     expect(isHarvesterBlocked('unloading')).toBe(false);
     expect(isHarvesterBlocked('manual-move')).toBe(false);
+  });
+});
+
+// ─── Unit cap helpers (FIX-03) ────────────────────────────────────────
+
+describe('FIX-03: getUnitCount', () => {
+  it('returns 0 when no builders or harvesters exist', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    state.mapData.builders = [];
+    expect(getUnitCount(state)).toBe(0);
+  });
+
+  it('counts builders only', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    // makeStateWithFactory already adds 1 builder
+    expect(getUnitCount(state)).toBe(1);
+  });
+
+  it('counts harvesters only', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    state.mapData.builders = [];
+    state.harvesters.push({
+      id: 'h1', ftx: 5, fty: 5, faction: 'cyan', phase: 'idle',
+      targetResourceId: null, cargoRaw: 0, cargoCapacity: 20,
+      gatherTimer: 0, unloadTimer: 0, speedTilesPerSecond: 2.5,
+    });
+    expect(getUnitCount(state)).toBe(1);
+  });
+
+  it('counts both builders and harvesters', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    // 1 builder from makeStateWithFactory
+    state.harvesters.push({
+      id: 'h1', ftx: 5, fty: 5, faction: 'cyan', phase: 'idle',
+      targetResourceId: null, cargoRaw: 0, cargoCapacity: 20,
+      gatherTimer: 0, unloadTimer: 0, speedTilesPerSecond: 2.5,
+    });
+    expect(getUnitCount(state)).toBe(2);
+  });
+});
+
+describe('FIX-03: getUnitCap', () => {
+  it('returns DEFAULT_UNIT_CAP', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    expect(getUnitCap(state)).toBe(DEFAULT_UNIT_CAP);
+    expect(getUnitCap(state)).toBe(10);
+  });
+});
+
+describe('FIX-03: getProductionBlockReason includes unit-cap-reached', () => {
+  it('returns "unit-cap-reached" when unit count is at cap', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    // Fill to cap: 1 builder already from makeStateWithFactory, add 9 more
+    for (let i = 0; i < 9; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5, busy: false, phase: 'idle',
+        path: [], pathIndex: 0, ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5, assignedSiteId: -1,
+      });
+    }
+    expect(getProductionBlockReason(state, 'builder')).toBe('unit-cap-reached');
+  });
+
+  it('returns null when unit count is below cap', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    // 1 builder from makeStateWithFactory — well below cap
+    expect(getProductionBlockReason(state, 'builder')).toBeNull();
+  });
+
+  it('unit-cap-reached is checked after insufficient-element', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 3 });
+    // Fill to cap
+    for (let i = 0; i < 9; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5, busy: false, phase: 'idle',
+        path: [], pathIndex: 0, ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5, assignedSiteId: -1,
+      });
+    }
+    // Both insufficient-element and unit-cap-reached apply;
+    // insufficient-element is checked first
+    expect(getProductionBlockReason(state, 'builder')).toBe('insufficient-element');
+  });
+});
+
+describe('FIX-03: getFactoryStatus includes blocked-unit-cap', () => {
+  it('returns "blocked-unit-cap" when unit count is at cap', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    // Fill to cap: 1 builder already, add 9 more
+    for (let i = 0; i < 9; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5, busy: false, phase: 'idle',
+        path: [], pathIndex: 0, ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5, assignedSiteId: -1,
+      });
+    }
+    const factory = state.production.factories[0];
+    expect(getFactoryStatus(state, factory)).toBe('blocked-unit-cap');
+  });
+
+  it('returns "idle" when below cap with no next unit type', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    const factory = state.production.factories[0];
+    expect(getFactoryStatus(state, factory)).toBe('idle');
   });
 });

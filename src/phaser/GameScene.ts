@@ -14,7 +14,7 @@ import { updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/constr
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, HarvesterPhase, BuildingType, ProducibleUnitType } from '../state/types';
 import { ELEMENT_UNITS_PER_ELEMENT } from '../state/types';
-import { isHarvesterBlocked, getHarvesterStatus } from '../state/statusHelpers';
+import { isHarvesterBlocked, getHarvesterStatus, getUnitCount, getUnitCap } from '../state/statusHelpers';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
@@ -466,7 +466,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       this.hudEconomy.textContent =
-        `Raw: ${s.economy.raw}/${s.economy.rawCap} | Matter: ${s.economy.matter}/${s.economy.matterCap} | ${factionLabel}: ${factionElementDisplayed}/${elementCapDisplayed} | Power: ${s.economy.powerConsumed}/${s.economy.powerGenerated} | Resources: ${activeResources}/${totalResources} | ` +
+        `Raw: ${s.economy.raw}/${s.economy.rawCap} | Matter: ${s.economy.matter}/${s.economy.matterCap} | ${factionLabel}: ${factionElementDisplayed}/${elementCapDisplayed} | Power: ${s.economy.powerConsumed}/${s.economy.powerGenerated} | Units: ${getUnitCount(s)}/${getUnitCap(s)} | Resources: ${activeResources}/${totalResources} | ` +
         `Sites: ${s.mapData.constructionSites.length} | ` +
         `Harvesters: ${s.harvesters.length} (${phaseStr})${factoryStr}`;
     }

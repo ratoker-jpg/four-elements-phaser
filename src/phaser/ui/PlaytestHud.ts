@@ -23,6 +23,8 @@ import {
   getProductionBlockReason,
   getHarvesterStatus,
   isHarvesterBlocked,
+  getUnitCount,
+  getUnitCap,
   separatorStatusLabel,
   factoryStatusLabel,
   buildBlockLabel,
@@ -340,7 +342,8 @@ export class PlaytestHud {
       `<div>Raw: <b>${s.economy.raw}</b>/${s.economy.rawCap} ${rawDeltaStr}</div>` +
       `<div>Matter: <b>${s.economy.matter}</b>/${s.economy.matterCap} ${matterDeltaStr}</div>` +
       `<div>${factionLabel}: <b>${factionElDisplayed}</b>/${elCapDisplayed} ${elDeltaStr}</div>` +
-      `<div>Power: <b>${s.economy.powerConsumed}</b>/${s.economy.powerGenerated}</div>`;
+      `<div>Power: <b>${s.economy.powerConsumed}</b>/${s.economy.powerGenerated}</div>` +
+      `<div>Units: <b>${getUnitCount(s)}</b>/${getUnitCap(s)}</div>`;
 
     // ── Harvester status section (FIX-02) ───────────────────────────
     this.updateHarvesterSection(s);
