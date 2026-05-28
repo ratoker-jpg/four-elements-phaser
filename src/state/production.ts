@@ -51,6 +51,18 @@ export type ProductionResult =
   | { ok: true }
   | { ok: false; reason: ProductionRejectionReason };
 
+// ─── Cancel types (FIX-04) ──────────────────────────────────────────
+
+/** Rejection reasons for cancelling a factory queue item. */
+export type CancelRejectionReason =
+  | 'factory-not-found'
+  | 'invalid-queue-index';
+
+/** Result of a cancelFactoryQueueItem call. */
+export type CancelResult =
+  | { ok: true }
+  | { ok: false; reason: CancelRejectionReason };
+
 // ─── Cost lookup ────────────────────────────────────────────────────
 
 /** Get matter cost for a producible unit type. */
@@ -145,6 +157,46 @@ export function startUnitProduction(
     progress: 0,
     completed: false,
   });
+
+  return { ok: true };
+}
+
+// ─── Cancel API (FIX-04) ─────────────────────────────────────────────
+
+/**
+ * Cancel a queue item at the specified factory.
+ *
+ * Removes the item at the given queue index. No resource refund.
+ *
+ * Valid indexes: 0..queue.length-1.
+ * Cancelling works for both in-progress and completed items.
+ * Queue order is preserved — remaining items shift to fill the gap.
+ * If the cancelled item was in-progress, the next unfinished item
+ * (if any) will start progressing on the next tick.
+ *
+ * On failure:
+ * - No mutation
+ * - Returns clear reason
+ */
+export function cancelFactoryQueueItem(
+  state: GameState,
+  factoryTx: number,
+  factoryTy: number,
+  queueIndex: number,
+): CancelResult {
+  // 1. Find the factory
+  const factory = state.production.factories.find(
+    f => f.tx === factoryTx && f.ty === factoryTy,
+  );
+  if (!factory) return { ok: false, reason: 'factory-not-found' };
+
+  // 2. Validate queue index
+  if (queueIndex < 0 || queueIndex >= factory.queue.length) {
+    return { ok: false, reason: 'invalid-queue-index' };
+  }
+
+  // 3. Remove the item — no refund
+  factory.queue.splice(queueIndex, 1);
 
   return { ok: true };
 }
