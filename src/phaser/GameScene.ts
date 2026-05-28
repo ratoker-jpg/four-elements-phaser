@@ -129,9 +129,16 @@ export class GameScene extends Phaser.Scene {
     applyUiScale(loadUiSettings().uiScale);
 
     // ARCH-11B+12A fixup: Compute devtools/arena flags BEFORE any rendering.
-    // Arena mode is gated on devtools being active: ?devtools=1&arena=1.
-    this.devtoolsActive = isDevtoolsEnabled();
-    this.arenaMode = this.devtoolsActive && isArenaEnabled();
+    // MENU-02: Mode detection now supports both URL params and GameSetupConfig.gameMode.
+    // URL params take priority (for QA shortcuts), but if no URL params are set,
+    // the config-based mode from menu selection is used.
+    const urlDevtools = isDevtoolsEnabled();
+    const urlArena = urlDevtools && isArenaEnabled();
+    const configDebug = this.setupConfig.gameMode === 'debug';
+    const configArena = this.setupConfig.gameMode === 'arena';
+
+    this.devtoolsActive = urlDevtools || configDebug || configArena;
+    this.arenaMode = urlArena || configArena;
 
     // Determine the game state source — loaded save takes priority,
     // then arena (dev-only), then normal setup config.

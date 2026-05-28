@@ -26,6 +26,7 @@ import type { GameSetupConfig, MapMode, GameMode } from '../state/gameSetup';
 import type { Faction } from '../state/types';
 import type { MapSizeOption } from '../state/generatedMap';
 import { createRandomSeed, generatedMapId, mapSizeToDimensions } from '../state/generatedMap';
+import { loadGeneratedModularUnitAssets, isModularUnitsLoaded } from '../assets/runtimeGeneratedAssets';
 
 export class NewGameSetupScene extends Phaser.Scene {
   private container: HTMLDivElement | null = null;
@@ -42,6 +43,10 @@ export class NewGameSetupScene extends Phaser.Scene {
   private mapSection: HTMLDivElement | null = null;
   private sizeSection: HTMLDivElement | null = null;
   private seedSection: HTMLDivElement | null = null;
+  /** MENU-02: Overlay shown during modularUnits late-loading. */
+  private lateLoadingOverlay: HTMLDivElement | null = null;
+  /** MENU-02: Prevents double-click during late-loading. */
+  private isLateLoading = false;
 
   constructor() {
     super({ key: 'NewGameSetupScene' });
@@ -569,13 +574,20 @@ export class NewGameSetupScene extends Phaser.Scene {
 
   /**
    * Start game with the selected game mode.
-   * MENU-01: Controlled URL launch model.
+   * MENU-02: Mode-aware late-loading model.
    *
    * - Standard: start GameScene directly via scene.start()
-   * - Debug: save config to sessionStorage, reload page with ?devtools=1
-   * - Arena: save config to sessionStorage, reload page with ?devtools=1&arena=1
+   * - Debug/Arena: check if modularUnits are loaded;
+   *   if yes, start GameScene directly without page reload;
+   *   if no, late-load modularUnits first, then start GameScene.
+   *
+   * Falls back to controlled URL launch if late-loading fails
+   * (e.g. Phaser loader error), preserving the MENU-01 safety net.
    */
   private startGameWithMode(): void {
+    // Prevent double-click during late-loading
+    if (this.isLateLoading) return;
+
     const seed = this.seedInput?.value.trim() || DEFAULT_SETUP.seed;
     const config: GameSetupConfig = {
       faction: this.selectedFaction,
@@ -593,16 +605,115 @@ export class NewGameSetupScene extends Phaser.Scene {
     if (this.selectedGameMode === 'standard') {
       // Standard mode: start GameScene directly, no page reload needed
       this.scene.start('GameScene', config);
-    } else {
-      // Debug / Arena mode: controlled URL launch
-      // Save config to sessionStorage so it survives the page reload
+      return;
+    }
+
+    // Debug / Arena mode: try seamless late-loading first
+    if (isModularUnitsLoaded(this)) {
+      // modularUnits already loaded (e.g. from PreloadScene via URL params
+      // or a previous Debug/Arena session) — start GameScene directly
+      console.log(`[NewGameSetupScene] modularUnits already loaded — starting ${this.selectedGameMode} mode directly.`);
+      this.scene.start('GameScene', config);
+      return;
+    }
+
+    // Late-load modularUnits before starting GameScene
+    this.isLateLoading = true;
+    this.showLateLoadingOverlay();
+
+    console.log(`[NewGameSetupScene] Late-loading modularUnits for ${this.selectedGameMode} mode...`);
+    loadGeneratedModularUnitAssets(this);
+
+    // Guard: if loaderror triggers fallback, prevent the complete handler
+    // from starting GameScene with incomplete textures (loaderror/complete race).
+    let didFallback = false;
+
+    const onComplete = () => {
+      if (didFallback) return;
+      console.log('[NewGameSetupScene] modularUnits late-loading complete.');
+      this.hideLateLoadingOverlay();
+      this.isLateLoading = false;
+      this.scene.start('GameScene', config);
+    };
+
+    const onLoadError = (file: Phaser.Loader.File) => {
+      if (didFallback) return;
+      didFallback = true;
+      console.error(`[NewGameSetupScene] Late-loading failed for: ${file.key} (${file.url})`);
+      // Remove the complete handler so it cannot fire after fallback
+      this.load.off('complete', onComplete);
+      this.hideLateLoadingOverlay();
+      this.isLateLoading = false;
+      // Fallback: controlled URL launch (MENU-01 safety net)
+      console.warn('[NewGameSetupScene] Falling back to controlled URL launch due to late-loading error.');
       saveSetupToSession(config);
       const url = buildGameLaunchUrl(this.selectedGameMode);
       window.location.href = url;
+    };
+
+    this.load.once('complete', onComplete);
+    this.load.once('loaderror', onLoadError);
+
+    this.load.start();
+  }
+
+  /**
+   * Show a minimal loading overlay while late-loading modularUnits.
+   * MENU-02: Simple DOM overlay consistent with the PreloadScene style.
+   */
+  private showLateLoadingOverlay(): void {
+    this.hideLateLoadingOverlay();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'late-loading-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(26, 26, 46, 0.85);
+      z-index: 40;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e0e0e0;
+    `;
+
+    const content = document.createElement('div');
+    content.style.cssText = 'text-align: center;';
+
+    const text = document.createElement('div');
+    text.textContent = 'Loading combat assets...';
+    text.style.cssText = `
+      font-size: 18px;
+      font-weight: 600;
+      color: #4fc3f7;
+      margin-bottom: 12px;
+    `;
+    content.appendChild(text);
+
+    const hint = document.createElement('div');
+    hint.textContent = 'Preparing debug/arena mode';
+    hint.style.cssText = `
+      font-size: 12px;
+      color: #666;
+    `;
+    content.appendChild(hint);
+
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+    this.lateLoadingOverlay = overlay;
+  }
+
+  /** Hide the late-loading overlay. */
+  private hideLateLoadingOverlay(): void {
+    if (this.lateLoadingOverlay && this.lateLoadingOverlay.parentNode) {
+      this.lateLoadingOverlay.parentNode.removeChild(this.lateLoadingOverlay);
     }
+    this.lateLoadingOverlay = null;
   }
 
   shutdown(): void {
+    this.hideLateLoadingOverlay();
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
@@ -615,5 +726,6 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.mapSection = null;
     this.sizeSection = null;
     this.seedSection = null;
+    this.isLateLoading = false;
   }
 }
