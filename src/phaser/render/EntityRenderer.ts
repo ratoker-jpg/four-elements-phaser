@@ -18,7 +18,7 @@ import type {
 import { directionFromDelta } from '../../state/updateGameState';
 import { HARVESTER_RENDER_SCALE } from '../../config/unitRenderConfig';
 import { getHqAssetKey } from '../../assets/buildingAssets';
-import { getCivilUnitKey } from '../../assets/civilUnitAssets';
+import { getCivilUnitKey, CIVIL_FACTIONS } from '../../assets/civilUnitAssets';
 
 /**
  * EntityRenderer — renders and syncs entities from GameState onto the scene.
@@ -51,6 +51,12 @@ import { getCivilUnitKey } from '../../assets/civilUnitAssets';
  * Entities with stateOnly=true are skipped with a console warning.
  */
 
+/** Direction labels for animation key construction. Index matches directionFromDelta output. */
+const DIR_LABELS = ['e', 'se', 's', 'sw', 'w', 'nw', 'n', 'ne'] as const;
+
+/** Frame rate for harvester walk cycle animation. 7 frames at 8 fps = ~0.875s per cycle. */
+const HARVESTER_WALK_FPS = 8;
+
 /** Scale for infinite resources — rendered as a large mineral at bigger scale. */
 const INFINITE_MINERAL_SCALE = 0.65;
 
@@ -82,6 +88,15 @@ export class EntityRenderer {
 
   /** Previous harvester tile positions for direction calculation. */
   private harvesterPrevTile = new Map<string, { ftx: number; fty: number }>();
+
+  /** Last facing direction per harvester (for idle animation key). Default: 2 (S). */
+  private harvesterFacing = new Map<string, number>();
+
+  /** Effective faction per harvester (accounts for texture fallback). */
+  private harvesterFaction = new Map<string, Faction>();
+
+  /** Whether harvester animations have been registered with the Animation Manager. */
+  private harvesterAnimRegistered = false;
 
   /** Resource image objects keyed by resource node ID. */
   private resourceSprites = new Map<string, Phaser.GameObjects.Image>();
@@ -173,17 +188,32 @@ export class EntityRenderer {
       sprite.setPosition(worldX, worldY);
       sprite.setDepth(100 + worldY);
 
-      // Direction facing based on movement
+      // Animation state: determine facing direction and whether moving
       const prev = this.harvesterPrevTile.get(h.id);
-      if (prev) {
-        const dtx = h.ftx - prev.ftx;
-        const dty = h.fty - prev.fty;
-        if (Math.abs(dtx) > 0.001 || Math.abs(dty) > 0.001) {
-          const dirIndex = directionFromDelta(dtx, dty);
-          const frame = dirIndex * 8 + IDLE_FRAME;
-          sprite.setFrame(frame);
-        }
+      const isMoving =
+        prev !== undefined &&
+        (Math.abs(h.ftx - prev.ftx) > 0.001 || Math.abs(h.fty - prev.fty) > 0.001);
+
+      let dirIndex = this.harvesterFacing.get(h.id) ?? DIR_ROW.S; // default: S
+      if (isMoving && prev) {
+        dirIndex = directionFromDelta(h.ftx - prev.ftx, h.fty - prev.fty);
+        this.harvesterFacing.set(h.id, dirIndex);
       }
+
+      // Construct animation key using effective faction (accounts for texture fallback)
+      const animFaction = this.harvesterFaction.get(h.id) ?? h.faction;
+      const dirLabel = DIR_LABELS[dirIndex];
+      const animKey = `harvester_${animFaction}_${isMoving ? 'move' : 'idle'}_${dirLabel}`;
+
+      if (this.scene.anims.exists(animKey)) {
+        // ignoreIfPlaying=true avoids restarting the same animation every frame
+        sprite.anims.play(animKey, true);
+      } else {
+        // Fallback: manual frame indexing (original approach)
+        const frame = dirIndex * 8 + IDLE_FRAME;
+        sprite.setFrame(frame);
+      }
+
       this.harvesterPrevTile.set(h.id, { ftx: h.ftx, fty: h.fty });
     }
 
@@ -193,6 +223,8 @@ export class EntityRenderer {
         sprite.destroy();
         this.harvesterSprites.delete(id);
         this.harvesterPrevTile.delete(id);
+        this.harvesterFacing.delete(id);
+        this.harvesterFaction.delete(id);
       }
     }
   }
@@ -266,20 +298,76 @@ export class EntityRenderer {
     void entity;
   }
 
+  // ─── Animation registration ─────────────────────────────────────
+
+  /**
+   * Register all harvester animations with the Phaser Animation Manager.
+   *
+   * Registers 64 animation keys: 4 factions × 2 states (idle/move) × 8 directions.
+   * Idle animations are single-frame (no bobbing).
+   * Move animations use frames 1–7 per direction row (walk cycle, excluding idle column 0).
+   *
+   * Called lazily on first harvester sprite creation; guarded by harvesterAnimRegistered.
+   */
+  private registerHarvesterAnimations(): void {
+    if (this.harvesterAnimRegistered) return;
+
+    for (const faction of CIVIL_FACTIONS) {
+      const textureKey = getCivilUnitKey(faction, 'harvester');
+
+      // Skip factions whose texture is not loaded
+      if (!this.scene.textures.exists(textureKey)) continue;
+
+      for (let dirIndex = 0; dirIndex < 8; dirIndex++) {
+        const dirLabel = DIR_LABELS[dirIndex];
+        const rowStart = dirIndex * 8; // first frame in this direction row
+
+        // Idle: single frame (column 0), loops at 1 fps but visually never changes
+        const idleKey = `harvester_${faction}_idle_${dirLabel}`;
+        this.scene.anims.create({
+          key: idleKey,
+          frames: [{ key: textureKey, frame: rowStart + 0 }],
+          frameRate: 1,
+          repeat: -1,
+        });
+
+        // Move: walk cycle frames 1–7 (7 frames), loops at HARVESTER_WALK_FPS
+        // Frame 0 is the idle/standing pose — excluded for smoother walk cycle.
+        const moveKey = `harvester_${faction}_move_${dirLabel}`;
+        this.scene.anims.create({
+          key: moveKey,
+          frames: this.scene.anims.generateFrameNumbers(textureKey, {
+            start: rowStart + 1,
+            end: rowStart + 7,
+          }),
+          frameRate: HARVESTER_WALK_FPS,
+          repeat: -1,
+        });
+      }
+    }
+
+    this.harvesterAnimRegistered = true;
+  }
+
   // ─── Dynamic entity factories ──────────────────────────────────
 
   private createHarvesterSprite(h: HarvesterState): void {
+    // Ensure animations are registered before creating sprites
+    this.registerHarvesterAnimations();
+
     const screenPos = tileToScreen(h.ftx, h.fty);
     const worldX = screenPos.x + this.offset.x;
     const worldY = screenPos.y + this.offset.y;
 
     let harvesterKey = getCivilUnitKey(h.faction, 'harvester');
+    let effectiveFaction: Faction = h.faction;
     if (!this.scene.textures.exists(harvesterKey)) {
       console.error(
         `[EntityRenderer] Harvester texture "${harvesterKey}" missing for faction "${h.faction}" ` +
         `— falling back to cyan.`,
       );
       harvesterKey = getCivilUnitKey('cyan', 'harvester');
+      effectiveFaction = 'cyan';
       if (!this.scene.textures.exists(harvesterKey)) {
         console.error(
           `[EntityRenderer] Fallback harvester texture "${harvesterKey}" also missing — skipping sprite.`,
@@ -295,6 +383,15 @@ export class EntityRenderer {
     sprite.setOrigin(0.5, 0.75);
     sprite.setDepth(100 + worldY);
 
+    // Play initial idle animation (south-facing)
+    const initialAnimKey = `harvester_${effectiveFaction}_idle_s`;
+    if (this.scene.anims.exists(initialAnimKey)) {
+      sprite.anims.play(initialAnimKey);
+    }
+
+    // Track effective faction and default facing direction
+    this.harvesterFaction.set(h.id, effectiveFaction);
+    this.harvesterFacing.set(h.id, DIR_ROW.S);
     this.harvesterSprites.set(h.id, sprite);
     this.harvesterPrevTile.set(h.id, { ftx: h.ftx, fty: h.fty });
   }
@@ -380,6 +477,8 @@ export class EntityRenderer {
     }
     this.harvesterSprites.clear();
     this.harvesterPrevTile.clear();
+    this.harvesterFacing.clear();
+    this.harvesterFaction.clear();
 
     for (const img of this.resourceSprites.values()) {
       img.destroy();
