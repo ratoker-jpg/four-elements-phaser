@@ -30,7 +30,7 @@ This spike investigates whether Phaser 4.1.0's `SpriteGPULayer` and `TilemapGPUL
 
 | Check | Result |
 |-------|--------|
-| Active repo | `ratoker-jkg/four-elements-phaser` |
+| Active repo | `ratoker-jpg/four-elements-phaser` |
 | `package.json` phaser version | `"phaser": "4.1.0"` |
 | PR #91 (PHASER4-LOAD-02) merged to main | Yes (commit `f3e5796`) |
 | Source-of-truth audit | `docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md` |
