@@ -235,7 +235,7 @@ AudioContext/autoplay/user-gesture/audio-policy/play-rejected warnings are filte
 
 | Aspect | Detail |
 |--------|--------|
-| **New markers** | `[GameScene] Faction: {faction}` after state creation; `[PreloadScene] modularUnits loading skipped (standard mode).` (already exists); `[GameScene] Harvester animation ready.` after animation setup |
+| **New markers** | `[GameScene] Faction: {faction}` after state creation; `[PreloadScene] modularUnits loading skipped (standard mode).` (already exists); `[GameScene] Harvester animation ready.` — prefer GameScene placement, do not edit EntityRenderer |
 | **Risk** | Very low — only adds console.log lines and marker checks |
 | **Benefit** | Confirms faction state, modularUnits gate, and animation setup at browser level |
 | **Touched files** | `GameScene.ts` (add 1–2 console.log), `qa_smoke.mjs` (expand REQUIRED_MARKERS) |
@@ -249,7 +249,7 @@ AudioContext/autoplay/user-gesture/audio-policy/play-rejected warnings are filte
 
 | Aspect | Detail |
 |--------|--------|
-| **New markers** | `[GameScene] Faction: {faction}`; `[GameScene] Harvester animation ready.`; verify `[PreloadScene] modularUnits loading enabled (devtools/arena mode).` appears only in devtools run |
+| **New markers** | `[GameScene] Faction: {faction}`; `[GameScene] Harvester animation ready.` (prefer GameScene placement, do not edit EntityRenderer); verify `[PreloadScene] modularUnits loading enabled (devtools/arena mode).` appears only in devtools run |
 | **Dual-mode** | Run 1: `?skipMenu` (standard); Run 2: `?skipMenu&devtools=1&arena=1` (devtools/arena). Each run has its own marker set and report. |
 | **DOM assertion** | After markers, assert `#hud-economy` element contains "Raw:" and "Units:" text (stable end-state after scene ready) |
 | **Risk** | Low — markers are deterministic; DOM assertion waits for stable state |
@@ -289,7 +289,7 @@ Add after state creation in `create()`:
 console.log(`[GameScene] Faction: ${this.gameState.playerFaction}`);
 ```
 
-Add after animation setup in `EntityRenderer.renderDynamicInit()` or after the harvester sprites are created:
+Prefer placing in GameScene after the existing dynamic render initialization call. Do not edit `EntityRenderer.ts` unless implementation-time inspection proves there is no safe GameScene location. Do not change renderer behavior. Add:
 
 ```typescript
 console.log(`[GameScene] Harvester animation ready.`);
@@ -388,7 +388,7 @@ This is a stable check because `#hud-economy` is updated each frame and will con
 Files NOT changed:
 
 - `src/phaser/PreloadScene.ts` — already has correct modularUnits markers
-- `src/phaser/render/EntityRenderer.ts` — animation marker may go here instead of GameScene
+- `src/phaser/render/EntityRenderer.ts` — **do NOT edit** unless implementation-time inspection proves there is no safe GameScene location; prefer GameScene
 - `package.json` — no new scripts or dependencies
 - No new Playwright test files (keeps existing programmatic approach)
 
@@ -448,12 +448,35 @@ Files NOT changed:
 Task: ARCH-11A — QA smoke automation / Sandbox MVP regression coverage
 Mode: IMPLEMENTATION ONLY
 
+Active repo:
+ratoker-jpg/four-elements-phaser
+
+Reference/donor repo:
+ratoker-jpg/four-elements-next
+
+Critical repo rule:
+four-elements-next is donor/reference only.
+Do not treat it as active implementation baseline.
+
+Before doing anything:
+1. Confirm active repo is ratoker-jpg/four-elements-phaser.
+2. Confirm package.json has "phaser": "4.1.0".
+3. Confirm main includes merged PR #94 / ARCH-11A-AUDIT.
+4. Read docs/project/ARCH_11A_QA_SMOKE_AUTOMATION_AUDIT.md.
+5. If repo/version/docs/main mismatch, stop and report. Do not continue.
+
 Read first:
 - docs/project/GLM_EXECUTOR_RULES.md
+- docs/project/GPT_WORKFLOW.md
+- docs/project/PROJECT_STATE.md
+- docs/project/CURRENT_NEXT_STEP.md
 - docs/project/ARCH_11A_QA_SMOKE_AUTOMATION_AUDIT.md
 - tools/qa_smoke.mjs
 - src/phaser/GameScene.ts
 - src/phaser/PreloadScene.ts
+- src/phaser/ui/PlaytestHud.ts
+- index.html
+- package.json
 
 Goal:
 Implement Option B from the audit report: console markers + dual-mode
@@ -462,7 +485,10 @@ smoke + minimal DOM assertion.
 Scope:
 1. Add console markers in GameScene.ts:
    - `[GameScene] Faction: {faction}` after state creation in create()
-   - `[GameScene] Harvester animation ready.` after entityRenderer.renderDynamicInit()
+   - `[GameScene] Harvester animation ready.` — prefer placing in GameScene
+     after the existing dynamic render initialization call; do NOT edit
+     EntityRenderer.ts unless implementation-time inspection proves there
+     is no safe GameScene location; do not change renderer behavior
 2. Expand qa_smoke.mjs:
    - Split into two runs: standard (?skipMenu) and devtools (?skipMenu&devtools=1&arena=1)
    - Define separate REQUIRED_MARKERS for each run
@@ -479,6 +505,9 @@ Scope:
 
 Hard rules:
 - Do not change gameplay logic, state logic, or renderer logic (only add console.log)
+- Do not edit EntityRenderer.ts unless implementation-time inspection proves
+  there is no safe GameScene location; prefer GameScene
+- Do not change renderer behavior
 - Do not add Playwright interaction tests
 - Do not add screenshot comparison
 - Do not change package.json
@@ -493,6 +522,19 @@ npm run build
 npm run qa:smoke
 
 Run qa:smoke 5 times and report flake rate.
+
+PR body must include:
+- Goal
+- Files changed
+- What changed
+- Marker model
+- Dual-mode smoke model
+- DOM assertion model
+- What was intentionally not changed
+- Validation results
+- 5x qa:smoke flake check result
+- Risks / rollback
+- Next recommended task
 
 Telegram notification:
 At task completion, send Telegram notification using /home/z/my-project/.telegram-notify.json if available.
