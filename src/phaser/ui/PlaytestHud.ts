@@ -163,6 +163,7 @@ export class PlaytestHud {
     root.appendChild(econTitle);
 
     this.economyEl = document.createElement('div');
+    this.economyEl.id = 'hud-economy'; // HUD-01: preserved for qa:smoke DOM assertion
     this.economyEl.style.cssText = 'line-height: 1.6; margin-bottom: 8px; color: #c0c0c0;';
     root.appendChild(this.economyEl);
 
