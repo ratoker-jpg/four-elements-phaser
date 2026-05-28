@@ -25,6 +25,9 @@ import {
 /** Map mode: fixed predefined map or deterministic generated map. */
 export type MapMode = 'fixed' | 'generated';
 
+/** Game mode: standard play, debug with devtools, or arena combat sandbox. MENU-01. */
+export type GameMode = 'standard' | 'debug' | 'arena';
+
 /** Configuration for starting a new game. Passed between scenes. */
 export interface GameSetupConfig {
   /** Player faction selection. */
@@ -37,6 +40,8 @@ export interface GameSetupConfig {
   mapSize: MapSizeOption;
   /** Seed string (only used when mapMode is 'generated'). ARCH-16A. */
   seed: string;
+  /** Game mode: standard, debug (devtools), or arena. MENU-01. */
+  gameMode: GameMode;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -69,16 +74,27 @@ export const MAP_LIST: ReadonlyArray<{ id: string; name: string; mode: MapMode }
 /** Available map size options for generated maps. */
 export const MAP_SIZE_OPTIONS: MapSizeOption[] = ['small', 'standard', 'large'];
 
+/** All game modes in display order. MENU-01. */
+export const GAME_MODE_LIST: GameMode[] = ['standard', 'debug', 'arena'];
+
+/** Display labels for game modes. MENU-01. */
+export const GAME_MODE_LABELS: Record<GameMode, string> = {
+  standard: 'Standard',
+  debug: 'Debug',
+  arena: 'Arena',
+};
+
 /** Default seed for generated maps. */
 export const DEFAULT_SEED = 'default';
 
-/** Default setup configuration (cyan faction, Map 1). */
+/** Default setup configuration (cyan faction, Map 1, standard mode). */
 export const DEFAULT_SETUP: GameSetupConfig = {
   faction: 'cyan',
   mapId: 'customMap1',
   mapMode: 'fixed',
   mapSize: 'standard',
   seed: DEFAULT_SEED,
+  gameMode: 'standard',
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -160,4 +176,82 @@ export function shouldSkipMenu(): boolean {
   if (typeof window === 'undefined') return false;
   const params = new URLSearchParams(window.location.search);
   return params.has('skipMenu') || params.has('autostart');
+}
+
+// ─── Controlled URL launch (MENU-01) ───────────────────────────────
+
+/**
+ * Session storage key for persisting game setup config across page reload.
+ * MENU-01: When Debug/Arena is selected, we reload the page with URL
+ * params (?devtools=1, ?arena=1) so PreloadScene loads the correct
+ * assets. The setup config (faction, map, seed) is stored in
+ * sessionStorage so it survives the page reload.
+ */
+export const SETUP_SESSION_KEY = 'four-elements-setup-config';
+
+/**
+ * Build the launch URL for a given game mode.
+ * MENU-01: Controlled URL launch model.
+ *
+ * - Standard: just skipMenu (no devtools/arena params)
+ * - Debug: adds ?skipMenu&devtools=1
+ * - Arena: adds ?skipMenu&devtools=1&arena=1
+ */
+export function buildGameLaunchUrl(gameMode: GameMode): string {
+  const url = new URL(window.location.href);
+  // Clear any existing mode params to avoid conflicts
+  url.searchParams.delete('devtools');
+  url.searchParams.delete('arena');
+
+  // Always include skipMenu for controlled launches
+  url.searchParams.set('skipMenu', '1');
+
+  if (gameMode === 'debug') {
+    url.searchParams.set('devtools', '1');
+  } else if (gameMode === 'arena') {
+    url.searchParams.set('devtools', '1');
+    url.searchParams.set('arena', '1');
+  }
+
+  return url.href;
+}
+
+/**
+ * Save game setup config to sessionStorage for retrieval after page reload.
+ * MENU-01: Used before controlled URL launch for Debug/Arena modes.
+ */
+export function saveSetupToSession(config: GameSetupConfig): void {
+  try {
+    sessionStorage.setItem(SETUP_SESSION_KEY, JSON.stringify(config));
+  } catch {
+    // sessionStorage may be unavailable in some environments
+  }
+}
+
+/**
+ * Load game setup config from sessionStorage.
+ * MENU-01: Used by MainMenuScene shouldSkipMenu flow to restore
+ * the user's faction/map/seed selection after controlled URL launch.
+ * Returns null if no config is stored.
+ */
+export function loadSetupFromSession(): GameSetupConfig | null {
+  try {
+    const stored = sessionStorage.getItem(SETUP_SESSION_KEY);
+    if (!stored) return null;
+    return JSON.parse(stored) as GameSetupConfig;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clear the stored setup config from sessionStorage.
+ * MENU-01: Called after the config has been consumed.
+ */
+export function clearSetupSession(): void {
+  try {
+    sessionStorage.removeItem(SETUP_SESSION_KEY);
+  } catch {
+    // Ignore errors
+  }
 }
