@@ -624,15 +624,24 @@ export class NewGameSetupScene extends Phaser.Scene {
     console.log(`[NewGameSetupScene] Late-loading modularUnits for ${this.selectedGameMode} mode...`);
     loadGeneratedModularUnitAssets(this);
 
-    this.load.once('complete', () => {
+    // Guard: if loaderror triggers fallback, prevent the complete handler
+    // from starting GameScene with incomplete textures (loaderror/complete race).
+    let didFallback = false;
+
+    const onComplete = () => {
+      if (didFallback) return;
       console.log('[NewGameSetupScene] modularUnits late-loading complete.');
       this.hideLateLoadingOverlay();
       this.isLateLoading = false;
       this.scene.start('GameScene', config);
-    });
+    };
 
-    this.load.once('loaderror', (file: Phaser.Loader.File) => {
+    const onLoadError = (file: Phaser.Loader.File) => {
+      if (didFallback) return;
+      didFallback = true;
       console.error(`[NewGameSetupScene] Late-loading failed for: ${file.key} (${file.url})`);
+      // Remove the complete handler so it cannot fire after fallback
+      this.load.off('complete', onComplete);
       this.hideLateLoadingOverlay();
       this.isLateLoading = false;
       // Fallback: controlled URL launch (MENU-01 safety net)
@@ -640,7 +649,10 @@ export class NewGameSetupScene extends Phaser.Scene {
       saveSetupToSession(config);
       const url = buildGameLaunchUrl(this.selectedGameMode);
       window.location.href = url;
-    });
+    };
+
+    this.load.once('complete', onComplete);
+    this.load.once('loaderror', onLoadError);
 
     this.load.start();
   }
