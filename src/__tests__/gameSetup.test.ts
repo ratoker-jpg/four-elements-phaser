@@ -16,7 +16,70 @@ import {
   getMapDataFromConfig,
   getMapDisplayName,
   type GameSetupConfig,
+  type GameMode,
 } from '../state/gameSetup';
+
+// ─── MENU-02: gameMode-based mode detection logic ─────────────────
+
+describe('MENU-02: gameMode → devtools/arena detection', () => {
+  // Replicate the pure logic from GameScene.create() for testing:
+  //   const urlDevtools = isDevtoolsEnabled();           // URL-based
+  //   const urlArena = urlDevtools && isArenaEnabled();  // URL-based
+  //   const configDebug = setupConfig.gameMode === 'debug';
+  //   const configArena = setupConfig.gameMode === 'arena';
+  //   devtoolsActive = urlDevtools || configDebug || configArena;
+  //   arenaMode = urlArena || configArena;
+
+  function computeModeFlags(gameMode: GameMode, urlDevtools: boolean, urlArena: boolean) {
+    const configDebug = gameMode === 'debug';
+    const configArena = gameMode === 'arena';
+    const devtoolsActive = urlDevtools || configDebug || configArena;
+    const arenaMode = urlArena || configArena;
+    return { devtoolsActive, arenaMode };
+  }
+
+  it('standard mode with no URL params → no devtools, no arena', () => {
+    const { devtoolsActive, arenaMode } = computeModeFlags('standard', false, false);
+    expect(devtoolsActive).toBe(false);
+    expect(arenaMode).toBe(false);
+  });
+
+  it('debug mode with no URL params → devtools active, no arena', () => {
+    const { devtoolsActive, arenaMode } = computeModeFlags('debug', false, false);
+    expect(devtoolsActive).toBe(true);
+    expect(arenaMode).toBe(false);
+  });
+
+  it('arena mode with no URL params → devtools active, arena active', () => {
+    const { devtoolsActive, arenaMode } = computeModeFlags('arena', false, false);
+    expect(devtoolsActive).toBe(true);
+    expect(arenaMode).toBe(true);
+  });
+
+  it('standard mode with URL devtools → devtools active (URL wins)', () => {
+    const { devtoolsActive, arenaMode } = computeModeFlags('standard', true, false);
+    expect(devtoolsActive).toBe(true);
+    expect(arenaMode).toBe(false);
+  });
+
+  it('standard mode with URL devtools+arena → both active (URL wins)', () => {
+    const { devtoolsActive, arenaMode } = computeModeFlags('standard', true, true);
+    expect(devtoolsActive).toBe(true);
+    expect(arenaMode).toBe(true);
+  });
+
+  it('debug mode with URL devtools+arena → arena overrides (URL + config combined)', () => {
+    const { devtoolsActive, arenaMode } = computeModeFlags('debug', true, true);
+    expect(devtoolsActive).toBe(true);
+    expect(arenaMode).toBe(true);
+  });
+
+  it('arena config with only URL devtools (no URL arena) → arena from config', () => {
+    const { devtoolsActive, arenaMode } = computeModeFlags('arena', true, false);
+    expect(devtoolsActive).toBe(true);
+    expect(arenaMode).toBe(true);
+  });
+});
 
 describe('ARCH-14B/16A: gameSetup helpers', () => {
   describe('FACTION_LIST', () => {

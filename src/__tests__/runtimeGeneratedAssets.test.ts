@@ -460,6 +460,53 @@ describe('loadGeneratedModularUnitAssets', () => {
   });
 });
 
+// ─── MENU-02: isModularUnitsLoaded tests ────────────────────────────
+
+describe('MENU-02: isModularUnitsLoaded', () => {
+  it('MODULAR_UNIT_PROBE_KEY is a valid modularUnits key', async () => {
+    const { MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
+
+    // The probe key must be an actual key in the modularUnits family
+    expect(GENERATED_ASSET_MANIFEST.families.modularUnits.keys).toContain(MODULAR_UNIT_PROBE_KEY);
+  });
+
+  it('returns true when probe key texture exists', async () => {
+    const { isModularUnitsLoaded } = await import('../assets/runtimeGeneratedAssets');
+
+    const mockScene = {
+      textures: {
+        exists: (key: string) => key === 'wasp_m0_hull_cyan_dir0',
+      },
+    };
+
+    expect(isModularUnitsLoaded(mockScene as any)).toBe(true);
+  });
+
+  it('returns false when probe key texture does not exist', async () => {
+    const { isModularUnitsLoaded } = await import('../assets/runtimeGeneratedAssets');
+
+    const mockScene = {
+      textures: {
+        exists: (_key: string) => false,
+      },
+    };
+
+    expect(isModularUnitsLoaded(mockScene as any)).toBe(false);
+  });
+
+  it('returns false when other keys exist but probe key does not', async () => {
+    const { isModularUnitsLoaded } = await import('../assets/runtimeGeneratedAssets');
+
+    const mockScene = {
+      textures: {
+        exists: (key: string) => key === 'hq_cyan' || key === 'terrain_sand',
+      },
+    };
+
+    expect(isModularUnitsLoaded(mockScene as any)).toBe(false);
+  });
+});
+
 // ─── PreloadScene uses generated loader ────────────────────────────
 // These tests verify source code contents via dynamic import of the TS source
 // as a raw string. Since vitest runs in Node, we use globalThis to access
@@ -482,6 +529,12 @@ describe('PreloadScene integration', () => {
     expect(typeof runtimeMod.loadGeneratedModularUnitAssets).toBe('function');
     expect(runtimeMod.loadGeneratedTerrainAndResourceAssets).toBeDefined();
     expect(typeof runtimeMod.loadGeneratedTerrainAndResourceAssets).toBe('function');
+
+    // MENU-02: modularUnits loaded-check helpers
+    expect(runtimeMod.MODULAR_UNIT_PROBE_KEY).toBeDefined();
+    expect(typeof runtimeMod.MODULAR_UNIT_PROBE_KEY).toBe('string');
+    expect(runtimeMod.isModularUnitsLoaded).toBeDefined();
+    expect(typeof runtimeMod.isModularUnitsLoaded).toBe('function');
   });
 
   it('PreloadScene uses generated loader instead of manual building loading', async () => {

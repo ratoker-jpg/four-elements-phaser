@@ -184,6 +184,24 @@ export function loadGeneratedModularUnitAssets(
 }
 
 /**
+ * Representative modularUnit key used for checking whether combat
+ * assets have been loaded. MENU-02: This avoids importing the full
+ * manifest key list at call sites that just need a boolean check.
+ */
+export const MODULAR_UNIT_PROBE_KEY = 'wasp_m0_hull_cyan_dir0' as const;
+
+/**
+ * Check whether modularUnit combat assets have been loaded.
+ * MENU-02: Uses a single representative texture key probe instead of
+ * iterating all 64 keys. If the probe key exists in the TextureManager,
+ * we assume the full modularUnits family was loaded (by PreloadScene
+ * via URL params or by late-loading via NewGameSetupScene).
+ */
+export function isModularUnitsLoaded(scene: Phaser.Scene): boolean {
+  return scene.textures.exists(MODULAR_UNIT_PROBE_KEY);
+}
+
+/**
  * Convenience: load terrain + resources families from the generated manifest.
  *
  * This replaces the manual terrain_sand / mineral_small etc. loads
