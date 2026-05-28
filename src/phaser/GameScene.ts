@@ -179,8 +179,9 @@ export class GameScene extends Phaser.Scene {
     const offset = mapOriginOffset(this.gameState.mapWidth, this.gameState.mapHeight);
     this._offset = offset;
 
-    // Draw isometric grid overlay
-    this.drawGridLines(offset);
+    // TERRAIN-01: Grid lines removed — they reinforced the chessboard
+    // pattern and are no longer needed with improved terrain clustering.
+    // If needed for debugging, re-enable drawGridLines() temporarily.
 
     // Render entities — static first, then dynamic
     this.entityRenderer = new EntityRenderer(this, offset);
@@ -410,33 +411,33 @@ export class GameScene extends Phaser.Scene {
     console.log('[GameScene] All asset textures verified.');
   }
 
-  private drawGridLines(offset: { x: number; y: number }): void {
-    const graphics = this.add.graphics();
-    graphics.setDefaultStyles({
-      lineStyle: { width: 0.5, color: 0x4a4a6a, alpha: 0.2 },
-    });
-
-    const hw = 76 / 2; // TILE_W / 2
-    const hh = 38 / 2; // TILE_H / 2
-
-    for (let ty = 0; ty < this.gameState.mapHeight; ty++) {
-      for (let tx = 0; tx < this.gameState.mapWidth; tx++) {
-        const screenPos = tileToScreen(tx, ty);
-        const cx = screenPos.x + offset.x;
-        const cy = screenPos.y + offset.y;
-
-        graphics.beginPath();
-        graphics.moveTo(cx, cy - hh);
-        graphics.lineTo(cx + hw, cy);
-        graphics.lineTo(cx, cy + hh);
-        graphics.lineTo(cx - hw, cy);
-        graphics.closePath();
-        graphics.strokePath();
-      }
-    }
-
-    graphics.setDepth(50);
-  }
+  // TERRAIN-01: drawGridLines removed — grid overlay reinforced the
+  // chessboard pattern. The method is preserved below commented out
+  // for debugging purposes if needed in the future.
+  //
+  // private drawGridLines(offset: { x: number; y: number }): void {
+  //   const graphics = this.add.graphics();
+  //   graphics.setDefaultStyles({
+  //     lineStyle: { width: 0.5, color: 0x4a4a6a, alpha: 0.2 },
+  //   });
+  //   const hw = 76 / 2;
+  //   const hh = 38 / 2;
+  //   for (let ty = 0; ty < this.gameState.mapHeight; ty++) {
+  //     for (let tx = 0; tx < this.gameState.mapWidth; tx++) {
+  //       const screenPos = tileToScreen(tx, ty);
+  //       const cx = screenPos.x + offset.x;
+  //       const cy = screenPos.y + offset.y;
+  //       graphics.beginPath();
+  //       graphics.moveTo(cx, cy - hh);
+  //       graphics.lineTo(cx + hw, cy);
+  //       graphics.lineTo(cx, cy + hh);
+  //       graphics.lineTo(cx - hw, cy);
+  //       graphics.closePath();
+  //       graphics.strokePath();
+  //     }
+  //   }
+  //   graphics.setDepth(50);
+  // }
 
   shutdown(): void {
     this.inputController?.destroy();

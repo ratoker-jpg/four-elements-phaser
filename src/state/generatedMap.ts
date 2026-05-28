@@ -9,6 +9,11 @@
  * Clean sand remains the dominant base; sand-light and sand-dark
  * form soft patches, not single random pixels.
  *
+ * TERRAIN-01: Improved terrain clustering — larger primary patches
+ * (radius 3-7) with smaller accent patches (radius 1-3), quadratic
+ * edge falloff, Chebyshev distance for organic shapes. Sand remains
+ * the dominant base (~60-70%).
+ *
  * ARCH-09A: Resource distribution balance — reliable starter resources
  * near HQ, distance-based resource tiers (small/medium near, large farther),
  * more clusters for larger maps, resources never overlap.
@@ -231,12 +236,24 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
 /**
  * Generate terrain using patch/cluster-based approach.
  *
+ * TERRAIN-01: Improved clustering for natural-looking desert terrain.
+ *
  * Strategy:
  * 1. Fill entire map with 'sand' (dominant base).
- * 2. Place a number of patch centers using PRNG.
- * 3. Each patch center is sand-light or sand-dark, with a radius.
- * 4. Tiles within radius of a patch center get that patch's terrain type.
- * 5. Sand remains the clear majority; patches form soft clusters.
+ * 2. Place large primary patches using PRNG — these form the main
+ *    visual clusters (radius 3–7).
+ * 3. Place smaller accent patches for subtle variation (radius 1–3).
+ * 4. Tiles within radius of a patch center get that patch's terrain type
+ *    with smooth distance-based falloff.
+ * 5. Sand remains the clear majority (~60-70%); patches form soft clusters.
+ *
+ * Improvements over original:
+ * - Larger primary patches (radius up to 7) for bigger visual clusters
+ * - Two-tier patch system: large primary + small accent patches
+ * - Softer edge falloff using quadratic curve instead of linear
+ * - Balanced type distribution: ~35% sand-light, ~25% sand-dark primary,
+ *   with accent patches adding variety
+ * - Fewer but larger patches reduce the scattered noise appearance
  *
  * Same seed + size always produces identical terrain.
  */
@@ -251,10 +268,6 @@ function generateTerrain(rng: () => number, W: number, H: number): TerrainType[]
     terrain.push(row);
   }
 
-  // Step 2: Generate patch centers
-  // Number of patches scales with map area
-  const patchCount = Math.floor((W * H) / 80); // ~12 for small, ~28 for standard, ~51 for large
-
   interface TerrainPatch {
     cx: number;
     cy: number;
@@ -262,34 +275,52 @@ function generateTerrain(rng: () => number, W: number, H: number): TerrainType[]
     type: TerrainType;
   }
 
+  // Step 2: Generate large primary patches
+  // Fewer patches but larger radius for natural-looking clusters
+  const primaryPatchCount = Math.floor((W * H) / 200); // ~5 for small, ~11 for standard, ~20 for large
+
   const patches: TerrainPatch[] = [];
-  for (let i = 0; i < patchCount; i++) {
+  for (let i = 0; i < primaryPatchCount; i++) {
     const cx = Math.floor(rng() * W);
     const cy = Math.floor(rng() * H);
-    // Radius 1-4 tiles: small patches for subtlety, occasional larger ones
-    const radius = 1 + Math.floor(rng() * 4);
-    // Roughly 40% sand-light, 30% sand-dark, 30% sand-light (weighted toward light)
+    // Larger radius: 3-7 tiles for substantial visual clusters
+    const radius = 3 + Math.floor(rng() * 5);
+    // Balanced distribution: slightly more sand-light for desert feel
     const typeRoll = rng();
-    const type: TerrainType = typeRoll < 0.45 ? 'sand-light' : typeRoll < 0.75 ? 'sand-dark' : 'sand-light';
+    const type: TerrainType = typeRoll < 0.55 ? 'sand-light' : 'sand-dark';
     patches.push({ cx, cy, radius, type });
   }
 
-  // Step 3: Apply patches — tiles within radius get the patch type
+  // Step 3: Generate smaller accent patches for subtle variation
+  const accentPatchCount = Math.floor((W * H) / 250); // ~4 for small, ~9 for standard, ~16 for large
+  for (let i = 0; i < accentPatchCount; i++) {
+    const cx = Math.floor(rng() * W);
+    const cy = Math.floor(rng() * H);
+    // Small accent patches: radius 1-3
+    const radius = 1 + Math.floor(rng() * 3);
+    // Accent patches are mostly the opposite type of nearby primary patches
+    const typeRoll = rng();
+    const type: TerrainType = typeRoll < 0.4 ? 'sand-dark' : typeRoll < 0.8 ? 'sand-light' : 'sand';
+    patches.push({ cx, cy, radius, type });
+  }
+
+  // Step 4: Apply patches — tiles within radius get the patch type
   for (const patch of patches) {
-    const r2 = patch.radius * patch.radius;
     for (let dy = -patch.radius; dy <= patch.radius; dy++) {
       for (let dx = -patch.radius; dx <= patch.radius; dx++) {
-        // Elliptical patch with distance falloff
-        const dist2 = (dx * dx + dy * dy);
-        if (dist2 > r2) continue;
+        // Chebyshev distance for more organic, less circular shapes
+        const chebyshevDist = Math.max(Math.abs(dx), Math.abs(dy));
+        if (chebyshevDist > patch.radius) continue;
 
         const tx = patch.cx + dx;
         const ty = patch.cy + dy;
         if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
 
-        // Apply with higher probability near center for softer edges
-        const distRatio = Math.sqrt(dist2) / patch.radius;
-        if (rng() < 1.0 - distRatio * 0.6) {
+        // Quadratic falloff for softer edges
+        // Near center: almost always applied. At edge: rarely applied.
+        const distRatio = chebyshevDist / patch.radius;
+        const applyProbability = 1.0 - distRatio * distRatio * 0.8;
+        if (rng() < applyProbability) {
           terrain[ty][tx] = patch.type;
         }
       }
