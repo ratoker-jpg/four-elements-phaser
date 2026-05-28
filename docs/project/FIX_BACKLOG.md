@@ -1,9 +1,9 @@
 # FIX_BACKLOG.md
 
-Status: active backlog for Sandbox MVP stability work  
-Project: Four Elements Phaser  
-Repo: `ratoker-jpg/four-elements-phaser`  
-Date: 2026-05-28
+Status: active backlog for Sandbox MVP stability work
+Project: Four Elements Phaser
+Repo: `ratoker-jpg/four-elements-phaser`
+Date: 2026-05-29
 
 ---
 
@@ -23,117 +23,130 @@ Do not pick items from this file and implement them directly unless the audit/ro
 
 ---
 
-## 2. Confirmed work groups
+## 2. Completed work groups
 
-These work groups are from the corrected Phaser 4 audit (`PHASER4_AUDIT_CLARIFICATION_RETRY.md`).
+These items from the corrected audit sequence are now merged.
 
-### FIX-01 — Faction asset wiring: HQ + harvester hardcoded cyan
-
-```text
-Risk: high-controlled
-Scope: runtime
-Problem: Non-cyan faction HQ and harvester use hardcoded cyan assets.
-         Other factions can be selected but show wrong or missing visuals.
-Solution: Wire faction-specific asset keys in renderers.
-Touched:
-  - EntityRenderer is the expected primary file.
-  - Use getHqAssetKey(faction) and getCivilUnitKey(faction, 'harvester')
-    if those helpers exist.
-  - Do not change ConstructionRenderer, PreloadScene,
-    generatedAssetManifest, state init, or asset files unless a direct
-    implementation-time code check proves they are part of the root cause.
-  - Builder/building rendering is believed to already be faction-aware
-    and should not be changed in FIX-01 unless disproven.
-Blocks: Multi-faction playtesting
-```
-
-### PHASER4-ANIM-01 — Animation Manager spike
+### FIX-01 — Faction asset wiring (PR #83)
 
 ```text
-Risk: low (spike only)
-Scope: research / spike
-Purpose: Validate Phaser 4.1.0 Animation Manager API for sprite animations.
-Output: Decision document with API findings and migration recommendation.
-Do not: Implement production animation system during spike.
+Status: DONE
+What: Wired faction-specific HQ and harvester asset keys in EntityRenderer.
+Result: Non-cyan factions now display correct HQ and harvester visuals.
 ```
 
-### ARCH-18A-LITE — GameScene input/command extraction
+### PHASER4-ANIM-01 — Animation Manager spike (PR #84)
 
 ```text
-Risk: medium
-Scope: refactor
-Purpose: Extract input handling and command dispatch from GameScene.
-Constraint: Small scope only — no UI rewrite, no new systems beyond extraction.
+Status: DONE
+What: Validated Phaser 4.1.0 Animation Manager API.
+Result: Spike report confirms API works with current spritesheet layout.
+        Recommended harvester-first migration for PHASER4-ANIM-02.
 ```
 
-### FIX-02 — Harvester idle-forever UI feedback
+### ARCH-18A-LITE — GameScene input/command extraction (PR #86)
 
 ```text
-Risk: medium
-Scope: runtime + UI
-Problem: Harvesters can enter idle-forever state with no visual feedback.
-Solution: Add blockedReason telemetry and idle-state visual indicator.
-Depends on: Understanding of harvester phase transitions (audit first)
+Status: DONE
+What: Extracted GameInputController from GameScene.
+Result: Input handling and command dispatch in dedicated module.
+        GameScene no longer owns pointer/keyboard logic directly.
 ```
 
-### FIX-03 — Unit cap / ControlState
+### FIX-02 — Harvester idle-forever UI feedback (PR #87)
 
 ```text
-Risk: medium
-Scope: state + UI
-Problem: No unit cap or ControlState enforcement.
-Solution: Add ControlState with unit cap, display cap info in HUD.
+Status: DONE
+What: Added blockedReason telemetry and idle-state visual indicator.
+Result: Harvesters show feedback when blocked (no resource, no path, storage full).
 ```
 
-### FIX-04 — Factory spawn blockage UI feedback + cancel
+### FIX-03 — Unit cap / ControlState (PR #88)
 
 ```text
-Risk: medium
-Scope: UI + state
-Problem: No feedback when factory cannot spawn. No cancel for queued units.
-Solution: Add blockage reason display and cancel button for factory queue.
+Status: DONE
+What: Added ControlState with unit cap enforcement and HUD display.
+Result: Unit production respects cap; cap info visible in HUD.
 ```
 
-### PHASER4-ANIM-02 — Animation Manager migration
+### FIX-04 — Factory spawn blockage UI feedback + cancel (PR #89)
 
 ```text
-Risk: high-controlled
-Scope: runtime
-Purpose: Migrate sprite animations to Phaser 4 Animation Manager.
-Depends on: PHASER4-ANIM-01 spike findings
+Status: DONE
+What: Added blockage reason display and cancel button for factory queue.
+Result: Player sees why factory cannot spawn; can cancel queued units.
 ```
 
-### PHASER4-LOAD-01 — Conditional asset loading spike
+### PHASER4-ANIM-02 — Animation Manager migration (PR #85)
 
 ```text
-Risk: low (spike only)
-Scope: research / spike
-Purpose: Validate Phaser 4.1.0 Loader/Pack for conditional asset loading.
-Output: Decision document with API findings.
+Status: DONE
+What: Migrated harvester walk cycle to Phaser Animation Manager.
+Result: Harvesters use sprite.anims.play() instead of manual frame indexing.
+        Direction-based animation keys per faction.
 ```
 
-### PHASER4-GPU-01 — SpriteGPULayer / TilemapGPULayer spike
+### PHASER4-LOAD-01 — Conditional asset loading spike (PR #90)
 
 ```text
-Risk: low (spike only)
-Scope: research / spike
-Purpose: Validate Phaser 4.1.0 GPU layer APIs for performance gains.
-Output: Decision document with findings and go/no-go recommendation.
+Status: DONE
+What: Validated Phaser 4.1.0 Loader/Pack for conditional loading.
+Result: Spike report recommends dev/arena-only modularUnits loading.
+        Faction-aware loading is feasible but premature.
 ```
+
+### PHASER4-LOAD-02 — Dev/arena-only modularUnits loading (PR #91)
+
+```text
+Status: DONE
+What: Gated modularUnits loading behind isDevtoolsEnabled().
+       Added stripModularCombatFromState() for old saves in standard mode.
+Result: Standard mode skips 64 modular combat assets.
+        Devtools/arena mode loads them normally.
+        Old saves with modular-combat entities are sanitized in standard mode.
+```
+
+### PHASER4-GPU-01 — SpriteGPULayer / TilemapGPULayer spike (PR #92)
+
+```text
+Status: DONE
+What: Validated Phaser 4.1.0 GPU layer APIs.
+Result: TilemapGPULayer is orthographic-only (hard blocker for isometric).
+        SpriteGPULayer has no per-member depth (hard blocker for depth-sorted entities).
+        Recommendation: no GPU layer implementation now.
+        Reconsider when sprite count exceeds 50 or Phaser adds isometric/depth support.
+```
+
+---
+
+## 3. Active next work group
 
 ### ARCH-11A — QA smoke automation
 
 ```text
 Risk: low-medium
 Scope: tooling
-Purpose: Automate more comprehensive QA smoke checks.
+Purpose: Automate more comprehensive QA smoke checks for the features
+         shipped in PR #83–#92.
+Coverage targets:
+  - new game start
+  - faction selection
+  - harvester movement and animation
+  - harvester blocked status
+  - factory production
+  - unit cap
+  - factory cancel
+  - standard mode: modularUnits skipped
+  - devtools/arena mode: modularUnits enabled
+  - no console errors
+Current state: qa_smoke.mjs verifies 3 console markers + screenshot.
 ```
 
 ---
 
-## 3. Additional known issues (not yet in audit sequence)
+## 4. Additional known issues (not yet in active sequence)
 
-### 3.1 Harvester reliability
+### 4.1 Harvester reliability
 
 ```text
 Harvesters can gather and work for a while, then later stop gathering.
@@ -141,7 +154,7 @@ This existed before the recent UI/map/devtools work. It was parked intentionally
 Must audit before implementing fixes.
 ```
 
-### 3.2 Unit grounding / centering / selection marker
+### 4.2 Unit grounding / centering / selection marker
 
 ```text
 - selection marker/ring not properly grounded under unit;
@@ -150,21 +163,21 @@ Must audit before implementing fixes.
 Must stay system-first: no random per-unit offsets.
 ```
 
-### 3.3 Lane movement / diagonal cut-through readability
+### 4.3 Lane movement / diagonal cut-through readability
 
 ```text
 Units can visually appear to cut through cells / move diagonally.
 Audit must separate actual state movement from visual readability.
 ```
 
-### 3.4 Movement dust rework
+### 4.4 Movement dust rework
 
 ```text
 Current dust is acceptable as MVP but style should be redesigned later.
 Future: softer shape, better placement, less circular look.
 ```
 
-### 3.5 Controlled unit bobbing / suspension
+### 4.5 Controlled unit bobbing / suspension
 
 ```text
 Future render-only visual: bobbing/suspension while moving.
@@ -174,7 +187,7 @@ Must be planned in audit before implementation.
 
 ---
 
-## 4. Non-blocking / later backlog
+## 5. Explicitly parked / out of scope
 
 ```text
 - combat foundation;
@@ -186,12 +199,18 @@ Must be planned in audit before implementation.
 - map editor;
 - advanced asset previews;
 - obstacle/decor visual placeholders;
-- asset diagnostics CI integration.
+- asset diagnostics CI integration;
+- faction-aware loading (premature per PHASER4-LOAD-01);
+- asset unloading (premature per PHASER4-LOAD-01);
+- SpriteGPULayer / TilemapGPULayer implementation (rejected per PHASER4-GPU-01);
+- command relay economy expansion;
+- refund economy;
+- full UI redesign.
 ```
 
 ---
 
-## 5. Fix package rule
+## 6. Fix package rule
 
 Do not implement one-off fixes directly from this backlog.
 

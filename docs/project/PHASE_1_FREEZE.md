@@ -1,9 +1,9 @@
 # PHASE_1_FREEZE.md
 
-Status: active checkpoint  
-Project: Four Elements Phaser  
-Repo: `ratoker-jpg/four-elements-phaser`  
-Date: 2026-05-28
+Status: active checkpoint
+Project: Four Elements Phaser
+Repo: `ratoker-jpg/four-elements-phaser`
+Date: 2026-05-29
 
 ---
 
@@ -11,7 +11,9 @@ Date: 2026-05-28
 
 Phase 1 Foundation is frozen.
 
-No new major implementation ARCH should start outside the corrected audit sequence.
+Sandbox MVP engine/foundation roadmap (FIX-01 through PHASER4-GPU-01) is complete through PR #92.
+
+No new major implementation ARCH should start outside the next approved work item (ARCH-11A).
 
 ---
 
@@ -32,32 +34,53 @@ Phase 1 Foundation delivered a strong base:
 - tests + CI QA smoke.
 ```
 
-Continuing into enemy AI, bot, combat, progression, upgrades, or balance expansion now would broaden the project before the Sandbox MVP is stable.
+Sandbox MVP engine roadmap added:
+
+```text
+- faction asset wiring (FIX-01);
+- Animation Manager adoption (PHASER4-ANIM-01, PHASER4-ANIM-02);
+- GameInputController extraction (ARCH-18A-LITE);
+- harvester blocked feedback (FIX-02);
+- unit cap / ControlState (FIX-03);
+- factory blockage feedback + cancel (FIX-04);
+- dev/arena-only modularUnits loading (PHASER4-LOAD-01, PHASER4-LOAD-02);
+- GPU layer evaluation (PHASER4-GPU-01 — no implementation recommended).
+```
+
+Continuing into enemy AI, bot, combat, progression, upgrades, or balance expansion now would broaden the project before the Sandbox MVP is stable and has adequate automated coverage.
 
 ---
 
-## 3. Next work follows the corrected audit sequence
+## 3. Completed audit sequence
 
-Next work is not broad feature expansion.
-
-Next work follows the corrected audit sequence from `docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md`:
+The corrected audit sequence from `PHASER4_AUDIT_CLARIFICATION_RETRY.md` is fully complete:
 
 ```text
-1.  FIX-01 — Faction asset wiring
-2.  PHASER4-ANIM-01 — Animation Manager spike
-3.  ARCH-18A-LITE — GameScene input/command extraction
-4.  FIX-02 — Harvester idle-forever UI feedback
-5.  FIX-03 — Unit cap / ControlState
-6.  FIX-04 — Factory spawn blockage UI feedback + cancel
-7.  PHASER4-ANIM-02 — Animation Manager migration
-8.  PHASER4-LOAD-01 — Conditional asset loading spike
-9.  PHASER4-GPU-01 — SpriteGPULayer / TilemapGPULayer spike
-10. ARCH-11A — QA smoke automation
+ 1. FIX-01 — Faction asset wiring                 (PR #83, merged)
+ 2. PHASER4-ANIM-01 — Animation Manager spike     (PR #84, merged)
+ 3. ARCH-18A-LITE — GameInputController extraction (PR #86, merged)
+ 4. FIX-02 — Harvester blocked feedback           (PR #87, merged)
+ 5. FIX-03 — Unit cap / ControlState              (PR #88, merged)
+ 6. FIX-04 — Factory blockage feedback + cancel    (PR #89, merged)
+ 7. PHASER4-ANIM-02 — Animation Manager migration (PR #85, merged)
+ 8. PHASER4-LOAD-01 — Conditional loading spike   (PR #90, merged)
+ 9. PHASER4-LOAD-02 — Dev/arena modularUnits      (PR #91, merged)
+10. PHASER4-GPU-01 — GPU layer spike              (PR #92, merged)
 ```
 
 ---
 
-## 4. Combat/enemy/bot/upgrades/progression are parked
+## 4. Next step
+
+ARCH-11A — QA smoke automation / Sandbox MVP regression coverage.
+
+This is the next item from the corrected audit sequence.
+
+Purpose: Strengthen automated coverage for the features shipped in PR #83–#92 before moving to post-Sandbox work.
+
+---
+
+## 5. Combat/enemy/bot/upgrades/progression are parked
 
 Do not schedule as immediate next work:
 
@@ -70,14 +93,20 @@ Do not schedule as immediate next work:
 - progression systems;
 - broad balance/progression pass;
 - map editor;
-- large new gameplay systems.
+- large new gameplay systems;
+- faction-aware loading (premature);
+- asset unloading (premature);
+- SpriteGPULayer / TilemapGPULayer implementation (rejected by PHASER4-GPU-01);
+- command relay economy expansion;
+- refund economy;
+- full UI redesign.
 ```
 
-These are not deleted. They are postponed until after Sandbox MVP stability.
+These are not deleted. They are postponed until after Sandbox MVP stability and automated coverage.
 
 ---
 
-## 5. Phaser 4 API adoption policy
+## 6. Phaser 4 API adoption policy
 
 Phaser 4 API adoption is allowed but only via:
 
@@ -95,9 +124,17 @@ Rules:
 - Current working systems must not break during migration.
 ```
 
+Completed spikes:
+
+```text
+PHASER4-ANIM-01 — Animation Manager (implemented as PHASER4-ANIM-02)
+PHASER4-LOAD-01 — Conditional loading (implemented as PHASER4-LOAD-02)
+PHASER4-GPU-01 — GPU layers (no implementation recommended)
+```
+
 ---
 
-## 6. Roadmap status
+## 7. Roadmap status
 
 `docs/ROADMAP.md` is inactive/archived.
 
@@ -111,7 +148,7 @@ docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md
 
 ---
 
-## 7. Rule for the next chat
+## 8. Rule for the next chat
 
 A new GPT/GLM chat must start from:
 
@@ -120,6 +157,7 @@ docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md
 docs/project/PROJECT_STATE.md
 docs/project/FIX_BACKLOG.md
 docs/project/PHASE_1_FREEZE.md
+docs/project/CHECKPOINT_20260528_SANDBOX_MVP_ENGINE.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
 ```
