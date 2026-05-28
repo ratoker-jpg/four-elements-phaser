@@ -8,16 +8,20 @@ import {
   isHarvesterBlocked,
   getUnitCount,
   getUnitCap,
+  getFactorySpawnBlockReason,
+  hasFactorySpawnTile,
   separatorStatusLabel,
   factoryStatusLabel,
   buildBlockLabel,
   productionBlockLabel,
   harvesterStatusLabel,
+  spawnBlockLabel,
   type SeparatorStatus,
   type FactoryStatus,
   type BuildBlockReason,
   type ProductionBlockReason,
   type HarvesterStatus,
+  type FactorySpawnBlockReason,
 } from '../state/statusHelpers';
 import type { GameState, MapData, EconomyState, HarvesterState } from '../state/types';
 import {
@@ -599,5 +603,187 @@ describe('FIX-03: getFactoryStatus includes blocked-unit-cap', () => {
     const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
     const factory = state.production.factories[0];
     expect(getFactoryStatus(state, factory)).toBe('idle');
+  });
+});
+
+// ─── Factory spawn blockage (FIX-04) ──────────────────────────────────
+
+describe('FIX-04: getFactorySpawnBlockReason', () => {
+  it('returns null when queue is empty', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    const factory = state.production.factories[0];
+    expect(getFactorySpawnBlockReason(state, factory)).toBeNull();
+  });
+
+  it('returns null when front queue item is still producing', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    const factory = state.production.factories[0];
+    factory.queue.push(
+      { unitType: 'builder', elapsedMs: 1000, durationMs: 15000, progress: 0.07, completed: false },
+    );
+    expect(getFactorySpawnBlockReason(state, factory)).toBeNull();
+  });
+
+  it('returns null when front item is completed and can spawn', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    const factory = state.production.factories[0];
+    // Completed item, below cap, factory on a 30x30 map — spawn tile available
+    factory.queue.push(
+      { unitType: 'builder', elapsedMs: 15000, durationMs: 15000, progress: 1, completed: true },
+    );
+    expect(getFactorySpawnBlockReason(state, factory)).toBeNull();
+  });
+
+  it('returns "unit-cap-reached" when unit count is at cap', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    // Fill to cap: 1 builder already, add 9 more = 10 = cap
+    for (let i = 0; i < 9; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5, busy: false, phase: 'idle',
+        path: [], pathIndex: 0, ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5, assignedSiteId: -1,
+      });
+    }
+    const factory = state.production.factories[0];
+    factory.queue.push(
+      { unitType: 'builder', elapsedMs: 15000, durationMs: 15000, progress: 1, completed: true },
+    );
+    expect(getFactorySpawnBlockReason(state, factory)).toBe('unit-cap-reached');
+  });
+
+  it('returns "no-spawn-tile" when no passable tile adjacent to factory', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    const factory = state.production.factories[0];
+    factory.queue.push(
+      { unitType: 'builder', elapsedMs: 15000, durationMs: 15000, progress: 1, completed: true },
+    );
+    // Shrink map so factory at (10,10) has no adjacent passable tiles
+    state.mapWidth = 1;
+    state.mapHeight = 1;
+    expect(getFactorySpawnBlockReason(state, factory)).toBe('no-spawn-tile');
+  });
+
+  it('checks unit cap before spawn tile (cap takes priority)', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    // Fill to cap
+    for (let i = 0; i < 9; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5, busy: false, phase: 'idle',
+        path: [], pathIndex: 0, ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5, assignedSiteId: -1,
+      });
+    }
+    const factory = state.production.factories[0];
+    factory.queue.push(
+      { unitType: 'builder', elapsedMs: 15000, durationMs: 15000, progress: 1, completed: true },
+    );
+    // Also make map tiny (both cap and no-spawn-tile apply)
+    state.mapWidth = 1;
+    state.mapHeight = 1;
+    // unit-cap-reached should be reported first
+    expect(getFactorySpawnBlockReason(state, factory)).toBe('unit-cap-reached');
+  });
+
+  it('only checks the front queue item (not subsequent items)', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    const factory = state.production.factories[0];
+    // Front item not completed, second item completed — front item is checked
+    factory.queue.push(
+      { unitType: 'builder', elapsedMs: 1000, durationMs: 15000, progress: 0.07, completed: false },
+      { unitType: 'harvester', elapsedMs: 20000, durationMs: 20000, progress: 1, completed: true },
+    );
+    // Front item is not completed → no spawn blockage to report
+    expect(getFactorySpawnBlockReason(state, factory)).toBeNull();
+  });
+});
+
+describe('FIX-04: hasFactorySpawnTile', () => {
+  it('returns true when factory has adjacent passable tile', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    // 30x30 map with factory at (10,10) — plenty of room around it
+    expect(hasFactorySpawnTile(state, 10, 10)).toBe(true);
+  });
+
+  it('returns false when factory is on a tiny map with no adjacent passable tile', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    state.mapWidth = 1;
+    state.mapHeight = 1;
+    // Factory at (10,10) is outside the 1x1 map — no valid tiles in ring search
+    expect(hasFactorySpawnTile(state, 10, 10)).toBe(false);
+  });
+
+  it('returns true when factory is near map edge but still has passable tiles', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    // Factory at (0,0) with 2x2 footprint — tiles at (2,0) and (0,2) etc. should be passable
+    expect(hasFactorySpawnTile(state, 0, 0)).toBe(true);
+  });
+
+  it('returns false when factory is surrounded by obstacles on a small map', () => {
+    // Create a small 5x5 map with factory at (1,1), obstacles everywhere else
+    const mapData: MapData = {
+      width: 5,
+      height: 5,
+      terrain: Array.from({ length: 5 }, () => Array(5).fill('sand')),
+      hq: { tx: 0, ty: 0, faction: 'cyan' },
+      resources: [],
+      obstacles: [],
+      decor: [],
+      buildings: [
+        // Factory at (1,1) with 2x2 footprint occupies (1,1)(2,1)(1,2)(2,2)
+        { tx: 1, ty: 1, type: 'units-factory' },
+      ],
+      builders: [],
+      constructionSites: [],
+    };
+    // Add obstacles everywhere outside the factory footprint to block all rings
+    for (let y = 0; y < 5; y++) {
+      for (let x = 0; x < 5; x++) {
+        // Skip the factory footprint (1,1)-(2,2)
+        if (x >= 1 && x <= 2 && y >= 1 && y <= 2) continue;
+        mapData.obstacles.push({ tx: x, ty: y, type: 'mountain-small', footprint: 1 });
+      }
+    }
+    const state: GameState = {
+      mapId: 'test',
+      mapName: 'Test',
+      mapWidth: 5,
+      mapHeight: 5,
+      mapData,
+      entities: [],
+      playerFaction: 'cyan',
+      extraHarvesters: [],
+      extraModularCombat: [],
+      harvesters: [],
+      resourceNodes: [],
+      economy: {
+        raw: 100, matter: 200,
+        elements: { cyan: 50, green: 0, yellow: 0, purple: 0 },
+        powerGenerated: HQ_BASE_POWER, powerConsumed: 0,
+        separators: [], rawCap: 200, matterCap: 200, elementCap: 200,
+      },
+      hqPosition: { tx: 1, ty: 1 },
+      nextConstructionId: 0,
+      production: {
+        factories: [{ tx: 1, ty: 1, queue: [], active: false }],
+      },
+    };
+    expect(hasFactorySpawnTile(state, 1, 1)).toBe(false);
+  });
+});
+
+describe('FIX-04: spawnBlockLabel', () => {
+  it('covers all FactorySpawnBlockReason values', () => {
+    const reasons: FactorySpawnBlockReason[] = ['unit-cap-reached', 'no-spawn-tile'];
+    for (const r of reasons) {
+      expect(spawnBlockLabel(r).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('returns "Unit Cap" for unit-cap-reached', () => {
+    expect(spawnBlockLabel('unit-cap-reached')).toBe('Unit Cap');
+  });
+
+  it('returns "No Spawn Tile" for no-spawn-tile', () => {
+    expect(spawnBlockLabel('no-spawn-tile')).toBe('No Spawn Tile');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { startUnitProduction } from '../state/production';
+import { startUnitProduction, cancelFactoryQueueItem } from '../state/production';
 import { updateGameState } from '../state/updateGameState';
 import { updateConstructionSiteProgress, placeConstructionSite } from '../state/construction';
 import { createInitialState } from '../state/createInitialState';
@@ -944,5 +944,135 @@ describe('FIX-03: spawn-time cap recheck', () => {
     updateGameState(state, 200);
     expect(factory.queue.length).toBe(0);
     expect(state.mapData.builders.length).toBe(DEFAULT_UNIT_CAP);
+  });
+});
+
+// ─── Factory queue cancel (FIX-04) ──────────────────────────────────
+
+describe('FIX-04: cancelFactoryQueueItem', () => {
+  it('cancel removes the first queue item', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    startUnitProduction(state, 10, 10, 'builder');
+    startUnitProduction(state, 10, 10, 'harvester');
+
+    const result = cancelFactoryQueueItem(state, 10, 10, 0);
+    expect(result.ok).toBe(true);
+
+    const factory = state.production.factories[0];
+    expect(factory.queue.length).toBe(1);
+    expect(factory.queue[0].unitType).toBe('harvester');
+  });
+
+  it('cancel removes the second queue item', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    startUnitProduction(state, 10, 10, 'builder');
+    startUnitProduction(state, 10, 10, 'harvester');
+
+    const result = cancelFactoryQueueItem(state, 10, 10, 1);
+    expect(result.ok).toBe(true);
+
+    const factory = state.production.factories[0];
+    expect(factory.queue.length).toBe(1);
+    expect(factory.queue[0].unitType).toBe('builder');
+  });
+
+  it('cancel fails with factory-not-found for missing factory', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    startUnitProduction(state, 10, 10, 'builder');
+
+    const result = cancelFactoryQueueItem(state, 99, 99, 0);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('factory-not-found');
+    }
+
+    // Queue unchanged
+    expect(state.production.factories[0].queue.length).toBe(1);
+  });
+
+  it('cancel fails with invalid-queue-index for negative index', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    startUnitProduction(state, 10, 10, 'builder');
+
+    const result = cancelFactoryQueueItem(state, 10, 10, -1);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('invalid-queue-index');
+    }
+  });
+
+  it('cancel fails with invalid-queue-index for index >= queue.length', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    startUnitProduction(state, 10, 10, 'builder');
+
+    const result = cancelFactoryQueueItem(state, 10, 10, 1);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('invalid-queue-index');
+    }
+  });
+
+  it('cancel does not refund resources', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    const matterBefore = state.economy.matter;
+    const elementBefore = state.economy.elements.cyan;
+
+    startUnitProduction(state, 10, 10, 'builder');
+
+    // Matter/element were deducted at enqueue
+    expect(state.economy.matter).toBe(matterBefore - BUILDER_PRODUCTION_MATTER_COST);
+    expect(state.economy.elements.cyan).toBe(elementBefore - BUILDER_PRODUCTION_ELEMENT_COST);
+
+    cancelFactoryQueueItem(state, 10, 10, 0);
+
+    // No refund — matter/element stay the same as after enqueue
+    expect(state.economy.matter).toBe(matterBefore - BUILDER_PRODUCTION_MATTER_COST);
+    expect(state.economy.elements.cyan).toBe(elementBefore - BUILDER_PRODUCTION_ELEMENT_COST);
+  });
+
+  it('cancel works for completed blocked items', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+
+    // Fill cap
+    for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    // Add completed item blocked by cap
+    const factory = state.production.factories[0];
+    factory.queue.push(
+      { unitType: 'builder', elapsedMs: BUILDER_PRODUCTION_DURATION_MS, durationMs: BUILDER_PRODUCTION_DURATION_MS, progress: 1, completed: true },
+    );
+
+    const result = cancelFactoryQueueItem(state, 10, 10, 0);
+    expect(result.ok).toBe(true);
+    expect(factory.queue.length).toBe(0);
+  });
+
+  it('cancel in-progress item allows next item to progress', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    startUnitProduction(state, 10, 10, 'builder');
+    startUnitProduction(state, 10, 10, 'harvester');
+
+    const factory = state.production.factories[0];
+
+    // Cancel the first (in-progress) item
+    const result = cancelFactoryQueueItem(state, 10, 10, 0);
+    expect(result.ok).toBe(true);
+
+    // Second item should now be at index 0
+    expect(factory.queue.length).toBe(1);
+    expect(factory.queue[0].unitType).toBe('harvester');
+
+    // Run update — harvester should start progressing
+    updateGameState(state, 200);
+    expect(factory.queue[0].progress).toBeGreaterThan(0);
   });
 });

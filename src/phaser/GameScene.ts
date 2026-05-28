@@ -313,9 +313,14 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Wire PlaytestHud callbacks to delegate to the input controller
+    // FIX-04: Also wire cancel callback via closure that calls inputController
+    const cancelHandler = (factoryIndex: number, queueIndex: number) => {
+      return this.inputController!.requestCancelQueueItem(factoryIndex, queueIndex);
+    };
     this.playtestHud.create(
       (buildingType: BuildingType) => this.inputController!.requestBuild(buildingType),
       (unitType: ProducibleUnitType) => this.inputController!.requestQueueUnit(unitType),
+      cancelHandler,
     );
 
     // Register DOM cleanup on scene shutdown so Phaser handles lifecycle

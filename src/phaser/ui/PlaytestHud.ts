@@ -25,11 +25,13 @@ import {
   isHarvesterBlocked,
   getUnitCount,
   getUnitCap,
+  getFactorySpawnBlockReason,
   separatorStatusLabel,
   factoryStatusLabel,
   buildBlockLabel,
   productionBlockLabel,
   harvesterStatusLabel,
+  spawnBlockLabel,
 } from '../../state/statusHelpers';
 import { validateMap, type MapValidationResult } from '../../state/mapValidation';
 
@@ -40,6 +42,15 @@ export type BuildRequestCallback = (buildingType: BuildingType) => BuildRequestR
 
 /** Callback type for production requests. */
 export type ProductionRequestCallback = (unitType: ProducibleUnitType) => ProductionRequestResult;
+
+/** Callback type for cancel requests (FIX-04). */
+export type CancelRequestCallback = (factoryIndex: number, queueIndex: number) => CancelRequestResult;
+
+/** Result of a cancel request (FIX-04). */
+export interface CancelRequestResult {
+  success: boolean;
+  message: string;
+}
 
 /** Result of a build request, used for status feedback. */
 export interface BuildRequestResult {
@@ -93,6 +104,7 @@ export class PlaytestHud {
   // Callbacks — set by GameScene
   private onBuildRequest: BuildRequestCallback | null = null;
   private onProductionRequest: ProductionRequestCallback | null = null;
+  private onCancelRequest: CancelRequestCallback | null = null;
 
   // Resource delta tracking
   private prevRaw = 0;
@@ -112,12 +124,13 @@ export class PlaytestHud {
    * Create the HUD DOM overlay and attach it to the document body.
    * Call exactly once when GameScene starts.
    */
-  create(buildCb: BuildRequestCallback, prodCb: ProductionRequestCallback): void {
+  create(buildCb: BuildRequestCallback, prodCb: ProductionRequestCallback, cancelCb?: CancelRequestCallback): void {
     // Prevent duplicate panels
     this.destroy();
 
     this.onBuildRequest = buildCb;
     this.onProductionRequest = prodCb;
+    this.onCancelRequest = cancelCb ?? null;
 
     const root = document.createElement('div');
     root.id = 'playtest-hud';
@@ -181,6 +194,18 @@ export class PlaytestHud {
 
     this.factoryEl = document.createElement('div');
     this.factoryEl.style.cssText = 'line-height: 1.5; margin-bottom: 8px; color: #b0b0b0; font-size: 11px;';
+    // FIX-04 fixup: Delegated click handler for cancel buttons
+    this.factoryEl.addEventListener('click', (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target.dataset.feCancel !== undefined) {
+        const fi = Number(target.dataset.factoryIndex);
+        const qi = Number(target.dataset.queueIndex);
+        if (!isNaN(fi) && !isNaN(qi) && this.onCancelRequest) {
+          const result = this.onCancelRequest(fi, qi);
+          this.showStatus(result.message, result.success);
+        }
+      }
+    });
     root.appendChild(this.factoryEl);
 
     // ── Build section ────────────────────────────────────────────
@@ -554,23 +579,34 @@ export class PlaytestHud {
       const label = factoryStatusLabel(status);
       const color = this.factoryStatusColor(status);
 
-      // Queue display
+      // Queue display with spawn blockage feedback + cancel buttons (FIX-04)
       let queueStr = '';
       if (factory.queue.length === 0) {
         queueStr = '<span style="color:#666;">Queue: empty</span>';
       } else {
         const slots: string[] = [];
-        for (const item of factory.queue) {
+        for (let qi = 0; qi < factory.queue.length; qi++) {
+          const item = factory.queue[qi];
           const typeChar = item.unitType === 'builder' ? 'B' : 'H';
           const pct = item.completed ? 'done' : `${Math.round(item.progress * 100)}%`;
-          slots.push(`${typeChar}${pct}`);
+          // Cancel button for each queue item — uses data attributes for delegated handler
+          const cancelBtn = `<button data-fe-cancel data-factory-index="${i}" data-queue-index="${qi}" style="background:rgba(239,154,154,0.2);border:1px solid rgba(239,154,154,0.4);border-radius:2px;color:#ef9a9a;font-size:8px;padding:0 3px;cursor:pointer;margin-left:2px;">X</button>`;
+          slots.push(`${typeChar}${pct}${cancelBtn}`);
         }
-        queueStr = `Queue: ${slots.join(' | ')}${factory.queue.length < 2 ? ' + empty' : ''}`;
+        queueStr = `Queue: ${slots.join(' ')}`;
+      }
+
+      // Spawn blockage reason (FIX-04)
+      const spawnBlock = getFactorySpawnBlockReason(state, factory);
+      let blockageStr = '';
+      if (spawnBlock) {
+        blockageStr = `<div style="margin-left:8px; font-size:10px; color:#ef9a9a;">Blocked: ${spawnBlockLabel(spawnBlock)}</div>`;
       }
 
       parts.push(
         `<div><span style="color:${color};">Factory ${i + 1}:</span> ${label}</div>` +
-        `<div style="margin-left:8px; font-size:10px;">${queueStr}</div>`,
+        `<div style="margin-left:8px; font-size:10px;">${queueStr}</div>` +
+        blockageStr,
       );
     }
     this.factoryEl.innerHTML = parts.join('');

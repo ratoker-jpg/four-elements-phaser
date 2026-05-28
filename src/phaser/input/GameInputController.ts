@@ -3,7 +3,7 @@ import { screenToTile, tileToScreen, type IsoPoint } from '../render/isometric';
 import type { GameState, BuildingType, ProducibleUnitType } from '../../state/types';
 import { placeConstructionSite } from '../../state/construction';
 import { findBuildSiteNearPlayerBuildings } from '../../state/buildSiteSelection';
-import { startUnitProduction } from '../../state/production';
+import { startUnitProduction, cancelFactoryQueueItem } from '../../state/production';
 import type { UnitSelection } from '../../state/unitSelection';
 import { selectBuilder, selectHarvester, clearSelection, isUnitSelected } from '../../state/unitSelection';
 import { issueManualMove } from '../../state/unitCommands';
@@ -13,7 +13,7 @@ import {
   tunerState,
   type ModularTankDirection,
 } from '../../config/worldConfig';
-import type { BuildRequestResult, ProductionRequestResult } from '../ui/PlaytestHud';
+import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
 import type { EntityRenderer } from '../render/EntityRenderer';
 import type { FeedbackRenderer } from '../render/FeedbackRenderer';
 import type { PauseMenu } from '../ui/PauseMenu';
@@ -200,6 +200,30 @@ export class GameInputController {
       return { success: true, message: `${unitType} queued` };
     } else {
       console.info(`[GameScene] ${unitType} queue failed: ${result.reason}`);
+      return { success: false, message: result.reason };
+    }
+  }
+
+  /**
+   * Request cancellation of a queue item at the specified factory.
+   *
+   * FIX-04: Called by PlaytestHud cancel buttons via window.__fe_cancel.
+   * No resource refund on cancel.
+   */
+  requestCancelQueueItem(factoryIndex: number, queueIndex: number): CancelRequestResult {
+    const gameState = this.getGameState();
+
+    const factory = gameState.production.factories[factoryIndex];
+    if (!factory) {
+      return { success: false, message: 'factory not found' };
+    }
+
+    const result = cancelFactoryQueueItem(gameState, factory.tx, factory.ty, queueIndex);
+    if (result.ok) {
+      console.log(`[GameScene] Queue item ${queueIndex} cancelled at factory ${factoryIndex}`);
+      return { success: true, message: 'cancelled' };
+    } else {
+      console.info(`[GameScene] Cancel failed: ${result.reason}`);
       return { success: false, message: result.reason };
     }
   }

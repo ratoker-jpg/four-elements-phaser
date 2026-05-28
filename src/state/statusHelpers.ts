@@ -45,6 +45,7 @@ import {
   DEFAULT_UNIT_CAP,
 } from './types';
 import { BUILDING_CONFIG } from './construction';
+import { buildOccupancyMap, isPassable } from './occupancy';
 
 // ─── Separator status ──────────────────────────────────────────────
 
@@ -185,6 +186,126 @@ export function getFactoryStatus(
 
   // Factory has room in queue and no active item — idle
   return 'idle';
+}
+
+// ─── Factory spawn blockage (FIX-04) ──────────────────────────────────
+
+/** Reason a completed factory queue item cannot spawn. */
+export type FactorySpawnBlockReason =
+  | 'unit-cap-reached'
+  | 'no-spawn-tile';
+
+/**
+ * Derive the reason the front completed queue item cannot spawn.
+ *
+ * Returns null if:
+ * - The factory queue is empty.
+ * - The front queue item is NOT completed (still producing).
+ * - The front completed item CAN spawn (no blockage).
+ *
+ * This is a read-only helper for UI display. It replicates the same
+ * checks performed by processFactorySpawns() in updateGameState.ts
+ * but without mutating state.
+ *
+ * Check order matches processFactorySpawns:
+ * 1. Unit cap (liveUnitCount >= cap)
+ * 2. No spawn tile available
+ */
+export function getFactorySpawnBlockReason(
+  state: GameState,
+  factory: UnitFactoryRuntimeState,
+): FactorySpawnBlockReason | null {
+  // Only relevant if the front queue item is completed
+  if (factory.queue.length === 0) return null;
+  if (!factory.queue[0].completed) return null;
+
+  // Check 1: Unit cap
+  if (getUnitCount(state) >= getUnitCap(state)) {
+    return 'unit-cap-reached';
+  }
+
+  // Check 2: Spawn tile availability
+  if (!hasFactorySpawnTile(state, factory.tx, factory.ty)) {
+    return 'no-spawn-tile';
+  }
+
+  // No blockage
+  return null;
+}
+
+/** Format a FactorySpawnBlockReason into a short display string. */
+export function spawnBlockLabel(reason: FactorySpawnBlockReason): string {
+  switch (reason) {
+    case 'unit-cap-reached': return 'Unit Cap';
+    case 'no-spawn-tile': return 'No Spawn Tile';
+  }
+}
+
+/**
+ * Check whether a factory has at least one passable tile adjacent
+ * to its 2x2 footprint where a unit could spawn.
+ *
+ * This is a read-only pure helper that replicates the same ring
+ * search logic as findSpawnPosition() in updateGameState.ts.
+ * It exists so the status/UI layer can check spawn availability
+ * without calling the mutation-coupled spawn function.
+ */
+export function hasFactorySpawnTile(
+  state: GameState,
+  factoryTx: number,
+  factoryTy: number,
+): boolean {
+  const fpW = 2;
+  const fpH = 2;
+  const occupancyMap = buildOccupancyMap(state);
+
+  for (let ring = 0; ring < 5; ring++) {
+    const candidates = getRingCandidates(factoryTx, factoryTy, fpW, fpH, ring);
+    for (const pos of candidates) {
+      if (pos.tx < 0 || pos.ty < 0 ||
+          pos.tx >= state.mapWidth || pos.ty >= state.mapHeight) {
+        continue;
+      }
+      if (isPassable(occupancyMap, pos.tx, pos.ty)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Get candidate tile positions for a given ring around a rectangular footprint.
+ * Mirrors the same function in updateGameState.ts for read-only use.
+ */
+function getRingCandidates(
+  baseTx: number,
+  baseTy: number,
+  fpW: number,
+  fpH: number,
+  ring: number,
+): Array<{ tx: number; ty: number }> {
+  const candidates: Array<{ tx: number; ty: number }> = [];
+
+  // North edge
+  for (let dx = -ring; dx < fpW + ring; dx++) {
+    candidates.push({ tx: baseTx + dx, ty: baseTy - 1 - ring });
+  }
+  // South edge
+  for (let dx = -ring; dx < fpW + ring; dx++) {
+    candidates.push({ tx: baseTx + dx, ty: baseTy + fpH + ring });
+  }
+  // West edge (excluding corners)
+  for (let dy = 0; dy < fpH; dy++) {
+    candidates.push({ tx: baseTx - 1 - ring, ty: baseTy + dy });
+  }
+  // East edge (excluding corners)
+  for (let dy = 0; dy < fpH; dy++) {
+    candidates.push({ tx: baseTx + fpW + ring, ty: baseTy + dy });
+  }
+
+  return candidates;
 }
 
 // ─── Build button block reason ─────────────────────────────────────
