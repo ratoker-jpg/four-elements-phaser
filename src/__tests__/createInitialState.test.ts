@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createInitialState } from '../state/createInitialState';
+import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
 import { RESOURCE_RAW_AMOUNTS, START_RAW, START_MATTER, HQ_RAW_CAP, HQ_MATTER_CAP, HQ_ELEMENT_CAP, HQ_BASE_POWER } from '../state/types';
 
 describe('createInitialState', () => {
@@ -100,5 +100,77 @@ describe('createInitialState', () => {
     expect(state.entities.find(e => e.kind === 'harvester')).toBeDefined();
     // HQ should still be present
     expect(state.entities.find(e => e.kind === 'hq')).toBeDefined();
+  });
+});
+
+// ─── PHASER4-LOAD-02: stripModularCombatFromState tests ────────────
+
+describe('stripModularCombatFromState', () => {
+  /** Create a state with a modular-combat entity (simulating an old save). */
+  function makeStateWithModularCombat() {
+    return createInitialState(undefined, undefined, undefined, { includeModularCombat: true });
+  }
+
+  it('standard-mode cleanup removes modular-combat entities and clears extraModularCombat', () => {
+    const original = makeStateWithModularCombat();
+
+    // Sanity: original has modular-combat
+    expect(original.extraModularCombat.length).toBeGreaterThan(0);
+    expect(original.entities.find(e => e.kind === 'modular-combat')).toBeDefined();
+
+    const cleaned = stripModularCombatFromState(original, { includeModularCombat: false });
+
+    // modular-combat entities removed
+    expect(cleaned.entities.find(e => e.kind === 'modular-combat')).toBeUndefined();
+    expect(cleaned.extraModularCombat).toEqual([]);
+
+    // Does not mutate original
+    expect(original.entities.find(e => e.kind === 'modular-combat')).toBeDefined();
+    expect(original.extraModularCombat.length).toBeGreaterThan(0);
+  });
+
+  it('devtools-mode preserves modular-combat entities', () => {
+    const original = makeStateWithModularCombat();
+
+    const preserved = stripModularCombatFromState(original, { includeModularCombat: true });
+
+    // Nothing stripped
+    expect(preserved.entities.find(e => e.kind === 'modular-combat')).toBeDefined();
+    expect(preserved.extraModularCombat.length).toBeGreaterThan(0);
+
+    // Same reference (no copy needed)
+    expect(preserved).toBe(original);
+  });
+
+  it('cleanup does not remove HQ, harvesters, builders, or resources', () => {
+    const original = makeStateWithModularCombat();
+
+    // Count non-modular entities before cleanup
+    const hqBefore = original.entities.filter(e => e.kind === 'hq').length;
+    const harvesterBefore = original.entities.filter(e => e.kind === 'harvester').length;
+    const builderBefore = original.entities.filter(e => e.kind === 'builder').length;
+    const resourceBefore = original.entities.filter(e => e.kind === 'resource').length;
+
+    const cleaned = stripModularCombatFromState(original, { includeModularCombat: false });
+
+    // All non-modular entities preserved
+    expect(cleaned.entities.filter(e => e.kind === 'hq').length).toBe(hqBefore);
+    expect(cleaned.entities.filter(e => e.kind === 'harvester').length).toBe(harvesterBefore);
+    expect(cleaned.entities.filter(e => e.kind === 'builder').length).toBe(builderBefore);
+    expect(cleaned.entities.filter(e => e.kind === 'resource').length).toBe(resourceBefore);
+
+    // Runtime state also preserved
+    expect(cleaned.harvesters.length).toBe(original.harvesters.length);
+    expect(cleaned.resourceNodes.length).toBe(original.resourceNodes.length);
+    expect(cleaned.economy).toEqual(original.economy);
+  });
+
+  it('returns same reference when state already has no modular-combat', () => {
+    const original = createInitialState(); // standard mode — no modular-combat
+
+    const cleaned = stripModularCombatFromState(original, { includeModularCombat: false });
+
+    // No copy needed — same reference
+    expect(cleaned).toBe(original);
   });
 });

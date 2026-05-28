@@ -120,6 +120,42 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
   };
 }
 
+// ─── PHASER4-LOAD-02: Loaded-save sanitization ─────────────────────
+
+/**
+ * Strip modular-combat entities from a loaded GameState when running
+ * in standard mode (devtools disabled).
+ *
+ * PHASER4-LOAD-02: Older saves created before this PR may contain
+ * `extraModularCombat` entries and `modular-combat` entities. In
+ * standard mode, PreloadScene skips modularUnits textures, so
+ * rendering those entities would hit missing textures. This helper
+ * removes them so the loaded state is safe for the current runtime mode.
+ *
+ * When `includeModularCombat` is true (devtools/arena mode), the
+ * state is returned unchanged — modular-combat entities are preserved
+ * because their textures were loaded.
+ *
+ * This is a **pure function** — it does not mutate the input.
+ */
+export function stripModularCombatFromState(
+  state: GameState,
+  { includeModularCombat }: { includeModularCombat: boolean },
+): GameState {
+  if (includeModularCombat) return state;
+
+  // Nothing to strip if state already has no modular-combat
+  const hasModularEntities = state.entities.some(e => e.kind === 'modular-combat');
+  const hasExtraModular = state.extraModularCombat && state.extraModularCombat.length > 0;
+  if (!hasModularEntities && !hasExtraModular) return state;
+
+  return {
+    ...state,
+    entities: state.entities.filter(e => e.kind !== 'modular-combat'),
+    extraModularCombat: [],
+  };
+}
+
 // ─── PR3: Runtime state builders ────────────────────────────────────
 
 /** Create initial EconomyState with ROADMAP starting values. */
