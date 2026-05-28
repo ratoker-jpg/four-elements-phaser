@@ -104,6 +104,7 @@ export class PlaytestHud {
   // Callbacks — set by GameScene
   private onBuildRequest: BuildRequestCallback | null = null;
   private onProductionRequest: ProductionRequestCallback | null = null;
+  private onCancelRequest: CancelRequestCallback | null = null;
 
   // Resource delta tracking
   private prevRaw = 0;
@@ -129,9 +130,7 @@ export class PlaytestHud {
 
     this.onBuildRequest = buildCb;
     this.onProductionRequest = prodCb;
-    // FIX-04: cancelCb is accepted for API completeness but cancel
-    // is handled via window.__fe_cancel (see GameScene.create()).
-    void cancelCb;
+    this.onCancelRequest = cancelCb ?? null;
 
     const root = document.createElement('div');
     root.id = 'playtest-hud';
@@ -195,6 +194,18 @@ export class PlaytestHud {
 
     this.factoryEl = document.createElement('div');
     this.factoryEl.style.cssText = 'line-height: 1.5; margin-bottom: 8px; color: #b0b0b0; font-size: 11px;';
+    // FIX-04 fixup: Delegated click handler for cancel buttons
+    this.factoryEl.addEventListener('click', (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target.dataset.feCancel !== undefined) {
+        const fi = Number(target.dataset.factoryIndex);
+        const qi = Number(target.dataset.queueIndex);
+        if (!isNaN(fi) && !isNaN(qi) && this.onCancelRequest) {
+          const result = this.onCancelRequest(fi, qi);
+          this.showStatus(result.message, result.success);
+        }
+      }
+    });
     root.appendChild(this.factoryEl);
 
     // ── Build section ────────────────────────────────────────────
@@ -578,8 +589,8 @@ export class PlaytestHud {
           const item = factory.queue[qi];
           const typeChar = item.unitType === 'builder' ? 'B' : 'H';
           const pct = item.completed ? 'done' : `${Math.round(item.progress * 100)}%`;
-          // Cancel button for each queue item
-          const cancelBtn = `<button onclick="window.__fe_cancel?.(${i},${qi})" style="background:rgba(239,154,154,0.2);border:1px solid rgba(239,154,154,0.4);border-radius:2px;color:#ef9a9a;font-size:8px;padding:0 3px;cursor:pointer;margin-left:2px;">X</button>`;
+          // Cancel button for each queue item — uses data attributes for delegated handler
+          const cancelBtn = `<button data-fe-cancel data-factory-index="${i}" data-queue-index="${qi}" style="background:rgba(239,154,154,0.2);border:1px solid rgba(239,154,154,0.4);border-radius:2px;color:#ef9a9a;font-size:8px;padding:0 3px;cursor:pointer;margin-left:2px;">X</button>`;
           slots.push(`${typeChar}${pct}${cancelBtn}`);
         }
         queueStr = `Queue: ${slots.join(' ')}`;

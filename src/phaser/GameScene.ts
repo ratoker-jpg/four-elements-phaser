@@ -323,14 +323,6 @@ export class GameScene extends Phaser.Scene {
       cancelHandler,
     );
 
-    // FIX-04: Register global cancel handler for PlaytestHud inline cancel buttons
-    (window as any).__fe_cancel = (factoryIndex: number, queueIndex: number) => {
-      const result = this.inputController?.requestCancelQueueItem(factoryIndex, queueIndex);
-      if (result) {
-        this.playtestHud?.showStatus(result.message, result.success);
-      }
-    };
-
     // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
 
@@ -571,9 +563,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
-    // FIX-04: Clean up global cancel handler
-    delete (window as any).__fe_cancel;
-
     this.inputController?.destroy();
     this.inputController = null;
     this.motionFxRenderer?.destroy();
