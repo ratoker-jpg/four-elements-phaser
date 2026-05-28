@@ -10,11 +10,9 @@ import { PlaytestHud } from './ui/PlaytestHud';
 import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric';
 import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
-import { updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/construction';
+import { updateConstructionSiteProgress } from '../state/construction';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
-import type { GameState, HarvesterPhase, BuildingType, ProducibleUnitType } from '../state/types';
-import { ELEMENT_UNITS_PER_ELEMENT } from '../state/types';
-import { isHarvesterBlocked, getHarvesterStatus, getUnitCount, getUnitCap } from '../state/statusHelpers';
+import type { GameState, BuildingType, ProducibleUnitType } from '../state/types';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
@@ -54,16 +52,6 @@ export interface LoadSceneData {
   /** Slot ID of the loaded save, used to update the same slot on re-save. */
   saveSlotId?: string;
 }
-
-/** Phase labels for HUD display. */
-const PHASE_LABEL: Record<HarvesterPhase, string> = {
-  idle: 'Idle',
-  'moving-to-resource': 'Moving',
-  gathering: 'Gathering',
-  'returning-to-hq': 'Returning',
-  unloading: 'Unloading',
-  'manual-move': 'Manual',
-};
 
 export class GameScene extends Phaser.Scene {
   private terrainRenderer: TerrainRenderer | null = null;
@@ -106,13 +94,6 @@ export class GameScene extends Phaser.Scene {
 
   /** Offset for tile-to-screen conversion. */
   private _offset: { x: number; y: number } = { x: 0, y: 0 };
-
-  // HUD elements (legacy top bar)
-  private hudCoords: HTMLElement | null = null;
-  private hudMapName: HTMLElement | null = null;
-  private hudEconomy: HTMLElement | null = null;
-  private hudBuild: HTMLElement | null = null;
-  private hudBuilder: HTMLElement | null = null;
 
   /** Track last raw count to log once per unload. */
   private lastLoggedRaw: number = 0;
@@ -235,18 +216,6 @@ export class GameScene extends Phaser.Scene {
     this.hqWorldY = hqScreen.y + offset.y;
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
-
-    // HUD references (legacy top bar)
-    this.hudCoords = document.getElementById('hud-coords');
-    this.hudMapName = document.getElementById('hud-map-name');
-    this.hudEconomy = document.getElementById('hud-economy');
-    this.hudBuild = document.getElementById('hud-build');
-    this.hudBuilder = document.getElementById('hud-builder');
-
-    // Set initial HUD content
-    if (this.hudMapName) {
-      this.hudMapName.textContent = `Map: ${this.gameState.mapName}`;
-    }
 
     // ARCH-14A: Create PlaytestHud with build/production callbacks
     // (wired after input controller is created, see below)
@@ -402,25 +371,22 @@ export class GameScene extends Phaser.Scene {
     // 5b. Sync building status indicators (ARCH-07A)
     this.buildingStatusRenderer?.syncFromState(this.gameState);
 
-    // 6. Update HUD (legacy top bar)
-    this.updateHUD();
-
-    // 7. Update PlaytestHud panel
+    // 6. Update PlaytestHud panel
     this.playtestHud?.update(this.gameState);
 
-    // 8. Update input controller (selection highlight)
+    // 7. Update input controller (selection highlight)
     this.inputController?.update();
 
-    // 9. ARCH-11A: Update devtools diagnostics
+    // 8. ARCH-11A: Update devtools diagnostics
     this.devtoolsPanel?.update(this.gameState);
 
-    // 9b. ARCH-11B: Sync debug overlays
+    // 8b. ARCH-11B: Sync debug overlays
     this.debugOverlayRenderer?.syncFromState(this.gameState);
 
-    // 9c. ARCH-13A: Sync feedback renderer (command indicators, resource flow)
+    // 8c. ARCH-13A: Sync feedback renderer (command indicators, resource flow)
     this.feedbackRenderer?.syncFromState(this.gameState, this.time.now);
 
-    // 9d. ARCH-13C-LITE: Sync motion dust renderer (movement particles)
+    // 8d. ARCH-13C-LITE: Sync motion dust renderer (movement particles)
     this.motionFxRenderer?.syncFromState(this.gameState, this.time.now);
 
     // 10. Debug log on unload completion
@@ -429,113 +395,6 @@ export class GameScene extends Phaser.Scene {
         `[GameScene] Unloaded! Raw: ${this.gameState.economy.raw}`,
       );
       this.lastLoggedRaw = this.gameState.economy.raw;
-    }
-  }
-
-  // ─── HUD (legacy top bar) ────────────────────────────────────────
-
-  private updateHUD(): void {
-    // Camera info
-    if (this.cameraControls && this.hudCoords) {
-      const info = this.cameraControls.getCameraInfo();
-      this.hudCoords.textContent =
-        `Zoom: ${info.zoom.toFixed(2)} | (${Math.round(info.scrollX)}, ${Math.round(info.scrollY)})`;
-    }
-
-    // Economy info
-    if (this.hudEconomy) {
-      const s = this.gameState;
-      const activeResources = s.resourceNodes.filter((r) => !r.depleted).length;
-      const totalResources = s.resourceNodes.length;
-
-      // Harvester status summary
-      const phaseCounts: Record<string, number> = {};
-      for (const h of s.harvesters) {
-        const status = getHarvesterStatus(h);
-        if (isHarvesterBlocked(status)) {
-          const label = 'Blocked';
-          phaseCounts[label] = (phaseCounts[label] || 0) + 1;
-        } else {
-          const label = PHASE_LABEL[h.phase];
-          phaseCounts[label] = (phaseCounts[label] || 0) + 1;
-        }
-      }
-      const phaseStr = Object.entries(phaseCounts)
-        .map(([label, count]) => `${count} ${label}`)
-        .join(', ');
-
-      const factionElementRaw = s.economy.elements[s.playerFaction];
-      const factionElementDisplayed = (factionElementRaw / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
-      const elementCapDisplayed = (s.economy.elementCap / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
-      const factionLabel = s.playerFaction.charAt(0).toUpperCase() + s.playerFaction.slice(1);
-
-      // ARCH-01F: Compact factory production readout
-      let factoryStr = '';
-      if (s.production.factories.length > 0) {
-        const parts: string[] = [];
-        for (const factory of s.production.factories) {
-          if (factory.queue.length === 0) {
-            parts.push('idle');
-          } else {
-            const first = factory.queue[0];
-            const typeLabel = first.unitType === 'builder' ? 'B' : 'H';
-            const pct = Math.round(first.progress * 100);
-            const status = first.completed ? 'done' : `${pct}%`;
-            parts.push(`${factory.queue.length}q ${typeLabel}${status}`);
-          }
-        }
-        factoryStr = ` | Factory: ${parts.join(', ')}`;
-      }
-
-      this.hudEconomy.textContent =
-        `Raw: ${s.economy.raw}/${s.economy.rawCap} | Matter: ${s.economy.matter}/${s.economy.matterCap} | ${factionLabel}: ${factionElementDisplayed}/${elementCapDisplayed} | Power: ${s.economy.powerConsumed}/${s.economy.powerGenerated} | Units: ${getUnitCount(s)}/${getUnitCap(s)} | Resources: ${activeResources}/${totalResources} | ` +
-        `Sites: ${s.mapData.constructionSites.length} | ` +
-        `Harvesters: ${s.harvesters.length} (${phaseStr})${factoryStr}`;
-    }
-
-    // ARCH-13F1: Build status line
-    if (this.hudBuild) {
-      const sites = this.gameState.mapData.constructionSites;
-      if (sites.length === 0) {
-        this.hudBuild.textContent = 'Build: none';
-      } else {
-        // Show the first active construction site
-        const site = sites[0];
-        const config = BUILDING_CONFIG[site.type];
-        const label = config ? site.type.charAt(0).toUpperCase() + site.type.slice(1).replace('-', ' ') : site.type;
-        const pct = Math.round(site.progress * 100);
-        if (site.pending) {
-          this.hudBuild.textContent = `Build: ${label} at (${site.tx},${site.ty}), waiting for builder`;
-        } else {
-          this.hudBuild.textContent = `Build: ${label} at (${site.tx},${site.ty}), ${pct}%`;
-        }
-      }
-    }
-
-    // ARCH-13F1: Builder status line
-    if (this.hudBuilder) {
-      const builders = this.gameState.mapData.builders;
-      if (builders.length === 0) {
-        this.hudBuilder.textContent = 'Builder: none';
-      } else if (builders.length === 1) {
-        const b = builders[0];
-        const phaseLabel = b.phase === 'idle' ? 'idle'
-          : b.phase === 'moving-to-site' ? 'moving'
-          : 'building';
-        this.hudBuilder.textContent = `Builder: ${phaseLabel}`;
-      } else {
-        // Multiple builders: compact summary
-        const counts: Record<string, number> = { idle: 0, moving: 0, building: 0 };
-        for (const b of builders) {
-          const label = b.phase === 'moving-to-site' ? 'moving' : b.phase;
-          counts[label] = (counts[label] || 0) + 1;
-        }
-        const parts: string[] = [];
-        if (counts.idle > 0) parts.push(`${counts.idle} idle`);
-        if (counts.moving > 0) parts.push(`${counts.moving} moving`);
-        if (counts.building > 0) parts.push(`${counts.building} building`);
-        this.hudBuilder.textContent = `Builders: ${parts.join(', ')}`;
-      }
     }
   }
 
