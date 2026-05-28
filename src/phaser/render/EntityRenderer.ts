@@ -7,6 +7,7 @@ import { tileToScreen, IsoPoint } from './isometric';
 import { ModularTankRenderer } from './ModularTankRenderer';
 import { ConstructionRenderer } from './ConstructionRenderer';
 import type {
+  Faction,
   RenderableEntity,
   EntityKind,
   ResourceType,
@@ -16,6 +17,8 @@ import type {
 } from '../../state/types';
 import { directionFromDelta } from '../../state/updateGameState';
 import { HARVESTER_RENDER_SCALE } from '../../config/unitRenderConfig';
+import { getHqAssetKey } from '../../assets/buildingAssets';
+import { getCivilUnitKey } from '../../assets/civilUnitAssets';
 
 /**
  * EntityRenderer — renders and syncs entities from GameState onto the scene.
@@ -228,11 +231,27 @@ export class EntityRenderer {
   }
 
   private placeHQ(x: number, y: number, faction?: string): void {
-    if (faction !== 'cyan') {
-      console.warn(`[EntityRenderer] No HQ asset for faction "${faction}" — skipping.`);
-      return;
+    const effectiveFaction: Faction =
+      (faction === 'cyan' || faction === 'green' || faction === 'yellow' || faction === 'purple')
+        ? (faction as Faction)
+        : 'cyan';
+    let hqKey = getHqAssetKey(effectiveFaction);
+
+    if (!this.scene.textures.exists(hqKey)) {
+      console.error(
+        `[EntityRenderer] HQ texture "${hqKey}" missing for faction "${effectiveFaction}" ` +
+        `— falling back to cyan.`,
+      );
+      hqKey = getHqAssetKey('cyan');
+      if (!this.scene.textures.exists(hqKey)) {
+        console.error(
+          `[EntityRenderer] Fallback HQ texture "${hqKey}" also missing — skipping HQ render.`,
+        );
+        return;
+      }
     }
-    const img = this.scene.add.image(x, y, ASSET_KEYS.HQ_CYAN);
+
+    const img = this.scene.add.image(x, y, hqKey);
     const scale = 120 / img.width;
     img.setScale(scale);
     img.setOrigin(0.5, 0.75);
@@ -254,9 +273,24 @@ export class EntityRenderer {
     const worldX = screenPos.x + this.offset.x;
     const worldY = screenPos.y + this.offset.y;
 
+    let harvesterKey = getCivilUnitKey(h.faction, 'harvester');
+    if (!this.scene.textures.exists(harvesterKey)) {
+      console.error(
+        `[EntityRenderer] Harvester texture "${harvesterKey}" missing for faction "${h.faction}" ` +
+        `— falling back to cyan.`,
+      );
+      harvesterKey = getCivilUnitKey('cyan', 'harvester');
+      if (!this.scene.textures.exists(harvesterKey)) {
+        console.error(
+          `[EntityRenderer] Fallback harvester texture "${harvesterKey}" also missing — skipping sprite.`,
+        );
+        return;
+      }
+    }
+
     // Frame index: row S (2) * 8 + col IDLE (0) = frame 16
     const idleFrame = DIR_ROW.S * 8 + IDLE_FRAME;
-    const sprite = this.scene.add.sprite(worldX, worldY, ASSET_KEYS.HARVESTER_CYAN, idleFrame);
+    const sprite = this.scene.add.sprite(worldX, worldY, harvesterKey, idleFrame);
     sprite.setScale(HARVESTER_RENDER_SCALE);
     sprite.setOrigin(0.5, 0.75);
     sprite.setDepth(100 + worldY);
