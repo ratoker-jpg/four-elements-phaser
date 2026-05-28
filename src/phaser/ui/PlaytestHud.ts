@@ -21,10 +21,13 @@ import {
   getFactoryStatus,
   getBuildBlockReason,
   getProductionBlockReason,
+  getHarvesterStatus,
+  isHarvesterBlocked,
   separatorStatusLabel,
   factoryStatusLabel,
   buildBlockLabel,
   productionBlockLabel,
+  harvesterStatusLabel,
 } from '../../state/statusHelpers';
 import { validateMap, type MapValidationResult } from '../../state/mapValidation';
 
@@ -74,6 +77,7 @@ const PRODUCTION_BUTTONS: Array<{ unitType: ProducibleUnitType; label: string; h
 export class PlaytestHud {
   private container: HTMLDivElement | null = null;
   private economyEl: HTMLDivElement | null = null;
+  private harvesterEl: HTMLDivElement | null = null;
   private separatorEl: HTMLDivElement | null = null;
   private factoryEl: HTMLDivElement | null = null;
   private statusEl: HTMLDivElement | null = null;
@@ -146,6 +150,16 @@ export class PlaytestHud {
     this.economyEl = document.createElement('div');
     this.economyEl.style.cssText = 'line-height: 1.6; margin-bottom: 8px; color: #c0c0c0;';
     root.appendChild(this.economyEl);
+
+    // ── Harvester section (FIX-02) ──────────────────────────────────
+    const harvTitle = document.createElement('div');
+    harvTitle.textContent = 'Harvesters';
+    harvTitle.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #4fc3f7;';
+    root.appendChild(harvTitle);
+
+    this.harvesterEl = document.createElement('div');
+    this.harvesterEl.style.cssText = 'line-height: 1.5; margin-bottom: 8px; color: #b0b0b0; font-size: 11px;';
+    root.appendChild(this.harvesterEl);
 
     // ── Separator section ────────────────────────────────────────
     const sepTitle = document.createElement('div');
@@ -328,6 +342,9 @@ export class PlaytestHud {
       `<div>${factionLabel}: <b>${factionElDisplayed}</b>/${elCapDisplayed} ${elDeltaStr}</div>` +
       `<div>Power: <b>${s.economy.powerConsumed}</b>/${s.economy.powerGenerated}</div>`;
 
+    // ── Harvester status section (FIX-02) ───────────────────────────
+    this.updateHarvesterSection(s);
+
     // ── Separator status section ─────────────────────────────────
     this.updateSeparatorSection(s);
 
@@ -420,6 +437,7 @@ export class PlaytestHud {
     }
     this.container = null;
     this.economyEl = null;
+    this.harvesterEl = null;
     this.separatorEl = null;
     this.factoryEl = null;
     this.statusEl = null;
@@ -444,6 +462,42 @@ export class PlaytestHud {
     if (!this.onProductionRequest) return;
     const result = this.onProductionRequest(unitType);
     this.showStatus(result.message, result.success);
+  }
+
+  // ─── Harvester section (FIX-02) ──────────────────────────────────────
+
+  private updateHarvesterSection(state: GameState): void {
+    if (!this.harvesterEl) return;
+
+    if (state.harvesters.length === 0) {
+      this.harvesterEl.innerHTML = '<div style="color:#666;">None spawned</div>';
+      return;
+    }
+
+    const parts: string[] = [];
+    for (let i = 0; i < state.harvesters.length; i++) {
+      const h = state.harvesters[i];
+      const status = getHarvesterStatus(h);
+      const label = harvesterStatusLabel(status);
+      const blocked = isHarvesterBlocked(status);
+      const color = blocked ? '#ef9a9a' : this.harvesterPhaseColor(status);
+      const cargoStr = h.cargoRaw > 0 ? ` [${h.cargoRaw}/${h.cargoCapacity}]` : '';
+      parts.push(
+        `<div><span style="color:${color};">H${i + 1}:</span> ${label}${cargoStr}</div>`,
+      );
+    }
+    this.harvesterEl.innerHTML = parts.join('');
+  }
+
+  private harvesterPhaseColor(status: string): string {
+    switch (status) {
+      case 'gathering': return '#81c784';
+      case 'moving-to-resource':
+      case 'returning-to-hq': return '#66bbff';
+      case 'unloading': return '#ffcc44';
+      case 'idle': return '#999';
+      default: return '#b0b0b0';
+    }
   }
 
   // ─── Separator section ────────────────────────────────────────────

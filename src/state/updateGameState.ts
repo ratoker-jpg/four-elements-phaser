@@ -125,9 +125,14 @@ function handleIdle(state: GameState, h: HarvesterState): void {
   }
 
   const target = findNearestAvailableResource(state, h);
-  if (!target) return; // nothing to gather
+  if (!target) {
+    // No available resource — set blocked reason so player knows why
+    h.blockedReason = 'no-resources';
+    return;
+  }
 
   h.targetResourceId = target.id;
+  h.blockedReason = undefined;
   h.phase = 'moving-to-resource';
 }
 
@@ -167,10 +172,10 @@ function handleMovingToResource(
     );
 
     if (!approachResult.ok) {
-      // No approach tile — skip this resource
+      // No approach tile — resource is surrounded by impassable tiles
       h.targetResourceId = null;
       h.phase = 'idle';
-      h.blockedReason = undefined;
+      h.blockedReason = 'no-approach-path';
       return;
     }
 
@@ -391,12 +396,14 @@ function handleUnloading(
     // Set a short unload timer so the harvester retries next frame
     // instead of immediately re-entering the unload phase without a delay.
     h.unloadTimer = UNLOAD_DURATION_MS;
+    h.blockedReason = 'raw-storage-full';
     return;
   }
 
   const transfer = Math.min(h.cargoRaw, room);
   state.economy.raw += transfer;
   h.cargoRaw -= transfer;
+  h.blockedReason = undefined; // Making progress — clear any previous block
 
   if (h.cargoRaw > 0) {
     // Partial unload — still at HQ, retry unloading remaining cargo.

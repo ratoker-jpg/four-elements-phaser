@@ -8,7 +8,7 @@
  * no side effects beyond that. This keeps commands testable.
  */
 
-import type { GameState, HarvesterState } from './types';
+import type { GameState, HarvesterState, HarvesterBlockedReason } from './types';
 import { buildOccupancyMap, isPassable, addUnitBlockers, isTileOccupiedByUnit } from './occupancy';
 import { findPath } from './pathfinding';
 import type { SelectableUnit } from './unitSelection';
@@ -286,7 +286,7 @@ export function updateHarvesterManualMove(
   _state: GameState,
   h: HarvesterState,
   dt: number,
-): string | null {
+): HarvesterBlockedReason | null {
   const manualPath = h.manualPath;
   const manualPathIndex = h.manualPathIndex ?? 0;
 

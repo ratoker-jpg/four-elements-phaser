@@ -14,6 +14,7 @@ import { updateConstructionSiteProgress, BUILDING_CONFIG } from '../state/constr
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, HarvesterPhase, BuildingType, ProducibleUnitType } from '../state/types';
 import { ELEMENT_UNITS_PER_ELEMENT } from '../state/types';
+import { isHarvesterBlocked, getHarvesterStatus } from '../state/statusHelpers';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
@@ -427,13 +428,22 @@ export class GameScene extends Phaser.Scene {
 
       // Harvester status summary
       const phaseCounts: Record<string, number> = {};
+      let blockedCount = 0;
       for (const h of s.harvesters) {
-        const label = PHASE_LABEL[h.phase];
-        phaseCounts[label] = (phaseCounts[label] || 0) + 1;
+        const status = getHarvesterStatus(h);
+        if (isHarvesterBlocked(status)) {
+          blockedCount++;
+          const label = 'Blocked';
+          phaseCounts[label] = (phaseCounts[label] || 0) + 1;
+        } else {
+          const label = PHASE_LABEL[h.phase];
+          phaseCounts[label] = (phaseCounts[label] || 0) + 1;
+        }
       }
       const phaseStr = Object.entries(phaseCounts)
         .map(([label, count]) => `${count} ${label}`)
         .join(', ');
+      const blockedStr = blockedCount > 0 ? ` — ${blockedCount} blocked` : '';
 
       const factionElementRaw = s.economy.elements[s.playerFaction];
       const factionElementDisplayed = (factionElementRaw / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
@@ -461,7 +471,7 @@ export class GameScene extends Phaser.Scene {
       this.hudEconomy.textContent =
         `Raw: ${s.economy.raw}/${s.economy.rawCap} | Matter: ${s.economy.matter}/${s.economy.matterCap} | ${factionLabel}: ${factionElementDisplayed}/${elementCapDisplayed} | Power: ${s.economy.powerConsumed}/${s.economy.powerGenerated} | Resources: ${activeResources}/${totalResources} | ` +
         `Sites: ${s.mapData.constructionSites.length} | ` +
-        `Harvesters: ${s.harvesters.length} (${phaseStr})${factoryStr}`;
+        `Harvesters: ${s.harvesters.length} (${phaseStr})${blockedStr}${factoryStr}`;
     }
 
     // ARCH-13F1: Build status line
