@@ -1,9 +1,9 @@
 # NEW_CHAT_HANDOFF.md
 
-Status: active handoff for a new GPT chat  
+Status: active handoff for a new GPT/GLM chat  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Date: 2026-05-27
+Date: 2026-05-28
 
 ---
 
@@ -11,48 +11,27 @@ Date: 2026-05-27
 
 This handoff exists because the previous GPT conversation became overloaded after a fast Phase 1 Foundation run.
 
-The next GPT chat should not continue blindly from the old 21-ARCH roadmap.
+The next chat should not continue blindly from the old 21-ARCH roadmap.
 
 Current decision:
 
 ```text
 Phase 1 Foundation feature work is frozen.
-Next task is planning, not implementation.
+Next work is Sandbox MVP stability + Phaser 4 API adoption.
+Work follows the corrected audit sequence.
 ```
 
 ---
 
-## 2. Repository / branch baseline
-
-Main repo:
-
-```text
-ratoker-jpg/four-elements-phaser
-```
-
-Last accepted feature PR before freeze:
-
-```text
-PR #80 — ARCH-13C-LITE: Add render-only unit motion dust polish
-```
-
-After PR #80:
-
-```text
-No new runtime feature package should start until Sandbox MVP audit/roadmap is created.
-```
-
----
-
-## 3. Read order for new GPT chat
+## 2. Read order for new chat
 
 Read these files first:
 
 ```text
-1. docs/project/NEW_CHAT_HANDOFF.md
-2. docs/project/PHASE_1_FREEZE.md
+1. docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md
+2. docs/project/PROJECT_STATE.md
 3. docs/project/FIX_BACKLOG.md
-4. docs/project/PROJECT_STATE.md
+4. docs/project/PHASE_1_FREEZE.md
 5. docs/project/GPT_WORKFLOW.md
 6. docs/project/GLM_EXECUTOR_RULES.md
 ```
@@ -61,31 +40,77 @@ Only read old roadmap/audit files as historical reference if needed.
 
 ---
 
-## 4. Active next work
+## 3. Critical warnings
 
-Next work is:
-
-```text
-Create Sandbox MVP audit/roadmap.
-```
-
-The audit should produce:
+### 3.1 Do not use four-elements-next as active baseline
 
 ```text
-- Sandbox MVP definition;
-- current system status;
-- fix groups;
-- risks;
-- recommended high-controlled/high+ fix packages;
-- manual QA checklist;
-- what is explicitly postponed to Phase 2.
+four-elements-next is reference/donor only.
+It must never be treated as the active implementation baseline.
+Do not copy code directly from Next without adapting to Phaser 4 architecture.
 ```
 
-Do not start implementation until Denis approves the new roadmap/audit.
+### 3.2 Do not use the old Phaser 3.90 clarification
+
+```text
+A previous clarification audit accidentally analyzed four-elements-next / Phaser 3.90.
+That audit is invalid for active implementation planning.
+Use docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md as source-of-truth.
+```
+
+### 3.3 Always confirm Phaser version before planning
+
+```text
+Before planning engine API tasks, confirm that package.json has phaser 4.1.0.
+If it does not, stop and report instead of proceeding with wrong assumptions.
+```
 
 ---
 
-## 5. Things not to plan now
+## 4. Repository / branch baseline
+
+Main repo:
+
+```text
+ratoker-jpg/four-elements-phaser
+```
+
+Phaser version:
+
+```text
+4.1.0
+```
+
+Last accepted feature PR before freeze:
+
+```text
+PR #80 — ARCH-13C-LITE: Add render-only unit motion dust polish
+```
+
+---
+
+## 5. Active next work
+
+Next work follows the corrected audit sequence from `PHASER4_AUDIT_CLARIFICATION_RETRY.md`:
+
+```text
+1.  FIX-01 — Faction asset wiring
+2.  PHASER4-ANIM-01 — Animation Manager spike
+3.  ARCH-18A-LITE — GameScene input/command extraction
+4.  FIX-02 — Harvester idle-forever UI feedback
+5.  FIX-03 — Unit cap / ControlState
+6.  FIX-04 — Factory spawn blockage UI feedback + cancel
+7.  PHASER4-ANIM-02 — Animation Manager migration
+8.  PHASER4-LOAD-01 — Conditional asset loading spike
+9.  PHASER4-GPU-01 — SpriteGPULayer / TilemapGPULayer spike
+10. ARCH-11A — QA smoke automation
+```
+
+Do not start implementation until the appropriate audit/design is accepted.
+
+---
+
+## 6. Things not to plan now
 
 Do not plan these as immediate next tasks:
 
@@ -101,30 +126,17 @@ Do not plan these as immediate next tasks:
 - map editor.
 ```
 
-They are not deleted forever. They are parked for later phase.
+They are parked for a later phase.
 
 ---
 
-## 6. Known fix/polish groups
+## 7. Known fix/polish groups
 
 Use `docs/project/FIX_BACKLOG.md` as the source.
 
-At minimum, the new audit should cover:
-
-```text
-- faction asset wiring;
-- harvester reliability;
-- unit grounding / centering;
-- selection marker model;
-- lane movement / diagonal cut-through readability;
-- optional player tank control baseline;
-- movement dust rework;
-- controlled render-only unit bobbing/suspension.
-```
-
 ---
 
-## 7. Telegram notification rule
+## 8. Telegram notification rule
 
 When preparing GLM tasks or fixup prompts, always include Telegram notification instructions.
 
@@ -136,13 +148,11 @@ At task completion, send Telegram notification using /home/z/my-project/.telegra
 Do not expose token. Missing/invalid config or send failure must not block the task.
 ```
 
-GLM executor rules also contain this requirement. Still include it in prompts because fixup tasks may not always trigger the long executor flow.
-
 Never put the bot token in commits, PR bodies, logs, screenshots, or code.
 
 ---
 
-## 8. Working style reminders
+## 9. Working style reminders
 
 GPT should:
 
@@ -154,25 +164,4 @@ GPT should:
 - avoid one-off fix guessing;
 - stop after 1-2 failed fix attempts and return to audit;
 - keep docs short and operational.
-```
-
-Denis prefers:
-
-```text
-- short, direct, structured Russian;
-- clear yes/no recommendations;
-- no automatic agreement;
-- practical prompts that can be sent to GLM.
-```
-
----
-
-## 9. Suggested first message in new chat
-
-Denis can start the new GPT chat with:
-
-```text
-Прочитай docs/project/NEW_CHAT_HANDOFF.md, PHASE_1_FREEZE.md, FIX_BACKLOG.md и PROJECT_STATE.md.
-Мы заморозили Phase 1 Foundation после PR #80.
-Нужно собрать новый Sandbox MVP audit/roadmap без бота/врага/апгрейдов.
 ```

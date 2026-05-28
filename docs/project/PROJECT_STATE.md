@@ -1,24 +1,62 @@
 # PROJECT_STATE.md
 
-Status: Phase 1 Foundation frozen  
+Status: operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Updated: 2026-05-27
+Updated: 2026-05-28
+
+---
+
+## Active repo
+
+```text
+ratoker-jpg/four-elements-phaser
+```
+
+## Phaser version
+
+```text
+4.1.0
+```
+
+Verified from `package.json`.
+
+## Reference repo
+
+```text
+ratoker-jpg/four-elements-next
+```
+
+Reference/donor only. Must never be used as active implementation baseline.
 
 ---
 
 ## Current mode
 
-Planning checkpoint after fast Phase 1 Foundation work.
+Sandbox MVP stability + Phaser 4 API adoption roadmap.
 
-Implementation is paused until the next roadmap/audit is created.
+Phase 1 Foundation frozen after PR #80 / ARCH-13C-LITE.
 
 Current rule:
 
 ```text
-Do not start new runtime ARCH packages immediately.
-Next step is Sandbox MVP audit/roadmap.
+No broad feature expansion.
+Next work follows the corrected audit sequence.
+Combat/enemy/bot/upgrades/progression are parked.
+Phaser 4 API adoption is allowed only via spike -> decision -> scoped implementation.
 ```
+
+---
+
+## Source-of-truth audit
+
+```text
+docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md
+```
+
+All roadmap and future prompts must use this as the current source-of-truth.
+
+Do not use the old Phaser 3.90 clarification as source-of-truth.
 
 ---
 
@@ -39,61 +77,25 @@ ARCH-17A-17B — Asset diagnostics and asset viewer MVP
 ARCH-13C-LITE — Render-only unit motion dust polish MVP
 ```
 
-The project now has:
-
-```text
-- main menu / new game setup;
-- faction and map selection;
-- generated maps with seed/size;
-- save/load/continue and save management;
-- settings with UI scale;
-- devtools and QA arena;
-- debug overlays;
-- gameplay feedback/VFX;
-- render-only dust MVP;
-- asset diagnostics/viewer;
-- civil economy, construction, separator and factory loop;
-- tests + build + QA smoke CI gates.
-```
-
 ---
 
 ## Current active docs
 
-Use these docs after freeze:
-
 ```text
-docs/project/NEW_CHAT_HANDOFF.md
-docs/project/PHASE_1_FREEZE.md
-docs/project/FIX_BACKLOG.md
-docs/project/PROJECT_STATE.md
+docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md — source-of-truth audit
+docs/project/PROJECT_STATE.md — this file
+docs/project/FIX_BACKLOG.md — known fix groups
+docs/project/PHASE_1_FREEZE.md — freeze checkpoint
+docs/project/NEW_CHAT_HANDOFF.md — new chat handoff
+docs/project/GPT_WORKFLOW.md — GPT planner workflow
+docs/project/GLM_EXECUTOR_RULES.md — GLM executor rules
 ```
 
-`docs/ROADMAP.md` is now inactive/archived and must not be used as active task source.
+`docs/ROADMAP.md` is inactive/archived and must not be used as active task source.
 
 ---
 
-## Next step
-
-Create a new Sandbox MVP audit/roadmap.
-
-The audit should define:
-
-```text
-- Sandbox MVP exit criteria;
-- fix groups;
-- which issues block MVP;
-- which issues are polish-only;
-- recommended implementation packages;
-- manual QA plan;
-- what moves to Phase 2.
-```
-
-Do not start implementation before Denis approves the audit/roadmap.
-
----
-
-## Parked until later phase
+## No immediate enemy/bot/combat/upgrades/progression work
 
 Do not schedule as immediate next work:
 
@@ -103,37 +105,16 @@ Do not schedule as immediate next work:
 - attack waves;
 - enemy economy;
 - upgrades;
-- progression;
+- progression systems;
 - broad balance progression;
 - map editor.
 ```
 
-These are not deleted. They are postponed until after Sandbox MVP planning.
-
----
-
-## Known fix backlog candidate groups
-
-See `docs/project/FIX_BACKLOG.md`.
-
-Current groups:
-
-```text
-- faction asset wiring;
-- harvester reliability;
-- unit grounding / centering;
-- selection marker model;
-- lane movement / diagonal cut-through readability;
-- optional player tank control baseline;
-- movement dust style rework;
-- controlled render-only unit bobbing/suspension.
-```
+These are parked until after Sandbox MVP stability is achieved.
 
 ---
 
 ## Accepted workflow reminder
-
-The project still follows:
 
 ```text
 roadmap -> audit/design -> scoped package -> implementation -> GPT review -> Denis manual QA -> merge
@@ -142,21 +123,15 @@ roadmap -> audit/design -> scoped package -> implementation -> GPT review -> Den
 For fix work:
 
 ```text
-fix backlog -> fix-roadmap audit -> scoped fix package -> implementation -> manual QA -> merge/follow-up
+fix backlog -> fix-roadmap audit -> scoped fix package -> implementation -> manual QA -> merge
 ```
-
-If a fix fails after 1-2 attempts, stop and return to audit instead of guessing.
 
 ---
 
-## Telegram notification rule
+## Maintenance policy
 
-When preparing GLM prompts, include:
+This file should stay short and operational.
 
-```text
-Telegram notification:
-At task completion, send Telegram notification using /home/z/my-project/.telegram-notify.json if available.
-Do not expose token. Missing/invalid config or send failure must not block the task.
-```
+It may be updated after important PRs or direction changes.
 
-This is also documented in `docs/project/GLM_EXECUTOR_RULES.md` and repeated in `NEW_CHAT_HANDOFF.md`.
+Small updates do not always require a dedicated docs-only PR.
