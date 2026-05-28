@@ -1,73 +1,55 @@
 # CURRENT_NEXT_STEP.md
 
-Status: operational checkpoint  
-Project: Four Elements Phaser  
-Date: 2026-05-26
+Status: updated / redirected checkpoint
+Project: Four Elements Phaser
+Date: 2026-05-29
 
 ---
 
 ## Why this file exists
 
-This short checkpoint prevents confusion between the high-level roadmap order and the current operational workstream.
+This short checkpoint prevents confusion about the current operational workstream.
 
 Use `PROJECT_STATE.md` as the primary operational source of truth.
 
 ---
 
-## Recently completed workstream
+## Obsolete guidance
 
-ARCH-01 Economy baseline is complete enough to stop and move to the next roadmap workstream.
+Previous content (ARCH-02 — Art / sprite pipeline) is **obsolete**.
 
-Completed PRs:
+ARCH-02 was completed in PRs #38–#53 long ago. The file was not updated after Phase 1 freeze and the Sandbox MVP engine roadmap.
 
-```text
-PR #36 — ARCH-01B: EconomyState + matter-based construction baseline
-PR #37 — ARCH-01C: Separator processing cycle
-PR #39 — ARCH-01D: Storage caps + cap-safe economy processing
-PR #40 — ARCH-01E: Power baseline + separator power gating
-PR #41 — ARCH-01F: Units-factory production baseline
-```
+Do not follow any ARCH-02 guidance from this file's earlier versions.
 
-Implemented economy baseline:
+---
+
+## Recently completed work
+
+Sandbox MVP engine/foundation roadmap (PR #83–#92) is fully merged:
 
 ```text
-raw gathering
-matter/elements economy
-separator conversion cycle
-storage caps
-power generation and active consumption
-power-plant config
-units-factory production queue
-builder/harvester matter + element costs
-builder/harvester production and spawn
+FIX-01, PHASER4-ANIM-01, PHASER4-ANIM-02, ARCH-18A-LITE,
+FIX-02, FIX-03, FIX-04, PHASER4-LOAD-01, PHASER4-LOAD-02,
+PHASER4-GPU-01
 ```
-
-Remaining production UI, save/load integration, balancing, and combat-unit production are not random follow-ups. They require accepted roadmap scope.
 
 ---
 
 ## Current next step
 
-Return to the accepted roadmap order.
-
-Next workstream:
-
 ```text
-ARCH-02 — Art / sprite pipeline
+ARCH-11A — QA smoke automation / Sandbox MVP regression coverage
 ```
-
-Do not start ARCH-01 spillover, combat, enemy AI, or random feature work unless a new roadmap/design decision explicitly changes the plan.
 
 ---
 
-## Expected next GPT action
+## Reference docs
 
-Before creating the next GLM task:
+For full context, read:
 
-1. Read the required project docs.
-2. Inspect current asset folders, preload/runtime asset loading, building metadata, and render paths.
-3. Use `ROADMAP_SYSTEM_AUDIT.md` as the accepted large audit/design source if it already covers ARCH-02.
-4. Decide whether ARCH-02 needs a short current-code delta-check or can start with a scoped design PR.
-5. Prepare a compact GLM prompt following `GLM_EXECUTOR_RULES.md` and `ARCH_SCOPING_POLICY.md`.
-
-Do not work from memory.
+```text
+docs/project/PROJECT_STATE.md
+docs/project/NEW_CHAT_HANDOFF.md
+docs/project/CHECKPOINT_20260528_SANDBOX_MVP_ENGINE.md
+```
