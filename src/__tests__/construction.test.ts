@@ -50,7 +50,8 @@ function makeTestState(overrides?: {
       ty: b.ty,
       type: (b.type ?? 'separator') as 'separator',
     })),
-    builders: (overrides?.builders ?? []).map((b) => ({
+    builders: (overrides?.builders ?? []).map((b, i) => ({
+      id: `builder-${i}`,
       tx: b.tx,
       ty: b.ty,
       busy: false,

@@ -33,11 +33,11 @@ function createTestState(): GameState {
 
 describe('unit selection', () => {
   it('selectBuilder creates builder selection', () => {
-    const sel = selectBuilder(0);
+    const sel = selectBuilder('builder-0');
     expect(sel).not.toBeNull();
     expect(sel!.kind).toBe('builder');
     if (sel!.kind === 'builder') {
-      expect(sel.index).toBe(0);
+      expect(sel.id).toBe('builder-0');
     }
   });
 
@@ -55,7 +55,7 @@ describe('unit selection', () => {
   });
 
   it('isUnitSelected returns true for builder', () => {
-    expect(isUnitSelected(selectBuilder(0))).toBe(true);
+    expect(isUnitSelected(selectBuilder('builder-0'))).toBe(true);
   });
 
   it('isUnitSelected returns false for null', () => {
@@ -63,7 +63,7 @@ describe('unit selection', () => {
   });
 
   it('isBuilderSelected narrows type', () => {
-    const sel = selectBuilder(2);
+    const sel = selectBuilder('builder-2');
     expect(isBuilderSelected(sel)).toBe(true);
     expect(isHarvesterSelected(sel)).toBe(false);
   });
@@ -322,7 +322,7 @@ describe('manual move command', () => {
 
     if (targetTx < 0) return;
 
-    const sel = selectBuilder(0);
+    const sel = selectBuilder(state.mapData.builders[0].id);
     const result = issueManualMove(state, sel, targetTx, targetTy);
 
     expect(result.ok).toBe(false);
@@ -424,7 +424,7 @@ describe('ARCH-05X hardening: typed fields (no as any)', () => {
     }
     if (targetTx < 0) return;
 
-    const sel = selectBuilder(0);
+    const sel = selectBuilder(state.mapData.builders[0].id);
     const result = issueManualMove(state, sel, targetTx, targetTy);
     if (!result.ok) return;
 

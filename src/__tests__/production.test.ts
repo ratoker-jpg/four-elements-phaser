@@ -149,7 +149,7 @@ describe('ARCH-01F: initial production state', () => {
       obstacles: [],
       decor: [],
       buildings: [{ tx: 20, ty: 20, type: 'units-factory' }],
-      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
       constructionSites: [],
     };
 
@@ -184,6 +184,7 @@ describe('ARCH-01F: construction completion registers units-factory', () => {
     state.production.factories = [];
     // Add a builder
     state.mapData.builders.push({
+      id: 'builder-spawned',
       tx: 9, ty: 10,
       busy: false, phase: 'idle',
       path: [], pathIndex: 0,
@@ -699,6 +700,7 @@ describe('FIX-03: unit cap enforcement', () => {
     // Fill up to cap with builders and harvesters
     for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5,
         busy: false, phase: 'idle',
         path: [], pathIndex: 0,
@@ -721,6 +723,7 @@ describe('FIX-03: unit cap enforcement', () => {
     // Add 11 builders (1 more than cap)
     for (let i = 0; i < DEFAULT_UNIT_CAP + 1; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5,
         busy: false, phase: 'idle',
         path: [], pathIndex: 0,
@@ -743,6 +746,7 @@ describe('FIX-03: unit cap enforcement', () => {
     // Add 9 units (1 below cap of 10)
     for (let i = 0; i < 9; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5,
         busy: false, phase: 'idle',
         path: [], pathIndex: 0,
@@ -762,6 +766,7 @@ describe('FIX-03: unit cap enforcement', () => {
     // Add 5 builders and 5 harvesters = 10 = cap
     for (let i = 0; i < 5; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5,
         busy: false, phase: 'idle',
         path: [], pathIndex: 0,
@@ -798,6 +803,7 @@ describe('FIX-03: unit cap enforcement', () => {
     // Fill cap
     for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5,
         busy: false, phase: 'idle',
         path: [], pathIndex: 0,
@@ -825,6 +831,7 @@ describe('FIX-03: unit cap enforcement', () => {
     // Fill cap
     for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5,
         busy: false, phase: 'idle',
         path: [], pathIndex: 0,
@@ -853,6 +860,7 @@ describe('FIX-03: spawn-time cap recheck', () => {
     // Fill 9 active units (1 below cap)
     for (let i = 0; i < 9; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5,
         busy: false, phase: 'idle',
         path: [], pathIndex: 0,
@@ -886,6 +894,7 @@ describe('FIX-03: spawn-time cap recheck', () => {
     // Fill to cap with 10 active units
     for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5,
         busy: false, phase: 'idle',
         path: [], pathIndex: 0,
@@ -917,6 +926,7 @@ describe('FIX-03: spawn-time cap recheck', () => {
     // Fill to cap with 10 active units
     for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5,
         busy: false, phase: 'idle',
         path: [], pathIndex: 0,
@@ -1036,6 +1046,7 @@ describe('FIX-04: cancelFactoryQueueItem', () => {
     // Fill cap
     for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5,
         busy: false, phase: 'idle',
         path: [], pathIndex: 0,

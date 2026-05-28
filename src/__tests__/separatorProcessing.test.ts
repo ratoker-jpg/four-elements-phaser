@@ -264,6 +264,7 @@ describe('ARCH-01C: separator registration on construction completion', () => {
     state.economy.separators = [];
     // Add a builder
     state.mapData.builders.push({
+      id: 'builder-construction',
       tx: 9, ty: 14,
       busy: false, phase: 'idle',
       path: [], pathIndex: 0,
@@ -319,7 +320,7 @@ describe('ARCH-01C: separator initialization from existing buildings', () => {
       obstacles: [],
       decor: [],
       buildings: [{ tx: 20, ty: 20, type: 'separator' }],
-      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
       constructionSites: [],
     };
 
@@ -342,7 +343,7 @@ describe('ARCH-01C: separator initialization from existing buildings', () => {
       obstacles: [],
       decor: [],
       buildings: [{ tx: 20, ty: 20, type: 'raw-storage' }],
-      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
       constructionSites: [],
     };
 
@@ -428,7 +429,7 @@ describe('ARCH-01D: initial economy caps', () => {
       buildings: [
         { tx: 20, ty: 20, type: 'raw-storage' },
       ],
-      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
       constructionSites: [],
     };
 
@@ -450,7 +451,7 @@ describe('ARCH-01D: initial economy caps', () => {
       buildings: [
         { tx: 20, ty: 20, type: 'matter-storage' },
       ],
-      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
       constructionSites: [],
     };
 
@@ -474,7 +475,7 @@ describe('ARCH-01D: initial economy caps', () => {
         { tx: 22, ty: 20, type: 'raw-storage' },
         { tx: 24, ty: 20, type: 'matter-storage' },
       ],
-      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
       constructionSites: [],
     };
 
@@ -685,7 +686,7 @@ describe('ARCH-01E: initial power state', () => {
       obstacles: [],
       decor: [],
       buildings: [{ tx: 20, ty: 20, type: 'power-plant' }],
-      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
       constructionSites: [],
     };
 
@@ -706,7 +707,7 @@ describe('ARCH-01E: initial power state', () => {
         { tx: 20, ty: 20, type: 'power-plant' },
         { tx: 22, ty: 20, type: 'power-plant' },
       ],
-      builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
       constructionSites: [],
     };
 

@@ -54,6 +54,7 @@ export function createArenaMapData(): MapData {
     buildings: [],
     builders: [
       {
+        id: 'builder-0',
         tx: 2,
         ty: 2,
         busy: false,

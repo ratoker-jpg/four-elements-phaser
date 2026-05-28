@@ -86,12 +86,12 @@ export function issueManualMove(
     return issueHarvesterManualMove(state, unit.id, targetTx, targetTy, occupancy);
   } else if (unit.kind === 'builder') {
     // Target must not be occupied by another unit
-    if (isTileOccupiedByUnit(state, targetTx, targetTy, 'builder', unit.index)) {
+    if (isTileOccupiedByUnit(state, targetTx, targetTy, 'builder', unit.id)) {
       return { ok: false, reason: 'target-occupied' };
     }
     // Add unit blockers so pathfinding avoids other units
-    addUnitBlockers(state, occupancy, 'builder', unit.index);
-    return issueBuilderManualMove(state, unit.index, targetTx, targetTy, occupancy);
+    addUnitBlockers(state, occupancy, 'builder', unit.id);
+    return issueBuilderManualMove(state, unit.id, targetTx, targetTy, occupancy);
   }
 
   return { ok: false, reason: 'no-unit-selected' };
@@ -136,16 +136,13 @@ function issueHarvesterManualMove(
 
 function issueBuilderManualMove(
   state: GameState,
-  builderIndex: number,
+  builderId: string,
   targetTx: number,
   targetTy: number,
   occupancy: ReturnType<typeof buildOccupancyMap>,
 ): MoveResult {
-  if (builderIndex < 0 || builderIndex >= state.mapData.builders.length) {
-    return { ok: false, reason: 'no-unit-selected' };
-  }
-
-  const builder = state.mapData.builders[builderIndex];
+  const builder = state.mapData.builders.find(b => b.id === builderId);
+  if (!builder) return { ok: false, reason: 'no-unit-selected' };
 
   // Only idle non-busy builders can be manually moved
   if (builder.busy || builder.phase !== 'idle') {

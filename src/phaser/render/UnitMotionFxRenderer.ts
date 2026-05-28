@@ -80,8 +80,8 @@ export class UnitMotionFxRenderer {
   /** Previous harvester positions for movement detection. */
   private harvesterTracks = new Map<string, UnitTrackState>();
 
-  /** Previous builder positions for movement detection. */
-  private builderTracks = new Map<number, UnitTrackState>();
+  /** Previous builder positions for movement detection. BUILDER-ID: keyed by builder ID. */
+  private builderTracks = new Map<string, UnitTrackState>();
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.offset = offset;
@@ -152,9 +152,8 @@ export class UnitMotionFxRenderer {
   private emitBuilderDust(builders: BuilderPlacement[], now: number): void {
     const profile = getDustProfile('builder');
 
-    for (let bi = 0; bi < builders.length; bi++) {
-      const builder = builders[bi];
-      const track = this.builderTracks.get(bi);
+    for (const builder of builders) {
+      const track = this.builderTracks.get(builder.id);
 
       if (track) {
         // Check movement delta
@@ -175,7 +174,7 @@ export class UnitMotionFxRenderer {
         track.prevFtx = builder.ftx;
         track.prevFty = builder.fty;
       } else {
-        this.builderTracks.set(bi, {
+        this.builderTracks.set(builder.id, {
           prevFtx: builder.ftx,
           prevFty: builder.fty,
           lastEmitTime: now,
@@ -230,11 +229,12 @@ export class UnitMotionFxRenderer {
     }
   }
 
-  /** Clean up builder tracks for indices no longer in the builders array. */
+  /** Clean up builder tracks for IDs no longer in the builders array. BUILDER-ID. */
   private cleanStaleBuilderTracks(builders: BuilderPlacement[]): void {
-    for (const [bi] of this.builderTracks) {
-      if (bi >= builders.length) {
-        this.builderTracks.delete(bi);
+    const activeIds = new Set(builders.map(b => b.id));
+    for (const [id] of this.builderTracks) {
+      if (!activeIds.has(id)) {
+        this.builderTracks.delete(id);
       }
     }
   }

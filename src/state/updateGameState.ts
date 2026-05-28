@@ -776,7 +776,10 @@ function getRingCandidates(
  * Spawn a builder unit at the given tile position.
  */
 function spawnBuilder(state: GameState, tx: number, ty: number): void {
+  // BUILDER-ID: Generate a stable, unique ID for the spawned builder.
+  const id = `builder-spawn-${tx}-${ty}-${Date.now()}`;
   const builder: BuilderPlacement = {
+    id,
     tx,
     ty,
     busy: false,
@@ -792,7 +795,7 @@ function spawnBuilder(state: GameState, tx: number, ty: number): void {
   state.mapData.builders.push(builder);
 
   state.entities.push({
-    id: `builder-spawn-${tx}-${ty}-${Date.now()}`,
+    id,
     kind: 'builder',
     tx,
     ty,

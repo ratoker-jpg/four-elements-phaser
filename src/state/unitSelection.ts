@@ -16,7 +16,7 @@
 
 /** Identifies a selectable civil unit. */
 export type SelectableUnit =
-  | { kind: 'builder'; index: number }
+  | { kind: 'builder'; id: string }
   | { kind: 'harvester'; id: string };
 
 /** Current selection state — null means nothing selected. */
@@ -24,9 +24,9 @@ export type UnitSelection = SelectableUnit | null;
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
-/** Create a builder selection by index. */
-export function selectBuilder(index: number): SelectableUnit {
-  return { kind: 'builder', index };
+/** Create a builder selection by stable ID (BUILDER-ID). */
+export function selectBuilder(id: string): SelectableUnit {
+  return { kind: 'builder', id };
 }
 
 /** Create a harvester selection by ID. */
@@ -40,7 +40,7 @@ export function isUnitSelected(sel: UnitSelection): sel is SelectableUnit {
 }
 
 /** Whether a builder is selected. */
-export function isBuilderSelected(sel: UnitSelection): sel is { kind: 'builder'; index: number } {
+export function isBuilderSelected(sel: UnitSelection): sel is { kind: 'builder'; id: string } {
   return sel !== null && sel.kind === 'builder';
 }
 

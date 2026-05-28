@@ -212,7 +212,7 @@ export function isBuildable(map: OccupancyMap, tx: number, ty: number, w: number
  * @param state  Game state (to read builder/harvester positions)
  * @param map    Occupancy map to mutate
  * @param excludeType  Unit type to exclude ('builder' | 'harvester')
- * @param excludeId    Unit identifier to exclude (builder index or harvester id)
+ * @param excludeId    Unit identifier to exclude (builder id or harvester id)
  */
 export function addUnitBlockers(
   state: GameState,
@@ -221,9 +221,8 @@ export function addUnitBlockers(
   excludeId?: number | string,
 ): void {
   // Add builders as impassable (except excluded)
-  for (let i = 0; i < state.mapData.builders.length; i++) {
-    if (excludeType === 'builder' && excludeId === i) continue;
-    const b = state.mapData.builders[i];
+  for (const b of state.mapData.builders) {
+    if (excludeType === 'builder' && excludeId === b.id) continue;
     const k = key(Math.round(b.ftx), Math.round(b.fty), map.width);
     getOrMake(map.flags, k).add('impassable');
   }
@@ -246,7 +245,7 @@ export function addUnitBlockers(
  * @param tx     Target tile X
  * @param ty     Target tile Y
  * @param excludeType  Unit type to exclude
- * @param excludeId    Unit identifier to exclude
+ * @param excludeId    Unit identifier to exclude (builder id or harvester id)
  */
 export function isTileOccupiedByUnit(
   state: GameState,
@@ -255,9 +254,8 @@ export function isTileOccupiedByUnit(
   excludeType?: 'builder' | 'harvester',
   excludeId?: number | string,
 ): boolean {
-  for (let i = 0; i < state.mapData.builders.length; i++) {
-    if (excludeType === 'builder' && excludeId === i) continue;
-    const b = state.mapData.builders[i];
+  for (const b of state.mapData.builders) {
+    if (excludeType === 'builder' && excludeId === b.id) continue;
     if (Math.round(b.ftx) === tx && Math.round(b.fty) === ty) return true;
   }
 

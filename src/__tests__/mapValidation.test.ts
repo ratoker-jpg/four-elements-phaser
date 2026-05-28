@@ -62,6 +62,7 @@ function makeTestState(overrides?: {
       type: (b.type ?? 'separator') as 'separator',
     })),
     builders: [{
+      id: 'builder-0',
       tx: hqTx - 1, ty: hqTy - 1,
       busy: false, phase: 'idle', path: [], pathIndex: 0,
       ftx: hqTx - 1, fty: hqTy - 1,
