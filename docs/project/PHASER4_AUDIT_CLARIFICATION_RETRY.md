@@ -603,6 +603,15 @@ npm run typecheck
 npm run build
 npm run qa:smoke
 
+Telegram notification:
+At task completion, send Telegram notification using /home/z/my-project/.telegram-notify.json if available.
+Do not expose token.
+Missing/invalid config or send failure must not block the task.
+Report notification status in the final summary:
+- sent
+- skipped: config missing
+- failed: <reason>
+
 Open PR into main.
 Do not merge.
 ```
@@ -633,6 +642,15 @@ Questions to answer:
 
 Do not implement production animation system.
 Return findings as Markdown report only.
+
+Telegram notification:
+At task completion, send Telegram notification using /home/z/my-project/.telegram-notify.json if available.
+Do not expose token.
+Missing/invalid config or send failure must not block the task.
+Report notification status in the final summary:
+- sent
+- skipped: config missing
+- failed: <reason>
 ```
 
 ---
