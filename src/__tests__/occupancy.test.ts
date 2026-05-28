@@ -17,7 +17,7 @@ function makeTestState(overrides?: {
   mapH?: number;
   hqTx?: number;
   hqTy?: number;
-  resources?: Array<{ tx: number; ty: number; footprint: number }>;
+  resources?: Array<{ tx: number; ty: number; footprint: number; depleted?: boolean }>;
   obstacles?: Array<{ tx: number; ty: number; footprint: number }>;
   buildings?: Array<{ tx: number; ty: number }>;
   harvesters?: Array<{ ftx: number; fty: number }>;
@@ -96,8 +96,8 @@ function makeTestState(overrides?: {
       ty: r.ty,
       resourceType: 'small' as const,
       footprint: r.footprint,
-      remainingRaw: 20,
-      depleted: false,
+      remainingRaw: r.depleted ? 0 : 20,
+      depleted: r.depleted ?? false,
     })),
     economy: { raw: 0, matter: 500, elements: { cyan: 0, green: 0, yellow: 0, purple: 0 }, powerGenerated: 0, powerConsumed: 0, separators: [], rawCap: 200, matterCap: 200, elementCap: 200 } as EconomyState,
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
@@ -392,5 +392,145 @@ describe('Builder soft-occupied (ARCH-13F1)', () => {
     const map = buildOccupancyMap(state);
     expect(isPassable(map, 8, 8)).toBe(true);
     expect(isBuildable(map, 8, 8, 1, 1)).toBe(true);
+  });
+});
+
+// ─── RESOURCE-01: Depleted resource occupancy ───────────────────────
+
+describe('RESOURCE-01: depleted resource occupancy', () => {
+  it('depleted resource tile is passable for movement', () => {
+    const state = makeTestState({
+      mapW: 10,
+      mapH: 10,
+      hqTx: 0,
+      hqTy: 0,
+      resources: [{ tx: 5, ty: 5, footprint: 1, depleted: true }],
+    });
+    const map = buildOccupancyMap(state);
+
+    // Depleted resource tile should be passable — no ghost occupancy
+    expect(isPassable(map, 5, 5)).toBe(true);
+  });
+
+  it('depleted resource tile is buildable', () => {
+    const state = makeTestState({
+      mapW: 10,
+      mapH: 10,
+      hqTx: 0,
+      hqTy: 0,
+      resources: [{ tx: 5, ty: 5, footprint: 1, depleted: true }],
+    });
+    const map = buildOccupancyMap(state);
+
+    // Depleted resource tile should be buildable
+    expect(isBuildable(map, 5, 5, 1, 1)).toBe(true);
+  });
+
+  it('depleted resource tile still has "resource" informational flag', () => {
+    const state = makeTestState({
+      mapW: 10,
+      mapH: 10,
+      hqTx: 0,
+      hqTy: 0,
+      resources: [{ tx: 5, ty: 5, footprint: 1, depleted: true }],
+    });
+    const map = buildOccupancyMap(state);
+
+    // Depleted resource still carries 'resource' flag (informational)
+    const flags = getFlags(map, 5, 5);
+    expect(flags.has('resource')).toBe(true);
+    // But NOT impassable or unbuildable
+    expect(flags.has('impassable')).toBe(false);
+    expect(flags.has('unbuildable')).toBe(false);
+  });
+
+  it('non-depleted resource tile remains impassable and unbuildable', () => {
+    const state = makeTestState({
+      mapW: 10,
+      mapH: 10,
+      hqTx: 0,
+      hqTy: 0,
+      resources: [{ tx: 5, ty: 5, footprint: 1, depleted: false }],
+    });
+    const map = buildOccupancyMap(state);
+
+    // Non-depleted resource should still be impassable and unbuildable
+    expect(isPassable(map, 5, 5)).toBe(false);
+    expect(isBuildable(map, 5, 5, 1, 1)).toBe(false);
+    const flags = getFlags(map, 5, 5);
+    expect(flags.has('resource')).toBe(true);
+    expect(flags.has('impassable')).toBe(true);
+    expect(flags.has('unbuildable')).toBe(true);
+  });
+
+  it('depleted multi-tile resource (footprint 3) is fully passable', () => {
+    const state = makeTestState({
+      mapW: 10,
+      mapH: 10,
+      hqTx: 0,
+      hqTy: 0,
+      resources: [{ tx: 5, ty: 5, footprint: 3, depleted: true }],
+    });
+    const map = buildOccupancyMap(state);
+
+    // All tiles of the depleted 3x3 resource footprint should be passable
+    for (let dy = 0; dy < 3; dy++) {
+      for (let dx = 0; dx < 3; dx++) {
+        expect(isPassable(map, 5 + dx, 5 + dy)).toBe(true);
+        expect(isBuildable(map, 5 + dx, 5 + dy, 1, 1)).toBe(true);
+      }
+    }
+
+    // All tiles should still carry the 'resource' flag
+    for (let dy = 0; dy < 3; dy++) {
+      for (let dx = 0; dx < 3; dx++) {
+        expect(getFlags(map, 5 + dx, 5 + dy).has('resource')).toBe(true);
+      }
+    }
+  });
+
+  it('mixed: some resources depleted, some not', () => {
+    const state = makeTestState({
+      mapW: 10,
+      mapH: 10,
+      hqTx: 0,
+      hqTy: 0,
+      resources: [
+        { tx: 5, ty: 5, footprint: 1, depleted: true },
+        { tx: 7, ty: 7, footprint: 1, depleted: false },
+      ],
+    });
+    const map = buildOccupancyMap(state);
+
+    // Depleted resource at (5,5) is passable
+    expect(isPassable(map, 5, 5)).toBe(true);
+    expect(isBuildable(map, 5, 5, 1, 1)).toBe(true);
+
+    // Non-depleted resource at (7,7) is still impassable
+    expect(isPassable(map, 7, 7)).toBe(false);
+    expect(isBuildable(map, 7, 7, 1, 1)).toBe(false);
+  });
+
+  it('depleting a resource at runtime frees the tile for pathfinding', () => {
+    // Start with a non-depleted resource
+    const state = makeTestState({
+      mapW: 10,
+      mapH: 10,
+      hqTx: 0,
+      hqTy: 0,
+      resources: [{ tx: 5, ty: 5, footprint: 1, depleted: false }],
+    });
+
+    // Initially impassable
+    const mapBefore = buildOccupancyMap(state);
+    expect(isPassable(mapBefore, 5, 5)).toBe(false);
+
+    // Deplete the resource at runtime
+    state.resourceNodes[0].depleted = true;
+    state.resourceNodes[0].remainingRaw = 0;
+
+    // After depletion, tile becomes passable
+    const mapAfter = buildOccupancyMap(state);
+    expect(isPassable(mapAfter, 5, 5)).toBe(true);
   });
 });

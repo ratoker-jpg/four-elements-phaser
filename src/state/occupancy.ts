@@ -87,11 +87,29 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
   markFootprint(flags, width, state.mapData.hq.tx, state.mapData.hq.ty, 3, 3,
     'impassable', 'unbuildable');
 
-  // ── Resources — ARCH-05X: now impassable for movement
+  // ── Resources — ARCH-05X: impassable for movement while non-depleted
   //   Harvesters must approach adjacent tiles, not drive onto the resource center.
+  //   RESOURCE-01: Depleted resources are no longer impassable or unbuildable.
+  //   Build a position-keyed lookup of depleted resource nodes so we can check
+  //   depletion state when marking resource footprints.
+  const depletedResources = new Set<number>();
+  for (const rn of state.resourceNodes) {
+    if (rn.depleted) {
+      depletedResources.add(key(rn.tx, rn.ty, width));
+    }
+  }
+
   for (const r of state.mapData.resources) {
-    markFootprint(flags, width, r.tx, r.ty, r.footprint, r.footprint,
-      'impassable', 'unbuildable', 'resource');
+    const isDepleted = depletedResources.has(key(r.tx, r.ty, width));
+
+    if (isDepleted) {
+      // RESOURCE-01: Depleted resources keep the 'resource' informational flag
+      // but no longer block movement or construction.
+      markFootprint(flags, width, r.tx, r.ty, r.footprint, r.footprint, 'resource');
+    } else {
+      markFootprint(flags, width, r.tx, r.ty, r.footprint, r.footprint,
+        'impassable', 'unbuildable', 'resource');
+    }
   }
 
   // ── Obstacles ──────────────────────────────────────────────────

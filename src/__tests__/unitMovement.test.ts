@@ -759,3 +759,136 @@ describe('ARCH-05X hardening: units block each other', () => {
     }
   });
 });
+
+// ─── RESOURCE-01: Depleted resource retargeting ──────────────────────
+
+describe('RESOURCE-01: depleted resource retargeting', () => {
+  it('harvester does not target depleted resources', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    // Deplete all resources
+    for (const r of state.resourceNodes) {
+      r.depleted = true;
+      r.remainingRaw = 0;
+    }
+
+    h.phase = 'idle';
+    h.targetResourceId = null;
+
+    // Run update — harvester should NOT find a target
+    updateGameState(state, 16);
+
+    // Harvester should be idle with blockedReason 'no-resources'
+    expect(h.phase).toBe('idle');
+    expect(h.blockedReason).toBe('no-resources');
+    expect(h.targetResourceId).toBeNull();
+  });
+
+  it('harvester retargets after current target is depleted during gathering', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    // Find two resources — deplete one, keep another
+    const nonDepletedResources = state.resourceNodes.filter(r => !r.depleted);
+    if (nonDepletedResources.length < 2) return; // need at least 2 resources
+
+    // Set harvester to target the first resource
+    const targetResource = nonDepletedResources[0];
+    h.phase = 'gathering';
+    h.targetResourceId = targetResource.id;
+    h.gatherTimer = 100; // still gathering
+
+    // Now deplete the targeted resource
+    targetResource.depleted = true;
+    targetResource.remainingRaw = 0;
+
+    // Run update — harvester should detect depleted target and retarget or go idle
+    updateGameState(state, 16);
+
+    // Harvester should no longer be targeting the depleted resource
+    expect(h.targetResourceId).not.toBe(targetResource.id);
+    // Phase should be idle (no cargo) or returning-to-hq (has cargo)
+    const phase: string = h.phase;
+    expect(phase === 'idle' || phase === 'returning-to-hq').toBe(true);
+  });
+
+  it('harvester can path through depleted resource tiles', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    // Deplete a resource that's near the harvester's path
+    const nearResource = state.resourceNodes.find(r =>
+      !r.depleted && r.footprint === 1
+    );
+    if (!nearResource) return;
+
+    // Before depletion, resource tile should be impassable
+    const occupancyBefore = buildOccupancyMap(state);
+    expect(isPassable(occupancyBefore, nearResource.tx, nearResource.ty)).toBe(false);
+
+    // Deplete the resource
+    nearResource.depleted = true;
+    nearResource.remainingRaw = 0;
+
+    // After depletion, resource tile should be passable
+    const occupancyAfter = buildOccupancyMap(state);
+    expect(isPassable(occupancyAfter, nearResource.tx, nearResource.ty)).toBe(true);
+
+    // A harvester should be able to issue a manual move to the depleted tile
+    const sel = selectHarvester(h.id);
+    const result = issueManualMove(state, sel, nearResource.tx, nearResource.ty);
+    // The result may fail for other reasons (no path, occupied), but should NOT
+    // fail with 'target-impassable'
+    if (!result.ok && result.reason === 'target-impassable') {
+      expect.fail('Depleted resource tile should not be impassable');
+    }
+  });
+
+  it('manual move to a depleted resource tile is not rejected as impassable', () => {
+    const state = createTestState();
+    const h = state.harvesters[0];
+    if (!h) return;
+
+    // Find a resource and deplete it
+    const resource = state.resourceNodes.find(r => !r.depleted && r.footprint === 1);
+    if (!resource) return;
+
+    resource.depleted = true;
+    resource.remainingRaw = 0;
+
+    // Move the harvester near the depleted resource
+    // Place it at an adjacent passable tile
+    const occupancy = buildOccupancyMap(state);
+
+    // The depleted resource tile should now be passable
+    expect(isPassable(occupancy, resource.tx, resource.ty)).toBe(true);
+
+    // Move harvester to a nearby passable tile if needed
+    if (!isPassable(occupancy, Math.round(h.ftx), Math.round(h.fty))) {
+      // Find a passable tile near the resource
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const tx = resource.tx + dx;
+          const ty = resource.ty + dy;
+          if (isPassable(occupancy, tx, ty) && (tx !== resource.tx || ty !== resource.ty)) {
+            h.ftx = tx;
+            h.fty = ty;
+            break;
+          }
+        }
+      }
+    }
+
+    const sel = selectHarvester(h.id);
+    const result = issueManualMove(state, sel, resource.tx, resource.ty);
+
+    // Should succeed or fail for a non-impassable reason (e.g., occupied by self)
+    if (!result.ok) {
+      expect(result.reason).not.toBe('target-impassable');
+    }
+  });
+});
