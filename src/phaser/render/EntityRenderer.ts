@@ -210,6 +210,9 @@ export class EntityRenderer {
         sprite.anims.play(animKey, true);
       } else {
         // Fallback: manual frame indexing (original approach)
+        // Stop any playing animation before manually setting the frame,
+        // otherwise a running animation may continue ticking.
+        sprite.anims.stop();
         const frame = dirIndex * 8 + IDLE_FRAME;
         sprite.setFrame(frame);
       }
@@ -324,25 +327,29 @@ export class EntityRenderer {
 
         // Idle: single frame (column 0), loops at 1 fps but visually never changes
         const idleKey = `harvester_${faction}_idle_${dirLabel}`;
-        this.scene.anims.create({
-          key: idleKey,
-          frames: [{ key: textureKey, frame: rowStart + 0 }],
-          frameRate: 1,
-          repeat: -1,
-        });
+        if (!this.scene.anims.exists(idleKey)) {
+          this.scene.anims.create({
+            key: idleKey,
+            frames: [{ key: textureKey, frame: rowStart + 0 }],
+            frameRate: 1,
+            repeat: -1,
+          });
+        }
 
         // Move: walk cycle frames 1–7 (7 frames), loops at HARVESTER_WALK_FPS
         // Frame 0 is the idle/standing pose — excluded for smoother walk cycle.
         const moveKey = `harvester_${faction}_move_${dirLabel}`;
-        this.scene.anims.create({
-          key: moveKey,
-          frames: this.scene.anims.generateFrameNumbers(textureKey, {
-            start: rowStart + 1,
-            end: rowStart + 7,
-          }),
-          frameRate: HARVESTER_WALK_FPS,
-          repeat: -1,
-        });
+        if (!this.scene.anims.exists(moveKey)) {
+          this.scene.anims.create({
+            key: moveKey,
+            frames: this.scene.anims.generateFrameNumbers(textureKey, {
+              start: rowStart + 1,
+              end: rowStart + 7,
+            }),
+            frameRate: HARVESTER_WALK_FPS,
+            repeat: -1,
+          });
+        }
       }
     }
 
