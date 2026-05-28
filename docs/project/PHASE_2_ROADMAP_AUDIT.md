@@ -62,7 +62,7 @@ Date: 2026-05-29
 | Active repo | `ratoker-jpg/four-elements-phaser` | `ratoker-jpg/four-elements-phaser` | Yes |
 | Phaser version | 4.1.0 | `"phaser": "4.1.0"` in package.json | Yes |
 | PR #95 merged | Yes | `fc37e25` — ARCH-11A QA smoke | Yes |
-| PR #96 merged | Yes | FULL-PROJECT-AUDIT-01 | Yes |
+| PR #96 merged | No | FULL-PROJECT-AUDIT-01 — not merged, superseded by Phase 2 roadmap direction | N/A |
 | PR #97 merged | Yes | DOCS-P2-ROADMAP | Yes |
 | PHASE_2_ROADMAP.md exists | Yes | Present in docs/project/ | Yes |
 | PHASE_2_ROADMAP_AUDIT_PROMPT.md exists | Yes | Present in docs/project/ | Yes |
@@ -75,6 +75,12 @@ Date: 2026-05-29
 - `FIX_BACKLOG.md` — needs update with Phase 2 task references
 
 These will be updated in DOCS-P2-00 after audit acceptance, not in this PR.
+
+### Active accepted baseline
+
+- **PR #97** (DOCS-P2-ROADMAP) is the Phase 2 roadmap draft source and is merged.
+- **PR #98** (PHASE-2-ROADMAP-AUDIT, this PR) is the accepted audit gate after merge.
+- **PR #96** (FULL-PROJECT-AUDIT-01) is **not merged** and is superseded / not an active baseline. `FULL_PROJECT_AUDIT_20260529.md` is not accepted source-of-truth. No future implementation prompt should require PR #96 or treat the Phase 1 audit doc as an active gate.
 
 ---
 
@@ -262,24 +268,30 @@ The pivot from technical cleanup to playable/visual RTS feel is well-timed for t
 
 1. Add mode selection to NewGameSetupScene (not MainMenuScene). Three buttons: Standard / Debug / Arena. Default: Standard.
 2. Store selected mode in GameSetupConfig alongside faction/map/seed.
-3. Pass mode to GameScene via scene data.
-4. Preserve URL shortcuts (`?skipMenu`, `?devtools=1`, `?arena=1`) as dev/test overrides that bypass menu selection.
-5. Do NOT implement mode-aware loading in this PR — that is MENU-02.
+3. **Controlled URL launch model**: When Debug or Arena is selected, navigate/reload to the appropriate URL with existing shortcuts:
+   - Standard → start normally (no URL params change)
+   - Debug → `window.location.href` with `?devtools=1` appended (preserving other params)
+   - Arena → `window.location.href` with `?devtools=1&arena=1` appended
+4. This ensures PreloadScene loads the correct assets on the reload pass — no late-loading needed in MENU-01.
+5. Preserve existing URL shortcuts (`?skipMenu`, `?devtools=1`, `?arena=1`) as dev/test overrides.
+6. Do NOT implement mode-aware late-loading in this PR — that is MENU-02.
+7. Do NOT change PreloadScene or asset loading behavior.
+8. MENU-02 can later replace the controlled reload with true mode-aware late-loading (no page reload) if still desired.
 
-**Risk:** Low. Adding a UI selector that stores a value in config. No loading or asset changes.
+**Risk:** Low. Adding a UI selector that triggers a controlled page reload with existing URL params. No loading or asset changes. The reload is the same as manually typing the URL, just automated from the menu.
 
 **Can go directly to implementation after audit:** Yes. The design is straightforward.
 
-**Likely touched files:** NewGameSetupScene.ts, gameSetup.ts (add mode to GameSetupConfig), GameScene.ts (read mode from config, set devtools/arena flags from config instead of URL-only).
+**Likely touched files:** NewGameSetupScene.ts, gameSetup.ts (add mode to GameSetupConfig).
 
 **Validation strategy:** npm test, typecheck, build, qa:smoke. Manual QA: menu mode buttons work, URL shortcuts still work.
 
 **Manual QA:**
-- Start Standard from menu — no devtools panel, no arena
-- Start Debug from menu — devtools panel visible, modularUnits loaded
-- Start Arena from menu — arena map, devtools panel, modularUnits loaded
+- Start Standard from menu — no devtools panel, no arena (normal launch)
+- Start Debug from menu — page reloads with `?devtools=1`, devtools panel visible, modularUnits loaded
+- Start Arena from menu — page reloads with `?devtools=1&arena=1`, arena map, devtools panel, modularUnits loaded
 - `?skipMenu` — auto-starts with default mode (Standard)
-- `?devtools=1&arena=1` — overrides menu selection
+- `?skipMenu&devtools=1&arena=1` — still works as before (URL overrides)
 
 **What not to touch:** PreloadScene, asset loading, GameScene game loop, runtime state.
 
@@ -428,26 +440,26 @@ The pivot from technical cleanup to playable/visual RTS feel is well-timed for t
 
 **Recommended scope:**
 
-1. **Asset work**: Generate 3–5 terrain patch variants per type (e.g., sand-a, sand-b, sand-c) with clustered noise variation — not random per-tile noise, but large soft patches. This is the primary effort.
-2. **Generator work**: Update map generator to assign patch variants in clusters (Perlin/simplex noise or region-based selection) instead of alternating tile types.
+1. **Asset work**: If approved terrain/decal PNG assets already exist, integrate them. If they do not exist, create asset requirements and a placeholder integration plan, then stop or request assets as a separate task. Do not generate final production PNG assets as part of TERRAIN-01. Placeholder assets are allowed only if explicitly marked dev-only and approved by Denis. Asset generation/art production should be a separate asset task, not hidden inside terrain code implementation.
+2. **Generator work**: Update map generator to assign patch variants in clusters (Perlin/simplex noise or region-based selection) instead of alternating tile types. This can proceed regardless of asset availability — the generator logic is independent.
 3. **Renderer work**: Minimal. TerrainRenderer already stamps arbitrary tiles — just pass the new patch variant key instead of the current 3-type key.
-4. **Decals**: Add 5–10 decal sprites (cracks, bumps, stones, dry patterns) and stamp them on the RenderTexture after terrain tiles. Decals are purely visual, do not affect pathfinding.
+4. **Decals**: Same asset constraint as above — if decal sprites exist, integrate them; if not, create requirements and stop. Do not create low-quality final decal PNGs.
 5. **Grid lines**: Make grid lines optional or remove them. They reinforce the chessboard feel.
 6. **Do NOT replace the RenderTexture approach** — it is efficient and supports the target.
 7. **Do NOT implement TilemapGPULayer** — rejected by PHASER4-GPU-01.
 
-**Risk:** Medium-high. Main risk is scope: if "terrain patching" expands into "full terrain system rewrite with edge blending and zone transitions", it becomes a multi-PR effort. The audit constrains scope to: new patch assets + generator cluster logic + decals.
+**Risk:** Medium-high. Main risk is scope: if "terrain patching" expands into "full terrain system rewrite with edge blending and zone transitions", it becomes a multi-PR effort. Secondary risk: if production terrain/decal assets do not exist, the generator and renderer changes must be implemented with clear placeholder support so that asset swap-in is trivial when assets arrive.
 
-**Can go directly to implementation after audit:** Yes, with constraint: the scope must stay within "add patch variation and decals to existing RenderTexture pipeline". If the implementation requires renderer changes beyond stamping different tile keys, stop and create a design doc.
+**Can go directly to implementation after audit:** Yes, with constraint: the scope must stay within "add patch variation and decals to existing RenderTexture pipeline". If the implementation requires renderer changes beyond stamping different tile keys, stop and create a design doc. If production terrain/decal assets do not exist, the implementation must stop at generator + renderer integration with placeholder support, and request assets as a separate task.
 
 **Likely touched files:** TerrainRenderer.ts (minimal — accept variant keys), map generator (add cluster-based patch assignment), new decal assets, GameScene.ts (remove or toggle grid lines).
 
 **Validation strategy:** npm test, typecheck, build, qa:smoke. Manual QA: terrain looks natural, no chessboard pattern, decals visible.
 
 **Manual QA:**
-- Terrain reads as natural desert surface, not grid
-- No visible tile repetition pattern
-- Decals (cracks, stones) visible on zoom
+- Terrain reads as natural desert surface, not grid (if production assets available; otherwise placeholder variation is visible)
+- No visible tile repetition pattern (generator clusters work correctly)
+- Decals visible on zoom (if production assets available; otherwise decal slots are ready)
 - Grid lines removed or very subtle
 - Pathfinding still works correctly
 - Performance unchanged (RenderTexture still cached)
@@ -878,10 +890,10 @@ The pivot from technical cleanup to playable/visual RTS feel is well-timed for t
 
 | Task ID | Risk | Covered by this audit for direct implementation? | Constraints / additional design needed | Stop conditions |
 |---------|------|--------------------------------------------------|----------------------------------------|----------------|
-| MENU-01 | medium | **Yes** | Must preserve URL shortcuts for qa:smoke | If mode selection requires PreloadScene changes, stop and create design doc |
+| MENU-01 | medium | **Yes** | Controlled URL launch model: Debug/Arena from menu reloads page with `?devtools=1` / `?devtools=1&arena=1`. Must preserve URL shortcuts for qa:smoke. No late-loading. No PreloadScene changes. | If mode selection requires PreloadScene changes or late-loading, stop and create design doc |
 | MENU-02 | medium-high | **Yes** | Must audit all `isDevtoolsEnabled()` call sites; must test late-loading | If late-loading fails for modularUnits, stop and report |
 | LOADING-01 | medium | **Yes** | Use Phaser Loader events only; no fake progress | If loading screen interferes with qa:smoke, stop |
-| TERRAIN-01 | medium-high | **Yes** | Scope limited to: patch assets + generator cluster logic + decals on existing RenderTexture. No renderer rewrite. | If implementation requires RenderTexture replacement or TilemapGPULayer, stop and create design doc |
+| TERRAIN-01 | medium-high | **Yes** | Scope limited to: patch assets + generator cluster logic + decals on existing RenderTexture. No renderer rewrite. Do not generate final production PNG assets — if assets do not exist, create requirements and stop or request separate asset task. | If implementation requires RenderTexture replacement or TilemapGPULayer, stop and create design doc |
 | BASE-ANCHOR-01 | low-medium | **Yes** | Fix per-building after confirming root cause. No global shift. | If anchor fix breaks another faction's HQ, revert and create design doc |
 | ASSET-WORKFLOW-01 | high | **No** (this IS the design task) | Must produce accepted design doc before UNIT-ANIM-01/02 | — |
 | UNIT-ANIM-01 | high | **Yes** (after ASSET-WORKFLOW-01) | Must follow ASSET-WORKFLOW-01 conventions exactly. Stage: asset generation PR first, then integration PR | If new spritesheet layout differs from workflow spec, stop |
@@ -918,7 +930,7 @@ The pivot from technical cleanup to playable/visual RTS feel is well-timed for t
 
 ### Recommended MENU-01 implementation model
 
-**Model: Mode selector in NewGameSetupScene**
+**Model: Controlled URL launch via NewGameSetupScene**
 
 Add a "Game Mode" section to NewGameSetupScene with three buttons: Standard, Debug, Arena. Default: Standard.
 
@@ -944,6 +956,17 @@ When Debug is selected:
 When Standard is selected:
 - All sections visible as current.
 
+**Controlled URL launch model**:
+
+When the user clicks "Start Game":
+- **Standard** → `scene.start('GameScene', config)` as normal (no URL change).
+- **Debug** → Navigate/reload to current page with `?devtools=1` appended. This causes PreloadScene to load modularUnits because `isDevtoolsEnabled()` returns true. Other params (faction, map, seed) can be passed via `sessionStorage` or URL search params on reload.
+- **Arena** → Navigate/reload to current page with `?devtools=1&arena=1` appended. This causes PreloadScene to load modularUnits and GameScene to create the arena map.
+
+**Why controlled reload**: PreloadScene runs before MainMenuScene. ModularUnits are only loaded when `isDevtoolsEnabled()` returns true (from URL params). The controlled reload ensures PreloadScene runs again with the correct URL params, loading all required assets. This is the same mechanism that QA smoke tests already use (`?skipMenu&devtools=1&arena=1`), just automated from the menu button.
+
+**Why not late-loading in MENU-01**: Late-loading (loading assets after PreloadScene) requires careful handling of `isDevtoolsEnabled()` call sites, loading indicators, and asset availability checks. This is MENU-02's scope. MENU-01 keeps it simple: the menu button triggers a controlled page reload with the same URL params that already work.
+
 **Mode is stored in GameSetupConfig**:
 ```typescript
 interface GameSetupConfig {
@@ -965,7 +988,9 @@ These bypass the menu and set mode directly, preserving qa:smoke compatibility.
 
 ### Recommended MENU-02 implementation model
 
-**Mode-aware loading flow**:
+**Mode-aware late-loading flow** (replaces MENU-01's controlled reload):
+
+MENU-01 uses controlled page reload as a simple launch path. MENU-02 replaces this with seamless mode-aware late-loading that avoids the page reload entirely.
 
 ```text
 PreloadScene (always loads base 42 assets)
@@ -980,11 +1005,9 @@ PreloadScene (always loads base 42 assets)
           Proceed normally
 ```
 
-**Why not mode-before-PreloadScene**: PreloadScene runs before MainMenuScene. Moving mode selection before PreloadScene would require a new scene (ModeSelectScene before PreloadScene) or a controlled page reload with URL params. Both approaches add complexity.
-
 **Why late-loading is safe**: PHASER4-LOAD-01 spike confirmed Phaser 4.1.0 supports late-loading. EntityRenderer already uses `textures.exists()` fallback. ModularTankRenderer only renders modular-combat entities when they exist in state.
 
-**Why not controlled reload**: Reloading the page to add `?devtools=1` would work but disrupts the user experience. Late-loading is smoother.
+**MENU-02 replaces controlled reload**: After MENU-02, Debug/Arena can be selected from the menu without a page reload. The controlled reload from MENU-01 becomes a fallback or is removed.
 
 **Preserving smoke tests**: `?skipMenu&devtools=1&arena=1` still triggers PreloadScene conditional loading (isDevtoolsEnabled() returns true from URL). No smoke test changes needed.
 
@@ -1409,7 +1432,7 @@ VISUAL-SPIKE-01 should produce a spike report, but the likely outcome is "baked 
 | # | Task ID | Type | Risk | Direct impl after audit? | Dependencies | Touched files | Validation | Manual QA | Rollback plan | What stays out of scope |
 |---|---------|------|------|--------------------------|--------------|---------------|------------|-----------|---------------|------------------------|
 | 0 | DOCS-P2-00 | docs | low | Yes | This audit accepted | PROJECT_STATE.md, CURRENT_NEXT_STEP.md, NEW_CHAT_HANDOFF.md, FIX_BACKLOG.md | Docs-only | New session follows Phase 2 | Revert commit | Runtime code, tests |
-| 1 | MENU-01 | implementation | medium | Yes | None | NewGameSetupScene.ts, gameSetup.ts, GameScene.ts | npm test, typecheck, build, qa:smoke | Mode buttons work, URL shortcuts preserved | Revert PR | PreloadScene, asset loading |
+| 1 | MENU-01 | implementation | medium | Yes | None | NewGameSetupScene.ts, gameSetup.ts | npm test, typecheck, build, qa:smoke | Mode buttons work, controlled URL launch works, URL shortcuts preserved | Revert PR | PreloadScene, asset loading, GameScene |
 | 2 | LOADING-01 | implementation | medium | Yes | None | PreloadScene.ts, src/styles.css | typecheck, build, qa:smoke | Loading bar visible, progresses correctly | Revert PR | Asset manifest, MainMenuScene |
 | 3 | HUD-01 | implementation | low-medium | Yes | None | GameScene.ts, index.html, PlaytestHud.ts | typecheck, build, qa:smoke | One HUD, no duplicates | Revert PR | PlaytestHud layout redesign |
 | 4 | TERRAIN-01 | implementation | medium-high | Yes | None | TerrainRenderer.ts, map generator, new assets, GameScene.ts | typecheck, build, qa:smoke | Terrain looks natural | Revert PR + assets | Renderer architecture, pathfinding |
@@ -1466,7 +1489,7 @@ Do not copy donor implementation blindly.
 Before doing anything:
 1. Confirm active repo is ratoker-jpg/four-elements-phaser.
 2. Confirm package.json has "phaser": "4.1.0".
-3. Confirm main includes merged PR #97 / DOCS-P2-ROADMAP.
+3. Confirm main includes merged PR #98 / PHASE-2-ROADMAP-AUDIT.
 4. Read docs/project/PHASE_2_ROADMAP_AUDIT.md.
 5. If repo/version/docs/main mismatch, stop and report.
 
@@ -1490,27 +1513,31 @@ NewGameSetupScene already has faction/map/seed selection.
 Mode selection should be added as a "Game Mode" section with three buttons:
 Standard, Debug, Arena (default: Standard).
 
-The selected mode should be stored in GameSetupConfig and passed to GameScene.
-GameScene.create() should read mode from config and set devtools/arena flags
-based on config in addition to URL params.
+CONTROLLED URL LAUNCH MODEL:
+- Standard starts normally (no URL params change).
+- Debug from menu navigates/reloads to `?devtools=1` (existing URL shortcut).
+- Arena from menu navigates/reloads to `?devtools=1&arena=1` (existing URL shortcut).
+- This ensures PreloadScene loads the correct assets on reload — no late-loading.
+- MENU-02 can later replace controlled reload with true mode-aware late-loading.
 
 URL shortcuts (?skipMenu, ?devtools=1, ?arena=1) must be preserved as
 dev/test overrides that bypass menu selection. qa:smoke must continue to work.
 
-Do NOT implement mode-aware asset loading in this PR — that is MENU-02.
+Do NOT implement mode-aware late-loading in this PR — that is MENU-02.
 Do NOT change PreloadScene or asset loading behavior.
 
 Goal:
 Add mode selection (Standard / Debug / Arena) to NewGameSetupScene.
-Pass selected mode to GameScene via GameSetupConfig.
-GameScene reads mode from config and sets devtools/arena flags.
+Controlled URL launch: Debug/Arena reload page with appropriate URL params.
 URL shortcuts preserved as overrides.
 
 Scope:
 - Add `gameMode: 'standard' | 'debug' | 'arena'` to GameSetupConfig in gameSetup.ts
 - Add "Game Mode" section to NewGameSetupScene DOM overlay with 3 buttons
-- Update GameScene.init() and create() to read gameMode from config
-- GameScene sets devtoolsActive and arenaMode flags from config (in addition to URL)
+- When Debug selected + Start Game: reload page with `?devtools=1`
+  (pass faction/map/seed via sessionStorage or URL search params on reload)
+- When Arena selected + Start Game: reload page with `?devtools=1&arena=1`
+- When Standard selected + Start Game: scene.start('GameScene', config) as normal
 - Default gameMode: 'standard'
 - When Arena selected: hide map/seed sections, show "Combat Sandbox" note
 - When Debug selected: show note about developer tools
@@ -1519,7 +1546,8 @@ Scope:
 Hard rules:
 - Do not change PreloadScene
 - Do not change asset loading
-- Do not change game loop or state logic
+- Do not implement late-loading (that is MENU-02)
+- Do not change GameScene game loop or state logic
 - Do not break qa:smoke (?skipMenu must still work)
 - Do not add new dependencies
 - Do not merge
@@ -1531,11 +1559,11 @@ Validation:
 - npm run qa:smoke
 
 Manual QA:
-- Start Standard from menu — no devtools panel
-- Start Debug from menu — devtools panel visible
-- Start Arena from menu — arena map, devtools panel
+- Start Standard from menu — normal launch, no devtools panel
+- Start Debug from menu — page reloads with ?devtools=1, devtools panel visible
+- Start Arena from menu — page reloads with ?devtools=1&arena=1, arena map, devtools panel
 - ?skipMenu — auto-starts with Standard mode
-- ?skipMenu&devtools=1&arena=1 — overrides to Arena mode
+- ?skipMenu&devtools=1&arena=1 — still works as before (URL overrides)
 - qa:smoke passes
 
 PR body must include:
@@ -1584,7 +1612,7 @@ Do not treat it as active implementation baseline.
 Before doing anything:
 1. Confirm active repo is ratoker-jpg/four-elements-phaser.
 2. Confirm package.json has "phaser": "4.1.0".
-3. Confirm main includes merged PR #97 / DOCS-P2-ROADMAP.
+3. Confirm main includes merged PR #98 / PHASE-2-ROADMAP-AUDIT.
 4. Read docs/project/PHASE_2_ROADMAP_AUDIT.md.
 5. If repo/version/docs/main mismatch, stop and report.
 
@@ -1684,17 +1712,15 @@ Do not treat it as active implementation baseline.
 Before doing anything:
 1. Confirm active repo is ratoker-jpg/four-elements-phaser.
 2. Confirm package.json has "phaser": "4.1.0".
-3. Confirm main includes merged PR #96 / FULL-PROJECT-AUDIT-01.
-4. Read docs/project/FULL_PROJECT_AUDIT_20260529.md.
-5. Read docs/project/PHASE_2_ROADMAP_AUDIT.md.
-6. If repo/version/docs/main mismatch, stop and report.
+3. Confirm main includes merged PR #98 / PHASE-2-ROADMAP-AUDIT.
+4. Read docs/project/PHASE_2_ROADMAP_AUDIT.md.
+5. If repo/version/docs/main mismatch, stop and report.
 
 Read first:
 - docs/project/GLM_EXECUTOR_RULES.md
 - docs/project/GPT_WORKFLOW.md
 - docs/project/PROJECT_STATE.md
 - docs/project/CURRENT_NEXT_STEP.md
-- docs/project/FULL_PROJECT_AUDIT_20260529.md
 - docs/project/PHASE_2_ROADMAP_AUDIT.md
 - src/phaser/GameScene.ts
 - src/phaser/ui/PlaytestHud.ts
@@ -1794,7 +1820,7 @@ Do not treat it as active implementation baseline.
 Before doing anything:
 1. Confirm active repo is ratoker-jpg/four-elements-phaser.
 2. Confirm package.json has "phaser": "4.1.0".
-3. Confirm main includes merged PR #97 / DOCS-P2-ROADMAP.
+3. Confirm main includes merged PR #98 / PHASE-2-ROADMAP-AUDIT.
 4. Read docs/project/PHASE_2_ROADMAP_AUDIT.md.
 5. If repo/version/docs/main mismatch, stop and report.
 
@@ -1814,20 +1840,29 @@ Context:
 The map looks like a chessboard — identical diamond tiles in a grid
 pattern. No natural variation, no visual patches, no decals.
 The Phase 2 audit recommends:
-1. Generate 5-8 terrain patch variants with cluster-based placement
-   (Perlin/simplex noise for large regions)
-2. Add 10-20 decal sprites (cracks, bumps, stones) stamped on RenderTexture
-3. Remove or make optional the grid lines drawn in GameScene
-4. Do NOT replace the RenderTexture approach
-5. Do NOT implement TilemapGPULayer
+1. If approved terrain patch variant assets already exist, integrate them.
+   If they do not exist, create asset requirements and placeholder
+   integration plan, then stop or request assets as a separate task.
+2. Update map generator to assign variants in clusters (noise-based)
+3. If approved decal sprites already exist, integrate them.
+   If they do not exist, create decal asset requirements, then stop.
+4. Remove or make optional the grid lines drawn in GameScene
+5. Do NOT replace the RenderTexture approach
+6. Do NOT implement TilemapGPULayer
+7. Do NOT generate final production PNG assets in this PR.
+   Asset generation/art production is a separate task.
 
 Goal:
 Remove the chessboard look and make terrain read as natural stylized sand.
 
 Scope:
-- Generate terrain patch variant assets (5-8 per type)
+- If terrain patch variant assets exist: integrate them (5-8 per type)
+  If not: create asset requirements doc and generator+renderer support for
+  patch variants with placeholder integration, then stop
 - Update map generator to assign variants in clusters (noise-based)
-- Add decal sprites and stamp on terrain RenderTexture after tiles
+- If decal sprites exist: add them and stamp on terrain RenderTexture after tiles
+  If not: create decal asset requirements, skip decal integration, continue
+  with generator and grid line changes
 - Remove or toggle grid lines in GameScene.drawGridLines()
 - Preserve isometric readability
 - Preserve RenderTexture caching (stamp once)
@@ -1835,6 +1870,11 @@ Scope:
 Hard rules:
 - Do not replace the RenderTexture terrain approach
 - Do not implement TilemapGPULayer
+- Do not generate final production PNG terrain/decal assets in this PR
+- Do not create low-quality final PNG assets as part of this implementation
+- Placeholder assets are allowed only if explicitly marked dev-only and
+  approved by Denis
+- If production assets do not exist, create asset requirements and stop
 - Do not break pathfinding or passability
 - Do not change game state logic
 - Do not change unit movement code
@@ -1849,9 +1889,9 @@ Validation:
 - npm run qa:smoke
 
 Manual QA:
-- Terrain reads as natural desert surface, not a grid
-- No visible tile repetition pattern
-- Decals visible on zoom
+- Terrain reads as natural desert surface, not a grid (if assets available)
+- No visible tile repetition pattern (generator clusters correct)
+- Decals visible on zoom (if assets available; otherwise decal slots ready)
 - Grid lines removed or very subtle
 - Pathfinding still works correctly
 - Performance unchanged
@@ -1902,7 +1942,7 @@ Do not treat it as active implementation baseline.
 Before doing anything:
 1. Confirm active repo is ratoker-jpg/four-elements-phaser.
 2. Confirm package.json has "phaser": "4.1.0".
-3. Confirm main includes merged PR #97 / DOCS-P2-ROADMAP.
+3. Confirm main includes merged PR #98 / PHASE-2-ROADMAP-AUDIT.
 4. Read docs/project/PHASE_2_ROADMAP_AUDIT.md.
 5. If repo/version/docs/main mismatch, stop and report.
 
@@ -1986,8 +2026,8 @@ Report notification status in the final summary:
 
 ### Menu mode selection
 - [ ] Standard mode selectable from NewGameSetupScene
-- [ ] Debug mode selectable — devtools panel appears
-- [ ] Arena mode selectable — arena map loads
+- [ ] Debug mode selectable — page reloads with ?devtools=1, devtools panel appears
+- [ ] Arena mode selectable — page reloads with ?devtools=1&arena=1, arena map loads
 - [ ] URL shortcuts (?devtools=1, ?arena=1, ?skipMenu) still work
 
 ### Standard game launch
@@ -2020,10 +2060,10 @@ Report notification status in the final summary:
 - [ ] ESC toggles pause menu
 
 ### Terrain visual review
-- [ ] Terrain reads as natural desert, not chessboard
+- [ ] Terrain reads as natural desert, not chessboard (if production assets available)
 - [ ] No visible grid pattern
-- [ ] Terrain patches have natural clusters
-- [ ] Decals (cracks, stones) visible
+- [ ] Terrain patches have natural clusters (generator logic correct)
+- [ ] Decals (cracks, stones) visible (if production assets available)
 - [ ] Grid lines removed or very subtle
 
 ### Base grounding
@@ -2088,6 +2128,7 @@ Report notification status in the final summary:
 14. **No package dependency changes** — only with separate approval.
 15. **No combat implementation** — visual design and arena test only.
 16. **No faction-aware loading** — premature per PHASER4-LOAD-01.
+17. **No final production PNG asset generation in code PRs** — if production terrain/decal/unit assets do not already exist, create asset requirements and request a separate asset task. Asset generation/art production must not be hidden inside code implementation PRs.
 
 ---
 
