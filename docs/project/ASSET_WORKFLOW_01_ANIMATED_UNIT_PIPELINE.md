@@ -26,7 +26,7 @@ Without this pipeline, unit regeneration risks the same class of bugs that affec
 - **Column layout**: Column 0 = idle, Columns 1-7 = walk cycle frames
 - **Asset key**: `harvester_{faction}` (e.g., `harvester_cyan`)
 - **Load type**: spritesheet with `frameConfig: { frameWidth: 256, frameHeight: 256, endFrame: 63 }`
-- **Origin**: `(0.5, 0.75)` — bottom-center of frame
+- **Origin**: `(0.5, 0.75)` — ground contact point at 75% from top, centered horizontally (pixel anchor: 128, 192)
 - **Render scale**: `HARVESTER_RENDER_SCALE` = (41 / 256) x 1.30 = ~0.208
 - **Animation Manager**: Fully integrated (PHASER4-ANIM-02). 64 animation keys registered: 4 factions x 2 states (idle/move) x 8 directions
 - **Animation key pattern**: `harvester_{faction}_{state}_{dir}` (e.g., `harvester_cyan_move_s`)
@@ -39,7 +39,7 @@ Without this pipeline, unit regeneration risks the same class of bugs that affec
 - **Sheet**: Same layout as harvester (2048x2048, 8x8, 256x256)
 - **Asset key**: `builder_{faction}` (e.g., `builder_green`)
 - **Load type**: spritesheet with same frameConfig
-- **Origin**: `(0.5, 0.75)` — bottom-center of frame
+- **Origin**: `(0.5, 0.75)` — ground contact point at 75% from top, centered horizontally (pixel anchor: 128, 192)
 - **Render scale**: `BUILDER_RENDER_SCALE` = (40 / 256) x 1.45 = ~0.227
 - **Animation Manager**: NOT yet integrated. Still uses `setFrame(dirIndex * 8 + 0)` for manual direction indexing in ConstructionRenderer
 - **Missing states**: No build/work animation frames. Build phase shows idle frame.
@@ -271,9 +271,23 @@ Where:
 | Harvester | 4 | 8 | 8 | 32 | 8 | 2048 x 8192 px |
 | Builder | 3 | 8 | 8 | 24 | 8 | 2048 x 6144 px |
 
-**Important**: The harvester sheet grows from 2048x2048 to 2048x8192 because it now has 4 state blocks x 8 directions = 32 rows instead of 8. This is still a single texture load per faction. Phaser handles non-square spritesheets without issue.
+**Important**: The harvester sheet grows from 2048x2048 to 2048x8192 because it now has 4 state blocks x 8 directions = 32 rows instead of 8. 2048x8192 is a **candidate single-sheet layout**, but it is NOT guaranteed safe across all browser/mobile/WebGL environments. Some devices have a maximum texture size of 4096px per dimension; even where 8192px is supported, the memory cost of a 2048x8192 RGBA texture (~64 MB uncompressed per faction) may be prohibitive on mobile.
 
-If memory is a concern, the sheet can be split into per-state spritesheets (e.g., `harvester_8d_idle_256.png`, `harvester_8d_move_256.png`), but this adds loader complexity. The single-sheet model is preferred for simplicity unless performance measurement shows a problem.
+**Pipeline rule**: Before runtime integration, UNIT-ANIM-01 **must** verify Phaser/WebGL `maxTextureSize` and practical memory behavior on target devices. If the maximum texture size or memory is a concern, split the sheet into per-state spritesheets.
+
+**Per-state fallback naming convention** (used if single-sheet is too large):
+
+```text
+harvester_idle_8d_256.png
+harvester_move_8d_256.png
+harvester_gather_8d_256.png
+harvester_unload_8d_256.png
+builder_idle_8d_256.png
+builder_move_8d_256.png
+builder_build_8d_256.png
+```
+
+Each per-state sheet is 2048x2048 (8 direction rows x 8 columns), well within all device limits. The per-state fallback adds loader complexity (multiple texture loads per unit type) but is a safe fallback that must be documented and implemented if the single-sheet approach fails validation.
 
 ### 5.5 Backward compatibility during transition
 
@@ -342,15 +356,17 @@ Direction is computed from tile-space movement delta via `directionFromDelta(dtx
 
 ### 7.1 Standard frame counts
 
-| State | Frames per direction (including keyframe) | Keyframe column | Animation columns |
-|-------|-------------------------------------------|-----------------|-------------------|
-| idle | 1 | 0 | none (static) |
-| move | 7 | 0 | 1-6 |
-| gather | 7 | 0 | 1-6 |
-| unload | 7 | 0 | 1-6 |
-| build | 7 | 0 | 1-6 |
+| State | Total frames per direction row | Keyframe column | Animation columns |
+|-------|-------------------------------|-----------------|-------------------|
+| idle | 8 (only column 0 used) | 0 | none (static) |
+| move | 8 | 0 | 1-7 |
+| gather | 8 | 0 | 1-7 |
+| unload | 8 | 0 | 1-7 |
+| build | 8 | 0 | 1-7 |
 
-**Note**: The move/gather/unload/build states use 7 animation frames (columns 1-7) after the keyframe at column 0. Column 0 in non-idle states is the standing/ready pose for that state — it is included in the animation frame range but the animation definition may or may not include it depending on visual feel. The current harvester move animation excludes column 0 from the walk cycle (using frames 1-7), which produces smoother movement. This decision is per-animation and may be tuned.
+**Consistent model**: Every direction row has exactly 8 columns. Column 0 is the keyframe / primary pose. Columns 1-7 are the 7 animation frames. Idle uses only column 0 (the remaining 7 columns in idle rows are empty/transparent). Move/gather/unload/build playback uses columns 1-7 by default.
+
+Column 0 in non-idle states is the standing/ready pose for that state — it is included in the spritesheet but the animation definition may or may not include it depending on visual feel. The current harvester move animation excludes column 0 from the walk cycle (using frames 1-7), which produces smoother movement. This decision is per-animation and may be tuned.
 
 **Total frames per direction row**: 8 (1 keyframe + 7 animation frames). This preserves the current 8-column grid.
 
@@ -447,7 +463,7 @@ This means the civil unit animation pipeline must produce spritesheets that are 
 
 Civil and combat unit spritesheets will NOT interleave states within rows. Each state gets its own contiguous block of 8 direction rows. This keeps frame indexing simple and predictable, at the cost of larger sheet sizes. The tradeoff is acceptable because:
 
-- Modern GPUs handle 2048x8192 textures without issue.
+- Large sheet sizes can be mitigated by splitting into per-state spritesheets (see section 5.4 for the fallback naming convention). The single-sheet layout is a candidate, not a guarantee.
 - The loader only fetches textures that are needed (civil units always, modular units only in debug/arena).
 - Simple indexing reduces bugs in both the asset processor and runtime Animation Manager registration.
 
@@ -457,13 +473,13 @@ Civil and combat unit spritesheets will NOT interleave states within rows. Each 
 
 ### 11.1 Origin point
 
-All unit sprites use origin `(0.5, 0.75)` — this is the **bottom-center** of the 256x256 frame.
+All unit sprites use origin `(0.5, 0.75)` — this is the **ground contact point** at 75% from the top of the frame, centered horizontally. The pixel anchor position is (128, 192) for a 256x256 frame. This is NOT the frame bottom — bottom-center would be (0.5, 1.0).
 
 ```typescript
 sprite.setOrigin(0.5, 0.75);
 ```
 
-**Why 0.75 and not 1.0?** The bottom 25% of the frame (rows 192-255) is reserved for the unit's "shadow pad" — a transparent area that provides consistent visual spacing between the unit's feet and the bottom of the frame. At 0.75, the anchor point sits at the visual contact point between the unit's feet and the ground, which aligns with the tile ground position from `tileToScreen()`.
+**Why 0.75 and not 1.0?** The lower 25% of the frame (rows 192-255) is transparent safety/spacing area below the unit's feet. It is NOT part of the visible unit. The anchor at (0.5, 0.75) places the origin at the visual contact point between the unit's feet and the ground, which aligns with the tile ground position from `tileToScreen()`. Using 1.0 would place the anchor at the frame's absolute bottom edge, which would cause the unit to float above the tile because the transparent safety area would push the sprite upward.
 
 ### 11.2 Anchor must be consistent across all frames
 
@@ -909,6 +925,14 @@ Scope:
 - Ensure backward compatibility with existing Animation Manager keys
   (idle and move keys must still work during transition)
 
+Texture size gate (section 5.4):
+- Before committing to a single 2048x8192 spritesheet, verify that
+  Phaser/WebGL maxTextureSize on target devices supports 8192px height.
+- If maxTextureSize < 8192 or memory is a concern, split into per-state
+  sheets using the naming convention in section 5.4
+  (harvester_idle_8d_256.png, harvester_move_8d_256.png, etc.).
+- Document the decision (single-sheet vs. per-state split) in the PR body.
+
 Hard rules:
 - Do not change builder rendering or ConstructionRenderer.
 - Do not change gameplay movement/pathfinding/state logic.
@@ -964,7 +988,7 @@ PR body must include:
 | Frame size | 256x256 px | Current standard, unchanged |
 | Frames per direction row | 8 (1 keyframe + 7 animation frames) | Preserves current 8-column grid |
 | Per-faction or one atlas | One spritesheet per faction | Current model, avoids runtime compositing complexity |
-| Origin/anchor | (0.5, 0.75) | Bottom-center, current standard, consistent grounding |
+| Origin/anchor | (0.5, 0.75) | Ground contact point at 75% from top; pixel anchor (128, 192); lower 25% is transparent safety area |
 | File naming | `{unitType}_{dirs}d_{states}s_{framePx}.png` | Encodes layout in filename for processor/runtime clarity |
 | Animation key pattern | `{unitType}_{faction}_{state}_{dir}` | Current working pattern, extended with new state labels |
 | Harvester states | idle, move, gather, unload | 4 states, 8 directions, 4 factions = 128 animation keys |
