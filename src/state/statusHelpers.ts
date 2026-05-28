@@ -42,6 +42,7 @@ import {
   HARVESTER_PRODUCTION_MATTER_COST,
   HARVESTER_PRODUCTION_ELEMENT_COST,
   QUEUE_LIMIT,
+  DEFAULT_UNIT_CAP,
 } from './types';
 import { BUILDING_CONFIG } from './construction';
 
@@ -119,7 +120,8 @@ export type FactoryStatus =
   | 'blocked-no-matter'
   | 'blocked-no-element'
   | 'blocked-queue-full'
-  | 'blocked-power';
+  | 'blocked-power'
+  | 'blocked-unit-cap';
 
 /**
  * Derive the status of a units-factory from current game state.
@@ -176,6 +178,11 @@ export function getFactoryStatus(
     }
   }
 
+  // Check unit cap (if we were to produce another unit, would cap be hit?)
+  if (getUnitCount(state) >= getUnitCap(state)) {
+    return 'blocked-unit-cap';
+  }
+
   // Factory has room in queue and no active item — idle
   return 'idle';
 }
@@ -221,7 +228,8 @@ export type ProductionBlockReason =
   | 'no-factory'
   | 'queue-full'
   | 'insufficient-matter'
-  | 'insufficient-element';
+  | 'insufficient-element'
+  | 'unit-cap-reached';
 
 /**
  * Derive the reason a production button is disabled.
@@ -262,7 +270,26 @@ export function getProductionBlockReason(
     return 'insufficient-element';
   }
 
+  // Check unit cap
+  if (getUnitCount(state) >= getUnitCap(state)) {
+    return 'unit-cap-reached';
+  }
+
   return null;
+}
+
+// ─── Unit cap helpers (FIX-03) ─────────────────────────────────────────
+
+/** Count current player civil units (builders + harvesters). */
+export function getUnitCount(state: GameState): number {
+  return state.mapData.builders.length + state.harvesters.length;
+}
+
+/** Get the current unit cap for the player. Sandbox MVP: fixed DEFAULT_UNIT_CAP. */
+export function getUnitCap(state: GameState): number {
+  // Sandbox MVP: fixed cap. Future: command-relay buildings may add to cap.
+  void state; // used for future building-based cap
+  return DEFAULT_UNIT_CAP;
 }
 
 // ─── Internal helpers ───────────────────────────────────────────────
@@ -426,6 +453,7 @@ export function factoryStatusLabel(status: FactoryStatus): string {
     case 'blocked-no-element': return 'No Element';
     case 'blocked-queue-full': return 'Queue Full';
     case 'blocked-power': return 'No Power';
+    case 'blocked-unit-cap': return 'Unit Cap';
   }
 }
 
@@ -444,5 +472,6 @@ export function productionBlockLabel(reason: ProductionBlockReason): string {
     case 'queue-full': return 'Queue Full';
     case 'insufficient-matter': return 'No Matter';
     case 'insufficient-element': return 'No Element';
+    case 'unit-cap-reached': return 'Unit Cap';
   }
 }

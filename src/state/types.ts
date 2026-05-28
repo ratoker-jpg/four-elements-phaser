@@ -338,6 +338,11 @@ export const MATTER_STORAGE_MATTER_BONUS = 200;
 /** Element cap bonus per matter-storage building (in elementUnits). */
 export const MATTER_STORAGE_ELEMENT_BONUS = 200;
 
+// ─── Unit Cap Constants (FIX-03) ──────────────────────────────────────
+
+/** Default maximum number of player civil units (builders + harvesters). */
+export const DEFAULT_UNIT_CAP = 10;
+
 // ─── Economy State (ARCH-01B) ──────────────────────────────────────
 
 /** Player economy state — pure data, no methods, no Phaser. */

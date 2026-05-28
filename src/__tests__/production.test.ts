@@ -24,6 +24,7 @@ import {
   HQ_BASE_POWER,
   SEPARATOR_ACTIVE_POWER_CONSUMPTION,
   UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION,
+  DEFAULT_UNIT_CAP,
 } from '../state/types';
 import { BUILDING_CONFIG } from '../state/construction';
 
@@ -681,6 +682,164 @@ describe('ARCH-01F: queue limit', () => {
     expect(result3.ok).toBe(false);
     if (!result3.ok) {
       expect(result3.reason).toBe('queue-full');
+    }
+  });
+});
+
+// ─── Unit cap enforcement (FIX-03) ─────────────────────────────────
+
+describe('FIX-03: unit cap enforcement', () => {
+  it('DEFAULT_UNIT_CAP is 10', () => {
+    expect(DEFAULT_UNIT_CAP).toBe(10);
+  });
+
+  it('startUnitProduction fails with unit-cap-reached when unit count equals cap', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+
+    // Fill up to cap with builders and harvesters
+    for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    const result = startUnitProduction(state, 10, 10, 'builder');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('unit-cap-reached');
+    }
+  });
+
+  it('startUnitProduction fails with unit-cap-reached when unit count exceeds cap', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+
+    // Add 11 builders (1 more than cap)
+    for (let i = 0; i < DEFAULT_UNIT_CAP + 1; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    const result = startUnitProduction(state, 10, 10, 'harvester');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('unit-cap-reached');
+    }
+  });
+
+  it('startUnitProduction succeeds when unit count is below cap', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+
+    // Add 9 units (1 below cap of 10)
+    for (let i = 0; i < 9; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    const result = startUnitProduction(state, 10, 10, 'builder');
+    expect(result.ok).toBe(true);
+  });
+
+  it('startUnitProduction counts both builders and harvesters toward cap', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+
+    // Add 5 builders and 5 harvesters = 10 = cap
+    for (let i = 0; i < 5; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+    for (let i = 0; i < 5; i++) {
+      state.harvesters.push({
+        id: `h-cap-${i}`,
+        ftx: 15 + i, fty: 5,
+        faction: 'cyan',
+        phase: 'idle',
+        targetResourceId: null,
+        cargoRaw: 0,
+        cargoCapacity: 20,
+        gatherTimer: 0,
+        unloadTimer: 0,
+        speedTilesPerSecond: 2.5,
+      });
+    }
+
+    const result = startUnitProduction(state, 10, 10, 'builder');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('unit-cap-reached');
+    }
+  });
+
+  it('unit-cap-rejected production does not deduct resources', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+
+    // Fill cap
+    for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    const matterBefore = state.economy.matter;
+    const elementBefore = state.economy.elements.cyan;
+
+    const result = startUnitProduction(state, 10, 10, 'builder');
+    expect(result.ok).toBe(false);
+
+    // Resources should not be deducted
+    expect(state.economy.matter).toBe(matterBefore);
+    expect(state.economy.elements.cyan).toBe(elementBefore);
+    expect(state.production.factories[0].queue.length).toBe(0);
+  });
+
+  it('unit cap check comes after element check but before cost deduction', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 3 });
+
+    // Fill cap
+    for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
+      state.mapData.builders.push({
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    // Both insufficient-element and unit-cap-reached apply,
+    // but insufficient-element is checked first
+    const result = startUnitProduction(state, 10, 10, 'builder');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('insufficient-element');
     }
   });
 });

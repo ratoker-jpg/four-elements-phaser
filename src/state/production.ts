@@ -32,6 +32,7 @@ import {
   HARVESTER_PRODUCTION_MATTER_COST,
   HARVESTER_PRODUCTION_ELEMENT_COST,
   HARVESTER_PRODUCTION_DURATION_MS,
+  DEFAULT_UNIT_CAP,
 } from './types';
 
 // ─── Public types ──────────────────────────────────────────────────
@@ -42,6 +43,7 @@ export type ProductionRejectionReason =
   | 'queue-full'
   | 'insufficient-matter'
   | 'insufficient-element'
+  | 'unit-cap-reached'
   | 'unsupported-unit-type';
 
 /** Result of a startUnitProduction call. */
@@ -124,11 +126,17 @@ export function startUnitProduction(
     return { ok: false, reason: 'insufficient-element' };
   }
 
-  // 5. Deduct costs
+  // 5. Check unit cap — block queueing if already at cap
+  const currentUnitCount = state.mapData.builders.length + state.harvesters.length;
+  if (currentUnitCount >= DEFAULT_UNIT_CAP) {
+    return { ok: false, reason: 'unit-cap-reached' };
+  }
+
+  // 6. Deduct costs
   state.economy.matter -= matterCost;
   state.economy.elements[state.playerFaction] -= elementCost;
 
-  // 6. Create queue item
+  // 7. Create queue item
   const durationMs = getProductionDuration(unitType);
   factory.queue.push({
     unitType,
