@@ -382,14 +382,23 @@ export class AssetPreviewPanel {
 
     const files = Array.from(fileInput.files);
     let uploaded = 0;
+    let lastFailedName: string | null = null;
     for (const file of files) {
       const entry = await tool.uploadFile(file, this.currentChromaKey);
       if (entry) {
         uploaded++;
+      } else {
+        lastFailedName = file.name || '(unknown)';
       }
     }
 
-    this.showStatus(`Uploaded ${uploaded}/${files.length} file(s)`, uploaded > 0);
+    if (uploaded === files.length) {
+      this.showStatus(`Uploaded ${uploaded}/${files.length} file(s)`, true);
+    } else if (uploaded > 0) {
+      this.showStatus(`Uploaded ${uploaded}/${files.length} file(s) — "${lastFailedName}" failed, check console`, false);
+    } else {
+      this.showStatus(`Upload failed: "${lastFailedName}" — check console`, false);
+    }
     this.refresh();
 
     // Reset the file input so the same file can be re-uploaded
