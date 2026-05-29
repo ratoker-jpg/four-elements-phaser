@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TILE_W, TILE_H } from '../../config/worldConfig';
 import { tileToScreen, mapOriginOffset, IsoPoint } from './isometric';
 import type { TerrainType } from '../../state/types';
-import { applyTerrainSmoothing, computeTerrainTint, terrainTileHash } from '../../state/terrainClustering';
+import { applyTerrainSmoothing, computeTerrainTint } from '../../state/terrainClustering';
 
 /**
  * TERRAIN-02A: Asset key mapping for the 6-variant 256×128 sand tile family.
@@ -33,53 +33,6 @@ const TERRAIN_STAMP_CONFIG: Phaser.Types.Textures.StampConfig = {
 };
 
 /**
- * TERRAIN-02A: Deterministic detail variant assignment for the base 'sand' type.
- *
- * After smoothing, tiles with base type 'sand' may be assigned one of the
- * detail variants (ripple, pebble, cracked) based on a deterministic hash
- * of their coordinates. This breaks up visual repetition without requiring
- * rotation or random placement.
- *
- * Weight distribution:
- * - clean (sand):    60% — dominant base
- * - light:           12% — subtle brightness variation
- * - dark:            10% — subtle darkness variation
- * - ripple:          10% — ripple texture accent
- * - pebble:           4% — pebble texture accent
- * - cracked:          4% — cracked texture accent
- *
- * Only tiles with baseType 'sand' are considered for variant assignment;
- * sand-light and sand-dark patches retain their type.
- *
- * @param tx - Tile X coordinate
- * @param ty - Tile Y coordinate
- * @param baseType - The terrain type after smoothing (before variant assignment)
- * @param hash - Pre-computed terrain tile hash for this position
- * @returns The final TerrainType to use for rendering
- */
-function assignDetailVariant(_tx: number, _ty: number, baseType: TerrainType, hash: number): TerrainType {
-  // Only assign detail variants to base 'sand' tiles
-  if (baseType !== 'sand') return baseType;
-
-  // Use the lower 10 bits of the hash for a 0–1023 range
-  const roll = (hash & 0x3FF); // 0–1023
-
-  // Weight thresholds (out of 1024):
-  // clean:  0–614   (60.0%)
-  // light:  615–737 (12.0%)
-  // dark:   738–839 (10.0%)
-  // ripple: 840–941 (10.0%)
-  // pebble: 942–982 ( 4.0%)
-  // cracked:983–1023( 4.0%)
-  if (roll < 615) return 'sand';
-  if (roll < 738) return 'sand-light';
-  if (roll < 840) return 'sand-dark';
-  if (roll < 942) return 'sand-ripple';
-  if (roll < 983) return 'sand-pebble';
-  return 'sand-cracked';
-}
-
-/**
  * TerrainRenderer — renders the full isometric terrain onto a RenderTexture.
  *
  * Receives terrain data from GameState (not hardcoded).
@@ -91,8 +44,12 @@ function assignDetailVariant(_tx: number, _ty: number, baseType: TerrainType, ha
  * requiring new asset files. The smoothing is visual-only — the
  * original terrain data in MapData is not modified.
  *
- * TERRAIN-02A: Uses the 6-variant 256×128 sand tile family with
- * deterministic detail variant assignment for repetition reduction.
+ * TERRAIN-02A: Uses the 6-variant 256×128 sand tile family.
+ * Terrain variant selection (which tile gets which detail variant)
+ * is the responsibility of map generation (generatedMap.ts), NOT
+ * the renderer. The renderer only maps TerrainType → asset key
+ * and stamps it with per-tile tint for visual variety. This ensures
+ * MapData terrain state matches rendered terrain.
  * The 256×128 source tiles are uniformly scaled to the 76×38
  * isometric cell size (scale factor 0.296875).
  */
@@ -135,6 +92,8 @@ export class TerrainRenderer {
     // operation — the original MapData terrain is not modified.
     const smoothedTerrain = applyTerrainSmoothing(terrainMap, 2);
 
+    // TERRAIN-02A: Variant selection is done in map generation (generatedMap.ts),
+    // not here. The renderer only maps TerrainType → asset key + tint.
     this.stampTerrainTiles(smoothedTerrain);
     this.renderTexture.render();
   }
@@ -142,15 +101,11 @@ export class TerrainRenderer {
   private stampTerrainTiles(terrainMap: TerrainType[][]): void {
     for (let ty = 0; ty < terrainMap.length; ty++) {
       for (let tx = 0; tx < terrainMap[ty].length; tx++) {
-        const baseType = terrainMap[ty][tx];
+        const terrainType = terrainMap[ty][tx];
 
-        // TERRAIN-02A: Deterministic detail variant selection for base 'sand' type.
-        // After smoothing, 'sand' tiles may be assigned a detail variant
-        // (ripple/pebble/cracked/light/dark) based on a deterministic hash,
-        // breaking up visual repetition without rotation.
-        const hash = terrainTileHash(tx, ty);
-        const terrainType = assignDetailVariant(tx, ty, baseType, hash);
-
+        // TERRAIN-02A: The renderer is a pure mapping layer — TerrainType → asset key.
+        // Variant selection happens in map generation (generatedMap.ts), not here.
+        // This ensures MapData terrain state matches what is rendered.
         const assetKey = TERRAIN_KEY_MAP[terrainType];
         const screenPos = tileToScreen(tx, ty);
         const worldX = screenPos.x + this.offset.x;
@@ -159,7 +114,8 @@ export class TerrainRenderer {
         // TERRAIN-02A: Per-tile deterministic tint for visual variation.
         // Uses a fast hash of tile coordinates to produce subtle color
         // shifts (within ±8% of neutral) that break up visual repetition
-        // of identical textures without requiring new asset files.
+        // of identical textures. Tint is visual-only — it does NOT change
+        // the TerrainType in MapData.
         const tint = computeTerrainTint(tx, ty, terrainType);
 
         const stampConfig: Phaser.Types.Textures.StampConfig = {
