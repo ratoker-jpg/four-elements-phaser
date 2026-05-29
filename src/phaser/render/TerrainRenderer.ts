@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TILE_W, TILE_H } from '../../config/worldConfig';
 import { tileToScreen, mapOriginOffset, IsoPoint } from './isometric';
 import type { TerrainType } from '../../state/types';
-import { applyTerrainSmoothing, computeTerrainTint } from '../../state/terrainClustering';
+import { computeTerrainTint } from '../../state/terrainClustering';
 
 /**
  * TERRAIN-02A: Asset key mapping for the 6-variant 256×128 sand tile family.
@@ -33,23 +33,21 @@ const TERRAIN_STAMP_CONFIG: Phaser.Types.Textures.StampConfig = {
 };
 
 /**
- * TerrainRenderer — renders the full isometric terrain onto a RenderTexture.
+ * TerrainRenderer — pure mapping layer that renders isometric terrain onto a RenderTexture.
  *
  * Receives terrain data from GameState (not hardcoded).
  * Creates a static RenderTexture that the camera scrolls over.
  *
- * TERRAIN-01: Applies visual smoothing to merge isolated single-tile
- * terrain variants into larger clusters, and adds deterministic
- * per-tile tint variation to reduce visual repetition without
- * requiring new asset files. The smoothing is visual-only — the
- * original terrain data in MapData is not modified.
+ * The renderer does NOT modify terrain types. It is a pure mapping layer:
+ * TerrainType → asset key → stamp with per-tile tint. This ensures
+ * MapData terrain state matches rendered terrain (tint is visual-only).
+ *
+ * Variant selection and any terrain shaping happen in map generation
+ * (generatedMap.ts), not here. The renderer's only job is to map each
+ * TerrainType to the correct 256×128 texture and stamp it at the right
+ * isometric position with subtle per-tile tint variation.
  *
  * TERRAIN-02A: Uses the 6-variant 256×128 sand tile family.
- * Terrain variant selection (which tile gets which detail variant)
- * is the responsibility of map generation (generatedMap.ts), NOT
- * the renderer. The renderer only maps TerrainType → asset key
- * and stamps it with per-tile tint for visual variety. This ensures
- * MapData terrain state matches rendered terrain.
  * The 256×128 source tiles are uniformly scaled to the 76×38
  * isometric cell size (scale factor 0.296875).
  */
@@ -87,14 +85,10 @@ export class TerrainRenderer {
     this.renderTexture.setOrigin(0, 0);
     this.renderTexture.setDepth(0);
 
-    // TERRAIN-01: Apply visual smoothing to create larger clusters
-    // from scattered single-tile variants. This is a visual-only
-    // operation — the original MapData terrain is not modified.
-    const smoothedTerrain = applyTerrainSmoothing(terrainMap, 2);
-
-    // TERRAIN-02A: Variant selection is done in map generation (generatedMap.ts),
-    // not here. The renderer only maps TerrainType → asset key + tint.
-    this.stampTerrainTiles(smoothedTerrain);
+    // The renderer is a pure mapping layer — it stamps the terrain map
+    // directly without modifying any terrain types. MapData terrain state
+    // matches rendered terrain (tint is visual-only).
+    this.stampTerrainTiles(terrainMap);
     this.renderTexture.render();
   }
 

@@ -275,6 +275,22 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
         expect(map1.terrain).toEqual(map2.terrain);
       }
     });
+
+    it('detail variants (ripple, pebble, cracked) survive into final generated terrain', () => {
+      // Since the renderer no longer applies smoothing, detail variants
+      // placed by generatedMap.ts must survive intact into the MapData
+      // that gets rendered. This test verifies that the generated terrain
+      // actually contains detail variants and they are not lost.
+      const map = createGeneratedMapData('detail-survival', 'large');
+      const flatTerrain = map.terrain.flat();
+      const rippleCount = flatTerrain.filter(t => t === 'sand-ripple').length;
+      const pebbleCount = flatTerrain.filter(t => t === 'sand-pebble').length;
+      const crackedCount = flatTerrain.filter(t => t === 'sand-cracked').length;
+      // Each detail variant should be present (>0) in a large map
+      expect(rippleCount).toBeGreaterThan(0);
+      expect(pebbleCount).toBeGreaterThan(0);
+      expect(crackedCount).toBeGreaterThan(0);
+    });
   });
 
   // ── Terrain readability (ARCH-08B) ─────────────────────────────
