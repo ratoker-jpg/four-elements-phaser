@@ -79,9 +79,9 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.families.resources).toBeDefined();
   });
 
-  it('has 106 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits + 3 terrain + 3 resources)', () => {
+  it('has 109 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits + 6 terrain + 3 resources)', () => {
     const keys = Object.keys(GENERATED_ASSET_MANIFEST.paths);
-    expect(keys).toHaveLength(106);
+    expect(keys).toHaveLength(109);
   });
 
   it('has 4 HQ keys', () => {
@@ -100,8 +100,8 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.families.modularUnits.keys).toHaveLength(64);
   });
 
-  it('has 3 terrain keys', () => {
-    expect(GENERATED_ASSET_MANIFEST.families.terrain.keys).toHaveLength(3);
+  it('has 6 terrain keys', () => {
+    expect(GENERATED_ASSET_MANIFEST.families.terrain.keys).toHaveLength(6);
   });
 
   it('has 3 resources keys', () => {
@@ -156,11 +156,15 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.families.resources.enabled).toBe(true);
   });
 
-  it('terrain keys match legacy ASSET_KEYS values', () => {
+  it('terrain keys match TERRAIN-02A 256×128 asset keys', () => {
     const terrainKeys = GENERATED_ASSET_MANIFEST.families.terrain.keys;
-    expect(terrainKeys).toContain('terrain_sand');
-    expect(terrainKeys).toContain('terrain_sand_dark');
-    expect(terrainKeys).toContain('terrain_sand_light');
+    // TERRAIN-02A: 6-variant 256×128 sand tile family
+    expect(terrainKeys).toContain('terrain_sand_clean_256x128');
+    expect(terrainKeys).toContain('terrain_sand_dark_256x128');
+    expect(terrainKeys).toContain('terrain_sand_light_256x128');
+    expect(terrainKeys).toContain('terrain_sand_ripple_256x128');
+    expect(terrainKeys).toContain('terrain_sand_pebble_256x128');
+    expect(terrainKeys).toContain('terrain_sand_cracked_256x128');
   });
 
   it('resources keys match legacy ASSET_KEYS values', () => {
@@ -178,10 +182,15 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(muKeys).toContain('smoky_m0_turret_purple_dir7');
   });
 
-  it('terrain and resource paths match legacy ASSET_PATHS values', () => {
-    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand']).toBe('assets/tiles/sand_tile.png');
-    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand_dark']).toBe('assets/tiles/sand_tile_dark.png');
-    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand_light']).toBe('assets/tiles/sand_tile_light.png');
+  it('terrain and resource paths match TERRAIN-02A 256×128 paths', () => {
+    // TERRAIN-02A: 6-variant 256×128 sand tile family
+    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand_clean_256x128']).toBe('assets/tiles/terrain_sand_clean_256x128.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand_dark_256x128']).toBe('assets/tiles/terrain_sand_dark_256x128.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand_light_256x128']).toBe('assets/tiles/terrain_sand_light_256x128.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand_ripple_256x128']).toBe('assets/tiles/terrain_sand_ripple_256x128.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand_pebble_256x128']).toBe('assets/tiles/terrain_sand_pebble_256x128.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['terrain_sand_cracked_256x128']).toBe('assets/tiles/terrain_sand_cracked_256x128.png');
+    // Resources unchanged
     expect(GENERATED_ASSET_MANIFEST.paths['mineral_small']).toBe('assets/environment/mineral_small_02.png');
     expect(GENERATED_ASSET_MANIFEST.paths['mineral_medium']).toBe('assets/environment/mineral_medium_02.png');
     expect(GENERATED_ASSET_MANIFEST.paths['mineral_large']).toBe('assets/environment/mineral_large_02.png');
@@ -594,14 +603,17 @@ describe('PreloadScene integration', () => {
     try {
       const loadedKeys = loadGeneratedTerrainAndResourceAssets(mock.scene as any);
 
-      // 3 terrain + 3 resources = 6
-      expect(loadedKeys).toHaveLength(6);
-      expect(mock.loadImageCalls).toHaveLength(6);
+      // TERRAIN-02A: 6 terrain + 3 resources = 9
+      expect(loadedKeys).toHaveLength(9);
+      expect(mock.loadImageCalls).toHaveLength(9);
 
-      // Must include all terrain keys matching legacy ASSET_KEYS
-      expect(loadedKeys).toContain('terrain_sand');
-      expect(loadedKeys).toContain('terrain_sand_dark');
-      expect(loadedKeys).toContain('terrain_sand_light');
+      // Must include all terrain keys matching TERRAIN-02A 256×128 family
+      expect(loadedKeys).toContain('terrain_sand_clean_256x128');
+      expect(loadedKeys).toContain('terrain_sand_dark_256x128');
+      expect(loadedKeys).toContain('terrain_sand_light_256x128');
+      expect(loadedKeys).toContain('terrain_sand_ripple_256x128');
+      expect(loadedKeys).toContain('terrain_sand_pebble_256x128');
+      expect(loadedKeys).toContain('terrain_sand_cracked_256x128');
 
       // Must include all resource keys matching legacy ASSET_KEYS
       expect(loadedKeys).toContain('mineral_small');

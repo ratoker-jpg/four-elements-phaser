@@ -6,11 +6,18 @@
  */
 
 export const ASSET_KEYS = {
-  // Terrain (3 legacy tiles — now loaded from generated manifest via loadGeneratedTerrainAndResourceAssets)
+  // Terrain (legacy 3-tile keys — kept for backward compat, TERRAIN-02A uses generated manifest)
   // @deprecated Use GENERATED_ASSET_MANIFEST.families.terrain.keys instead
   TERRAIN_SAND: 'terrain_sand',
   TERRAIN_SAND_DARK: 'terrain_sand_dark',
   TERRAIN_SAND_LIGHT: 'terrain_sand_light',
+  // TERRAIN-02A new 256×128 keys (loaded via generated manifest)
+  TERRAIN_SAND_CLEAN: 'terrain_sand_clean_256x128',
+  TERRAIN_SAND_DARK_256: 'terrain_sand_dark_256x128',
+  TERRAIN_SAND_LIGHT_256: 'terrain_sand_light_256x128',
+  TERRAIN_SAND_RIPPLE: 'terrain_sand_ripple_256x128',
+  TERRAIN_SAND_PEBBLE: 'terrain_sand_pebble_256x128',
+  TERRAIN_SAND_CRACKED: 'terrain_sand_cracked_256x128',
 
   // Buildings
   HQ_CYAN: 'hq_cyan',
@@ -39,6 +46,13 @@ export const ASSET_PATHS: Record<AssetKey, string> = {
   [ASSET_KEYS.TERRAIN_SAND]: 'assets/tiles/sand_tile.png',
   [ASSET_KEYS.TERRAIN_SAND_DARK]: 'assets/tiles/sand_tile_dark.png',
   [ASSET_KEYS.TERRAIN_SAND_LIGHT]: 'assets/tiles/sand_tile_light.png',
+  // TERRAIN-02A: 256×128 terrain tile paths (also in GENERATED_ASSET_MANIFEST.paths)
+  [ASSET_KEYS.TERRAIN_SAND_CLEAN]: 'assets/tiles/terrain_sand_clean_256x128.png',
+  [ASSET_KEYS.TERRAIN_SAND_DARK_256]: 'assets/tiles/terrain_sand_dark_256x128.png',
+  [ASSET_KEYS.TERRAIN_SAND_LIGHT_256]: 'assets/tiles/terrain_sand_light_256x128.png',
+  [ASSET_KEYS.TERRAIN_SAND_RIPPLE]: 'assets/tiles/terrain_sand_ripple_256x128.png',
+  [ASSET_KEYS.TERRAIN_SAND_PEBBLE]: 'assets/tiles/terrain_sand_pebble_256x128.png',
+  [ASSET_KEYS.TERRAIN_SAND_CRACKED]: 'assets/tiles/terrain_sand_cracked_256x128.png',
 
   [ASSET_KEYS.HQ_CYAN]: 'assets/factions/cyan/buildings/hq_t1.png',
 

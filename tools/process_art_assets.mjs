@@ -129,9 +129,12 @@ const MODULAR_PARTS = [
 // ─── Terrain constants (must match src/assets/assetManifest.ts) ─────
 
 const TERRAN_ENTRIES = [
-  { key: 'terrain_sand', path: 'assets/tiles/sand_tile.png' },
-  { key: 'terrain_sand_dark', path: 'assets/tiles/sand_tile_dark.png' },
-  { key: 'terrain_sand_light', path: 'assets/tiles/sand_tile_light.png' },
+  { key: 'terrain_sand_clean_256x128', path: 'assets/tiles/terrain_sand_clean_256x128.png' },
+  { key: 'terrain_sand_dark_256x128', path: 'assets/tiles/terrain_sand_dark_256x128.png' },
+  { key: 'terrain_sand_light_256x128', path: 'assets/tiles/terrain_sand_light_256x128.png' },
+  { key: 'terrain_sand_ripple_256x128', path: 'assets/tiles/terrain_sand_ripple_256x128.png' },
+  { key: 'terrain_sand_pebble_256x128', path: 'assets/tiles/terrain_sand_pebble_256x128.png' },
+  { key: 'terrain_sand_cracked_256x128', path: 'assets/tiles/terrain_sand_cracked_256x128.png' },
 ];
 
 // ─── Resource constants (must match src/assets/assetManifest.ts) ────

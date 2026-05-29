@@ -429,7 +429,13 @@ export class GameScene extends Phaser.Scene {
   // ─── Helpers ────────────────────────────────────────────────────
 
   private verifyAssets(): void {
-    const requiredKeys = Object.values(ASSET_KEYS);
+    // TERRAIN-02A: Use generated manifest keys for verification instead of
+    // the legacy ASSET_KEYS (which includes deprecated terrain keys no longer
+    // loaded at runtime). The generated manifest has the authoritative key set.
+    const requiredKeys = Object.values(ASSET_KEYS).filter(
+      // Filter out legacy terrain keys that are no longer loaded
+      key => !['terrain_sand', 'terrain_sand_dark', 'terrain_sand_light'].includes(key)
+    );
     for (const key of requiredKeys) {
       if (!this.textures.exists(key)) {
         console.error(`[GameScene] Missing texture: ${key}`);

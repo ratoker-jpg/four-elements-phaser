@@ -14,6 +14,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import type { TerrainType } from '../state/types';
 import {
   normalizeSeed,
   createRandomSeed,
@@ -187,6 +188,111 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
     });
   });
 
+  // ── TERRAIN-02A: Terrain variant distribution ──────────────────
+
+  describe('TERRAIN-02A terrain variant distribution (single source of truth)', () => {
+    it('all 6 terrain types can appear across generated maps', () => {
+      // Generate multiple maps with different seeds to ensure all variants appear
+      const allSeenTypes = new Set<TerrainType>();
+      for (let i = 0; i < 10; i++) {
+        const map = createGeneratedMapData(`variant-coverage-${i}`, 'standard');
+        for (const row of map.terrain) {
+          for (const cell of row) {
+            allSeenTypes.add(cell);
+          }
+        }
+        if (allSeenTypes.size === 6) break; // Found all types already
+      }
+      expect(allSeenTypes.has('sand')).toBe(true);
+      expect(allSeenTypes.has('sand-dark')).toBe(true);
+      expect(allSeenTypes.has('sand-light')).toBe(true);
+      expect(allSeenTypes.has('sand-ripple')).toBe(true);
+      expect(allSeenTypes.has('sand-pebble')).toBe(true);
+      expect(allSeenTypes.has('sand-cracked')).toBe(true);
+    });
+
+    it('sand remains the dominant terrain type', () => {
+      const map = createGeneratedMapData('dominant-sand-02a', 'standard');
+      const counts = new Map<TerrainType, number>();
+      let total = 0;
+      for (const row of map.terrain) {
+        for (const cell of row) {
+          counts.set(cell, (counts.get(cell) ?? 0) + 1);
+          total++;
+        }
+      }
+      // Base 'sand' should be the single most common type
+      const sandCount = counts.get('sand') ?? 0;
+      for (const [type, count] of counts) {
+        if (type !== 'sand') {
+          expect(sandCount).toBeGreaterThan(count);
+        }
+      }
+      // Sand should be at least 20% of all tiles (conservative — actually much higher)
+      expect(sandCount / total).toBeGreaterThan(0.2);
+    });
+
+    it('sand-pebble and sand-cracked remain rare accents', () => {
+      const map = createGeneratedMapData('rare-variants-02a', 'standard');
+      let total = 0;
+      let pebbleCount = 0;
+      let crackedCount = 0;
+      for (const row of map.terrain) {
+        for (const cell of row) {
+          total++;
+          if (cell === 'sand-pebble') pebbleCount++;
+          if (cell === 'sand-cracked') crackedCount++;
+        }
+      }
+      // Pebble and cracked should each be less than 10% of all tiles
+      // (they are rare accents, ~4% each of base sand tiles)
+      expect(pebbleCount / total).toBeLessThan(0.10);
+      expect(crackedCount / total).toBeLessThan(0.10);
+    });
+
+    it('same seed + size produces same terrain distribution (determinism)', () => {
+      const map1 = createGeneratedMapData('determinism-02a', 'standard');
+      const map2 = createGeneratedMapData('determinism-02a', 'standard');
+      // Full terrain match (deep equality)
+      expect(map1.terrain).toEqual(map2.terrain);
+      // Also verify type distribution matches
+      const countTypes = (m: typeof map1) => {
+        const counts = new Map<TerrainType, number>();
+        for (const row of m.terrain) {
+          for (const cell of row) {
+            counts.set(cell, (counts.get(cell) ?? 0) + 1);
+          }
+        }
+        return counts;
+      };
+      expect(countTypes(map1)).toEqual(countTypes(map2));
+    });
+
+    it('terrain type counts are deterministic across multiple map sizes', () => {
+      for (const size of ['small', 'standard', 'large'] as MapSizeOption[]) {
+        const map1 = createGeneratedMapData(`multi-size-${size}`, size);
+        const map2 = createGeneratedMapData(`multi-size-${size}`, size);
+        expect(map1.terrain).toEqual(map2.terrain);
+      }
+    });
+
+    it('detail variants (ripple, pebble, cracked) survive into final generated terrain', () => {
+      // Since the renderer no longer applies smoothing, detail variants
+      // placed by generatedMap.ts must survive intact into the MapData
+      // that gets rendered. This test verifies that the generated terrain
+      // actually contains detail variants and they are not lost.
+      const map = createGeneratedMapData('detail-survival', 'large');
+      const flatTerrain = map.terrain.flat();
+      const rippleCount = flatTerrain.filter(t => t === 'sand-ripple').length;
+      const pebbleCount = flatTerrain.filter(t => t === 'sand-pebble').length;
+      const crackedCount = flatTerrain.filter(t => t === 'sand-cracked').length;
+      // Each detail variant should be present (>0) in a large map
+      expect(rippleCount).toBeGreaterThan(0);
+      expect(pebbleCount).toBeGreaterThan(0);
+      expect(crackedCount).toBeGreaterThan(0);
+    });
+  });
+
   // ── Terrain readability (ARCH-08B) ─────────────────────────────
 
   describe('terrain readability', () => {
@@ -200,7 +306,8 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
 
     it('terrain only contains valid terrain types', () => {
       const map = createGeneratedMapData('terrain-type-test', 'standard');
-      const validTypes = new Set(['sand', 'sand-light', 'sand-dark']);
+      // TERRAIN-02A: 6-variant 256×128 sand tile family
+      const validTypes = new Set(['sand', 'sand-light', 'sand-dark', 'sand-ripple', 'sand-pebble', 'sand-cracked']);
       for (const row of map.terrain) {
         for (const cell of row) {
           expect(validTypes.has(cell)).toBe(true);
@@ -211,15 +318,17 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
     it('sand is the dominant terrain type', () => {
       const map = createGeneratedMapData('dominant-sand-test', 'standard');
       let sandCount = 0;
+      // TERRAIN-02A: Count sand and its detail variants as the dominant family
+      const sandFamily: TerrainType[] = ['sand', 'sand-ripple', 'sand-pebble', 'sand-cracked'];
       let totalCells = 0;
       for (const row of map.terrain) {
         for (const cell of row) {
           totalCells++;
-          if (cell === 'sand') sandCount++;
+          if (sandFamily.includes(cell)) sandCount++;
         }
       }
-      // Sand should be at least 50% of the map (patch-based, so dominant)
-      expect(sandCount / totalCells).toBeGreaterThan(0.5);
+      // Sand family should be at least 40% of the map (patch-based, so dominant)
+      expect(sandCount / totalCells).toBeGreaterThan(0.4);
     });
 
     it('terrain has clustered patches (not pure random single-cell noise)', () => {

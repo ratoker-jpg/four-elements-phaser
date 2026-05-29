@@ -10,8 +10,13 @@
 
 // ─── Terrain ────────────────────────────────────────────────────────
 
-/** Terrain types matching the 3 legacy sand tiles used by the active render path. */
-export type TerrainType = 'sand' | 'sand-dark' | 'sand-light';
+/** Terrain types for the 6-variant 256×128 sand tile family (TERRAIN-02A).
+ *  Legacy types 'sand', 'sand-dark', 'sand-light' are kept for backward compatibility
+ *  with saved maps. New detail variants 'sand-ripple', 'sand-pebble', 'sand-cracked'
+ *  add texture variety for repetition reduction. */
+export type TerrainType =
+  | 'sand' | 'sand-dark' | 'sand-light'
+  | 'sand-ripple' | 'sand-pebble' | 'sand-cracked';
 
 // ─── Factions ───────────────────────────────────────────────────────
 

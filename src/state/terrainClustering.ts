@@ -3,9 +3,14 @@
  *
  * TERRAIN-01: Deterministic terrain visual variation using cellular
  * automata smoothing and per-tile tint computation. Works with the
- * existing 3 approved sand textures (sand, sand-dark, sand-light)
- * to reduce chessboard/random-tile feeling and create natural-looking
- * soft clusters.
+ * existing sand textures to reduce chessboard/random-tile feeling
+ * and create natural-looking soft clusters.
+ *
+ * TERRAIN-02A: Extended to the 6-variant 256×128 sand tile family.
+ * All six terrain types (sand, sand-dark, sand-light, sand-ripple,
+ * sand-pebble, sand-cracked) are handled in tint computation and
+ * brightness ordering. Per-tile tint variation expanded to ±8%
+ * for stronger visual variety with the new tile family.
  *
  * Design decisions:
  * - Cellular automata smoothing merges isolated single-tile variants
@@ -21,8 +26,12 @@ import type { TerrainType } from './types';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-/** Ordered terrain types by visual brightness (light → dark). */
-const TERRAIN_BRIGHTNESS_ORDER: TerrainType[] = ['sand-light', 'sand', 'sand-dark'];
+/** TERRAIN-02A: Ordered terrain types by visual brightness (light → dark).
+ *  Ripple is slightly lighter than base sand; pebble and cracked are
+ *  slightly darker, placing them naturally in the brightness gradient. */
+const TERRAIN_BRIGHTNESS_ORDER: TerrainType[] = [
+  'sand-light', 'sand-ripple', 'sand', 'sand-pebble', 'sand-cracked', 'sand-dark'
+];
 
 // ─── Cellular automata smoothing ────────────────────────────────────
 
@@ -111,10 +120,18 @@ export function applyTerrainSmoothing(terrain: TerrainType[][], passes: number =
  *
  * Returns a Phaser-compatible tint value (0xRRGGBB).
  *
- * The tint is very subtle (within ±3% of neutral white) so that
+ * TERRAIN-02A: The tint is within ±8% of neutral white so that
  * the base texture colors are preserved while adding visual variety.
  * A fast integer hash ensures stability: the same (tx, ty) always
  * produces the same tint.
+ *
+ * All six terrain types have appropriate tint bases:
+ * - sand: slightly warm base
+ * - sand-dark: slightly cool base (darkest)
+ * - sand-light: neutral-warm base (brightest)
+ * - sand-ripple: slightly warm-cool (lighter variant)
+ * - sand-pebble: slightly warm (mid-dark variant)
+ * - sand-cracked: slightly cool (dark variant)
  *
  * @param tx - Tile X coordinate
  * @param ty - Tile Y coordinate
@@ -125,15 +142,14 @@ export function computeTerrainTint(tx: number, ty: number, terrainType: TerrainT
   // Fast deterministic hash from coordinates
   const hash = terrainTileHash(tx, ty);
 
-  // Map hash to a subtle color shift
-  // Range: ±3% per channel (each channel shifts by up to ~7-8 out of 255)
+  // Map hash to a color shift
+  // TERRAIN-02A: Range: ±8% per channel (±20 out of 255)
   const shift = ((hash & 0xFF) - 128) / 128; // -1 to +1 (roughly)
-  const shiftR = Math.round(shift * 7);
-  const shiftG = Math.round(shift * 5);
-  const shiftB = Math.round(shift * 6);
+  const shiftR = Math.round(shift * 20);
+  const shiftG = Math.round(shift * 14);
+  const shiftB = Math.round(shift * 17);
 
   // Base tint depends on terrain type for natural variation
-  // sand: slightly warm base, sand-dark: slightly cool, sand-light: neutral
   let baseR = 255, baseG = 255, baseB = 255;
 
   if (terrainType === 'sand-dark') {
@@ -146,6 +162,21 @@ export function computeTerrainTint(tx: number, ty: number, terrainType: TerrainT
     baseR = 255;
     baseG = 252 + shiftG;
     baseB = 240 + shiftB;
+  } else if (terrainType === 'sand-ripple') {
+    // Ripple: lighter variant, slightly warm-cool
+    baseR = 254 + shiftR;
+    baseG = 250 + shiftG;
+    baseB = 242 + shiftB;
+  } else if (terrainType === 'sand-pebble') {
+    // Pebble: mid-dark variant, slightly warm
+    baseR = 250 + shiftR;
+    baseG = 247 + shiftG;
+    baseB = 237 + shiftB;
+  } else if (terrainType === 'sand-cracked') {
+    // Cracked: dark variant, slightly cool
+    baseR = 249 + shiftR;
+    baseG = 244 + shiftG;
+    baseB = 236 + shiftB;
   } else {
     // Base sand: subtle warm/cool variation
     baseR = 252 + shiftR;
@@ -177,7 +208,8 @@ export function terrainTileHash(tx: number, ty: number): number {
 /**
  * Get the terrain brightness index for ordering.
  *
- * Returns 0 for sand-light (brightest), 1 for sand (medium), 2 for sand-dark (darkest).
+ * TERRAIN-02A: Returns 0 for sand-light (brightest) through 5 for sand-dark (darkest).
+ * Order: sand-light(0), sand-ripple(1), sand(2), sand-pebble(3), sand-cracked(4), sand-dark(5).
  */
 export function terrainBrightnessIndex(type: TerrainType): number {
   return TERRAIN_BRIGHTNESS_ORDER.indexOf(type);
