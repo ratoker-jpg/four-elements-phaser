@@ -7,6 +7,10 @@
  *
  * Fixup: Added resolveClickAction tests for click-routing logic
  * (pending → place, selected → move, inactive → no-op).
+ *
+ * DEV-ASSET-PREVIEW-03: Added tests for HEX parsing/normalization,
+ * custom chroma-key color, tolerance config creation, and reprocessing
+ * with non-default target colors.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -17,7 +21,12 @@ import {
   previewPlacementDepth,
   computeContainScale,
   DEFAULT_CHROMA_KEY_CONFIG,
+  DEFAULT_CHROMA_KEY_HEX,
+  DEFAULT_CHROMA_KEY_TOLERANCE,
   resolveClickAction,
+  parseHexColor,
+  normalizeHexColor,
+  createChromaKeyConfigFromHex,
   type ChromaKeyConfig,
 } from '../phaser/dev/AssetPreviewTool';
 
@@ -73,6 +82,67 @@ describe('applyChromaKey', () => {
     expect(result.data[7]).toBe(255); // gray kept
     expect(result.data[11]).toBe(0);  // near-magenta removed
   });
+
+  // DEV-ASSET-PREVIEW-03: custom target color tests
+
+  it('removes #FC02FA pixels when configured as target', () => {
+    const img = makeImageData(252, 2, 250, 255);
+    const config: ChromaKeyConfig = { targetR: 252, targetG: 2, targetB: 250, tolerance: 32 };
+    const result = applyChromaKey(img, config);
+    expect(result.data[3]).toBe(0);
+  });
+
+  it('removes near-#FC02FA pixels within tolerance', () => {
+    // Pixel is (250, 5, 248) — within 32 of (252, 2, 250)
+    const img = makeImageData(250, 5, 248, 255);
+    const config: ChromaKeyConfig = { targetR: 252, targetG: 2, targetB: 250, tolerance: 32 };
+    const result = applyChromaKey(img, config);
+    expect(result.data[3]).toBe(0);
+  });
+
+  it('preserves non-target colors when using custom chroma-key', () => {
+    // Gray pixel should not be removed when targeting #FC02FA
+    const img = makeImageData(128, 128, 128, 255);
+    const config: ChromaKeyConfig = { targetR: 252, targetG: 2, targetB: 250, tolerance: 32 };
+    const result = applyChromaKey(img, config);
+    expect(result.data[3]).toBe(255); // alpha unchanged
+  });
+
+  it('preserves pure magenta when targeting a different color', () => {
+    // #FF00FF should NOT be removed when targeting #FC02FA with tight tolerance
+    // Use tolerance=1: |255-252|=3 > 1, so #FF00FF is preserved
+    const config: ChromaKeyConfig = { targetR: 252, targetG: 2, targetB: 250, tolerance: 1 };
+    const img = makeImageData(255, 0, 255, 255);
+    const result = applyChromaKey(img, config);
+    expect(result.data[3]).toBe(255); // not removed — too far from target
+  });
+
+  it('handles zero tolerance — exact match only', () => {
+    const img1 = makeImageData(252, 2, 250, 255);
+    const config: ChromaKeyConfig = { targetR: 252, targetG: 2, targetB: 250, tolerance: 0 };
+    const result1 = applyChromaKey(img1, config);
+    expect(result1.data[3]).toBe(0); // exact match → removed
+
+    const img2 = makeImageData(253, 2, 250, 255);
+    const result2 = applyChromaKey(img2, config);
+    expect(result2.data[3]).toBe(255); // off by 1 → not removed
+  });
+
+  it('handles multi-pixel with custom target', () => {
+    const data = new Uint8ClampedArray([
+      252, 2, 250, 255,   // exact #FC02FA → remove
+      128, 128, 128, 255, // gray → keep
+      240, 10, 240, 255,  // near #FC02FA within tolerance 32 → remove
+      0, 0, 0, 255,       // black → keep
+    ]);
+    const img: ImageData = { data, width: 4, height: 1, colorSpace: 'srgb' };
+    const config: ChromaKeyConfig = { targetR: 252, targetG: 2, targetB: 250, tolerance: 32 };
+    const result = applyChromaKey(img, config);
+    expect(result.data[3]).toBe(0);    // #FC02FA removed
+    expect(result.data[7]).toBe(255);  // gray kept
+    expect(result.data[11]).toBe(0);   // near-#FC02FA removed
+    expect(result.data[15]).toBe(255); // black kept
+  });
 });
 
 // ─── validateFootprint ────────────────────────────────────────────────
@@ -114,7 +184,6 @@ describe('previewPlacementWorldPos', () => {
 
   it('computes world position for 1x1 footprint', () => {
     const pos = previewPlacementWorldPos(0, 0, 1, offset);
-    // South vertex of 1x1 at (0,0): tileToScreen(0, 0) + offset + TILE_H/2
     expect(pos.x).toBeDefined();
     expect(pos.y).toBeDefined();
     expect(typeof pos.x).toBe('number');
@@ -176,14 +245,11 @@ describe('computeContainScale', () => {
 
   it('preserves aspect ratio (narrow image)', () => {
     const scale = computeContainScale(10, 100, 1, 1);
-    // Scale limited by height (100px vs 76px profile)
-    // 76/100 = 0.76
     expect(scale).toBeCloseTo(0.76, 2);
   });
 
   it('preserves aspect ratio (wide image)', () => {
     const scale = computeContainScale(200, 20, 1, 1);
-    // Scale limited by width (76/200 = 0.38)
     expect(scale).toBeCloseTo(0.38, 2);
   });
 });
@@ -200,6 +266,182 @@ describe('DEFAULT_CHROMA_KEY_CONFIG', () => {
   it('has reasonable tolerance', () => {
     expect(DEFAULT_CHROMA_KEY_CONFIG.tolerance).toBeGreaterThan(0);
     expect(DEFAULT_CHROMA_KEY_CONFIG.tolerance).toBeLessThanOrEqual(128);
+  });
+});
+
+// ─── DEFAULT_CHROMA_KEY_HEX / DEFAULT_CHROMA_KEY_TOLERANCE ───────────
+
+describe('DEFAULT_CHROMA_KEY_HEX and TOLERANCE', () => {
+  it('DEFAULT_CHROMA_KEY_HEX is uppercase #FF00FF', () => {
+    expect(DEFAULT_CHROMA_KEY_HEX).toBe('#FF00FF');
+  });
+
+  it('DEFAULT_CHROMA_KEY_TOLERANCE is 32', () => {
+    expect(DEFAULT_CHROMA_KEY_TOLERANCE).toBe(32);
+  });
+});
+
+// ─── parseHexColor (DEV-ASSET-PREVIEW-03) ────────────────────────────
+
+describe('parseHexColor', () => {
+  it('parses #FF00FF to {r:255, g:0, b:255}', () => {
+    const result = parseHexColor('#FF00FF');
+    expect(result).toEqual({ r: 255, g: 0, b: 255 });
+  });
+
+  it('parses FF00FF (no hash) to {r:255, g:0, b:255}', () => {
+    const result = parseHexColor('FF00FF');
+    expect(result).toEqual({ r: 255, g: 0, b: 255 });
+  });
+
+  it('parses #fc02fa (lowercase) correctly', () => {
+    const result = parseHexColor('#fc02fa');
+    expect(result).toEqual({ r: 252, g: 2, b: 250 });
+  });
+
+  it('parses #FC02FA (uppercase) correctly', () => {
+    const result = parseHexColor('#FC02FA');
+    expect(result).toEqual({ r: 252, g: 2, b: 250 });
+  });
+
+  it('parses shorthand #F0F to {r:255, g:0, b:255}', () => {
+    const result = parseHexColor('#F0F');
+    expect(result).toEqual({ r: 255, g: 0, b: 255 });
+  });
+
+  it('parses shorthand F0F (no hash) correctly', () => {
+    const result = parseHexColor('F0F');
+    expect(result).toEqual({ r: 255, g: 0, b: 255 });
+  });
+
+  it('parses #000000 to {r:0, g:0, b:0}', () => {
+    const result = parseHexColor('#000000');
+    expect(result).toEqual({ r: 0, g: 0, b: 0 });
+  });
+
+  it('parses #FFFFFF to {r:255, g:255, b:255}', () => {
+    const result = parseHexColor('#FFFFFF');
+    expect(result).toEqual({ r: 255, g: 255, b: 255 });
+  });
+
+  it('trims whitespace before parsing', () => {
+    const result = parseHexColor('  #FF00FF  ');
+    expect(result).toEqual({ r: 255, g: 0, b: 255 });
+  });
+
+  it('returns null for invalid hex characters', () => {
+    expect(parseHexColor('#GGGGGG')).toBeNull();
+  });
+
+  it('returns null for wrong length (5 chars)', () => {
+    expect(parseHexColor('#FFFFF')).toBeNull();
+  });
+
+  it('returns null for wrong length (7 chars after #)', () => {
+    expect(parseHexColor('#FFFFFFF')).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(parseHexColor('')).toBeNull();
+  });
+
+  it('returns null for just a hash', () => {
+    expect(parseHexColor('#')).toBeNull();
+  });
+});
+
+// ─── normalizeHexColor (DEV-ASSET-PREVIEW-03) ────────────────────────
+
+describe('normalizeHexColor', () => {
+  it('normalizes #ff00ff to #FF00FF', () => {
+    expect(normalizeHexColor('#ff00ff')).toBe('#FF00FF');
+  });
+
+  it('normalizes fc02fa to #FC02FA', () => {
+    expect(normalizeHexColor('fc02fa')).toBe('#FC02FA');
+  });
+
+  it('normalizes #FC02FA (already normalized)', () => {
+    expect(normalizeHexColor('#FC02FA')).toBe('#FC02FA');
+  });
+
+  it('normalizes shorthand #f0f to #FF00FF', () => {
+    expect(normalizeHexColor('#f0f')).toBe('#FF00FF');
+  });
+
+  it('normalizes shorthand FC0 to #FFCC00', () => {
+    expect(normalizeHexColor('FC0')).toBe('#FFCC00');
+  });
+
+  it('normalizes #000000 to #000000', () => {
+    expect(normalizeHexColor('#000000')).toBe('#000000');
+  });
+
+  it('returns null for invalid input', () => {
+    expect(normalizeHexColor('not-a-color')).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(normalizeHexColor('')).toBeNull();
+  });
+
+  it('returns null for partial hex', () => {
+    expect(normalizeHexColor('#FF')).toBeNull();
+  });
+});
+
+// ─── createChromaKeyConfigFromHex (DEV-ASSET-PREVIEW-03) ─────────────
+
+describe('createChromaKeyConfigFromHex', () => {
+  it('creates config from #FF00FF with tolerance 32', () => {
+    const config = createChromaKeyConfigFromHex('#FF00FF', 32);
+    expect(config).toEqual({ targetR: 255, targetG: 0, targetB: 255, tolerance: 32 });
+  });
+
+  it('creates config from fc02fa (no hash) with tolerance 48', () => {
+    const config = createChromaKeyConfigFromHex('fc02fa', 48);
+    expect(config).toEqual({ targetR: 252, targetG: 2, targetB: 250, tolerance: 48 });
+  });
+
+  it('creates config from shorthand #F0F', () => {
+    const config = createChromaKeyConfigFromHex('#F0F', 16);
+    expect(config).toEqual({ targetR: 255, targetG: 0, targetB: 255, tolerance: 16 });
+  });
+
+  it('clamps tolerance to 0 minimum', () => {
+    const config = createChromaKeyConfigFromHex('#FF00FF', -10);
+    expect(config).not.toBeNull();
+    expect(config!.tolerance).toBe(0);
+  });
+
+  it('clamps tolerance to 255 maximum', () => {
+    const config = createChromaKeyConfigFromHex('#FF00FF', 300);
+    expect(config).not.toBeNull();
+    expect(config!.tolerance).toBe(255);
+  });
+
+  it('rounds fractional tolerance', () => {
+    const config = createChromaKeyConfigFromHex('#FF00FF', 32.7);
+    expect(config).not.toBeNull();
+    expect(config!.tolerance).toBe(33);
+  });
+
+  it('returns null for invalid HEX', () => {
+    expect(createChromaKeyConfigFromHex('invalid', 32)).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(createChromaKeyConfigFromHex('', 32)).toBeNull();
+  });
+
+  it('round-trips: config from HEX can be used with applyChromaKey', () => {
+    const config = createChromaKeyConfigFromHex('#FC02FA', 32);
+    expect(config).not.toBeNull();
+
+    const data = new Uint8ClampedArray([252, 2, 250, 255]);
+    const img: ImageData = { data, width: 1, height: 1, colorSpace: 'srgb' };
+    const result = applyChromaKey(img, config!);
+    expect(result.data[3]).toBe(0); // #FC02FA removed
   });
 });
 
