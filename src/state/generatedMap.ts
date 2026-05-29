@@ -334,27 +334,31 @@ function generateTerrain(rng: () => number, W: number, H: number): TerrainType[]
     }
   }
 
-  // Step 5: TERRAIN-02A — Sprinkle detail variants onto base 'sand' tiles.
+  // Step 5: TERRAIN-02A/FIX-01 — Sprinkle detail variants onto base 'sand' tiles.
   // After patch application, some 'sand' tiles get assigned a detail variant
   // (ripple, pebble, cracked) for texture variety and repetition reduction.
   // This is deterministic: same seed + size = same variant assignment.
-  // Distribution: ~10% ripple, ~4% pebble, ~4% cracked of remaining sand tiles.
+  //
+  // TERRAIN-FIX-01: Distribution reduced to avoid noisy per-cell variation.
+  // Pebble and cracked are now very rare accents (~2% each) to prevent
+  // one-cell noisy variation. Ripple is moderate (~5%) and forms soft
+  // scattered patches. The majority (~91%) remains clean 'sand'.
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       if (terrain[y][x] !== 'sand') continue;
 
       const roll = rng();
-      if (roll < 0.10) {
-        // ~10% of sand tiles become ripple
+      if (roll < 0.05) {
+        // ~5% of sand tiles become ripple — moderate, clustered look
         terrain[y][x] = 'sand-ripple';
-      } else if (roll < 0.14) {
-        // ~4% of sand tiles become pebble
+      } else if (roll < 0.07) {
+        // ~2% of sand tiles become pebble — rare accent
         terrain[y][x] = 'sand-pebble';
-      } else if (roll < 0.18) {
-        // ~4% of sand tiles become cracked
+      } else if (roll < 0.09) {
+        // ~2% of sand tiles become cracked — rare accent
         terrain[y][x] = 'sand-cracked';
       }
-      // Remaining ~82% stay as 'sand' — dominant base
+      // Remaining ~91% stay as 'sand' — dominant base
     }
   }
 

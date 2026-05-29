@@ -9,8 +9,14 @@
  * TERRAIN-02A: Extended to the 6-variant 256×128 sand tile family.
  * All six terrain types (sand, sand-dark, sand-light, sand-ripple,
  * sand-pebble, sand-cracked) are handled in tint computation and
- * brightness ordering. Per-tile tint variation expanded to ±8%
- * for stronger visual variety with the new tile family.
+ * brightness ordering.
+ *
+ * TERRAIN-FIX-01: Per-tile tint amplitude reduced from ±8% to ±2%
+ * (±5 per R channel, ±4 per G/B). The original ±8% tint created
+ * visible per-cell color differences that read as a chessboard/
+ * grid pattern on the isometric terrain. At ±2% the tint still
+ * breaks up repetition but is too subtle to create visible cell
+ * boundaries.
  *
  * Design decisions:
  * - Cellular automata smoothing merges isolated single-tile variants
@@ -120,8 +126,9 @@ export function applyTerrainSmoothing(terrain: TerrainType[][], passes: number =
  *
  * Returns a Phaser-compatible tint value (0xRRGGBB).
  *
- * TERRAIN-02A: The tint is within ±8% of neutral white so that
- * the base texture colors are preserved while adding visual variety.
+ * TERRAIN-FIX-01: The tint is within ±2% of neutral white (±5 per
+ * R channel, ±4 per G/B) so that the base texture colors dominate
+ * while adding just enough variation to break up repetition.
  * A fast integer hash ensures stability: the same (tx, ty) always
  * produces the same tint.
  *
@@ -143,45 +150,51 @@ export function computeTerrainTint(tx: number, ty: number, terrainType: TerrainT
   const hash = terrainTileHash(tx, ty);
 
   // Map hash to a color shift
-  // TERRAIN-02A: Range: ±8% per channel (±20 out of 255)
+  // TERRAIN-FIX-01: Range: ±2% per channel (±5 out of 255 for R, ±4 for G/B)
+  // Reduced from ±8% because the old range created visible per-cell
+  // color differences that read as a chessboard/grid on the terrain.
   const shift = ((hash & 0xFF) - 128) / 128; // -1 to +1 (roughly)
-  const shiftR = Math.round(shift * 20);
-  const shiftG = Math.round(shift * 14);
-  const shiftB = Math.round(shift * 17);
+  const shiftR = Math.round(shift * 5);
+  const shiftG = Math.round(shift * 4);
+  const shiftB = Math.round(shift * 4);
 
   // Base tint depends on terrain type for natural variation
+  // TERRAIN-FIX-01: Bases are closer to neutral white (255,255,255) now
+  // because the per-type tint differences were also contributing to
+  // the checkerboard effect. The subtle warm/cool bias per type is
+  // preserved but much more subtle.
   let baseR = 255, baseG = 255, baseB = 255;
 
   if (terrainType === 'sand-dark') {
-    // Dark sand: subtle cool/warm variation
-    baseR = 248 + shiftR;
-    baseG = 245 + shiftG;
-    baseB = 235 + shiftB;
-  } else if (terrainType === 'sand-light') {
-    // Light sand: subtle warm variation
-    baseR = 255;
+    // Dark sand: very subtle cool bias
+    baseR = 253 + shiftR;
     baseG = 252 + shiftG;
-    baseB = 240 + shiftB;
+    baseB = 250 + shiftB;
+  } else if (terrainType === 'sand-light') {
+    // Light sand: nearly neutral
+    baseR = 255;
+    baseG = 254 + shiftG;
+    baseB = 252 + shiftB;
   } else if (terrainType === 'sand-ripple') {
-    // Ripple: lighter variant, slightly warm-cool
-    baseR = 254 + shiftR;
-    baseG = 250 + shiftG;
-    baseB = 242 + shiftB;
+    // Ripple: nearly neutral, tiny warm bias
+    baseR = 255 + shiftR;
+    baseG = 254 + shiftG;
+    baseB = 253 + shiftB;
   } else if (terrainType === 'sand-pebble') {
-    // Pebble: mid-dark variant, slightly warm
-    baseR = 250 + shiftR;
-    baseG = 247 + shiftG;
-    baseB = 237 + shiftB;
+    // Pebble: very subtle warm bias
+    baseR = 254 + shiftR;
+    baseG = 253 + shiftG;
+    baseB = 251 + shiftB;
   } else if (terrainType === 'sand-cracked') {
-    // Cracked: dark variant, slightly cool
-    baseR = 249 + shiftR;
-    baseG = 244 + shiftG;
-    baseB = 236 + shiftB;
+    // Cracked: very subtle cool bias
+    baseR = 254 + shiftR;
+    baseG = 252 + shiftG;
+    baseB = 250 + shiftB;
   } else {
-    // Base sand: subtle warm/cool variation
-    baseR = 252 + shiftR;
-    baseG = 248 + shiftG;
-    baseB = 238 + shiftB;
+    // Base sand: very subtle warm bias
+    baseR = 255 + shiftR;
+    baseG = 254 + shiftG;
+    baseB = 253 + shiftB;
   }
 
   // Clamp to valid range
