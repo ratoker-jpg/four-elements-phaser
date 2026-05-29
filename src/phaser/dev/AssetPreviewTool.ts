@@ -325,40 +325,70 @@ export class AssetPreviewTool {
 
   /**
    * Upload a file and create a temporary Phaser texture.
+   * Uses direct TextureManager canvas creation instead of Phaser Loader
+   * for reliable runtime data-URL handling.
    * Returns the new PreviewAssetEntry, or null on failure.
    */
   async uploadFile(file: File, chromaKey: boolean = false): Promise<PreviewAssetEntry | null> {
+    const fileName = file.name || '(unknown)';
+    const fileType = file.type || '(unknown)';
+
     try {
+      // Validate MIME type
+      if (!file.type.startsWith('image/')) {
+        console.error(`[AssetPreviewTool] Upload failed: unsupported file type "${fileType}" for "${fileName}"`);
+        return null;
+      }
+
+      // Read the file as a data URL
       const dataUrl = await readFileAsDataURL(file);
 
-      // Load the image to get dimensions
+      // Load into HTMLImageElement to get dimensions and pixel data
       const img = await loadImageFromDataURL(dataUrl);
+      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+        console.error(`[AssetPreviewTool] Upload failed: image decode produced zero dimensions for "${fileName}" (${fileType})`);
+        return null;
+      }
       const naturalWidth = img.naturalWidth;
       const naturalHeight = img.naturalHeight;
 
+      // Create offscreen canvas with the image content
+      const canvas = document.createElement('canvas');
+      canvas.width = naturalWidth;
+      canvas.height = naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.error(`[AssetPreviewTool] Upload failed: could not create 2D canvas context for "${fileName}"`);
+        return null;
+      }
+      ctx.drawImage(img, 0, 0);
+
       // Apply chroma-key if requested
-      const processedDataUrl = chromaKey
-        ? await applyChromaKeyToDataURL(img, DEFAULT_CHROMA_KEY_CONFIG)
-        : dataUrl;
+      if (chromaKey) {
+        const imageData = ctx.getImageData(0, 0, naturalWidth, naturalHeight);
+        applyChromaKey(imageData, DEFAULT_CHROMA_KEY_CONFIG);
+        ctx.putImageData(imageData, 0, 0);
+      }
 
       // Generate unique texture key
       const assetId = `dev-preview-asset-${this.nextAssetId++}`;
       const textureKey = `__dev_preview_${assetId}`;
 
-      // Load the texture into Phaser
-      await new Promise<void>((resolve, reject) => {
-        if (this.scene.textures.exists(textureKey)) {
-          this.scene.textures.remove(textureKey);
-        }
-        this.scene.load.image(textureKey, processedDataUrl);
-        this.scene.load.once(Phaser.Loader.Events.COMPLETE, () => resolve());
-        this.scene.load.once('loaderror', () => reject(new Error(`Failed to load texture: ${textureKey}`)));
-        this.scene.load.start();
-      });
+      // Remove existing texture if key collides
+      if (this.scene.textures.exists(textureKey)) {
+        this.scene.textures.remove(textureKey);
+      }
+
+      // Create the Phaser texture directly from the canvas via TextureManager
+      const texture = this.scene.textures.addCanvas(textureKey, canvas);
+      if (!texture) {
+        console.error(`[AssetPreviewTool] Upload failed: TextureManager.addCanvas returned null for "${fileName}"`);
+        return null;
+      }
 
       const entry: PreviewAssetEntry = {
         id: assetId,
-        fileName: file.name,
+        fileName,
         textureKey,
         naturalWidth,
         naturalHeight,
@@ -368,7 +398,8 @@ export class AssetPreviewTool {
       this.onStateChange?.();
       return entry;
     } catch (err) {
-      console.error('[AssetPreviewTool] Upload failed:', err);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[AssetPreviewTool] Upload failed: "${fileName}" (${fileType}) — ${message}`);
       return null;
     }
   }
@@ -710,7 +741,7 @@ function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('FileReader failed'));
+    reader.onerror = () => reject(new Error(`FileReader failed for "${file.name}"`));
     reader.readAsDataURL(file);
   });
 }
@@ -720,26 +751,7 @@ function loadImageFromDataURL(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Image load failed'));
+    img.onerror = () => reject(new Error('Image decode failed — unsupported format or corrupted data'));
     img.src = dataUrl;
   });
-}
-
-/** Apply chroma-key to an image and return the processed data URL. */
-async function applyChromaKeyToDataURL(
-  img: HTMLImageElement,
-  config: ChromaKeyConfig,
-): Promise<string> {
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return img.src;
-
-  ctx.drawImage(img, 0, 0);
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  applyChromaKey(imageData, config);
-  ctx.putImageData(imageData, 0, 0);
-
-  return canvas.toDataURL('image/png');
 }
