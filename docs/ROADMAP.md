@@ -1,9 +1,10 @@
 # ROADMAP.md
 
-Status: **inactive / archived after Phase 1 Foundation**  
+Status: **inactive / archived — superseded by VISUAL roadmap**  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Archived on: 2026-05-27
+Archived on: 2026-05-26 (Phase 1 freeze)  
+Superseded on: 2026-05-30 (VISUAL roadmap)
 
 ---
 
@@ -11,40 +12,26 @@ Archived on: 2026-05-27
 
 This roadmap is no longer the active implementation roadmap.
 
-The previous 21-ARCH roadmap is treated as a **legacy planning artifact** after the Phase 1 Foundation workstream.
+**The active roadmap is now:** `docs/project/VISUAL_ROADMAP.md`
 
-Reason:
+Previous milestones:
 
-```text
-The old roadmap contained useful system directions, but it also planned later-stage combat/enemy/bot/upgrades work too early.
-Denis explicitly decided to stop after ARCH-17A/17B + ARCH-13C-LITE and rebuild the next roadmap around Sandbox MVP polish/fixes first.
-```
+1. The old 21-ARCH roadmap was archived after Phase 1 Foundation freeze (2026-05-27).
+2. The Phase 2 roadmap (`PHASE_2_ROADMAP.md`) was the active direction through PR #98–#119, but has been superseded by the VISUAL roadmap as of 2026-05-30.
+3. The VISUAL roadmap (`VISUAL_ROADMAP.md`) is now the active planning direction.
 
-The old roadmap remains available in Git history at the pre-freeze main commit:
-
-```text
-c9b36929514296ea2e34c861747848041048be79
-```
-
-Do not use the old ARCH list as active task source.
+Do not use any of the old roadmap documents as active task sources. Read them only as historical reference.
 
 ---
 
-## 1. Active planning source after freeze
+## 1. Active planning source
 
-Use these docs instead:
-
-```text
-docs/project/PHASE_1_FREEZE.md
-docs/project/FIX_BACKLOG.md
-docs/project/NEW_CHAT_HANDOFF.md
-docs/project/PROJECT_STATE.md
-```
-
-Next roadmap work must follow:
+Use this instead:
 
 ```text
-Phase 1 Foundation freeze -> Sandbox MVP audit -> new Sandbox MVP roadmap -> scoped implementation packages
+docs/project/VISUAL_ROADMAP.md — current active roadmap
+docs/project/PROJECT_STATE.md — current operational state
+docs/project/CURRENT_NEXT_STEP.md — current next step
 ```
 
 ---

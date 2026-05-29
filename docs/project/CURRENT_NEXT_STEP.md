@@ -2,7 +2,7 @@
 
 Status: active next-step checkpoint  
 Project: Four Elements Phaser  
-Date: 2026-05-29
+Date: 2026-05-30
 
 ---
 
@@ -16,80 +16,84 @@ Use `PROJECT_STATE.md` as the primary operational source of truth.
 
 ## Current source of truth
 
-Phase 2 is active after:
+VISUAL roadmap is the active planning direction after:
 
 ```text
-PR #97 — DOCS-P2-ROADMAP
-PR #98 — PHASE-2-ROADMAP-AUDIT
+VISUAL-ROADMAP-01 — Archive old roadmap and add new Visual Roadmap
 ```
 
-`PHASE_2_ROADMAP_AUDIT.md` is the accepted audit gate for Phase 2 implementation.
+`docs/project/VISUAL_ROADMAP.md` is the accepted planning direction.
 
-Do not use PR #96 / `FULL_PROJECT_AUDIT_20260529.md` as active baseline. PR #96 was not merged and was superseded by the Phase 2 direction.
+The previous Phase 2 roadmap (sand-terrain-focused) is archived. See:
+
+```text
+docs/project/archive/PHASE_2_ROADMAP.md
+docs/project/archive/PHASE_2_ROADMAP_AUDIT.md
+```
+
+Do not follow `PHASE_2_ROADMAP.md` or `PHASE_2_ROADMAP_AUDIT.md` as active direction. They are historical reference only.
 
 ---
 
 ## Current next step
 
 ```text
-DOCS-P2-00 — update project docs for Phase 2
+VISUAL-AUDIT-01 — Visual audit/design
 ```
 
-This file is part of DOCS-P2-00.
+This is Phase V1 from the VISUAL roadmap. The audit must produce `docs/project/VISUAL_AUDIT_01.md` that determines:
 
-After DOCS-P2-00 is merged, the next implementation task is:
+1. Current visual state of each layer
+2. What Phaser 4 can support for the industrial biome target
+3. Asset pipeline for new industrial terrain/platform
+4. Renderer changes needed (if any)
+5. Map frame / grounded presentation approach
+6. HUD redesign plan
+7. Implementation sequence for remaining VISUAL phases
+8. Risks and stop conditions
 
-```text
-MENU-01 — Main menu mode selection via controlled URL launch
-```
-
-Accepted model from PR #98:
-
-```text
-Standard → start normally
-Debug → reload with ?devtools=1
-Arena → reload with ?devtools=1&arena=1
-```
-
-MENU-01 must not implement late-loading. Late-loading is MENU-02.
+Do not start implementation of any VISUAL phase before the audit is accepted.
 
 ---
 
 ## Immediate implementation queue
 
-From PR #98:
+From VISUAL roadmap:
 
 ```text
-1. MENU-01 — Main menu mode selection via controlled URL launch
-2. LOADING-01 — Proper loading screen
-3. HUD-01 — Legacy HUD removal + HUD consolidation
-4. TERRAIN-01 — Sand terrain visual system
-5. BASE-ANCHOR-01 — HQ/building grounding and footprint alignment
+1. VISUAL-AUDIT-01 — Visual audit/design (docs only, no runtime)
+2. VISUAL-PROTO-01 — Map direction prototype (visual candidates, no runtime integration)
+3. VISUAL-TERRAIN-01 — Terrain/platform integration (requires V1 + V2)
+4. VISUAL-FRAME-01 — Map frame / grounded presentation (requires V3)
+5. VISUAL-START-01 — Start position and map composition (requires V3)
 ```
 
-Important:
+Also still needed from previous Phase 2 (rescheduled):
 
-- `TERRAIN-01` must not generate final production PNG assets inside the implementation PR.
-- `ASSET-WORKFLOW-01` must be accepted before unit regeneration tasks.
-- `FOG-01`, `WEAPON-WORKFLOW-01`, and `VISUAL-SPIKE-01` are not immediate implementation tasks.
+```text
+MENU-01 — Main menu mode selection via controlled URL launch
+LOADING-01 — Proper loading screen
+HOTKEYS-01 — Command registry / hotkey system
+BASE-ANCHOR-01 — HQ/building grounding and footprint alignment
+```
+
+These tasks can proceed in parallel with VISUAL phases where they do not conflict.
 
 ---
 
-## Read before any Phase 2 task
+## Read before any VISUAL task
 
 ```text
+docs/project/VISUAL_ROADMAP.md
 docs/project/PROJECT_STATE.md
-docs/project/PHASE_2_ROADMAP.md
-docs/project/PHASE_2_ROADMAP_AUDIT.md
-docs/project/NEW_CHAT_HANDOFF.md
-docs/project/GLM_EXECUTOR_RULES.md
 docs/project/GPT_WORKFLOW.md
+docs/project/GLM_EXECUTOR_RULES.md
 ```
 
 ---
 
 ## Obsolete guidance
 
-Previous references to ARCH-02 or ARCH-11A as active next work are obsolete.
+Previous references to DOCS-P2-00, MENU-01 as the first Phase 2 implementation task, or the Phase 2 implementation sequence from PR #98 are superseded by the VISUAL roadmap direction.
 
-ARCH-11A completed in PR #95.
+The sand terrain pipeline (TERRAIN-01, TERRAIN-02, TERRAIN-FIX-01) is paused. The MAPLIFE-01 desert decor direction is rejected.

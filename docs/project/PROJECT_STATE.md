@@ -3,28 +3,23 @@
 Status: operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Current phase: Phase 2 — Playability / visual identity / menu flow / animated assets / terrain / arena
+Current phase: VISUAL roadmap — industrial biome visual direction
 
 ---
 
 ## Current mode
 
-Phase 1 Sandbox MVP engine/foundation work is complete.
+VISUAL roadmap is the active planning direction.
 
-Phase 2 is now the active roadmap direction after:
+The previous Phase 2 (sand-terrain-focused) roadmap is archived. The current visual direction is an industrial RTS battlefield / mining platform / industrial mineral wasteland.
 
-```text
-PR #97 — DOCS-P2-ROADMAP
-PR #98 — PHASE-2-ROADMAP-AUDIT
-```
-
-Phase 2 focus:
+This pivot happened after:
 
 ```text
-menu → loading → HUD cleanup → terrain readability → building grounding → mode-aware loading → animated asset workflow → animated units → resource/map life → arena/combat visual testbed
+PR #119 — TERRAIN-02A 256x128 terrain integration (sand pipeline, merged)
+PR #120 — MAPLIFE decor (visually rejected, not merged)
+VISUAL-ROADMAP-01 — Archive old roadmap and add VISUAL_ROADMAP.md
 ```
-
-The old full-project audit PR #96 was **not merged** and is **not active source-of-truth**.
 
 ---
 
@@ -38,38 +33,26 @@ Always confirm this in `package.json` before planning Phaser API work.
 
 ---
 
-## Completed Phase 1 / Sandbox foundation work
+## Key decisions
 
-| PR | Task | What changed |
-|----|------|--------------|
-| #83 | FIX-01 | Wired faction-specific HQ and harvester asset keys; non-cyan factions display correct visuals |
-| #84 | PHASER4-ANIM-01 | Animation Manager spike; confirmed Phaser 4.1.0 API works with current spritesheet layout |
-| #85 | PHASER4-ANIM-02 | Migrated harvester walk cycle from manual frame indexing to Phaser Animation Manager |
-| #86 | ARCH-18A-LITE | Extracted GameInputController from GameScene |
-| #87 | FIX-02 | Added harvester blocked-reason telemetry and idle-state feedback |
-| #88 | FIX-03 | Added ControlState with unit cap; cap display in HUD |
-| #89 | FIX-04 | Added factory spawn blockage UI feedback + cancel button for factory queue |
-| #90 | PHASER4-LOAD-01 | Conditional asset loading spike; recommended dev/arena-only modularUnits loading |
-| #91 | PHASER4-LOAD-02 | Gated modularUnits loading behind devtools/arena; stripped modular-combat from old saves in standard mode |
-| #92 | PHASER4-GPU-01 | GPU layer spike; TilemapGPULayer / SpriteGPULayer not suitable for current isometric renderer |
-| #93 | DOCS-CHECKPOINT-01 | Checkpoint after Sandbox MVP engine roadmap |
-| #94 | ARCH-11A-AUDIT | QA smoke automation audit |
-| #95 | ARCH-11A | Dual-mode QA smoke automation: standard + devtools/arena |
-| #97 | DOCS-P2-ROADMAP | Added Phase 2 roadmap + audit prompt |
-| #98 | PHASE-2-ROADMAP-AUDIT | Accepted Phase 2 roadmap direction and implementation gate |
+- **Primary biome**: Industrial RTS battlefield / mining platform (not sand desert)
+- **Sand terrain**: Paused as primary direction. Sand assets remain in repo as fallback.
+- **MAPLIFE #120**: Rejected. Desert decor must not be continued.
+- **Map presentation**: Grounded industrial platform with irregular edges and outer world frame
+- **Start position**: Lower-left start zone (future change)
+- **HUD target**: Bottom bar — minimap left, info center, commands right (StarCraft-inspired)
+- **Menu**: Preserve cinematic central composition, update background to industrial
 
 ---
 
-## Current Phase 2 source-of-truth docs
+## Current source-of-truth docs
 
-Read these before any Phase 2 task:
+Read these before any task:
 
 ```text
-docs/project/PHASE_2_ROADMAP.md
-docs/project/PHASE_2_ROADMAP_AUDIT.md
-docs/project/PHASE_2_ROADMAP_AUDIT_PROMPT.md
-docs/project/NEW_CHAT_HANDOFF.md
-docs/project/FIX_BACKLOG.md
+docs/project/VISUAL_ROADMAP.md
+docs/project/PROJECT_STATE.md
+docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
 ```
@@ -77,95 +60,52 @@ docs/project/GLM_EXECUTOR_RULES.md
 Important:
 
 ```text
-PR #98 / PHASE_2_ROADMAP_AUDIT.md is the accepted audit gate for Phase 2 implementation.
+VISUAL_ROADMAP.md is the accepted planning direction.
+Implementation requires separate audit/design PR (VISUAL-AUDIT-01) first.
 ```
-
-Implementation prompts for Phase 2 should check that main includes merged PR #98.
 
 ---
 
 ## Active next work
 
 ```text
-DOCS-P2-00 — update stale project docs for Phase 2
+VISUAL-AUDIT-01 — Visual audit/design (docs only, no runtime)
 ```
 
-This file is part of DOCS-P2-00.
+After VISUAL-AUDIT-01:
 
-After DOCS-P2-00 is merged, the first implementation task is expected to be:
+```text
+VISUAL-PROTO-01 — Map direction prototype (visual candidates)
+```
+
+Do not start VISUAL implementation before the audit is accepted.
+
+---
+
+## Also needed (from previous Phase 2, rescheduled)
+
+These tasks are still valid and can proceed in parallel with VISUAL phases:
 
 ```text
 MENU-01 — Main menu mode selection via controlled URL launch
-```
-
-Other ready early tasks from PR #98:
-
-```text
 LOADING-01 — Proper loading screen
-HUD-01 — Legacy HUD removal + HUD consolidation
-TERRAIN-01 — Sand terrain visual system, with asset constraints
 BASE-ANCHOR-01 — HQ/building grounding and footprint alignment
+HOTKEYS-01 — Command registry / hotkey system
+BUILDER-ID — Builder stable IDs
+FOG-01 — Two-layer fog of war (design + implementation)
+ARENA-01 — Arena mode from menu
+WEAPON-WORKFLOW-01 — Weapon VFX / recoil design
 ```
 
 ---
 
-## Accepted Phase 2 implementation sequence
-
-Current sequence from PR #98:
+## What is paused
 
 ```text
-1. DOCS-P2-00 — docs checkpoint
-2. MENU-01 — Main menu mode selection via controlled URL launch
-3. LOADING-01 — Proper loading screen
-4. HUD-01 — Legacy HUD removal + HUD consolidation
-5. TERRAIN-01 — Sand terrain visual system
-6. BASE-ANCHOR-01 — HQ/building grounding and footprint alignment
-7. MENU-02 — Mode-aware late-loading / seamless mode switching
-8. ASSET-WORKFLOW-01 — Animated unit asset pipeline design
-9. UNIT-ANIM-01 — Regenerate harvester animated spritesheet
-10. UNIT-ANIM-02 — Regenerate builder animated spritesheet
-11. HOTKEYS-01 — Command registry / hotkey system
-12. RESOURCE-01 — Resource node polish + depleted occupancy fix
-13. BUILDER-ID — Builder stable IDs
-14. FIX-05 — CameraControls.destroy() bound handler fix
-15. MAPLIFE-01 — Environment props / doodads / decals
-16. ARENA-01 — Arena mode from menu
-17. FOG-01 — Two-layer fog of war
-18. WEAPON-WORKFLOW-01 — Weapon VFX / recoil design
-19. VISUAL-SPIKE-01 — Normal maps / lighting feasibility
-```
-
----
-
-## Direct implementation rule for Phase 2
-
-Phase 2 has an accepted large roadmap audit in PR #98.
-
-Tasks covered by `PHASE_2_ROADMAP_AUDIT.md` can proceed directly to implementation if:
-
-```text
-- the prompt checks merged PR #98;
-- scope stays inside the accepted audit;
-- no new unknown high-risk problem appears;
-- hard rules from the audit are preserved.
-```
-
-A new mini-audit/design is required only when:
-
-```text
-- the task exceeds PR #98 scope;
-- implementation reveals a new unreviewed high-risk issue;
-- PR #98 explicitly marks the task as needing design/spike first.
-```
-
-Tasks requiring design/spike before implementation:
-
-```text
-ASSET-WORKFLOW-01
-HOTKEYS-01 design part
-FOG-01
-WEAPON-WORKFLOW-01
-VISUAL-SPIKE-01
+TERRAIN-01 / TERRAIN-02 / TERRAIN-FIX-01 — Sand terrain work paused
+MAPLIFE-01 — Desert decor rejected, will be re-scoped for industrial
+RESOURCE-01 — Deferred to VISUAL Phase V6 after map style approved
+UNIT-ANIM-01 / UNIT-ANIM-02 — Deferred to VISUAL Phase V9 after industrial biome established
 ```
 
 ---
@@ -175,42 +115,34 @@ VISUAL-SPIKE-01
 Do not start these as immediate implementation:
 
 ```text
-- bot / enemy AI;
-- full combat in main sandbox;
-- attack waves;
-- elements economy;
-- upgrades / progression;
-- SpriteGPULayer / TilemapGPULayer implementation;
-- normal maps implementation before VISUAL-SPIKE-01;
-- faction-aware loading unless a new approved reason appears;
-- broad UI framework;
-- giant updateGameState rewrite;
-- production PNG asset generation inside code PRs;
-- unscoped asset regeneration without ASSET-WORKFLOW-01.
+- bot / enemy AI
+- full combat in main sandbox
+- attack waves
+- elements economy
+- upgrades / progression
+- SpriteGPULayer / TilemapGPULayer implementation
+- normal maps implementation before feasibility spike
+- sand terrain as primary visual direction
+- MAPLIFE #120 continuation
+- mass image generation in docs PRs
+- runtime implementation without accepted audit/design
 ```
 
 ---
 
-## Notes for next implementation
+## Archived docs
 
-### MENU-01 model
-
-PR #98 accepted a controlled URL launch model:
+The following documents are archived (read as historical reference only):
 
 ```text
-Standard → start normally
-Debug → reload with ?devtools=1
-Arena → reload with ?devtools=1&arena=1
+docs/project/PHASE_2_ROADMAP.md → deprecated, see VISUAL_ROADMAP.md
+docs/project/PHASE_2_ROADMAP_AUDIT.md → deprecated
+docs/project/PHASE_2_ROADMAP_AUDIT_PROMPT.md → deprecated
+docs/project/TERRAIN_02_QUALITY_AUDIT_AND_PIPELINE.md → paused/superseded
+docs/project/MAPLIFE_01_ASSET_READINESS.md → rejected
 ```
 
-Do not implement late-loading in MENU-01. That is MENU-02.
-
-### TERRAIN-01 asset rule
-
-Do not generate final production PNG assets inside the code PR.
-
-If approved terrain/decal assets exist, integrate them.
-If not, create asset requirements / placeholder integration plan and stop or request assets.
+Archived copies: `docs/project/archive/`
 
 ---
 
@@ -220,7 +152,6 @@ Keep this file short and operational.
 
 Detailed history belongs in:
 
-- PR bodies;
-- `PHASE_2_ROADMAP.md`;
-- `PHASE_2_ROADMAP_AUDIT.md`;
-- task-specific audit/design docs.
+- PR bodies
+- `VISUAL_ROADMAP.md`
+- Audit/design docs for each VISUAL phase

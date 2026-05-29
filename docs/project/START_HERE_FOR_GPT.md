@@ -14,17 +14,21 @@ It tells GPT what to read first and how to avoid starting work without project c
 
 ---
 
-## Phase 1 freeze note
+## Current direction
 
-After PR #80, Phase 1 Foundation feature work is frozen.
+VISUAL roadmap is the active planning direction.
 
-Do not continue from the old `docs/ROADMAP.md` as an active roadmap.
+The previous Phase 2 (sand-terrain-focused) roadmap is archived.
 
-For the next chat, the active entry point is:
+For the next chat, the active entry points are:
 
 ```text
-docs/project/NEW_CHAT_HANDOFF.md
+docs/project/VISUAL_ROADMAP.md
+docs/project/PROJECT_STATE.md
+docs/project/CURRENT_NEXT_STEP.md
 ```
+
+Do not follow `PHASE_2_ROADMAP.md` or `PHASE_2_ROADMAP_AUDIT.md` as active direction. They are archived.
 
 ---
 
@@ -32,28 +36,34 @@ docs/project/NEW_CHAT_HANDOFF.md
 
 Before helping with the project, read these files in this order:
 
-1. `docs/project/NEW_CHAT_HANDOFF.md`  
-   Current handoff after Phase 1 freeze. Start here.
+1. `docs/project/VISUAL_ROADMAP.md`  
+   Current visual planning direction. Start here.
 
-2. `docs/project/PHASE_1_FREEZE.md`  
-   Freeze decision, what is parked, and what the next planning step is.
-
-3. `docs/project/FIX_BACKLOG.md`  
-   Known fix/polish groups to audit for Sandbox MVP.
-
-4. `docs/project/PROJECT_STATE.md`  
+2. `docs/project/PROJECT_STATE.md`  
    Short current operational state.
 
-5. `docs/project/GPT_WORKFLOW.md`  
+3. `docs/project/CURRENT_NEXT_STEP.md`  
+   What to do next.
+
+4. `docs/project/GPT_WORKFLOW.md`  
    GPT planner/reviewer workflow rules.
 
-6. `docs/project/GLM_EXECUTOR_RULES.md`  
+5. `docs/project/GLM_EXECUTOR_RULES.md`  
    GLM executor rules and Telegram notification requirement.
 
-7. Topic-specific docs only when relevant, for example:
+6. Topic-specific docs only when relevant, for example:
    - `docs/BUILDING_PLACEMENT_STRATEGY.md` for building PNG placement / anchoring.
 
-`docs/ROADMAP.md` is now inactive/archived. Read it only as historical reference.
+Archived docs (read as historical reference only):
+- `docs/project/PHASE_2_ROADMAP.md` — superseded by VISUAL_ROADMAP.md
+- `docs/project/PHASE_2_ROADMAP_AUDIT.md` — superseded by VISUAL_ROADMAP.md
+- `docs/project/TERRAIN_02_QUALITY_AUDIT_AND_PIPELINE.md` — sand pipeline, paused
+- `docs/project/MAPLIFE_01_ASSET_READINESS.md` — rejected
+- `docs/project/NEW_CHAT_HANDOFF.md` — superseded
+- `docs/project/PHASE_1_FREEZE.md` — historical
+- `docs/ROADMAP.md` — inactive/archived
+
+Archived copies: `docs/project/archive/`
 
 ---
 
@@ -103,11 +113,13 @@ Important: new product ideas from Denis still go through roadmap discipline.
 
 ## Immediate process rule
 
-Current next step is planning, not implementation:
+Current next step is audit, not implementation:
 
 ```text
-Create Sandbox MVP audit/roadmap.
+VISUAL-AUDIT-01 — Visual audit/design
 ```
+
+Do not start VISUAL implementation before the audit is accepted.
 
 Do not start code work if project rules, current state, or roadmap are unclear.
 
@@ -170,6 +182,6 @@ FIX_BACKLOG -> Sandbox MVP audit -> new Sandbox MVP roadmap -> scoped implementa
 
 ## After reading this file
 
-Read `NEW_CHAT_HANDOFF.md`, `PHASE_1_FREEZE.md`, `FIX_BACKLOG.md`, and `PROJECT_STATE.md`.
+Read `VISUAL_ROADMAP.md`, `PROJECT_STATE.md`, and `CURRENT_NEXT_STEP.md`.
 
 Only after that, continue the project conversation.

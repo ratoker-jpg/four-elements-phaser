@@ -1,17 +1,11 @@
 # PHASE_2_ROADMAP_AUDIT.md
 
-> **DEPRECATED — This audit is no longer the active planning gate.**
-> The sand-terrain-focused Phase 2 direction has been superseded by `docs/project/VISUAL_ROADMAP.md`.
-> Archived copy: `docs/project/archive/PHASE_2_ROADMAP_AUDIT.md`
-> Read this file only as historical reference.
-
-Status: **archived / deprecated**
+Status: full Phase 2 roadmap audit
 Project: Four Elements Phaser
 Active repo: `ratoker-jpg/four-elements-phaser`
 Phaser version: 4.1.0
 Reference/donor repo: `ratoker-jpg/four-elements-next` (donor/reference only)
 Date: 2026-05-29
-Archived on: 2026-05-30
 
 ---
 
