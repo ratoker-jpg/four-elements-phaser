@@ -39,10 +39,10 @@ describe('ARCH-17A/17B: assetDiagnostics', () => {
       }
     });
 
-    it('terrain category has exactly 3 entries (sand, sand-dark, sand-light)', () => {
+    it('terrain category has 6 entries (TERRAIN-02A 6-variant family)', () => {
       const entries = buildAssetDiagnostics();
       const terrain = entries.filter(e => e.category === 'terrain');
-      expect(terrain.length).toBe(3);
+      expect(terrain.length).toBe(6);
       expect(terrain.every(e => e.status === 'expected')).toBe(true);
     });
 
@@ -219,15 +219,15 @@ describe('ARCH-17A/17B: assetDiagnostics', () => {
   // ── Summary counts ─────────────────────────────────────────────
 
   describe('summary counts', () => {
-    it('countManifestKeys returns 106', () => {
-      // Generated manifest has 106 keys: hq(4) + buildings(24) + civilUnits(8) + modularUnits(64) + terrain(3) + resources(3)
-      expect(countManifestKeys()).toBe(106);
+    it('countManifestKeys returns 109', () => {
+      // TERRAIN-02A: Generated manifest has 109 keys: hq(4) + buildings(24) + civilUnits(8) + modularUnits(64) + terrain(6) + resources(3)
+      expect(countManifestKeys()).toBe(109);
     });
 
     it('summarizeAssetDiagnostics has correct total', () => {
       const entries = buildAssetDiagnostics();
       const summary = summarizeAssetDiagnostics(entries);
-      expect(summary.totalManifest).toBe(106);
+      expect(summary.totalManifest).toBe(109);
       expect(summary.expected).toBeGreaterThan(0);
       expect(summary.manifestOnly).toBeGreaterThan(0);
       expect(summary.placeholder).toBeGreaterThan(0);

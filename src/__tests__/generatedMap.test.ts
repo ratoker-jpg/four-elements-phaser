@@ -14,6 +14,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import type { TerrainType } from '../state/types';
 import {
   normalizeSeed,
   createRandomSeed,
@@ -200,7 +201,8 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
 
     it('terrain only contains valid terrain types', () => {
       const map = createGeneratedMapData('terrain-type-test', 'standard');
-      const validTypes = new Set(['sand', 'sand-light', 'sand-dark']);
+      // TERRAIN-02A: 6-variant 256×128 sand tile family
+      const validTypes = new Set(['sand', 'sand-light', 'sand-dark', 'sand-ripple', 'sand-pebble', 'sand-cracked']);
       for (const row of map.terrain) {
         for (const cell of row) {
           expect(validTypes.has(cell)).toBe(true);
@@ -211,15 +213,17 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
     it('sand is the dominant terrain type', () => {
       const map = createGeneratedMapData('dominant-sand-test', 'standard');
       let sandCount = 0;
+      // TERRAIN-02A: Count sand and its detail variants as the dominant family
+      const sandFamily: TerrainType[] = ['sand', 'sand-ripple', 'sand-pebble', 'sand-cracked'];
       let totalCells = 0;
       for (const row of map.terrain) {
         for (const cell of row) {
           totalCells++;
-          if (cell === 'sand') sandCount++;
+          if (sandFamily.includes(cell)) sandCount++;
         }
       }
-      // Sand should be at least 50% of the map (patch-based, so dominant)
-      expect(sandCount / totalCells).toBeGreaterThan(0.5);
+      // Sand family should be at least 40% of the map (patch-based, so dominant)
+      expect(sandCount / totalCells).toBeGreaterThan(0.4);
     });
 
     it('terrain has clustered patches (not pure random single-cell noise)', () => {

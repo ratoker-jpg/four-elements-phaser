@@ -238,6 +238,7 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
  * Generate terrain using patch/cluster-based approach.
  *
  * TERRAIN-01: Improved clustering for natural-looking desert terrain.
+ * TERRAIN-02A: Extended to 6-variant 256×128 sand tile family.
  *
  * Strategy:
  * 1. Fill entire map with 'sand' (dominant base).
@@ -247,6 +248,9 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
  * 4. Tiles within radius of a patch center get that patch's terrain type
  *    with smooth distance-based falloff.
  * 5. Sand remains the clear majority (~60-70%); patches form soft clusters.
+ * 6. TERRAIN-02A: Second pass sprinkles detail variants (sand-ripple,
+ *    sand-pebble, sand-cracked) onto base 'sand' tiles using PRNG for
+ *    texture variety and repetition reduction.
  *
  * Improvements over original:
  * - Larger primary patches (radius up to 7) for bigger visual clusters
@@ -255,6 +259,8 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
  * - Balanced type distribution: ~35% sand-light, ~25% sand-dark primary,
  *   with accent patches adding variety
  * - Fewer but larger patches reduce the scattered noise appearance
+ * - TERRAIN-02A: Detail variant sprinkling adds ripple/pebble/cracked
+ *   accents for texture variety without rotation
  *
  * Same seed + size always produces identical terrain.
  */
@@ -325,6 +331,30 @@ function generateTerrain(rng: () => number, W: number, H: number): TerrainType[]
           terrain[ty][tx] = patch.type;
         }
       }
+    }
+  }
+
+  // Step 5: TERRAIN-02A — Sprinkle detail variants onto base 'sand' tiles.
+  // After patch application, some 'sand' tiles get assigned a detail variant
+  // (ripple, pebble, cracked) for texture variety and repetition reduction.
+  // This is deterministic: same seed + size = same variant assignment.
+  // Distribution: ~10% ripple, ~4% pebble, ~4% cracked of remaining sand tiles.
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (terrain[y][x] !== 'sand') continue;
+
+      const roll = rng();
+      if (roll < 0.10) {
+        // ~10% of sand tiles become ripple
+        terrain[y][x] = 'sand-ripple';
+      } else if (roll < 0.14) {
+        // ~4% of sand tiles become pebble
+        terrain[y][x] = 'sand-pebble';
+      } else if (roll < 0.18) {
+        // ~4% of sand tiles become cracked
+        terrain[y][x] = 'sand-cracked';
+      }
+      // Remaining ~82% stay as 'sand' — dominant base
     }
   }
 
