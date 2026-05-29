@@ -38,21 +38,14 @@ Do not follow `PHASE_2_ROADMAP.md` or `PHASE_2_ROADMAP_AUDIT.md` as active direc
 ## Current next step
 
 ```text
-VISUAL-AUDIT-01 — Visual audit/design
+VISUAL-01 — Industrial map visual candidate workflow
 ```
 
-This is Phase V1 from the VISUAL roadmap. The audit must produce `docs/project/VISUAL_AUDIT_01.md` that determines:
+VISUAL-AUDIT-01 is complete. The full visual system audit is in `docs/project/VISUAL_SYSTEM_AUDIT.md`. It defines a staged 12-PR implementation sequence (VISUAL-01 through VISUAL-12) with the industrial platform approach as the recommended map direction.
 
-1. Current visual state of each layer
-2. What Phaser 4 can support for the industrial biome target
-3. Asset pipeline for new industrial terrain/platform
-4. Renderer changes needed (if any)
-5. Map frame / grounded presentation approach
-6. HUD redesign plan
-7. Implementation sequence for remaining VISUAL phases
-8. Risks and stop conditions
+The first implementation task is VISUAL-01 — produce 2-3 static visual direction candidates for the industrial map surface. No runtime changes. One direction must be approved before any runtime work begins.
 
-Do not start implementation of any VISUAL phase before the audit is accepted.
+Do not start implementation of any VISUAL phase before the audit is accepted and the first candidate direction is approved.
 
 ---
 
@@ -61,11 +54,18 @@ Do not start implementation of any VISUAL phase before the audit is accepted.
 From VISUAL roadmap:
 
 ```text
-1. VISUAL-AUDIT-01 — Visual audit/design (docs only, no runtime)
-2. VISUAL-PROTO-01 — Map direction prototype (visual candidates, no runtime integration)
-3. VISUAL-TERRAIN-01 — Terrain/platform integration (requires V1 + V2)
-4. VISUAL-FRAME-01 — Map frame / grounded presentation (requires V3)
-5. VISUAL-START-01 — Start position and map composition (requires V3)
+1. VISUAL-01 — Industrial map visual candidate workflow (docs/assets only)
+2. VISUAL-02 — Map rendering prototype spike (dev-mode preview)
+3. VISUAL-03 — Industrial terrain/platform integration (requires V1 + V2)
+4. VISUAL-04 — Map frame / grounded presentation (requires V3)
+5. VISUAL-05 — Lower-left start composition (requires V3)
+6. VISUAL-06 — Resource field visual model design
+7. VISUAL-07 — HUD layout design doc
+8. VISUAL-08 — HUD shell implementation
+9. VISUAL-09 — Command panel/hotkey visual pass
+10. VISUAL-10 — Main menu visual refresh
+11. VISUAL-11 — Harvester/builder visual workflow design
+12. VISUAL-12 — Approved unit visual integration
 ```
 
 Previously listed Phase 2 tasks (MENU-01, LOADING-01, HOTKEYS-01, BASE-ANCHOR-01) are already completed/merged — see `PROJECT_STATE.md` "Completed foundation" section.
