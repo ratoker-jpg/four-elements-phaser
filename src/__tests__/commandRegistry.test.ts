@@ -9,6 +9,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   CommandRegistry,
   registerMvpCommands,
+  ensureMvpCommandsRegistered,
+  getMvpCommandHotkey,
   commandRegistry,
   type CommandDef,
 } from '../state/commandRegistry';
@@ -388,6 +390,144 @@ describe('registerMvpCommands', () => {
     expect(commandRegistry.get('build-power-plant')!.label).toBe('Build Power Plant');
     expect(commandRegistry.get('produce-builder')!.label).toBe('Train Builder');
     expect(commandRegistry.get('produce-harvester')!.label).toBe('Train Harvester');
+  });
+
+  // ─── Idempotency tests (PR #111 fixup — Issue 1) ─────────────
+
+  describe('idempotency', () => {
+    it('calling registerMvpCommands() twice keeps exactly 7 commands', () => {
+      registerMvpCommands();
+      registerMvpCommands();
+      expect(commandRegistry.list()).toHaveLength(7);
+    });
+
+    it('second call does not create duplicate key conflicts', () => {
+      registerMvpCommands();
+      registerMvpCommands();
+      const conflicts = commandRegistry.detectDuplicateKeys();
+      expect(conflicts).toHaveLength(0);
+    });
+
+    it('second call preserves existing execute callback', () => {
+      registerMvpCommands();
+
+      // Wire an execute callback (simulating GameInputController wiring)
+      const cmd = commandRegistry.get('build-separator')!;
+      let called = false;
+      cmd.execute = () => { called = true; };
+
+      // Call registerMvpCommands again (simulating scene recreation)
+      registerMvpCommands();
+
+      // The execute callback should still be present
+      const afterReregister = commandRegistry.get('build-separator')!;
+      expect(afterReregister.execute).toBeDefined();
+      afterReregister.execute!();
+      expect(called).toBe(true);
+    });
+
+    it('second call preserves existing enabled callback', () => {
+      registerMvpCommands();
+
+      // Wire an enabled predicate
+      const cmd = commandRegistry.get('produce-builder')!;
+      let checkCount = 0;
+      cmd.enabled = () => { checkCount++; return true; };
+
+      // Call registerMvpCommands again
+      registerMvpCommands();
+
+      // The enabled callback should still be present
+      const afterReregister = commandRegistry.get('produce-builder')!;
+      expect(afterReregister.enabled).toBeDefined();
+      afterReregister.enabled!();
+      expect(checkCount).toBe(1);
+    });
+
+    it('second call updates definition fields while preserving callbacks', () => {
+      registerMvpCommands();
+
+      // Wire callbacks
+      const cmd = commandRegistry.get('build-separator')!;
+      let called = false;
+      cmd.execute = () => { called = true; };
+      cmd.enabled = () => true;
+
+      // Re-register — definition fields are updated, callbacks preserved
+      registerMvpCommands();
+
+      const afterReregister = commandRegistry.get('build-separator')!;
+      expect(afterReregister.label).toBe('Build Separator');
+      expect(afterReregister.key).toBe('B');
+      expect(afterReregister.category).toBe('build');
+      expect(afterReregister.execute).toBeDefined();
+      expect(afterReregister.enabled).toBeDefined();
+      afterReregister.execute!();
+      expect(called).toBe(true);
+    });
+  });
+});
+
+// ─── ensureMvpCommandsRegistered & getMvpCommandHotkey (PR #111 fixup — Issue 2) ──
+
+describe('ensureMvpCommandsRegistered', () => {
+  beforeEach(() => {
+    commandRegistry.clear();
+  });
+
+  it('registers MVP commands when registry is empty', () => {
+    ensureMvpCommandsRegistered();
+    expect(commandRegistry.list()).toHaveLength(7);
+  });
+
+  it('is idempotent — repeated calls keep exactly 7 commands', () => {
+    ensureMvpCommandsRegistered();
+    ensureMvpCommandsRegistered();
+    ensureMvpCommandsRegistered();
+    expect(commandRegistry.list()).toHaveLength(7);
+  });
+
+  it('does not remove existing execute callbacks', () => {
+    registerMvpCommands();
+    const cmd = commandRegistry.get('build-separator')!;
+    let called = false;
+    cmd.execute = () => { called = true; };
+
+    ensureMvpCommandsRegistered();
+
+    commandRegistry.get('build-separator')!.execute!();
+    expect(called).toBe(true);
+  });
+});
+
+describe('getMvpCommandHotkey', () => {
+  beforeEach(() => {
+    commandRegistry.clear();
+  });
+
+  it('returns correct hotkey for registered MVP command', () => {
+    registerMvpCommands();
+    expect(getMvpCommandHotkey('build-separator')).toBe('B');
+    expect(getMvpCommandHotkey('camera-reset')).toBe('R');
+    expect(getMvpCommandHotkey('pause-menu')).toBe('ESC');
+  });
+
+  it('resolves hotkey even when registry was empty before call', () => {
+    // Simulates PlaytestHud creating buttons before GameInputController
+    expect(getMvpCommandHotkey('build-separator')).toBe('B');
+    expect(getMvpCommandHotkey('produce-builder')).toBe('N');
+  });
+
+  it('returns empty string for unknown command id', () => {
+    registerMvpCommands();
+    expect(getMvpCommandHotkey('nonexistent')).toBe('');
+  });
+
+  it('does not duplicate commands when called multiple times', () => {
+    getMvpCommandHotkey('build-separator');
+    getMvpCommandHotkey('build-separator');
+    getMvpCommandHotkey('produce-builder');
+    expect(commandRegistry.list()).toHaveLength(7);
   });
 });
 

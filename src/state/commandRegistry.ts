@@ -192,7 +192,7 @@ export const commandRegistry = new CommandRegistry();
 // ─── Default MVP command definitions ────────────────────────────────
 
 /**
- * Register all safe MVP commands.
+ * MVP command definitions — data-only, no execute callbacks.
  *
  * These use the CURRENT established key bindings.
  * Proposed remappings (S for separator, H for harvester, B for builder)
@@ -203,53 +203,61 @@ export const commandRegistry = new CommandRegistry();
  * is pure TS (state layer) and must not import Phaser or
  * depend on gameplay subsystems.
  */
+const MVP_COMMAND_DEFS: CommandDef[] = [
+  { id: 'camera-reset', label: 'Camera Reset', key: 'R', category: 'camera' },
+  { id: 'pause-menu', label: 'Pause / Menu', key: 'ESC', category: 'menu' },
+  { id: 'build-separator', label: 'Build Separator', key: 'B', category: 'build' },
+  { id: 'build-units-factory', label: 'Build Units Factory', key: 'F', category: 'build' },
+  { id: 'build-power-plant', label: 'Build Power Plant', key: 'P', category: 'build' },
+  { id: 'produce-builder', label: 'Train Builder', key: 'N', category: 'produce' },
+  { id: 'produce-harvester', label: 'Train Harvester', key: 'G', category: 'produce' },
+];
+
+/**
+ * Register all safe MVP commands.
+ *
+ * Idempotent: calling this multiple times is safe.
+ * - If a command ID already exists, its definition fields (label, key, category)
+ *   are updated in place while preserving any execute/enabled callbacks
+ *   that were wired by GameInputController.
+ * - If a command ID does not exist yet, it is registered normally.
+ * - No duplicate warnings are emitted on repeated calls.
+ */
 export function registerMvpCommands(): void {
-  commandRegistry.register({
-    id: 'camera-reset',
-    label: 'Camera Reset',
-    key: 'R',
-    category: 'camera',
-  });
+  for (const def of MVP_COMMAND_DEFS) {
+    const existing = commandRegistry.get(def.id);
+    if (existing) {
+      // Update definition fields but preserve execute/enabled callbacks
+      existing.label = def.label;
+      existing.key = def.key;
+      existing.category = def.category;
+    } else {
+      commandRegistry.register(def);
+    }
+  }
+}
 
-  commandRegistry.register({
-    id: 'pause-menu',
-    label: 'Pause / Menu',
-    key: 'ESC',
-    category: 'menu',
-  });
+/**
+ * Ensure MVP commands are registered — convenience wrapper.
+ *
+ * Identical to registerMvpCommands() but named for clarity at call sites
+ * that only need to guarantee definitions exist (e.g., PlaytestHud label
+ * lookups) rather than performing initial registration.
+ */
+export function ensureMvpCommandsRegistered(): void {
+  registerMvpCommands();
+}
 
-  commandRegistry.register({
-    id: 'build-separator',
-    label: 'Build Separator',
-    key: 'B',
-    category: 'build',
-  });
-
-  commandRegistry.register({
-    id: 'build-units-factory',
-    label: 'Build Units Factory',
-    key: 'F',
-    category: 'build',
-  });
-
-  commandRegistry.register({
-    id: 'build-power-plant',
-    label: 'Build Power Plant',
-    key: 'P',
-    category: 'build',
-  });
-
-  commandRegistry.register({
-    id: 'produce-builder',
-    label: 'Train Builder',
-    key: 'N',
-    category: 'produce',
-  });
-
-  commandRegistry.register({
-    id: 'produce-harvester',
-    label: 'Train Harvester',
-    key: 'G',
-    category: 'produce',
-  });
+/**
+ * Get the hotkey for an MVP command by id, ensuring definitions exist first.
+ *
+ * Safe to call from any initialization order — will register MVP command
+ * definitions if they haven't been registered yet, without overwriting
+ * any execute/enabled callbacks already wired.
+ * Returns the key string or empty string if the command has no key.
+ */
+export function getMvpCommandHotkey(commandId: string): string {
+  ensureMvpCommandsRegistered();
+  const cmd = commandRegistry.get(commandId);
+  return cmd?.key ?? '';
 }

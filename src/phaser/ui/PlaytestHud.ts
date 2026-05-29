@@ -16,7 +16,7 @@
 import type { GameState, BuildingType, ProducibleUnitType } from '../../state/types';
 import { ELEMENT_UNITS_PER_ELEMENT } from '../../state/types';
 import { BUILDING_CONFIG } from '../../state/construction';
-import { commandRegistry } from '../../state/commandRegistry';
+import { getMvpCommandHotkey } from '../../state/commandRegistry';
 import {
   getSeparatorStatus,
   getFactoryStatus,
@@ -88,11 +88,16 @@ const PRODUCTION_BUTTONS: Array<{ unitType: ProducibleUnitType; label: string; c
 
 /**
  * Get the hotkey string for a command from the registry.
+ *
+ * HOTKEYS-01 fixup: Uses getMvpCommandHotkey() to ensure MVP command
+ * definitions exist before lookup. This makes the HUD robust to
+ * initialization order — even if PlaytestHud creates buttons before
+ * GameInputController registers MVP commands, hotkey labels will resolve.
+ *
  * Returns empty string if command not found or has no key.
  */
 function getHotkeyString(commandId: string): string {
-  const cmd = commandRegistry.get(commandId);
-  return cmd?.key ?? '';
+  return getMvpCommandHotkey(commandId);
 }
 
 // ─── PlaytestHud class ──────────────────────────────────────────────
