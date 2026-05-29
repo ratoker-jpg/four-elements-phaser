@@ -25,6 +25,8 @@ import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
 import { FeedbackRenderer } from './render/FeedbackRenderer';
 import { UnitMotionFxRenderer } from './render/UnitMotionFxRenderer';
 import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData } from '../state/devArena';
+import { AssetPreviewTool } from './dev/AssetPreviewTool';
+import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
 
 /**
  * GameScene — orchestration-only scene.
@@ -97,6 +99,10 @@ export class GameScene extends Phaser.Scene {
 
   /** Track last raw count to log once per unload. */
   private lastLoggedRaw: number = 0;
+
+  // DEV-ASSET-PREVIEW-01: Dev-only asset preview tool and panel
+  private assetPreviewTool: AssetPreviewTool | null = null;
+  private assetPreviewPanel: AssetPreviewPanel | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -290,6 +296,15 @@ export class GameScene extends Phaser.Scene {
       console.log('[GameScene] Devtools panel enabled.');
     }
 
+    // DEV-ASSET-PREVIEW-01: Create asset preview tool and panel if devtools is active
+    if (this.devtoolsActive) {
+      this.assetPreviewTool = new AssetPreviewTool(this, this._offset as IsoPoint);
+      this.assetPreviewPanel = new AssetPreviewPanel();
+      this.assetPreviewPanel.create({ getTool: () => this.assetPreviewTool });
+      this.assetPreviewTool.setOnStateChange(() => this.assetPreviewPanel?.refresh());
+      console.log('[GameScene] Asset preview tool enabled (toggle: 0).');
+    }
+
     // ── ARCH-18A-LITE: Create input controller ─────────────────────
     // All keyboard/pointer input wiring, selection state, and command
     // methods are now handled by GameInputController.
@@ -303,6 +318,8 @@ export class GameScene extends Phaser.Scene {
       pauseMenu: this.pauseMenu,
       debugOverlayRenderer: this.debugOverlayRenderer,
       devtoolsPanel: this.devtoolsPanel,
+      assetPreviewTool: this.assetPreviewTool,
+      assetPreviewPanel: this.assetPreviewPanel,
       setPaused: (paused: boolean) => { this.paused = paused; },
     });
 
@@ -397,6 +414,9 @@ export class GameScene extends Phaser.Scene {
     // 8d. ARCH-13C-LITE: Sync motion dust renderer (movement particles)
     this.motionFxRenderer?.syncFromState(this.gameState, this.time.now);
 
+    // 8e. DEV-ASSET-PREVIEW-01: Update asset preview tool (selection highlight)
+    this.assetPreviewTool?.update();
+
     // 10. Debug log on unload completion
     if (this.gameState.economy.raw > this.lastLoggedRaw) {
       console.log(
@@ -457,6 +477,10 @@ export class GameScene extends Phaser.Scene {
     this.debugOverlayRenderer = null;
     this.devtoolsPanel?.destroy();
     this.devtoolsPanel = null;
+    this.assetPreviewPanel?.destroy();
+    this.assetPreviewPanel = null;
+    this.assetPreviewTool?.destroy();
+    this.assetPreviewTool = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
     this.playtestHud?.destroy();
