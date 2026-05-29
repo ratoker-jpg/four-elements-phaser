@@ -14,6 +14,7 @@ import {
   type ModularTankDirection,
 } from '../../config/worldConfig';
 import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
+import { commandRegistry, registerMvpCommands } from '../../state/commandRegistry';
 import type { EntityRenderer } from '../render/EntityRenderer';
 import type { FeedbackRenderer } from '../render/FeedbackRenderer';
 import type { PauseMenu } from '../ui/PauseMenu';
@@ -133,6 +134,10 @@ export class GameInputController {
     this.boundPointerup = this.onPointerup.bind(this);
     this.boundArrowHandler = this.onArrowKey.bind(this);
 
+    // HOTKEYS-01: Initialize command registry and wire MVP command callbacks
+    registerMvpCommands();
+    this.wireCommandCallbacks();
+
     // Wire all input
     this.setupPointerInput();
     this.setupKeyboardInput();
@@ -144,6 +149,57 @@ export class GameInputController {
    */
   update(): void {
     this.updateSelectionHighlight();
+  }
+
+  // ─── Command registry wiring (HOTKEYS-01) ────────────────────────
+
+  /**
+   * Wire execute callbacks for MVP commands in the registry.
+   *
+   * Called once during construction, after registerMvpCommands().
+   * The registry stores definitions (pure data); this method connects
+   * them to actual gameplay actions.
+   */
+  private wireCommandCallbacks(): void {
+    const buildSeparator = commandRegistry.get('build-separator');
+    if (buildSeparator) {
+      buildSeparator.execute = () => {
+        const result = this.requestBuild('separator');
+        this.showStatusCb(result.message, result.success);
+      };
+    }
+
+    const buildFactory = commandRegistry.get('build-units-factory');
+    if (buildFactory) {
+      buildFactory.execute = () => {
+        const result = this.requestBuild('units-factory');
+        this.showStatusCb(result.message, result.success);
+      };
+    }
+
+    const buildPowerPlant = commandRegistry.get('build-power-plant');
+    if (buildPowerPlant) {
+      buildPowerPlant.execute = () => {
+        const result = this.requestBuild('power-plant');
+        this.showStatusCb(result.message, result.success);
+      };
+    }
+
+    const produceBuilder = commandRegistry.get('produce-builder');
+    if (produceBuilder) {
+      produceBuilder.execute = () => {
+        const result = this.requestQueueUnit('builder');
+        this.showStatusCb(result.message, result.success);
+      };
+    }
+
+    const produceHarvester = commandRegistry.get('produce-harvester');
+    if (produceHarvester) {
+      produceHarvester.execute = () => {
+        const result = this.requestQueueUnit('harvester');
+        this.showStatusCb(result.message, result.success);
+      };
+    }
   }
 
   // ─── Command methods (shared by hotkeys and HUD buttons) ────────
@@ -329,32 +385,22 @@ export class GameInputController {
       console.log(`[Tuner] turretDir: ${next}`);
     });
 
-    // ── Build hotkeys ────────────────────────────────────────
-    kb.on('keydown-B', () => {
-      const result = this.requestBuild('separator');
-      this.showStatusCb(result.message, result.success);
-    });
+    // ── Build & Production hotkeys (HOTKEYS-01: dispatched via command registry) ──
+    // Register keyboard listeners for each build/produce command.
+    // The registry is the source-of-truth for key bindings.
+    const buildCommands = commandRegistry.findByCategory('build');
+    for (const cmd of buildCommands) {
+      kb.on(`keydown-${cmd.key}`, () => {
+        commandRegistry.execute(cmd.id);
+      });
+    }
 
-    kb.on('keydown-F', () => {
-      const result = this.requestBuild('units-factory');
-      this.showStatusCb(result.message, result.success);
-    });
-
-    kb.on('keydown-P', () => {
-      const result = this.requestBuild('power-plant');
-      this.showStatusCb(result.message, result.success);
-    });
-
-    // ── Production hotkeys ───────────────────────────────────
-    kb.on('keydown-N', () => {
-      const result = this.requestQueueUnit('builder');
-      this.showStatusCb(result.message, result.success);
-    });
-
-    kb.on('keydown-G', () => {
-      const result = this.requestQueueUnit('harvester');
-      this.showStatusCb(result.message, result.success);
-    });
+    const produceCommands = commandRegistry.findByCategory('produce');
+    for (const cmd of produceCommands) {
+      kb.on(`keydown-${cmd.key}`, () => {
+        commandRegistry.execute(cmd.id);
+      });
+    }
 
     // ── Devtools toggle (F10 / backtick) ─────────────────────
     kb.on('keydown-F10', () => {
