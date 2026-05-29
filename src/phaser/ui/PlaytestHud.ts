@@ -16,6 +16,7 @@
 import type { GameState, BuildingType, ProducibleUnitType } from '../../state/types';
 import { ELEMENT_UNITS_PER_ELEMENT } from '../../state/types';
 import { BUILDING_CONFIG } from '../../state/construction';
+import { getMvpCommandHotkey } from '../../state/commandRegistry';
 import {
   getSeparatorStatus,
   getFactoryStatus,
@@ -72,18 +73,32 @@ const STATUS_DISPLAY_MS = 3000;
 /** How long resource delta indicators are shown (ms). */
 const DELTA_DISPLAY_MS = 2000;
 
-/** Build button definitions. */
-const BUILD_BUTTONS: Array<{ buildingType: BuildingType; label: string; hotkey: string }> = [
-  { buildingType: 'separator', label: 'Separator', hotkey: 'B' },
-  { buildingType: 'power-plant', label: 'Power Plant', hotkey: 'P' },
-  { buildingType: 'units-factory', label: 'Units Factory', hotkey: 'F' },
+/** Build button definitions. HOTKEYS-01: hotkeys sourced from command registry. */
+const BUILD_BUTTONS: Array<{ buildingType: BuildingType; label: string; commandId: string }> = [
+  { buildingType: 'separator', label: 'Separator', commandId: 'build-separator' },
+  { buildingType: 'power-plant', label: 'Power Plant', commandId: 'build-power-plant' },
+  { buildingType: 'units-factory', label: 'Units Factory', commandId: 'build-units-factory' },
 ];
 
-/** Production button definitions. */
-const PRODUCTION_BUTTONS: Array<{ unitType: ProducibleUnitType; label: string; hotkey: string }> = [
-  { unitType: 'builder', label: 'Builder', hotkey: 'N' },
-  { unitType: 'harvester', label: 'Harvester', hotkey: 'G' },
+/** Production button definitions. HOTKEYS-01: hotkeys sourced from command registry. */
+const PRODUCTION_BUTTONS: Array<{ unitType: ProducibleUnitType; label: string; commandId: string }> = [
+  { unitType: 'builder', label: 'Builder', commandId: 'produce-builder' },
+  { unitType: 'harvester', label: 'Harvester', commandId: 'produce-harvester' },
 ];
+
+/**
+ * Get the hotkey string for a command from the registry.
+ *
+ * HOTKEYS-01 fixup: Uses getMvpCommandHotkey() to ensure MVP command
+ * definitions exist before lookup. This makes the HUD robust to
+ * initialization order — even if PlaytestHud creates buttons before
+ * GameInputController registers MVP commands, hotkey labels will resolve.
+ *
+ * Returns empty string if command not found or has no key.
+ */
+function getHotkeyString(commandId: string): string {
+  return getMvpCommandHotkey(commandId);
+}
 
 // ─── PlaytestHud class ──────────────────────────────────────────────
 
@@ -222,7 +237,8 @@ export class PlaytestHud {
       const btn = document.createElement('button');
       const config = BUILDING_CONFIG[def.buildingType];
       const costStr = config ? ` (${config.costMatter}m)` : '';
-      btn.textContent = `${def.hotkey} = ${def.label}${costStr}`;
+      const hotkey = getHotkeyString(def.commandId);
+      btn.textContent = hotkey ? `${hotkey} = ${def.label}${costStr}` : `${def.label}${costStr}`;
       btn.style.cssText = `
         flex: 1;
         padding: 4px 8px;
@@ -271,7 +287,8 @@ export class PlaytestHud {
       row.style.cssText = 'display: flex; align-items: center; margin: 2px 0;';
 
       const btn = document.createElement('button');
-      btn.textContent = `${def.hotkey} = ${def.label}`;
+      const hotkey = getHotkeyString(def.commandId);
+      btn.textContent = hotkey ? `${hotkey} = ${def.label}` : `${def.label}`;
       btn.style.cssText = `
         flex: 1;
         padding: 4px 8px;
