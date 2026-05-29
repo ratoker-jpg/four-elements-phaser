@@ -88,6 +88,8 @@ export interface BuildingPlacement {
 export type BuilderPhase = 'idle' | 'moving-to-site' | 'building';
 
 export interface BuilderPlacement {
+  /** BUILDER-ID: Stable string ID for this builder (e.g., 'builder-0', 'builder-spawn-...'). */
+  id: string;
   tx: number;
   ty: number;
   busy: boolean;

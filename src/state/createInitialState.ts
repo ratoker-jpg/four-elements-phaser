@@ -54,6 +54,11 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
   // Resolve player faction: explicit override > map data default
   const faction = playerFaction ?? (mapData.hq.faction as Faction);
 
+  // BUILDER-ID: Migrate any builders that lack an 'id' field (old saves / map data)
+  // BEFORE flattening entities. This ensures builder IDs are available when
+  // renderable entities are created, so entity IDs match builder IDs.
+  ensureBuilderIds(mapData);
+
   // Flatten all map entities into a unified renderable entity list
   const entities = flattenMapEntities(mapData, faction);
 
@@ -154,6 +159,28 @@ export function stripModularCombatFromState(
     entities: state.entities.filter(e => e.kind !== 'modular-combat'),
     extraModularCombat: [],
   };
+}
+
+// ─── BUILDER-ID: Migration helper ──────────────────────────────────
+
+/**
+ * Ensure every builder in mapData has a stable string ID.
+ *
+ * For old map data / saves without builder.id, assigns `builder-{index}`.
+ * Existing IDs are preserved. Must run before flattenMapEntities so
+ * that renderable entity IDs are derived from the same stable IDs.
+ *
+ * This helper is also applied at the save/load boundary so that
+ * old saves loaded via loadGame() (which bypasses createInitialState)
+ * also get builder IDs migrated.
+ */
+export function ensureBuilderIds(mapData: MapData): void {
+  for (let i = 0; i < mapData.builders.length; i++) {
+    const b = mapData.builders[i];
+    if (!(b as any).id) {
+      (b as any).id = `builder-${i}`;
+    }
+  }
 }
 
 // ─── PR3: Runtime state builders ────────────────────────────────────
@@ -262,10 +289,10 @@ function flattenMapEntities(mapData: MapData, faction: Faction): RenderableEntit
     faction,
   });
 
-  // Builders from saved map
+  // Builders from saved map — use builder.id (stable ID from ensureBuilderIds)
   for (const builder of mapData.builders) {
     entities.push({
-      id: id('builder'),
+      id: builder.id,
       kind: 'builder',
       tx: builder.tx,
       ty: builder.ty,

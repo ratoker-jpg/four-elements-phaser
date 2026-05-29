@@ -143,7 +143,9 @@ export function devSpawnBuilder(state: GameState): DevCommandResult {
     return { success: false, message: 'No valid spawn tile near HQ' };
   }
 
+  const id = `dev-builder-${pos.tx}-${pos.ty}-${Date.now()}`;
   const builder = {
+    id,
     tx: pos.tx,
     ty: pos.ty,
     busy: false,
@@ -160,7 +162,7 @@ export function devSpawnBuilder(state: GameState): DevCommandResult {
   state.mapData.builders.push(builder);
 
   state.entities.push({
-    id: `dev-builder-${pos.tx}-${pos.ty}-${Date.now()}`,
+    id,
     kind: 'builder',
     tx: pos.tx,
     ty: pos.ty,

@@ -232,6 +232,7 @@ const HQ: MapData['hq'] = { tx: 4, ty: 4, faction: 'cyan' };
 
 const BUILDERS: MapData['builders'] = [
   {
+    id: 'builder-0',
     tx: 3,
     ty: 3,
     busy: false,

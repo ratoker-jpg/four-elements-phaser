@@ -50,7 +50,7 @@ function makeStateWithSeparator(overrides?: {
     obstacles: [],
     decor: [],
     buildings: [{ tx: 10, ty: 10, type: 'separator' }],
-    builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+    builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
     constructionSites: [],
   };
 
@@ -105,7 +105,7 @@ function makeStateWithFactory(overrides?: {
     obstacles: [],
     decor: [],
     buildings: [{ tx: 10, ty: 10, type: 'units-factory' }],
-    builders: [{ tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+    builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
     constructionSites: [],
   };
 
@@ -554,6 +554,7 @@ describe('FIX-03: getProductionBlockReason includes unit-cap-reached', () => {
     // Fill to cap: 1 builder already from makeStateWithFactory, add 9 more
     for (let i = 0; i < 9; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5, busy: false, phase: 'idle',
         path: [], pathIndex: 0, ftx: 5 + i, fty: 5,
         targetTx: 5 + i, targetTy: 5, assignedSiteId: -1,
@@ -573,6 +574,7 @@ describe('FIX-03: getProductionBlockReason includes unit-cap-reached', () => {
     // Fill to cap
     for (let i = 0; i < 9; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5, busy: false, phase: 'idle',
         path: [], pathIndex: 0, ftx: 5 + i, fty: 5,
         targetTx: 5 + i, targetTy: 5, assignedSiteId: -1,
@@ -590,6 +592,7 @@ describe('FIX-03: getFactoryStatus includes blocked-unit-cap', () => {
     // Fill to cap: 1 builder already, add 9 more
     for (let i = 0; i < 9; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5, busy: false, phase: 'idle',
         path: [], pathIndex: 0, ftx: 5 + i, fty: 5,
         targetTx: 5 + i, targetTy: 5, assignedSiteId: -1,
@@ -639,6 +642,7 @@ describe('FIX-04: getFactorySpawnBlockReason', () => {
     // Fill to cap: 1 builder already, add 9 more = 10 = cap
     for (let i = 0; i < 9; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5, busy: false, phase: 'idle',
         path: [], pathIndex: 0, ftx: 5 + i, fty: 5,
         targetTx: 5 + i, targetTy: 5, assignedSiteId: -1,
@@ -668,6 +672,7 @@ describe('FIX-04: getFactorySpawnBlockReason', () => {
     // Fill to cap
     for (let i = 0; i < 9; i++) {
       state.mapData.builders.push({
+        id: `builder-cap-${i}`,
         tx: 5 + i, ty: 5, busy: false, phase: 'idle',
         path: [], pathIndex: 0, ftx: 5 + i, fty: 5,
         targetTx: 5 + i, targetTy: 5, assignedSiteId: -1,

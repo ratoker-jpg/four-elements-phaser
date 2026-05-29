@@ -15,6 +15,7 @@
  */
 
 import type { Faction, GameState } from './types';
+import { ensureBuilderIds } from './createInitialState';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -287,6 +288,14 @@ export function loadGame(slotId: string): LoadResult {
   }
   if (!gs.economy || typeof gs.economy !== 'object') {
     return { success: false, message: 'Save data corrupted' };
+  }
+
+  // BUILDER-ID: Migrate old saves where builders lack 'id'.
+  // loadGame() bypasses createInitialState, so we must apply the same
+  // migration at the load boundary. ensureBuilderIds is idempotent —
+  // builders with existing IDs are preserved.
+  if (gs.mapData?.builders) {
+    ensureBuilderIds(gs.mapData);
   }
 
   return { success: true, message: 'Loaded', gameState: gs };

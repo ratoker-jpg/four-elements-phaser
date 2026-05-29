@@ -177,6 +177,7 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
   // ── Builder ──
   const builders = [
     {
+      id: 'builder-0',
       tx: 3,
       ty: 3,
       busy: false,

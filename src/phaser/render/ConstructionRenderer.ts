@@ -75,14 +75,14 @@ export class ConstructionRenderer {
   /** Completed building Image objects (PNG rendering) keyed by `${tx},${ty}`. */
   private buildingImages = new Map<string, Phaser.GameObjects.Image>();
 
-  /** Builder Sprite objects keyed by builder index (spritesheet rendering). */
-  private builderSprites = new Map<number, Phaser.GameObjects.Sprite>();
+  /** Builder Sprite objects keyed by builder ID (BUILDER-ID: stable ID-based mapping). */
+  private builderSprites = new Map<string, Phaser.GameObjects.Sprite>();
 
   /** Whether a missing-texture error has already been logged (avoid spam). */
   private builderTextureErrorLogged = false;
 
-  /** Previous builder tile positions for direction calculation. */
-  private builderPrevTile = new Map<number, { ftx: number; fty: number }>();
+  /** Previous builder tile positions for direction calculation. BUILDER-ID: keyed by builder ID. */
+  private builderPrevTile = new Map<string, { ftx: number; fty: number }>();
 
   /** Set of `${faction}_${buildingType}` keys for which a missing-meta/texture
    *  warning has already been logged. Prevents per-frame spam. */
@@ -249,11 +249,10 @@ export class ConstructionRenderer {
       }
       // Skip rendering builders — do NOT silently fall back to circles.
       // Destroy any stale sprites from a previous frame.
-      for (const [bi, sprite] of this.builderSprites) {
-        if (bi < builders.length) {
-          sprite.destroy();
-          this.builderSprites.delete(bi);
-        }
+      for (const [id, sprite] of this.builderSprites) {
+        sprite.destroy();
+        this.builderSprites.delete(id);
+        this.builderPrevTile.delete(id);
       }
       return;
     }
@@ -261,16 +260,20 @@ export class ConstructionRenderer {
     // Texture exists — clear the error flag if it was set from a transient issue
     this.builderTextureErrorLogged = false;
 
-    for (let bi = 0; bi < builders.length; bi++) {
-      const builder = builders[bi];
-      this.syncBuilderSprite(bi, builder, textureKey);
+    // BUILDER-ID: Track active builder IDs for stale sprite cleanup
+    const activeBuilderIds = new Set<string>();
+
+    for (const builder of builders) {
+      activeBuilderIds.add(builder.id);
+      this.syncBuilderSprite(builder, textureKey);
     }
 
     // Destroy sprites for removed builders
-    for (const [bi, sprite] of this.builderSprites) {
-      if (bi >= builders.length) {
+    for (const [id, sprite] of this.builderSprites) {
+      if (!activeBuilderIds.has(id)) {
         sprite.destroy();
-        this.builderSprites.delete(bi);
+        this.builderSprites.delete(id);
+        this.builderPrevTile.delete(id);
       }
     }
   }
@@ -279,12 +282,15 @@ export class ConstructionRenderer {
    * Sync builder using spritesheet rendering.
    * Creates the sprite on first call, then updates position and facing each frame.
    *
+   * BUILDER-ID: Now keyed by builder.id instead of array index.
+   * This ensures sprite mapping remains stable even if the builders array
+   * is reordered or if builders are removed in the future.
+   *
    * ARCH-05A: Builder now faces movement direction while moving.
    * Uses directionFromDelta() from updateGameState to compute facing
    * from tile-space movement delta, matching harvester facing logic.
    */
   private syncBuilderSprite(
-    bi: number,
     builder: BuilderPlacement,
     textureKey: string,
   ): void {
@@ -296,14 +302,14 @@ export class ConstructionRenderer {
     // Default south-facing frame
     const frameIndex = DIR_ROW.S * 8 + IDLE_FRAME;
 
-    // Get or create sprite
-    let sprite = this.builderSprites.get(bi);
+    // Get or create sprite — keyed by builder.id (BUILDER-ID)
+    let sprite = this.builderSprites.get(builder.id);
     if (!sprite) {
       sprite = this.scene.add.sprite(worldX, worldY, textureKey, frameIndex);
       sprite.setScale(BUILDER_RENDER_SCALE);
       sprite.setOrigin(0.5, 0.75);
-      this.builderSprites.set(bi, sprite);
-      this.builderPrevTile.set(bi, { ftx: builder.ftx, fty: builder.fty });
+      this.builderSprites.set(builder.id, sprite);
+      this.builderPrevTile.set(builder.id, { ftx: builder.ftx, fty: builder.fty });
     }
 
     // Update position each frame
@@ -311,7 +317,7 @@ export class ConstructionRenderer {
     sprite.setDepth(110 + worldY);
 
     // Update facing direction based on movement delta
-    const prev = this.builderPrevTile.get(bi);
+    const prev = this.builderPrevTile.get(builder.id);
     if (prev) {
       const dtx = builder.ftx - prev.ftx;
       const dty = builder.fty - prev.fty;
@@ -321,7 +327,7 @@ export class ConstructionRenderer {
         sprite.setFrame(frame);
       }
     }
-    this.builderPrevTile.set(bi, { ftx: builder.ftx, fty: builder.fty });
+    this.builderPrevTile.set(builder.id, { ftx: builder.ftx, fty: builder.fty });
   }
 
   // ─── Drawing helpers ───────────────────────────────────────────

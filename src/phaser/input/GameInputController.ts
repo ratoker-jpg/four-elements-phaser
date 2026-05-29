@@ -424,14 +424,13 @@ export class GameInputController {
     let bestDist = SELECT_RADIUS;
     let bestSelection: UnitSelection = null;
 
-    for (let i = 0; i < gameState.mapData.builders.length; i++) {
-      const b = gameState.mapData.builders[i];
+    for (const b of gameState.mapData.builders) {
       const dx = b.ftx - clickTx;
       const dy = b.fty - clickTy;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < bestDist) {
         bestDist = dist;
-        bestSelection = selectBuilder(i);
+        bestSelection = selectBuilder(b.id);
       }
     }
 
@@ -449,7 +448,7 @@ export class GameInputController {
       // Unit under cursor → select it
       this.selectedUnit = bestSelection;
       const label = bestSelection.kind === 'builder'
-        ? `Builder #${bestSelection.index}`
+        ? `Builder ${bestSelection.id}`
         : `Harvester ${(bestSelection as { kind: 'harvester'; id: string }).id}`;
       this.showStatusCb(`Selected: ${label}`, true);
       return;
@@ -495,8 +494,8 @@ export class GameInputController {
     let ringY: number; // tile ground position from state
 
     if (this.selectedUnit!.kind === 'builder') {
-      const idx = this.selectedUnit!.index;
-      const builder = gameState.mapData.builders[idx];
+      const sel = this.selectedUnit as { kind: 'builder'; id: string };
+      const builder = gameState.mapData.builders.find(b => b.id === sel.id);
       if (!builder) return;
       const screenPos = tileToScreen(builder.ftx, builder.fty);
       ringX = screenPos.x + this.offset.x;

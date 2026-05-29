@@ -28,7 +28,8 @@ function makeTestState(overrides?: {
   const hqTx = overrides?.hqTx ?? 0;
   const hqTy = overrides?.hqTy ?? 0;
 
-  const builders: BuilderPlacement[] = (overrides?.builders ?? []).map((b) => ({
+  const builders: BuilderPlacement[] = (overrides?.builders ?? []).map((b, i) => ({
+    id: `builder-${i}`,
     tx: b.tx,
     ty: b.ty,
     busy: false,
