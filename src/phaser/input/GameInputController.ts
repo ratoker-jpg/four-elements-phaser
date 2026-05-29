@@ -20,6 +20,8 @@ import type { FeedbackRenderer } from '../render/FeedbackRenderer';
 import type { PauseMenu } from '../ui/PauseMenu';
 import type { DebugOverlayRenderer } from '../render/DebugOverlayRenderer';
 import type { DevtoolsPanel } from '../ui/DevtoolsPanel';
+import type { AssetPreviewTool } from '../dev/AssetPreviewTool';
+import type { AssetPreviewPanel } from '../dev/AssetPreviewPanel';
 
 /**
  * GameInputController — extracts input handling and command dispatch from GameScene.
@@ -58,6 +60,10 @@ export interface GameInputDeps {
   debugOverlayRenderer: DebugOverlayRenderer | null;
   /** DevtoolsPanel — nullable, only present when devtools is active. */
   devtoolsPanel: DevtoolsPanel | null;
+  /** AssetPreviewTool — nullable, only present when devtools is active. DEV-ASSET-PREVIEW-01. */
+  assetPreviewTool: AssetPreviewTool | null;
+  /** AssetPreviewPanel — nullable, only present when devtools is active. DEV-ASSET-PREVIEW-01. */
+  assetPreviewPanel: AssetPreviewPanel | null;
   /** Callback to change paused state in GameScene. */
   setPaused: (paused: boolean) => void;
 }
@@ -89,6 +95,8 @@ export class GameInputController {
   private showStatusCb: (message: string, success: boolean) => void;
   private pauseMenu: PauseMenu;
   private devtoolsPanel: DevtoolsPanel | null;
+  private assetPreviewTool: AssetPreviewTool | null;
+  private assetPreviewPanel: AssetPreviewPanel | null;
   private setPausedCb: (paused: boolean) => void;
 
   // ARCH-05X: Unit selection state
@@ -119,6 +127,8 @@ export class GameInputController {
     this.showStatusCb = deps.showStatus;
     this.pauseMenu = deps.pauseMenu;
     this.devtoolsPanel = deps.devtoolsPanel;
+    this.assetPreviewTool = deps.assetPreviewTool;
+    this.assetPreviewPanel = deps.assetPreviewPanel;
     this.setPausedCb = deps.setPaused;
 
     // Create selection highlight graphics
@@ -414,6 +424,19 @@ export class GameInputController {
       }
     });
 
+    // ── DEV-ASSET-PREVIEW-01: Asset preview toggle (0) ──────
+    kb.on('keydown-ZERO', () => {
+      if (this.assetPreviewTool && this.assetPreviewPanel) {
+        this.assetPreviewTool.toggle();
+        if (this.assetPreviewTool.active) {
+          this.assetPreviewPanel.show();
+        } else {
+          this.assetPreviewPanel.hide();
+        }
+        console.log(`[GameScene] Asset preview: ${this.assetPreviewTool.active ? 'ON' : 'OFF'}`);
+      }
+    });
+
     // ── ESC: toggle pause menu ───────────────────────────────
     kb.on('keydown-ESC', () => {
       if (this.pauseMenu.visible) {
@@ -460,8 +483,22 @@ export class GameInputController {
    * - If no unit under cursor AND nothing selected → do nothing
    */
   private handleLeftClick(pointer: Phaser.Input.Pointer): void {
-    const gameState = this.getGameState();
     const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+
+    // DEV-ASSET-PREVIEW-01: If asset preview tool is active with a pending
+    // placement, consume the click for asset placement instead of normal input.
+    if (this.assetPreviewTool?.active && this.assetPreviewTool.getPendingPlaceAssetId()) {
+      const consumed = this.assetPreviewTool.handleMapClick(
+        worldPoint.x,
+        worldPoint.y,
+      );
+      if (consumed) {
+        this.assetPreviewPanel?.refresh();
+        return;
+      }
+    }
+
+    const gameState = this.getGameState();
     const tilePos = screenToTile(worldPoint.x - this.offset.x, worldPoint.y - this.offset.y);
     const clickTx = tilePos.x;
     const clickTy = tilePos.y;
