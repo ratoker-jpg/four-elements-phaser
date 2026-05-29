@@ -5,6 +5,10 @@
  * them on the live game map before committing them as production assets.
  * Works only in devtools/debug/arena mode. Inaccessible in standard mode.
  *
+ * DEV-ASSET-PREVIEW-03: Extended chroma-key with custom HEX color, tolerance
+ * slider, and reprocess controls. Original source data is preserved for
+ * non-destructive reprocessing. Existing placements refresh automatically.
+ *
  * Lifecycle:
  * - Created by GameScene when devtools is enabled.
  * - Toggled by hotkey `0` (opens/closes the preview panel).
@@ -33,6 +37,17 @@ export interface PreviewAssetEntry {
   /** Natural image dimensions. */
   naturalWidth: number;
   naturalHeight: number;
+  /**
+   * DEV-ASSET-PREVIEW-03: Original source data URL for non-destructive reprocessing.
+   * Stored so the asset can be re-chroma-keyed with different color/tolerance
+   * without re-uploading. null only if created programmatically without a file.
+   */
+  sourceDataUrl: string | null;
+  /**
+   * DEV-ASSET-PREVIEW-03: Chroma-key config used for the current texture.
+   * null means no chroma-key was applied.
+   */
+  chromaKeyConfig: ChromaKeyConfig | null;
 }
 
 /** A placed preview asset on the map. */
@@ -51,6 +66,11 @@ export interface PreviewPlacement {
   footprint: PreviewFootprint;
   /** Whether chroma-key is active for this placement. */
   chromaKey: boolean;
+  /**
+   * DEV-ASSET-PREVIEW-03: Chroma-key config snapshot at placement time.
+   * Kept for compatibility; the actual chroma-key processing is on the asset.
+   */
+  chromaKeyConfig: ChromaKeyConfig | null;
 }
 
 /** Configuration for chroma-key processing. */
@@ -70,6 +90,64 @@ export const DEFAULT_CHROMA_KEY_CONFIG: ChromaKeyConfig = {
   targetB: 255,
   tolerance: 32,
 };
+
+/** Default HEX string for chroma-key target color. */
+export const DEFAULT_CHROMA_KEY_HEX = '#FF00FF';
+
+/** Default tolerance value. */
+export const DEFAULT_CHROMA_KEY_TOLERANCE = 32;
+
+// ─── HEX parsing / normalization helpers (DEV-ASSET-PREVIEW-03) ──────
+
+/**
+ * Parse a HEX color string into {r, g, b} or null if invalid.
+ * Accepts: #RRGGBB, RRGGBB, #rgb, rgb (shorthand expanded).
+ * Case-insensitive.
+ */
+export function parseHexColor(input: string): { r: number; g: number; b: number } | null {
+  if (!input || typeof input !== 'string') return null;
+  let hex = input.trim();
+  // Strip leading #
+  if (hex.startsWith('#')) hex = hex.slice(1);
+  // Shorthand #rgb → #rrggbb
+  if (hex.length === 3) {
+    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  }
+  if (hex.length !== 6) return null;
+  // Validate hex digits
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return { r, g, b };
+}
+
+/**
+ * Normalize a HEX color string to uppercase #RRGGBB format.
+ * Returns null if the input is not a valid HEX color.
+ */
+export function normalizeHexColor(input: string): string | null {
+  const parsed = parseHexColor(input);
+  if (!parsed) return null;
+  const toHex = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
+  return `#${toHex(parsed.r)}${toHex(parsed.g)}${toHex(parsed.b)}`;
+}
+
+/**
+ * Create a ChromaKeyConfig from a HEX string and tolerance.
+ * Returns null if the HEX string is invalid.
+ */
+export function createChromaKeyConfigFromHex(hex: string, tolerance: number): ChromaKeyConfig | null {
+  const parsed = parseHexColor(hex);
+  if (!parsed) return null;
+  const clampedTolerance = Math.max(0, Math.min(255, Math.round(tolerance)));
+  return {
+    targetR: parsed.r,
+    targetG: parsed.g,
+    targetB: parsed.b,
+    tolerance: clampedTolerance,
+  };
+}
 
 // ─── Pure helpers (testable without Phaser) ─────────────────────────
 
@@ -327,9 +405,12 @@ export class AssetPreviewTool {
    * Upload a file and create a temporary Phaser texture.
    * Uses direct TextureManager canvas creation instead of Phaser Loader
    * for reliable runtime data-URL handling.
+   *
+   * DEV-ASSET-PREVIEW-03: Accepts optional ChromaKeyConfig (replaces boolean).
+   * Stores sourceDataUrl on the entry for non-destructive reprocessing.
    * Returns the new PreviewAssetEntry, or null on failure.
    */
-  async uploadFile(file: File, chromaKey: boolean = false): Promise<PreviewAssetEntry | null> {
+  async uploadFile(file: File, chromaKeyConfig: ChromaKeyConfig | null = null): Promise<PreviewAssetEntry | null> {
     const fileName = file.name || '(unknown)';
     const fileType = file.type || '(unknown)';
 
@@ -363,10 +444,10 @@ export class AssetPreviewTool {
       }
       ctx.drawImage(img, 0, 0);
 
-      // Apply chroma-key if requested
-      if (chromaKey) {
+      // Apply chroma-key if config provided
+      if (chromaKeyConfig) {
         const imageData = ctx.getImageData(0, 0, naturalWidth, naturalHeight);
-        applyChromaKey(imageData, DEFAULT_CHROMA_KEY_CONFIG);
+        applyChromaKey(imageData, chromaKeyConfig);
         ctx.putImageData(imageData, 0, 0);
       }
 
@@ -392,6 +473,8 @@ export class AssetPreviewTool {
         textureKey,
         naturalWidth,
         naturalHeight,
+        sourceDataUrl: dataUrl,
+        chromaKeyConfig,
       };
 
       this.assets.push(entry);
@@ -405,7 +488,110 @@ export class AssetPreviewTool {
   }
 
   /**
+   * DEV-ASSET-PREVIEW-03: Reprocess a single asset with a new chroma-key config.
+   *
+   * Re-reads the original source data (sourceDataUrl) and applies the new
+   * config, then replaces the Phaser texture. Existing placement sprites
+   * are refreshed safely. Returns true on success, false on failure.
+   *
+   * If config is null, reprocesses without chroma-key (removes it).
+   */
+  async reprocessAsset(assetId: string, config: ChromaKeyConfig | null): Promise<boolean> {
+    const asset = this.assets.find(a => a.id === assetId);
+    if (!asset) {
+      console.warn('[AssetPreviewTool] reprocessAsset: asset not found:', assetId);
+      return false;
+    }
+    if (!asset.sourceDataUrl) {
+      console.warn('[AssetPreviewTool] reprocessAsset: no source data URL for asset:', assetId);
+      return false;
+    }
+
+    try {
+      const img = await loadImageFromDataURL(asset.sourceDataUrl);
+      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+        console.error(`[AssetPreviewTool] reprocessAsset: image decode failed for "${asset.fileName}"`);
+        return false;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = asset.naturalWidth;
+      canvas.height = asset.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.error(`[AssetPreviewTool] reprocessAsset: canvas context failed for "${asset.fileName}"`);
+        return false;
+      }
+      ctx.drawImage(img, 0, 0);
+
+      if (config) {
+        const imageData = ctx.getImageData(0, 0, asset.naturalWidth, asset.naturalHeight);
+        applyChromaKey(imageData, config);
+        ctx.putImageData(imageData, 0, 0);
+      }
+
+      // Replace the Phaser texture safely
+      const textureKey = asset.textureKey;
+      if (this.scene.textures.exists(textureKey)) {
+        this.scene.textures.remove(textureKey);
+      }
+      const texture = this.scene.textures.addCanvas(textureKey, canvas);
+      if (!texture) {
+        console.error(`[AssetPreviewTool] reprocessAsset: addCanvas failed for "${asset.fileName}"`);
+        return false;
+      }
+
+      // Update the asset's config
+      asset.chromaKeyConfig = config;
+
+      // Refresh all placements using this asset
+      this.refreshPlacementsForAsset(assetId);
+
+      this.onStateChange?.();
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[AssetPreviewTool] reprocessAsset failed for "${asset.fileName}": ${message}`);
+      return false;
+    }
+  }
+
+  /**
+   * DEV-ASSET-PREVIEW-03: Reprocess all uploaded assets with the given config.
+   * Returns the number of successfully reprocessed assets.
+   */
+  async reprocessAllAssets(config: ChromaKeyConfig | null): Promise<number> {
+    let count = 0;
+    for (const asset of this.assets) {
+      if (asset.sourceDataUrl) {
+        const ok = await this.reprocessAsset(asset.id, config);
+        if (ok) count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * DEV-ASSET-PREVIEW-03: Get the asset entry for a given asset ID.
+   */
+  getAssetById(assetId: string): PreviewAssetEntry | null {
+    return this.assets.find(a => a.id === assetId) ?? null;
+  }
+
+  /**
+   * DEV-ASSET-PREVIEW-03: Get the asset entry for a given placement ID.
+   */
+  getAssetForPlacement(placementId: string): PreviewAssetEntry | null {
+    const placement = this.placements.find(p => p.id === placementId);
+    if (!placement) return null;
+    return this.assets.find(a => a.id === placement.assetId) ?? null;
+  }
+
+  /**
    * Place a preview asset on the map at the given tile position.
+   *
+   * DEV-ASSET-PREVIEW-03: chromaKey parameter is now boolean for backward
+   * compat; the actual chroma-key config is inherited from the asset entry.
    */
   placeAsset(
     assetId: string,
@@ -421,6 +607,9 @@ export class AssetPreviewTool {
       return null;
     }
 
+    // DEV-ASSET-PREVIEW-03: Use the asset's chromaKeyConfig if chromaKey is enabled
+    const chromaKeyConfig = chromaKey ? (asset.chromaKeyConfig ?? DEFAULT_CHROMA_KEY_CONFIG) : null;
+
     const placement: PreviewPlacement = {
       id: `dev-preview-place-${this.nextPlacementId++}`,
       assetId,
@@ -429,6 +618,7 @@ export class AssetPreviewTool {
       scale,
       footprint,
       chromaKey,
+      chromaKeyConfig,
     };
 
     this.placements.push(placement);
@@ -477,23 +667,24 @@ export class AssetPreviewTool {
 
   /**
    * Toggle chroma-key for a placement. Re-uploads the texture with chroma-key applied.
+   *
+   * DEV-ASSET-PREVIEW-03: Now reprocesses the asset using the provided or
+   * default config instead of just toggling a flag.
    */
-  async setPlacementChromaKey(placementId: string, chromaKey: boolean): Promise<void> {
+  async setPlacementChromaKey(placementId: string, chromaKey: boolean, config?: ChromaKeyConfig | null): Promise<void> {
     const placement = this.placements.find(p => p.id === placementId);
     if (!placement) return;
 
     placement.chromaKey = chromaKey;
 
-    // Re-upload the texture with/without chroma key
     const asset = this.assets.find(a => a.id === placement.assetId);
-    if (asset) {
-      // Re-read the original file data and apply chroma-key if needed
-      // For simplicity, we store the original data URL on the asset
-      // and reprocess it here. But since we don't store the original
-      // data URL, we'll just update the visual flag for now.
-      // The chroma-key is applied at upload time; to toggle it,
-      // the user would need to re-upload. This is documented as a
-      // limitation in the panel.
+    if (asset && asset.sourceDataUrl) {
+      // Reprocess the asset with the new config
+      const reprocessConfig = chromaKey ? (config ?? asset.chromaKeyConfig ?? DEFAULT_CHROMA_KEY_CONFIG) : null;
+      await this.reprocessAsset(asset.id, reprocessConfig);
+      placement.chromaKeyConfig = asset.chromaKeyConfig;
+    } else {
+      placement.chromaKeyConfig = chromaKey ? (config ?? DEFAULT_CHROMA_KEY_CONFIG) : null;
     }
 
     this.updatePlacementObjects(placement);
@@ -668,6 +859,33 @@ export class AssetPreviewTool {
     objects.sprite.destroy();
     objects.overlay.destroy();
     this.placementObjects.delete(placementId);
+  }
+
+  /**
+   * DEV-ASSET-PREVIEW-03: Refresh all placement GameObjects for a given asset.
+   *
+   * When the texture is replaced (reprocess), Phaser may not automatically
+   * refresh existing sprites that reference the same texture key. This method
+   * safely destroys and recreates the sprite/overlay for each placement using
+   * the asset, preserving position, scale, footprint, and selection state.
+   */
+  private refreshPlacementsForAsset(assetId: string): void {
+    const affectedPlacements = this.placements.filter(p => p.assetId === assetId);
+    for (const placement of affectedPlacements) {
+      const objects = this.placementObjects.get(placement.id);
+      if (objects) {
+        // Destroy old sprite/overlay
+        objects.sprite.destroy();
+        objects.overlay.destroy();
+        this.placementObjects.delete(placement.id);
+      }
+
+      // Recreate with fresh texture reference
+      const asset = this.assets.find(a => a.id === assetId);
+      if (asset) {
+        this.createPlacementObjects(placement, asset);
+      }
+    }
   }
 
   private drawFootprintOverlay(graphics: Phaser.GameObjects.Graphics, placement: PreviewPlacement): void {
