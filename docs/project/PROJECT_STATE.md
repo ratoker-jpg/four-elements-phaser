@@ -51,6 +51,7 @@ Read these before any task:
 
 ```text
 docs/project/VISUAL_ROADMAP.md
+docs/project/VISUAL_SYSTEM_AUDIT.md
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
@@ -69,16 +70,18 @@ Implementation requires separate audit/design PR (VISUAL-AUDIT-01) first.
 ## Active next work
 
 ```text
-VISUAL-AUDIT-01 — Visual audit/design (docs only, no runtime)
+VISUAL-01 — Industrial map visual candidate workflow (docs/assets only)
 ```
 
-After VISUAL-AUDIT-01:
+VISUAL-AUDIT-01 is complete. See `docs/project/VISUAL_SYSTEM_AUDIT.md` for the full audit with 12-PR staged implementation sequence.
+
+After VISUAL-01 (visual candidates approved):
 
 ```text
-VISUAL-PROTO-01 — Map direction prototype (visual candidates)
+VISUAL-02 — Map rendering prototype spike (dev-mode preview)
 ```
 
-Do not start VISUAL implementation before the audit is accepted.
+Do not start VISUAL implementation before the audit is accepted and visual candidates are approved.
 
 ---
 
