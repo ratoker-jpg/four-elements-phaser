@@ -145,6 +145,23 @@ const RESOURCE_ENTRIES = [
   { key: 'mineral_large', path: 'assets/environment/mineral_large_02.png' },
 ];
 
+// ─── Decor constants (MAPLIFE-02A) ─────────────────────────────────
+
+const DECOR_ENTRIES = [
+  { key: 'decor_env_rock_cluster_1x1', path: 'assets/environment/maplife/env_rock_cluster_1x1.png' },
+  { key: 'decor_env_rock_cluster_2x2', path: 'assets/environment/maplife/env_rock_cluster_2x2.png' },
+  { key: 'decor_env_rock_cluster_3x3', path: 'assets/environment/maplife/env_rock_cluster_3x3.png' },
+  { key: 'decor_env_bush_dry_cluster_1x1', path: 'assets/environment/maplife/env_bush_dry_cluster_1x1.png' },
+  { key: 'decor_env_bush_dry_cluster_2x2', path: 'assets/environment/maplife/env_bush_dry_cluster_2x2.png' },
+  { key: 'decor_env_bush_dry_cluster_3x3', path: 'assets/environment/maplife/env_bush_dry_cluster_3x3.png' },
+  { key: 'decor_env_sand_crack_patch_1x1', path: 'assets/environment/maplife/env_sand_crack_patch_1x1.png' },
+  { key: 'decor_env_sand_crack_patch_2x2', path: 'assets/environment/maplife/env_sand_crack_patch_2x2.png' },
+  { key: 'decor_env_sand_crack_patch_3x3', path: 'assets/environment/maplife/env_sand_crack_patch_3x3.png' },
+  { key: 'decor_env_sand_bump_patch_1x1', path: 'assets/environment/maplife/env_sand_bump_patch_1x1.png' },
+  { key: 'decor_env_sand_bump_patch_2x2', path: 'assets/environment/maplife/env_sand_bump_patch_2x2.png' },
+  { key: 'decor_env_sand_bump_patch_3x3', path: 'assets/environment/maplife/env_sand_bump_patch_3x3.png' },
+];
+
 // Deterministic timestamp for committed generated files.
 // Using the epoch ensures rerunning the processor with unchanged inputs
 // does not dirty the working tree.
@@ -649,6 +666,105 @@ export function processResourcesFamily(options) {
 }
 
 /**
+ * Process the decor family and generate manifest + audit data.
+ *
+ * @param {object} options
+ * @param {string} options.publicDir - Absolute path to public/ directory
+ * @param {Array<{key: string, path: string}>} [options.decorEntries] - Decor entries to process
+ * @returns {{ manifest: object, auditReport: object }}
+ */
+export function processDecorFamily(options) {
+  const {
+    publicDir,
+    decorEntries = DECOR_ENTRIES,
+  } = options;
+
+  const decorKeys = [];
+  const paths = {};
+  const auditWarnings = [];
+  const auditErrors = [];
+  const missingSource = [];
+  const orphanFiles = [];
+
+  let totalAssets = 0;
+  let validAssets = 0;
+  let warningAssets = 0;
+  let errorAssets = 0;
+
+  for (const entry of decorEntries) {
+    const { key, path: relativePath } = entry;
+    const absolutePath = join(publicDir, relativePath);
+
+    decorKeys.push(key);
+    paths[key] = relativePath;
+    totalAssets++;
+
+    if (existsSync(absolutePath)) {
+      validAssets++;
+    } else {
+      auditErrors.push({
+        family: 'decor',
+        key,
+        code: 'MISSING_FILE',
+        message: `Referenced file not found: ${relativePath}`,
+      });
+      missingSource.push(relativePath);
+      errorAssets++;
+    }
+  }
+
+  const decorDir = join(publicDir, 'assets', 'environment', 'maplife');
+  if (existsSync(decorDir)) {
+    const expectedFiles = new Set(decorEntries.map(entry => entry.path.split('/').pop()));
+    const filesOnDisk = readdirSync(decorDir).filter(f => f.endsWith('.png'));
+
+    for (const file of filesOnDisk) {
+      if (!expectedFiles.has(file)) {
+        const relativePath = `assets/environment/maplife/${file}`;
+        auditWarnings.push({
+          family: 'decor',
+          key: file.replace('.png', ''),
+          code: 'ORPHAN_FILE',
+          message: `File on disk not referenced by manifest: ${relativePath}`,
+        });
+        orphanFiles.push(relativePath);
+        warningAssets++;
+      }
+    }
+  }
+
+  const manifest = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    families: {
+      decor: {
+        keys: decorKeys,
+        loadType: 'image',
+        enabled: true,
+      },
+    },
+    paths,
+  };
+
+  const auditReport = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    summary: {
+      totalAssets,
+      validAssets,
+      warningAssets,
+      errorAssets,
+    },
+    warnings: auditWarnings,
+    errors: auditErrors,
+    missingSource,
+    orphanFiles,
+  };
+
+  return { manifest, auditReport };
+}
+
+/**
  * Process the buildings family and generate manifest + audit data.
  *
  * @param {object} options
@@ -864,7 +980,7 @@ function printUsage() {
   console.error(`Usage: node tools/process_art_assets.mjs [options]
 
 Options:
-  --family <name>   Asset family to process: "buildings", "civilUnits", "modularUnits", "terrain", "resources", or "all" (default: "all")
+  --family <name>   Asset family to process: "buildings", "civilUnits", "modularUnits", "terrain", "resources", "decor", or "all" (default: "all")
   --root <dir>      Project root directory (default: auto-detected)
   --json            Output machine-readable JSON instead of console report
   --dry-run         Process and validate but do not write output files
@@ -902,9 +1018,9 @@ async function main() {
     }
   }
 
-  const VALID_FAMILIES = new Set(['buildings', 'civilUnits', 'modularUnits', 'terrain', 'resources', 'all']);
+  const VALID_FAMILIES = new Set(['buildings', 'civilUnits', 'modularUnits', 'terrain', 'resources', 'decor', 'all']);
   if (!VALID_FAMILIES.has(family)) {
-    console.error(`Error: Unknown family "${family}". Valid: buildings, civilUnits, modularUnits, terrain, resources, all`);
+    console.error(`Error: Unknown family "${family}". Valid: buildings, civilUnits, modularUnits, terrain, resources, decor, all`);
     process.exit(2);
   }
 
@@ -928,6 +1044,7 @@ async function main() {
   const processModularUnits = family === 'modularUnits' || family === 'all';
   const processTerrain = family === 'terrain' || family === 'all';
   const processResources = family === 'resources' || family === 'all';
+  const processDecor = family === 'decor' || family === 'all';
 
   // Collect results from each family
   let combinedManifest = {
@@ -981,6 +1098,11 @@ async function main() {
 
   if (processResources) {
     const { manifest, auditReport } = processResourcesFamily({ publicDir });
+    mergeResult(manifest, auditReport);
+  }
+
+  if (processDecor) {
+    const { manifest, auditReport } = processDecorFamily({ publicDir });
     mergeResult(manifest, auditReport);
   }
 
@@ -1057,6 +1179,7 @@ async function main() {
     if (manifest.families.modularUnits) console.log(`  Modular unit keys: ${manifest.families.modularUnits.keys.length}`);
     if (manifest.families.terrain) console.log(`  Terrain keys: ${manifest.families.terrain.keys.length}`);
     if (manifest.families.resources) console.log(`  Resource keys: ${manifest.families.resources.keys.length}`);
+    if (manifest.families.decor) console.log(`  Decor keys: ${manifest.families.decor.keys.length}`);
     console.log(`  Total paths: ${Object.keys(manifest.paths).length}`);
     console.log();
 
@@ -1138,7 +1261,7 @@ async function main() {
 }
 
 // Run CLI if executed directly (not imported)
-const isMainModule = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname);
+const isMainModule = process.argv[1] && resolve(process.argv[1]) === __filename;
 if (isMainModule) {
   main();
 }

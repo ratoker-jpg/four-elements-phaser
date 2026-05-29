@@ -7,7 +7,7 @@ import {
   isBuildable,
 } from '../state/occupancy';
 import { createInitialState } from '../state/createInitialState';
-import type { GameState, MapData, EconomyState } from '../state/types';
+import type { GameState, MapData, EconomyState, DecorPlacement } from '../state/types';
 
 // ─── Test helpers ──────────────────────────────────────────────────
 
@@ -19,6 +19,7 @@ function makeTestState(overrides?: {
   hqTy?: number;
   resources?: Array<{ tx: number; ty: number; footprint: number; depleted?: boolean }>;
   obstacles?: Array<{ tx: number; ty: number; footprint: number }>;
+  decor?: DecorPlacement[];
   buildings?: Array<{ tx: number; ty: number }>;
   harvesters?: Array<{ ftx: number; fty: number }>;
   builders?: Array<{ ftx: number; fty: number }>;
@@ -45,7 +46,7 @@ function makeTestState(overrides?: {
       type: 'mountain-small' as const,
       footprint: o.footprint,
     })),
-    decor: [],
+    decor: overrides?.decor ?? [],
     buildings: (overrides?.buildings ?? []).map(b => ({
       tx: b.tx,
       ty: b.ty,
@@ -221,6 +222,32 @@ describe('Obstacle footprint', () => {
 
   it('obstacle tiles are unbuildable', () => {
     expect(isBuildable(map, 7, 7, 1, 1)).toBe(false);
+  });
+});
+
+describe('Decor footprint', () => {
+  const state = makeTestState({
+    mapW: 10,
+    mapH: 10,
+    hqTx: 0,
+    hqTy: 0,
+    decor: [
+      { tx: 7, ty: 7, type: 'env_rock_cluster_2x2', footprint: 2, category: 'prop' },
+      { tx: 4, ty: 6, type: 'env_sand_crack_patch_2x2', footprint: 2, category: 'decal' },
+    ],
+  });
+  const map = buildOccupancyMap(state);
+
+  it('decor tiles remain passable', () => {
+    expect(isPassable(map, 7, 7)).toBe(true);
+    expect(isPassable(map, 8, 8)).toBe(true);
+    expect(isPassable(map, 4, 6)).toBe(true);
+    expect(isPassable(map, 5, 7)).toBe(true);
+  });
+
+  it('decor tiles remain buildable', () => {
+    expect(isBuildable(map, 7, 7, 1, 1)).toBe(true);
+    expect(isBuildable(map, 4, 6, 1, 1)).toBe(true);
   });
 });
 

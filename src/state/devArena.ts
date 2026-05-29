@@ -6,6 +6,7 @@
  */
 
 import type { MapData, TerrainType } from './types';
+import { generateMaplifeDecor } from './generatedMap';
 
 /** Arena map ID for getMapDataById. */
 export const ARENA_MAP_ID = 'arena1';
@@ -37,20 +38,24 @@ export function createArenaMapData(): MapData {
     terrain.push(row);
   }
 
+  const hq: MapData['hq'] = { tx: 3, ty: 3, faction: 'cyan' };
+  const resources: MapData['resources'] = [
+    { tx: 8, ty: 3, type: 'medium', footprint: 1 },
+    { tx: 8, ty: 5, type: 'medium', footprint: 1 },
+    { tx: 3, ty: 8, type: 'small', footprint: 1 },
+    { tx: 5, ty: 8, type: 'small', footprint: 1 },
+    { tx: 12, ty: 12, type: 'infinite', footprint: 3 },
+  ];
+  const decor = generateMaplifeDecor('arena1-maplife', terrain, W, H, hq, resources);
+
   return {
     width: W,
     height: H,
     terrain,
-    hq: { tx: 3, ty: 3, faction: 'cyan' },
-    resources: [
-      { tx: 8, ty: 3, type: 'medium', footprint: 1 },
-      { tx: 8, ty: 5, type: 'medium', footprint: 1 },
-      { tx: 3, ty: 8, type: 'small', footprint: 1 },
-      { tx: 5, ty: 8, type: 'small', footprint: 1 },
-      { tx: 12, ty: 12, type: 'infinite', footprint: 3 },
-    ],
+    hq,
+    resources,
     obstacles: [],
-    decor: [],
+    decor,
     buildings: [],
     builders: [
       {

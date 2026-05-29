@@ -2,12 +2,19 @@
   "version": 1,
   "generatedAt": "1970-01-01T00:00:00.000Z",
   "summary": {
-    "totalAssets": 109,
-    "validAssets": 109,
-    "warningAssets": 0,
+    "totalAssets": 121,
+    "validAssets": 121,
+    "warningAssets": 1,
     "errorAssets": 0
   },
-  "warnings": [],
+  "warnings": [
+    {
+      "family": "buildings",
+      "key": null,
+      "code": "META_GENERATOR_FAILED",
+      "message": "Building metadata generator failed: Command failed: node \"C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\tools\\generate_building_meta.mjs\"\nPython Traceback (most recent call last):\r\n  File \"C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\tools\\generate_building_meta.py\", line 30, in <module>\r\n    from PIL import Image\r\nModuleNotFoundError: No module named 'PIL'\r\nError: Could not find a Python 3 interpreter.\nPlease install Python 3 with Pillow, then re-run.\n  See: tools/requirements.txt\n"
+    }
+  ],
   "errors": [],
   "missingSource": [],
   "orphanFiles": []

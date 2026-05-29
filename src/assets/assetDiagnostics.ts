@@ -17,6 +17,7 @@
 import { GENERATED_ASSET_MANIFEST, type GeneratedAssetFamilyName } from './generatedAssetManifest';
 import { FACTION_LIST } from '../state/gameSetup';
 import type { Faction } from '../state/types';
+import { MAPLIFE_DECOR_CONFIG } from './maplifeDecor';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ export interface FactionAssetDetail {
 // ─── Constants ──────────────────────────────────────────────────────
 
 /** State-only categories that have no visual assets at all. */
-const STATE_ONLY_CATEGORIES: AssetCategory[] = ['obstacles', 'decor'];
+const STATE_ONLY_CATEGORIES: AssetCategory[] = ['obstacles'];
 
 // ─── Pure diagnostics helpers ───────────────────────────────────────
 
@@ -251,14 +252,15 @@ export function buildAssetDiagnostics(): AssetDiagnosticEntry[] {
     });
   }
 
-  // ── Decor (state-only / deferred) ──
-  const decorTypes = ['bush', 'sand-bump'] as const;
-  for (const type of decorTypes) {
+  // ── Decor (MAPLIFE-02A runtime visuals) ──
+  for (const decor of Object.values(MAPLIFE_DECOR_CONFIG)) {
     entries.push({
-      key: `decor_${type}`,
+      key: decor.key,
       category: 'decor',
-      status: 'deferred',
-      note: `Decor "${type}" exists in state model (DecorType) but no visual asset. Generated maps have decor disabled (PR #78 fixup). Deferred until visual placeholder exists.`,
+      family: 'decor',
+      loadType: 'image',
+      status: 'expected',
+      note: `Decor "${decor.type}" is loaded and rendered by DecorRenderer as decorative-only ${decor.category}.`,
     });
   }
 
@@ -387,7 +389,7 @@ export function isStateOnlyCategory(category: AssetCategory): boolean {
  * Get list of categories that are currently deferred.
  */
 export function getDeferredCategories(): AssetCategory[] {
-  return ['obstacles', 'decor'];
+  return ['obstacles'];
 }
 
 /**

@@ -261,6 +261,20 @@ describe('saveGame', () => {
     expect(loadResult.gameState!.mapData.constructionSites.length).toBe(gs.mapData.constructionSites.length);
   });
 
+  it('save preserves decor placements in map data', () => {
+    const gs = makeGameState();
+    gs.mapData.decor = [
+      { tx: 9, ty: 9, type: 'env_rock_cluster_2x2', footprint: 2, category: 'prop' },
+      { tx: 14, ty: 12, type: 'env_sand_crack_patch_3x3', footprint: 3, category: 'decal' },
+    ];
+
+    const result = saveGame(gs, 'customMap1');
+    const loadResult = loadGame(result.slotId!);
+
+    expect(loadResult.success).toBe(true);
+    expect(loadResult.gameState!.mapData.decor).toEqual(gs.mapData.decor);
+  });
+
   it('save preserves production state', () => {
     const gs = makeGameState();
     const factoryCount = gs.production.factories.length;

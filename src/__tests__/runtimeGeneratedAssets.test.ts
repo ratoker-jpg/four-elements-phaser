@@ -70,18 +70,19 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.generatedAt).toBe('1970-01-01T00:00:00.000Z');
   });
 
-  it('has hq, buildings, civilUnits, modularUnits, terrain, and resources families', () => {
+  it('has hq, buildings, civilUnits, modularUnits, terrain, resources, and decor families', () => {
     expect(GENERATED_ASSET_MANIFEST.families.hq).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.buildings).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.civilUnits).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.modularUnits).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.terrain).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.resources).toBeDefined();
+    expect(GENERATED_ASSET_MANIFEST.families.decor).toBeDefined();
   });
 
-  it('has 109 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits + 6 terrain + 3 resources)', () => {
+  it('has 121 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits + 6 terrain + 3 resources + 12 decor)', () => {
     const keys = Object.keys(GENERATED_ASSET_MANIFEST.paths);
-    expect(keys).toHaveLength(109);
+    expect(keys).toHaveLength(121);
   });
 
   it('has 4 HQ keys', () => {
@@ -106,6 +107,10 @@ describe('GENERATED_ASSET_MANIFEST', () => {
 
   it('has 3 resources keys', () => {
     expect(GENERATED_ASSET_MANIFEST.families.resources.keys).toHaveLength(3);
+  });
+
+  it('has 12 decor keys', () => {
+    expect(GENERATED_ASSET_MANIFEST.families.decor.keys).toHaveLength(12);
   });
 
   it('has all 4 HQ faction keys', () => {
@@ -156,6 +161,11 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.families.resources.enabled).toBe(true);
   });
 
+  it('decor family has loadType image and enabled true', () => {
+    expect(GENERATED_ASSET_MANIFEST.families.decor.loadType).toBe('image');
+    expect(GENERATED_ASSET_MANIFEST.families.decor.enabled).toBe(true);
+  });
+
   it('terrain keys match TERRAIN-02A 256×128 asset keys', () => {
     const terrainKeys = GENERATED_ASSET_MANIFEST.families.terrain.keys;
     // TERRAIN-02A: 6-variant 256×128 sand tile family
@@ -196,6 +206,15 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.paths['mineral_large']).toBe('assets/environment/mineral_large_02.png');
   });
 
+  it('decor keys and paths match MAPLIFE pack outputs', () => {
+    expect(GENERATED_ASSET_MANIFEST.families.decor.keys).toContain('decor_env_rock_cluster_1x1');
+    expect(GENERATED_ASSET_MANIFEST.families.decor.keys).toContain('decor_env_bush_dry_cluster_3x3');
+    expect(GENERATED_ASSET_MANIFEST.families.decor.keys).toContain('decor_env_sand_crack_patch_2x2');
+    expect(GENERATED_ASSET_MANIFEST.families.decor.keys).toContain('decor_env_sand_bump_patch_3x3');
+    expect(GENERATED_ASSET_MANIFEST.paths['decor_env_rock_cluster_1x1']).toBe('assets/environment/maplife/env_rock_cluster_1x1.png');
+    expect(GENERATED_ASSET_MANIFEST.paths['decor_env_sand_bump_patch_3x3']).toBe('assets/environment/maplife/env_sand_bump_patch_3x3.png');
+  });
+
   it('paths match the art/generated/manifest.generated.json keys', () => {
     // Verify the generated TS manifest matches what the processor produces.
     // Key sample checks:
@@ -219,6 +238,7 @@ describe('GENERATED_ASSET_MANIFEST', () => {
       ...GENERATED_ASSET_MANIFEST.families.modularUnits.keys,
       ...GENERATED_ASSET_MANIFEST.families.terrain.keys,
       ...GENERATED_ASSET_MANIFEST.families.resources.keys,
+      ...GENERATED_ASSET_MANIFEST.families.decor.keys,
     ];
     const uniqueKeys = new Set(allKeys);
     expect(uniqueKeys.size).toBe(allKeys.length);
@@ -538,6 +558,8 @@ describe('PreloadScene integration', () => {
     expect(typeof runtimeMod.loadGeneratedModularUnitAssets).toBe('function');
     expect(runtimeMod.loadGeneratedTerrainAndResourceAssets).toBeDefined();
     expect(typeof runtimeMod.loadGeneratedTerrainAndResourceAssets).toBe('function');
+    expect(runtimeMod.loadGeneratedDecorAssets).toBeDefined();
+    expect(typeof runtimeMod.loadGeneratedDecorAssets).toBe('function');
 
     // MENU-02: modularUnits loaded-check helpers
     expect(runtimeMod.MODULAR_UNIT_PROBE_KEY).toBeDefined();
@@ -639,6 +661,23 @@ describe('PreloadScene integration', () => {
       expect(loadedKeys).toContain('smoky_m0_turret_cyan_dir0');
       expect(loadedKeys).toContain('wasp_m0_hull_purple_dir7');
       expect(loadedKeys).toContain('smoky_m0_turret_purple_dir7');
+    } finally {
+      mock.restore();
+    }
+  });
+
+  it('PreloadScene uses generated decor loader for the MAPLIFE pack', async () => {
+    const { loadGeneratedDecorAssets } = await import('../assets/runtimeGeneratedAssets');
+    const mock = createMockScene();
+
+    try {
+      const loadedKeys = loadGeneratedDecorAssets(mock.scene as any);
+
+      expect(loadedKeys).toHaveLength(12);
+      expect(loadedKeys).toContain('decor_env_rock_cluster_1x1');
+      expect(loadedKeys).toContain('decor_env_bush_dry_cluster_2x2');
+      expect(loadedKeys).toContain('decor_env_sand_crack_patch_3x3');
+      expect(loadedKeys).toContain('decor_env_sand_bump_patch_1x1');
     } finally {
       mock.restore();
     }

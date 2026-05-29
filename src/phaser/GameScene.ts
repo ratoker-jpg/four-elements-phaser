@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets/assetManifest';
 import { TerrainRenderer } from './render/TerrainRenderer';
+import { DecorRenderer } from './render/DecorRenderer';
 import { EntityRenderer } from './render/EntityRenderer';
 import { BuildingStatusRenderer } from './render/BuildingStatusRenderer';
 import { CameraControls } from './input/CameraControls';
@@ -27,6 +28,7 @@ import { UnitMotionFxRenderer } from './render/UnitMotionFxRenderer';
 import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData } from '../state/devArena';
 import { AssetPreviewTool } from './dev/AssetPreviewTool';
 import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
+import { MAPLIFE_DECOR_CONFIG } from '../assets/maplifeDecor';
 
 /**
  * GameScene — orchestration-only scene.
@@ -57,6 +59,7 @@ export interface LoadSceneData {
 
 export class GameScene extends Phaser.Scene {
   private terrainRenderer: TerrainRenderer | null = null;
+  private decorRenderer: DecorRenderer | null = null;
   private entityRenderer: EntityRenderer | null = null;
   private buildingStatusRenderer: BuildingStatusRenderer | null = null;
   private cameraControls: CameraControls | null = null;
@@ -191,6 +194,9 @@ export class GameScene extends Phaser.Scene {
     // Get offset for entity placement
     const offset = mapOriginOffset(this.gameState.mapWidth, this.gameState.mapHeight);
     this._offset = offset;
+
+    this.decorRenderer = new DecorRenderer(this, offset);
+    this.decorRenderer.render(this.gameState.mapData.decor);
 
     // TERRAIN-01: Grid lines removed — they reinforced the chessboard
     // pattern and are no longer needed with improved terrain clustering.
@@ -441,6 +447,11 @@ export class GameScene extends Phaser.Scene {
         console.error(`[GameScene] Missing texture: ${key}`);
       }
     }
+    for (const config of Object.values(MAPLIFE_DECOR_CONFIG)) {
+      if (!this.textures.exists(config.key)) {
+        console.error(`[GameScene] Missing decor texture: ${config.key}`);
+      }
+    }
     console.log('[GameScene] All asset textures verified.');
   }
 
@@ -493,6 +504,8 @@ export class GameScene extends Phaser.Scene {
     this.playtestHud = null;
     this.buildingStatusRenderer?.destroy();
     this.buildingStatusRenderer = null;
+    this.decorRenderer?.destroy();
+    this.decorRenderer = null;
     this.cameraControls?.destroy();
     this.entityRenderer?.destroy();
     this.terrainRenderer?.destroy();

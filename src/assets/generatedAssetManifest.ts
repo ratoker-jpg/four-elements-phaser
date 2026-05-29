@@ -40,6 +40,11 @@ export const GENERATED_ASSET_MANIFEST = {
       loadType: 'image',
       enabled: true,
     },
+    decor: {
+      keys: ['decor_env_rock_cluster_1x1', 'decor_env_rock_cluster_2x2', 'decor_env_rock_cluster_3x3', 'decor_env_bush_dry_cluster_1x1', 'decor_env_bush_dry_cluster_2x2', 'decor_env_bush_dry_cluster_3x3', 'decor_env_sand_crack_patch_1x1', 'decor_env_sand_crack_patch_2x2', 'decor_env_sand_crack_patch_3x3', 'decor_env_sand_bump_patch_1x1', 'decor_env_sand_bump_patch_2x2', 'decor_env_sand_bump_patch_3x3'],
+      loadType: 'image',
+      enabled: true,
+    },
   },
   paths: {
     'hq_cyan': 'assets/factions/cyan/buildings/hq_t1.png',
@@ -151,6 +156,18 @@ export const GENERATED_ASSET_MANIFEST = {
     'mineral_small': 'assets/environment/mineral_small_02.png',
     'mineral_medium': 'assets/environment/mineral_medium_02.png',
     'mineral_large': 'assets/environment/mineral_large_02.png',
+    'decor_env_rock_cluster_1x1': 'assets/environment/maplife/env_rock_cluster_1x1.png',
+    'decor_env_rock_cluster_2x2': 'assets/environment/maplife/env_rock_cluster_2x2.png',
+    'decor_env_rock_cluster_3x3': 'assets/environment/maplife/env_rock_cluster_3x3.png',
+    'decor_env_bush_dry_cluster_1x1': 'assets/environment/maplife/env_bush_dry_cluster_1x1.png',
+    'decor_env_bush_dry_cluster_2x2': 'assets/environment/maplife/env_bush_dry_cluster_2x2.png',
+    'decor_env_bush_dry_cluster_3x3': 'assets/environment/maplife/env_bush_dry_cluster_3x3.png',
+    'decor_env_sand_crack_patch_1x1': 'assets/environment/maplife/env_sand_crack_patch_1x1.png',
+    'decor_env_sand_crack_patch_2x2': 'assets/environment/maplife/env_sand_crack_patch_2x2.png',
+    'decor_env_sand_crack_patch_3x3': 'assets/environment/maplife/env_sand_crack_patch_3x3.png',
+    'decor_env_sand_bump_patch_1x1': 'assets/environment/maplife/env_sand_bump_patch_1x1.png',
+    'decor_env_sand_bump_patch_2x2': 'assets/environment/maplife/env_sand_bump_patch_2x2.png',
+    'decor_env_sand_bump_patch_3x3': 'assets/environment/maplife/env_sand_bump_patch_3x3.png',
   },
 } as const;
 

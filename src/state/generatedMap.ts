@@ -31,12 +31,13 @@
  * - PRNG: simple mulberry32 — fast, deterministic, well-distributed
  * - Terrain: patch-based using PRNG cluster centers, not per-cell noise
  * - Resources: fixed starter cluster + PRNG scattered clusters + center infinite
- * - Obstacles: deferred (empty) — no visual assets yet, invisible blocking is worse than none
- * - Decor: deferred (empty) — non-blocking but invisible without rendering support
+ * - Obstacles: deferred (empty) — no visual blockers until obstacle visuals exist
+ * - Decor: deterministic, non-blocking visual life with exclusion zones
  * - Validation: uses mapValidation helpers for starter reachability
  */
 
-import type { MapData, TerrainType, ResourceType, Faction } from './types';
+import { MAPLIFE_DECOR_CONFIG, type MaplifeDecorConfig } from '../assets/maplifeDecor';
+import type { DecorPlacement, DecorType, MapData, TerrainType, ResourceType, Faction } from './types';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -55,6 +56,22 @@ export const GENERATED_MAP_ID_PREFIX = 'generated';
 
 /** Maximum validation retry attempts before accepting best candidate. */
 export const MAX_VALIDATION_ATTEMPTS = 3;
+
+/** Baseline MAPLIFE decor targets for a standard 48×48 generated map. */
+export const STANDARD_MAPLIFE_DECOR_COUNTS: Record<DecorType, number> = {
+  env_rock_cluster_1x1: 7,
+  env_rock_cluster_2x2: 3,
+  env_rock_cluster_3x3: 1,
+  env_bush_dry_cluster_1x1: 8,
+  env_bush_dry_cluster_2x2: 3,
+  env_bush_dry_cluster_3x3: 1,
+  env_sand_crack_patch_1x1: 16,
+  env_sand_crack_patch_2x2: 8,
+  env_sand_crack_patch_3x3: 3,
+  env_sand_bump_patch_1x1: 12,
+  env_sand_bump_patch_2x2: 6,
+  env_sand_bump_patch_3x3: 2,
+};
 
 // ─── PRNG ───────────────────────────────────────────────────────────
 
@@ -158,7 +175,8 @@ const HQ_OFFSET_TY = 4;
  * - Starter resource cluster near HQ (reliable small + medium resources)
  * - Central infinite resource deposit
  * - Distance-based resource clusters (more medium/large farther from HQ)
- * - Obstacles and decor are deferred (empty arrays) — no visual assets yet
+ * - Obstacles remain deferred (empty) — invisible blockers are worse than none
+ * - Decor placements are deterministic, non-blocking visual life (MAPLIFE-02A)
  * - No buildings (MVP)
  */
 export function createGeneratedMapData(seed: string, size: MapSizeOption, faction: Faction = 'cyan'): MapData {
@@ -213,10 +231,7 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
   const obstacles: MapData['obstacles'] = [];
 
   // ── Decor ──
-  // Decor is non-blocking but also invisible (stateOnly rendering).
-  // Omitted from player-facing maps to avoid invisible clutter.
-  // Re-enable after visual rendering support exists.
-  const decor: MapData['decor'] = [];
+  const decor = generateDecor(rng, terrain, W, H, hq, resources);
 
   return {
     width: W,
@@ -494,21 +509,295 @@ function generateResources(
   return resources;
 }
 
-// ─── Obstacle/Decor generation (DEFERRED) ──────────────────────────
-//
-// Obstacle and decor placement is intentionally removed from player-facing
-// generated maps in this PR because:
-// - Obstacles affect passability (blocking) but have no visual assets yet.
-//   The renderer treats them as stateOnly and skips them, creating invisible
-//   blocking tiles — worse than no obstacles.
-// - Decor is non-blocking but also invisible (stateOnly rendering), creating
-//   invisible clutter on the map.
-//
-// To re-enable after visual asset/placeholder rendering support exists:
-// 1. Uncomment/restore generateObstacles() and generateDecor() from git history.
-// 2. Call them in createGeneratedMapData() and wire their results into the
-//    MapData return value.
-// 3. Update tests and QA checklist accordingly.
+// ─── MAPLIFE decor generation ──────────────────────────────────────
+
+type MaplifeDecorFamily = 'rock' | 'bush' | 'crack' | 'bump';
+
+const MAPLIFE_CLUSTER_TYPES: Record<MaplifeDecorFamily, DecorType[]> = {
+  rock: ['env_rock_cluster_3x3', 'env_rock_cluster_2x2', 'env_rock_cluster_1x1'],
+  bush: ['env_bush_dry_cluster_3x3', 'env_bush_dry_cluster_2x2', 'env_bush_dry_cluster_1x1'],
+  crack: ['env_sand_crack_patch_3x3', 'env_sand_crack_patch_2x2', 'env_sand_crack_patch_1x1'],
+  bump: ['env_sand_bump_patch_3x3', 'env_sand_bump_patch_2x2', 'env_sand_bump_patch_1x1'],
+};
+
+const MAPLIFE_FAMILY_ORDER: readonly MaplifeDecorFamily[] = ['rock', 'bush', 'crack', 'bump'];
+const MAPLIFE_STANDARD_AREA = MAP_SIZE_DIMENSIONS.standard.width * MAP_SIZE_DIMENSIONS.standard.height;
+
+/**
+ * Scale baseline MAPLIFE counts by map area while keeping rare variants present
+ * on maps that are large enough to support them.
+ */
+export function getMaplifeDecorTargetCounts(width: number, height: number): Record<DecorType, number> {
+  const areaScale = (width * height) / MAPLIFE_STANDARD_AREA;
+
+  return Object.fromEntries(
+    (Object.entries(STANDARD_MAPLIFE_DECOR_COUNTS) as Array<[DecorType, number]>).map(([type, baseCount]) => {
+      const scaled = baseCount * areaScale;
+      const rounded = Math.round(scaled);
+      const minCount = areaScale >= 0.7 && baseCount > 0 ? 1 : 0;
+      return [type, Math.max(minCount, rounded)];
+    }),
+  ) as Record<DecorType, number>;
+}
+
+/**
+ * Density range used by tests and QA. Actual placement may land slightly lower
+ * when the start/resource exclusion zones eat available space.
+ */
+export function getMaplifeDecorCountRange(width: number, height: number): { min: number; max: number } {
+  const total = Object.values(getMaplifeDecorTargetCounts(width, height))
+    .reduce((sum, count) => sum + count, 0);
+  return {
+    min: Math.max(8, Math.floor(total * 0.7)),
+    max: Math.max(8, Math.ceil(total * 1.05)),
+  };
+}
+
+/**
+ * Public helper reused by generated maps and the dev arena map.
+ * Decor never mutates occupancy, blockers, or economy.
+ */
+export function generateMaplifeDecor(
+  seed: string,
+  terrain: TerrainType[][],
+  width: number,
+  height: number,
+  hq: { tx: number; ty: number },
+  resources: MapData['resources'],
+): DecorPlacement[] {
+  return generateDecor(mulberry32(normalizeSeed(seed)), terrain, width, height, hq, resources);
+}
+
+function generateDecor(
+  rng: () => number,
+  terrain: TerrainType[][],
+  width: number,
+  height: number,
+  hq: { tx: number; ty: number },
+  resources: MapData['resources'],
+): DecorPlacement[] {
+  const targets = getMaplifeDecorTargetCounts(width, height);
+  const blockedTiles = buildDecorBlockedTiles(width, height, hq, resources);
+  const occupiedProps = new Set<string>();
+  const occupiedDecals = new Set<string>();
+  const occupiedLarge = new Set<string>();
+  const decor: DecorPlacement[] = [];
+
+  for (const family of MAPLIFE_FAMILY_ORDER) {
+    const familyTypes = MAPLIFE_CLUSTER_TYPES[family];
+    const totalForFamily = familyTypes.reduce((sum, type) => sum + targets[type], 0);
+    if (totalForFamily <= 0) continue;
+
+    const centers = generateClusterCenters(rng, width, height, family, totalForFamily, blockedTiles);
+    if (centers.length === 0) continue;
+
+    let centerIndex = 0;
+    for (const type of familyTypes) {
+      const config = MAPLIFE_DECOR_CONFIG[type];
+      for (let i = 0; i < targets[type]; i++) {
+        const center = centers[centerIndex % centers.length];
+        centerIndex++;
+        const placement = findDecorPlacement(
+          rng,
+          terrain,
+          width,
+          height,
+          config,
+          center,
+          blockedTiles,
+          occupiedProps,
+          occupiedDecals,
+          occupiedLarge,
+        );
+
+        if (!placement) continue;
+
+        decor.push(placement);
+        markDecorTiles(placement, occupiedProps, occupiedDecals, occupiedLarge);
+      }
+    }
+  }
+
+  return decor;
+}
+
+function buildDecorBlockedTiles(
+  width: number,
+  height: number,
+  hq: { tx: number; ty: number },
+  resources: MapData['resources'],
+): Set<string> {
+  const blocked = new Set<string>();
+
+  const markRect = (fromX: number, fromY: number, toX: number, toY: number): void => {
+    for (let ty = fromY; ty <= toY; ty++) {
+      for (let tx = fromX; tx <= toX; tx++) {
+        if (tx < 0 || ty < 0 || tx >= width || ty >= height) continue;
+        blocked.add(`${tx},${ty}`);
+      }
+    }
+  };
+
+  // Keep a small edge margin so large assets do not touch image/map borders.
+  markRect(0, 0, width - 1, 1);
+  markRect(0, height - 2, width - 1, height - 1);
+  markRect(0, 0, 1, height - 1);
+  markRect(width - 2, 0, width - 1, height - 1);
+
+  // HQ + starter area + builders' launch space.
+  markRect(hq.tx - 3, hq.ty - 3, hq.tx + 8, hq.ty + 8);
+
+  for (const resource of resources) {
+    const margin = resource.type === 'infinite' ? 2 : 1;
+    markRect(
+      resource.tx - margin,
+      resource.ty - margin,
+      resource.tx + resource.footprint - 1 + margin,
+      resource.ty + resource.footprint - 1 + margin,
+    );
+  }
+
+  return blocked;
+}
+
+function generateClusterCenters(
+  rng: () => number,
+  width: number,
+  height: number,
+  family: MaplifeDecorFamily,
+  totalForFamily: number,
+  blockedTiles: Set<string>,
+): Array<{ tx: number; ty: number }> {
+  const targetCenters = Math.max(1, Math.round(totalForFamily / (family === 'crack' || family === 'bump' ? 5 : 3)));
+  const centers: Array<{ tx: number; ty: number }> = [];
+  const maxAttempts = targetCenters * 20;
+
+  for (let attempt = 0; attempt < maxAttempts && centers.length < targetCenters; attempt++) {
+    const tx = 2 + Math.floor(rng() * Math.max(1, width - 4));
+    const ty = 2 + Math.floor(rng() * Math.max(1, height - 4));
+    const key = `${tx},${ty}`;
+
+    if (blockedTiles.has(key)) continue;
+
+    let tooClose = false;
+    for (const center of centers) {
+      const dx = center.tx - tx;
+      const dy = center.ty - ty;
+      const minDist = family === 'crack' || family === 'bump' ? 4 : 6;
+      if (dx * dx + dy * dy < minDist * minDist) {
+        tooClose = true;
+        break;
+      }
+    }
+    if (tooClose) continue;
+
+    centers.push({ tx, ty });
+  }
+
+  return centers;
+}
+
+function findDecorPlacement(
+  rng: () => number,
+  terrain: TerrainType[][],
+  width: number,
+  height: number,
+  config: MaplifeDecorConfig,
+  center: { tx: number; ty: number },
+  blockedTiles: Set<string>,
+  occupiedProps: Set<string>,
+  occupiedDecals: Set<string>,
+  occupiedLarge: Set<string>,
+): DecorPlacement | null {
+  const radius = config.category === 'prop' ? 4 : 5;
+  const maxAttempts = config.category === 'prop' ? 28 : 36;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const tx = center.tx + Math.floor(rng() * (radius * 2 + 1)) - radius;
+    const ty = center.ty + Math.floor(rng() * (radius * 2 + 1)) - radius;
+
+    if (!isDecorPlacementValid(
+      terrain,
+      width,
+      height,
+      tx,
+      ty,
+      config,
+      blockedTiles,
+      occupiedProps,
+      occupiedDecals,
+      occupiedLarge,
+    )) {
+      continue;
+    }
+
+    return {
+      tx,
+      ty,
+      type: config.type,
+      footprint: config.footprint,
+      category: config.category,
+    };
+  }
+
+  return null;
+}
+
+function isDecorPlacementValid(
+  terrain: TerrainType[][],
+  width: number,
+  height: number,
+  tx: number,
+  ty: number,
+  config: MaplifeDecorConfig,
+  blockedTiles: Set<string>,
+  occupiedProps: Set<string>,
+  occupiedDecals: Set<string>,
+  occupiedLarge: Set<string>,
+): boolean {
+  const footprint = config.footprint;
+  if (tx < 0 || ty < 0 || tx + footprint > width || ty + footprint > height) return false;
+
+  const occupancySet = config.category === 'prop' ? occupiedProps : occupiedDecals;
+
+  for (let dy = 0; dy < footprint; dy++) {
+    for (let dx = 0; dx < footprint; dx++) {
+      const tileX = tx + dx;
+      const tileY = ty + dy;
+      const key = `${tileX},${tileY}`;
+      if (blockedTiles.has(key) || occupancySet.has(key)) return false;
+      if (footprint > 1 && occupiedLarge.has(key)) return false;
+      if (config.category === 'prop' && terrain[tileY][tileX] === 'sand-cracked') return false;
+    }
+  }
+
+  return true;
+}
+
+function markDecorTiles(
+  placement: DecorPlacement,
+  occupiedProps: Set<string>,
+  occupiedDecals: Set<string>,
+  occupiedLarge: Set<string>,
+): void {
+  const occupancySet = placement.category === 'prop' ? occupiedProps : occupiedDecals;
+
+  for (let dy = 0; dy < placement.footprint; dy++) {
+    for (let dx = 0; dx < placement.footprint; dx++) {
+      const tileX = placement.tx + dx;
+      const tileY = placement.ty + dy;
+      occupancySet.add(`${tileX},${tileY}`);
+    }
+  }
+
+  if (placement.footprint <= 1) return;
+
+  for (let dy = -1; dy <= placement.footprint; dy++) {
+    for (let dx = -1; dx <= placement.footprint; dx++) {
+      occupiedLarge.add(`${placement.tx + dx},${placement.ty + dy}`);
+    }
+  }
+}
 
 // ─── Validation / fallback ──────────────────────────────────────────
 

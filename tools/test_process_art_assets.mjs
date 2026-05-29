@@ -27,6 +27,7 @@ import {
   generateModularUnitPath,
   processTerrainFamily,
   processResourcesFamily,
+  processDecorFamily,
   generateRuntimeManifestTS,
 } from './process_art_assets.mjs';
 import { validateManifest } from './validate_manifest.mjs';
@@ -1185,9 +1186,12 @@ function createTerrainFixtures() {
 
   const tilesDir = join(publicDir, 'assets', 'tiles');
   mkdirSync(tilesDir, { recursive: true });
-  writeFileSync(join(tilesDir, 'sand_tile.png'), 'fake-png');
-  writeFileSync(join(tilesDir, 'sand_tile_dark.png'), 'fake-png');
-  writeFileSync(join(tilesDir, 'sand_tile_light.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_clean_256x128.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_dark_256x128.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_light_256x128.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_ripple_256x128.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_pebble_256x128.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_cracked_256x128.png'), 'fake-png');
 
   return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
@@ -1202,8 +1206,8 @@ test('terrain manifest generation produces correct shape with all fixtures', () 
     assert.ok(manifest.families.terrain);
     assert.strictEqual(manifest.families.terrain.loadType, 'image');
     assert.strictEqual(manifest.families.terrain.enabled, true);
-    assert.strictEqual(manifest.families.terrain.keys.length, 3);
-    assert.strictEqual(Object.keys(manifest.paths).length, 3);
+    assert.strictEqual(manifest.families.terrain.keys.length, 6);
+    assert.strictEqual(Object.keys(manifest.paths).length, 6);
     assert.strictEqual(manifest.families.terrain.frameConfig, undefined);
   } finally {
     cleanup();
@@ -1215,21 +1219,27 @@ test('terrain manifest contains correct keys', () => {
   try {
     const { manifest } = processTerrainFamily({ publicDir });
     const keys = manifest.families.terrain.keys;
-    assert.ok(keys.includes('terrain_sand'));
-    assert.ok(keys.includes('terrain_sand_dark'));
-    assert.ok(keys.includes('terrain_sand_light'));
+    assert.ok(keys.includes('terrain_sand_clean_256x128'));
+    assert.ok(keys.includes('terrain_sand_dark_256x128'));
+    assert.ok(keys.includes('terrain_sand_light_256x128'));
+    assert.ok(keys.includes('terrain_sand_ripple_256x128'));
+    assert.ok(keys.includes('terrain_sand_pebble_256x128'));
+    assert.ok(keys.includes('terrain_sand_cracked_256x128'));
   } finally {
     cleanup();
   }
 });
 
-test('terrain manifest paths match legacy ASSET_PATHS values', () => {
+test('terrain manifest paths match TERRAIN-02A values', () => {
   const { publicDir, cleanup } = createTerrainFixtures();
   try {
     const { manifest } = processTerrainFamily({ publicDir });
-    assert.strictEqual(manifest.paths['terrain_sand'], 'assets/tiles/sand_tile.png');
-    assert.strictEqual(manifest.paths['terrain_sand_dark'], 'assets/tiles/sand_tile_dark.png');
-    assert.strictEqual(manifest.paths['terrain_sand_light'], 'assets/tiles/sand_tile_light.png');
+    assert.strictEqual(manifest.paths['terrain_sand_clean_256x128'], 'assets/tiles/terrain_sand_clean_256x128.png');
+    assert.strictEqual(manifest.paths['terrain_sand_dark_256x128'], 'assets/tiles/terrain_sand_dark_256x128.png');
+    assert.strictEqual(manifest.paths['terrain_sand_light_256x128'], 'assets/tiles/terrain_sand_light_256x128.png');
+    assert.strictEqual(manifest.paths['terrain_sand_ripple_256x128'], 'assets/tiles/terrain_sand_ripple_256x128.png');
+    assert.strictEqual(manifest.paths['terrain_sand_pebble_256x128'], 'assets/tiles/terrain_sand_pebble_256x128.png');
+    assert.strictEqual(manifest.paths['terrain_sand_cracked_256x128'], 'assets/tiles/terrain_sand_cracked_256x128.png');
   } finally {
     cleanup();
   }
@@ -1239,8 +1249,8 @@ test('terrain audit report has no errors with all fixtures', () => {
   const { publicDir, cleanup } = createTerrainFixtures();
   try {
     const { auditReport } = processTerrainFamily({ publicDir });
-    assert.strictEqual(auditReport.summary.totalAssets, 3);
-    assert.strictEqual(auditReport.summary.validAssets, 3);
+    assert.strictEqual(auditReport.summary.totalAssets, 6);
+    assert.strictEqual(auditReport.summary.validAssets, 6);
     assert.strictEqual(auditReport.summary.errorAssets, 0);
   } finally {
     cleanup();
@@ -1253,16 +1263,16 @@ test('missing expected terrain image creates MISSING_FILE error', () => {
     const publicDir = join(root, 'public');
     const tilesDir = join(publicDir, 'assets', 'tiles');
     mkdirSync(tilesDir, { recursive: true });
-    writeFileSync(join(tilesDir, 'sand_tile.png'), 'fake-png');
-    // Missing: sand_tile_dark.png, sand_tile_light.png
+    writeFileSync(join(tilesDir, 'terrain_sand_clean_256x128.png'), 'fake-png');
+    // Missing the other TERRAIN-02A variants
 
     const { auditReport } = processTerrainFamily({ publicDir });
     assert.ok(auditReport.errors.length > 0, 'Should have errors for missing files');
     const missingFileErrors = auditReport.errors.filter(e => e.code === 'MISSING_FILE');
-    assert.strictEqual(missingFileErrors.length, 2, 'Should have 2 MISSING_FILE errors');
+    assert.strictEqual(missingFileErrors.length, 5, 'Should have 5 MISSING_FILE errors');
     assert.ok(
-      missingFileErrors.some(e => e.key === 'terrain_sand_dark'),
-      'Should report missing terrain_sand_dark',
+      missingFileErrors.some(e => e.key === 'terrain_sand_dark_256x128'),
+      'Should report missing terrain_sand_dark_256x128',
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -1459,9 +1469,12 @@ function createFullCombinedFixtures() {
   // Terrain
   const tilesDir = join(publicDir, 'assets', 'tiles');
   mkdirSync(tilesDir, { recursive: true });
-  writeFileSync(join(tilesDir, 'sand_tile.png'), 'fake-png');
-  writeFileSync(join(tilesDir, 'sand_tile_dark.png'), 'fake-png');
-  writeFileSync(join(tilesDir, 'sand_tile_light.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_clean_256x128.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_dark_256x128.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_light_256x128.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_ripple_256x128.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_pebble_256x128.png'), 'fake-png');
+  writeFileSync(join(tilesDir, 'terrain_sand_cracked_256x128.png'), 'fake-png');
 
   // Resources
   const envDir = join(publicDir, 'assets', 'environment');
@@ -1470,10 +1483,30 @@ function createFullCombinedFixtures() {
   writeFileSync(join(envDir, 'mineral_medium_02.png'), 'fake-png');
   writeFileSync(join(envDir, 'mineral_large_02.png'), 'fake-png');
 
+  // Decor
+  const decorDir = join(envDir, 'maplife');
+  mkdirSync(decorDir, { recursive: true });
+  for (const file of [
+    'env_rock_cluster_1x1.png',
+    'env_rock_cluster_2x2.png',
+    'env_rock_cluster_3x3.png',
+    'env_bush_dry_cluster_1x1.png',
+    'env_bush_dry_cluster_2x2.png',
+    'env_bush_dry_cluster_3x3.png',
+    'env_sand_crack_patch_1x1.png',
+    'env_sand_crack_patch_2x2.png',
+    'env_sand_crack_patch_3x3.png',
+    'env_sand_bump_patch_1x1.png',
+    'env_sand_bump_patch_2x2.png',
+    'env_sand_bump_patch_3x3.png',
+  ]) {
+    writeFileSync(join(decorDir, file), 'fake-png');
+  }
+
   return { root, publicDir, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-test('full combined output includes all six families with 106 total paths', () => {
+test('full combined output includes all seven families with 121 total paths', () => {
   const { publicDir, cleanup } = createFullCombinedFixtures();
   try {
     const { manifest: bManifest } = processBuildingsFamily({ publicDir });
@@ -1481,6 +1514,7 @@ test('full combined output includes all six families with 106 total paths', () =
     const { manifest: muManifest } = processModularUnitsFamily({ publicDir });
     const { manifest: tManifest } = processTerrainFamily({ publicDir });
     const { manifest: rManifest } = processResourcesFamily({ publicDir });
+    const { manifest: dManifest } = processDecorFamily({ publicDir });
 
     const merged = {
       version: 1,
@@ -1491,6 +1525,7 @@ test('full combined output includes all six families with 106 total paths', () =
         ...muManifest.families,
         ...tManifest.families,
         ...rManifest.families,
+        ...dManifest.families,
       },
       paths: {
         ...bManifest.paths,
@@ -1498,26 +1533,30 @@ test('full combined output includes all six families with 106 total paths', () =
         ...muManifest.paths,
         ...tManifest.paths,
         ...rManifest.paths,
+        ...dManifest.paths,
       },
     };
 
-    // Must have all six families
+    // Must have all seven families
     assert.ok(merged.families.hq, 'Must have hq family');
     assert.ok(merged.families.buildings, 'Must have buildings family');
     assert.ok(merged.families.civilUnits, 'Must have civilUnits family');
     assert.ok(merged.families.modularUnits, 'Must have modularUnits family');
     assert.ok(merged.families.terrain, 'Must have terrain family');
     assert.ok(merged.families.resources, 'Must have resources family');
+    assert.ok(merged.families.decor, 'Must have decor family');
 
     // Key counts
-    assert.strictEqual(merged.families.terrain.keys.length, 3);
+    assert.strictEqual(merged.families.terrain.keys.length, 6);
     assert.strictEqual(merged.families.resources.keys.length, 3);
+    assert.strictEqual(merged.families.decor.keys.length, 12);
     assert.strictEqual(merged.families.terrain.loadType, 'image');
     assert.strictEqual(merged.families.resources.loadType, 'image');
+    assert.strictEqual(merged.families.decor.loadType, 'image');
 
-    // Total paths: 4 + 24 + 8 + 64 + 3 + 3 = 106
+    // Total paths: 4 + 24 + 8 + 64 + 6 + 3 + 12 = 121
     const totalKeys = Object.keys(merged.paths).length;
-    assert.strictEqual(totalKeys, 106, `Expected 106 total paths, got ${totalKeys}`);
+    assert.strictEqual(totalKeys, 121, `Expected 121 total paths, got ${totalKeys}`);
 
     // Validate the merged manifest
     const { errors } = validateManifest(merged, { root: publicDir });
@@ -1527,7 +1566,7 @@ test('full combined output includes all six families with 106 total paths', () =
   }
 });
 
-test('generateRuntimeManifestTS for full combined output includes terrain and resources', () => {
+test('generateRuntimeManifestTS for full combined output includes terrain, resources, and decor', () => {
   const { publicDir, cleanup } = createFullCombinedFixtures();
   try {
     const { manifest: bManifest } = processBuildingsFamily({ publicDir });
@@ -1535,6 +1574,7 @@ test('generateRuntimeManifestTS for full combined output includes terrain and re
     const { manifest: muManifest } = processModularUnitsFamily({ publicDir });
     const { manifest: tManifest } = processTerrainFamily({ publicDir });
     const { manifest: rManifest } = processResourcesFamily({ publicDir });
+    const { manifest: dManifest } = processDecorFamily({ publicDir });
 
     const merged = {
       version: 1,
@@ -1545,6 +1585,7 @@ test('generateRuntimeManifestTS for full combined output includes terrain and re
         ...muManifest.families,
         ...tManifest.families,
         ...rManifest.families,
+        ...dManifest.families,
       },
       paths: {
         ...bManifest.paths,
@@ -1552,6 +1593,7 @@ test('generateRuntimeManifestTS for full combined output includes terrain and re
         ...muManifest.paths,
         ...tManifest.paths,
         ...rManifest.paths,
+        ...dManifest.paths,
       },
     };
 
@@ -1560,20 +1602,26 @@ test('generateRuntimeManifestTS for full combined output includes terrain and re
     // Must have terrain and resources families
     assert.ok(ts.includes('terrain:'), 'TS must have terrain family');
     assert.ok(ts.includes('resources:'), 'TS must have resources family');
+    assert.ok(ts.includes('decor:'), 'TS must have decor family');
 
     // Must have terrain keys
-    assert.ok(ts.includes("'terrain_sand'"), 'TS must have terrain_sand key');
-    assert.ok(ts.includes("'terrain_sand_dark'"), 'TS must have terrain_sand_dark key');
-    assert.ok(ts.includes("'terrain_sand_light'"), 'TS must have terrain_sand_light key');
+    assert.ok(ts.includes("'terrain_sand_clean_256x128'"), 'TS must have terrain_sand_clean_256x128 key');
+    assert.ok(ts.includes("'terrain_sand_dark_256x128'"), 'TS must have terrain_sand_dark_256x128 key');
+    assert.ok(ts.includes("'terrain_sand_light_256x128'"), 'TS must have terrain_sand_light_256x128 key');
 
     // Must have resource keys
     assert.ok(ts.includes("'mineral_small'"), 'TS must have mineral_small key');
     assert.ok(ts.includes("'mineral_medium'"), 'TS must have mineral_medium key');
     assert.ok(ts.includes("'mineral_large'"), 'TS must have mineral_large key');
 
+    // Must have decor keys
+    assert.ok(ts.includes("'decor_env_rock_cluster_1x1'"), 'TS must have decor_env_rock_cluster_1x1 key');
+    assert.ok(ts.includes("'decor_env_sand_bump_patch_3x3'"), 'TS must have decor_env_sand_bump_patch_3x3 key');
+
     // Must have terrain and resource paths
-    assert.ok(ts.includes("'terrain_sand': 'assets/tiles/sand_tile.png',"), 'TS must have terrain_sand path');
+    assert.ok(ts.includes("'terrain_sand_clean_256x128': 'assets/tiles/terrain_sand_clean_256x128.png',"), 'TS must have terrain_sand_clean_256x128 path');
     assert.ok(ts.includes("'mineral_small': 'assets/environment/mineral_small_02.png',"), 'TS must have mineral_small path');
+    assert.ok(ts.includes("'decor_env_rock_cluster_1x1': 'assets/environment/maplife/env_rock_cluster_1x1.png',"), 'TS must have decor path');
   } finally {
     cleanup();
   }
@@ -1588,16 +1636,17 @@ test('repeated full combined generation remains deterministic', () => {
       const { manifest: muManifest } = processModularUnitsFamily({ publicDir });
       const { manifest: tManifest } = processTerrainFamily({ publicDir });
       const { manifest: rManifest } = processResourcesFamily({ publicDir });
+      const { manifest: dManifest } = processDecorFamily({ publicDir });
       return {
         version: 1,
         generatedAt: '1970-01-01T00:00:00.000Z',
         families: {
           ...bManifest.families, ...cuManifest.families, ...muManifest.families,
-          ...tManifest.families, ...rManifest.families,
+          ...tManifest.families, ...rManifest.families, ...dManifest.families,
         },
         paths: {
           ...bManifest.paths, ...cuManifest.paths, ...muManifest.paths,
-          ...tManifest.paths, ...rManifest.paths,
+          ...tManifest.paths, ...rManifest.paths, ...dManifest.paths,
         },
       };
     };

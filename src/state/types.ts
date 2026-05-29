@@ -56,12 +56,28 @@ export interface ObstaclePlacement {
 // ─── Decor ──────────────────────────────────────────────────────────
 
 /** Non-blocking decor types — visual life, no gameplay blocking. */
-export type DecorType = 'bush' | 'sand-bump';
+export type DecorType =
+  | 'env_rock_cluster_1x1'
+  | 'env_rock_cluster_2x2'
+  | 'env_rock_cluster_3x3'
+  | 'env_bush_dry_cluster_1x1'
+  | 'env_bush_dry_cluster_2x2'
+  | 'env_bush_dry_cluster_3x3'
+  | 'env_sand_crack_patch_1x1'
+  | 'env_sand_crack_patch_2x2'
+  | 'env_sand_crack_patch_3x3'
+  | 'env_sand_bump_patch_1x1'
+  | 'env_sand_bump_patch_2x2'
+  | 'env_sand_bump_patch_3x3';
+
+export type DecorCategory = 'prop' | 'decal';
 
 export interface DecorPlacement {
   tx: number;
   ty: number;
   type: DecorType;
+  footprint: 1 | 2 | 3;
+  category: DecorCategory;
 }
 
 // ─── HQ ─────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadGeneratedModularUnitAssets, loadGeneratedTerrainAndResourceAssets } from '../assets/runtimeGeneratedAssets';
+import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadGeneratedDecorAssets, loadGeneratedModularUnitAssets, loadGeneratedTerrainAndResourceAssets } from '../assets/runtimeGeneratedAssets';
 import { isDevtoolsEnabled } from '../state/devCommands';
 
 /**
@@ -32,6 +32,9 @@ export class PreloadScene extends Phaser.Scene {
 
     // --- Buildings + HQ (loaded from generated manifest) ---
     loadGeneratedBuildingAndHqAssets(this);
+
+    // --- Decorative MAPLIFE props/decals ---
+    loadGeneratedDecorAssets(this);
 
     // --- Civil unit spritesheets (loaded from generated manifest) ---
     loadGeneratedCivilUnitAssets(this);

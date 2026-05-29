@@ -181,11 +181,11 @@ describe('ARCH-17A/17B: assetDiagnostics', () => {
       expect(obstacles.every(e => e.status === 'deferred')).toBe(true);
     });
 
-    it('decor is classified as deferred', () => {
+    it('decor is classified as expected runtime art', () => {
       const entries = buildAssetDiagnostics();
       const decor = entries.filter(e => e.category === 'decor');
       expect(decor.length).toBeGreaterThan(0);
-      expect(decor.every(e => e.status === 'deferred')).toBe(true);
+      expect(decor.every(e => e.status === 'expected')).toBe(true);
     });
 
     it('infinite resource is classified as placeholder', () => {
@@ -202,32 +202,33 @@ describe('ARCH-17A/17B: assetDiagnostics', () => {
       expect(fallback!.status).toBe('placeholder');
     });
 
-    it('isStateOnlyCategory identifies obstacles and decor', () => {
+    it('isStateOnlyCategory identifies only obstacle placeholders', () => {
       expect(isStateOnlyCategory('obstacles')).toBe(true);
-      expect(isStateOnlyCategory('decor')).toBe(true);
+      expect(isStateOnlyCategory('decor')).toBe(false);
       expect(isStateOnlyCategory('terrain')).toBe(false);
       expect(isStateOnlyCategory('hq')).toBe(false);
     });
 
-    it('getDeferredCategories returns obstacles and decor', () => {
+    it('getDeferredCategories returns only obstacles', () => {
       const deferred = getDeferredCategories();
       expect(deferred).toContain('obstacles');
-      expect(deferred).toContain('decor');
+      expect(deferred).not.toContain('decor');
     });
   });
 
   // ── Summary counts ─────────────────────────────────────────────
 
   describe('summary counts', () => {
-    it('countManifestKeys returns 109', () => {
-      // TERRAIN-02A: Generated manifest has 109 keys: hq(4) + buildings(24) + civilUnits(8) + modularUnits(64) + terrain(6) + resources(3)
-      expect(countManifestKeys()).toBe(109);
+    it('countManifestKeys returns 121', () => {
+      // MAPLIFE-02A: 121 keys = hq(4) + buildings(24) + civilUnits(8) +
+      // modularUnits(64) + terrain(6) + resources(3) + decor(12)
+      expect(countManifestKeys()).toBe(121);
     });
 
     it('summarizeAssetDiagnostics has correct total', () => {
       const entries = buildAssetDiagnostics();
       const summary = summarizeAssetDiagnostics(entries);
-      expect(summary.totalManifest).toBe(109);
+      expect(summary.totalManifest).toBe(121);
       expect(summary.expected).toBeGreaterThan(0);
       expect(summary.manifestOnly).toBeGreaterThan(0);
       expect(summary.placeholder).toBeGreaterThan(0);
@@ -261,7 +262,7 @@ describe('ARCH-17A/17B: assetDiagnostics', () => {
   // ── Manifest families ──────────────────────────────────────────
 
   describe('manifest families', () => {
-    it('getManifestFamilies returns all 6 families', () => {
+    it('getManifestFamilies returns all 7 families', () => {
       const families = getManifestFamilies();
       expect(families).toContain('hq');
       expect(families).toContain('buildings');
@@ -269,7 +270,8 @@ describe('ARCH-17A/17B: assetDiagnostics', () => {
       expect(families).toContain('modularUnits');
       expect(families).toContain('terrain');
       expect(families).toContain('resources');
-      expect(families.length).toBe(6);
+      expect(families).toContain('decor');
+      expect(families.length).toBe(7);
     });
   });
 

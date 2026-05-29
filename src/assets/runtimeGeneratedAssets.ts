@@ -212,3 +212,12 @@ export function loadGeneratedTerrainAndResourceAssets(
 ): string[] {
   return loadGeneratedImageAssetFamilies(scene, ['terrain', 'resources']);
 }
+
+/**
+ * Convenience: load MAPLIFE decor image family from the generated manifest.
+ */
+export function loadGeneratedDecorAssets(
+  scene: Phaser.Scene,
+): string[] {
+  return loadGeneratedImageAssetFamilies(scene, ['decor']);
+}

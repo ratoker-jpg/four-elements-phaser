@@ -24,6 +24,7 @@ import {
   isGeneratedRuntimeState,
   createGeneratedMapData,
   createValidatedGeneratedMapData,
+  getMaplifeDecorCountRange,
   summarizeGeneratedMapQuality,
   MAP_SIZE_DIMENSIONS,
   MAX_VALIDATION_ATTEMPTS,
@@ -493,17 +494,18 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
     });
   });
 
-  // ── Obstacles and decor (ARCH-08B — DEFERRED) ────────────────
+  // ── Obstacles and decor ───────────────────────────────────────
 
-  describe('obstacles and decor (deferred)', () => {
+  describe('obstacles and decor', () => {
     it('generated maps have no obstacles (deferred until visual assets exist)', () => {
       const map = createGeneratedMapData('no-obstacles', 'large');
       expect(map.obstacles).toEqual([]);
     });
 
-    it('generated maps have no decor (deferred until visual assets exist)', () => {
-      const map = createGeneratedMapData('no-decor', 'large');
-      expect(map.decor).toEqual([]);
+    it('generated maps produce deterministic decor for the same seed and size', () => {
+      const map1 = createGeneratedMapData('decor-determinism', 'large');
+      const map2 = createGeneratedMapData('decor-determinism', 'large');
+      expect(map1.decor).toEqual(map2.decor);
     });
 
     it('no invisible blocking obstacles on any map size', () => {
@@ -511,6 +513,63 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
         const map = createGeneratedMapData('invis-check', size);
         // Obstacles would be invisible (stateOnly) but blocking — must be empty
         expect(map.obstacles).toEqual([]);
+      }
+    });
+
+    it('decor count stays within the expected density range', () => {
+      for (const size of ['small', 'standard', 'large'] as MapSizeOption[]) {
+        const map = createGeneratedMapData(`decor-density-${size}`, size);
+        const range = getMaplifeDecorCountRange(map.width, map.height);
+        expect(map.decor.length).toBeGreaterThanOrEqual(range.min);
+        expect(map.decor.length).toBeLessThanOrEqual(range.max);
+      }
+    });
+
+    it('decor placements avoid HQ and resource exclusion zones', () => {
+      const map = createGeneratedMapData('decor-exclusions', 'standard');
+
+      const overlapsRect = (
+        tx: number,
+        ty: number,
+        footprint: number,
+        fromX: number,
+        fromY: number,
+        toX: number,
+        toY: number,
+      ) => (
+        tx <= toX &&
+        tx + footprint - 1 >= fromX &&
+        ty <= toY &&
+        ty + footprint - 1 >= fromY
+      );
+
+      for (const decor of map.decor) {
+        expect(
+          overlapsRect(
+            decor.tx,
+            decor.ty,
+            decor.footprint,
+            map.hq.tx - 3,
+            map.hq.ty - 3,
+            map.hq.tx + 8,
+            map.hq.ty + 8,
+          ),
+        ).toBe(false);
+
+        for (const resource of map.resources) {
+          const margin = resource.type === 'infinite' ? 2 : 1;
+          expect(
+            overlapsRect(
+              decor.tx,
+              decor.ty,
+              decor.footprint,
+              resource.tx - margin,
+              resource.ty - margin,
+              resource.tx + resource.footprint - 1 + margin,
+              resource.ty + resource.footprint - 1 + margin,
+            ),
+          ).toBe(false);
+        }
       }
     });
   });

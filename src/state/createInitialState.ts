@@ -324,17 +324,6 @@ function flattenMapEntities(mapData: MapData, faction: Faction): RenderableEntit
     });
   }
 
-  // Decor — state-only, no visual assets yet
-  for (const decor of mapData.decor) {
-    entities.push({
-      id: id('decor'),
-      kind: 'resource',
-      tx: decor.tx,
-      ty: decor.ty,
-      stateOnly: true,
-    });
-  }
-
   // Buildings — state-only, no visual assets yet
   for (const building of mapData.buildings) {
     entities.push({

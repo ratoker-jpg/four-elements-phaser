@@ -1,0 +1,212 @@
+{
+  "generatedBy": "tools/generate_maplife_assets.py",
+  "cellSourcePx": 256,
+  "outputDir": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife",
+  "assets": [
+    {
+      "name": "env_rock_cluster_1x1",
+      "family": "rock",
+      "category": "prop",
+      "footprint": 1,
+      "width": 256,
+      "height": 256,
+      "alphaBBox": [
+        40,
+        89,
+        216,
+        238
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_rock_cluster_1x1.png"
+    },
+    {
+      "name": "env_rock_cluster_2x2",
+      "family": "rock",
+      "category": "prop",
+      "footprint": 2,
+      "width": 512,
+      "height": 512,
+      "alphaBBox": [
+        27,
+        291,
+        472,
+        484
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_rock_cluster_2x2.png"
+    },
+    {
+      "name": "env_rock_cluster_3x3",
+      "family": "rock",
+      "category": "prop",
+      "footprint": 3,
+      "width": 768,
+      "height": 768,
+      "alphaBBox": [
+        54,
+        510,
+        727,
+        738
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_rock_cluster_3x3.png"
+    },
+    {
+      "name": "env_bush_dry_cluster_1x1",
+      "family": "bush",
+      "category": "prop",
+      "footprint": 1,
+      "width": 256,
+      "height": 256,
+      "alphaBBox": [
+        37,
+        114,
+        219,
+        236
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_bush_dry_cluster_1x1.png"
+    },
+    {
+      "name": "env_bush_dry_cluster_2x2",
+      "family": "bush",
+      "category": "prop",
+      "footprint": 2,
+      "width": 512,
+      "height": 512,
+      "alphaBBox": [
+        98,
+        307,
+        418,
+        479
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_bush_dry_cluster_2x2.png"
+    },
+    {
+      "name": "env_bush_dry_cluster_3x3",
+      "family": "bush",
+      "category": "prop",
+      "footprint": 3,
+      "width": 768,
+      "height": 768,
+      "alphaBBox": [
+        130,
+        561,
+        647,
+        738
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_bush_dry_cluster_3x3.png"
+    },
+    {
+      "name": "env_sand_crack_patch_1x1",
+      "family": "crack",
+      "category": "decal",
+      "footprint": 1,
+      "width": 256,
+      "height": 256,
+      "alphaBBox": [
+        29,
+        82,
+        228,
+        171
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_sand_crack_patch_1x1.png"
+    },
+    {
+      "name": "env_sand_crack_patch_2x2",
+      "family": "crack",
+      "category": "decal",
+      "footprint": 2,
+      "width": 512,
+      "height": 512,
+      "alphaBBox": [
+        27,
+        216,
+        475,
+        361
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_sand_crack_patch_2x2.png"
+    },
+    {
+      "name": "env_sand_crack_patch_3x3",
+      "family": "crack",
+      "category": "decal",
+      "footprint": 3,
+      "width": 768,
+      "height": 768,
+      "alphaBBox": [
+        99,
+        380,
+        744,
+        512
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_sand_crack_patch_3x3.png"
+    },
+    {
+      "name": "env_sand_bump_patch_1x1",
+      "family": "bump",
+      "category": "decal",
+      "footprint": 1,
+      "width": 256,
+      "height": 256,
+      "alphaBBox": [
+        34,
+        99,
+        222,
+        232
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_sand_bump_patch_1x1.png"
+    },
+    {
+      "name": "env_sand_bump_patch_2x2",
+      "family": "bump",
+      "category": "decal",
+      "footprint": 2,
+      "width": 512,
+      "height": 512,
+      "alphaBBox": [
+        85,
+        310,
+        419,
+        486
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_sand_bump_patch_2x2.png"
+    },
+    {
+      "name": "env_sand_bump_patch_3x3",
+      "family": "bump",
+      "category": "decal",
+      "footprint": 3,
+      "width": 768,
+      "height": 768,
+      "alphaBBox": [
+        138,
+        478,
+        649,
+        742
+      ],
+      "path": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\env_sand_bump_patch_3x3.png"
+    }
+  ],
+  "previews": {
+    "contactSheet": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\previews\\maplife_contact_sheet.png",
+    "terrainPreview": "C:\\Users\\Den\\Downloads\\four-elements-phaser-live\\public\\assets\\environment\\maplife\\previews\\maplife_terrain_preview.png"
+  },
+  "sourceNotes": {
+    "rocks": [
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\rock_cluster_03.png",
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\rock_cluster_05.png",
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\rock_cluster_07.png",
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\rock_cluster_08.png"
+    ],
+    "bushes": [
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\dry_bush_03.png",
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\dry_bush_05.png",
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\dry_bush_07.png",
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\dry_bush_09.png"
+    ],
+    "bumps": [
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\sand_bump_03.png",
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\sand_bump_05.png",
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\sand_bump_07.png",
+      "C:\\Users\\Den\\Downloads\\four_elements_processed_environment_256_v3_fixed\\environment\\sand_bump_09.png"
+    ],
+    "cracks": "procedurally generated transparent decals"
+  }
+}
