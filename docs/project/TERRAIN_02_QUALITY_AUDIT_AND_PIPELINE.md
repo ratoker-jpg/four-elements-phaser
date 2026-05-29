@@ -223,7 +223,7 @@ Based on the Denis direction and the Phase 2 roadmap audit, the target terrain s
 
 1. **Read as a natural desert surface**, not a grid of diamond tiles. A player glancing at the map should see "sand" — not "repeated diamond shapes."
 2. **Support perceived resolution** that matches or exceeds the 76x38 cell display size. No blurriness, no over-compression artifacts.
-3. **Break up tile repetition** through a combination of source art variants, runtime placement variety (rotation, mirroring), and cluster-based type assignment.
+3. **Break up tile repetition** through a combination of source art variants, deterministic variant selection, deterministic tint variation, cluster-based detail assignment, and optional safe transforms after visual QA.
 4. **Feel like a stylized RTS desert surface** — think StarCraft desert tiles, Age of Empires sand terrain, or Command & Conquer dunes. Not photorealistic, but not flat-colored diamonds either.
 5. **Prepare the ground for MAPLIFE props**: The terrain should look good as a base layer that props, doodads, and decals can sit on top of without visual conflict.
 6. **Maintain isometric readability**: The 2:1 diamond cell structure must remain visible for gameplay (cell selection, building placement) even if the visual grid is soft.
@@ -237,7 +237,7 @@ Based on the Denis direction and the Phase 2 roadmap audit, the target terrain s
 | **Source art change** | New 1180x741 PNGs (better quality) | New 256x128 PNGs (multiple variants) | New larger patch PNGs | Depends on approach |
 | **Runtime code change** | None (same scale, same keys) | Update TERRAIN_STAMP_CONFIG, manifest | New TerrainRenderer stamping logic | Major renderer refactor |
 | **Tile variants** | Still 3 | 5-7 variants | Zone-based patch families | Depends on approach |
-| **Repetition reduction** | Minimal — same stamps, better art | Moderate — more variants + rotation | High — larger visual patches | High if done well |
+| **Repetition reduction** | Minimal — same stamps, better art | Moderate — more variants + tint + cluster assignment | High — larger visual patches | High if done well |
 | **Checkerboard fix** | Partial — depends on art having no edges | Strong — new art without edges + more variants | Strong — patches cover multiple cells | Strong if done well |
 | **Scale fix** | No — still 1180x741 | Yes — 256x128 is appropriate resolution | Yes — patch-level scaling | Depends |
 | **Risk** | Low | Low-medium | Medium-high | High |
@@ -282,7 +282,7 @@ The following terrain family is proposed for the first pass. It is intentionally
 
 ### 11.2 Variant count justification
 
-6 variants (3 base shades x 2 detail variants, or 6 distinct textures) is the minimum that produces meaningful repetition reduction. With 6 variants and random rotation (4 orientations), the effective unique stamp count is 24 (6 x 4). On a 48x48 map with roughly 1500-2000 visible sand tiles, this reduces the probability of adjacent identical stamps to approximately 4% (1/24), compared to the current 33% (1/3).
+6 variants (3 base shades x 2 detail variants, or 6 distinct textures) is the minimum that produces meaningful repetition reduction. With 6 variants and expanded tint variation (plus-minus 8%), the effective visual diversity is significantly better than the current 3 variants with imperceptible tint. Repetition reduction comes primarily from: (1) 6 distinct texture variants instead of 3, (2) stronger tint variation (plus-minus 8%) that is actually visible, and (3) cluster-based variant assignment that distributes detail variants naturally across the map. Rotation is NOT used as a repetition-reduction tool for 256x128 isometric tiles because arbitrary rotation is unsafe for the isometric diamond footprint (see section 13.2 for the safe-transform rule).
 
 ### 11.3 What about transition tiles?
 
@@ -334,7 +334,7 @@ Each source PNG must:
 
 5. **Tile seamlessly in the horizontal and vertical axes.** When stamped in a grid, adjacent tiles must not produce visible seams at boundaries. This requires the texture to wrap correctly at the diamond edges.
 
-6. **Be suitable for rotation.** The texture should look natural when the tile is rotated 90, 180, or 270 degrees. Rotation is a free repetition-reduction technique that requires no additional art.
+6. **Be designed for non-directional lighting if safe transforms may be used later.** The texture should avoid strong directional lighting cues (e.g., a light source from the upper-left) that would make flipX/flipY or 180-degree rotation look obviously wrong. Non-directional or omnidirectional shading allows optional safe transforms in the future. However, repetition reduction should NOT depend on rotation — see the safe-transform rule in section 13.2.
 
 ### 12.3 File naming and storage
 
@@ -387,26 +387,20 @@ No changes to the TerrainRenderer class architecture. The existing `stampTerrain
 2. **Expand `TERRAIN_KEY_MAP`** with the new variant keys
 3. **Expand `TerrainType`** with the new type names
 4. **Update `generatedAssetManifest.ts`** (via `process_art_assets.mjs`) with new terrain entries
-5. **Add tile rotation** in the stamp config to multiply effective variants from 6 to 24
+5. **Add deterministic variant selection and stronger tint variation** (see sections 13.2–13.4)
 
-### 13.2 Tile rotation for repetition reduction
+### 13.2 Safe-transform rule for 256x128 isometric terrain tiles
 
-Phaser's `StampConfig` supports `rotation` in radians. By applying a random (but deterministic) rotation to each tile stamp (0, 90, 180, or 270 degrees), each source PNG produces 4 visually distinct stamps. With 6 source PNGs, this gives 24 unique visual states per cell — a significant improvement over the current 3.
+**Do NOT use 90-degree rotation for 256x128 isometric terrain tiles.** A 90-degree rotation swaps width and height from 256x128 to 128x256, which breaks the isometric diamond footprint and stamp alignment. Even a 90-degree rotation applied via `StampConfig.rotation` would render the diamond at the wrong aspect ratio and misalign it with the cell grid.
 
-Implementation:
+**180-degree rotation, flipX, and flipY are optional only** if: (a) the source art is specifically designed to be non-directional (no directional lighting or shading), and (b) visual QA confirms the transform does not break lighting consistency or seam alignment.
 
-```typescript
-const rotationIndex = terrainTileHash(tx, ty) & 0x3; // 0-3
-const rotation = rotationIndex * Math.PI / 2; // 0, π/2, π, 3π/2
+**The first TERRAIN-02A implementation should NOT depend on rotation or flipping to solve repetition.** Repetition reduction should primarily come from:
+1. **6 clean texture variants** — each variant provides a visually distinct stamp
+2. **Cluster-based detail assignment** — variants are distributed in natural cluster patterns, not randomly
+3. **Stronger tint variation** (plus-minus 8%) — visible per-tile color variation that makes adjacent same-variant tiles look different
 
-const stampConfig: Phaser.Types.Textures.StampConfig = {
-  ...TERRAIN_STAMP_CONFIG,
-  tint,
-  rotation,
-};
-```
-
-The `terrainTileHash()` function already provides deterministic per-tile hashing, so rotation assignment is deterministic and stable across sessions.
+If visual QA after TERRAIN-02A confirms that the source art is non-directional, optional safe transforms (180-degree rotation, flipX, flipY) can be added as a TERRAIN-02B enhancement. But these must not be the primary repetition-reduction mechanism.
 
 ### 13.3 Tint range expansion
 
@@ -477,10 +471,10 @@ VISUAL-SPIKE-01 confirmed that the RenderTexture stamp model is incompatible wit
 | New source art still has visible diamond edges | High | Medium | Explicit content spec (section 12.2 item 1) + visual QA before integration |
 | 256x128 tiles produce visible pixelation at high zoom | Medium | Low | 3.37x oversampling is sufficient for typical zoom ranges; add higher-res variant if needed |
 | TerrainType expansion breaks saved game compatibility | Medium | Medium | Backward-compatible TerrainType union — old saves with 3 types still load (missing types default to 'sand') |
-| Rotation produces visual artifacts for non-symmetric textures | Medium | Low | Content spec requires rotation suitability; visual QA catches issues |
+| Safe transforms (flipX/flipY/180-degree) produce visual artifacts for directional source art | Medium | Medium | Source art spec requires non-directional lighting; TERRAIN-02A does NOT depend on transforms; transforms are optional only after visual QA |
 | process_art_assets.mjs needs terrain entry updates | Low | High | Straightforward — add new entries to TERRAN_ENTRIES array |
 | Tint expansion (plus-minus 8%) looks too noisy | Low | Medium | Tint range is a single constant; easy to tune down if needed |
-| 6 variants insufficient for large maps (48x48+) | Low | Low | Rotation multiplies to 24 effective variants; additional variants can be added |
+| 6 variants insufficient for large maps (48x48+) | Low | Low | 6 variants + plus-minus 8% tint + cluster-based assignment provides substantial visual diversity; additional variants can be added in TERRAIN-02B if needed |
 
 ---
 
@@ -496,7 +490,7 @@ VISUAL-SPIKE-01 confirmed that the RenderTexture stamp model is incompatible wit
 6. Update `TerrainType` in `src/state/types.ts` (expand union)
 7. Update `TERRAIN_KEY_MAP` in `TerrainRenderer.ts`
 8. Update `TERRAIN_STAMP_CONFIG` scale from `76/1180, 38/741` to `76/256, 38/128`
-9. Add tile rotation in stamp config
+9. Add deterministic variant selection logic (no rotation — see safe-transform rule in section 13.2)
 10. Expand tint range from plus-minus 3% to plus-minus 8%
 11. Update map generator to assign detail variants in clusters
 12. Update `terrainClustering.ts` smoothing to handle expanded type set
@@ -551,7 +545,7 @@ Scope:
 1. Update TerrainType in src/state/types.ts to add 'sand-ripple', 'sand-pebble', 'sand-cracked'
 2. Update TERRAIN_KEY_MAP in TerrainRenderer.ts with new key mappings
 3. Update TERRAIN_STAMP_CONFIG scale from 76/1180, 38/741 to 76/256, 38/128
-4. Add deterministic tile rotation (0, 90, 180, 270 degrees) using terrainTileHash
+4. Add deterministic variant selection per cell using terrainTileHash (no rotation — see safe-transform rule)
 5. Expand tint range from ±3% to ±8% in computeTerrainTint()
 6. Update process_art_assets.mjs TERRAN_ENTRIES with 6 new terrain entries
 7. Re-run process_art_assets.mjs to regenerate manifest
@@ -561,6 +555,8 @@ Scope:
 11. Update terrainClustering.test.ts for new type set
 
 Hard rules:
+- Do NOT use 90-degree rotation for 256x128 isometric tiles (breaks diamond footprint)
+- Do NOT depend on rotation or flipping as the primary repetition-reduction mechanism
 - Do NOT change the RenderTexture stamp model
 - Do NOT change TILE_W or TILE_H
 - Do NOT change pathfinding or occupancy logic
@@ -582,9 +578,9 @@ PR body must include:
 - What was replaced (1180x741 → 256x128)
 - New terrain variants added
 - Scale factor change
-- Rotation implementation
+- Variant selection implementation (deterministic, no rotation)
 - Tint range change
-- What was intentionally NOT changed (RenderTexture model, pathfinding, coordinate system)
+- What was intentionally NOT changed (RenderTexture model, pathfinding, coordinate system, rotation)
 - Validation results
 - Manual QA checklist
 ```
@@ -661,7 +657,7 @@ Validation:
 - [ ] `TerrainType` expanded with 3 new variants
 - [ ] `TERRAIN_STAMP_CONFIG` scale updated to `76/256, 38/128`
 - [ ] `TERRAIN_KEY_MAP` updated with new keys
-- [ ] Tile rotation implemented in stamp config
+- [ ] Deterministic variant selection implemented (no rotation — safe-transform rule observed)
 - [ ] Tint range expanded to plus-minus 8%
 - [ ] Map generator assigns detail variants in clusters
 - [ ] `process_art_assets.mjs` updated with new terrain entries
@@ -702,7 +698,7 @@ The 1180/741 values match the current source PNG dimensions. The scale is mathem
 
 ### Q6: If we target 256x128 terrain source tile / patch, how exactly should that be used?
 
-Each 256x128 PNG represents one isometric diamond tile at 3.37x oversampling. The TerrainRenderer stamps each cell using `renderTexture.stamp()` with `scaleX = 76/256, scaleY = 38/128`, origin at (0.5, 0.5). Deterministic rotation (0/90/180/270 degrees) is applied per cell using `terrainTileHash()`. The 6 variants are assigned by the map generator with cluster-based distribution. This is a drop-in replacement for the current 1180x741 pipeline — same stamping model, different source dimensions and scale.
+Each 256x128 PNG represents one isometric diamond tile at 3.37x oversampling. The TerrainRenderer stamps each cell using `renderTexture.stamp()` with `scaleX = 76/256, scaleY = 38/128`, origin at (0.5, 0.5). Deterministic variant selection (no rotation) is applied per cell using `terrainTileHash()`. The 6 variants are assigned by the map generator with cluster-based distribution. This is a drop-in replacement for the current 1180x741 pipeline — same stamping model, different source dimensions and scale. Rotation is NOT used for 256x128 isometric tiles because arbitrary rotation breaks the diamond footprint (see safe-transform rule in section 13.2).
 
 ### Q7: Should we keep the current RenderTexture-based terrain renderer, or evolve it?
 
@@ -710,11 +706,11 @@ Each 256x128 PNG represents one isometric diamond tile at 3.37x oversampling. Th
 
 ### Q8: Should the future model remain tile-per-cell, or move toward patch/chunk composition while still keeping MapData logical cells?
 
-**Remain tile-per-cell for now.** The per-cell stamp model with 6 variants + rotation (24 effective states) is sufficient for the visual quality target. Patch/chunk composition would require renderer changes that are not justified by the visual improvement. If repetition remains visible after TERRAIN-02A + 02B, patch composition can be reconsidered.
+**Remain tile-per-cell for now.** The per-cell stamp model with 6 variants, expanded tint variation (plus-minus 8%), and cluster-based assignment is sufficient for the visual quality target. Rotation is NOT used for 256x128 isometric tiles (unsafe — breaks diamond footprint). Patch/chunk composition would require renderer changes that are not justified by the visual improvement. If repetition remains visible after TERRAIN-02A + 02B, patch composition can be reconsidered.
 
 ### Q9: What is the cleanest path to better perceived resolution, less repetition, more natural sand clustering, and compatibility with MAPLIFE props later?
 
-The cleanest path is: (1) new 256x128 source art without built-in edges, (2) 6 variants with deterministic rotation (24 effective states), (3) expanded tint range (plus-minus 8%), (4) cluster-based variant assignment in the map generator, and (5) clean edge-free base layer that supports MAPLIFE decal/prop placement.
+The cleanest path is: (1) new 256x128 source art without built-in edges, (2) 6 variants with deterministic variant selection and expanded tint variation (plus-minus 8%), (3) cluster-based variant assignment in the map generator, (4) optional safe transforms only after visual QA confirms source art is non-directional, and (5) clean edge-free base layer that supports MAPLIFE decal/prop placement.
 
 ### Q10: What should be the future terrain asset family set?
 
@@ -722,7 +718,7 @@ The cleanest path is: (1) new 256x128 source art without built-in edges, (2) 6 v
 
 ### Q11: What exact asset specs should Denis generate next?
 
-See section 12 for the full asset generation spec. Summary: 6 PNGs, each 256x128 pixels, RGBA with transparent background, no built-in diamond edges, warm desert palette, seamless tiling, rotation-suitable, with consistent isometric diamond mask.
+See section 12 for the full asset generation spec. Summary: 6 PNGs, each 256x128 pixels, RGBA with transparent background, no built-in diamond edges, warm desert palette, seamless tiling, non-directional lighting (to allow optional safe transforms after visual QA), with consistent isometric diamond mask.
 
 ### Q12: What implementation sequence should we follow after this audit?
 
@@ -737,10 +733,10 @@ TERRAIN-02A (asset integration) → TERRAIN-02B (placement tuning if needed) →
 **Yes, partially.** The source art should contain subtle texture variation (grain, ripples, pebbles) to break up flat-color appearance. However, larger-scale variation (bright/dark clusters, zone transitions) should remain in the runtime placement logic, not baked into the art. The split is: fine detail in art, coarse variation in runtime.
 
 **Should clustering happen via runtime placement, source art families, or both?**
-**Both.** Source art families provide the variant set (6 textures). Runtime placement assigns variants to cells in cluster-based patterns (cellular automata for base type, noise/distance for detail variants). Rotation adds another dimension of variety at runtime. Neither alone is sufficient; the combination is required.
+**Both.** Source art families provide the variant set (6 textures). Runtime placement assigns variants to cells in cluster-based patterns (cellular automata for base type, noise/distance for detail variants). Deterministic tint variation (plus-minus 8%) adds per-tile color diversity at runtime. Rotation is NOT used for 256x128 isometric tiles because arbitrary rotation breaks the diamond footprint. Optional safe transforms (180-degree, flipX/flipY) may be added later after visual QA, but they must not be the primary repetition-reduction mechanism. Neither source art nor runtime placement alone is sufficient; the combination is required.
 
 **What resolution and content should the tile/patch source use?**
-256x128 pixels per tile. Content: warm desert sand texture within an isometric diamond mask, no built-in edges, seamless tiling, rotation-suitable. See section 12 for the full spec.
+256x128 pixels per tile. Content: warm desert sand texture within an isometric diamond mask, no built-in edges, seamless tiling, non-directional lighting (for optional safe transforms after QA). See section 12 for the full spec.
 
 **How should this prepare the ground for MAPLIFE props?**
 Clean, edge-free terrain provides a neutral visual base. Props should be placed preferentially on "clean" terrain variants (where the terrain texture is simple) rather than "cracked" or "ripple" variants (where the terrain already provides visual detail). The terrain detail variants fill in the spaces between props, ensuring the map looks varied even in areas with no props.
