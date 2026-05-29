@@ -82,30 +82,62 @@ Do not start VISUAL implementation before the audit is accepted.
 
 ---
 
-## Also needed (from previous Phase 2, rescheduled)
+## Completed foundation from previous Phase 2
 
-These tasks are still valid and can proceed in parallel with VISUAL phases:
+These tasks are merged and remain useful foundation for the VISUAL roadmap:
 
 ```text
-MENU-01 — Main menu mode selection via controlled URL launch
-LOADING-01 — Proper loading screen
-BASE-ANCHOR-01 — HQ/building grounding and footprint alignment
-HOTKEYS-01 — Command registry / hotkey system
-BUILDER-ID — Builder stable IDs
+MENU-01 (#100) — Main menu mode selection via controlled URL launch ✓
+MENU-02 (#105) — Mode-aware late-loading / seamless mode switching ✓
+LOADING-01 (#101) — Proper loading screen with progress bar ✓
+BASE-ANCHOR-01 (#104) — HQ/building grounding and south-vertex placement ✓
+HOTKEYS-01 (#111) — Command registry / hotkey system ✓
+BUILDER-ID (#109) — Builder stable IDs ✓
+RESOURCE-01 (#108) — Depleted resource ghost occupancy fix ✓
+HUD-01 (#102) — Legacy HUD removal and consolidation ✓
+WEAPON-WORKFLOW-01 (#114) — Weapon VFX / recoil design document ✓
+ASSET-WORKFLOW-01 (#106) — Animated unit asset pipeline design ✓
+TERRAIN-02A (#119) — 256×128 terrain integration (technical pipeline foundation) ✓
+TERRAIN-FIX-01 (#121) — Grid seam removal (technical pipeline improvement) ✓
+```
+
+These are done. Do not re-assign or re-list them as pending work.
+
+Still needed (not yet started, can proceed in parallel with VISUAL phases):
+
+```text
 FOG-01 — Two-layer fog of war (design + implementation)
 ARENA-01 — Arena mode from menu
-WEAPON-WORKFLOW-01 — Weapon VFX / recoil design
 ```
 
 ---
 
-## What is paused
+## Paused / superseded
+
+Sand terrain polish as primary direction is paused. MAPLIFE desert decor is rejected. These must not be continued as-is:
 
 ```text
-TERRAIN-01 / TERRAIN-02 / TERRAIN-FIX-01 — Sand terrain work paused
-MAPLIFE-01 — Desert decor rejected, will be re-scoped for industrial
-RESOURCE-01 — Deferred to VISUAL Phase V6 after map style approved
-UNIT-ANIM-01 / UNIT-ANIM-02 — Deferred to VISUAL Phase V9 after industrial biome established
+TERRAIN-01 (#103) — Sand visual system — merged, but sand direction paused as primary biome
+TERRAIN-02 (#118) — Sand quality audit — merged, pipeline learnings preserved
+TERRAIN-FIX-01 (#121) — Sand grid seam removal — merged, code remains as fallback
+MAPLIFE-01 (#112) — Desert decor asset readiness — rejected visual direction
+MAPLIFE #120 — Desert decor PR — visually rejected, not merged
+```
+
+Sand assets and code remain in repo as fallback/reference. Future terrain work targets the industrial biome (VISUAL Phase V3).
+
+---
+
+## Deferred until VISUAL audit/design
+
+These tasks depend on the industrial biome direction being established first:
+
+```text
+RESOURCE visual refresh — Deferred to VISUAL Phase V6 after map style approved
+Harvester/Builder visual refresh — Deferred to VISUAL Phase V9 after industrial biome established
+HUD redesign implementation — Deferred to VISUAL Phase V7 after audit and map direction approved
+Map frame implementation — Deferred to VISUAL Phase V4 after terrain/platform integration
+Lower-left start composition — Deferred to VISUAL Phase V5 after map frame established
 ```
 
 ---

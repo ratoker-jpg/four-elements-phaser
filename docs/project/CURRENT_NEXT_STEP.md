@@ -68,16 +68,16 @@ From VISUAL roadmap:
 5. VISUAL-START-01 — Start position and map composition (requires V3)
 ```
 
-Also still needed from previous Phase 2 (rescheduled):
+Previously listed Phase 2 tasks (MENU-01, LOADING-01, HOTKEYS-01, BASE-ANCHOR-01) are already completed/merged — see `PROJECT_STATE.md` "Completed foundation" section.
+
+Still needed (not yet started):
 
 ```text
-MENU-01 — Main menu mode selection via controlled URL launch
-LOADING-01 — Proper loading screen
-HOTKEYS-01 — Command registry / hotkey system
-BASE-ANCHOR-01 — HQ/building grounding and footprint alignment
+FOG-01 — Two-layer fog of war (design + implementation)
+ARENA-01 — Arena mode from menu
 ```
 
-These tasks can proceed in parallel with VISUAL phases where they do not conflict.
+These can proceed in parallel with VISUAL phases where they do not conflict.
 
 ---
 

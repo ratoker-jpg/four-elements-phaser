@@ -368,27 +368,38 @@ This PR (VISUAL-ROADMAP-01) is accepted when:
 
 ## 7. Relationship to previous work
 
-### What is preserved from Phase 2
+### Completed foundation from Phase 2
 
-The following Phase 2 tasks remain relevant and will be rescheduled within the VISUAL roadmap phases:
+These Phase 2 tasks are already merged. They remain useful foundation for VISUAL phases but are not pending work:
 
-- **MENU-01 / MENU-02**: Main menu mode selection — still needed, unchanged by visual direction pivot
-- **LOADING-01**: Proper loading screen — still needed, styling will follow new industrial direction
-- **BASE-ANCHOR-01**: HQ/building grounding — still needed, visual integration will match new biome
-- **ASSET-WORKFLOW-01**: Animated unit asset pipeline — still needed, will produce industrial-styled units
-- **HOTKEYS-01**: Command registry / hotkey system — still needed, will integrate with new HUD
-- **FOG-01**: Two-layer fog of war — still needed, implementation timing unchanged
-- **ARENA-01**: Arena mode from menu — still needed, unchanged by visual direction
-- **WEAPON-WORKFLOW-01**: Weapon VFX / recoil design — still needed, unchanged
-- **BUILDER-ID**: Builder stable IDs — still needed, technical prerequisite
+- **MENU-01 (#100) / MENU-02 (#105)**: Main menu mode selection — done, styling will update in VISUAL Phase V8
+- **LOADING-01 (#101)**: Proper loading screen — done, styling will follow new industrial direction
+- **BASE-ANCHOR-01 (#104)**: HQ/building grounding — done, visual integration will match new biome in V3
+- **ASSET-WORKFLOW-01 (#106)**: Animated unit asset pipeline — done, will produce industrial-styled units in V9
+- **HOTKEYS-01 (#111)**: Command registry / hotkey system — done, will integrate with new HUD in V7
+- **HUD-01 (#102)**: Legacy HUD removal — done, new HUD layout deferred to V7
+- **BUILDER-ID (#109)**: Builder stable IDs — done, prerequisite for unit animation work
+- **RESOURCE-01 (#108)**: Depleted resource ghost occupancy fix — done, visual refresh deferred to V6
+- **WEAPON-WORKFLOW-01 (#114)**: Weapon VFX / recoil design — done, unchanged
+- **TERRAIN-02A (#119)**: 256×128 terrain integration — done, pipeline learnings preserved for V3
+- **TERRAIN-FIX-01 (#121)**: Grid seam removal — done, code remains as fallback
 
-### What is changed from Phase 2
+Still needed (not yet started):
 
-- **TERRAIN-01 / TERRAIN-02 / TERRAIN-FIX-01**: Sand terrain work is paused. Terrain work resumes as Phase V3 with industrial direction.
-- **MAPLIFE-01**: Desert decor is rejected. Environment assets will be re-scoped as industrial props in Phase V3/V4.
-- **RESOURCE-01**: Resource node polish is deferred to Phase V6 after map style is approved.
-- **UNIT-ANIM-01 / UNIT-ANIM-02**: Unit regeneration is deferred to Phase V9 after the industrial biome is established. Regenerating units for a sand environment and then re-doing them for industrial would be wasteful.
-- **VISUAL-SPIKE-01**: Normal maps / lighting feasibility — remains relevant, timing to be determined by V1 audit.
+- **FOG-01**: Two-layer fog of war — can proceed in parallel with VISUAL phases
+- **ARENA-01**: Arena mode from menu — can proceed in parallel with VISUAL phases
+
+### What is paused / superseded from Phase 2
+
+- **TERRAIN-01 (#103) / TERRAIN-02 (#118) / TERRAIN-FIX-01 (#121)**: Sand terrain code is merged, but sand as primary visual direction is paused. Terrain visual work resumes as Phase V3 with industrial direction.
+- **MAPLIFE-01 (#112)**: Desert decor asset readiness — rejected visual direction. Environment assets will be re-scoped as industrial props in Phase V3/V4.
+- **MAPLIFE #120**: Desert decor PR — visually rejected, not merged.
+
+### What is deferred from Phase 2 (until VISUAL audit/design)
+
+- **Resource visual refresh**: RESOURCE-01 (#108) occupancy fix is done; visual refresh deferred to Phase V6 after map style is approved.
+- **UNIT-ANIM-01 (#107) / UNIT-ANIM-02**: Unit asset readiness report is done; unit visual regeneration deferred to Phase V9 after industrial biome is established.
+- **VISUAL-SPIKE-01 (#113)**: Normal maps / lighting feasibility — remains relevant, timing to be determined by V1 audit.
 
 ### What is new in VISUAL roadmap
 
