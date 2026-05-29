@@ -37,6 +37,8 @@ A new GPT chat should start by reading:
 docs/project/START_HERE_FOR_GPT.md
 docs/project/GPT_WORKFLOW.md
 docs/project/PROJECT_STATE.md
+docs/project/VISUAL_ROADMAP.md
+docs/project/VISUAL_SYSTEM_AUDIT.md
 ```
 
 Read additionally:
@@ -390,9 +392,12 @@ Use an audit when:
 - the same error pattern appears again;
 - the task requires understanding Phaser 4 capabilities;
 - there are several possible technical paths;
-- an idea from Next needs to be reused or reinterpreted.
+- an idea from Next needs to be reused or reinterpreted;
+- the task expands scope beyond the accepted VISUAL audit.
 
 An audit is not needed for small, already-approved implementation-only tasks.
+
+An audit is also not needed when the task is already covered by the accepted `VISUAL_SYSTEM_AUDIT.md`. If a VISUAL implementation task (VISUAL-01 through VISUAL-12) stays within the audit's defined scope, it can proceed directly to implementation without a new mini-audit.
 
 Audit output must answer not only "what to do", but also:
 
@@ -403,6 +408,17 @@ where data lives
 risks
 PR sequence
 what must not be done
+```
+
+### VISUAL audit coverage rule
+
+The VISUAL_SYSTEM_AUDIT.md is the accepted audit for all VISUAL phases. When a task is inside its scope:
+
+```text
+- Do not ask for another audit.
+- Use the audit's PR sequence, scope, and non-goals directly.
+- If the task expands scope, touches gameplay/pathfinding/economy unexpectedly,
+  or combines multiple phases, stop and request approval.
 ```
 
 ---
@@ -766,7 +782,13 @@ Without explicit permission, do not:
 - add new building types/configs outside the accepted roadmap;
 - merge PRs on behalf of GLM;
 - change economy without accepted roadmap/audit;
-- add combat before civil/economy loop unless roadmap changes.
+- add combat before civil/economy loop unless roadmap changes;
+- continue sand terrain as primary visual direction;
+- continue MAPLIFE #120 / desert decor direction;
+- mass-generate assets directly into repo without visual approval;
+- fix bad art by code-only patches;
+- build a four-biome system now;
+- copy StarCraft assets/UI exactly.
 
 ---
 
@@ -976,7 +998,8 @@ Before preparing prompts or planning work, GPT must:
 ```text
 1. Confirm the active repo is ratoker-jpg/four-elements-phaser.
 2. Confirm package.json has phaser 4.1.0.
-3. Use docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md as source-of-truth audit.
+3. For VISUAL tasks, use docs/project/VISUAL_SYSTEM_AUDIT.md as source-of-truth audit.
+4. For Phaser API/engine questions, use docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md.
 ```
 
 Critical rules:
@@ -988,4 +1011,6 @@ Critical rules:
 - If paths or references mention four-elements-next while the task says
   four-elements-phaser, stop and report the mismatch.
 - Do not silently switch repo baseline.
+- VISUAL_SYSTEM_AUDIT.md is the accepted audit for VISUAL-01 through VISUAL-12.
+  Do not require a new mini-audit for steps already covered by this audit.
 ```
