@@ -8,6 +8,13 @@ import Phaser from 'phaser';
  * - Zoom keeps the world point under the cursor stable
  * - resetTo() method for camera reset hotkey
  * - bindResetKey() for wiring keyboard reset
+ *
+ * FIX-05: Listener lifecycle safety.
+ * - All input handlers are stored as bound references.
+ * - destroy() removes only CameraControls-owned listeners using those
+ *   references, so other input systems (GameInputController, menus) are
+ *   not affected.
+ * - destroy() is idempotent — safe to call multiple times.
  */
 
 const ZOOM_FACTOR = 1.12;
@@ -24,9 +31,34 @@ export class CameraControls {
   private maxZoom: number = 3.0;
   private resetKey: Phaser.Input.Keyboard.Key | null = null;
 
+  /** FIX-05: Bound handler references for proper listener cleanup. */
+  private boundPointerdown: (pointer: Phaser.Input.Pointer) => void;
+  private boundPointermove: (pointer: Phaser.Input.Pointer) => void;
+  private boundPointerup: () => void;
+  private boundPointerupoutside: () => void;
+  private boundWheel: (
+    pointer: Phaser.Input.Pointer,
+    gameObjects: Phaser.GameObjects.GameObject[],
+    dx: number,
+    dy: number,
+    dz: number,
+  ) => void;
+
+  /** FIX-05: Guard flag for idempotent destroy. */
+  private _destroyed: boolean = false;
+
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
     this.camera = scene.cameras.main;
+
+    // FIX-05: Create bound handler references before setup methods.
+    // This ensures destroy() can remove exactly these references
+    // without affecting other input listeners on the same events.
+    this.boundPointerdown = this.onPointerdown.bind(this);
+    this.boundPointermove = this.onPointermove.bind(this);
+    this.boundPointerup = this.onPointerup.bind(this);
+    this.boundPointerupoutside = this.onPointerupoutside.bind(this);
+    this.boundWheel = this.onWheel.bind(this);
 
     this.setupPan();
     this.setupZoom();
@@ -72,68 +104,75 @@ export class CameraControls {
     }
   }
 
+  // ─── Handler methods (FIX-05: named methods for stable references) ──
+
+  private onPointerdown(pointer: Phaser.Input.Pointer): void {
+    if (pointer.rightButtonDown()) return; // Ignore right-click
+    this.isDragging = true;
+    this.dragStartX = pointer.x;
+    this.dragStartY = pointer.y;
+    this.camStartScrollX = this.camera.scrollX;
+    this.camStartScrollY = this.camera.scrollY;
+  }
+
+  private onPointermove(pointer: Phaser.Input.Pointer): void {
+    if (!this.isDragging) return;
+
+    const dx = pointer.x - this.dragStartX;
+    const dy = pointer.y - this.dragStartY;
+
+    // Move camera in the opposite direction of the drag
+    this.camera.scrollX = this.camStartScrollX - dx / this.camera.zoom;
+    this.camera.scrollY = this.camStartScrollY - dy / this.camera.zoom;
+  }
+
+  private onPointerup(): void {
+    this.isDragging = false;
+  }
+
+  private onPointerupoutside(): void {
+    this.isDragging = false;
+  }
+
+  private onWheel(
+    pointer: Phaser.Input.Pointer,
+    _gameObjects: Phaser.GameObjects.GameObject[],
+    _dx: number,
+    dy: number,
+    _dz: number,
+  ): void {
+    if (dy === 0) return;
+
+    const oldZoom = this.camera.zoom;
+    const factor = dy > 0 ? 1 / ZOOM_FACTOR : ZOOM_FACTOR;
+    const newZoom = Phaser.Math.Clamp(
+      oldZoom * factor,
+      this.minZoom,
+      this.maxZoom,
+    );
+    if (newZoom === oldZoom) return;
+
+    // Use Phaser camera transforms instead of manual pointer math.
+    // This keeps zoom-to-cursor correct with scaled / expanded canvases.
+    const before = this.camera.getWorldPoint(pointer.x, pointer.y);
+    this.camera.setZoom(newZoom);
+    const after = this.camera.getWorldPoint(pointer.x, pointer.y);
+
+    this.camera.scrollX += before.x - after.x;
+    this.camera.scrollY += before.y - after.y;
+  }
+
+  // ─── Setup methods (FIX-05: register bound references, not anonymous arrows) ──
+
   private setupPan(): void {
-    // Pointer drag to pan
-    this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.rightButtonDown()) return; // Ignore right-click
-      this.isDragging = true;
-      this.dragStartX = pointer.x;
-      this.dragStartY = pointer.y;
-      this.camStartScrollX = this.camera.scrollX;
-      this.camStartScrollY = this.camera.scrollY;
-    });
-
-    this.scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (!this.isDragging) return;
-
-      const dx = pointer.x - this.dragStartX;
-      const dy = pointer.y - this.dragStartY;
-
-      // Move camera in the opposite direction of the drag
-      this.camera.scrollX = this.camStartScrollX - dx / this.camera.zoom;
-      this.camera.scrollY = this.camStartScrollY - dy / this.camera.zoom;
-    });
-
-    this.scene.input.on('pointerup', () => {
-      this.isDragging = false;
-    });
-
-    this.scene.input.on('pointerupoutside', () => {
-      this.isDragging = false;
-    });
+    this.scene.input.on('pointerdown', this.boundPointerdown);
+    this.scene.input.on('pointermove', this.boundPointermove);
+    this.scene.input.on('pointerup', this.boundPointerup);
+    this.scene.input.on('pointerupoutside', this.boundPointerupoutside);
   }
 
   private setupZoom(): void {
-    this.scene.input.on(
-      'wheel',
-      (
-        pointer: Phaser.Input.Pointer,
-        _gameObjects: Phaser.GameObjects.GameObject[],
-        _dx: number,
-        dy: number,
-        _dz: number,
-      ) => {
-        if (dy === 0) return;
-
-        const oldZoom = this.camera.zoom;
-        const factor = dy > 0 ? 1 / ZOOM_FACTOR : ZOOM_FACTOR;
-        const newZoom = Phaser.Math.Clamp(
-          oldZoom * factor,
-          this.minZoom,
-          this.maxZoom,
-        );
-        if (newZoom === oldZoom) return;
-
-        // Use Phaser camera transforms instead of manual pointer math.
-        // This keeps zoom-to-cursor correct with scaled / expanded canvases.
-        const before = this.camera.getWorldPoint(pointer.x, pointer.y);
-        this.camera.setZoom(newZoom);
-        const after = this.camera.getWorldPoint(pointer.x, pointer.y);
-
-        this.camera.scrollX += before.x - after.x;
-        this.camera.scrollY += before.y - after.y;
-      },
-    );
+    this.scene.input.on('wheel', this.boundWheel);
   }
 
   /** Get current camera info for HUD display. */
@@ -145,12 +184,25 @@ export class CameraControls {
     };
   }
 
+  /**
+   * Remove only CameraControls-owned listeners from the scene input.
+   *
+   * FIX-05: Uses stored bound handler references so that other input
+   * systems (GameInputController, menus, future hotkey systems) are
+   * not affected by CameraControls cleanup.
+   *
+   * Idempotent — safe to call multiple times.
+   */
   destroy(): void {
-    this.scene.input.off('pointerdown');
-    this.scene.input.off('pointermove');
-    this.scene.input.off('pointerup');
-    this.scene.input.off('pointerupoutside');
-    this.scene.input.off('wheel');
+    if (this._destroyed) return;
+    this._destroyed = true;
+
+    this.scene.input.off('pointerdown', this.boundPointerdown);
+    this.scene.input.off('pointermove', this.boundPointermove);
+    this.scene.input.off('pointerup', this.boundPointerup);
+    this.scene.input.off('pointerupoutside', this.boundPointerupoutside);
+    this.scene.input.off('wheel', this.boundWheel);
+
     if (this.resetKey) {
       this.resetKey.destroy();
       this.resetKey = null;
