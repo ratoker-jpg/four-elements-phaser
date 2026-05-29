@@ -20,9 +20,11 @@ VISUAL roadmap is the active planning direction after:
 
 ```text
 VISUAL-ROADMAP-01 — Archive old roadmap and add new Visual Roadmap
+VISUAL-AUDIT-01 — Full visual system audit and implementation plan
 ```
 
 `docs/project/VISUAL_ROADMAP.md` is the accepted planning direction.
+`docs/project/VISUAL_SYSTEM_AUDIT.md` is the accepted audit with staged PR sequence (VISUAL-01 through VISUAL-12).
 
 The previous Phase 2 roadmap (sand-terrain-focused) is archived. See:
 
@@ -32,6 +34,14 @@ docs/project/archive/PHASE_2_ROADMAP_AUDIT.md
 ```
 
 Do not follow `PHASE_2_ROADMAP.md` or `PHASE_2_ROADMAP_AUDIT.md` as active direction. They are historical reference only.
+
+### Current roadmap model
+
+```text
+roadmap first → huge roadmap audit second → implementation after audit
+```
+
+Implementation tasks covered by VISUAL_SYSTEM_AUDIT.md can proceed without a new mini-audit. If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or combines multiple phases, stop and request approval.
 
 ---
 
@@ -85,6 +95,7 @@ These can proceed in parallel with VISUAL phases where they do not conflict.
 
 ```text
 docs/project/VISUAL_ROADMAP.md
+docs/project/VISUAL_SYSTEM_AUDIT.md
 docs/project/PROJECT_STATE.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md

@@ -412,11 +412,11 @@ Still needed (not yet started):
 
 ## 8. Implementation gate
 
-The VISUAL roadmap is an accepted planning direction, not an implementation authorization. Each phase requires its own audit/design PR before implementation begins, as specified in the phase descriptions above.
+The VISUAL roadmap is an accepted planning direction, not an implementation authorization. The full visual system audit (`VISUAL_SYSTEM_AUDIT.md`) has been accepted and provides the detailed staged implementation plan.
 
-The first implementation step is `VISUAL-AUDIT-01` (Phase V1), which will produce the detailed audit/design that authorizes subsequent implementation phases.
+Implementation tasks covered by the audit can proceed without a new mini-audit per step. If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or combines multiple phases, stop and request approval before continuing.
 
-Do not start implementation of any VISUAL phase without the corresponding audit/design being accepted.
+The first implementation step is `VISUAL-01` (Industrial map visual candidate workflow), which will produce visual direction candidates for owner approval before any runtime integration begins.
 
 ---
 

@@ -475,6 +475,12 @@ change economy
 add new building types/configs
 change roadmap
 merge PR
+continue sand terrain as primary visual direction
+continue MAPLIFE #120 / desert decor direction
+mass-generate assets directly into repo without visual approval
+fix bad art by code-only patches
+build a four-biome system now
+copy StarCraft assets/UI exactly
 ```
 
 ---
@@ -654,6 +660,10 @@ Critical rules:
 - If paths mention four-elements-next while the task says four-elements-phaser,
   stop and report the mismatch. Do not silently switch repo baseline.
 - Do not use the old Phaser 3.90 clarification as source-of-truth.
-- The current source-of-truth audit is docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md.
+- For Phaser API/engine questions, the current source-of-truth audit is
+  docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md.
+- For VISUAL tasks, the accepted audit is docs/project/VISUAL_SYSTEM_AUDIT.md.
+- If a VISUAL implementation task (VISUAL-01 through VISUAL-12) is inside the
+  audit's scope, use the audit directly. Do not perform a new broad audit.
 - Audit files shared in chat are not source-of-truth until committed into docs/project/.
 ```

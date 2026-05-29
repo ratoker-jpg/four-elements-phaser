@@ -62,7 +62,9 @@ Important:
 
 ```text
 VISUAL_ROADMAP.md is the accepted planning direction.
-Implementation requires separate audit/design PR (VISUAL-AUDIT-01) first.
+VISUAL_SYSTEM_AUDIT.md is the accepted audit with staged PR sequence (VISUAL-01 through VISUAL-12).
+Implementation tasks covered by the audit can proceed without a new mini-audit.
+If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or combines multiple phases, stop and request approval.
 ```
 
 ---
@@ -161,6 +163,10 @@ Do not start these as immediate implementation:
 - MAPLIFE #120 continuation
 - mass image generation in docs PRs
 - runtime implementation without accepted audit/design
+- mass asset generation without visual approval
+- fixing bad art by code-only patches
+- four-biome system now
+- copying StarCraft assets/UI exactly
 ```
 
 ---
