@@ -1,18 +1,11 @@
 # TERRAIN-02 — Terrain Quality Audit & Clean High-Res Sand Pipeline
 
-> **PAUSED — The sand terrain direction is paused/rejected as the primary visual direction.**
-> This document describes a sand-specific terrain pipeline that may still be useful as technical reference,
-> but the new visual direction is an industrial RTS battlefield / mining platform, not sand desert.
-> See `docs/project/VISUAL_ROADMAP.md` for the new direction.
-> Archived copy: `docs/project/archive/TERRAIN_02_QUALITY_AUDIT_AND_PIPELINE.md`
-
-Status: **paused / superseded by VISUAL roadmap** — docs only, no runtime changes  
+Status: audit / design document — docs only, no runtime changes  
 Project: Four Elements Phaser  
 Active repo: `ratoker-jpg/four-elements-phaser`  
 Phaser version: 4.1.0  
 Reference/donor repo: `ratoker-jpg/four-elements-next` (reference only)  
 Date: 2026-05-29
-Paused on: 2026-05-30
 
 ---
 

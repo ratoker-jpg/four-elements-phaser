@@ -1,17 +1,10 @@
 # MAPLIFE-01 — Environment Props / Doodads / Decals: Asset Readiness Report
 
-> **DEPRECATED — The MAPLIFE-01 sand/desert decor direction is rejected after visual QA.**
-> PR #120 MAPLIFE decor was visually rejected and must not be continued.
-> This document is superseded by `docs/project/VISUAL_ROADMAP.md` which defines a new industrial biome direction.
-> Archived copy: `docs/project/archive/MAPLIFE_01_ASSET_READINESS.md`
-> Do not follow this document as an active task.
-
-Status: **archived / rejected** — MAPLIFE #120 decor direction is rejected
+Status: **ASSETS MISSING — implementation blocked until approved assets arrive**
 Project: Four Elements Phaser
 Active repo: `ratoker-jpg/four-elements-phaser`
 Phaser version: 4.1.0
 Date: 2026-05-29
-Archived on: 2026-05-30
 
 ---
 

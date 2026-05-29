@@ -1,16 +1,10 @@
 # PHASE_2_ROADMAP_AUDIT_PROMPT.md
 
-> **DEPRECATED — This audit prompt is no longer active.**
-> The Phase 2 roadmap direction has been superseded by `docs/project/VISUAL_ROADMAP.md`.
-> Archived copy: `docs/project/archive/PHASE_2_ROADMAP_AUDIT_PROMPT.md`
-> Do not use this prompt for new audits.
-
-Status: **archived / deprecated**  
+Status: ready-to-send GLM audit prompt  
 Project: Four Elements Phaser  
 Target roadmap: `docs/project/PHASE_2_ROADMAP.md`  
 Expected audit output: `docs/project/PHASE_2_ROADMAP_AUDIT.md`  
 Date: 2026-05-29
-Archived on: 2026-05-30
 
 ---
 

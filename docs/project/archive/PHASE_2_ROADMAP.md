@@ -1,17 +1,11 @@
 # PHASE_2_ROADMAP.md
 
-> **DEPRECATED — This roadmap is no longer the active planning direction.**
-> It has been superseded by `docs/project/VISUAL_ROADMAP.md` as of VISUAL-ROADMAP-01.
-> Archived copy: `docs/project/archive/PHASE_2_ROADMAP.md`
-> Read this file only as historical reference. Do not follow it as an active roadmap.
-
-Status: **archived / deprecated**  
+Status: draft roadmap for audit  
 Project: Four Elements Phaser  
 Phase: Phase 2 — Playability, visual identity, menu flow, animated assets  
 Active repo: `ratoker-jpg/four-elements-phaser`  
 Reference/donor repo: `ratoker-jpg/four-elements-next` (reference only)  
 Date: 2026-05-29
-Archived on: 2026-05-30
 
 ---
 
