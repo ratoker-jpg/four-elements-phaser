@@ -104,6 +104,55 @@ export function validateFootprint(value: number): PreviewFootprint {
 }
 
 /**
+ * Determine what action a map click should produce in the asset preview tool.
+ * This is a pure function — no Phaser dependency — encoding the click-routing logic:
+ *
+ * - If the tool is inactive → no action.
+ * - If active with a pending asset ID → place a new preview.
+ * - If active with a selected placement (and no pending asset) → move the selected placement.
+ * - If active with neither → no action.
+ */
+export type ClickAction =
+  | { kind: 'none' }
+  | { kind: 'place'; assetId: string; tx: number; ty: number; scale: number; footprint: PreviewFootprint }
+  | { kind: 'move'; placementId: string; tx: number; ty: number };
+
+export function resolveClickAction(params: {
+  active: boolean;
+  pendingAssetId: string | null;
+  selectedPlacementId: string | null;
+  tx: number;
+  ty: number;
+  currentScale: number;
+  currentFootprint: PreviewFootprint;
+}): ClickAction {
+  if (!params.active) return { kind: 'none' };
+  if (params.tx < 0 || params.ty < 0) return { kind: 'none' };
+
+  if (params.pendingAssetId) {
+    return {
+      kind: 'place',
+      assetId: params.pendingAssetId,
+      tx: params.tx,
+      ty: params.ty,
+      scale: params.currentScale,
+      footprint: params.currentFootprint,
+    };
+  }
+
+  if (params.selectedPlacementId) {
+    return {
+      kind: 'move',
+      placementId: params.selectedPlacementId,
+      tx: params.tx,
+      ty: params.ty,
+    };
+  }
+
+  return { kind: 'none' };
+}
+
+/**
  * Compute the world position for a preview placement's anchor point.
  * Uses south-vertex anchoring like production buildings.
  */
@@ -200,6 +249,9 @@ export class AssetPreviewTool {
   /** Callback to notify the panel of state changes. */
   private onStateChange: (() => void) | null = null;
 
+  /** Whether a sprite pointer-down event was used to select a placement this frame. */
+  private _spriteClickConsumed = false;
+
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
     this.offset = offset;
@@ -219,6 +271,8 @@ export class AssetPreviewTool {
     this._active = !this._active;
     if (!this._active) {
       this.pendingPlaceAssetId = null;
+      this.selectedPlacementId = null;
+      this._spriteClickConsumed = false;
     }
     this.selectionHighlight.setVisible(this._active);
     if (!this._active) {
@@ -251,6 +305,16 @@ export class AssetPreviewTool {
   /** Get the pending place asset ID. */
   getPendingPlaceAssetId(): string | null {
     return this.pendingPlaceAssetId;
+  }
+
+  /** Whether a sprite click consumed the current pointer event. */
+  get spriteClickConsumed(): boolean {
+    return this._spriteClickConsumed;
+  }
+
+  /** Reset the sprite-click-consumed flag (call once per frame after checking). */
+  resetSpriteClickConsumed(): void {
+    this._spriteClickConsumed = false;
   }
 
   /** Set the pending place asset ID (the asset that will be placed on next map click). */
@@ -446,12 +510,16 @@ export class AssetPreviewTool {
   }
 
   /**
-   * Handle a map click for placement. If a pending asset is set and the
-   * tool is active, place the asset at the clicked tile.
+   * Handle a map click for placement or move.
+   *
+   * If a pending asset is set and the tool is active → place the asset
+   * at the clicked tile (using current scale/footprint).
+   * Else if the tool is active and a placement is selected → move the
+   * selected placement to the clicked tile.
    * Returns true if the click was consumed by this tool.
    */
   handleMapClick(worldX: number, worldY: number, currentScale?: number, currentFootprint?: PreviewFootprint): boolean {
-    if (!this._active || !this.pendingPlaceAssetId) return false;
+    if (!this._active) return false;
 
     const tilePos = screenToTile(worldX - this.offset.x, worldY - this.offset.y);
     const tx = Math.floor(tilePos.x);
@@ -459,15 +527,25 @@ export class AssetPreviewTool {
 
     if (tx < 0 || ty < 0) return false;
 
-    this.placeAsset(
-      this.pendingPlaceAssetId,
-      tx,
-      ty,
-      currentScale ?? 1,
-      currentFootprint ?? 1,
-    );
+    // Priority 1: pending asset → place new
+    if (this.pendingPlaceAssetId) {
+      this.placeAsset(
+        this.pendingPlaceAssetId,
+        tx,
+        ty,
+        currentScale ?? 1,
+        currentFootprint ?? 1,
+      );
+      return true;
+    }
 
-    return true;
+    // Priority 2: selected placement → move it
+    if (this.selectedPlacementId) {
+      this.movePlacement(this.selectedPlacementId, tx, ty);
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -509,6 +587,20 @@ export class AssetPreviewTool {
     sprite.setDepth(depth);
     sprite.setAlpha(0.92); // slightly transparent to distinguish from production assets
     sprite.setTint(0xffffff); // no tint by default
+
+    // DEV-ASSET-PREVIEW-01 fixup: Make preview sprites interactive in dev mode
+    // so clicking a placed preview selects that placement.
+    sprite.setInteractive({ useHandCursor: false });
+    sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (!this._active) return;
+      if (!pointer.leftButtonDown()) return;
+      // Select this placement and consume the click so normal unit
+      // selection/move does not also fire.
+      this.selectPlacement(placement.id);
+      // Clear pending asset so subsequent clicks move instead of re-place
+      this.pendingPlaceAssetId = null;
+      this._spriteClickConsumed = true;
+    });
 
     // Create the footprint overlay
     const overlay = this.scene.add.graphics();

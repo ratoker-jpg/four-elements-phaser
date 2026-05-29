@@ -478,6 +478,10 @@ export class GameInputController {
 
   /**
    * Handle left-click:
+   * - DEV-ASSET-PREVIEW-01 fixup: If asset preview tool consumed a sprite click,
+   *   skip normal input entirely (click-to-select on preview sprites).
+   * - If preview tool is active (pending asset or selected placement), consume
+   *   click for place-or-move instead of normal unit selection/move.
    * - If a unit is under cursor → select it
    * - If no unit under cursor AND a unit is selected → issue move command
    * - If no unit under cursor AND nothing selected → do nothing
@@ -485,12 +489,26 @@ export class GameInputController {
   private handleLeftClick(pointer: Phaser.Input.Pointer): void {
     const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
 
-    // DEV-ASSET-PREVIEW-01: If asset preview tool is active with a pending
-    // placement, consume the click for asset placement instead of normal input.
-    if (this.assetPreviewTool?.active && this.assetPreviewTool.getPendingPlaceAssetId()) {
+    // DEV-ASSET-PREVIEW-01 fixup: If the preview tool already consumed the
+    // click via a sprite pointerdown handler (click-to-select), skip all
+    // normal input processing so unit selection/move does not also fire.
+    if (this.assetPreviewTool?.spriteClickConsumed) {
+      this.assetPreviewPanel?.refresh();
+      this.assetPreviewTool.resetSpriteClickConsumed();
+      return;
+    }
+
+    // DEV-ASSET-PREVIEW-01 fixup: If asset preview tool is active and either
+    // a pending asset is set or a placement is selected, consume the click
+    // for place-or-move instead of normal input.
+    if (this.assetPreviewTool?.active) {
+      const currentScale = this.assetPreviewPanel?.getCurrentScale() ?? 1;
+      const currentFootprint = this.assetPreviewPanel?.getCurrentFootprint() ?? 1;
       const consumed = this.assetPreviewTool.handleMapClick(
         worldPoint.x,
         worldPoint.y,
+        currentScale,
+        currentFootprint,
       );
       if (consumed) {
         this.assetPreviewPanel?.refresh();

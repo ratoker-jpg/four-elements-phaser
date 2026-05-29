@@ -4,6 +4,9 @@
  * DEV-ASSET-PREVIEW-01: Tests focus on pure TypeScript functions that
  * don't require Phaser mocks. Integration with Phaser (textures, sprites)
  * is validated via typecheck/build/qa:smoke.
+ *
+ * Fixup: Added resolveClickAction tests for click-routing logic
+ * (pending → place, selected → move, inactive → no-op).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -14,6 +17,7 @@ import {
   previewPlacementDepth,
   computeContainScale,
   DEFAULT_CHROMA_KEY_CONFIG,
+  resolveClickAction,
   type ChromaKeyConfig,
 } from '../phaser/dev/AssetPreviewTool';
 
@@ -196,5 +200,116 @@ describe('DEFAULT_CHROMA_KEY_CONFIG', () => {
   it('has reasonable tolerance', () => {
     expect(DEFAULT_CHROMA_KEY_CONFIG.tolerance).toBeGreaterThan(0);
     expect(DEFAULT_CHROMA_KEY_CONFIG.tolerance).toBeLessThanOrEqual(128);
+  });
+});
+
+// ─── resolveClickAction ────────────────────────────────────────────────
+
+describe('resolveClickAction', () => {
+  it('returns none when tool is inactive', () => {
+    const action = resolveClickAction({
+      active: false,
+      pendingAssetId: 'asset-1',
+      selectedPlacementId: null,
+      tx: 5,
+      ty: 5,
+      currentScale: 1,
+      currentFootprint: 1,
+    });
+    expect(action.kind).toBe('none');
+  });
+
+  it('returns place when active with pending asset', () => {
+    const action = resolveClickAction({
+      active: true,
+      pendingAssetId: 'asset-1',
+      selectedPlacementId: null,
+      tx: 3,
+      ty: 4,
+      currentScale: 1.5,
+      currentFootprint: 2,
+    });
+    expect(action.kind).toBe('place');
+    if (action.kind === 'place') {
+      expect(action.assetId).toBe('asset-1');
+      expect(action.tx).toBe(3);
+      expect(action.ty).toBe(4);
+      expect(action.scale).toBe(1.5);
+      expect(action.footprint).toBe(2);
+    }
+  });
+
+  it('returns move when active with selected placement and no pending asset', () => {
+    const action = resolveClickAction({
+      active: true,
+      pendingAssetId: null,
+      selectedPlacementId: 'place-1',
+      tx: 7,
+      ty: 8,
+      currentScale: 1,
+      currentFootprint: 1,
+    });
+    expect(action.kind).toBe('move');
+    if (action.kind === 'move') {
+      expect(action.placementId).toBe('place-1');
+      expect(action.tx).toBe(7);
+      expect(action.ty).toBe(8);
+    }
+  });
+
+  it('prioritizes place over move when both pending asset and selected placement exist', () => {
+    const action = resolveClickAction({
+      active: true,
+      pendingAssetId: 'asset-1',
+      selectedPlacementId: 'place-1',
+      tx: 5,
+      ty: 5,
+      currentScale: 1,
+      currentFootprint: 1,
+    });
+    expect(action.kind).toBe('place');
+  });
+
+  it('returns none when active but no pending asset and no selected placement', () => {
+    const action = resolveClickAction({
+      active: true,
+      pendingAssetId: null,
+      selectedPlacementId: null,
+      tx: 5,
+      ty: 5,
+      currentScale: 1,
+      currentFootprint: 1,
+    });
+    expect(action.kind).toBe('none');
+  });
+
+  it('returns none for negative tile coordinates', () => {
+    const action = resolveClickAction({
+      active: true,
+      pendingAssetId: 'asset-1',
+      selectedPlacementId: null,
+      tx: -1,
+      ty: 5,
+      currentScale: 1,
+      currentFootprint: 1,
+    });
+    expect(action.kind).toBe('none');
+  });
+
+  it('uses current scale and footprint for place action', () => {
+    const action = resolveClickAction({
+      active: true,
+      pendingAssetId: 'asset-1',
+      selectedPlacementId: null,
+      tx: 2,
+      ty: 3,
+      currentScale: 2.0,
+      currentFootprint: 3,
+    });
+    expect(action.kind).toBe('place');
+    if (action.kind === 'place') {
+      expect(action.scale).toBe(2.0);
+      expect(action.footprint).toBe(3);
+    }
   });
 });

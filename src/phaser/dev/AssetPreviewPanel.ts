@@ -51,6 +51,16 @@ export class AssetPreviewPanel {
     return this._visible;
   }
 
+  /** Get the current scale value for new placements. */
+  getCurrentScale(): number {
+    return this.currentScale;
+  }
+
+  /** Get the current footprint value for new placements. */
+  getCurrentFootprint(): PreviewFootprint {
+    return this.currentFootprint;
+  }
+
   /**
    * Create the panel DOM. Call once.
    */
@@ -291,7 +301,7 @@ export class AssetPreviewPanel {
     // ── Hint ─────────────────────────────────────────────────────
     const hint = document.createElement('div');
     hint.style.cssText = 'font-size: 9px; color: #666; margin-top: 4px; text-align: center;';
-    hint.textContent = 'Click asset → click map to place. Click placed preview to select.';
+    hint.textContent = 'Click asset → click map to place. Click placed preview to select → click map to move.';
     content.appendChild(hint);
 
     root.appendChild(content);
