@@ -24,10 +24,20 @@ const TERRAIN_KEY_MAP: Record<TerrainType, string> = {
 const TERRAIN_SOURCE_W = 256;
 const TERRAIN_SOURCE_H = 128;
 
+/**
+ * TERRAIN-FIX-01: Tile overlap factor to eliminate visible seams between
+ * adjacent isometric tiles. At exactly 1.0 scale, anti-aliased tile edges
+ * can leave sub-pixel gaps that create a faint diamond grid pattern.
+ * A 1% overlap (1.01) is enough to close these seams without creating
+ * visible overlap artifacts, because the isometric diamond edges are
+ * transparent — overlapping transparent pixels blend naturally.
+ */
+const TERRAIN_OVERLAP_FACTOR = 1.01;
+
 /** Pre-computed stamp config for terrain tiles (scale 256×128 source to fit iso cell, center origin). */
 const TERRAIN_STAMP_CONFIG: Phaser.Types.Textures.StampConfig = {
-  scaleX: TILE_W / TERRAIN_SOURCE_W,  // 76/256 = 0.296875 — uniform scale for 256×128 source
-  scaleY: TILE_H / TERRAIN_SOURCE_H,  // 38/128 = 0.296875
+  scaleX: (TILE_W / TERRAIN_SOURCE_W) * TERRAIN_OVERLAP_FACTOR,  // 76/256 * 1.01 ≈ 0.299841 — slight overlap to close seams
+  scaleY: (TILE_H / TERRAIN_SOURCE_H) * TERRAIN_OVERLAP_FACTOR,  // 38/128 * 1.01 ≈ 0.299841
   originX: 0.5,
   originY: 0.5,
 };
@@ -49,7 +59,9 @@ const TERRAIN_STAMP_CONFIG: Phaser.Types.Textures.StampConfig = {
  *
  * TERRAIN-02A: Uses the 6-variant 256×128 sand tile family.
  * The 256×128 source tiles are uniformly scaled to the 76×38
- * isometric cell size (scale factor 0.296875).
+ * isometric cell size (scale factor 0.296875) with a 1% overlap
+ * factor (TERRAIN_OVERLAP_FACTOR = 1.01) to close seams between
+ * adjacent tiles.
  */
 export class TerrainRenderer {
   private renderTexture: Phaser.GameObjects.RenderTexture;
@@ -105,11 +117,12 @@ export class TerrainRenderer {
         const worldX = screenPos.x + this.offset.x;
         const worldY = screenPos.y + this.offset.y;
 
-        // TERRAIN-02A: Per-tile deterministic tint for visual variation.
+        // TERRAIN-FIX-01: Per-tile deterministic tint for visual variation.
         // Uses a fast hash of tile coordinates to produce subtle color
-        // shifts (within ±8% of neutral) that break up visual repetition
+        // shifts (within ±2% of neutral) that break up visual repetition
         // of identical textures. Tint is visual-only — it does NOT change
-        // the TerrainType in MapData.
+        // the TerrainType in MapData. Amplitude reduced from ±8% because
+        // the old range created visible per-cell color differences.
         const tint = computeTerrainTint(tx, ty, terrainType);
 
         const stampConfig: Phaser.Types.Textures.StampConfig = {

@@ -233,6 +233,7 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
     });
 
     it('sand-pebble and sand-cracked remain rare accents', () => {
+      // TERRAIN-FIX-01: Pebble/cracked reduced from ~4% to ~2% each
       const map = createGeneratedMapData('rare-variants-02a', 'standard');
       let total = 0;
       let pebbleCount = 0;
@@ -244,10 +245,10 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
           if (cell === 'sand-cracked') crackedCount++;
         }
       }
-      // Pebble and cracked should each be less than 10% of all tiles
-      // (they are rare accents, ~4% each of base sand tiles)
-      expect(pebbleCount / total).toBeLessThan(0.10);
-      expect(crackedCount / total).toBeLessThan(0.10);
+      // Pebble and cracked should each be less than 5% of all tiles
+      // (TERRAIN-FIX-01: reduced from 10% to 5% threshold)
+      expect(pebbleCount / total).toBeLessThan(0.05);
+      expect(crackedCount / total).toBeLessThan(0.05);
     });
 
     it('same seed + size produces same terrain distribution (determinism)', () => {
