@@ -89,9 +89,11 @@ When combat is implemented later, the communication between logic and visuals sh
 2. **State layer** emits a fire event or updates state with a "firing" flag.
 3. **Render layer** reads the fire event/flag and creates VFX accordingly.
 4. **Render layer** does NOT feed back into combat logic (no "VFX complete → damage applied" loop).
-5. **State layer** applies damage immediately on fire, regardless of VFX duration.
+5. **VFX layer must not decide damage timing.** The future combat/state layer owns damage timing and may choose instant-hit, projectile-resolved, or hybrid timing.
+6. **This workflow assumes the render layer receives fire and/or impact visual events and produces cosmetic feedback.**
+7. **VFX completion must not be required for damage** unless a later combat design explicitly chooses that model.
 
-This "instant damage + cosmetic VFX" pattern is standard in RTS games. The visual projectile is cosmetic — damage is resolved immediately by the state layer. This avoids sync issues between VFX timing and game logic timing, and is simpler to implement and test.
+This neutral architecture boundary preserves all future combat timing options. The VFX controller receives events (fire, impact) and creates visual feedback; it does not constrain whether damage is resolved instantly, on projectile arrival, or by any other timing model. The combat/state layer is free to choose instant-hit, projectile-resolved, or hybrid timing in a future combat design task.
 
 ### 2.3 Why This Matters for Design
 
@@ -128,6 +130,8 @@ This design does NOT add combat behavior to the arena. The arena currently shows
 
 ## 4. Weapon Categories
 
+> **Important — Fire-rate and cooldown values in this document are visual rhythm placeholders only.** They are not approved gameplay balance. Actual cooldown, damage, range, and targeting rules belong to a future combat design/implementation task. VFX durations and recoil timings may be used independently from gameplay cooldowns.
+
 ### 4.1 Smoky — Fast Cannon Style
 
 **Visual identity**: Rapid-fire, moderate-impact cannon with visible smoke and small muzzle flash. Think of a light autocannon — fast rhythm, moderate visual weight.
@@ -156,6 +160,8 @@ const SMOKY_VFX_CONFIG = {
   pointLight: { color: 0xffaa44, radius: 60, intensity: 2, duration: 150 },
 };
 ```
+
+> **Reminder**: Fire-rate/cooldown values above (e.g., ~0.5s) are visual rhythm placeholders, not approved gameplay balance.
 
 ### 4.2 Railgun — Strong Recoil Beam Style
 
@@ -186,6 +192,8 @@ const RAILGUN_VFX_CONFIG = {
   pointLight: { color: 0x44ccff, radius: 100, intensity: 3, duration: 250 },
 };
 ```
+
+> **Reminder**: Fire-rate/cooldown values above (e.g., ~2.0s) are visual rhythm placeholders, not approved gameplay balance.
 
 ### 4.3 Future Generic Projectile Weapons
 
