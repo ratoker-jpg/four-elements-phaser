@@ -823,17 +823,21 @@ export class Visual04aPreviewScene extends Phaser.Scene {
    *   bottom-right: [288, 248], bottom-left: [96, 152]
    *
    * Placement strategy:
-   *   - For each frame piece, determine left and right wall face positions
-   *     using the same grid geometry as the procedural walls.
-   *   - Left wall face: place the PNG image with anchor at the top-left
-   *     polygon point, aligned to the left→bottom side edge of the diamond.
-   *   - Right wall face: mirror the same PNG horizontally, anchor at the
-   *     top-right polygon point (mirrored), aligned to the bottom→right
-   *     side edge. Apply a darker tint for depth.
+   *   - For each frame piece, determine which wall faces are visible (outer)
+   *     using getEdgeInfo(). Only outer-facing wall sides get a PNG image;
+   *     inner-facing sides are hidden by the platform/tiles above.
+   *   - Left wall face: created only if the bottom→left edge (Edge 2) is outer.
+   *     Placed with anchor at the top-left polygon point, aligned to the
+   *     left→bottom side edge of the diamond.
+   *   - Right wall face: created only if the right→bottom edge (Edge 1) is outer.
+   *     Mirrored via setScale(-scale, scale) with the SAME origin as the left
+   *     wall. Phaser's negative X scale flips the image around the origin,
+   *     so the anchor (top-left polygon point) maps to the right vertex and
+   *     the wall extends down-left. A darker tint is applied for depth.
    *
-   * The anchor origin is set so the top-left corner of the visible polygon
-   * aligns with the left vertex of the diamond (left wall) or the right
-   * vertex of the diamond (right wall, after mirror).
+   * This filtering prevents "black vertical fins" on the top/far edges of
+   * the arena where wall faces would face inward (toward the platform) and
+   * should not be visible.
    *
    * Scale = runtimeTileW / 384 (canvas width), adjusted by WALL_FACE_SCALE_ADJUST.
    */
@@ -860,51 +864,52 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     // Uniform scale: map canvas width to runtime tile width
     const scale = (this.runtimeTileW / WALL_FACE_SRC_W) * WALL_FACE_SCALE_ADJUST;
 
+    let leftCount = 0;
+    let rightCount = 0;
+
     for (const piece of this.framePieces) {
       const { sx, sy } = piece;
 
+      // Determine which diamond edges face outward (visible walls)
+      // Edge indices: 0=top→right, 1=right→bottom, 2=bottom→left, 3=left→top
+      const edges = getEdgeInfo(sx, sy, this.arenaCX, this.arenaCY);
+
       // ─── Left wall face PNG ─────────────────────────────────────
-      // The left wall face in procedural code spans:
-      //   top: (sx - halfTW, sy) → (sx, sy + halfTH)   [left vertex → bottom vertex]
-      //   bottom: offset down by effWallH
-      // Anchor point: top-left of the visible polygon = the left vertex of the diamond.
-      // The PNG's top-left polygon point at origin (96/384, 40/288) maps to (sx - halfTW, sy).
-      {
-        // Position: the anchor of the image (top-left polygon corner) goes to the
-        // left vertex of the diamond.
+      // The left wall face hangs from the left→bottom edge (= Edge 2 reversed).
+      // Only draw if Edge 2 (bottom→left) faces outward.
+      if (edges[2].isOuter) {
+        // Anchor (top-left polygon point) maps to the left vertex of the diamond.
         const img = this.add.image(sx - halfTW, sy, ASSET_KEY_WALL_FACE_LEFT);
         img.setScale(scale);
         img.setOrigin(WALL_FACE_ANCHOR_X, WALL_FACE_ANCHOR_Y);
         img.setDepth(DEPTH_FRAME_WALLS);
         img.setVisible(this.pngWallFaceVisible);
         this.pngWallFaceImages.push(img);
+        leftCount++;
       }
 
       // ─── Right wall face PNG (mirrored + darker tint) ────────────
-      // The right wall face spans:
-      //   top: (sx + halfTW, sy) → (sx, sy + halfTH)   [right vertex → bottom vertex]
-      // We mirror the PNG horizontally and place its anchor (top-right polygon point
-      // in the mirrored version = original top-left point mirrored) at the right vertex.
-      // For a horizontally flipped image, originX = 1 - 0.25 = 0.75 maps the mirrored
-      // top-left corner to the right vertex position.
-      {
+      // The right wall face hangs from the right→bottom edge (= Edge 1).
+      // Only draw if Edge 1 (right→bottom) faces outward.
+      // Use setScale(-scale, scale) with the SAME origin as the left wall.
+      // Phaser's negative X scale flips the image around the origin point,
+      // so the anchor (top-left polygon point at origin) stays at position
+      // (right vertex) and the wall content mirrors to extend down-left.
+      if (edges[1].isOuter) {
         const img = this.add.image(sx + halfTW, sy, ASSET_KEY_WALL_FACE_LEFT);
         img.setScale(-scale, scale);  // flip horizontally via negative X scale
-        // When flipped, origin X needs to map the mirrored polygon anchor to the right vertex.
-        // Original anchor X = 0.25. After flip, the mirrored anchor = 1 - 0.25 = 0.75.
-        img.setOrigin(1 - WALL_FACE_ANCHOR_X, WALL_FACE_ANCHOR_Y);
+        // Same origin as left wall — negative scale handles the mirror correctly.
+        img.setOrigin(WALL_FACE_ANCHOR_X, WALL_FACE_ANCHOR_Y);
         img.setDepth(DEPTH_FRAME_WALLS);
         img.setVisible(this.pngWallFaceVisible);
         // Apply darker multiplicative tint for depth (right face in shadow).
-        // setTint multiplies pixel color channels, preserving some original color
-        // while darkening. WALL_FACE_RIGHT_TINT at ~53% brightness gives a
-        // noticeable but not extreme shadow difference.
         img.setTint(WALL_FACE_RIGHT_TINT);
         this.pngWallFaceImages.push(img);
+        rightCount++;
       }
     }
 
-    console.log(`[Visual04a] PNG wall face: ${this.pngWallFaceImages.length} images created (scale=${scale.toFixed(4)})`);
+    console.log(`[Visual04a] PNG wall face: ${this.pngWallFaceImages.length} images created (left=${leftCount}, right=${rightCount}, scale=${scale.toFixed(4)})`);
 
     // Apply initial mode (may hide procedural walls if PNG walls are active)
     this.applyWallFaceMode();
