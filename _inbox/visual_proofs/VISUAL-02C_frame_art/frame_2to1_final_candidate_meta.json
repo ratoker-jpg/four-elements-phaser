@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "taskId": "VISUAL-02C",
+  "input": {
+    "file": "input/arena_frame_candidate_01_raw.png",
+    "dimensions": [
+      1672,
+      941
+    ],
+    "magentaPixelsInRaw": 382924
+  },
+  "frame": {
+    "canvasWidth": 1672,
+    "canvasHeight": 941
+  },
+  "targetCutout": {
+    "vertices": {
+      "top": [
+        836,
+        69
+      ],
+      "right": [
+        1638,
+        470
+      ],
+      "bottom": [
+        836,
+        871
+      ],
+      "left": [
+        34,
+        470
+      ]
+    },
+    "innerWidth": 1604,
+    "innerHeight": 802,
+    "ratio": 2.0
+  },
+  "cutoutMethod": "diamond alpha cutout + magenta edge cleanup",
+  "magentaCleanup": {
+    "magentaPixelsBefore": 382924,
+    "magentaPixelsRemoved": 0,
+    "edgeBleedPixels": 0,
+    "magentaFullyRemoved": true
+  },
+  "recommendedGridOrigins": {
+    "N32": {
+      "cols": 8,
+      "rows": 4,
+      "tileW": 145.82,
+      "tileH": 72.91,
+      "originX": 690.18,
+      "originY": 287.73
+    },
+    "N40": {
+      "cols": 8,
+      "rows": 5,
+      "tileW": 133.67,
+      "tileH": 66.83,
+      "originX": 735.75,
+      "originY": 286.21
+    },
+    "N64": {
+      "cols": 8,
+      "rows": 8,
+      "tileW": 106.93,
+      "tileH": 53.47,
+      "originX": 836.0,
+      "originY": 282.87
+    }
+  },
+  "notesForVisual03": [
+    "Final candidate has exact 2:1 transparent cutout per VISUAL-02B.",
+    "All magenta contamination removed.",
+    "Frame art visually intact outside cutout.",
+    "Recommended for VISUAL-03 pending owner visual review.",
+    "Production grid size still TBD (N32/N40/N64)."
+  ]
+}
