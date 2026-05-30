@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "taskId": "VISUAL-02B",
+  "frame": {
+    "canvasWidth": 1672,
+    "canvasHeight": 941
+  },
+  "currentCutout": {
+    "vertices": {
+      "top": [
+        835.4,
+        38.2
+      ],
+      "right": [
+        1577.2,
+        455.1
+      ],
+      "bottom": [
+        839.6,
+        886.2
+      ],
+      "left": [
+        98.6,
+        455.2
+      ]
+    },
+    "innerWidth": 1478.7,
+    "innerHeight": 848.0,
+    "ratio": 1.7437
+  },
+  "targetCutout": {
+    "vertices": {
+      "top": [
+        836,
+        69
+      ],
+      "right": [
+        1638,
+        470
+      ],
+      "bottom": [
+        836,
+        871
+      ],
+      "left": [
+        34,
+        470
+      ]
+    },
+    "innerWidth": 1604,
+    "innerHeight": 802,
+    "ratio": 2.0
+  },
+  "tileSource": {
+    "width": 384,
+    "height": 192,
+    "ratio": 2.0
+  },
+  "tileRuntime": {
+    "ratio": 2.0,
+    "note": "Runtime tile ratio is enforced as 2:1. tileW = 2 * tileH always."
+  },
+  "recommendedGridOrigins": {
+    "N32": {
+      "cols": 8,
+      "rows": 4,
+      "tileW": 145.82,
+      "tileH": 72.91,
+      "originX": 690.18,
+      "originY": 287.73
+    },
+    "N40": {
+      "cols": 8,
+      "rows": 5,
+      "tileW": 133.67,
+      "tileH": 66.83,
+      "originX": 735.75,
+      "originY": 286.21
+    },
+    "N64": {
+      "cols": 8,
+      "rows": 8,
+      "tileW": 106.93,
+      "tileH": 53.47,
+      "originX": 836.0,
+      "originY": 282.87
+    }
+  },
+  "notesForVisual03": [
+    "Frame cutout is now exactly 2:1 \u2014 tile fill will align without stretch.",
+    "Candidate frame modifies the original frame art: the 2:1 cutout is slightly",
+    "narrower vertically and may clip some original frame detail near top/bottom edges.",
+    "Original frame was ~1.74:1 ratio; correction to 2:1 removes ~25px from the",
+    "top and bottom of the inner cutout area (frame border grows by that amount).",
+    "For production: a final art pass should redraw the frame with the 2:1 cutout",
+    "as the intended geometry from the start, rather than retroactively cutting.",
+    "Grid origin values assume tile (0,0) center is at the top-left of the diamond."
+  ]
+}
