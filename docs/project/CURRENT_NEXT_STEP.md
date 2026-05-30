@@ -22,92 +22,131 @@ VISUAL roadmap is the active planning direction after:
 VISUAL-ROADMAP-01 — Archive old roadmap and add new Visual Roadmap
 VISUAL-AUDIT-01 — Full visual system audit and implementation plan
 VISUAL-01 — Industrial map visual direction candidates
+VISUAL-01B — Layered Platform Frame Direction checkpoint
+VISUAL-01C — Tile visual balancing proof
+VISUAL-02A — Dev-only layered platform preview
+VISUAL-02B — Exact 2:1 frame geometry proof
+VISUAL-02C — Closed/rejected static PNG proof
 ```
 
 `docs/project/VISUAL_ROADMAP.md` is the accepted planning direction.
-`docs/project/VISUAL_SYSTEM_AUDIT.md` is the accepted audit with staged PR sequence (VISUAL-01 through VISUAL-12).
+`docs/project/VISUAL_SYSTEM_AUDIT.md` is the accepted audit with staged PR sequence.
 `docs/project/VISUAL_CANDIDATE_SUMMARY.md` contains the selected Candidate A direction.
+`docs/project/VISUAL_01B_LAYERED_PLATFORM_FRAME.md` contains the accepted layered platform model.
 
-The previous Phase 2 roadmap (sand-terrain-focused) is archived. See:
+The previous Phase 2 roadmap, sand terrain as primary direction, and MAPLIFE desert decor are archived/rejected.
 
-```text
-docs/project/archive/PHASE_2_ROADMAP.md
-docs/project/archive/PHASE_2_ROADMAP_AUDIT.md
-```
+---
 
-Do not follow `PHASE_2_ROADMAP.md` or `PHASE_2_ROADMAP_AUDIT.md` as active direction. They are historical reference only.
-
-### Current roadmap model
+## Current roadmap model
 
 ```text
 roadmap first → huge roadmap audit second → implementation after audit
 ```
 
-Implementation tasks covered by VISUAL_SYSTEM_AUDIT.md can proceed without a new mini-audit. If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or combines multiple phases, stop and request approval.
+Implementation tasks covered by `VISUAL_SYSTEM_AUDIT.md` can proceed without a new mini-audit if they stay in scope.
+
+Stop and request approval if a task:
+
+```text
+- expands scope beyond VISUAL_SYSTEM_AUDIT
+- touches gameplay/pathfinding/economy unexpectedly
+- combines multiple VISUAL phases into one PR
+- changes visual direction away from industrial platform / mining battlefield
+```
 
 ---
 
 ## Current next step
 
 ```text
-VISUAL-01B — Layered Platform Frame Direction checkpoint
+VISUAL-03A — Runtime Layered Platform Prototype
 ```
 
-VISUAL-01 selected the industrial map direction:
+Goal:
 
 ```text
-Primary direction: Candidate A — Heavy Mining Platform
-Allowed enrichment: selected Candidate C elements only as secondary detail
-Rejected as primary: Candidate B — visible grid risk
+Create a runtime/dev prototype of the accepted layered platform model:
+background world
++ platform tile layer
++ mask/clip to arena center / playable diamond
++ arena frame overlay
++ optional debug grid
 ```
 
-Follow-up visual exploration changed the practical map rendering approach:
+This is the next step because static PNG proof was not reliable:
 
 ```text
-Accepted visual model:
-background world + tile-filled platform center + arena frame overlay + invisible grid
+VISUAL-02C / PR #131 was closed and rejected.
+It showed that trying to validate the tile-filled platform as one static proof image creates bad composition and misleading geometry.
+The correct path is runtime layering with a mask/clip, not more static PNG tilefill proof attempts.
 ```
 
-This must be documented before VISUAL-02 implementation begins. See:
+---
+
+## What VISUAL-03A is allowed to do
 
 ```text
-docs/project/VISUAL_01B_LAYERED_PLATFORM_FRAME.md
+- create a dev/prototype runtime route or mode
+- load approved/proof background/frame/tile assets into an isolated dev location if needed
+- render separate Phaser layers:
+  background
+  tile layer
+  frame overlay
+  debug grid
+- use a geometry mask or equivalent clip so tile layer does not visually spill outside the intended arena center
+- keep gameplay logical grid unchanged
+- document how to open and review the prototype
 ```
 
-Do not start VISUAL-02 until VISUAL-01B is reviewed and accepted.
+---
+
+## What VISUAL-03A must NOT do
+
+```text
+- do not replace production terrain globally in the first PR
+- do not change gameplay
+- do not change pathfinding
+- do not change economy
+- do not change building placement
+- do not change unit logic
+- do not change save/load
+- do not continue sand terrain as primary direction
+- do not continue MAPLIFE #120 / desert decor
+- do not use PR #131 as approved production art
+- do not copy StarCraft assets/UI directly
+- do not add new dependencies
+- do not change Phaser version
+```
 
 ---
 
 ## Immediate implementation queue
 
-From VISUAL roadmap with current checkpoint inserted:
-
 ```text
-1. VISUAL-01 — Industrial map visual candidate workflow — done / PR #125 merged
-2. VISUAL-01B — Layered Platform Frame Direction checkpoint — current
-3. VISUAL-02A — Layered Platform Frame Prototype (dev-only preview)
-4. VISUAL-03 — Industrial terrain/platform integration (requires approved V1/V1B + V2 proof)
-5. VISUAL-04 — Map frame / grounded presentation (production stage after V3)
-6. VISUAL-05 — Lower-left start composition (requires V3)
-7. VISUAL-06 — Resource field visual model design
-8. VISUAL-07 — HUD layout design doc
-9. VISUAL-08 — HUD shell implementation
-10. VISUAL-09 — Command panel/hotkey visual pass
-11. VISUAL-10 — Main menu visual refresh
-12. VISUAL-11 — Harvester/builder visual workflow design
-13. VISUAL-12 — Approved unit visual integration
+1. VISUAL-03A — Runtime Layered Platform Prototype — current
+2. VISUAL-03B — Production terrain/platform integration, only after 03A visual approval
+3. VISUAL-04 — Map frame / grounded presentation production pass
+4. VISUAL-05 — Lower-left start composition
+5. VISUAL-06 — Resource field visual model design
+6. VISUAL-07 — HUD layout design doc
+7. VISUAL-08 — HUD shell implementation
+8. VISUAL-09 — Command panel/hotkey visual pass
+9. VISUAL-10 — Main menu visual refresh
+10. VISUAL-11 — Harvester/builder visual workflow design
+11. VISUAL-12 — Approved unit visual integration
 ```
 
-Previously listed Phase 2 tasks (MENU-01, LOADING-01, HOTKEYS-01, BASE-ANCHOR-01) are already completed/merged — see `PROJECT_STATE.md` "Completed foundation" section.
+Previously listed Phase 2 tasks are already completed/merged — see `PROJECT_STATE.md` "Completed foundation" section.
 
-Still needed (not yet started):
+Still needed, not yet started:
 
 ```text
 FOG-01 — Two-layer fog of war (design + implementation)
 ARENA-01 — Arena mode from menu
 ```
 
-These can proceed in parallel with VISUAL phases where they do not conflict.
+These can proceed in parallel only where they do not conflict with VISUAL work.
 
 ---
 
@@ -127,6 +166,4 @@ docs/project/GLM_EXECUTOR_RULES.md
 
 ## Obsolete guidance
 
-Previous references to DOCS-P2-00, MENU-01 as the first Phase 2 implementation task, or the Phase 2 implementation sequence from PR #98 are superseded by the VISUAL roadmap direction.
-
-The sand terrain pipeline (TERRAIN-01, TERRAIN-02, TERRAIN-FIX-01) is paused. The MAPLIFE-01 desert decor direction is rejected.
+Previous references to DOCS-P2-00, MENU-01 as the first Phase 2 implementation task, the Phase 2 implementation sequence from PR #98, sand terrain as the primary direction, or MAPLIFE desert decor are superseded by the VISUAL roadmap direction.
