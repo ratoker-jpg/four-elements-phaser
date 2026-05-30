@@ -11,7 +11,7 @@ Current phase: VISUAL roadmap — layered industrial platform direction
 
 VISUAL roadmap is the active planning direction.
 
-The previous Phase 2 (sand-terrain-focused) roadmap is archived. The current visual direction is an industrial RTS battlefield / mining platform / industrial mineral wasteland.
+The previous Phase 2 sand-terrain-focused roadmap is archived. The current visual direction is an industrial RTS battlefield / mining platform / industrial mineral wasteland.
 
 This pivot happened after:
 
@@ -22,6 +22,9 @@ VISUAL-ROADMAP-01 — Archive old roadmap and add VISUAL_ROADMAP.md
 VISUAL-AUDIT-01 — Full visual system audit and implementation plan
 VISUAL-01 — Industrial map visual candidates, Candidate A selected
 VISUAL-01B — Layered Platform Frame Direction checkpoint
+VISUAL-02A — Dev-only layered platform preview, merged
+VISUAL-02B — Exact 2:1 frame geometry proof, merged
+VISUAL-02C — Static PNG tilefill/frame art proof, closed/rejected
 ```
 
 ---
@@ -38,19 +41,20 @@ Always confirm this in `package.json` before planning Phaser API work.
 
 ## Key decisions
 
-- **Primary biome**: Industrial RTS battlefield / mining platform (not sand desert)
-- **Selected map direction**: Candidate A — Heavy Mining Platform
-- **Allowed enrichment**: selected Candidate C details as secondary visual enrichment only
-- **Rejected as primary**: Candidate B visible grid direction
-- **Practical map model**: Layered Platform Frame + Tile Fill
-- **Sand terrain**: Paused as primary direction. Sand assets remain in repo as fallback.
-- **MAPLIFE #120**: Rejected. Desert decor must not be continued.
-- **Map presentation**: Grounded industrial platform with outer world frame
-- **Playable platform**: logically flat; visual height only on the outer frame / side walls
-- **Tile standard**: 384×192, 2:1 top-surface-only platform tiles
-- **Start position**: Lower-left start zone (future change)
-- **HUD target**: Bottom bar — minimap left, info center, commands right (StarCraft-inspired)
-- **Menu**: Preserve cinematic central composition, update background to industrial
+- **Primary biome**: Industrial RTS battlefield / mining platform, not sand desert.
+- **Selected map direction**: Candidate A — Heavy Mining Platform.
+- **Allowed enrichment**: selected Candidate C details as secondary visual enrichment only.
+- **Rejected as primary**: Candidate B visible grid direction.
+- **Practical map model**: Layered Platform Frame + Tile Fill.
+- **Sand terrain**: paused as primary direction. Sand assets remain in repo as fallback.
+- **MAPLIFE #120**: rejected. Desert decor must not be continued.
+- **Map presentation**: grounded industrial platform with outer world frame.
+- **Playable platform**: logically flat; visual height only on the outer frame / side walls.
+- **Tile standard**: 384×192 source assets, 2:1 top-surface-only platform tiles.
+- **Runtime logical tile**: existing isometric 2:1 map model remains the source of gameplay coordinates.
+- **Start position**: lower-left start zone in a later VISUAL step.
+- **HUD target**: bottom bar — minimap left, info center, commands right.
+- **Menu**: preserve cinematic central composition, update background to industrial.
 
 ---
 
@@ -85,30 +89,53 @@ If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or c
 ## Active next work
 
 ```text
-VISUAL-01B — Layered Platform Frame Direction checkpoint
+VISUAL-03A — Runtime Layered Platform Prototype
 ```
 
-VISUAL-01 selected the visual direction:
+Reason:
 
 ```text
-Primary direction: Candidate A — Heavy Mining Platform
-Allowed enrichment: selected Candidate C details only as secondary visual detail
-Rejected as primary: Candidate B — visible grid risk
+VISUAL-02A proved a dev-only layered preview can load background + tiles + frame + grid.
+VISUAL-02B proved exact 2:1 frame geometry.
+VISUAL-02C static PNG proof was closed/rejected because static tilefill proof kept producing visually wrong composition.
 ```
 
-VISUAL-01B documents the practical rendering model:
+Current decision:
 
 ```text
-background world + tile-filled platform center + arena frame overlay + invisible grid
+Do not continue static PNG tilefill proof.
+Do not use PR #131 as a basis for runtime integration.
+Proceed with runtime/dev prototype using separate Phaser layers:
+background world
++ tile layer inside arena center
++ clipping/mask for playable diamond
++ arena frame overlay
++ optional debug grid
 ```
 
-After VISUAL-01B is reviewed and merged:
+VISUAL-03A must remain dev/prototype scoped first. It must not replace production terrain aggressively in the first PR.
+
+---
+
+## Completed VISUAL work
 
 ```text
-VISUAL-02A — Layered Platform Frame Prototype (dev-only preview)
+VISUAL-00 — Docs reset / visual roadmap direction — done
+VISUAL-AUDIT-01 — Full visual audit/design — done
+VISUAL-01 — Industrial map visual candidates — done / PR #125 merged
+VISUAL-01B — Layered Platform Frame checkpoint — done / PR #127 merged
+VISUAL-01C — Tile visual balancing proof — done / PR #128 merged
+VISUAL-02A — Layered Platform Frame Prototype — done / PR #129 merged
+VISUAL-02B — Production Frame Geometry Proof — done / PR #130 merged
+VISUAL-02C — Final static frame art proof — closed/rejected / PR #131 not merged
 ```
 
-Do not start VISUAL-02A until VISUAL-01B is merged.
+VISUAL-02C rejection note:
+
+```text
+Static PNG proof was not a reliable way to validate the final composition.
+The correct next implementation direction is runtime layering with mask/clip, not more merged proof PNG attempts.
+```
 
 ---
 
@@ -133,7 +160,7 @@ TERRAIN-FIX-01 (#121) — Grid seam removal (technical pipeline improvement) ✓
 
 These are done. Do not re-assign or re-list them as pending work.
 
-Still needed (not yet started, can proceed in parallel with VISUAL phases where they do not conflict):
+Still needed, not yet started, and can proceed in parallel only where they do not conflict:
 
 ```text
 FOG-01 — Two-layer fog of war (design + implementation)
@@ -158,20 +185,6 @@ Sand assets and code remain in repo as fallback/reference. Future terrain work t
 
 ---
 
-## Deferred until VISUAL audit/design
-
-These tasks depend on the industrial biome direction being established first:
-
-```text
-RESOURCE visual refresh — Deferred to VISUAL Phase V6 after map style approved
-Harvester/Builder visual refresh — Deferred to VISUAL Phase V9 after industrial biome established
-HUD redesign implementation — Deferred to VISUAL Phase V7 after audit and map direction approved
-Map frame implementation — Deferred to VISUAL Phase V4 after terrain/platform integration
-Lower-left start composition — Deferred to VISUAL Phase V5 after map frame established
-```
-
----
-
 ## Key constraints
 
 Do not start these as immediate implementation:
@@ -192,15 +205,16 @@ Do not start these as immediate implementation:
 - fixing bad art by code-only patches
 - four-biome system now
 - copying StarCraft assets/UI exactly
-- production terrain replacement before dev-only VISUAL-02A proof
-- gameplay/pathfinding/economy changes inside VISUAL-02A
+- production terrain replacement before dev-only proof
+- gameplay/pathfinding/economy changes inside VISUAL runtime prototype PRs
+- using PR #131 / VISUAL-02C static proof as approved production art
 ```
 
 ---
 
 ## Archived docs
 
-The following documents are archived (read as historical reference only):
+The following documents are archived, read as historical reference only:
 
 ```text
 docs/project/PHASE_2_ROADMAP.md → deprecated, see VISUAL_ROADMAP.md
