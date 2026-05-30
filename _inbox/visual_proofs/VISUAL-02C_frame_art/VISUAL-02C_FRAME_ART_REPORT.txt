@@ -1,5 +1,5 @@
 ======================================================================
-VISUAL-02C — Final 2:1 Arena Frame Art Validation Report
+VISUAL-02C (fixup) — Full Tile Fill Proof Report
 ======================================================================
 
 1. INPUT FILE
@@ -25,9 +25,44 @@ VISUAL-02C — Final 2:1 Arena Frame Art Validation Report
      Left:   [34, 470]
    Target inner size: 1604 x 802 px
    Target ratio: 2.0 (exact 2:1)
+   Diamond center: (836.0, 470.0)
+   Diamond half-extents: hw=802.0, hh=401.0
 
 
-3. ALPHA CUTOUT METHOD
+3. FIXUP EXPLANATION
+----------------------------------------
+   PROBLEM: The previous VISUAL-02C proof used non-square grids
+   (8x4, 8x5, 8x8) with span = cols + rows - 1 to compute tile
+   size. This produced tiles that were too small, resulting in a
+   small centered tile patch that covered only about half the
+   diamond area. Most of the 2:1 frame cutout showed the
+   background through the transparent center instead of platform
+   tiles.
+
+   ROOT CAUSE: Two compounding errors:
+   a) span = cols + rows - 1 underestimates the tile size needed
+      to fill the diamond. The correct span for a grid that fills
+      a diamond from edge to edge is cols + rows (for a square
+      NxN grid, span = 2N).
+   b) Non-square grids (cols != rows) produce a SKEWED outline
+      diamond. The grid diamond bottom vertex is offset from the
+      target by (cols - rows) * th pixels horizontally. This
+      means a non-square grid can never perfectly match a
+      symmetric target diamond.
+
+   FIX: Use SQUARE NxN grids with th = INNER_H / N and tw = 2*th.
+   For a square grid, the outline diamond exactly matches the
+   target cutout diamond:
+     - Top vertex: (CX, top_y) = (836, 69)
+     - Right vertex: (CX + N*th, CY) = (1638, 470)
+     - Bottom vertex: (CX, bottom_y) = (836, 871)
+     - Left vertex: (CX - N*th, CY) = (34, 470)
+   Only tiles whose centers fall inside the diamond are rendered.
+   The frame overlay covers any tiles at the edge that extend
+   slightly beyond the cutout boundary.
+
+
+4. ALPHA CUTOUT METHOD
 ----------------------------------------
    Method: diamond alpha cutout + magenta edge cleanup
 
@@ -48,7 +83,7 @@ VISUAL-02C — Final 2:1 Arena Frame Art Validation Report
    Magenta fully removed: YES
 
 
-4. MAGENTA BLEED CLEANUP
+5. MAGENTA BLEED CLEANUP
 ----------------------------------------
    Magenta pixels in raw input: 382924
    Edge bleed pixels (near diamond boundary): 0
@@ -63,7 +98,35 @@ VISUAL-02C — Final 2:1 Arena Frame Art Validation Report
    diamond boundary, plus a global safety sweep.
 
 
-5. FRAME ART INTEGRITY
+6. TILE FILL ALIGNMENT (FIXED)
+----------------------------------------
+   With square NxN grids and th = INNER_H / N, each tile has
+   an exact 2:1 ratio and the grid diamond perfectly covers
+   the full target cutout:
+
+   N32 (8x8 square):
+     Tile size: 200.5 x 100.25 px  ratio: 2.0
+     Grid origin: (836.0, 119.12)
+     Tiles rendered inside diamond: 64 of 64 total
+     Grid diamond matches cutout: YES (square grid symmetry)
+
+   N40 (9x9 square):
+     Tile size: 178.22 x 89.11 px  ratio: 2.0
+     Grid origin: (836.0, 113.56)
+     Tiles rendered inside diamond: 81 of 81 total
+     Grid diamond matches cutout: YES (square grid symmetry)
+
+   N64 (11x11 square):
+     Tile size: 145.82 x 72.91 px  ratio: 2.0
+     Grid origin: (836.0, 105.45)
+     Tiles rendered inside diamond: 121 of 121 total
+     Grid diamond matches cutout: YES (square grid symmetry)
+
+   All grid sizes produce exact 2:1 tile ratios. No stretch.
+   All grid diamonds exactly match the target 2:1 cutout.
+
+
+7. FRAME ART INTEGRITY
 ----------------------------------------
    The exact 2:1 cutout was applied to the raw candidate frame.
    Frame art outside the diamond is preserved as-is from the
@@ -82,36 +145,28 @@ VISUAL-02C — Final 2:1 Arena Frame Art Validation Report
    pending owner visual review of the proof images.
 
 
-6. TILE FILL ALIGNMENT
-----------------------------------------
-   With the exact 2:1 cutout from VISUAL-02B, the tile fill
-   aligns without any non-uniform stretching:
-
-   N32 (8x4): tileW=145.82, tileH=72.91, ratio=2.0000
-   N40 (8x5): tileW=133.67, tileH=66.83, ratio=2.0000
-   N64 (8x8): tileW=106.93, tileH=53.47, ratio=2.0000
-
-   All grid sizes produce exact 2:1 tile ratios. No stretch.
-
-
-7. RECOMMENDATION FOR VISUAL-03
+8. RECOMMENDATION FOR VISUAL-03
 ----------------------------------------
    RECOMMENDED — The final candidate frame is suitable for
    VISUAL-03 integration subject to:
 
    a) Owner visual review of the proof images in this package.
-   b) Confirmation that the frame art style and quality are
+   b) Confirmation that the tile fill now covers the full
+      diamond cutout with no background visible inside the
+      playable arena area.
+   c) Confirmation that the frame art style and quality are
       acceptable for the industrial platform direction.
-   c) Decision on production grid size (N32/N40/N64).
+   d) Decision on production grid size (N32/N40/N64).
 
    The candidate has:
    - Exact 2:1 transparent inner cutout (VISUAL-02B geometry)
    - No magenta contamination remaining
    - Frame art visually intact outside the cutout
    - Clean alpha boundaries suitable for Phaser rendering
+   - Full tile fill covering the entire playable arena area
 
 
-8. REMAINING LIMITATIONS
+9. REMAINING LIMITATIONS
 ----------------------------------------
    - This is a proof package, not a runtime integration.
    - The background world image is still a candidate, not final.
@@ -122,7 +177,7 @@ VISUAL-02C — Final 2:1 Arena Frame Art Validation Report
    - No runtime integration was done.
 
 
-9. EXPLICIT STATEMENT: NO RUNTIME INTEGRATION
+10. EXPLICIT STATEMENT: NO RUNTIME INTEGRATION
 ----------------------------------------
    No runtime integration was performed in this task.
    No production terrain code was modified.

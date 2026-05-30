@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "taskId": "VISUAL-02C",
+  "fixupNote": "Fixed tile fill to cover full 2:1 cutout. Previous version used non-square grids with span=cols+rows-1, producing only a small centered patch. Fix: square NxN grids with th=INNER_H/N, grid diamond exactly matches cutout.",
   "input": {
     "file": "input/arena_frame_candidate_01_raw.png",
     "dimensions": [
@@ -43,36 +44,49 @@
     "edgeBleedPixels": 0,
     "magentaFullyRemoved": true
   },
-  "recommendedGridOrigins": {
+  "gridConfigs": {
     "N32": {
-      "cols": 8,
-      "rows": 4,
-      "tileW": 145.82,
-      "tileH": 72.91,
-      "originX": 690.18,
-      "originY": 287.73
-    },
-    "N40": {
-      "cols": 8,
-      "rows": 5,
-      "tileW": 133.67,
-      "tileH": 66.83,
-      "originX": 735.75,
-      "originY": 286.21
-    },
-    "N64": {
+      "gridN": 8,
       "cols": 8,
       "rows": 8,
-      "tileW": 106.93,
-      "tileH": 53.47,
+      "tileW": 200.5,
+      "tileH": 100.25,
+      "tileRatio": 2.0,
       "originX": 836.0,
-      "originY": 282.87
+      "originY": 119.12,
+      "tilesRendered": 64,
+      "totalGridTiles": 64
+    },
+    "N40": {
+      "gridN": 9,
+      "cols": 9,
+      "rows": 9,
+      "tileW": 178.22,
+      "tileH": 89.11,
+      "tileRatio": 2.0,
+      "originX": 836.0,
+      "originY": 113.56,
+      "tilesRendered": 81,
+      "totalGridTiles": 81
+    },
+    "N64": {
+      "gridN": 11,
+      "cols": 11,
+      "rows": 11,
+      "tileW": 145.82,
+      "tileH": 72.91,
+      "tileRatio": 2.0,
+      "originX": 836.0,
+      "originY": 105.45,
+      "tilesRendered": 121,
+      "totalGridTiles": 121
     }
   },
   "notesForVisual03": [
     "Final candidate has exact 2:1 transparent cutout per VISUAL-02B.",
     "All magenta contamination removed.",
     "Frame art visually intact outside cutout.",
+    "Square NxN grids fill the full diamond without gaps or skew.",
     "Recommended for VISUAL-03 pending owner visual review.",
     "Production grid size still TBD (N32/N40/N64)."
   ]
