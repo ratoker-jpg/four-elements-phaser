@@ -6,6 +6,7 @@ import Phaser from 'phaser';
  * Normal flow: BootScene → PreloadScene → MainMenuScene → ...
  * Visual02a flow: BootScene → Visual02aPreviewScene (dev-only preview)
  * Visual03a flow: BootScene → Visual03aPreviewScene (dev-only runtime prototype)
+ * Visual04a flow: BootScene → Visual04aPreviewScene (dev-only modular frame prototype)
  *
  * WebGL enforcement is handled by Phaser.WEBGL in gameConfig.
  * No runtime instanceof guard — we already had a production blank-screen
@@ -26,6 +27,13 @@ function isVisual03aPreview(): boolean {
   return params.has('visual03a');
 }
 
+/** Check if the ?visual04a URL parameter is present. */
+function isVisual04aPreview(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.has('visual04a');
+}
+
 export class BootScene extends Phaser.Scene {
   constructor() {
     super({ key: 'BootScene' });
@@ -43,6 +51,13 @@ export class BootScene extends Phaser.Scene {
     if (isVisual03aPreview()) {
       console.log('[BootScene] Visual03a prototype mode detected. Starting Visual03aPreviewScene.');
       this.scene.start('Visual03aPreviewScene');
+      return;
+    }
+
+    // VISUAL-04A: modular grid-aligned arena frame prototype
+    if (isVisual04aPreview()) {
+      console.log('[BootScene] Visual04a prototype mode detected. Starting Visual04aPreviewScene.');
+      this.scene.start('Visual04aPreviewScene');
       return;
     }
 
