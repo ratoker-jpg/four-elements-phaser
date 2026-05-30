@@ -250,7 +250,7 @@ export class Visual03aPreviewScene extends Phaser.Scene {
     // ─── Layer 1: Tile-filled platform (masked) ─────────────────
 
     // Create diamond mask using Graphics
-    this.maskGraphics = this.make.graphics({ x: 0, y: 0 });
+    this.maskGraphics = this.make.graphics({ x: 0, y: 0 }, false);
     this.maskGraphics.fillStyle(MASK_COLOR, 1);
 
     // Draw diamond in display coordinates
