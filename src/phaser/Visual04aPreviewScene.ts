@@ -21,7 +21,7 @@
  *   - Hazard stripe accents on corner pieces
  *
  * VISUAL-04D additions:
- *   - Load frame_top_block.png (384×348 RGBA) for frame top surfaces
+ *   - Load frame_top_block.png (384×348 canvas, 368×184 diamond) for frame top surfaces
  *   - PNG overlay replaces procedural tops when available and toggled ON
  *   - Procedural wall faces always remain underneath
  *   - P key toggles between PNG and procedural frame tops
@@ -110,24 +110,30 @@ const TILE_ASSET_KEY_PREFIX = 'visual04a_tile_';
 
 // ─── Frame top block PNG constants (VISUAL-04D) ───────────────────
 
-/** Source dimensions of the frame top block PNG canvas */
-const FRAME_TOP_BLOCK_SRC_W = 384;
+/** Source height of the frame top block PNG canvas (used for origin Y calc) */
 const FRAME_TOP_BLOCK_SRC_H = 348;
 
 /**
- * Y position of the isometric diamond center within the frame top block PNG.
- * The top diamond surface occupies the top 192px (SOURCE_TILE_H) of the
- * 348px canvas. Diamond center is at y = 96 = SOURCE_TILE_H / 2.
+ * Normalized isometric diamond geometry within the frame top block PNG.
+ * Measured from the actual asset — the diamond is centered horizontally
+ * but the center Y is NOT at half the tile height due to the wall/skirt
+ * pixels below the diamond in the 348px canvas.
+ *
+ *   Diamond width  = 368 px (8px margin on each side of 384px canvas)
+ *   Diamond height = 184 px (2:1 ratio: 368/2 = 184)
+ *   Diamond center Y = 120 px from top of canvas
  */
-const FRAME_TOP_BLOCK_DIAMOND_CY = SOURCE_TILE_H / 2;  // 96
+const FRAME_TOP_BLOCK_DIAMOND_W = 368;
+// DIAMOND_H = 184 is implicit (368/2, strict 2:1) — kept as documentation above
+const FRAME_TOP_BLOCK_DIAMOND_CY = 120;
 
 /**
  * Origin Y for the frame top block PNG so the diamond center aligns with
  * the frame cell center (sx, sy).
  *
- * Origin Y = diamond_center_y / canvas_height = 96 / 348 ≈ 0.2759
+ * Origin Y = diamond_center_y / canvas_height = 120 / 348 ≈ 0.3448
  *
- * This is a dev-only anchor correction — small, named, documented.
+ * This is a dev-only anchor correction — named and documented.
  * Origin X = 0.5 (horizontal center, standard for isometric diamonds).
  */
 const FRAME_TOP_BLOCK_ORIGIN_Y = FRAME_TOP_BLOCK_DIAMOND_CY / FRAME_TOP_BLOCK_SRC_H;
@@ -829,9 +835,10 @@ export class Visual04aPreviewScene extends Phaser.Scene {
    * Create PNG frame top block images for each frame piece.
    * If the PNG failed to load, this is a no-op and procedural tops remain.
    *
-   * The PNG (384×348) is a universal isometric top-surface block with the
-   * diamond center at y=96 within the canvas. It's placed at each frame
-   * cell position with uniform scaling to match the runtime tile size.
+   * The PNG (384×348 canvas) contains a normalized isometric diamond
+   * (368×184) centered at y=120. Scaling uses the diamond width (368)
+   * to match the runtime tile width, and origin Y = 120/348 aligns
+   * the diamond center to the frame cell grid position (sx, sy).
    */
   private createPngFrameTops(): void {
     if (!this.pngFrameTopAvailable) return;
@@ -851,8 +858,8 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       return;
     }
 
-    // Uniform scale: PNG diamond width (384) maps to runtime tile width
-    const scale = this.runtimeTileW / FRAME_TOP_BLOCK_SRC_W;
+    // Uniform scale: PNG diamond width (368) maps to runtime tile width
+    const scale = this.runtimeTileW / FRAME_TOP_BLOCK_DIAMOND_W;
 
     for (const piece of this.framePieces) {
       const img = this.add.image(piece.sx, piece.sy, ASSET_KEY_FRAME_TOP_BLOCK);
