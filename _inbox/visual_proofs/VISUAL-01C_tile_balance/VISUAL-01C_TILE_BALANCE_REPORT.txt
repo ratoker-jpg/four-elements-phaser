@@ -1,0 +1,231 @@
+VISUAL-01C TILE BALANCE REPORT
+===============================
+
+Task: VISUAL-01C — Tile Visual Balancing Proof
+Mode: ASSET TOOLING / VISUAL PROOF ONLY
+Date: 2026-05-30
+
+INPUT FILES USED
+----------------
+- platform_tiles_384x192_final_8_pack.zip (from VISUAL_01C_TILE_BALANCE_INPUT.zip)
+  Contains 8 original tiles: 001, 002, 005, 006, 007, 008, 009, 010
+- background_world_candidate_01.png (approved background candidate, 2048x2048 RGBA)
+- arena_frame_alpha.png (current arena frame with alpha center, 1672x941 RGBA)
+- Reference proofs: N32 and N40 mockups for comparison
+
+PROBLEM ANALYSIS
+----------------
+The original 8-tile pack had correct geometry but severe visual imbalance:
+
+  Original brightness (mean luminance on diamond pixels):
+    Tile 001: 66.7   (dark)
+    Tile 002: 91.1   (bright)
+    Tile 005: 87.0   (bright)
+    Tile 006: 85.7   (bright)
+    Tile 007: 58.8   (very dark)
+    Tile 008: 88.0   (bright)
+    Tile 009: 58.4   (very dark)
+    Tile 010: 101.1  (very bright)
+
+  Brightness spread: 58.4 — 101.1 (delta = 42.7)
+
+  Two distinct clusters:
+    Dark group: 001 (66.7), 007 (58.8), 009 (58.4)
+    Bright group: 002 (91.1), 005 (87.0), 006 (85.7), 008 (88.0), 010 (101.1)
+
+  When placed randomly, adjacent dark+bright tiles created a visible chessboard/patchy pattern.
+
+BALANCING OPERATIONS APPLIED
+-----------------------------
+All operations were applied per-pixel on the diamond area only (alpha > 10).
+Alpha channel was preserved exactly from original tiles.
+
+1. BRIGHTNESS NORMALIZATION
+   Target: mean of all tile brightnesses = 79.6
+   Method: per-channel additive shift, dampened to 85% of the delta to avoid over-correction
+   Per-channel shift was proportional to each channel's contribution to luminance
+   (preserving color character rather than flat RGB shift).
+
+   Brightness shifts applied:
+     Tile 001: +11.0  (dark → raised)
+     Tile 002: -9.4   (bright → lowered)
+     Tile 005: -6.2
+     Tile 006: -5.1
+     Tile 007: +17.6  (very dark → raised significantly)
+     Tile 008: -7.0
+     Tile 009: +17.9  (very dark → raised significantly)
+     Tile 010: -17.9  (very bright → lowered significantly)
+
+2. CONTRAST REDUCTION
+   Target max std deviation: 15.0
+   Method: pull pixel values toward tile mean by a compression factor
+   Only applied to tiles with std > 15:
+     Tile 002: reduced by 16%
+     Tile 005: reduced by 17%
+     Tile 006: reduced by 15%
+     Tile 007: reduced by 13%
+     Tile 008: reduced by 30% (was noisiest at std=23.8)
+     Tile 009: reduced by 9%
+     Tile 010: reduced by 28% (was second noisiest at std=22.4)
+   Tiles 001 (std=11.2) was already within target, no contrast reduction applied.
+
+3. SATURATION REDUCTION (mineral tiles only)
+   Mineral-tagged tiles (006, 008) had strongly colored patches that contributed
+   to the checkerboard effect. Saturation was reduced to 70% of original
+   (30% desaturation) by pulling RGB toward luminance gray.
+
+4. BRIGHT PATCH CLAMPING
+   Any pixel above the tile's 95th percentile + 40 was pulled down toward
+   the threshold (with 30% retention of the overshoot).
+   This prevents isolated bright spots from creating "hot" tiles.
+
+5. DARK PIXEL LIFT
+   Very dark pixels (below 5th percentile - 10, minimum 15) were slightly lifted
+   to prevent deep dark patches that made tiles 007/009 look like holes.
+
+BALANCING RESULTS
+-----------------
+  Balanced brightness (mean luminance):
+    Tile 001: 77.7   (was 66.7, Δ=+11.0)
+    Tile 002: 81.6   (was 91.1, Δ=-9.4)
+    Tile 005: 80.8   (was 87.0, Δ=-6.2)
+    Tile 006: 80.6   (was 85.7, Δ=-5.1)
+    Tile 007: 76.4   (was 58.8, Δ=+17.6)
+    Tile 008: 80.9   (was 88.0, Δ=-7.0)
+    Tile 009: 76.4   (was 58.4, Δ=+17.9)
+    Tile 010: 83.3   (was 101.1, Δ=-17.9)
+
+  Balanced spread: 76.4 — 83.3 (delta = 6.9)
+  Was: 58.4 — 101.1 (delta = 42.7)
+  Improvement: 84% reduction in brightness spread
+
+DIMENSIONS AND ALPHA PRESERVATION
+----------------------------------
+All 8 balanced tiles:
+  - Dimensions: exactly 384×192 px each ✓
+  - Mode: RGBA ✓
+  - Alpha channel: preserved exactly from original tiles ✓
+  - Canonical diamond vertices preserved: top [192,0], right [384,96], bottom [192,192], left [0,96] ✓
+  - No side thickness added ✓
+  - No shadows added ✓
+  - No geometry changes ✓
+
+CHECKERBOARD EFFECT ASSESSMENT
+-------------------------------
+The checkerboard effect is significantly reduced:
+  - Before: 42.7 brightness delta between darkest and brightest tiles
+    created obvious dark/light patches when randomly placed
+  - After: 6.9 brightness delta — tiles are visually close in tone
+  - Weighted random placement (calm tiles more frequent) further reduces
+    the chance of bright/dark adjacency
+  - Contrast reduction on noisy tiles (especially 008 and 010) removes
+    the "spotty" appearance that reinforced the checkerboard perception
+
+Remaining checkerboard sources:
+  - Tile identity differences (cracks, minerals, grate) still create
+    some visual texture variation, but this is intentional and desired
+  - Very slight brightness differences remain (6.9 delta) to preserve
+    tile character — full equalization would make tiles indistinguishable
+  - Random placement can still cluster accent tiles, but the weighting
+    system (base tiles 24x more frequent than grate) makes this rare
+
+RECOMMENDED TILE WEIGHTS
+-------------------------
+  Tile 001 (base, dirt):       weight 24  — most common, calm surface
+  Tile 005 (base, dirt):       weight 18  — second most common
+  Tile 009 (base, dirt):       weight 16  — third common, slight variation
+  Tile 010 (base, crack):      weight 14  — crack accent, moderately common
+  Tile 002 (crack):            weight 8   — crack detail, less common
+  Tile 006 (crack, mineral):   weight 6   — mineral accent, rare
+  Tile 008 (crack, mineral):   weight 5   — mineral accent, rare
+  Tile 007 (grate):            weight 2   — grate accent, very rare
+
+These weights match the task specification. The rationale:
+- Base/dirt tiles are visually calm and uniform — fill most of the platform
+- Crack tiles add subtle detail without strong contrast
+- Mineral tiles are desaturated accents that add color without checkerboard
+- Grate tile is a strong visual marker — use sparingly for variety
+
+OUTPUT FILES
+------------
+All files in: _inbox/visual_proofs/VISUAL-01C_tile_balance/
+
+  platform_tile_001.png — Balanced individual tile (384×192 RGBA)
+  platform_tile_002.png — Balanced individual tile (384×192 RGBA)
+  platform_tile_005.png — Balanced individual tile (384×192 RGBA)
+  platform_tile_006.png — Balanced individual tile (384×192 RGBA)
+  platform_tile_007.png — Balanced individual tile (384×192 RGBA)
+  platform_tile_008.png — Balanced individual tile (384×192 RGBA)
+  platform_tile_009.png — Balanced individual tile (384×192 RGBA)
+  platform_tile_010.png — Balanced individual tile (384×192 RGBA)
+
+  platform_tiles_384x192_balanced_8_sheet.png — 4×2 sprite sheet (1536×384 RGBA)
+  platform_tiles_384x192_balanced_8_meta.json — Metadata with vertices, tags, weights
+  platform_tiles_384x192_balanced_8_tiling_proof.png — Tiling proof without grid (3072×1536)
+  platform_tiles_384x192_balanced_8_tiling_proof_grid.png — Tiling proof with debug grid
+
+  platform_frame_background_candidate_tilefill_balanced_N32.png — Full mockup (1672×941)
+  platform_frame_background_candidate_tilefill_balanced_N32_grid.png — Full mockup with grid
+
+  VISUAL-01C_TILE_BALANCE_REPORT.txt — This report
+
+  VISUAL-01C_tile_balance_outputs.zip — Archive of all output files
+
+VALIDATION RESULTS
+------------------
+  All 8 tiles: 384×192 px ✓
+  All 8 tiles: RGBA mode with valid alpha ✓
+  Metadata vertices: top [192,0], right [384,96], bottom [192,192], left [0,96] ✓
+  No runtime/source code files changed ✓
+  No production asset folders changed ✓
+  No src/ modifications ✓
+  No public/assets/ modifications ✓
+  No package files or dependencies changed ✓
+
+WHAT WAS INTENTIONALLY NOT CHANGED
+------------------------------------
+  - Tile geometry (384×192, 2:1 isometric diamond) — preserved exactly
+  - Canonical diamond vertex positions — preserved exactly
+  - Alpha channel — preserved exactly from originals
+  - No side thickness added
+  - No shadows added
+  - No new tiles created
+  - No tiles removed
+  - No runtime code touched
+  - No production assets replaced
+  - No integration into the game renderer
+  - Original tile identities preserved (cracks, minerals, grate still recognizable)
+  - Tile tag classification unchanged
+
+REMAINING LIMITATIONS
+----------------------
+  1. Brightness is normalized but not perfectly equal — 6.9 delta remains.
+     This is intentional: full equalization would erase tile identity.
+     A second pass could reduce this further if needed.
+
+  2. Contrast reduction is moderate. Very noisy tiles (008, 010) still have
+     more internal variation than base tiles. This preserves their character.
+
+  3. The balancing was done programmatically. An artist review may still
+     want to hand-tune individual tiles for optimal visual quality.
+
+  4. The tiling proof uses seed=42 for reproducibility. Different random
+     seeds will produce different patch patterns but similar overall quality.
+
+  5. The mockup proof places tiles in an 8×4 rectangular grid (32 tiles).
+     A diamond-shaped placement would also be valid and may look different.
+
+  6. This is a proof/balancing pass only. No runtime integration is claimed
+     or performed. Assets are not added to any production pipeline.
+
+TELEGRAM NOTIFICATION
+----------------------
+Status: Will be sent after git operations complete.
+
+NO RUNTIME INTEGRATION CLAIMED
+-------------------------------
+All outputs are proof-only visual balancing assets.
+No files were placed in src/, public/assets/, or any production directory.
+No game code was modified.
+No terrain renderer was modified.
+No gameplay, pathfinding, or economy systems were touched.
