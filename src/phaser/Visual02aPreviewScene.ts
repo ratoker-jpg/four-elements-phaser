@@ -321,7 +321,13 @@ export class Visual02aPreviewScene extends Phaser.Scene {
     });
 
     this.input.keyboard?.on('keydown-ESC', () => {
-      this.scene.start('MainMenuScene');
+      // Route through PreloadScene so normal runtime assets are loaded
+      // before reaching MainMenuScene. When ?visual02a bypasses BootScene's
+      // normal flow, production textures are never loaded; starting
+      // PreloadScene ensures they are available for New Game.
+      // PreloadScene.complete → MainMenuScene automatically.
+      console.log('[Visual02aPreviewScene] ESC pressed. Starting PreloadScene to load production assets before menu.');
+      this.scene.start('PreloadScene');
     });
 
     // ─── Info text ───────────────────────────────────────────────
@@ -379,7 +385,7 @@ export class Visual02aPreviewScene extends Phaser.Scene {
       `Source tile: ${SOURCE_TILE_W}×${SOURCE_TILE_H} px (2:1 diamond)`,
       '',
       `Grid overlay: ${this.gridVisible ? 'ON' : 'OFF'}  [G] toggle`,
-      '[ESC] back to menu',
+      '[ESC] exit → preload → menu',
       '',
       'Dev-only preview. No runtime integration.',
     ];
