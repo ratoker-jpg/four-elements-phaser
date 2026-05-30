@@ -1,15 +1,32 @@
 /**
  * Visual04aPreviewScene — modular grid-aligned arena frame prototype.
  *
- * VISUAL-04A: Proves that an arena frame can be built from modular
- * grid-aligned pieces positioned in the same coordinate system as
- * platform tiles, eliminating the image-overlay alignment problem
- * that caused PR #134 (VISUAL-03B) to fail visual QA.
+ * VISUAL-04B: Procedural polish pass on the modular frame placeholder.
+ * Improves visual quality of the Phaser Graphics placeholder art while
+ * keeping the exact same grid-aligned geometry from VISUAL-04A.
+ *
+ * Visual improvements over VISUAL-04A (flat placeholder):
+ *   - Darker industrial concrete/metal palette
+ *   - Layered polygons for top surfaces (not one flat fill)
+ *   - Inner bevel/lip highlight on platform-facing edges
+ *   - Outer bevel shadow on outward-facing edges
+ *   - Darker wall faces with panel divisions/ribs
+ *   - Small bolt details on top surfaces
+ *   - Subtle deterministic dirt/noise per piece (col,row hash)
+ *   - More substantial corner blocks (taller walls, bolder colors)
+ *   - Hazard stripe accents on corner pieces
+ *
+ * All variation is deterministic — hash-based, no Math.random.
+ *
+ * Geometry intentionally UNCHANGED from VISUAL-04A:
+ *   - GRID_N = 9, FRAME_BORDER = 1, ARENA_N = 11
+ *   - Coordinate math (tile positioning, mask, diamond geometry)
+ *   - Asset loading, BootScene route, gameConfig
  *
  *   Layer 0 — background world image
  *   Layer 1 — platform tile layer (9×9 grid, clipped to inner diamond)
  *   Layer 2a — frame wall faces (dark, behind tops)
- *   Layer 2b — frame top surfaces + inner lip (medium dark, in front)
+ *   Layer 2b — frame top surfaces + inner lip (in front)
  *   Layer 3 — optional debug grid overlay (G toggle)
  *   Layer 4 — optional frame debug outlines (F toggle)
  *   Layer 5 — info/debug text
@@ -68,6 +85,9 @@ const SOURCE_TILE_H = 192;
 /** Wall face height as a fraction of tile height */
 const WALL_HEIGHT_RATIO = 0.6;
 
+/** Corner wall height multiplier (corners are more substantial) */
+const CORNER_WALL_MULT = 1.35;
+
 // ─── Asset keys ───────────────────────────────────────────────────
 
 const ASSET_KEY_BG = 'visual04a_bg';
@@ -83,19 +103,50 @@ const DEPTH_GRID = 20;
 const DEPTH_FRAME_DEBUG = 25;
 const DEPTH_UI = 40;
 
-// ─── Colors ───────────────────────────────────────────────────────
+// ─── Industrial concrete/metal palette (VISUAL-04B) ──────────────
 
-// Frame placeholder colors (not final art)
-const FRAME_TOP_COLOR = 0x4a4a5a;
-const FRAME_TOP_ALPHA = 1.0;
-const FRAME_WALL_COLOR = 0x2a2a3a;
-const FRAME_WALL_ALPHA = 1.0;
-const FRAME_LIP_COLOR = 0x7a7a8a;
-const FRAME_LIP_ALPHA = 0.8;
-const FRAME_CORNER_TOP_COLOR = 0x5a5a6a;
-const FRAME_CORNER_WALL_COLOR = 0x3a3a4a;
+// Top surface colors
+const FRAME_TOP_BASE = 0x383846;       // Dark blue-gray metal base
+const FRAME_TOP_RAISED = 0x424252;     // Slightly lighter raised center
+const FRAME_TOP_DARK = 0x2c2c3a;       // Shadow/edge dark
 
-// Debug overlay colors
+// Wall face colors
+const FRAME_WALL_BASE = 0x181822;      // Very dark blue-gray
+const FRAME_WALL_LIGHT = 0x1e1e2a;     // Slightly lighter wall (right face)
+const FRAME_WALL_RIB = 0x101018;       // Dark rib line between panels
+const FRAME_WALL_TOP_SHADOW = 0x0e0e16; // Darkest shadow at wall top edge
+
+// Bevel colors
+const FRAME_INNER_BEVEL = 0x585868;    // Light highlight on platform-facing edges
+const FRAME_OUTER_BEVEL = 0x1c1c28;    // Dark shadow on outward-facing edges
+
+// Lip
+const FRAME_LIP_COLOR = 0x686878;
+const FRAME_LIP_ALPHA = 0.9;
+
+// Corner-specific colors
+const FRAME_CORNER_TOP = 0x2e2e3c;     // Darker corner top
+const FRAME_CORNER_TOP_RAISED = 0x383848;
+const FRAME_CORNER_WALL = 0x0e0e18;    // Very dark corner wall
+const FRAME_CORNER_WALL_LIGHT = 0x141422;
+
+// Hazard stripe colors (corners only)
+const HAZARD_YELLOW = 0xbbaa00;
+const HAZARD_DARK = 0x181822;
+
+// Bolt detail colors
+const BOLT_HEAD = 0x585868;
+const BOLT_SHADOW = 0x2c2c3a;
+
+// Dirt/noise overlay
+const DIRT_COLOR = 0x141414;
+const DIRT_ALPHA_BASE = 0.05;
+const DIRT_ALPHA_VARIATION = 0.10;
+
+// Corner outline accent
+const CORNER_OUTLINE_COLOR = 0x222236;
+
+// Debug overlay colors (unchanged)
 const GRID_COLOR = 0x00ff00;
 const GRID_ALPHA = 0.4;
 const MASK_COLOR = 0xffffff;
@@ -103,6 +154,47 @@ const DEBUG_FRAME_OUTLINE_COLOR = 0xff6600;
 const DEBUG_INNER_DIAMOND_COLOR = 0xffff00;
 const DEBUG_OUTER_DIAMOND_COLOR = 0x00ffff;
 const DEBUG_CORNER_COLOR = 0xff00ff;
+
+// ─── Deterministic hash ──────────────────────────────────────────
+
+/** Deterministic hash from (col, row) → [0, 1] for per-piece variation. */
+function hashColRow(col: number, row: number): number {
+  let h = (col * 374761393 + row * 668265263 + 1013904223) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = h ^ (h >>> 16);
+  return (h >>> 0) / 4294967296;
+}
+
+// ─── Edge direction info ─────────────────────────────────────────
+
+/** Which edges of an isometric diamond face inward vs outward. */
+interface EdgeInfo {
+  /** Edge faces toward the arena center (platform) */
+  isInner: boolean;
+  /** Edge faces away from the arena center */
+  isOuter: boolean;
+}
+
+/**
+ * Determine inner/outer direction for each of the 4 diamond edges.
+ *
+ * Edge indices:
+ *   0 = top→right,  1 = right→bottom,
+ *   2 = bottom→left, 3 = left→top
+ *
+ * Uses dot product of edge outward normal with piece→center vector.
+ * Negative dot → edge faces center (inner); positive → faces away (outer).
+ */
+function getEdgeInfo(sx: number, sy: number, arenaCX: number, arenaCY: number): EdgeInfo[] {
+  const dx = sx - arenaCX;
+  const dy = sy - arenaCY;
+  return [
+    { isInner: (dx - dy) < 0, isOuter: (dx - dy) > 0 },   // Edge 0: top→right
+    { isInner: (dx + dy) < 0, isOuter: (dx + dy) > 0 },   // Edge 1: right→bottom
+    { isInner: (-dx + dy) < 0, isOuter: (-dx + dy) > 0 },  // Edge 2: bottom→left
+    { isInner: (-dx - dy) < 0, isOuter: (-dx - dy) > 0 },  // Edge 3: left→top
+  ];
+}
 
 // ─── Weighted random tile picker ──────────────────────────────────
 
@@ -432,7 +524,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
   /**
    * A frame piece is a "corner" if it's at one of the 4 cardinal
    * vertices of the outer diamond (top, right, bottom, left).
-   * Corners get slightly different visual treatment.
+   * Corners get different visual treatment.
    */
   private isCornerPiece(_col: number, _row: number, sx: number, sy: number): boolean {
     const dx = sx - this.arenaCX;
@@ -451,12 +543,87 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     return minDist < threshold;
   }
 
-  // ─── Frame wall face rendering ───────────────────────────────────
+  // ─── Drawing helpers ─────────────────────────────────────────────
+
+  /** Fill an isometric diamond at (sx, sy) with half-widths halfTW, halfTH. */
+  private fillDiamond(g: Phaser.GameObjects.Graphics, sx: number, sy: number, halfTW: number, halfTH: number): void {
+    g.beginPath();
+    g.moveTo(sx, sy - halfTH);
+    g.lineTo(sx + halfTW, sy);
+    g.lineTo(sx, sy + halfTH);
+    g.lineTo(sx - halfTW, sy);
+    g.closePath();
+    g.fillPath();
+  }
+
+  /** Stroke one edge of an isometric diamond (edge 0-3). */
+  private strokeDiamondEdge(g: Phaser.GameObjects.Graphics, sx: number, sy: number, halfTW: number, halfTH: number, edgeIndex: number): void {
+    const vx = [sx, sx + halfTW, sx, sx - halfTW];
+    const vy = [sy - halfTH, sy, sy + halfTH, sy];
+    const from = edgeIndex;
+    const to = (edgeIndex + 1) % 4;
+    g.beginPath();
+    g.moveTo(vx[from], vy[from]);
+    g.lineTo(vx[to], vy[to]);
+    g.strokePath();
+  }
+
+  /** Vary a base color by a signed amount (-1..+1), clamping each channel. */
+  private varyColor(baseColor: number, amount: number): number {
+    const r = ((baseColor >> 16) & 0xFF) + Math.round(amount * 12);
+    const gr = ((baseColor >> 8) & 0xFF) + Math.round(amount * 12);
+    const b = (baseColor & 0xFF) + Math.round(amount * 12);
+    return (Math.max(0, Math.min(255, r)) << 16) |
+           (Math.max(0, Math.min(255, gr)) << 8) |
+           Math.max(0, Math.min(255, b));
+  }
+
+  /** Draw hazard stripes on a corner piece top surface. */
+  private drawHazardStripes(
+    g: Phaser.GameObjects.Graphics, sx: number, sy: number,
+    halfTW: number, halfTH: number
+  ): void {
+    // Direction from arena center to piece center
+    const dx = sx - this.arenaCX;
+    const dy = sy - this.arenaCY;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = dx / len;
+    const ny = dy / len;
+
+    // Perpendicular direction (for stripe orientation)
+    const px = -ny;
+    const py = nx;
+
+    // Stripes positioned toward the outer edge of the piece
+    const stripeBaseX = sx + nx * halfTH * 0.35;
+    const stripeBaseY = sy + ny * halfTH * 0.35;
+
+    const stripeLen = halfTW * 0.30;
+    const stripeSpacing = halfTH * 0.13;
+    const stripeThick = Math.max(2, Math.round(halfTH * 0.05));
+
+    // Draw 3 alternating yellow/dark stripes
+    for (let i = -1; i <= 1; i++) {
+      const cx = stripeBaseX + nx * i * stripeSpacing;
+      const cy = stripeBaseY + ny * i * stripeSpacing;
+      const color = ((i + 1) % 2 === 0) ? HAZARD_YELLOW : HAZARD_DARK;
+
+      g.lineStyle(stripeThick, color, 0.65);
+      g.beginPath();
+      g.moveTo(cx - px * stripeLen, cy - py * stripeLen);
+      g.lineTo(cx + px * stripeLen, cy + py * stripeLen);
+      g.strokePath();
+    }
+  }
+
+  // ─── Frame wall face rendering (VISUAL-04B polished) ────────────
 
   /**
-   * Draw wall faces for all frame pieces.
-   * Each wall face is a filled parallelogram below the bottom half
-   * of the frame piece's isometric diamond, simulating a vertical face.
+   * Draw wall faces for all frame pieces with industrial detail:
+   *   - Left and right face halves with directional shading
+   *   - Panel rib lines dividing each face into sections
+   *   - Darker top shadow where wall meets top surface
+   *   - Corners get taller walls for more substantial look
    */
   private drawFrameWalls(): void {
     if (!this.frameWallGraphics) return;
@@ -468,36 +635,92 @@ export class Visual04aPreviewScene extends Phaser.Scene {
 
     for (const piece of this.framePieces) {
       const { sx, sy, isCorner } = piece;
-      const wallColor = isCorner ? FRAME_CORNER_WALL_COLOR : FRAME_WALL_COLOR;
+      const effWallH = isCorner ? this.wallH * CORNER_WALL_MULT : this.wallH;
 
-      // Wall face: the V-shape at the bottom of the diamond,
-      // extended downward by wallH
-      //
-      //   Left vertex ──────── Right vertex
-      //        \              /
-      //         Bottom vertex
-      //         |            |
-      //   Left+wallH  Bottom+wallH  Right+wallH
+      // ─── Left wall face (darker, as if lit from upper-right) ───
+      const leftWallColor = isCorner ? FRAME_CORNER_WALL : FRAME_WALL_BASE;
+      g.fillStyle(leftWallColor, 1);
+      g.beginPath();
+      g.moveTo(sx - halfTW, sy);                   // left vertex of diamond
+      g.lineTo(sx, sy + halfTH);                    // bottom vertex
+      g.lineTo(sx, sy + halfTH + effWallH);         // bottom + wall
+      g.lineTo(sx - halfTW, sy + effWallH);         // left + wall
+      g.closePath();
+      g.fillPath();
 
-      g.fillStyle(wallColor, FRAME_WALL_ALPHA);
+      // ─── Right wall face (slightly lighter) ───────────────────
+      const rightWallColor = isCorner ? FRAME_CORNER_WALL_LIGHT : FRAME_WALL_LIGHT;
+      g.fillStyle(rightWallColor, 1);
+      g.beginPath();
+      g.moveTo(sx + halfTW, sy);                   // right vertex of diamond
+      g.lineTo(sx, sy + halfTH);                    // bottom vertex
+      g.lineTo(sx, sy + halfTH + effWallH);         // bottom + wall
+      g.lineTo(sx + halfTW, sy + effWallH);         // right + wall
+      g.closePath();
+      g.fillPath();
+
+      // ─── Panel rib lines on left face ─────────────────────────
+      // Two vertical ribs dividing left face into 3 panels
+      g.lineStyle(1, FRAME_WALL_RIB, 0.8);
+      for (const frac of [0.33, 0.67]) {
+        const ribX = sx - halfTW + halfTW * frac;
+        const ribTopY = sy + halfTH * frac;
+        const ribBotY = sy + effWallH + halfTH * frac;
+        g.beginPath();
+        g.moveTo(ribX, ribTopY);
+        g.lineTo(ribX, ribBotY);
+        g.strokePath();
+      }
+
+      // ─── Panel rib lines on right face ────────────────────────
+      for (const frac of [0.33, 0.67]) {
+        const ribX = sx + halfTW - halfTW * frac;
+        const ribTopY = sy + halfTH * frac;
+        const ribBotY = sy + effWallH + halfTH * frac;
+        g.beginPath();
+        g.moveTo(ribX, ribTopY);
+        g.lineTo(ribX, ribBotY);
+        g.strokePath();
+      }
+
+      // ─── Top edge shadow (darkest line where wall meets top) ──
+      g.lineStyle(2, FRAME_WALL_TOP_SHADOW, 0.9);
       g.beginPath();
       g.moveTo(sx - halfTW, sy);                   // left vertex
       g.lineTo(sx, sy + halfTH);                    // bottom vertex
       g.lineTo(sx + halfTW, sy);                    // right vertex
-      g.lineTo(sx + halfTW, sy + this.wallH);       // right + wall
-      g.lineTo(sx, sy + halfTH + this.wallH);       // bottom + wall
-      g.lineTo(sx - halfTW, sy + this.wallH);       // left + wall
-      g.closePath();
-      g.fillPath();
+      g.strokePath();
+
+      // ─── Corner outline accent ────────────────────────────────
+      if (isCorner) {
+        g.lineStyle(1, CORNER_OUTLINE_COLOR, 0.6);
+        // Outline the entire wall shape
+        g.beginPath();
+        g.moveTo(sx - halfTW, sy);
+        g.lineTo(sx + halfTW, sy);
+        g.lineTo(sx + halfTW, sy + effWallH);
+        g.lineTo(sx, sy + halfTH + effWallH);
+        g.lineTo(sx - halfTW, sy + effWallH);
+        g.closePath();
+        g.strokePath();
+      }
     }
   }
 
-  // ─── Frame top surface rendering ─────────────────────────────────
+  // ─── Frame top surface rendering (VISUAL-04B polished) ──────────
 
   /**
-   * Draw top surfaces for all frame pieces + inner lip line.
-   * Each top surface is a filled isometric diamond (same shape as a tile).
-   * The inner lip is a line along the inner diamond boundary.
+   * Draw top surfaces for all frame pieces + inner lip, with layered
+   * industrial detail:
+   *   1. Base fill with deterministic dirt variation
+   *   2. Outer bevel (dark border on outward-facing edges)
+   *   3. Raised center surface (inset diamond, lighter — preserves 2:1)
+   *   4. Inner bevel (bright highlight on platform-facing edges)
+   *   5. Panel division lines
+   *   6. Bolt details (deterministic placement from hash)
+   *   7. Dirt spots (deterministic from hash)
+   *   8. Hazard stripes (corner pieces only)
+   *   9. Inner lip along platform boundary
    */
   private drawFrameTops(): void {
     if (!this.frameTopGraphics) return;
@@ -507,34 +730,117 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const halfTW = this.runtimeTileW / 2;
     const halfTH = this.runtimeTileH / 2;
 
+    // Bevel inset: must preserve 2:1 ratio of the inset diamond
+    // Inset by (2*bevelInset, bevelInset) in (x, y) to maintain 2:1
+    const bevelInset = Math.max(2, Math.round(this.runtimeTileH * 0.07));
+    const bevelInsetX = bevelInset * 2;
+    const bevelInsetY = bevelInset;
+
+    // Bolt radius scales with tile size
+    const boltR = Math.max(1.5, this.runtimeTileH * 0.028);
+
     // Draw frame top surfaces (sorted by y for correct overlap)
     for (const piece of this.framePieces) {
-      const { sx, sy, isCorner } = piece;
-      const topColor = isCorner ? FRAME_CORNER_TOP_COLOR : FRAME_TOP_COLOR;
+      const { sx, sy, isCorner, col, row } = piece;
+      const h = hashColRow(col, row);
 
-      // Filled isometric diamond (top surface)
-      g.fillStyle(topColor, FRAME_TOP_ALPHA);
-      g.beginPath();
-      g.moveTo(sx, sy - halfTH);                   // top vertex
-      g.lineTo(sx + halfTW, sy);                    // right vertex
-      g.lineTo(sx, sy + halfTH);                    // bottom vertex
-      g.lineTo(sx - halfTW, sy);                    // left vertex
-      g.closePath();
-      g.fillPath();
+      // Determine inner/outer edges for this piece
+      const edges = getEdgeInfo(sx, sy, this.arenaCX, this.arenaCY);
 
-      // Subtle edge highlight on the top surface
-      g.lineStyle(1, 0x6a6a7a, 0.3);
+      // ─── 1. Base fill (full diamond) with dirt variation ────────
+      const baseColor = isCorner ? FRAME_CORNER_TOP : FRAME_TOP_BASE;
+      // Apply subtle per-piece color variation from hash (-1..+1 range)
+      const dirtShift = (h - 0.5) * 2;  // -1..+1
+      const adjustedBase = this.varyColor(baseColor, dirtShift * 0.5);
+      g.fillStyle(adjustedBase, 1);
+      this.fillDiamond(g, sx, sy, halfTW, halfTH);
+
+      // ─── 2. Outer bevel (dark line on outward-facing edges) ────
+      for (let i = 0; i < 4; i++) {
+        if (edges[i].isOuter) {
+          g.lineStyle(2, FRAME_OUTER_BEVEL, 0.85);
+          this.strokeDiamondEdge(g, sx, sy, halfTW, halfTH, i);
+        }
+      }
+
+      // ─── 3. Raised center surface (inset diamond, lighter) ─────
+      // Inset preserves exact 2:1 ratio: width = 2*(halfTW - 2*bi), height = 2*(halfTH - bi)
+      const raisedColor = isCorner ? FRAME_CORNER_TOP_RAISED : FRAME_TOP_RAISED;
+      g.fillStyle(raisedColor, 0.65);
+      this.fillDiamond(g, sx, sy, halfTW - bevelInsetX, halfTH - bevelInsetY);
+
+      // ─── 4. Inner bevel (bright highlight on platform edges) ───
+      for (let i = 0; i < 4; i++) {
+        if (edges[i].isInner) {
+          g.lineStyle(2, FRAME_INNER_BEVEL, 0.7);
+          this.strokeDiamondEdge(g, sx, sy, halfTW, halfTH, i);
+        }
+      }
+
+      // ─── 5. Panel division lines on top surface ────────────────
+      // Two thin lines crossing at center, dividing diamond into quadrants
+      g.lineStyle(1, FRAME_TOP_DARK, 0.25);
+      // Vertical axis: top vertex → bottom vertex
       g.beginPath();
-      g.moveTo(sx, sy - halfTH);
-      g.lineTo(sx + halfTW, sy);
-      g.lineTo(sx, sy + halfTH);
-      g.lineTo(sx - halfTW, sy);
-      g.closePath();
+      g.moveTo(sx, sy - halfTH * 0.55);
+      g.lineTo(sx, sy + halfTH * 0.55);
       g.strokePath();
+      // Horizontal axis: left vertex → right vertex
+      g.beginPath();
+      g.moveTo(sx - halfTW * 0.55, sy);
+      g.lineTo(sx + halfTW * 0.55, sy);
+      g.strokePath();
+
+      // ─── 6. Bolt details (deterministic from hash) ─────────────
+      // Four possible bolt positions in the diamond quadrants
+      const boltInsetX = halfTW * 0.32;
+      const boltInsetY = halfTH * 0.32;
+      const boltPositions = [
+        { x: sx + boltInsetX, y: sy - boltInsetY },  // top-right quadrant
+        { x: sx + boltInsetX, y: sy + boltInsetY },  // bottom-right quadrant
+        { x: sx - boltInsetX, y: sy + boltInsetY },  // bottom-left quadrant
+        { x: sx - boltInsetX, y: sy - boltInsetY },  // top-left quadrant
+      ];
+
+      // Pick 2 bolt positions from hash (deterministic, no Math.random)
+      const bolt1 = Math.floor(h * 4) % 4;
+      const bolt2 = Math.floor(h * 7 + 0.5) % 4;
+
+      for (const boltIdx of [bolt1, bolt2]) {
+        const bp = boltPositions[boltIdx];
+        // Shadow (offset slightly)
+        g.fillStyle(BOLT_SHADOW, 0.5);
+        g.fillCircle(bp.x + 0.7, bp.y + 0.7, boltR + 0.3);
+        // Head
+        g.fillStyle(BOLT_HEAD, 0.9);
+        g.fillCircle(bp.x, bp.y, boltR);
+        // Highlight dot
+        g.fillStyle(FRAME_INNER_BEVEL, 0.3);
+        g.fillCircle(bp.x - boltR * 0.3, bp.y - boltR * 0.3, boltR * 0.35);
+      }
+
+      // ─── 7. Deterministic dirt spots ───────────────────────────
+      // 0-2 small stain circles based on hash
+      const dirtCount = Math.floor(h * 3);  // 0, 1, or 2 spots
+      const dirtAlpha = DIRT_ALPHA_BASE + h * DIRT_ALPHA_VARIATION;
+
+      for (let d = 0; d < dirtCount; d++) {
+        const dh = hashColRow(col + d * 17, row + d * 31);
+        const dh2 = hashColRow(col + d * 53, row + d * 71);
+        const dirtX = sx + (dh - 0.5) * halfTW * 0.6;
+        const dirtY = sy + (dh2 - 0.5) * halfTH * 0.6;
+        const dirtR = halfTH * 0.06 + dh * halfTH * 0.05;
+        g.fillStyle(DIRT_COLOR, dirtAlpha);
+        g.fillCircle(dirtX, dirtY, dirtR);
+      }
+
+      // ─── 8. Hazard stripes (corner pieces only) ────────────────
+      if (isCorner) {
+        this.drawHazardStripes(g, sx, sy, halfTW, halfTH);
+      }
     }
 
-    // Draw inner lip: a line along the inner diamond boundary
-    // where frame meets platform
+    // ─── 9. Inner lip: highlight line along the platform boundary ──
     g.lineStyle(2, FRAME_LIP_COLOR, FRAME_LIP_ALPHA);
     g.beginPath();
     g.moveTo(this.arenaCX, this.arenaCY - this.innerHH);         // top
@@ -649,7 +955,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const cornerCount = this.framePieces.filter(f => f.isCorner).length;
 
     const lines = [
-      'VISUAL-04A — Modular Grid-Aligned Arena Frame',
+      'VISUAL-04B — Procedural Polish for Modular Frame',
       '',
       `Arena: ${ARENA_N}×${ARENA_N} (platform ${GRID_N} + border ${FRAME_BORDER})`,
       `Platform tiles: ${this.tilePlacements.length}`,
@@ -669,7 +975,8 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       '',
       'Frame: modular grid-aligned pieces (no PNG overlay)',
       'Mask: GeometryMask (inner diamond clip)',
-      'Art: placeholder (not final)',
+      'Art: procedural placeholder (polished, not final)',
+      'Variation: deterministic hash (no Math.random)',
       'Dev-only prototype. No runtime integration.',
     ];
 
