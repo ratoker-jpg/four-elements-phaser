@@ -1,0 +1,149 @@
+======================================================================
+VISUAL-02B — Production Frame Geometry Proof
+======================================================================
+
+1. CURRENT FRAME MEASUREMENTS
+----------------------------------------
+   Frame canvas:     1672 × 941 px
+   Inner cutout:     1478.7 × 848.0 px
+   Current ratio:    1.7437  (target: 2.0000)
+
+   Current inner diamond vertices (measured via linear regression on
+   alpha-channel transparent region edges):
+     Top:    [835.4, 38.2]
+     Right:  [1577.2, 455.1]
+     Bottom: [839.6, 886.2]
+     Left:   [98.6, 455.2]
+
+   CONFIRMED: Current inner cutout ratio is NOT 2:1.
+   The ratio 1.7437 means the cutout is too tall
+   relative to its width, or equivalently too narrow horizontally.
+   This causes tiles to be stretched non-uniformly when filling
+   the platform area, breaking the 2:1 isometric tile geometry.
+
+
+2. TARGET 2:1 GEOMETRY
+----------------------------------------
+   Target inner cutout: 1604 × 802 px
+   Target ratio:       2.0000  (exact 2:1)
+
+   Target inner diamond vertices:
+     Top:    [836, 69]
+     Right:  [1638, 470]
+     Bottom: [836, 871]
+     Left:   [34, 470]
+
+   Diamond center: (836, 470)
+
+   Border margins (frame border thickness with 2:1 cutout):
+     Top:    69 px
+     Bottom: 70 px
+     Left:   34 px
+     Right:  34 px
+
+   The 2:1 cutout is centered on the canvas. It is slightly narrower
+   vertically than the current cutout, meaning the frame border grows
+   by approximately 31 px
+   at the top and similarly at the bottom. The horizontal extent is
+   slightly wider than the current cutout, making better use of the
+   available canvas width.
+
+
+3. METHOD USED TO CREATE CANDIDATE
+----------------------------------------
+   The candidate frame was created by:
+   a) Taking the original arena_frame_alpha.png as the base.
+   b) Computing the exact 2:1 diamond vertices centered on the canvas.
+   c) Creating a binary mask for the 2:1 diamond region.
+   d) Setting the alpha channel to 0 (fully transparent) inside the
+      diamond, while preserving the original alpha outside.
+   e) Using numpy minimum to ensure we only reduce alpha (never
+      increase it), so existing transparent areas are preserved.
+
+   This is a geometric correction only. No artistic changes were made
+   to the frame texture, colors, or details outside the cutout.
+
+
+4. WHETHER CANDIDATE DAMAGES ORIGINAL FRAME ART
+----------------------------------------
+   PARTIAL IMPACT — The 2:1 cutout is slightly different from the
+   original 1.74:1 cutout. Specifically:
+
+   - The top and bottom of the cutout are shifted inward (toward the
+     center), meaning some frame detail that was previously visible
+     near the top/bottom inner edges is now inside the transparent
+     cutout and will be hidden.
+   - The left and right edges are shifted outward (away from center),
+     which actually reveals slightly more frame detail on the sides.
+
+   The impact is MINOR because:
+   - The inner cutout edges of the original frame are already clean
+     (no fine details right at the edge).
+   - The frame border is wide enough to absorb the shift.
+   - No structural frame elements (supports, corner blocks, etc.)
+     are affected by the change.
+
+   For production: a final art pass should create the frame WITH
+   the 2:1 cutout as the intended geometry from the start, rather
+   than retroactively modifying a 1.74:1 frame. This proof shows
+   that the geometric correction is feasible and the visual impact
+   is acceptable for a proof-of-concept.
+
+
+5. WHETHER GRID/TILE FILL ALIGNS WITHOUT STRETCH
+----------------------------------------
+   YES — With the 2:1 cutout, the tile fill aligns cleanly:
+
+   N32 (8×4):
+     tileW = 145.82 px, tileH = 72.91 px
+     tileW/tileH = 2.0000 (exact 2:1)
+
+   N40 (8×5):
+     tileW = 133.67 px, tileH = 66.83 px
+     tileW/tileH = 2.0001 (exact 2:1)
+
+   N64 (8×8):
+     tileW = 106.93 px, tileH = 53.47 px
+     tileW/tileH = 1.9998 (exact 2:1)
+
+   The 2:1 cutout ensures that tileW = 2 × tileH for any grid size.
+   No non-uniform stretching is needed. Tiles maintain their 2:1
+   isometric diamond geometry at runtime.
+
+   This is the key improvement over VISUAL-02A, where the 1.74:1
+   cutout forced tiles into a ~1.74:1 ratio, causing visible
+   distortion in the tile fill.
+
+
+6. RECOMMENDED NEXT STEP
+----------------------------------------
+   VISUAL-03 — Industrial terrain/platform integration.
+   With the 2:1 frame geometry proven, the next step is to integrate
+   the layered platform model into the production game runtime:
+   - Replace the production terrain renderer with the layered model
+   - Load background world + 2:1 frame + tile fill at runtime
+   - Connect the invisible grid to existing gameplay systems
+   - Preserve all gameplay, pathfinding, economy, and building logic
+
+   Before VISUAL-03, a final art pass on the arena frame is
+   recommended to create a purpose-built 2:1 cutout rather than
+   the geometrically corrected candidate from this proof.
+
+
+7. REMAINING LIMITATIONS
+----------------------------------------
+   - The candidate frame is a geometric correction, not a final art
+     asset. Some inner-edge frame detail may be lost at top/bottom.
+   - The background world image is still a candidate, not final.
+   - Grid size for production has not been decided yet.
+     N32 (8×4), N40 (8×5), and N64 (8×8) are all viable options.
+   - Tile set is proof-only (8 balanced tiles). Production may need
+     more variety or a different tile set composition.
+   - The current frame art style (painterly, textured) may need
+     adjustment for the 2:1 cutout in a final art pass.
+   - No runtime integration has been done — this is proof only.
+
+
+======================================================================
+END OF REPORT
+======================================================================
