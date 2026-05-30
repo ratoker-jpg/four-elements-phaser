@@ -23,7 +23,7 @@
  *   - Coordinate math (tile positioning, mask, diamond geometry)
  *   - Asset loading, BootScene route, gameConfig
  *
- *   Layer 0 — background world image
+ *   Layer 0 — background world image (optional, with procedural fallback)
  *   Layer 1 — platform tile layer (9×9 grid, clipped to inner diamond)
  *   Layer 2a — frame wall faces (dark, behind tops)
  *   Layer 2b — frame top surfaces + inner lip (in front)
@@ -280,6 +280,9 @@ export class Visual04aPreviewScene extends Phaser.Scene {
   private tilePlacements: { col: number; row: number; tileId: number }[] = [];
   private framePieces: FramePiece[] = [];
 
+  // Background availability
+  private bgAvailable = false;
+
   // Mask
   private maskGraphics: Phaser.GameObjects.Graphics | null = null;
   private tileContainer: Phaser.GameObjects.Container | null = null;
@@ -289,8 +292,18 @@ export class Visual04aPreviewScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // Load background world candidate
+    // Load background world candidate (optional — may fail on preview deploys)
     this.load.image(ASSET_KEY_BG, 'dev-visual/visual-02a/background_world_candidate_01.png');
+
+    // Track background load failure so create() can use fallback
+    this.bgAvailable = true;  // assume success until loaderror
+    this.load.on('loaderror', (file: Phaser.Loader.File) => {
+      console.error(`[Visual04a] Failed to load: ${file.key} (${file.url})`);
+      if (file.key === ASSET_KEY_BG) {
+        this.bgAvailable = false;
+        console.warn('[Visual04a] Background image unavailable, using fallback background.');
+      }
+    });
 
     // Load balanced 8 tiles (same assets as Visual03a)
     const tileIds = [1, 2, 5, 6, 7, 8, 9, 10];
@@ -299,10 +312,6 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       const file = `dev-visual/visual-02a/tiles/platform_tile_${String(id).padStart(3, '0')}.png`;
       this.load.image(key, file);
     }
-
-    this.load.on('loaderror', (file: Phaser.Loader.File) => {
-      console.error(`[Visual04a] Failed to load: ${file.key} (${file.url})`);
-    });
   }
 
   create(): void {
@@ -407,17 +416,30 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     console.log(`[Visual04a] Platform tiles: ${this.tilePlacements.length}`);
     console.log(`[Visual04a] Frame pieces: ${this.framePieces.length} (corners: ${this.framePieces.filter(f => f.isCorner).length})`);
 
-    // ─── Layer 0: Background world ────────────────────────────────
+    // ─── Layer 0: Background (optional image or procedural fallback) ─
 
-    const bgImg = this.textures.get(ASSET_KEY_BG);
-    const bgW = bgImg.getSourceImage().width;
-    const bgH = bgImg.getSourceImage().height;
-
-    const bgScale = Math.max(canvasW / bgW, canvasH / bgH);
-    const bg = this.add.image(canvasW / 2, canvasH / 2, ASSET_KEY_BG);
-    bg.setScale(bgScale);
-    bg.setDepth(DEPTH_BG);
-    bg.setOrigin(0.5, 0.5);
+    if (this.bgAvailable) {
+      try {
+        const bgImg = this.textures.get(ASSET_KEY_BG);
+        const src = bgImg.getSourceImage() as HTMLImageElement | HTMLCanvasElement | ImageBitmap;
+        if (src && src.width && src.height) {
+          const bgScale = Math.max(canvasW / src.width, canvasH / src.height);
+          const bg = this.add.image(canvasW / 2, canvasH / 2, ASSET_KEY_BG);
+          bg.setScale(bgScale);
+          bg.setDepth(DEPTH_BG);
+          bg.setOrigin(0.5, 0.5);
+        } else {
+          this.bgAvailable = false;
+          this.drawFallbackBackground(canvasW, canvasH);
+        }
+      } catch {
+        this.bgAvailable = false;
+        console.warn('[Visual04a] Background image unavailable, using fallback background.');
+        this.drawFallbackBackground(canvasW, canvasH);
+      }
+    } else {
+      this.drawFallbackBackground(canvasW, canvasH);
+    }
 
     // ─── Layer 2a: Frame wall faces (drawn before tiles) ──────────
 
@@ -517,6 +539,37 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     this.infoText.setDepth(DEPTH_UI);
     this.infoText.setScrollFactor(0);
     this.updateInfoText();
+  }
+
+  // ─── Fallback background ──────────────────────────────────────────
+
+  /**
+   * Draw a procedural fallback background when the background image
+   * is unavailable (e.g. ERR_HTTP2_PROTOCOL_ERROR on preview deploys).
+   * Uses a dark fill + subtle ground rectangle under the arena area.
+   */
+  private drawFallbackBackground(canvasW: number, canvasH: number): void {
+    const bg = this.add.graphics();
+    bg.setDepth(DEPTH_BG);
+
+    // Dark solid fill
+    bg.fillStyle(0x12121e, 1);
+    bg.fillRect(0, 0, canvasW, canvasH);
+
+    // Subtle ground rectangle under the arena area
+    // Slightly lighter than the camera clear color to provide visual ground
+    const groundPad = this.runtimeTileH * 2;
+    const groundX = this.arenaCX - this.outerHW - groundPad;
+    const groundY = this.arenaCY - this.outerHH - groundPad;
+    const groundW = (this.outerHW + groundPad) * 2;
+    const groundH = (this.outerHH + groundPad + this.wallH * CORNER_WALL_MULT) * 2;
+
+    bg.fillStyle(0x1a1a2a, 0.6);
+    bg.fillRect(groundX, groundY, groundW, groundH);
+
+    // Very subtle border around ground area
+    bg.lineStyle(1, 0x2a2a3a, 0.3);
+    bg.strokeRect(groundX, groundY, groundW, groundH);
   }
 
   // ─── Corner piece detection ──────────────────────────────────────
@@ -973,6 +1026,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       `Frame debug:     ${this.frameDebugVisible ? 'ON' : 'OFF'}  [F] toggle`,
       '[ESC] exit → preload → menu',
       '',
+      `Background:      ${this.bgAvailable ? 'image' : 'fallback (procedural)'}`,
       'Frame: modular grid-aligned pieces (no PNG overlay)',
       'Mask: GeometryMask (inner diamond clip)',
       'Art: procedural placeholder (polished, not final)',
