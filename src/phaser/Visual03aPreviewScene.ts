@@ -3,7 +3,7 @@
  *
  * VISUAL-03A: Renders the approved VISUAL-01B layered map model with
  * proper geometry masking, using proven VISUAL-02B exact 2:1 geometry.
- * VISUAL-03B fixup: Separate deck geometry for variant 03 frame alignment.
+ * VISUAL-03B fixup: Deck calibration with strict 2:1 geometry preservation.
  *
  *   Layer 0 — background world image
  *   Layer 1 — platform tile layer (square NxN grid, clipped to deck diamond)
@@ -11,20 +11,26 @@
  *   Layer 3 — optional debug grid overlay (toggle with G key)
  *   Layer 4 — info/debug text
  *
- * Key improvements over Visual02aPreviewScene:
- *   - Separate DECK geometry independent from frame cutout (TARGET_V)
- *   - Deck offset/scale calibration for variant 03 frame alignment
- *   - Live calibration controls: Arrow keys, [ ], R
- *   - URL params for reproducible tuning: ?visual03a&deckX=0&deckY=-40&deckScale=0.92
- *   - GeometryMask clips tile layer to the deck diamond — no tile spill
- *   - No PNG pixel reading at runtime — geometry is explicit
+ * Deck geometry is always exact 2:1. The base is TARGET_V (1604×802, ratio
+ * exactly 2.0). deckScale scales width AND height uniformly from center,
+ * preserving the 2:1 ratio at all times. deckOffsetX/Y shift position only.
+ *
+ * Live calibration controls:
+ *   ArrowUp / ArrowDown  — move deck Y offset
+ *   ArrowLeft / ArrowRight — move deck X offset
+ *   [ / ]  — decrease / increase deck scale
+ *   R — reset calibration to defaults
+ *   G — toggle grid overlay
+ *   ESC — exit to PreloadScene → menu
+ *
+ * URL params for reproducible tuning:
+ *   ?visual03a&deckX=0&deckY=-80&deckScale=0.80
  *
  * This scene does NOT replace production terrain.
  * It does NOT modify gameplay, pathfinding, economy, or any production system.
  * It is activated only via the ?visual03a URL parameter.
  *
  * Access: http://localhost:3000/?visual03a
- * With calibration: http://localhost:3000/?visual03a&deckX=0&deckY=-40&deckScale=0.92
  */
 
 import Phaser from 'phaser';
@@ -38,17 +44,17 @@ interface TileMeta {
   recommendedWeight: number;
 }
 
-// ─── Frame geometry constants (VISUAL-02B proven 2:1 diamond) ─────
+// ─── Base 2:1 diamond geometry (VISUAL-02B proven) ────────────────
 
 /**
  * Target 2:1 inner cutout vertices from VISUAL-02B frame geometry proof.
- * These define the frame's transparent cutout boundary.
+ * These define the exact playable diamond boundary with ratio exactly 2.0.
  *
  * Inner dimensions: 1604 × 802 px → ratio exactly 2.0
  * Canvas: 1672 × 941 px (frame asset size)
  *
- * NOTE: Variant 03 frame has thick walls that obscure parts of this
- * diamond. The actual visible deck surface is smaller — see DECK_V below.
+ * This is the BASE geometry for the deck. deckScale shrinks it uniformly
+ * from center (preserving 2:1), and deckOffsetX/Y reposition it.
  */
 const TARGET_V = {
   top:    { x: 836, y: 69  },
@@ -57,79 +63,48 @@ const TARGET_V = {
   left:   { x: 34,  y: 470 },
 } as const;
 
-/** Frame cutout top vertex Y (used in info text for comparison) */
-const FRAME_CUTOUT_TOP_Y = TARGET_V.top.y;
-
 const INNER_W = 1604;
 const INNER_H = 802;
 
-/* Frame cutout diamond center: (836, 470), half-extents: (802, 401).
- * Kept as comment for reference; tile layer uses DECK_V geometry instead. */
+/** Center of the base 2:1 diamond */
+const BASE_CX = (TARGET_V.left.x + TARGET_V.right.x) / 2;   // 836
+const BASE_CY = (TARGET_V.top.y + TARGET_V.bottom.y) / 2;   // 470
 
-// ─── Deck geometry constants (variant 03 frame inner visible surface) ──
-
-/**
- * Deck diamond vertices — the visible platform surface inside variant 03
- * frame. The frame has thick walls that push the visible deck area inward
- * compared to the full TARGET_V cutout.
- *
- * Measured from variant 03 arena_frame_alpha.png by scanning inner edge
- * of opaque wall pixels:
- *   Top:    (836, 145)   — wall is 76px thicker than VISUAL-02B top
- *   Right:  (1482, 470)  — wall is 156px thicker on right
- *   Bottom: (836, 813)   — wall is 58px thicker at bottom
- *   Left:   (192, 470)   — wall is 158px thicker on left
- *
- * Deck dimensions: 1290 × 668 px → ratio ≈ 1.93
- * Deck center: (836, 479)
- */
-const DECK_V = {
-  top:    { x: 836, y: 145 },
-  right:  { x: 1482, y: 470 },
-  bottom: { x: 836, y: 813 },
-  left:   { x: 192,  y: 470 },
-} as const;
-
-const DECK_INNER_W = DECK_V.right.x - DECK_V.left.x;  // 1290
-const DECK_INNER_H = DECK_V.bottom.y - DECK_V.top.y;  // 668
-
-/** Center of the deck diamond */
-const DECK_CX = (DECK_V.left.x + DECK_V.right.x) / 2;   // 836
-const DECK_CY = (DECK_V.top.y + DECK_V.bottom.y) / 2;   // 479
-
-/** Half-extents of the deck diamond */
-const DECK_HW = DECK_INNER_W / 2;  // 645
-const DECK_HH = DECK_INNER_H / 2;  // 334
+/** Half-extents of the base 2:1 diamond (ratio 802:401 = exactly 2:1) */
+const BASE_HW = INNER_W / 2;  // 802
+const BASE_HH = INNER_H / 2;  // 401
 
 // ─── Default deck calibration values ──────────────────────────────
 
 /**
  * Default deck calibration for variant 03 frame.
- * These offsets shift the tile deck relative to the DECK_V geometry.
  *
- * deckY: negative moves tiles upward (toward top platform surface).
- *        The variant 03 frame has a thick top wall; tiles need to sit
- *        visually on the top surface, not inside the wall area.
- * deckScale: reduces the tile grid to fit within the smaller visible
- *            deck area. <1.0 shrinks tiles to avoid spilling under walls.
+ * deckOffsetY: negative moves tiles upward (toward top platform surface).
+ *              Variant 03 frame has thick top walls; tiles need to sit
+ *              visually on the top surface, not inside the wall area.
+ *              -80 shifts the deck upward by 80 asset pixels.
+ * deckScale: uniformly scales the 2:1 diamond from center.
+ *            0.80 means the effective deck is 80% of the full TARGET_V size,
+ *            producing a 1283.2×641.6 px diamond — still exactly 2:1.
  */
 const DEFAULT_DECK_OFFSET_X = 0;
-const DEFAULT_DECK_OFFSET_Y = -30;
-const DEFAULT_DECK_SCALE = 0.92;
+const DEFAULT_DECK_OFFSET_Y = -80;
+const DEFAULT_DECK_SCALE = 0.80;
 
 /** Step sizes for live calibration controls */
-const DECK_STEP_POS = 2;     // pixels per arrow key press (in asset space)
+const DECK_STEP_POS = 2;      // pixels per arrow key press (in asset space)
 const DECK_STEP_SCALE = 0.01; // scale change per [ ] press
 
 // ─── Grid configuration ──────────────────────────────────────────
 
 /**
  * Grid size for the preview platform fill.
- * Square NxN grid so the tile grid diamond perfectly matches the cutout.
+ * Square NxN grid so the tile grid diamond perfectly matches the 2:1 deck.
  *
- * N=9 → 81 tiles total, ~40 visible inside the diamond.
- * th = DECK_INNER_H / N = 668 / 9 ≈ 74.22  (before deckScale)
- * tw = 2 × th ≈ 148.44
+ * N=9 → 81 tiles total.
+ * At deckScale=0.80: effective deck height = 802 * 0.80 = 641.6
+ *   th = 641.6 / 9 ≈ 71.29
+ *   tw = 2 × th ≈ 142.58  (exact 2:1 preserved)
  */
 const GRID_N = 9;
 
@@ -203,7 +178,7 @@ export class Visual03aPreviewScene extends Phaser.Scene {
   private gridGraphics: Phaser.GameObjects.Graphics | null = null;
   private infoText: Phaser.GameObjects.Text | null = null;
 
-  /** Computed runtime tile dimensions from deck geometry */
+  /** Computed runtime tile dimensions (always exact 2:1) */
   private runtimeTileW = 0;
   private runtimeTileH = 0;
 
@@ -235,7 +210,7 @@ export class Visual03aPreviewScene extends Phaser.Scene {
   /** Deck Y offset in asset pixels (negative = up) */
   private deckOffsetY = DEFAULT_DECK_OFFSET_Y;
 
-  /** Deck scale multiplier (1.0 = full DECK_V size, <1.0 = shrink) */
+  /** Deck scale multiplier (uniform from center, preserves 2:1) */
   private deckScale = DEFAULT_DECK_SCALE;
 
   /** Tile images for rebuild during calibration */
@@ -433,8 +408,11 @@ export class Visual03aPreviewScene extends Phaser.Scene {
   // ─── Deck geometry helpers ───────────────────────────────────────
 
   /**
-   * Get the effective deck diamond vertices in asset-space,
-   * applying deckOffsetX/Y shifts and deckScale from center.
+   * Get the effective deck diamond vertices in asset-space.
+   *
+   * The base is TARGET_V (exact 2:1: 1604×802). deckScale scales
+   * BOTH half-width and half-height uniformly from center, preserving
+   * the 2:1 ratio exactly. deckOffsetX/Y shift the center position.
    */
   private getEffectiveDeckVertices(): {
     top: { x: number; y: number };
@@ -442,12 +420,12 @@ export class Visual03aPreviewScene extends Phaser.Scene {
     bottom: { x: number; y: number };
     left: { x: number; y: number };
   } {
-    const cx = DECK_CX + this.deckOffsetX;
-    const cy = DECK_CY + this.deckOffsetY;
+    const cx = BASE_CX + this.deckOffsetX;
+    const cy = BASE_CY + this.deckOffsetY;
 
-    // Scale deck half-extents from center
-    const hw = DECK_HW * this.deckScale;
-    const hh = DECK_HH * this.deckScale;
+    // Uniform scale preserves 2:1 ratio exactly
+    const hw = BASE_HW * this.deckScale;
+    const hh = BASE_HH * this.deckScale;
 
     return {
       top:    { x: cx, y: cy - hh },
@@ -470,12 +448,20 @@ export class Visual03aPreviewScene extends Phaser.Scene {
   /**
    * Rebuild the entire tile layer with current deck calibration.
    * Called on initial create() and whenever calibration changes.
+   *
+   * Geometry is always exact 2:1 because:
+   *   - Base half-extents: BASE_HW=802, BASE_HH=401, ratio=2.0
+   *   - deckScale is uniform: hw=802*s, hh=401*s, ratio=2.0
+   *   - Tile height: hh*2/N, tile width: hw*2/N = 2*(hh*2/N), ratio=2.0
    */
   private rebuildDeck(): void {
     const deck = this.getEffectiveDeckVertices();
 
-    // Compute runtime tile dimensions from effective deck height
-    const effectiveDeckH = deck.bottom.y - deck.top.y;  // asset space
+    // Effective deck dimensions (always exactly 2:1)
+    const effectiveDeckH = deck.bottom.y - deck.top.y;   // asset space
+    const effectiveDeckW = deck.right.x - deck.left.x;   // asset space
+
+    // Runtime tile dimensions from effective deck height (2:1 preserved)
     this.runtimeTileH = (effectiveDeckH / GRID_N) * this.frameScale;
     this.runtimeTileW = 2 * this.runtimeTileH;
 
@@ -491,8 +477,9 @@ export class Visual03aPreviewScene extends Phaser.Scene {
     this.platformOriginY = deckTopDisplay.y + this.runtimeTileH / 2;
 
     const ratio = this.runtimeTileW / this.runtimeTileH;
+    const deckRatio = effectiveDeckW / effectiveDeckH;
     console.log(`[Visual03a] Deck rebuild: offset=(${this.deckOffsetX},${this.deckOffsetY}) scale=${this.deckScale.toFixed(3)}`);
-    console.log(`[Visual03a] Effective deck: ${deck.right.x - deck.left.x}×${effectiveDeckH.toFixed(1)} (asset px)`);
+    console.log(`[Visual03a] Effective deck: ${effectiveDeckW.toFixed(1)}×${effectiveDeckH.toFixed(1)} px, ratio: ${deckRatio.toFixed(4)} (must be 2.0)`);
     console.log(`[Visual03a] Runtime tile: ${this.runtimeTileW.toFixed(1)}×${this.runtimeTileH.toFixed(1)}, ratio: ${ratio.toFixed(4)}`);
 
     // ─── Rebuild mask ───────────────────────────────────────────
@@ -541,7 +528,7 @@ export class Visual03aPreviewScene extends Phaser.Scene {
     // Deck center in display coords for hit-testing
     const deckCx = dTop.x;  // top.x == center.x for symmetric diamond
     const deckCy = (dTop.y + dBottom.y) / 2;
-    const scaledHW = (deck.right.x - deck.left.x) / 2 * this.frameScale;
+    const scaledHW = effectiveDeckW / 2 * this.frameScale;
     const scaledHH = (dBottom.y - dTop.y) / 2;
 
     const isInDeck = (px: number, py: number): boolean => {
@@ -598,7 +585,7 @@ export class Visual03aPreviewScene extends Phaser.Scene {
       const sx = (placement.col - placement.row) * halfTW + this.platformOriginX;
       const sy = (placement.col + placement.row) * halfTH + this.platformOriginY;
 
-      // Draw isometric diamond
+      // Draw isometric diamond (exact 2:1)
       g.beginPath();
       g.moveTo(sx, sy - halfTH);                    // top vertex
       g.lineTo(sx + halfTW, sy);                     // right vertex
@@ -608,7 +595,7 @@ export class Visual03aPreviewScene extends Phaser.Scene {
       g.strokePath();
     }
 
-    // Also draw the effective deck diamond outline for visual reference
+    // Draw the effective deck diamond outline (yellow, always exact 2:1)
     const deck = this.getEffectiveDeckVertices();
     const dTop = this.assetToDisplay(deck.top.x, deck.top.y);
     const dRight = this.assetToDisplay(deck.right.x, deck.right.y);
@@ -629,21 +616,22 @@ export class Visual03aPreviewScene extends Phaser.Scene {
   private updateInfoText(): void {
     if (!this.infoText) return;
 
-    const ratio = this.runtimeTileW / this.runtimeTileH;
+    const tileRatio = this.runtimeTileW / this.runtimeTileH;
     const deck = this.getEffectiveDeckVertices();
     const effectiveW = deck.right.x - deck.left.x;
     const effectiveH = deck.bottom.y - deck.top.y;
+    const deckRatio = effectiveW / effectiveH;
 
     const lines = [
-      'VISUAL-03A — Runtime Layered Platform Prototype (variant 03)',
+      'VISUAL-03A — Runtime Layered Platform (variant 03)',
       '',
       `Grid: ${GRID_N}×${GRID_N} square  (${this.tilePlacements.length} tiles inside deck)`,
       `Runtime tile: ${this.runtimeTileW.toFixed(1)}×${this.runtimeTileH.toFixed(1)} px`,
-      `Tile ratio: ${ratio.toFixed(4)} (exact 2:1)`,
+      `Tile ratio: ${tileRatio.toFixed(4)} (exact 2:1)`,
       `Source tile: ${SOURCE_TILE_W}×${SOURCE_TILE_H} px (2:1 diamond)`,
       '',
-      `Frame cutout: ${INNER_W}×${INNER_H} px (top y=${FRAME_CUTOUT_TOP_Y})`,
-      `Deck surface: ${effectiveW.toFixed(0)}×${effectiveH.toFixed(0)} px (variant 03)`,
+      `Base cutout: ${INNER_W}×${INNER_H} px (VISUAL-02B, ratio 2.0)`,
+      `Deck eff:    ${effectiveW.toFixed(1)}×${effectiveH.toFixed(1)} px (ratio ${deckRatio.toFixed(4)})`,
       '',
       `Deck offsetX: ${this.deckOffsetX}  [← →] ±${DECK_STEP_POS}`,
       `Deck offsetY: ${this.deckOffsetY}  [↑ ↓] ±${DECK_STEP_POS}`,
@@ -653,8 +641,8 @@ export class Visual03aPreviewScene extends Phaser.Scene {
       `Grid overlay: ${this.gridVisible ? 'ON' : 'OFF'}  [G] toggle`,
       '[ESC] exit → preload → menu',
       '',
-      'URL: ?visual03a&deckX=0&deckY=-30&deckScale=0.92',
-      'Mask: GeometryMask (deck diamond clip)',
+      'URL: ?visual03a&deckX=0&deckY=-80&deckScale=0.80',
+      'Mask: GeometryMask (exact 2:1 diamond clip)',
       'Dev-only prototype. No runtime integration.',
     ];
 
