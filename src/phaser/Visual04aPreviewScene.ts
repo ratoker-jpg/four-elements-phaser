@@ -1,6 +1,10 @@
 /**
  * Visual04aPreviewScene — modular grid-aligned arena frame prototype.
  *
+ * VISUAL-04D: Integrate single PNG frame top block asset.
+ * Replaces procedural top surfaces with a universal PNG frame top block
+ * while keeping procedural wall faces from VISUAL-04B underneath.
+ *
  * VISUAL-04B: Procedural polish pass on the modular frame placeholder.
  * Improves visual quality of the Phaser Graphics placeholder art while
  * keeping the exact same grid-aligned geometry from VISUAL-04A.
@@ -16,6 +20,14 @@
  *   - More substantial corner blocks (taller walls, bolder colors)
  *   - Hazard stripe accents on corner pieces
  *
+ * VISUAL-04D additions:
+ *   - Load frame_top_block.png (384×348 RGBA) for frame top surfaces
+ *   - PNG overlay replaces procedural tops when available and toggled ON
+ *   - Procedural wall faces always remain underneath
+ *   - P key toggles between PNG and procedural frame tops
+ *   - Fallback to procedural tops if PNG fails to load
+ *   - Inner lip always drawn regardless of PNG/procedural mode
+ *
  * All variation is deterministic — hash-based, no Math.random.
  *
  * Geometry intentionally UNCHANGED from VISUAL-04A:
@@ -27,6 +39,7 @@
  *   Layer 1 — platform tile layer (9×9 grid, clipped to inner diamond)
  *   Layer 2a — frame wall faces (dark, behind tops)
  *   Layer 2b — frame top surfaces + inner lip (in front)
+ *             (PNG overlay OR procedural, toggled with P)
  *   Layer 3 — optional debug grid overlay (G toggle)
  *   Layer 4 — optional frame debug outlines (F toggle)
  *   Layer 5 — info/debug text
@@ -47,6 +60,7 @@
  * Controls:
  *   G — toggle grid overlay
  *   F — toggle frame debug outlines
+ *   P — toggle PNG/procedural frame top
  *   ESC — exit to PreloadScene → menu
  *
  * This scene does NOT replace production terrain.
@@ -91,7 +105,32 @@ const CORNER_WALL_MULT = 1.35;
 // ─── Asset keys ───────────────────────────────────────────────────
 
 const ASSET_KEY_BG = 'visual04a_bg';
+const ASSET_KEY_FRAME_TOP_BLOCK = 'visual04a_frame_top_block';
 const TILE_ASSET_KEY_PREFIX = 'visual04a_tile_';
+
+// ─── Frame top block PNG constants (VISUAL-04D) ───────────────────
+
+/** Source dimensions of the frame top block PNG canvas */
+const FRAME_TOP_BLOCK_SRC_W = 384;
+const FRAME_TOP_BLOCK_SRC_H = 348;
+
+/**
+ * Y position of the isometric diamond center within the frame top block PNG.
+ * The top diamond surface occupies the top 192px (SOURCE_TILE_H) of the
+ * 348px canvas. Diamond center is at y = 96 = SOURCE_TILE_H / 2.
+ */
+const FRAME_TOP_BLOCK_DIAMOND_CY = SOURCE_TILE_H / 2;  // 96
+
+/**
+ * Origin Y for the frame top block PNG so the diamond center aligns with
+ * the frame cell center (sx, sy).
+ *
+ * Origin Y = diamond_center_y / canvas_height = 96 / 348 ≈ 0.2759
+ *
+ * This is a dev-only anchor correction — small, named, documented.
+ * Origin X = 0.5 (horizontal center, standard for isometric diamonds).
+ */
+const FRAME_TOP_BLOCK_ORIGIN_Y = FRAME_TOP_BLOCK_DIAMOND_CY / FRAME_TOP_BLOCK_SRC_H;
 
 // ─── Depth layers ─────────────────────────────────────────────────
 
@@ -283,6 +322,11 @@ export class Visual04aPreviewScene extends Phaser.Scene {
   // Background availability
   private bgAvailable = false;
 
+  // PNG frame top block (VISUAL-04D)
+  private pngFrameTopAvailable = false;
+  private pngFrameTopVisible = true;  // default ON if asset loads
+  private pngFrameTopImages: Phaser.GameObjects.Image[] = [];
+
   // Mask
   private maskGraphics: Phaser.GameObjects.Graphics | null = null;
   private tileContainer: Phaser.GameObjects.Container | null = null;
@@ -295,13 +339,21 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     // Load background world candidate (optional — may fail on preview deploys)
     this.load.image(ASSET_KEY_BG, 'dev-visual/visual-02a/background_world_candidate_01.png');
 
-    // Track background load failure so create() can use fallback
+    // Load frame top block PNG (optional — fallback to procedural if fails)
+    this.load.image(ASSET_KEY_FRAME_TOP_BLOCK, 'dev-visual/visual-04/frame/frame_top_block.png');
+
+    // Track background and frame top block load failures so create() can use fallbacks
     this.bgAvailable = true;  // assume success until loaderror
+    this.pngFrameTopAvailable = true;  // assume success until loaderror
     this.load.on('loaderror', (file: Phaser.Loader.File) => {
       console.error(`[Visual04a] Failed to load: ${file.key} (${file.url})`);
       if (file.key === ASSET_KEY_BG) {
         this.bgAvailable = false;
         console.warn('[Visual04a] Background image unavailable, using fallback background.');
+      }
+      if (file.key === ASSET_KEY_FRAME_TOP_BLOCK) {
+        this.pngFrameTopAvailable = false;
+        console.warn('[Visual04a] Frame top block PNG unavailable, using procedural fallback.');
       }
     });
 
@@ -489,6 +541,10 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     this.frameTopGraphics.setDepth(DEPTH_FRAME_TOP);
     this.drawFrameTops();
 
+    // ─── Layer 2c: PNG frame top block overlay (VISUAL-04D) ────────
+
+    this.createPngFrameTops();
+
     // ─── Layer 3: Debug grid overlay (initially hidden) ───────────
 
     this.gridGraphics = this.add.graphics();
@@ -519,6 +575,13 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-F', () => {
       this.frameDebugVisible = !this.frameDebugVisible;
       this.frameDebugGraphics?.setVisible(this.frameDebugVisible);
+      this.updateInfoText();
+    });
+
+    this.input.keyboard?.on('keydown-P', () => {
+      if (!this.pngFrameTopAvailable) return;  // no PNG to toggle
+      this.pngFrameTopVisible = !this.pngFrameTopVisible;
+      this.applyFrameTopMode();
       this.updateInfoText();
     });
 
@@ -760,11 +823,79 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     }
   }
 
+  // ─── PNG frame top block (VISUAL-04D) ──────────────────────────
+
+  /**
+   * Create PNG frame top block images for each frame piece.
+   * If the PNG failed to load, this is a no-op and procedural tops remain.
+   *
+   * The PNG (384×348) is a universal isometric top-surface block with the
+   * diamond center at y=96 within the canvas. It's placed at each frame
+   * cell position with uniform scaling to match the runtime tile size.
+   */
+  private createPngFrameTops(): void {
+    if (!this.pngFrameTopAvailable) return;
+
+    // Verify the texture actually loaded and is usable
+    try {
+      const tex = this.textures.get(ASSET_KEY_FRAME_TOP_BLOCK);
+      const src = tex.getSourceImage() as HTMLImageElement | HTMLCanvasElement | ImageBitmap;
+      if (!src || !src.width || !src.height) {
+        this.pngFrameTopAvailable = false;
+        console.warn('[Visual04a] Frame top block PNG texture invalid, using procedural fallback.');
+        return;
+      }
+    } catch {
+      this.pngFrameTopAvailable = false;
+      console.warn('[Visual04a] Frame top block PNG texture error, using procedural fallback.');
+      return;
+    }
+
+    // Uniform scale: PNG diamond width (384) maps to runtime tile width
+    const scale = this.runtimeTileW / FRAME_TOP_BLOCK_SRC_W;
+
+    for (const piece of this.framePieces) {
+      const img = this.add.image(piece.sx, piece.sy, ASSET_KEY_FRAME_TOP_BLOCK);
+      img.setScale(scale);
+      img.setOrigin(0.5, FRAME_TOP_BLOCK_ORIGIN_Y);
+      img.setDepth(DEPTH_FRAME_TOP);
+      img.setVisible(this.pngFrameTopVisible);
+      this.pngFrameTopImages.push(img);
+    }
+
+    console.log(`[Visual04a] PNG frame top block: ${this.pngFrameTopImages.length} images created (scale=${scale.toFixed(4)})`);
+
+    // Apply initial mode (may hide procedural tops if PNG is active)
+    this.applyFrameTopMode();
+  }
+
+  /**
+   * Apply the current frame top mode (PNG or procedural).
+   * When PNG is ON and available: hide procedural tops, show PNG images.
+   * When PNG is OFF or unavailable: show procedural tops, hide PNG images.
+   * The inner lip is always drawn (by drawFrameTops).
+   */
+  private applyFrameTopMode(): void {
+    const usePng = this.pngFrameTopAvailable && this.pngFrameTopVisible;
+
+    // Toggle PNG images
+    for (const img of this.pngFrameTopImages) {
+      img.setVisible(usePng);
+    }
+
+    // Redraw procedural tops: if PNG is active, only draw the inner lip
+    // (skip procedural top surfaces since PNG covers them)
+    this.drawFrameTops();
+  }
+
   // ─── Frame top surface rendering (VISUAL-04B polished) ──────────
 
   /**
    * Draw top surfaces for all frame pieces + inner lip, with layered
-   * industrial detail:
+   * industrial detail. When PNG mode is active (VISUAL-04D), only the
+   * inner lip is drawn — the PNG images replace procedural top surfaces.
+   *
+   * Procedural detail (when PNG is OFF or unavailable):
    *   1. Base fill with deterministic dirt variation
    *   2. Outer bevel (dark border on outward-facing edges)
    *   3. Raised center surface (inset diamond, lighter — preserves 2:1)
@@ -773,7 +904,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
    *   6. Bolt details (deterministic placement from hash)
    *   7. Dirt spots (deterministic from hash)
    *   8. Hazard stripes (corner pieces only)
-   *   9. Inner lip along platform boundary
+   *   9. Inner lip along platform boundary (always drawn)
    */
   private drawFrameTops(): void {
     if (!this.frameTopGraphics) return;
@@ -783,117 +914,123 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const halfTW = this.runtimeTileW / 2;
     const halfTH = this.runtimeTileH / 2;
 
-    // Bevel inset: must preserve 2:1 ratio of the inset diamond
-    // Inset by (2*bevelInset, bevelInset) in (x, y) to maintain 2:1
-    const bevelInset = Math.max(2, Math.round(this.runtimeTileH * 0.07));
-    const bevelInsetX = bevelInset * 2;
-    const bevelInsetY = bevelInset;
+    // When PNG mode is active, skip procedural top surfaces — only draw the lip
+    const usePng = this.pngFrameTopAvailable && this.pngFrameTopVisible;
 
-    // Bolt radius scales with tile size
-    const boltR = Math.max(1.5, this.runtimeTileH * 0.028);
+    if (!usePng) {
+      // Bevel inset: must preserve 2:1 ratio of the inset diamond
+      // Inset by (2*bevelInset, bevelInset) in (x, y) to maintain 2:1
+      const bevelInset = Math.max(2, Math.round(this.runtimeTileH * 0.07));
+      const bevelInsetX = bevelInset * 2;
+      const bevelInsetY = bevelInset;
 
-    // Draw frame top surfaces (sorted by y for correct overlap)
-    for (const piece of this.framePieces) {
-      const { sx, sy, isCorner, col, row } = piece;
-      const h = hashColRow(col, row);
+      // Bolt radius scales with tile size
+      const boltR = Math.max(1.5, this.runtimeTileH * 0.028);
 
-      // Determine inner/outer edges for this piece
-      const edges = getEdgeInfo(sx, sy, this.arenaCX, this.arenaCY);
+      // Draw frame top surfaces (sorted by y for correct overlap)
+      for (const piece of this.framePieces) {
+        const { sx, sy, isCorner, col, row } = piece;
+        const h = hashColRow(col, row);
 
-      // ─── 1. Base fill (full diamond) with dirt variation ────────
-      const baseColor = isCorner ? FRAME_CORNER_TOP : FRAME_TOP_BASE;
-      // Apply subtle per-piece color variation from hash (-1..+1 range)
-      const dirtShift = (h - 0.5) * 2;  // -1..+1
-      const adjustedBase = this.varyColor(baseColor, dirtShift * 0.5);
-      g.fillStyle(adjustedBase, 1);
-      this.fillDiamond(g, sx, sy, halfTW, halfTH);
+        // Determine inner/outer edges for this piece
+        const edges = getEdgeInfo(sx, sy, this.arenaCX, this.arenaCY);
 
-      // ─── 2. Outer bevel (dark line on outward-facing edges) ────
-      for (let i = 0; i < 4; i++) {
-        if (edges[i].isOuter) {
-          g.lineStyle(2, FRAME_OUTER_BEVEL, 0.85);
-          this.strokeDiamondEdge(g, sx, sy, halfTW, halfTH, i);
+        // ─── 1. Base fill (full diamond) with dirt variation ────────
+        const baseColor = isCorner ? FRAME_CORNER_TOP : FRAME_TOP_BASE;
+        // Apply subtle per-piece color variation from hash (-1..+1 range)
+        const dirtShift = (h - 0.5) * 2;  // -1..+1
+        const adjustedBase = this.varyColor(baseColor, dirtShift * 0.5);
+        g.fillStyle(adjustedBase, 1);
+        this.fillDiamond(g, sx, sy, halfTW, halfTH);
+
+        // ─── 2. Outer bevel (dark line on outward-facing edges) ────
+        for (let i = 0; i < 4; i++) {
+          if (edges[i].isOuter) {
+            g.lineStyle(2, FRAME_OUTER_BEVEL, 0.85);
+            this.strokeDiamondEdge(g, sx, sy, halfTW, halfTH, i);
+          }
         }
-      }
 
-      // ─── 3. Raised center surface (inset diamond, lighter) ─────
-      // Inset preserves exact 2:1 ratio: width = 2*(halfTW - 2*bi), height = 2*(halfTH - bi)
-      const raisedColor = isCorner ? FRAME_CORNER_TOP_RAISED : FRAME_TOP_RAISED;
-      g.fillStyle(raisedColor, 0.65);
-      this.fillDiamond(g, sx, sy, halfTW - bevelInsetX, halfTH - bevelInsetY);
+        // ─── 3. Raised center surface (inset diamond, lighter) ─────
+        // Inset preserves exact 2:1 ratio: width = 2*(halfTW - 2*bi), height = 2*(halfTH - bi)
+        const raisedColor = isCorner ? FRAME_CORNER_TOP_RAISED : FRAME_TOP_RAISED;
+        g.fillStyle(raisedColor, 0.65);
+        this.fillDiamond(g, sx, sy, halfTW - bevelInsetX, halfTH - bevelInsetY);
 
-      // ─── 4. Inner bevel (bright highlight on platform edges) ───
-      for (let i = 0; i < 4; i++) {
-        if (edges[i].isInner) {
-          g.lineStyle(2, FRAME_INNER_BEVEL, 0.7);
-          this.strokeDiamondEdge(g, sx, sy, halfTW, halfTH, i);
+        // ─── 4. Inner bevel (bright highlight on platform edges) ───
+        for (let i = 0; i < 4; i++) {
+          if (edges[i].isInner) {
+            g.lineStyle(2, FRAME_INNER_BEVEL, 0.7);
+            this.strokeDiamondEdge(g, sx, sy, halfTW, halfTH, i);
+          }
         }
-      }
 
-      // ─── 5. Panel division lines on top surface ────────────────
-      // Two thin lines crossing at center, dividing diamond into quadrants
-      g.lineStyle(1, FRAME_TOP_DARK, 0.25);
-      // Vertical axis: top vertex → bottom vertex
-      g.beginPath();
-      g.moveTo(sx, sy - halfTH * 0.55);
-      g.lineTo(sx, sy + halfTH * 0.55);
-      g.strokePath();
-      // Horizontal axis: left vertex → right vertex
-      g.beginPath();
-      g.moveTo(sx - halfTW * 0.55, sy);
-      g.lineTo(sx + halfTW * 0.55, sy);
-      g.strokePath();
+        // ─── 5. Panel division lines on top surface ────────────────
+        // Two thin lines crossing at center, dividing diamond into quadrants
+        g.lineStyle(1, FRAME_TOP_DARK, 0.25);
+        // Vertical axis: top vertex → bottom vertex
+        g.beginPath();
+        g.moveTo(sx, sy - halfTH * 0.55);
+        g.lineTo(sx, sy + halfTH * 0.55);
+        g.strokePath();
+        // Horizontal axis: left vertex → right vertex
+        g.beginPath();
+        g.moveTo(sx - halfTW * 0.55, sy);
+        g.lineTo(sx + halfTW * 0.55, sy);
+        g.strokePath();
 
-      // ─── 6. Bolt details (deterministic from hash) ─────────────
-      // Four possible bolt positions in the diamond quadrants
-      const boltInsetX = halfTW * 0.32;
-      const boltInsetY = halfTH * 0.32;
-      const boltPositions = [
-        { x: sx + boltInsetX, y: sy - boltInsetY },  // top-right quadrant
-        { x: sx + boltInsetX, y: sy + boltInsetY },  // bottom-right quadrant
-        { x: sx - boltInsetX, y: sy + boltInsetY },  // bottom-left quadrant
-        { x: sx - boltInsetX, y: sy - boltInsetY },  // top-left quadrant
-      ];
+        // ─── 6. Bolt details (deterministic from hash) ─────────────
+        // Four possible bolt positions in the diamond quadrants
+        const boltInsetX = halfTW * 0.32;
+        const boltInsetY = halfTH * 0.32;
+        const boltPositions = [
+          { x: sx + boltInsetX, y: sy - boltInsetY },  // top-right quadrant
+          { x: sx + boltInsetX, y: sy + boltInsetY },  // bottom-right quadrant
+          { x: sx - boltInsetX, y: sy + boltInsetY },  // bottom-left quadrant
+          { x: sx - boltInsetX, y: sy - boltInsetY },  // top-left quadrant
+        ];
 
-      // Pick 2 bolt positions from hash (deterministic, no Math.random)
-      const bolt1 = Math.floor(h * 4) % 4;
-      const bolt2 = Math.floor(h * 7 + 0.5) % 4;
+        // Pick 2 bolt positions from hash (deterministic, no Math.random)
+        const bolt1 = Math.floor(h * 4) % 4;
+        const bolt2 = Math.floor(h * 7 + 0.5) % 4;
 
-      for (const boltIdx of [bolt1, bolt2]) {
-        const bp = boltPositions[boltIdx];
-        // Shadow (offset slightly)
-        g.fillStyle(BOLT_SHADOW, 0.5);
-        g.fillCircle(bp.x + 0.7, bp.y + 0.7, boltR + 0.3);
-        // Head
-        g.fillStyle(BOLT_HEAD, 0.9);
-        g.fillCircle(bp.x, bp.y, boltR);
-        // Highlight dot
-        g.fillStyle(FRAME_INNER_BEVEL, 0.3);
-        g.fillCircle(bp.x - boltR * 0.3, bp.y - boltR * 0.3, boltR * 0.35);
-      }
+        for (const boltIdx of [bolt1, bolt2]) {
+          const bp = boltPositions[boltIdx];
+          // Shadow (offset slightly)
+          g.fillStyle(BOLT_SHADOW, 0.5);
+          g.fillCircle(bp.x + 0.7, bp.y + 0.7, boltR + 0.3);
+          // Head
+          g.fillStyle(BOLT_HEAD, 0.9);
+          g.fillCircle(bp.x, bp.y, boltR);
+          // Highlight dot
+          g.fillStyle(FRAME_INNER_BEVEL, 0.3);
+          g.fillCircle(bp.x - boltR * 0.3, bp.y - boltR * 0.3, boltR * 0.35);
+        }
 
-      // ─── 7. Deterministic dirt spots ───────────────────────────
-      // 0-2 small stain circles based on hash
-      const dirtCount = Math.floor(h * 3);  // 0, 1, or 2 spots
-      const dirtAlpha = DIRT_ALPHA_BASE + h * DIRT_ALPHA_VARIATION;
+        // ─── 7. Deterministic dirt spots ───────────────────────────
+        // 0-2 small stain circles based on hash
+        const dirtCount = Math.floor(h * 3);  // 0, 1, or 2 spots
+        const dirtAlpha = DIRT_ALPHA_BASE + h * DIRT_ALPHA_VARIATION;
 
-      for (let d = 0; d < dirtCount; d++) {
-        const dh = hashColRow(col + d * 17, row + d * 31);
-        const dh2 = hashColRow(col + d * 53, row + d * 71);
-        const dirtX = sx + (dh - 0.5) * halfTW * 0.6;
-        const dirtY = sy + (dh2 - 0.5) * halfTH * 0.6;
-        const dirtR = halfTH * 0.06 + dh * halfTH * 0.05;
-        g.fillStyle(DIRT_COLOR, dirtAlpha);
-        g.fillCircle(dirtX, dirtY, dirtR);
-      }
+        for (let d = 0; d < dirtCount; d++) {
+          const dh = hashColRow(col + d * 17, row + d * 31);
+          const dh2 = hashColRow(col + d * 53, row + d * 71);
+          const dirtX = sx + (dh - 0.5) * halfTW * 0.6;
+          const dirtY = sy + (dh2 - 0.5) * halfTH * 0.6;
+          const dirtR = halfTH * 0.06 + dh * halfTH * 0.05;
+          g.fillStyle(DIRT_COLOR, dirtAlpha);
+          g.fillCircle(dirtX, dirtY, dirtR);
+        }
 
-      // ─── 8. Hazard stripes (corner pieces only) ────────────────
-      if (isCorner) {
-        this.drawHazardStripes(g, sx, sy, halfTW, halfTH);
+        // ─── 8. Hazard stripes (corner pieces only) ────────────────
+        if (isCorner) {
+          this.drawHazardStripes(g, sx, sy, halfTW, halfTH);
+        }
       }
     }
 
     // ─── 9. Inner lip: highlight line along the platform boundary ──
+    // Always drawn regardless of PNG/procedural mode
     g.lineStyle(2, FRAME_LIP_COLOR, FRAME_LIP_ALPHA);
     g.beginPath();
     g.moveTo(this.arenaCX, this.arenaCY - this.innerHH);         // top
@@ -1007,8 +1144,12 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const tileRatio = this.runtimeTileW / this.runtimeTileH;
     const cornerCount = this.framePieces.filter(f => f.isCorner).length;
 
+    const frameTopMode = this.pngFrameTopAvailable && this.pngFrameTopVisible
+      ? 'PNG'
+      : 'procedural fallback';
+
     const lines = [
-      'VISUAL-04B — Procedural Polish for Modular Frame',
+      'VISUAL-04D — Single PNG Frame Top Block',
       '',
       `Arena: ${ARENA_N}×${ARENA_N} (platform ${GRID_N} + border ${FRAME_BORDER})`,
       `Platform tiles: ${this.tilePlacements.length}`,
@@ -1024,12 +1165,12 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       '',
       `Grid overlay:    ${this.gridVisible ? 'ON' : 'OFF'}  [G] toggle`,
       `Frame debug:     ${this.frameDebugVisible ? 'ON' : 'OFF'}  [F] toggle`,
+      `Frame top:       ${frameTopMode}  [P] toggle`,
       '[ESC] exit → preload → menu',
       '',
       `Background:      ${this.bgAvailable ? 'image' : 'fallback (procedural)'}`,
-      'Frame: modular grid-aligned pieces (no PNG overlay)',
+      `Frame top:       ${frameTopMode}`,
       'Mask: GeometryMask (inner diamond clip)',
-      'Art: procedural placeholder (polished, not final)',
       'Variation: deterministic hash (no Math.random)',
       'Dev-only prototype. No runtime integration.',
     ];
