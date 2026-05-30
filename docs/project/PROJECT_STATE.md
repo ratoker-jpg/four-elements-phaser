@@ -3,7 +3,7 @@
 Status: operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Current phase: VISUAL roadmap — industrial biome visual direction
+Current phase: VISUAL roadmap — layered industrial platform direction
 
 ---
 
@@ -19,6 +19,9 @@ This pivot happened after:
 PR #119 — TERRAIN-02A 256x128 terrain integration (sand pipeline, merged)
 PR #120 — MAPLIFE decor (visually rejected, not merged)
 VISUAL-ROADMAP-01 — Archive old roadmap and add VISUAL_ROADMAP.md
+VISUAL-AUDIT-01 — Full visual system audit and implementation plan
+VISUAL-01 — Industrial map visual candidates, Candidate A selected
+VISUAL-01B — Layered Platform Frame Direction checkpoint
 ```
 
 ---
@@ -36,9 +39,15 @@ Always confirm this in `package.json` before planning Phaser API work.
 ## Key decisions
 
 - **Primary biome**: Industrial RTS battlefield / mining platform (not sand desert)
+- **Selected map direction**: Candidate A — Heavy Mining Platform
+- **Allowed enrichment**: selected Candidate C details as secondary visual enrichment only
+- **Rejected as primary**: Candidate B visible grid direction
+- **Practical map model**: Layered Platform Frame + Tile Fill
 - **Sand terrain**: Paused as primary direction. Sand assets remain in repo as fallback.
 - **MAPLIFE #120**: Rejected. Desert decor must not be continued.
-- **Map presentation**: Grounded industrial platform with irregular edges and outer world frame
+- **Map presentation**: Grounded industrial platform with outer world frame
+- **Playable platform**: logically flat; visual height only on the outer frame / side walls
+- **Tile standard**: 384×192, 2:1 top-surface-only platform tiles
 - **Start position**: Lower-left start zone (future change)
 - **HUD target**: Bottom bar — minimap left, info center, commands right (StarCraft-inspired)
 - **Menu**: Preserve cinematic central composition, update background to industrial
@@ -52,6 +61,8 @@ Read these before any task:
 ```text
 docs/project/VISUAL_ROADMAP.md
 docs/project/VISUAL_SYSTEM_AUDIT.md
+docs/project/VISUAL_CANDIDATE_SUMMARY.md
+docs/project/VISUAL_01B_LAYERED_PLATFORM_FRAME.md
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
@@ -62,8 +73,10 @@ Important:
 
 ```text
 VISUAL_ROADMAP.md is the accepted planning direction.
-VISUAL_SYSTEM_AUDIT.md is the accepted audit with staged PR sequence (VISUAL-01 through VISUAL-12).
-Implementation tasks covered by the audit can proceed without a new mini-audit.
+VISUAL_SYSTEM_AUDIT.md is the accepted audit with staged PR sequence.
+VISUAL_CANDIDATE_SUMMARY.md records the selected Candidate A direction.
+VISUAL_01B_LAYERED_PLATFORM_FRAME.md records the accepted layered platform model.
+Implementation tasks covered by the audit can proceed without a new mini-audit if they do not expand scope.
 If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or combines multiple phases, stop and request approval.
 ```
 
@@ -72,18 +85,30 @@ If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or c
 ## Active next work
 
 ```text
-VISUAL-01 — Industrial map visual candidate workflow (docs/assets only)
+VISUAL-01B — Layered Platform Frame Direction checkpoint
 ```
 
-VISUAL-AUDIT-01 is complete. See `docs/project/VISUAL_SYSTEM_AUDIT.md` for the full audit with 12-PR staged implementation sequence.
-
-After VISUAL-01 (visual candidates approved):
+VISUAL-01 selected the visual direction:
 
 ```text
-VISUAL-02 — Map rendering prototype spike (dev-mode preview)
+Primary direction: Candidate A — Heavy Mining Platform
+Allowed enrichment: selected Candidate C details only as secondary visual detail
+Rejected as primary: Candidate B — visible grid risk
 ```
 
-Do not start VISUAL implementation before the audit is accepted and visual candidates are approved.
+VISUAL-01B documents the practical rendering model:
+
+```text
+background world + tile-filled platform center + arena frame overlay + invisible grid
+```
+
+After VISUAL-01B is reviewed and merged:
+
+```text
+VISUAL-02A — Layered Platform Frame Prototype (dev-only preview)
+```
+
+Do not start VISUAL-02A until VISUAL-01B is merged.
 
 ---
 
@@ -108,7 +133,7 @@ TERRAIN-FIX-01 (#121) — Grid seam removal (technical pipeline improvement) ✓
 
 These are done. Do not re-assign or re-list them as pending work.
 
-Still needed (not yet started, can proceed in parallel with VISUAL phases):
+Still needed (not yet started, can proceed in parallel with VISUAL phases where they do not conflict):
 
 ```text
 FOG-01 — Two-layer fog of war (design + implementation)
@@ -125,11 +150,11 @@ Sand terrain polish as primary direction is paused. MAPLIFE desert decor is reje
 TERRAIN-01 (#103) — Sand visual system — merged, but sand direction paused as primary biome
 TERRAIN-02 (#118) — Sand quality audit — merged, pipeline learnings preserved
 TERRAIN-FIX-01 (#121) — Sand grid seam removal — merged, code remains as fallback
-MAPLIFE-01 (#112) — Desert decor asset readiness — rejected visual direction
+MAPLIFE-01 (#112) — Desert decor asset readiness — rejected
 MAPLIFE #120 — Desert decor PR — visually rejected, not merged
 ```
 
-Sand assets and code remain in repo as fallback/reference. Future terrain work targets the industrial biome (VISUAL Phase V3).
+Sand assets and code remain in repo as fallback/reference. Future terrain work targets the industrial biome and the layered platform frame model.
 
 ---
 
@@ -167,6 +192,8 @@ Do not start these as immediate implementation:
 - fixing bad art by code-only patches
 - four-biome system now
 - copying StarCraft assets/UI exactly
+- production terrain replacement before dev-only VISUAL-02A proof
+- gameplay/pathfinding/economy changes inside VISUAL-02A
 ```
 
 ---
