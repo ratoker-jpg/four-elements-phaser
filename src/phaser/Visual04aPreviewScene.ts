@@ -57,10 +57,19 @@
  *   - Inner lip line along the platform boundary
  *   - All placeholder art — not final
  *
+ * VISUAL-04E additions:
+ *   - Polished procedural wall rendering under PNG frame top
+ *   - Lighter, more visible wall colors with gradient banding
+ *   - Horizontal panel divisions, bevel edges, bottom highlight
+ *   - Per-piece deterministic color variation from hash
+ *   - Softer top shadow transition at wall-top boundary
+ *   - W key toggles polished/simple wall mode
+ *
  * Controls:
  *   G — toggle grid overlay
  *   F — toggle frame debug outlines
  *   P — toggle PNG/procedural frame top
+ *   W — toggle polished/simple wall mode
  *   ESC — exit to PreloadScene → menu
  *
  * This scene does NOT replace production terrain.
@@ -155,11 +164,27 @@ const FRAME_TOP_BASE = 0x383846;       // Dark blue-gray metal base
 const FRAME_TOP_RAISED = 0x424252;     // Slightly lighter raised center
 const FRAME_TOP_DARK = 0x2c2c3a;       // Shadow/edge dark
 
-// Wall face colors
+// Wall face colors (VISUAL-04B base — used when W=OFF / simple mode)
 const FRAME_WALL_BASE = 0x181822;      // Very dark blue-gray
 const FRAME_WALL_LIGHT = 0x1e1e2a;     // Slightly lighter wall (right face)
 const FRAME_WALL_RIB = 0x101018;       // Dark rib line between panels
 const FRAME_WALL_TOP_SHADOW = 0x0e0e16; // Darkest shadow at wall top edge
+
+// Polished wall palette (VISUAL-04E — used when W=ON / polished mode)
+const WALL_LEFT_BASE = 0x222236;       // Dark blue-gray (left face, lit from right)
+const WALL_LEFT_UPPER = 0x282840;      // Lighter upper band (ambient bounce)
+const WALL_RIGHT_BASE = 0x2a2a42;      // Lighter right face (direct light)
+const WALL_RIGHT_UPPER = 0x30304c;     // Lighter upper band on right face
+const WALL_RIB_COLOR = 0x1a1a2c;       // Visible rib/panel division line
+const WALL_TOP_EDGE = 0x141428;        // Soft shadow at wall top
+const WALL_BOTTOM_EDGE = 0x383850;     // Subtle highlight at wall bottom
+const WALL_BEVEL_INNER = 0x3c3c58;     // Light edge on platform-facing side
+
+// Polished corner wall colors
+const CORNER_WALL_LEFT_BASE = 0x1a1a2e;  // Darker corner left face
+const CORNER_WALL_LEFT_UPPER = 0x1e1e36;
+const CORNER_WALL_RIGHT_BASE = 0x202038; // Slightly lighter corner right
+const CORNER_WALL_RIGHT_UPPER = 0x242440;
 
 // Bevel colors
 const FRAME_INNER_BEVEL = 0x585868;    // Light highlight on platform-facing edges
@@ -296,6 +321,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
   // Toggle state
   private gridVisible = false;
   private frameDebugVisible = false;
+  private wallPolished = true;  // VISUAL-04E: polished walls ON by default
 
   // Graphics layers
   private gridGraphics: Phaser.GameObjects.Graphics | null = null;
@@ -591,6 +617,12 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       this.updateInfoText();
     });
 
+    this.input.keyboard?.on('keydown-W', () => {
+      this.wallPolished = !this.wallPolished;
+      this.drawFrameWalls();
+      this.updateInfoText();
+    });
+
     this.input.keyboard?.on('keydown-ESC', () => {
       console.log('[Visual04aPreviewScene] ESC pressed. Starting PreloadScene to load production assets before menu.');
       this.scene.start('PreloadScene');
@@ -738,14 +770,26 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     }
   }
 
-  // ─── Frame wall face rendering (VISUAL-04B polished) ────────────
+  // ─── Frame wall face rendering (VISUAL-04E polished / VISUAL-04B simple) ──
 
   /**
-   * Draw wall faces for all frame pieces with industrial detail:
-   *   - Left and right face halves with directional shading
-   *   - Panel rib lines dividing each face into sections
-   *   - Darker top shadow where wall meets top surface
-   *   - Corners get taller walls for more substantial look
+   * Draw wall faces for all frame pieces.
+   *
+   * When wallPolished = true (VISUAL-04E, default):
+   *   - Two-tone gradient banding per face (upper lighter, lower darker)
+   *   - Horizontal panel divisions at mid-height
+   *   - Visible vertical rib lines
+   *   - Softer top edge shadow
+   *   - Subtle bottom edge highlight
+   *   - Inner bevel on platform-facing edges
+   *   - Per-piece deterministic color variation from hash
+   *   - Corner outline accent
+   *
+   * When wallPolished = false (VISUAL-04B legacy):
+   *   - Flat single-color fills per face
+   *   - Vertical rib lines (barely visible on dark base)
+   *   - Heavy top edge shadow
+   *   - Corner outline accent
    */
   private drawFrameWalls(): void {
     if (!this.frameWallGraphics) return;
@@ -756,77 +800,241 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const halfTH = this.runtimeTileH / 2;
 
     for (const piece of this.framePieces) {
-      const { sx, sy, isCorner } = piece;
+      const { sx, sy, isCorner, col, row } = piece;
       const effWallH = isCorner ? this.wallH * CORNER_WALL_MULT : this.wallH;
+      const h = hashColRow(col, row);
 
-      // ─── Left wall face (darker, as if lit from upper-right) ───
-      const leftWallColor = isCorner ? FRAME_CORNER_WALL : FRAME_WALL_BASE;
-      g.fillStyle(leftWallColor, 1);
-      g.beginPath();
-      g.moveTo(sx - halfTW, sy);                   // left vertex of diamond
-      g.lineTo(sx, sy + halfTH);                    // bottom vertex
-      g.lineTo(sx, sy + halfTH + effWallH);         // bottom + wall
-      g.lineTo(sx - halfTW, sy + effWallH);         // left + wall
-      g.closePath();
-      g.fillPath();
-
-      // ─── Right wall face (slightly lighter) ───────────────────
-      const rightWallColor = isCorner ? FRAME_CORNER_WALL_LIGHT : FRAME_WALL_LIGHT;
-      g.fillStyle(rightWallColor, 1);
-      g.beginPath();
-      g.moveTo(sx + halfTW, sy);                   // right vertex of diamond
-      g.lineTo(sx, sy + halfTH);                    // bottom vertex
-      g.lineTo(sx, sy + halfTH + effWallH);         // bottom + wall
-      g.lineTo(sx + halfTW, sy + effWallH);         // right + wall
-      g.closePath();
-      g.fillPath();
-
-      // ─── Panel rib lines on left face ─────────────────────────
-      // Two vertical ribs dividing left face into 3 panels
-      g.lineStyle(1, FRAME_WALL_RIB, 0.8);
-      for (const frac of [0.33, 0.67]) {
-        const ribX = sx - halfTW + halfTW * frac;
-        const ribTopY = sy + halfTH * frac;
-        const ribBotY = sy + effWallH + halfTH * frac;
-        g.beginPath();
-        g.moveTo(ribX, ribTopY);
-        g.lineTo(ribX, ribBotY);
-        g.strokePath();
-      }
-
-      // ─── Panel rib lines on right face ────────────────────────
-      for (const frac of [0.33, 0.67]) {
-        const ribX = sx + halfTW - halfTW * frac;
-        const ribTopY = sy + halfTH * frac;
-        const ribBotY = sy + effWallH + halfTH * frac;
-        g.beginPath();
-        g.moveTo(ribX, ribTopY);
-        g.lineTo(ribX, ribBotY);
-        g.strokePath();
-      }
-
-      // ─── Top edge shadow (darkest line where wall meets top) ──
-      g.lineStyle(2, FRAME_WALL_TOP_SHADOW, 0.9);
-      g.beginPath();
-      g.moveTo(sx - halfTW, sy);                   // left vertex
-      g.lineTo(sx, sy + halfTH);                    // bottom vertex
-      g.lineTo(sx + halfTW, sy);                    // right vertex
-      g.strokePath();
-
-      // ─── Corner outline accent ────────────────────────────────
-      if (isCorner) {
-        g.lineStyle(1, CORNER_OUTLINE_COLOR, 0.6);
-        // Outline the entire wall shape
-        g.beginPath();
-        g.moveTo(sx - halfTW, sy);
-        g.lineTo(sx + halfTW, sy);
-        g.lineTo(sx + halfTW, sy + effWallH);
-        g.lineTo(sx, sy + halfTH + effWallH);
-        g.lineTo(sx - halfTW, sy + effWallH);
-        g.closePath();
-        g.strokePath();
+      if (this.wallPolished) {
+        this.drawPolishedWall(g, sx, sy, halfTW, halfTH, effWallH, isCorner, h);
+      } else {
+        this.drawSimpleWall(g, sx, sy, halfTW, halfTH, effWallH, isCorner);
       }
     }
+  }
+
+  /**
+   * VISUAL-04E polished wall: two-tone banding, horizontal/vertical panels,
+   * bevels, bottom highlight, per-piece color variation.
+   */
+  private drawPolishedWall(
+    g: Phaser.GameObjects.Graphics,
+    sx: number, sy: number,
+    halfTW: number, halfTH: number,
+    effWallH: number, isCorner: boolean,
+    h: number
+  ): void {
+    // Per-piece subtle color variation from hash
+    const tint = (h - 0.5) * 2;  // -1..+1
+
+    // Upper/lower band split point (fraction of wall height from top)
+    const bandFrac = 0.45;
+
+    // ─── Left wall face: upper band (lighter) ──────────────────
+    const leftUpper = isCorner ? CORNER_WALL_LEFT_UPPER : WALL_LEFT_UPPER;
+    g.fillStyle(this.varyWallColor(leftUpper, tint), 1);
+    g.beginPath();
+    g.moveTo(sx - halfTW, sy);                           // left vertex
+    g.lineTo(sx, sy + halfTH);                            // bottom vertex
+    g.lineTo(sx, sy + halfTH + effWallH * bandFrac);      // bottom + upper band
+    g.lineTo(sx - halfTW, sy + effWallH * bandFrac);      // left + upper band
+    g.closePath();
+    g.fillPath();
+
+    // ─── Left wall face: lower band (darker) ──────────────────
+    const leftLower = isCorner ? CORNER_WALL_LEFT_BASE : WALL_LEFT_BASE;
+    g.fillStyle(this.varyWallColor(leftLower, tint), 1);
+    g.beginPath();
+    g.moveTo(sx - halfTW, sy + effWallH * bandFrac);     // left + band split
+    g.lineTo(sx, sy + halfTH + effWallH * bandFrac);      // bottom + band split
+    g.lineTo(sx, sy + halfTH + effWallH);                  // bottom + full wall
+    g.lineTo(sx - halfTW, sy + effWallH);                  // left + full wall
+    g.closePath();
+    g.fillPath();
+
+    // ─── Right wall face: upper band (lighter) ─────────────────
+    const rightUpper = isCorner ? CORNER_WALL_RIGHT_UPPER : WALL_RIGHT_UPPER;
+    g.fillStyle(this.varyWallColor(rightUpper, tint), 1);
+    g.beginPath();
+    g.moveTo(sx + halfTW, sy);                           // right vertex
+    g.lineTo(sx, sy + halfTH);                            // bottom vertex
+    g.lineTo(sx, sy + halfTH + effWallH * bandFrac);      // bottom + upper band
+    g.lineTo(sx + halfTW, sy + effWallH * bandFrac);      // right + upper band
+    g.closePath();
+    g.fillPath();
+
+    // ─── Right wall face: lower band (darker) ─────────────────
+    const rightLower = isCorner ? CORNER_WALL_RIGHT_BASE : WALL_RIGHT_BASE;
+    g.fillStyle(this.varyWallColor(rightLower, tint), 1);
+    g.beginPath();
+    g.moveTo(sx + halfTW, sy + effWallH * bandFrac);     // right + band split
+    g.lineTo(sx, sy + halfTH + effWallH * bandFrac);      // bottom + band split
+    g.lineTo(sx, sy + halfTH + effWallH);                  // bottom + full wall
+    g.lineTo(sx + halfTW, sy + effWallH);                  // right + full wall
+    g.closePath();
+    g.fillPath();
+
+    // ─── Horizontal panel division (band boundary) ─────────────
+    g.lineStyle(1, WALL_RIB_COLOR, 0.7);
+    // Left face horizontal
+    g.beginPath();
+    g.moveTo(sx - halfTW, sy + effWallH * bandFrac);
+    g.lineTo(sx, sy + halfTH + effWallH * bandFrac);
+    g.strokePath();
+    // Right face horizontal
+    g.beginPath();
+    g.moveTo(sx, sy + halfTH + effWallH * bandFrac);
+    g.lineTo(sx + halfTW, sy + effWallH * bandFrac);
+    g.strokePath();
+
+    // ─── Vertical rib lines on left face ───────────────────────
+    g.lineStyle(1, WALL_RIB_COLOR, 0.5);
+    for (const frac of [0.33, 0.67]) {
+      const ribX = sx - halfTW + halfTW * frac;
+      const ribTopY = sy + halfTH * frac;
+      const ribBotY = sy + effWallH + halfTH * frac;
+      g.beginPath();
+      g.moveTo(ribX, ribTopY);
+      g.lineTo(ribX, ribBotY);
+      g.strokePath();
+    }
+
+    // ─── Vertical rib lines on right face ──────────────────────
+    for (const frac of [0.33, 0.67]) {
+      const ribX = sx + halfTW - halfTW * frac;
+      const ribTopY = sy + halfTH * frac;
+      const ribBotY = sy + effWallH + halfTH * frac;
+      g.beginPath();
+      g.moveTo(ribX, ribTopY);
+      g.lineTo(ribX, ribBotY);
+      g.strokePath();
+    }
+
+    // ─── Soft top edge shadow ──────────────────────────────────
+    g.lineStyle(1, WALL_TOP_EDGE, 0.65);
+    g.beginPath();
+    g.moveTo(sx - halfTW, sy);
+    g.lineTo(sx, sy + halfTH);
+    g.lineTo(sx + halfTW, sy);
+    g.strokePath();
+
+    // ─── Bottom edge highlight ─────────────────────────────────
+    g.lineStyle(1, WALL_BOTTOM_EDGE, 0.35);
+    g.beginPath();
+    g.moveTo(sx - halfTW, sy + effWallH);
+    g.lineTo(sx, sy + halfTH + effWallH);
+    g.lineTo(sx + halfTW, sy + effWallH);
+    g.strokePath();
+
+    // ─── Inner bevel (platform-facing vertical edge) ────────────
+    // The vertical edge where the two wall faces meet (at bottom vertex)
+    // gets a subtle highlight to suggest the interior corner
+    g.lineStyle(1, WALL_BEVEL_INNER, 0.3);
+    g.beginPath();
+    g.moveTo(sx, sy + halfTH);
+    g.lineTo(sx, sy + halfTH + effWallH);
+    g.strokePath();
+
+    // ─── Corner outline accent ─────────────────────────────────
+    if (isCorner) {
+      g.lineStyle(1, CORNER_OUTLINE_COLOR, 0.5);
+      g.beginPath();
+      g.moveTo(sx - halfTW, sy);
+      g.lineTo(sx + halfTW, sy);
+      g.lineTo(sx + halfTW, sy + effWallH);
+      g.lineTo(sx, sy + halfTH + effWallH);
+      g.lineTo(sx - halfTW, sy + effWallH);
+      g.closePath();
+      g.strokePath();
+    }
+  }
+
+  /**
+   * VISUAL-04B legacy simple wall: flat fills, basic ribs, heavy top shadow.
+   */
+  private drawSimpleWall(
+    g: Phaser.GameObjects.Graphics,
+    sx: number, sy: number,
+    halfTW: number, halfTH: number,
+    effWallH: number, isCorner: boolean
+  ): void {
+    // ─── Left wall face (darker, as if lit from upper-right) ───
+    const leftWallColor = isCorner ? FRAME_CORNER_WALL : FRAME_WALL_BASE;
+    g.fillStyle(leftWallColor, 1);
+    g.beginPath();
+    g.moveTo(sx - halfTW, sy);
+    g.lineTo(sx, sy + halfTH);
+    g.lineTo(sx, sy + halfTH + effWallH);
+    g.lineTo(sx - halfTW, sy + effWallH);
+    g.closePath();
+    g.fillPath();
+
+    // ─── Right wall face (slightly lighter) ───────────────────
+    const rightWallColor = isCorner ? FRAME_CORNER_WALL_LIGHT : FRAME_WALL_LIGHT;
+    g.fillStyle(rightWallColor, 1);
+    g.beginPath();
+    g.moveTo(sx + halfTW, sy);
+    g.lineTo(sx, sy + halfTH);
+    g.lineTo(sx, sy + halfTH + effWallH);
+    g.lineTo(sx + halfTW, sy + effWallH);
+    g.closePath();
+    g.fillPath();
+
+    // ─── Panel rib lines on left face ─────────────────────────
+    g.lineStyle(1, FRAME_WALL_RIB, 0.8);
+    for (const frac of [0.33, 0.67]) {
+      const ribX = sx - halfTW + halfTW * frac;
+      const ribTopY = sy + halfTH * frac;
+      const ribBotY = sy + effWallH + halfTH * frac;
+      g.beginPath();
+      g.moveTo(ribX, ribTopY);
+      g.lineTo(ribX, ribBotY);
+      g.strokePath();
+    }
+
+    // ─── Panel rib lines on right face ────────────────────────
+    for (const frac of [0.33, 0.67]) {
+      const ribX = sx + halfTW - halfTW * frac;
+      const ribTopY = sy + halfTH * frac;
+      const ribBotY = sy + effWallH + halfTH * frac;
+      g.beginPath();
+      g.moveTo(ribX, ribTopY);
+      g.lineTo(ribX, ribBotY);
+      g.strokePath();
+    }
+
+    // ─── Top edge shadow (darkest line where wall meets top) ──
+    g.lineStyle(2, FRAME_WALL_TOP_SHADOW, 0.9);
+    g.beginPath();
+    g.moveTo(sx - halfTW, sy);
+    g.lineTo(sx, sy + halfTH);
+    g.lineTo(sx + halfTW, sy);
+    g.strokePath();
+
+    // ─── Corner outline accent ────────────────────────────────
+    if (isCorner) {
+      g.lineStyle(1, CORNER_OUTLINE_COLOR, 0.6);
+      g.beginPath();
+      g.moveTo(sx - halfTW, sy);
+      g.lineTo(sx + halfTW, sy);
+      g.lineTo(sx + halfTW, sy + effWallH);
+      g.lineTo(sx, sy + halfTH + effWallH);
+      g.lineTo(sx - halfTW, sy + effWallH);
+      g.closePath();
+      g.strokePath();
+    }
+  }
+
+  /**
+   * Vary a wall color by a signed amount (-1..+1), with wider range
+   * than varyColor to make wall variation more visible on lighter base.
+   */
+  private varyWallColor(baseColor: number, amount: number): number {
+    const r = ((baseColor >> 16) & 0xFF) + Math.round(amount * 8);
+    const gr = ((baseColor >> 8) & 0xFF) + Math.round(amount * 8);
+    const b = (baseColor & 0xFF) + Math.round(amount * 10);
+    return (Math.max(0, Math.min(255, r)) << 16) |
+           (Math.max(0, Math.min(255, gr)) << 8) |
+           Math.max(0, Math.min(255, b));
   }
 
   // ─── PNG frame top block (VISUAL-04D) ──────────────────────────
@@ -1155,8 +1363,10 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       ? 'PNG'
       : 'procedural fallback';
 
+    const wallMode = this.wallPolished ? 'polished' : 'simple';
+
     const lines = [
-      'VISUAL-04D — Single PNG Frame Top Block',
+      'VISUAL-04E — Polished Procedural Walls',
       '',
       `Arena: ${ARENA_N}×${ARENA_N} (platform ${GRID_N} + border ${FRAME_BORDER})`,
       `Platform tiles: ${this.tilePlacements.length}`,
@@ -1173,10 +1383,12 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       `Grid overlay:    ${this.gridVisible ? 'ON' : 'OFF'}  [G] toggle`,
       `Frame debug:     ${this.frameDebugVisible ? 'ON' : 'OFF'}  [F] toggle`,
       `Frame top:       ${frameTopMode}  [P] toggle`,
+      `Walls:           ${wallMode}  [W] toggle`,
       '[ESC] exit → preload → menu',
       '',
       `Background:      ${this.bgAvailable ? 'image' : 'fallback (procedural)'}`,
       `Frame top:       ${frameTopMode}`,
+      `Walls:           ${wallMode}`,
       'Mask: GeometryMask (inner diamond clip)',
       'Variation: deterministic hash (no Math.random)',
       'Dev-only prototype. No runtime integration.',
