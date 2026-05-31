@@ -27,12 +27,14 @@ VISUAL-01C — Tile visual balancing proof
 VISUAL-02A — Dev-only layered platform preview
 VISUAL-02B — Exact 2:1 frame geometry proof
 VISUAL-02C — Closed/rejected static PNG proof
+VISUAL-03A through VISUAL-04F — Runtime modular frame prototypes and PNG assets
 ```
 
 `docs/project/VISUAL_ROADMAP.md` is the accepted planning direction.
 `docs/project/VISUAL_SYSTEM_AUDIT.md` is the accepted audit with staged PR sequence.
 `docs/project/VISUAL_CANDIDATE_SUMMARY.md` contains the selected Candidate A direction.
 `docs/project/VISUAL_01B_LAYERED_PLATFORM_FRAME.md` contains the accepted layered platform model.
+`docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md` contains the production integration plan.
 
 The previous Phase 2 roadmap, sand terrain as primary direction, and MAPLIFE desert decor are archived/rejected.
 
@@ -60,63 +62,74 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-03A — Runtime Layered Platform Prototype
+VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom
 ```
 
 Goal:
 
 ```text
-Create a runtime/dev prototype of the accepted layered platform model:
-background world
-+ platform tile layer
-+ mask/clip to arena center / playable diamond
-+ arena frame overlay
-+ optional debug grid
+Extend the ?visual04a dev preview to support larger map sizes (96/128/192)
+with camera pan/zoom, proving the visual model scales before production integration.
 ```
 
-This is the next step because static PNG proof was not reliable:
+The full integration plan is documented in:
 
 ```text
-VISUAL-02C / PR #131 was closed and rejected.
-It showed that trying to validate the tile-filled platform as one static proof image creates bad composition and misleading geometry.
-The correct path is runtime layering with a mask/clip, not more static PNG tilefill proof attempts.
+docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md
 ```
 
----
-
-## What VISUAL-03A is allowed to do
+PR sequence (from the plan):
 
 ```text
-- create a dev/prototype runtime route or mode
-- load approved/proof background/frame/tile assets into an isolated dev location if needed
-- render separate Phaser layers:
-  background
-  tile layer
-  frame overlay
-  debug grid
-- use a geometry mask or equivalent clip so tile layer does not visually spill outside the intended arena center
-- keep gameplay logical grid unchanged
-- document how to open and review the prototype
+PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom
+PR 2 — Production terrain/platform assets behind mapStyle flag
+PR 3 — Production frame/background layer
+PR 4 — Lower-left HQ/camera/resource composition
+PR 5 — Make industrial map default for new games after QA
+```
+
+Production map sizes:
+
+```text
+Small:  96×96 playable,  98×98 outer
+Medium: 128×128 playable, 130×130 outer
+Large:  192×192 playable, 194×194 outer
 ```
 
 ---
 
-## What VISUAL-03A must NOT do
+## What VISUAL-05A is allowed to do
 
 ```text
-- do not replace production terrain globally in the first PR
-- do not change gameplay
-- do not change pathfinding
-- do not change economy
-- do not change building placement
-- do not change unit logic
-- do not change save/load
+- create production integration code behind feature flag or mapStyle config
+- extend the ?visual04a dev preview to support larger map sizes
+- modify TerrainRenderer or create IndustrialTerrainRenderer
+- add frame border rendering to the production renderer
+- add background/world layer to the production renderer
+- move HQ to lower-left start zone
+- adjust camera start and bounds
+- update starter resource placement relative to new HQ position
+- update NewGameSetupScene with new size options and map style
+- update tests that assert HQ at (4, 4)
+- each PR in the sequence must be independently reviewable and mergeable
+```
+
+---
+
+## What VISUAL-05A must NOT do
+
+```text
+- do not change economy values or resource amounts
+- do not change pathfinding or occupancy logic
+- do not change the isometric coordinate system
+- do not break save/load compatibility without version field
+- do not remove sand terrain code/assets (keep as fallback)
 - do not continue sand terrain as primary direction
 - do not continue MAPLIFE #120 / desert decor
-- do not use PR #131 as approved production art
-- do not copy StarCraft assets/UI directly
+- do not change gameplay mechanics
 - do not add new dependencies
 - do not change Phaser version
+- do not mix multiple PRs into one
 ```
 
 ---
@@ -124,17 +137,18 @@ The correct path is runtime layering with a mask/clip, not more static PNG tilef
 ## Immediate implementation queue
 
 ```text
-1. VISUAL-03A — Runtime Layered Platform Prototype — current
-2. VISUAL-03B — Production terrain/platform integration, only after 03A visual approval
-3. VISUAL-04 — Map frame / grounded presentation production pass
-4. VISUAL-05 — Lower-left start composition
-5. VISUAL-06 — Resource field visual model design
-6. VISUAL-07 — HUD layout design doc
-7. VISUAL-08 — HUD shell implementation
-8. VISUAL-09 — Command panel/hotkey visual pass
-9. VISUAL-10 — Main menu visual refresh
-10. VISUAL-11 — Harvester/builder visual workflow design
-11. VISUAL-12 — Approved unit visual integration
+1. VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 — current
+2. VISUAL-05A PR 2 — Production terrain behind mapStyle flag
+3. VISUAL-05A PR 3 — Production frame/background layer
+4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition
+5. VISUAL-05A PR 5 — Make industrial map default after QA
+6. VISUAL-06 — Resource field visual model design
+7. VISUAL-07 — HUD layout design doc
+8. VISUAL-08 — HUD shell implementation
+9. VISUAL-09 — Command panel/hotkey visual pass
+10. VISUAL-10 — Main menu visual refresh
+11. VISUAL-11 — Harvester/builder visual workflow design
+12. VISUAL-12 — Approved unit visual integration
 ```
 
 Previously listed Phase 2 tasks are already completed/merged — see `PROJECT_STATE.md` "Completed foundation" section.
