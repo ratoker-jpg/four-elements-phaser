@@ -62,7 +62,7 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-06B — Resource candidate asset review package (review/prompts)
+VISUAL-06B1 — Resource model pivot: 1x1 richness tiers + 2x2 central infinite (docs)
 ```
 
 Alternative:
@@ -74,9 +74,10 @@ Post-VISUAL-05A QA polish backlog
 Reason:
 
 ```text
-VISUAL-06A is COMPLETE (PR #150).
-VISUAL-06B is the candidate review step — prompts and acceptance checklist
-for industrial resource visuals, based on the approved Option A direction.
+VISUAL-06A is COMPLETE (PR #150). VISUAL-06B review package is COMPLETE (PR #151).
+VISUAL-06B1 pivots the resource model: normal nodes are 1x1 richness-tier
+(very_poor/poor/medium/rich/very_rich), central infinite is a single 2x2 deposit.
+No 3x3 infinite group. No normal 2x2/3x3 resources.
 VISUAL-06C (approved assets to repo) only after owner visual approval.
 No implementation before candidate approval.
 ```
@@ -192,17 +193,18 @@ VISUAL-06 may (with explicit task scope):
 4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition — DONE (PR #147)
 5. VISUAL-05A PR 5 — Make industrial map default after QA — DONE (PR #148)
 6. VISUAL-06A — Resource field visual model (docs/design) — DONE (PR #150)
-7. VISUAL-06B — Resource candidate asset review — current
-8. VISUAL-06C — Approved resource assets added to repo — after 06B approval
-9. VISUAL-06D — Preload/manifest wiring behind resourceStyle flag — after 06C
-10. VISUAL-06E — Production resource rendering for industrial — after 06D
-11. VISUAL-06F — QA polish if readability issues — after 06E
-12. VISUAL-07 — HUD layout design doc
-13. VISUAL-08 — HUD shell implementation
-14. VISUAL-09 — Command panel/hotkey visual pass
-15. VISUAL-10 — Main menu visual refresh
-16. VISUAL-11 — Harvester/builder visual workflow design
-17. VISUAL-12 — Approved unit visual integration
+7. VISUAL-06B — Resource candidate asset review — DONE (PR #151)
+8. VISUAL-06B1 — Resource model pivot: 1x1 richness tiers + 2x2 infinite — current
+9. VISUAL-06C — Approved resource assets added to repo — after visual approval
+10. VISUAL-06D — Preload/manifest wiring behind resourceStyle flag — after 06C
+11. VISUAL-06E — Production resource rendering for industrial — after 06D
+12. VISUAL-06F — QA polish if readability issues — after 06E
+13. VISUAL-07 — HUD layout design doc
+14. VISUAL-08 — HUD shell implementation
+15. VISUAL-09 — Command panel/hotkey visual pass
+16. VISUAL-10 — Main menu visual refresh
+17. VISUAL-11 — Harvester/builder visual workflow design
+18. VISUAL-12 — Approved unit visual integration
 ```
 
 VISUAL-05A sequence is COMPLETE (PR #144–#148 all merged).

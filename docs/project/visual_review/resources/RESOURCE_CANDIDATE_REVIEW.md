@@ -20,8 +20,11 @@ This is a visual review package only. It does not integrate anything into the ga
 The following decisions were made by the project owner before this review package was created:
 
 ```text
-Visual direction:         Option A — Mineral ore/crystal node embedded in cracked industrial flooring
-Infinite deposit model:   Coordinated 3x3 group of 1x1 nodes, not one huge multi-cell blob
+Visual direction:         Option A — Mineral ore/crystal node (crystal overlay only, no platform tile/floor slab)
+Normal resources:         1x1 richness-tier nodes only — very_poor, poor, medium, rich, very_rich
+Central infinite:         Separate 2x2 deposit (infinite_center_2x2), not part of 1x1 classification
+No normal 2x2/3x3:       No normal multi-cell resource assets; only infinite is 2x2
+No 3x3 infinite:          Central infinite is a single 2x2 object, not a group of 1x1 nodes
 Depleted state:           Do NOT create a depleted asset in this step; keep current hidden/removed behavior
 Glow brightness:          Medium accent glow, readable against gray platform tiles, not overly bright
 ```
@@ -79,14 +82,21 @@ Each candidate image must satisfy the following requirements derived from the VI
 - Mineral ore/crystal protrusion embedded in a cracked section of industrial flooring.
 - The ore is a crystalline or metallic formation rising from a break in the gray platform surface.
 - A crack or marking around the base provides visual anchor that this cell contains a resource.
-- Ore color is a distinct accent against gray platform — amber or teal glow recommended.
+- Ore color is a distinct accent against gray platform — teal-blue / cyan-blue glow recommended for current candidate pass; amber may be explored later as alternate palette.
 
-### Size variants
+### Richness variants (all 1x1 footprint)
 
-- **small**: Ore protrusion covers approximately 25-35% of the cell diamond area. Faint glow, minimal crack.
-- **medium**: Ore cluster covers approximately 35-50% of the cell diamond area. Visible glow, wider crack.
-- **large**: Prominent ore formation covers approximately 50-65% of the cell diamond area. Strong glow, large crack.
-- **infinite**: Largest individual node with a unique visual that reads as special without being confused with a building. Brighter glow or unique color shift. Uses same 1x1 cell approach.
+All normal resource nodes are 1x1 footprint. Richness is shown by crystal count/density and glow intensity — not by footprint size.
+
+- **very_poor**: 1-2 tiny crystals, weak glow. Barely rising from the floor.
+- **poor**: 2-4 small crystals, low glow. Clearly a resource but not rich.
+- **medium**: 5-8 moderate crystals, medium glow. Standard field node.
+- **rich**: 8-12 crystals, stronger glow. Dense cluster, unmistakably rich.
+- **very_rich**: 12-16 crystals, bright glow. Densest 1x1 node, still fits one cell.
+
+### Central infinite deposit (2x2 footprint)
+
+- **infinite_center_2x2**: Large central infinite mineral deposit. The only 2x2 resource visual. Not part of the 1x1 richness classification. Special glow (amber-teal shift), must read as special without being confused with a building.
 
 ### Glow
 
@@ -98,7 +108,7 @@ Each candidate image must satisfy the following requirements derived from the VI
 
 - No drill, extractor, pump, or mechanical device as the primary visual element.
 - No metal base ring or mechanical mounting around the ore.
-- No large multi-cell resource blob for normal nodes (small/medium/large).
+- No normal 2x2 or 3x3 resource assets — only the central infinite deposit is 2x2.
 - No building-like silhouette — resources must read as harvestable material, not structures.
 - No oversized shadow — small contact shadow acceptable, must not extend beyond cell boundary.
 
@@ -113,16 +123,16 @@ Use this checklist to evaluate each candidate image:
 | 1 | Transparent PNG, no background | | | |
 | 2 | Clean alpha boundaries, no fringe/halo | | | |
 | 3 | Consistent 2:1 isometric perspective | | | |
-| 4 | 1x1 logical node readability | | | |
-| 5 | small/medium/large visually distinguishable by size and glow | | | |
-| 6 | infinite visually special but not building-like | | | |
+| 4 | All normal variants fit one 1x1 isometric footprint | | | |
+| 5 | Richness tiers distinguishable by crystal count/density/glow, not footprint size | | | |
+| 6 | Central infinite is 2x2 footprint, visually special but not building-like | | | |
 | 7 | Medium glow, not noisy or overpowering | | | |
 | 8 | Ore reads as raw mineral, not a structure or machine | | | |
-| 9 | Crack/marking visible around ore base | | | |
+| 9 | No platform tile or floor slab included in 1x1 crystal sprites | | | |
 | 10 | No oversized shadow beyond cell boundary | | | |
 | 11 | No drill/extractor/mechanical element | | | |
 | 12 | No metal base ring as primary framing | | | |
-| 13 | No large multi-cell blob for normal nodes | | | |
+| 13 | No normal 2x2 or 3x3 resource assets | | | |
 | 14 | No gameplay/economy assumptions in art | | | |
 | 15 | Readable at gameplay zoom after scaling | | | |
 
@@ -132,8 +142,8 @@ Use this checklist to evaluate each candidate image:
 
 1. Open each candidate PNG in this directory.
 2. Evaluate against the checklist above.
-3. Compare small, medium, large, and infinite variants side-by-side for visual consistency.
-4. If a 3x3 infinite deposit preview is provided, evaluate whether the 9 nodes read as a coherent group.
+3. Compare very_poor, poor, medium, rich, and very_rich variants side-by-side for visual consistency.
+4. Evaluate the 2x2 central infinite deposit separately — it is a single 2x2 object, not a group of 1x1 nodes.
 5. Decide:
    - **Approve as-is**: Candidate passes all checklist items and can proceed to VISUAL-06C.
    - **Approve with modifications**: Candidate is close but needs specific changes (document which items need revision).
