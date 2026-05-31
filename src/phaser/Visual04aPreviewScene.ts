@@ -1,6 +1,13 @@
 /**
  * Visual04aPreviewScene — modular grid-aligned arena frame prototype.
  *
+ * VISUAL-04F: Integrate single PNG wall face block.
+ * Replaces procedural side wall faces with a PNG wall face asset
+ * (frame_wall_face_block_left.png). The left-facing PNG is placed
+ * normally; the right-facing side mirrors the same PNG and applies
+ * no darkening tint (white/original brightness) to simulate directional lighting. Procedural walls remain as
+ * fallback. W key toggles PNG/procedural wall mode.
+ *
  * VISUAL-04D: Integrate single PNG frame top block asset.
  * Replaces procedural top surfaces with a universal PNG frame top block
  * while keeping procedural wall faces from VISUAL-04B underneath.
@@ -9,21 +16,18 @@
  * Improves visual quality of the Phaser Graphics placeholder art while
  * keeping the exact same grid-aligned geometry from VISUAL-04A.
  *
- * Visual improvements over VISUAL-04A (flat placeholder):
- *   - Darker industrial concrete/metal palette
- *   - Layered polygons for top surfaces (not one flat fill)
- *   - Inner bevel/lip highlight on platform-facing edges
- *   - Outer bevel shadow on outward-facing edges
- *   - Darker wall faces with panel divisions/ribs
- *   - Small bolt details on top surfaces
- *   - Subtle deterministic dirt/noise per piece (col,row hash)
- *   - More substantial corner blocks (taller walls, bolder colors)
- *   - Hazard stripe accents on corner pieces
+ * VISUAL-04F additions:
+ *   - Load frame_wall_face_block_left.png (384×288 canvas) for wall faces
+ *   - PNG wall face replaces procedural walls when available and toggled ON
+ *   - Left side: normal PNG wall image
+ *   - Right side: horizontally mirrored PNG wall image, no tint (original brightness)
+ *   - W key toggles between PNG and procedural wall faces
+ *   - Fallback to procedural walls if PNG wall fails to load
+ *   - Wall side tint: dark tint on left side (shadow), no tint on right (original brightness)
  *
  * VISUAL-04D additions:
  *   - Load frame_top_block.png (384×348 canvas, 368×184 diamond) for frame top surfaces
  *   - PNG overlay replaces procedural tops when available and toggled ON
- *   - Procedural wall faces always remain underneath
  *   - P key toggles between PNG and procedural frame tops
  *   - Fallback to procedural tops if PNG fails to load
  *   - Inner lip always drawn regardless of PNG/procedural mode
@@ -38,6 +42,7 @@
  *   Layer 0 — background world image (optional, with procedural fallback)
  *   Layer 1 — platform tile layer (9×9 grid, clipped to inner diamond)
  *   Layer 2a — frame wall faces (dark, behind tops)
+ *             (PNG wall images OR procedural, toggled with W)
  *   Layer 2b — frame top surfaces + inner lip (in front)
  *             (PNG overlay OR procedural, toggled with P)
  *   Layer 3 — optional debug grid overlay (G toggle)
@@ -61,6 +66,7 @@
  *   G — toggle grid overlay
  *   F — toggle frame debug outlines
  *   P — toggle PNG/procedural frame top
+ *   W — toggle PNG/procedural wall faces
  *   ESC — exit to PreloadScene → menu
  *
  * This scene does NOT replace production terrain.
@@ -106,6 +112,7 @@ const CORNER_WALL_MULT = 1.35;
 
 const ASSET_KEY_BG = 'visual04a_bg';
 const ASSET_KEY_FRAME_TOP_BLOCK = 'visual04a_frame_top_block';
+const ASSET_KEY_WALL_FACE_LEFT = 'visual04a_wall_face_left';
 const TILE_ASSET_KEY_PREFIX = 'visual04a_tile_';
 
 // ─── Frame top block PNG constants (VISUAL-04D) ───────────────────
@@ -137,6 +144,57 @@ const FRAME_TOP_BLOCK_DIAMOND_CY = 120;
  * Origin X = 0.5 (horizontal center, standard for isometric diamonds).
  */
 const FRAME_TOP_BLOCK_ORIGIN_Y = FRAME_TOP_BLOCK_DIAMOND_CY / FRAME_TOP_BLOCK_SRC_H;
+
+// ─── Wall face PNG constants (VISUAL-04F) ──────────────────────────
+
+/**
+ * Wall face PNG canvas: 384×288 px.
+ * Visible wall-face polygon within the canvas:
+ *   top-left:     [96, 40]
+ *   top-right:    [288, 136]
+ *   bottom-right: [288, 248]
+ *   bottom-left:  [96, 152]
+ *
+ * Top edge vector = [192, 96] (top-left → top-right)
+ * The top edge should align with one runtime frame-cell side edge.
+ *
+ * Anchor: use top-left polygon point for edge placement.
+ *   originX = 96 / 384 = 0.25
+ *   originY = 40 / 288 ≈ 0.1389
+ *
+ * Uniform scale maps the source top-edge vector [192, 96] to the
+ * runtime side edge. Initial scale = runtimeTileW / 384 (canvas width).
+ * If adjustment is needed, use small named dev-only constants.
+ */
+const WALL_FACE_SRC_W = 384;
+const WALL_FACE_SRC_H = 288;
+
+/** Top-left of visible wall polygon — used as anchor for edge placement. */
+const WALL_FACE_ANCHOR_X = 96 / WALL_FACE_SRC_W;   // 0.25
+const WALL_FACE_ANCHOR_Y = 40 / WALL_FACE_SRC_H;    // ≈ 0.1389
+
+/**
+ * Dev-only scale adjustment for wall PNG alignment.
+ * Set to 1.0 for default; adjust if the wall PNG needs fine-tuning
+ * relative to the frame-cell side edge.
+ */
+const WALL_FACE_SCALE_ADJUST = 1.0;
+
+/**
+ * Tint color applied to the left-side (shadow) wall face.
+ * Applied via setTint (multiplicative), so this darkens the left face
+ * to simulate directional lighting from the upper-right.
+ * ~47% brightness, blue-gray tint for industrial concrete/metal shadow.
+ */
+const WALL_FACE_LEFT_TINT = 0x777788;
+
+/**
+ * Tint color applied to the right-side (lit) wall face.
+ * 0xffffff = no darkening. Phaser setTint is multiplicative, so white
+ * preserves the original PNG pixel colors exactly — this is the lit side,
+ * not an extra glow.
+ */
+const WALL_FACE_RIGHT_TINT = 0xffffff;
 
 // ─── Depth layers ─────────────────────────────────────────────────
 
@@ -333,6 +391,11 @@ export class Visual04aPreviewScene extends Phaser.Scene {
   private pngFrameTopVisible = true;  // default ON if asset loads
   private pngFrameTopImages: Phaser.GameObjects.Image[] = [];
 
+  // PNG wall face block (VISUAL-04F)
+  private pngWallFaceAvailable = false;
+  private pngWallFaceVisible = true;  // default ON if asset loads
+  private pngWallFaceImages: Phaser.GameObjects.Image[] = [];
+
   // Mask
   private maskGraphics: Phaser.GameObjects.Graphics | null = null;
   private tileContainer: Phaser.GameObjects.Container | null = null;
@@ -348,9 +411,13 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     // Load frame top block PNG (optional — fallback to procedural if fails)
     this.load.image(ASSET_KEY_FRAME_TOP_BLOCK, 'dev-visual/visual-04/frame/frame_top_block.png');
 
-    // Track background and frame top block load failures so create() can use fallbacks
+    // Load wall face PNG (optional — fallback to procedural if fails)  [VISUAL-04F]
+    this.load.image(ASSET_KEY_WALL_FACE_LEFT, 'dev-visual/visual-04/frame/frame_wall_face_block_left.png');
+
+    // Track background, frame top block, and wall face load failures
     this.bgAvailable = true;  // assume success until loaderror
     this.pngFrameTopAvailable = true;  // assume success until loaderror
+    this.pngWallFaceAvailable = true;  // assume success until loaderror
     this.load.on('loaderror', (file: Phaser.Loader.File) => {
       console.error(`[Visual04a] Failed to load: ${file.key} (${file.url})`);
       if (file.key === ASSET_KEY_BG) {
@@ -360,6 +427,10 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       if (file.key === ASSET_KEY_FRAME_TOP_BLOCK) {
         this.pngFrameTopAvailable = false;
         console.warn('[Visual04a] Frame top block PNG unavailable, using procedural fallback.');
+      }
+      if (file.key === ASSET_KEY_WALL_FACE_LEFT) {
+        this.pngWallFaceAvailable = false;
+        console.warn('[Visual04a] Wall face PNG unavailable, using procedural wall fallback.');
       }
     });
 
@@ -505,6 +576,10 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     this.frameWallGraphics.setDepth(DEPTH_FRAME_WALLS);
     this.drawFrameWalls();
 
+    // ─── Layer 2a-PNG: PNG wall face images (VISUAL-04F) ──────────
+
+    this.createPngWallFaces();
+
     // ─── Layer 1: Platform tiles (masked to inner diamond) ────────
 
     // Create diamond mask for platform clipping
@@ -588,6 +663,13 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       if (!this.pngFrameTopAvailable) return;  // no PNG to toggle
       this.pngFrameTopVisible = !this.pngFrameTopVisible;
       this.applyFrameTopMode();
+      this.updateInfoText();
+    });
+
+    this.input.keyboard?.on('keydown-W', () => {
+      if (!this.pngWallFaceAvailable) return;  // no PNG wall to toggle
+      this.pngWallFaceVisible = !this.pngWallFaceVisible;
+      this.applyWallFaceMode();
       this.updateInfoText();
     });
 
@@ -738,6 +820,130 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     }
   }
 
+  // ─── PNG wall face block (VISUAL-04F) ───────────────────────────
+
+  /**
+   * Create PNG wall face images for each frame piece.
+   * If the PNG failed to load, this is a no-op and procedural walls remain.
+   *
+   * The wall face PNG (384×288 canvas) contains a visible wall polygon:
+   *   top-left: [96, 40], top-right: [288, 136],
+   *   bottom-right: [288, 248], bottom-left: [96, 152]
+   *
+   * Placement strategy:
+   *   - For each frame piece, determine which wall faces are visible (outer)
+   *     using getEdgeInfo(). Only outer-facing wall sides get a PNG image;
+   *     inner-facing sides are hidden by the platform/tiles above.
+   *   - Left wall face: created only if the bottom→left edge (Edge 2) is outer.
+   *     Placed with anchor at the top-left polygon point, aligned to the
+   *     left→bottom side edge of the diamond.
+   *   - Right wall face: created only if the right→bottom edge (Edge 1) is outer.
+   *     Mirrored via setScale(-scale, scale) with the SAME origin as the left
+   *     wall. Phaser's negative X scale flips the image around the origin,
+   *     so the anchor (top-left polygon point) maps to the right vertex and
+   *     the wall extends down-left. No tint applied (original brightness, lit side).
+   *
+   * This filtering prevents "black vertical fins" on the top/far edges of
+   * the arena where wall faces would face inward (toward the platform) and
+   * should not be visible.
+   *
+   * Scale = runtimeTileW / 384 (canvas width), adjusted by WALL_FACE_SCALE_ADJUST.
+   */
+  private createPngWallFaces(): void {
+    if (!this.pngWallFaceAvailable) return;
+
+    // Verify the texture actually loaded and is usable
+    try {
+      const tex = this.textures.get(ASSET_KEY_WALL_FACE_LEFT);
+      const src = tex.getSourceImage() as HTMLImageElement | HTMLCanvasElement | ImageBitmap;
+      if (!src || !src.width || !src.height) {
+        this.pngWallFaceAvailable = false;
+        console.warn('[Visual04a] Wall face PNG texture invalid, using procedural wall fallback.');
+        return;
+      }
+    } catch {
+      this.pngWallFaceAvailable = false;
+      console.warn('[Visual04a] Wall face PNG texture error, using procedural wall fallback.');
+      return;
+    }
+
+    const halfTW = this.runtimeTileW / 2;
+
+    // Uniform scale: map canvas width to runtime tile width
+    const scale = (this.runtimeTileW / WALL_FACE_SRC_W) * WALL_FACE_SCALE_ADJUST;
+
+    let leftCount = 0;
+    let rightCount = 0;
+
+    for (const piece of this.framePieces) {
+      const { sx, sy } = piece;
+
+      // Determine which diamond edges face outward (visible walls)
+      // Edge indices: 0=top→right, 1=right→bottom, 2=bottom→left, 3=left→top
+      const edges = getEdgeInfo(sx, sy, this.arenaCX, this.arenaCY);
+
+      // ─── Left wall face PNG ─────────────────────────────────────
+      // The left wall face hangs from the left→bottom edge (= Edge 2 reversed).
+      // Only draw if Edge 2 (bottom→left) faces outward.
+      if (edges[2].isOuter) {
+        // Anchor (top-left polygon point) maps to the left vertex of the diamond.
+        const img = this.add.image(sx - halfTW, sy, ASSET_KEY_WALL_FACE_LEFT);
+        img.setScale(scale);
+        img.setOrigin(WALL_FACE_ANCHOR_X, WALL_FACE_ANCHOR_Y);
+        img.setDepth(DEPTH_FRAME_WALLS);
+        img.setVisible(this.pngWallFaceVisible);
+        // Apply darker multiplicative tint for depth (left face in shadow).
+        img.setTint(WALL_FACE_LEFT_TINT);
+        this.pngWallFaceImages.push(img);
+        leftCount++;
+      }
+
+      // ─── Right wall face PNG (mirrored, no tint — lit side) ────────
+      // The right wall face hangs from the right→bottom edge (= Edge 1).
+      // Only draw if Edge 1 (right→bottom) faces outward.
+      // Use setScale(-scale, scale) with the SAME origin as the left wall.
+      // Phaser's negative X scale flips the image around the origin point,
+      // so the anchor (top-left polygon point at origin) stays at position
+      // (right vertex) and the wall content mirrors to extend down-left.
+      if (edges[1].isOuter) {
+        const img = this.add.image(sx + halfTW, sy, ASSET_KEY_WALL_FACE_LEFT);
+        img.setScale(-scale, scale);  // flip horizontally via negative X scale
+        // Same origin as left wall — negative scale handles the mirror correctly.
+        img.setOrigin(WALL_FACE_ANCHOR_X, WALL_FACE_ANCHOR_Y);
+        img.setDepth(DEPTH_FRAME_WALLS);
+        img.setVisible(this.pngWallFaceVisible);
+        // No tint (0xffffff = original brightness, lit side).
+        img.setTint(WALL_FACE_RIGHT_TINT);
+        this.pngWallFaceImages.push(img);
+        rightCount++;
+      }
+    }
+
+    console.log(`[Visual04a] PNG wall face: ${this.pngWallFaceImages.length} images created (left=${leftCount}, right=${rightCount}, scale=${scale.toFixed(4)})`);
+
+    // Apply initial mode (may hide procedural walls if PNG walls are active)
+    this.applyWallFaceMode();
+  }
+
+  /**
+   * Apply the current wall face mode (PNG or procedural).
+   * When PNG walls are ON and available: hide procedural wall graphics, show PNG images.
+   * When PNG walls are OFF or unavailable: show procedural wall graphics, hide PNG images.
+   */
+  private applyWallFaceMode(): void {
+    const usePng = this.pngWallFaceAvailable && this.pngWallFaceVisible;
+
+    // Toggle PNG wall images
+    for (const img of this.pngWallFaceImages) {
+      img.setVisible(usePng);
+    }
+
+    // Toggle procedural wall graphics
+    if (this.frameWallGraphics) {
+      this.frameWallGraphics.setVisible(!usePng);
+    }
+  }
+
   // ─── Frame wall face rendering (VISUAL-04B polished) ────────────
 
   /**
@@ -746,6 +952,10 @@ export class Visual04aPreviewScene extends Phaser.Scene {
    *   - Panel rib lines dividing each face into sections
    *   - Darker top shadow where wall meets top surface
    *   - Corners get taller walls for more substantial look
+   *
+   * When PNG wall mode is active (VISUAL-04F), these procedural walls
+   * are hidden — PNG images replace them. They remain drawn in case the
+   * user toggles back to procedural mode with W.
    */
   private drawFrameWalls(): void {
     if (!this.frameWallGraphics) return;
@@ -1155,8 +1365,12 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       ? 'PNG'
       : 'procedural fallback';
 
+    const wallFaceMode = this.pngWallFaceAvailable && this.pngWallFaceVisible
+      ? 'PNG'
+      : 'procedural fallback';
+
     const lines = [
-      'VISUAL-04D — Single PNG Frame Top Block',
+      'VISUAL-04F — Single PNG Wall Face Block',
       '',
       `Arena: ${ARENA_N}×${ARENA_N} (platform ${GRID_N} + border ${FRAME_BORDER})`,
       `Platform tiles: ${this.tilePlacements.length}`,
@@ -1173,10 +1387,13 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       `Grid overlay:    ${this.gridVisible ? 'ON' : 'OFF'}  [G] toggle`,
       `Frame debug:     ${this.frameDebugVisible ? 'ON' : 'OFF'}  [F] toggle`,
       `Frame top:       ${frameTopMode}  [P] toggle`,
+      `Wall:            ${wallFaceMode}  [W] toggle`,
+      `Wall side tint:  enabled`,
       '[ESC] exit → preload → menu',
       '',
       `Background:      ${this.bgAvailable ? 'image' : 'fallback (procedural)'}`,
       `Frame top:       ${frameTopMode}`,
+      `Wall:            ${wallFaceMode}`,
       'Mask: GeometryMask (inner diamond clip)',
       'Variation: deterministic hash (no Math.random)',
       'Dev-only prototype. No runtime integration.',
