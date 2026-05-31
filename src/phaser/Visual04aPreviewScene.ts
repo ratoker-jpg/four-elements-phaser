@@ -961,6 +961,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       rtWidth,
       rtHeight
     );
+    rt.setOrigin(0, 0);  // Position refers to top-left, matching tile coordinate calculations
     rt.setDepth(DEPTH_TILES);
     this.renderTextures.push(rt);
 
@@ -1002,6 +1003,12 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const tileScaleX = this.runtimeTileW / SOURCE_TILE_W;
     const tileScaleY = this.runtimeTileH / SOURCE_TILE_H;
 
+    // Reusable stamp image — avoids creating/destroying per-tile temp images.
+    // Direct construction with texture key ensures Phaser initializes the frame correctly.
+    const stamp = new Phaser.GameObjects.Image(this, 0, 0, `${TILE_ASSET_KEY_PREFIX}1`);
+    stamp.setScale(tileScaleX, tileScaleY);
+    stamp.setOrigin(0.5, 0.5);
+
     console.log(`[Visual04a] Chunked RT: ${chunks.size} chunks, chunk tile size: ${chunkTileSize}`);
 
     for (const [key, placements] of chunks) {
@@ -1021,24 +1028,23 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       const rtH = Math.min(chunkPixelH, MAX_RT_SIZE);
 
       const rt = this.add.renderTexture(rtX, rtY, rtW, rtH);
+      rt.setOrigin(0, 0);  // Position refers to top-left, matching tile coordinate calculations
       rt.setDepth(DEPTH_TILES);
       this.renderTextures.push(rt);
 
-      // Stamp tiles in this chunk
+      // Stamp tiles in this chunk using reusable stamp image
       for (const placement of placements) {
         const sx = (placement.col - placement.row) * halfTW + this.platformOriginX;
         const sy = (placement.col + placement.row) * halfTH + this.platformOriginY;
 
         const assetKey = `${TILE_ASSET_KEY_PREFIX}${placement.tileId}`;
-        const tmpImg = this.make.image({ x: 0, y: 0, add: false });
-        tmpImg.setTexture(assetKey);
-        tmpImg.setPosition(sx - rtX, sy - rtY);
-        tmpImg.setScale(tileScaleX, tileScaleY);
-        tmpImg.setOrigin(0.5, 0.5);
-        rt.draw(tmpImg);
-        tmpImg.destroy();
+        stamp.setTexture(assetKey);
+        stamp.setPosition(sx - rtX, sy - rtY);
+        rt.draw(stamp);
       }
     }
+
+    stamp.destroy();
   }
 
   /** Frame-focused: solid fill for playable area + individual frame pieces. */
@@ -1102,26 +1108,31 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     return { minX, minY, maxX, maxY };
   }
 
-  /** Stamp tiles onto a RenderTexture. */
+  /** Stamp tiles onto a RenderTexture using a reusable stamp image. */
   private stampTilesOntoRT(
     rt: Phaser.GameObjects.RenderTexture,
     rtOriginX: number, rtOriginY: number,
     tileScaleX: number, tileScaleY: number,
     halfTW: number, halfTH: number
   ): void {
+    // Reusable stamp image — avoids creating/destroying per-tile temp images.
+    // Direct construction with texture key ensures Phaser initializes the frame
+    // and dimensions correctly. setTexture() swaps the frame for each tile.
+    const stamp = new Phaser.GameObjects.Image(this, 0, 0, `${TILE_ASSET_KEY_PREFIX}1`);
+    stamp.setScale(tileScaleX, tileScaleY);
+    stamp.setOrigin(0.5, 0.5);
+
     for (const placement of this.tilePlacements) {
       const sx = (placement.col - placement.row) * halfTW + this.platformOriginX;
       const sy = (placement.col + placement.row) * halfTH + this.platformOriginY;
 
       const assetKey = `${TILE_ASSET_KEY_PREFIX}${placement.tileId}`;
-      const tmpImg = this.make.image({ x: 0, y: 0, add: false });
-      tmpImg.setTexture(assetKey);
-      tmpImg.setPosition(sx - rtOriginX, sy - rtOriginY);
-      tmpImg.setScale(tileScaleX, tileScaleY);
-      tmpImg.setOrigin(0.5, 0.5);
-      rt.draw(tmpImg);
-      tmpImg.destroy();
+      stamp.setTexture(assetKey);
+      stamp.setPosition(sx - rtOriginX, sy - rtOriginY);
+      rt.draw(stamp);
     }
+
+    stamp.destroy();
   }
 
   /** Apply diamond mask to the RenderTexture (for small maps where clipping matters). */
