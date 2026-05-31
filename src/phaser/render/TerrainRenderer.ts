@@ -192,8 +192,12 @@ export class TerrainRenderer {
   }
 
   private stampTerrainTiles(terrainMap: TerrainType[][]): void {
-    // VISUAL-05A-PR2: Industrial terrain uses WeightedTilePicker
-    if (this.mapStyle === 'industrial') {
+    // VISUAL-05A-PR2: Industrial terrain uses WeightedTilePicker.
+    // Defensive hardening: if terrain contains 'industrial' tiles but mapStyle
+    // is 'sand' (e.g. loaded save without inferred mapStyle), use industrial
+    // renderer to prevent invisible terrain (TERRAIN_KEY_MAP.industrial is '').
+    const hasIndustrialTerrain = terrainMap.some(row => row.some(t => t === 'industrial'));
+    if (this.mapStyle === 'industrial' || hasIndustrialTerrain) {
       this.stampIndustrialTerrain(terrainMap);
       return;
     }

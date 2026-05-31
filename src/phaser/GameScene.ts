@@ -12,7 +12,7 @@ import { createInitialState, stripModularCombatFromState } from '../state/create
 import { updateGameState } from '../state/updateGameState';
 import { updateConstructionSiteProgress } from '../state/construction';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
-import type { GameState, BuildingType, ProducibleUnitType } from '../state/types';
+import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '../state/types';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
@@ -54,6 +54,17 @@ export interface LoadSceneData {
   mapId?: string;
   /** Slot ID of the loaded save, used to update the same slot on re-save. */
   saveSlotId?: string;
+}
+
+/**
+ * Infer mapStyle from terrain data in a loaded save.
+ * VISUAL-05A-PR2 fix: When a saved game is loaded, the setupConfig
+ * is built from DEFAULT_SETUP which has mapStyle='sand'. If the saved
+ * terrain contains any 'industrial' tiles, we must render as industrial
+ * or the terrain will be invisible (TERRAIN_KEY_MAP.industrial is '').
+ */
+function inferMapStyleFromTerrain(terrain: TerrainType[][]): MapStyle {
+  return terrain.some(row => row.some(t => t === 'industrial')) ? 'industrial' : 'sand';
 }
 
 export class GameScene extends Phaser.Scene {
@@ -119,7 +130,15 @@ export class GameScene extends Phaser.Scene {
    */
   init(data: GameSetupConfig | LoadSceneData): void {
     if ('loadedGameState' in data && data.loadedGameState) {
-      this.setupConfig = { ...DEFAULT_SETUP, faction: data.loadedGameState.playerFaction, mapId: data.mapId ?? 'customMap1' };
+      // VISUAL-05A-PR2 fix: Infer mapStyle from loaded terrain so industrial
+      // saves render correctly instead of falling back to sand (DEFAULT_SETUP).
+      const inferredStyle = inferMapStyleFromTerrain(data.loadedGameState.mapData.terrain);
+      this.setupConfig = {
+        ...DEFAULT_SETUP,
+        faction: data.loadedGameState.playerFaction,
+        mapId: data.mapId ?? 'customMap1',
+        mapStyle: inferredStyle,
+      };
       this.loadedGameState = data.loadedGameState;
       // Fix 1: Preserve loaded slot ID for re-save
       this.currentSaveSlotId = data.saveSlotId ?? null;
