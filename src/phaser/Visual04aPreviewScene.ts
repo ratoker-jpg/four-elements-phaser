@@ -25,7 +25,7 @@
  *   - URL param `map` controls playable size: ?visual04a&map=96
  *   - Aliases: small=96, medium=128, large=192
  *   - Default (no map param) = 9 (unchanged legacy behavior)
- *   - Camera pan (WASD/Arrow), zoom (mouse wheel), reset (R/Home) for maps > 9
+ *   - Camera pan (Arrow keys), zoom (mouse wheel), reset (R/Home) for maps > 9
  *   - RenderTexture for platform tiles (perf-safe for large maps)
  *   - Chunked RenderTexture when single RT exceeds MAX_RT_SIZE
  *   - Frame-focused fallback for extremely large maps
@@ -63,7 +63,7 @@
  *   P — toggle PNG/procedural frame top
  *   W — toggle PNG/procedural wall faces
  *   R / Home — reset camera (maps > 9)
- *   WASD / Arrow keys — pan camera (maps > 9)
+ *   Arrow keys — pan camera (maps > 9)
  *   Mouse wheel — zoom (maps > 9)
  *   ESC — exit to PreloadScene → menu
  *
@@ -717,21 +717,24 @@ export class Visual04aPreviewScene extends Phaser.Scene {
         if (direction) this.panKeys[direction] = pressed;
       };
 
+      // NOTE: Only Arrow keys used for panning (not WASD).
+      // W and P are already toggle keys (wall/top PNG mode) and must not
+      // conflict with camera movement. Arrow keys are unambiguous.
       this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
         switch (event.code) {
-          case 'KeyW': case 'ArrowUp':    setPanKey(event.code, 'up', true); break;
-          case 'KeyS': case 'ArrowDown':  setPanKey(event.code, 'down', true); break;
-          case 'KeyA': case 'ArrowLeft':  setPanKey(event.code, 'left', true); break;
-          case 'KeyD': case 'ArrowRight': setPanKey(event.code, 'right', true); break;
+          case 'ArrowUp':    setPanKey(event.code, 'up', true); break;
+          case 'ArrowDown':  setPanKey(event.code, 'down', true); break;
+          case 'ArrowLeft':  setPanKey(event.code, 'left', true); break;
+          case 'ArrowRight': setPanKey(event.code, 'right', true); break;
         }
       });
 
       this.input.keyboard?.on('keyup', (event: KeyboardEvent) => {
         switch (event.code) {
-          case 'KeyW': case 'ArrowUp':    setPanKey(event.code, 'up', false); break;
-          case 'KeyS': case 'ArrowDown':  setPanKey(event.code, 'down', false); break;
-          case 'KeyA': case 'ArrowLeft':  setPanKey(event.code, 'left', false); break;
-          case 'KeyD': case 'ArrowRight': setPanKey(event.code, 'right', false); break;
+          case 'ArrowUp':    setPanKey(event.code, 'up', false); break;
+          case 'ArrowDown':  setPanKey(event.code, 'down', false); break;
+          case 'ArrowLeft':  setPanKey(event.code, 'left', false); break;
+          case 'ArrowRight': setPanKey(event.code, 'right', false); break;
         }
       });
 
@@ -1801,7 +1804,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       lines.push(
         '',
         'Camera controls:',
-        '  WASD / Arrows — pan',
+        '  Arrows — pan camera',
         '  Mouse wheel — zoom',
         '  R / Home — reset camera',
       );
