@@ -80,9 +80,9 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.families.industrialFrame).toBeDefined();
   });
 
-  it('has 120 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits + 6 terrain + 8 industrialTerrain + 3 resources + 3 industrialFrame)', () => {
+  it('has 126 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits + 6 terrain + 8 industrialTerrain + 3 resources + 6 industrialResources + 3 industrialFrame)', () => {
     const keys = Object.keys(GENERATED_ASSET_MANIFEST.paths);
-    expect(keys).toHaveLength(120);
+    expect(keys).toHaveLength(126);
   });
 
   it('has 4 HQ keys', () => {

@@ -151,6 +151,41 @@
       ],
       "loadType": "image",
       "enabled": true
+    },
+    "industrialResources": {
+      "keys": [
+        "resource_industrial_very_poor_01",
+        "resource_industrial_poor_01",
+        "resource_industrial_medium_01",
+        "resource_industrial_rich_01",
+        "resource_industrial_very_rich_01",
+        "resource_industrial_infinite_center_2x2_01"
+      ],
+      "loadType": "image",
+      "enabled": true
+    },
+    "industrialTerrain": {
+      "keys": [
+        "industrial_tile_001",
+        "industrial_tile_002",
+        "industrial_tile_005",
+        "industrial_tile_006",
+        "industrial_tile_007",
+        "industrial_tile_008",
+        "industrial_tile_009",
+        "industrial_tile_010"
+      ],
+      "loadType": "image",
+      "enabled": true
+    },
+    "industrialFrame": {
+      "keys": [
+        "frame_top_block",
+        "frame_wall_face_block_left",
+        "background_world"
+      ],
+      "loadType": "image",
+      "enabled": true
     }
   },
   "paths": {
@@ -262,6 +297,23 @@
     "terrain_sand_cracked_256x128": "assets/tiles/terrain_sand_cracked_256x128.png",
     "mineral_small": "assets/environment/mineral_small_02.png",
     "mineral_medium": "assets/environment/mineral_medium_02.png",
-    "mineral_large": "assets/environment/mineral_large_02.png"
+    "mineral_large": "assets/environment/mineral_large_02.png",
+    "resource_industrial_very_poor_01": "assets/environment/resources/resource_industrial_very_poor_01.png",
+    "resource_industrial_poor_01": "assets/environment/resources/resource_industrial_poor_01.png",
+    "resource_industrial_medium_01": "assets/environment/resources/resource_industrial_medium_01.png",
+    "resource_industrial_rich_01": "assets/environment/resources/resource_industrial_rich_01.png",
+    "resource_industrial_very_rich_01": "assets/environment/resources/resource_industrial_very_rich_01.png",
+    "resource_industrial_infinite_center_2x2_01": "assets/environment/resources/resource_industrial_infinite_center_2x2_01.png",
+    "industrial_tile_001": "dev-visual/visual-02a/tiles/platform_tile_001.png",
+    "industrial_tile_002": "dev-visual/visual-02a/tiles/platform_tile_002.png",
+    "industrial_tile_005": "dev-visual/visual-02a/tiles/platform_tile_005.png",
+    "industrial_tile_006": "dev-visual/visual-02a/tiles/platform_tile_006.png",
+    "industrial_tile_007": "dev-visual/visual-02a/tiles/platform_tile_007.png",
+    "industrial_tile_008": "dev-visual/visual-02a/tiles/platform_tile_008.png",
+    "industrial_tile_009": "dev-visual/visual-02a/tiles/platform_tile_009.png",
+    "industrial_tile_010": "dev-visual/visual-02a/tiles/platform_tile_010.png",
+    "frame_top_block": "dev-visual/visual-04/frame/frame_top_block.png",
+    "frame_wall_face_block_left": "dev-visual/visual-04/frame/frame_wall_face_block_left.png",
+    "background_world": "dev-visual/visual-02a/background_world_candidate_01.png"
   }
 }

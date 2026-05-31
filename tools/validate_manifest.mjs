@@ -73,6 +73,21 @@ const KEY_VALIDATORS = {
       ? null
       : `UI key "${key}" must match ui_{name} (e.g. ui_icon_build_separator)`;
   },
+  industrialTerrain(key) {
+    return /^industrial_tile_[a-z0-9_]+$/.test(key)
+      ? null
+      : `Industrial terrain key "${key}" must match industrial_tile_{variant}`;
+  },
+  industrialFrame(key) {
+    return /^(frame|background)_[a-z][a-z0-9_]*$/.test(key)
+      ? null
+      : `Industrial frame key "${key}" must match frame_{variant} or background_{variant}`;
+  },
+  industrialResources(key) {
+    return /^resource_industrial_[a-z][a-z0-9_]*$/.test(key)
+      ? null
+      : `Industrial resource key "${key}" must match resource_industrial_{variant}`;
+  },
 };
 
 const VALID_LOAD_TYPES = new Set(['image', 'spritesheet']);

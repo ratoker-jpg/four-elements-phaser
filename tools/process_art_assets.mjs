@@ -145,6 +145,38 @@ const RESOURCE_ENTRIES = [
   { key: 'mineral_large', path: 'assets/environment/mineral_large_02.png' },
 ];
 
+// ─── Industrial resource constants (VISUAL-06D) ─────────────────────
+
+const INDUSTRIAL_RESOURCE_ENTRIES = [
+  { key: 'resource_industrial_very_poor_01', path: 'assets/environment/resources/resource_industrial_very_poor_01.png' },
+  { key: 'resource_industrial_poor_01', path: 'assets/environment/resources/resource_industrial_poor_01.png' },
+  { key: 'resource_industrial_medium_01', path: 'assets/environment/resources/resource_industrial_medium_01.png' },
+  { key: 'resource_industrial_rich_01', path: 'assets/environment/resources/resource_industrial_rich_01.png' },
+  { key: 'resource_industrial_very_rich_01', path: 'assets/environment/resources/resource_industrial_very_rich_01.png' },
+  { key: 'resource_industrial_infinite_center_2x2_01', path: 'assets/environment/resources/resource_industrial_infinite_center_2x2_01.png' },
+];
+
+// ─── Industrial terrain constants (VISUAL-05A-PR2) ─────────────────
+
+const INDUSTRIAL_TERRAIN_ENTRIES = [
+  { key: 'industrial_tile_001', path: 'dev-visual/visual-02a/tiles/platform_tile_001.png' },
+  { key: 'industrial_tile_002', path: 'dev-visual/visual-02a/tiles/platform_tile_002.png' },
+  { key: 'industrial_tile_005', path: 'dev-visual/visual-02a/tiles/platform_tile_005.png' },
+  { key: 'industrial_tile_006', path: 'dev-visual/visual-02a/tiles/platform_tile_006.png' },
+  { key: 'industrial_tile_007', path: 'dev-visual/visual-02a/tiles/platform_tile_007.png' },
+  { key: 'industrial_tile_008', path: 'dev-visual/visual-02a/tiles/platform_tile_008.png' },
+  { key: 'industrial_tile_009', path: 'dev-visual/visual-02a/tiles/platform_tile_009.png' },
+  { key: 'industrial_tile_010', path: 'dev-visual/visual-02a/tiles/platform_tile_010.png' },
+];
+
+// ─── Industrial frame constants (VISUAL-05A-PR3) ───────────────────
+
+const INDUSTRIAL_FRAME_ENTRIES = [
+  { key: 'frame_top_block', path: 'dev-visual/visual-04/frame/frame_top_block.png' },
+  { key: 'frame_wall_face_block_left', path: 'dev-visual/visual-04/frame/frame_wall_face_block_left.png' },
+  { key: 'background_world', path: 'dev-visual/visual-02a/background_world_candidate_01.png' },
+];
+
 // Deterministic timestamp for committed generated files.
 // Using the epoch ensures rerunning the processor with unchanged inputs
 // does not dirty the working tree.
@@ -649,6 +681,181 @@ export function processResourcesFamily(options) {
 }
 
 /**
+ * Process the industrialResources family and generate manifest + audit data.
+ * VISUAL-06D: Industrial resource assets (richness-tier crystals + infinite center).
+ *
+ * @param {object} options
+ * @param {string} options.publicDir - Absolute path to public/ directory
+ * @param {Array<{key: string, path: string}>} [options.industrialResourceEntries] - Industrial resource entries to process
+ * @returns {{ manifest: object, auditReport: object }}
+ */
+export function processIndustrialResourcesFamily(options) {
+  const {
+    publicDir,
+    industrialResourceEntries = INDUSTRIAL_RESOURCE_ENTRIES,
+  } = options;
+
+  const resourceKeys = [];
+  const paths = {};
+  const auditWarnings = [];
+  const auditErrors = [];
+  const missingSource = [];
+  const orphanFiles = [];
+
+  let totalAssets = 0;
+  let validAssets = 0;
+  let warningAssets = 0;
+  let errorAssets = 0;
+
+  // ── Process industrial resource entries ──────────────────────────
+  for (const entry of industrialResourceEntries) {
+    const { key, path: relativePath } = entry;
+    const absolutePath = join(publicDir, relativePath);
+
+    resourceKeys.push(key);
+    paths[key] = relativePath;
+    totalAssets++;
+
+    if (existsSync(absolutePath)) {
+      validAssets++;
+    } else {
+      auditErrors.push({
+        family: 'industrialResources',
+        key,
+        code: 'MISSING_FILE',
+        message: `Referenced file not found: ${relativePath}`,
+      });
+      missingSource.push(relativePath);
+      errorAssets++;
+    }
+  }
+
+  // ── Build manifest ────────────────────────────────────────────────
+  const manifest = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    families: {
+      industrialResources: {
+        keys: resourceKeys,
+        loadType: 'image',
+        enabled: true,
+      },
+    },
+    paths,
+  };
+
+  // ── Build audit report ────────────────────────────────────────────
+  const auditReport = {
+    version: 1,
+    generatedAt: DETERMINISTIC_TIMESTAMP,
+    summary: {
+      totalAssets,
+      validAssets,
+      warningAssets,
+      errorAssets,
+    },
+    warnings: auditWarnings,
+    errors: auditErrors,
+    missingSource,
+    orphanFiles,
+  };
+
+  return { manifest, auditReport };
+}
+
+/**
+ * Process the industrialTerrain family and generate manifest + audit data.
+ * VISUAL-05A-PR2: Industrial platform tiles.
+ *
+ * @param {object} options
+ * @param {string} options.publicDir - Absolute path to public/ directory
+ * @param {Array<{key: string, path: string}>} [options.industrialTerrainEntries] - Industrial terrain entries to process
+ * @returns {{ manifest: object, auditReport: object }}
+ */
+export function processIndustrialTerrainFamily(options) {
+  const {
+    publicDir,
+    industrialTerrainEntries = INDUSTRIAL_TERRAIN_ENTRIES,
+  } = options;
+
+  const keys = [];
+  const paths = {};
+  const auditWarnings = [];
+  const auditErrors = [];
+  const missingSource = [];
+
+  let totalAssets = 0;
+  let validAssets = 0;
+  let errorAssets = 0;
+
+  for (const entry of industrialTerrainEntries) {
+    const { key, path: relativePath } = entry;
+    const absolutePath = join(publicDir, relativePath);
+    keys.push(key);
+    paths[key] = relativePath;
+    totalAssets++;
+    if (existsSync(absolutePath)) {
+      validAssets++;
+    } else {
+      auditErrors.push({ family: 'industrialTerrain', key, code: 'MISSING_FILE', message: `Referenced file not found: ${relativePath}` });
+      missingSource.push(relativePath);
+      errorAssets++;
+    }
+  }
+
+  return {
+    manifest: { version: 1, generatedAt: DETERMINISTIC_TIMESTAMP, families: { industrialTerrain: { keys, loadType: 'image', enabled: true } }, paths },
+    auditReport: { version: 1, generatedAt: DETERMINISTIC_TIMESTAMP, summary: { totalAssets, validAssets, warningAssets: 0, errorAssets }, warnings: auditWarnings, errors: auditErrors, missingSource, orphanFiles: [] },
+  };
+}
+
+/**
+ * Process the industrialFrame family and generate manifest + audit data.
+ * VISUAL-05A-PR3: Frame top block, wall face block, and background world.
+ *
+ * @param {object} options
+ * @param {string} options.publicDir - Absolute path to public/ directory
+ * @param {Array<{key: string, path: string}>} [options.industrialFrameEntries] - Industrial frame entries to process
+ * @returns {{ manifest: object, auditReport: object }}
+ */
+export function processIndustrialFrameFamily(options) {
+  const {
+    publicDir,
+    industrialFrameEntries = INDUSTRIAL_FRAME_ENTRIES,
+  } = options;
+
+  const keys = [];
+  const paths = {};
+  const auditWarnings = [];
+  const auditErrors = [];
+  const missingSource = [];
+
+  let totalAssets = 0;
+  let validAssets = 0;
+  let errorAssets = 0;
+
+  for (const entry of industrialFrameEntries) {
+    const { key, path: relativePath } = entry;
+    const absolutePath = join(publicDir, relativePath);
+    keys.push(key);
+    paths[key] = relativePath;
+    totalAssets++;
+    if (existsSync(absolutePath)) {
+      validAssets++;
+    } else {
+      auditErrors.push({ family: 'industrialFrame', key, code: 'MISSING_FILE', message: `Referenced file not found: ${relativePath}` });
+      missingSource.push(relativePath);
+      errorAssets++;
+    }
+  }
+
+  return {
+    manifest: { version: 1, generatedAt: DETERMINISTIC_TIMESTAMP, families: { industrialFrame: { keys, loadType: 'image', enabled: true } }, paths },
+    auditReport: { version: 1, generatedAt: DETERMINISTIC_TIMESTAMP, summary: { totalAssets, validAssets, warningAssets: 0, errorAssets }, warnings: auditWarnings, errors: auditErrors, missingSource, orphanFiles: [] },
+  };
+}
+
+/**
  * Process the buildings family and generate manifest + audit data.
  *
  * @param {object} options
@@ -864,7 +1071,7 @@ function printUsage() {
   console.error(`Usage: node tools/process_art_assets.mjs [options]
 
 Options:
-  --family <name>   Asset family to process: "buildings", "civilUnits", "modularUnits", "terrain", "resources", or "all" (default: "all")
+  --family <name>   Asset family to process: "buildings", "civilUnits", "modularUnits", "terrain", "resources", "industrialResources", or "all" (default: "all")
   --root <dir>      Project root directory (default: auto-detected)
   --json            Output machine-readable JSON instead of console report
   --dry-run         Process and validate but do not write output files
@@ -902,9 +1109,9 @@ async function main() {
     }
   }
 
-  const VALID_FAMILIES = new Set(['buildings', 'civilUnits', 'modularUnits', 'terrain', 'resources', 'all']);
+  const VALID_FAMILIES = new Set(['buildings', 'civilUnits', 'modularUnits', 'terrain', 'resources', 'industrialResources', 'industrialTerrain', 'industrialFrame', 'all']);
   if (!VALID_FAMILIES.has(family)) {
-    console.error(`Error: Unknown family "${family}". Valid: buildings, civilUnits, modularUnits, terrain, resources, all`);
+    console.error(`Error: Unknown family "${family}". Valid: buildings, civilUnits, modularUnits, terrain, resources, industrialResources, industrialTerrain, industrialFrame, all`);
     process.exit(2);
   }
 
@@ -928,6 +1135,9 @@ async function main() {
   const processModularUnits = family === 'modularUnits' || family === 'all';
   const processTerrain = family === 'terrain' || family === 'all';
   const processResources = family === 'resources' || family === 'all';
+  const processIndustrialResources = family === 'industrialResources' || family === 'all';
+  const processIndustrialTerrain = family === 'industrialTerrain' || family === 'all';
+  const processIndustrialFrame = family === 'industrialFrame' || family === 'all';
 
   // Collect results from each family
   let combinedManifest = {
@@ -981,6 +1191,21 @@ async function main() {
 
   if (processResources) {
     const { manifest, auditReport } = processResourcesFamily({ publicDir });
+    mergeResult(manifest, auditReport);
+  }
+
+  if (processIndustrialResources) {
+    const { manifest, auditReport } = processIndustrialResourcesFamily({ publicDir });
+    mergeResult(manifest, auditReport);
+  }
+
+  if (processIndustrialTerrain) {
+    const { manifest, auditReport } = processIndustrialTerrainFamily({ publicDir });
+    mergeResult(manifest, auditReport);
+  }
+
+  if (processIndustrialFrame) {
+    const { manifest, auditReport } = processIndustrialFrameFamily({ publicDir });
     mergeResult(manifest, auditReport);
   }
 
@@ -1057,6 +1282,9 @@ async function main() {
     if (manifest.families.modularUnits) console.log(`  Modular unit keys: ${manifest.families.modularUnits.keys.length}`);
     if (manifest.families.terrain) console.log(`  Terrain keys: ${manifest.families.terrain.keys.length}`);
     if (manifest.families.resources) console.log(`  Resource keys: ${manifest.families.resources.keys.length}`);
+    if (manifest.families.industrialResources) console.log(`  Industrial resource keys: ${manifest.families.industrialResources.keys.length}`);
+    if (manifest.families.industrialTerrain) console.log(`  Industrial terrain keys: ${manifest.families.industrialTerrain.keys.length}`);
+    if (manifest.families.industrialFrame) console.log(`  Industrial frame keys: ${manifest.families.industrialFrame.keys.length}`);
     console.log(`  Total paths: ${Object.keys(manifest.paths).length}`);
     console.log();
 

@@ -152,6 +152,10 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
       expect(DEFAULT_SETUP.gameMode).toBe('standard');
     });
 
+    it('has legacy resource style (VISUAL-06D)', () => {
+      expect(DEFAULT_SETUP.resourceStyle).toBe('legacy');
+    });
+
     it('satisfies GameSetupConfig type', () => {
       const config: GameSetupConfig = DEFAULT_SETUP;
       expect(config.faction).toBeDefined();
@@ -161,6 +165,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
       expect(config.seed).toBeDefined();
       expect(config.gameMode).toBeDefined();
       expect(config.mapStyle).toBeDefined();
+      expect(config.resourceStyle).toBeDefined();
     });
 
     it('DEFAULT_SETUP produces industrial generated terrain via getMapDataFromConfig', () => {
@@ -212,6 +217,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         seed: 'test',
         gameMode: 'standard',
         mapStyle: 'sand',
+        resourceStyle: 'legacy',
       };
       const mapData = getMapDataFromConfig(config);
       expect(mapData.width).toBe(48);
@@ -228,6 +234,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         seed: 'myseed',
         gameMode: 'standard',
         mapStyle: 'industrial',
+        resourceStyle: 'legacy',
       };
       const mapData = getMapDataFromConfig(config);
       expect(mapData.width).toBe(32); // small
@@ -244,6 +251,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         seed: 'sandseed',
         gameMode: 'standard',
         mapStyle: 'sand',
+        resourceStyle: 'legacy',
       };
       const mapData = getMapDataFromConfig(config);
       expect(mapData.width).toBe(32);
@@ -260,6 +268,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         seed: '',
         gameMode: 'arena',
         mapStyle: 'sand',
+        resourceStyle: 'legacy',
       };
       const mapData = getMapDataFromConfig(config);
       expect(mapData.width).toBe(20);
@@ -278,6 +287,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         seed: 'default',
         gameMode: 'standard',
         mapStyle: 'sand',
+        resourceStyle: 'legacy',
       };
       expect(getMapDisplayName(config)).toBe('Map 1');
     });
@@ -291,6 +301,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         seed: 'abc123',
         gameMode: 'standard',
         mapStyle: 'sand',
+        resourceStyle: 'legacy',
       };
       const name = getMapDisplayName(config);
       expect(name).toContain('standard');
@@ -307,6 +318,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         seed: '',
         gameMode: 'arena',
         mapStyle: 'sand',
+        resourceStyle: 'legacy',
       };
       expect(getMapDisplayName(config)).toBe('QA Arena');
     });
@@ -320,6 +332,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         seed: '',
         gameMode: 'standard',
         mapStyle: 'sand',
+        resourceStyle: 'legacy',
       };
       expect(getMapDisplayName(config)).toBe('Map someFutureMap');
     });
@@ -387,6 +400,7 @@ describe('VISUAL-05A-PR5: Industrial generated map default', () => {
       seed: 'default',
       gameMode: 'standard',
       mapStyle: 'sand',
+      resourceStyle: 'legacy',
     };
     const mapData = getMapDataFromConfig(legacyConfig);
     expect(mapData.width).toBe(48);
@@ -408,6 +422,7 @@ describe('VISUAL-05A-PR5: Industrial generated map default', () => {
       seed: 'default',
       gameMode: 'standard',
       mapStyle: 'sand',
+      resourceStyle: 'legacy',
     };
     const sandMapData = getMapDataFromConfig(sandConfig);
     // Sand terrain should not contain 'industrial'
@@ -422,6 +437,7 @@ describe('VISUAL-05A-PR5: Industrial generated map default', () => {
       seed: 'default',
       gameMode: 'standard',
       mapStyle: 'industrial',
+      resourceStyle: 'legacy',
     };
     const industrialMapData = getMapDataFromConfig(industrialConfig);
     // Industrial terrain should contain 'industrial'
