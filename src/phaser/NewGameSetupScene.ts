@@ -25,7 +25,7 @@ import {
   saveSetupToSession,
   resolveResourceStyleForMapStyle,
 } from '../state/gameSetup';
-import type { GameSetupConfig, MapMode, GameMode, MapStyle, ResourceStyle } from '../state/gameSetup';
+import type { GameSetupConfig, MapMode, GameMode, MapStyle } from '../state/gameSetup';
 import type { Faction } from '../state/types';
 import type { MapSizeOption } from '../state/generatedMap';
 import { createRandomSeed, generatedMapId, mapSizeToDimensions } from '../state/generatedMap';
