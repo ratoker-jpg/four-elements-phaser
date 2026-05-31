@@ -30,6 +30,15 @@ export const ASSET_KEYS = {
   MINERAL_SMALL: 'mineral_small',
   MINERAL_MEDIUM: 'mineral_medium',
   MINERAL_LARGE: 'mineral_large',
+
+  // Industrial resources (VISUAL-06D — loaded from generated manifest via loadGeneratedIndustrialResourceAssets)
+  // Use GENERATED_ASSET_MANIFEST.families.industrialResources.keys for the full list
+  RESOURCE_INDUSTRIAL_VERY_POOR_01: 'resource_industrial_very_poor_01',
+  RESOURCE_INDUSTRIAL_POOR_01: 'resource_industrial_poor_01',
+  RESOURCE_INDUSTRIAL_MEDIUM_01: 'resource_industrial_medium_01',
+  RESOURCE_INDUSTRIAL_RICH_01: 'resource_industrial_rich_01',
+  RESOURCE_INDUSTRIAL_VERY_RICH_01: 'resource_industrial_very_rich_01',
+  RESOURCE_INDUSTRIAL_INFINITE_CENTER_2X2_01: 'resource_industrial_infinite_center_2x2_01',
 } as const;
 
 export type AssetKey = (typeof ASSET_KEYS)[keyof typeof ASSET_KEYS];
@@ -63,6 +72,14 @@ export const ASSET_PATHS: Record<AssetKey, string> = {
   [ASSET_KEYS.MINERAL_SMALL]: 'assets/environment/mineral_small_02.png',
   [ASSET_KEYS.MINERAL_MEDIUM]: 'assets/environment/mineral_medium_02.png',
   [ASSET_KEYS.MINERAL_LARGE]: 'assets/environment/mineral_large_02.png',
+
+  // Industrial resource paths — also in GENERATED_ASSET_MANIFEST.paths
+  [ASSET_KEYS.RESOURCE_INDUSTRIAL_VERY_POOR_01]: 'assets/environment/resources/resource_industrial_very_poor_01.png',
+  [ASSET_KEYS.RESOURCE_INDUSTRIAL_POOR_01]: 'assets/environment/resources/resource_industrial_poor_01.png',
+  [ASSET_KEYS.RESOURCE_INDUSTRIAL_MEDIUM_01]: 'assets/environment/resources/resource_industrial_medium_01.png',
+  [ASSET_KEYS.RESOURCE_INDUSTRIAL_RICH_01]: 'assets/environment/resources/resource_industrial_rich_01.png',
+  [ASSET_KEYS.RESOURCE_INDUSTRIAL_VERY_RICH_01]: 'assets/environment/resources/resource_industrial_very_rich_01.png',
+  [ASSET_KEYS.RESOURCE_INDUSTRIAL_INFINITE_CENTER_2X2_01]: 'assets/environment/resources/resource_industrial_infinite_center_2x2_01.png',
 };
 
 /**

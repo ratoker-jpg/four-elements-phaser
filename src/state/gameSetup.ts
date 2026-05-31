@@ -31,6 +31,9 @@ export type GameMode = 'standard' | 'debug' | 'arena';
 /** Map visual style: sand (classic desert) or industrial platform. VISUAL-05A-PR2. */
 export type MapStyle = 'sand' | 'industrial';
 
+/** Resource visual style: legacy (sand mineral sprites) or industrial (VISUAL-06 crystals). VISUAL-06D. */
+export type ResourceStyle = 'legacy' | 'industrial';
+
 /** Available map style options. */
 export const MAP_STYLE_OPTIONS: MapStyle[] = ['sand', 'industrial'];
 
@@ -38,6 +41,15 @@ export const MAP_STYLE_OPTIONS: MapStyle[] = ['sand', 'industrial'];
 export const MAP_STYLE_LABELS: Record<MapStyle, string> = {
   sand: 'Sand / Classic',
   industrial: 'Industrial Platform',
+};
+
+/** Available resource style options. */
+export const RESOURCE_STYLE_OPTIONS: ResourceStyle[] = ['legacy', 'industrial'];
+
+/** Display labels for resource styles. */
+export const RESOURCE_STYLE_LABELS: Record<ResourceStyle, string> = {
+  legacy: 'Legacy / Classic',
+  industrial: 'Industrial Crystals',
 };
 
 /** Configuration for starting a new game. Passed between scenes. */
@@ -56,6 +68,8 @@ export interface GameSetupConfig {
   gameMode: GameMode;
   /** Map visual style. VISUAL-05A-PR2. */
   mapStyle: MapStyle;
+  /** Resource visual style. VISUAL-06D. 'legacy' keeps sand mineral sprites; 'industrial' uses VISUAL-06 crystal assets. */
+  resourceStyle: ResourceStyle;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -117,6 +131,7 @@ export const DEFAULT_SETUP: GameSetupConfig = {
   seed: DEFAULT_SEED,
   gameMode: 'standard',
   mapStyle: 'industrial',
+  resourceStyle: 'legacy',
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────

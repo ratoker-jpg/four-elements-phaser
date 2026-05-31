@@ -8,6 +8,7 @@
  * ARCH-02G: Added spritesheet family loading for civilUnits.
  * ARCH-02H: Added modularUnits image family loading.
  * ARCH-02I: Added terrain + resources image family loading.
+ * VISUAL-06D: Added industrialResources image family loading.
  *
  * Duplicate-key protection: each helper tracks loaded keys within a single
  * call to prevent loading the same texture key twice. This replaces the
@@ -234,4 +235,33 @@ export function loadGeneratedIndustrialFrameAssets(
   scene: Phaser.Scene,
 ): string[] {
   return loadGeneratedImageAssetFamilies(scene, ['industrialFrame']);
+}
+
+/**
+ * Convenience: load industrialResources family from the generated manifest.
+ * VISUAL-06D: Approved industrial resource assets (richness-tier crystals
+ * and infinite center deposit). Always loaded (small set, 6 images) so they
+ * are available for VISUAL-06E renderer wiring behind resourceStyle.
+ */
+export function loadGeneratedIndustrialResourceAssets(
+  scene: Phaser.Scene,
+): string[] {
+  return loadGeneratedImageAssetFamilies(scene, ['industrialResources']);
+}
+
+/**
+ * Representative industrialResource key used for checking whether
+ * industrial resource assets have been loaded. VISUAL-06D: This avoids
+ * importing the full manifest key list at call sites that just need a
+ * boolean check.
+ */
+export const INDUSTRIAL_RESOURCE_PROBE_KEY = 'resource_industrial_medium_01' as const;
+
+/**
+ * Check whether industrial resource assets have been loaded.
+ * VISUAL-06D: If the probe key exists in the TextureManager, we assume
+ * the full industrialResources family was loaded by PreloadScene.
+ */
+export function isIndustrialResourcesLoaded(scene: Phaser.Scene): boolean {
+  return scene.textures.exists(INDUSTRIAL_RESOURCE_PROBE_KEY);
 }
