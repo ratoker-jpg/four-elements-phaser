@@ -70,18 +70,19 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.generatedAt).toBe('1970-01-01T00:00:00.000Z');
   });
 
-  it('has hq, buildings, civilUnits, modularUnits, terrain, and resources families', () => {
+  it('has hq, buildings, civilUnits, modularUnits, terrain, resources, and industrialFrame families', () => {
     expect(GENERATED_ASSET_MANIFEST.families.hq).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.buildings).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.civilUnits).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.modularUnits).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.terrain).toBeDefined();
     expect(GENERATED_ASSET_MANIFEST.families.resources).toBeDefined();
+    expect(GENERATED_ASSET_MANIFEST.families.industrialFrame).toBeDefined();
   });
 
-  it('has 117 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits + 6 terrain + 8 industrialTerrain + 3 resources)', () => {
+  it('has 120 total paths (4 HQ + 24 buildings + 8 civilUnits + 64 modularUnits + 6 terrain + 8 industrialTerrain + 3 resources + 3 industrialFrame)', () => {
     const keys = Object.keys(GENERATED_ASSET_MANIFEST.paths);
-    expect(keys).toHaveLength(117);
+    expect(keys).toHaveLength(120);
   });
 
   it('has 4 HQ keys', () => {
@@ -219,6 +220,7 @@ describe('GENERATED_ASSET_MANIFEST', () => {
       ...GENERATED_ASSET_MANIFEST.families.modularUnits.keys,
       ...GENERATED_ASSET_MANIFEST.families.terrain.keys,
       ...GENERATED_ASSET_MANIFEST.families.resources.keys,
+      ...GENERATED_ASSET_MANIFEST.families.industrialFrame.keys,
     ];
     const uniqueKeys = new Set(allKeys);
     expect(uniqueKeys.size).toBe(allKeys.length);

@@ -93,23 +93,23 @@ If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or c
 ## Active next work
 
 ```text
-VISUAL-05A PR 2 — Production terrain/platform assets behind mapStyle flag
+VISUAL-05A PR 3 — Production frame/background layer
 ```
 
 Reason:
 
 ```text
-VISUAL-05A PR 1 (#144) proved the industrial platform visual model scales for
-96/128/192 maps using CanvasTexture in the ?visual04a dev preview. Now we need
-to bring industrial terrain to production behind a mapStyle flag.
+VISUAL-05A PR 2 (#145) added industrial terrain behind mapStyle flag. Now we
+need the visual frame border and background/world layer for industrial maps.
 
-VISUAL-05A PR 2 adds:
-- MapStyle type ('sand' | 'industrial') in GameSetupConfig
-- 'industrial' TerrainType for flat uniform terrain
-- Industrial tile assets in the generated manifest
-- WeightedTilePicker in TerrainRenderer for deterministic tile selection
-- Map Style selection in NewGameSetupScene
-- Default remains 'sand' for backward compatibility
+VISUAL-05A PR 3 adds:
+- IndustrialFrameRenderer for frame top blocks, wall face blocks, background
+- Background/world image layer beneath the arena
+- Frame top surfaces using frame_top_block.png
+- Wall face blocks using frame_wall_face_block_left.png with mirroring and tint
+- Extended camera bounds to show frame and margin
+- Frame is visual-only — no pathfinding/occupancy/save format changes
+- Only active when mapStyle === 'industrial'
 ```
 
 Production map sizes:
@@ -149,6 +149,7 @@ VISUAL-04B — Procedural wall polish — done / merged
 VISUAL-04D — Single PNG frame top block — done / PR #139 merged
 VISUAL-04F — Single PNG wall face block — done / PR #142 merged
 VISUAL-05A PR1 — Parameterize dev preview 96/128/192 — done / PR #144 merged
+VISUAL-05A PR2 — Production terrain behind mapStyle flag — done / PR #145 merged
 ```
 
 VISUAL-02C rejection note:

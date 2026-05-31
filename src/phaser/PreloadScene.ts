@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadGeneratedModularUnitAssets, loadGeneratedTerrainAndResourceAssets, loadGeneratedIndustrialTerrainAssets } from '../assets/runtimeGeneratedAssets';
+import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadGeneratedModularUnitAssets, loadGeneratedTerrainAndResourceAssets, loadGeneratedIndustrialTerrainAssets, loadGeneratedIndustrialFrameAssets } from '../assets/runtimeGeneratedAssets';
 import { isDevtoolsEnabled } from '../state/devCommands';
 
 /**
@@ -32,6 +32,9 @@ export class PreloadScene extends Phaser.Scene {
 
     // --- Industrial terrain tiles (VISUAL-05A-PR2: always loaded, small set) ---
     loadGeneratedIndustrialTerrainAssets(this);
+
+    // --- Industrial frame assets (VISUAL-05A-PR3: frame top, wall face, background) ---
+    loadGeneratedIndustrialFrameAssets(this);
 
     // --- Buildings + HQ (loaded from generated manifest) ---
     loadGeneratedBuildingAndHqAssets(this);
