@@ -31,7 +31,7 @@ This file contains precise prompts for generating industrial resource visual can
 - No white or black matte background
 - No checkerboard background
 - Clean alpha edges — no anti-alias fringe or dark halo
-- Amber or teal mineral glow accent
+- Teal-blue / cyan-blue mineral glow accent for normal variants (amber may be explored later as alternate palette)
 ```
 
 ---
@@ -39,7 +39,7 @@ This file contains precise prompts for generating industrial resource visual can
 ## Prompt: resource_industrial_very_poor_01
 
 ```text
-Isometric 2:1 perspective sprite for an RTS game. A very poor mineral resource node — just 1 to 2 tiny amber crystal shards barely rising from the floor, with a very weak glow. The crystals are small and sparse, the weakest possible resource presence. Crystal overlay only — no platform tile, no floor slab, no cracked flooring. The sprite must fit entirely inside one 1x1 isometric diamond footprint. Magenta or transparent background. No terrain, no sky, no UI. No building, no drill, no machine. Clean alpha edges, no dark halo. Tiny contact shadow, within cell boundary.
+Isometric 2:1 perspective sprite for an RTS game. A very poor mineral resource node — just 1 to 2 tiny teal-blue crystal shards barely rising from the floor, with a very weak cyan-blue glow. The crystals are small and sparse, the weakest possible resource presence. Crystal overlay only — no platform tile, no floor slab, no cracked flooring. The sprite must fit entirely inside one 1x1 isometric diamond footprint. Magenta or transparent background. No terrain, no sky, no UI. No building, no drill, no machine. Clean alpha edges, no dark halo. Tiny contact shadow, within cell boundary.
 ```
 
 ---
@@ -47,7 +47,7 @@ Isometric 2:1 perspective sprite for an RTS game. A very poor mineral resource n
 ## Prompt: resource_industrial_poor_01
 
 ```text
-Isometric 2:1 perspective sprite for an RTS game. A poor mineral resource node — 2 to 4 small amber crystals with a low glow, forming a sparse cluster. Clearly a resource but not rich. Crystal overlay only — no platform tile, no floor slab, no cracked flooring. The sprite must fit entirely inside one 1x1 isometric diamond footprint. Magenta or transparent background. No terrain, no sky, no UI. No building, no drill, no machine. Clean alpha edges, no dark halo. Small contact shadow, within cell boundary.
+Isometric 2:1 perspective sprite for an RTS game. A poor mineral resource node — 2 to 4 small teal-blue crystals with a low cyan-blue glow, forming a sparse cluster. Clearly a resource but not rich. Crystal overlay only — no platform tile, no floor slab, no cracked flooring. The sprite must fit entirely inside one 1x1 isometric diamond footprint. Magenta or transparent background. No terrain, no sky, no UI. No building, no drill, no machine. Clean alpha edges, no dark halo. Small contact shadow, within cell boundary.
 ```
 
 ---
@@ -55,7 +55,7 @@ Isometric 2:1 perspective sprite for an RTS game. A poor mineral resource node �
 ## Prompt: resource_industrial_medium_01
 
 ```text
-Isometric 2:1 perspective sprite for an RTS game. A medium mineral resource node — 5 to 8 moderate amber crystals with a visible medium glow, forming a standard cluster. The default field node — clearly harvestable, clearly a resource. Crystal overlay only — no platform tile, no floor slab, no cracked flooring. The sprite must fit entirely inside one 1x1 isometric diamond footprint. Magenta or transparent background. No terrain, no sky, no UI. No building, no drill, no machine. Clean alpha edges, no dark halo. Small contact shadow, within cell boundary.
+Isometric 2:1 perspective sprite for an RTS game. A medium mineral resource node — 5 to 8 moderate teal-blue crystals with a visible medium cyan-blue glow, forming a standard cluster. The default field node — clearly harvestable, clearly a resource. Crystal overlay only — no platform tile, no floor slab, no cracked flooring. The sprite must fit entirely inside one 1x1 isometric diamond footprint. Magenta or transparent background. No terrain, no sky, no UI. No building, no drill, no machine. Clean alpha edges, no dark halo. Small contact shadow, within cell boundary.
 ```
 
 ---
@@ -63,7 +63,7 @@ Isometric 2:1 perspective sprite for an RTS game. A medium mineral resource node
 ## Prompt: resource_industrial_rich_01
 
 ```text
-Isometric 2:1 perspective sprite for an RTS game. A rich mineral resource node — 8 to 12 amber crystals with a stronger glow, forming a dense cluster. Unmistakably rich and harvestable. Crystal overlay only — no platform tile, no floor slab, no cracked flooring. The sprite must fit entirely inside one 1x1 isometric diamond footprint despite the density. Magenta or transparent background. No terrain, no sky, no UI. No building, no drill, no machine. Clean alpha edges, no dark halo. Small contact shadow, within cell boundary.
+Isometric 2:1 perspective sprite for an RTS game. A rich mineral resource node — 8 to 12 teal-blue crystals with a stronger cyan-blue glow, forming a dense cluster. Unmistakably rich and harvestable. Crystal overlay only — no platform tile, no floor slab, no cracked flooring. The sprite must fit entirely inside one 1x1 isometric diamond footprint despite the density. Magenta or transparent background. No terrain, no sky, no UI. No building, no drill, no machine. Clean alpha edges, no dark halo. Small contact shadow, within cell boundary.
 ```
 
 ---
@@ -71,7 +71,7 @@ Isometric 2:1 perspective sprite for an RTS game. A rich mineral resource node �
 ## Prompt: resource_industrial_very_rich_01
 
 ```text
-Isometric 2:1 perspective sprite for an RTS game. A very rich mineral resource node — 12 to 16 amber crystals with a bright glow, forming the densest possible cluster that still fits one cell. Dense but still within 1x1 isometric diamond footprint. Crystal overlay only — no platform tile, no floor slab, no cracked flooring. Magenta or transparent background. No terrain, no sky, no UI. No building, no drill, no machine. Clean alpha edges, no dark halo. Small contact shadow, within cell boundary.
+Isometric 2:1 perspective sprite for an RTS game. A very rich mineral resource node — 12 to 16 teal-blue crystals with a bright cyan-blue glow, forming the densest possible cluster that still fits one cell. Dense but still within 1x1 isometric diamond footprint. Crystal overlay only — no platform tile, no floor slab, no cracked flooring. Magenta or transparent background. No terrain, no sky, no UI. No building, no drill, no machine. Clean alpha edges, no dark halo. Small contact shadow, within cell boundary.
 ```
 
 ---

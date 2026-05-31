@@ -134,7 +134,7 @@ Three possible industrial resource visual directions are defined below. The proj
 Rationale:
 - Best fit with the mining platform narrative — the platform was built to extract ore revealed by surface fractures.
 - Most natural integration with existing industrial tiles — ore deposits are part of the floor, not objects on top.
-- Clear silhouette for each size variant without requiring a metal base or mechanical element.
+- Clear silhouette for each richness variant without requiring a metal base or mechanical element.
 - Avoids building/structure confusion that Options B and C risk.
 - Simplest depletion visual: ore fades or disappears, crack remains (or crack fades too).
 
@@ -144,7 +144,7 @@ Recommended model constraints:
 - The central infinite deposit is the only 2×2 resource visual. It is a separate category, not part of the 1×1 richness-tier classification.
 - No normal 2×2 or 3×3 resource assets.
 - Clear silhouette — the ore protrusion must be taller than the floor plane so it reads as a distinct object.
-- Glowing ore/mineral accent — amber or teal glow is recommended to contrast against gray industrial tiles.
+- Glowing ore/mineral accent — teal-blue / cyan-blue glow is recommended for current candidate pass; amber may be explored later as alternate palette.
 - Industrial base/plate is optional — a subtle crack or marking around the ore is sufficient.
 - Visual richness may later map to resource amount, but this design doc does not implement that mapping.
 - The current runtime ResourceType ('small' | 'medium' | 'large' | 'infinite') remains unchanged until a later implementation task maps or renames it.

@@ -82,7 +82,7 @@ Each candidate image must satisfy the following requirements derived from the VI
 - Mineral ore/crystal protrusion embedded in a cracked section of industrial flooring.
 - The ore is a crystalline or metallic formation rising from a break in the gray platform surface.
 - A crack or marking around the base provides visual anchor that this cell contains a resource.
-- Ore color is a distinct accent against gray platform — amber or teal glow recommended.
+- Ore color is a distinct accent against gray platform — teal-blue / cyan-blue glow recommended for current candidate pass; amber may be explored later as alternate palette.
 
 ### Richness variants (all 1x1 footprint)
 
