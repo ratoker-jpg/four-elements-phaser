@@ -62,17 +62,17 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-05A — Production Industrial Map Integration
+VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom
 ```
 
 Goal:
 
 ```text
-Integrate the approved industrial platform/frame visual direction from ?visual04a
-into the production game map. This is a staged process across multiple PRs.
+Extend the ?visual04a dev preview to support larger map sizes (96/128/192)
+with camera pan/zoom, proving the visual model scales before production integration.
 ```
 
-The integration plan is documented in:
+The full integration plan is documented in:
 
 ```text
 docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md

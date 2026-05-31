@@ -93,7 +93,7 @@ If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or c
 ## Active next work
 
 ```text
-VISUAL-05A — Production Industrial Map Integration Plan
+VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom
 ```
 
 Reason:
@@ -139,8 +139,8 @@ VISUAL-02C — Final static frame art proof — closed/rejected / PR #131 not me
 VISUAL-03A — Runtime modular frame preview (?visual03a) — done / merged
 VISUAL-04A — Modular frame placeholder (?visual04a) — done / merged
 VISUAL-04B — Procedural wall polish — done / merged
-VISUAL-04D — Single PNG frame top block — done / PR #138 merged
-VISUAL-04F — Single PNG wall face block — done / PR #142
+VISUAL-04D — Single PNG frame top block — done / PR #139 merged
+VISUAL-04F — Single PNG wall face block — done / PR #142 merged
 ```
 
 VISUAL-02C rejection note:

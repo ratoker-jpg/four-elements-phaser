@@ -283,7 +283,7 @@ A minimap component is planned for VISUAL-07/08. The production map with frame b
   - Update `TerrainType` enum to include industrial variants
 - When `mapStyle === 'sand'`: existing behavior unchanged
 - Update `NewGameSetupScene` to offer map style selection
-- Default to `'industrial'` for new games
+- Default to `'sand'` for new games (keep current behavior; PR 5 switches default to industrial after QA)
 
 **Out of scope**: Frame border, background layer, HQ position, resources.
 
