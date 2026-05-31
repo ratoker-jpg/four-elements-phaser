@@ -26,6 +26,7 @@
  *   - background_world (background_world_candidate_01.png)
  */
 
+import Phaser from 'phaser';
 import { TILE_W, TILE_H } from '../../config/worldConfig';
 import { tileToScreen, mapOriginOffset, type IsoPoint } from './isometric';
 
