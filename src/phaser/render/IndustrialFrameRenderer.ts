@@ -6,9 +6,9 @@
  * mapStyle === 'industrial'.
  *
  * Layer model (depth order, TerrainRenderer is depth 0):
- *   Depth -20 — background world image (below terrain, lowest layer)
+ *   Depth -20 — background world image (below all map visuals, lowest layer)
+ *   Depth -10 — wall face images (above background, below terrain — terrain hides far-side walls)
  *   Depth 0   — terrain (TerrainRenderer CanvasTexture)
- *   Depth 10  — wall face images (visual side faces around the frame, above terrain)
  *   Depth 90  — frame top block images (above terrain, behind entities at depth 100+)
  *
  * The frame border is visual-only — it does NOT add cells to MapData, does NOT
@@ -74,8 +74,8 @@ const WALL_FACE_RIGHT_TINT = 0xffffff;
 /** Background world image depth — below terrain (depth 0) so terrain renders on top */
 const DEPTH_BG = -20;
 
-/** Wall face images depth — visual side faces around the frame border, above terrain */
-const DEPTH_FRAME_WALLS = 10;
+/** Wall face images depth — above background, below terrain; terrain hides far-side wall geometry */
+const DEPTH_FRAME_WALLS = -10;
 
 /** Frame top block images depth — above terrain (depth 0), behind entities (depth 100+) */
 const DEPTH_FRAME_TOP = 90;
@@ -199,7 +199,7 @@ export class IndustrialFrameRenderer {
     // ─── Layer -20: Background world image (below terrain) ───────────
     this.createBackground(scene);
 
-    // ─── Layer 10: Wall face images (above terrain, visual side faces) ──
+    // ─── Layer -10: Wall face images (above background, below terrain) ──
     this.createWallFaces(scene);
 
     // ─── Layer 90: Frame top block images (above terrain, behind entities) ──
