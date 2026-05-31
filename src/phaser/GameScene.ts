@@ -18,7 +18,7 @@ import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
 import { DEFAULT_SETUP, getMapDataFromConfig, getMapDisplayName } from '../state/gameSetup';
-import type { MapStyle } from '../state/gameSetup';
+import type { MapStyle, ResourceStyle } from '../state/gameSetup';
 import { saveGame } from '../state/saveGame';
 import { loadUiSettings, applyUiScale } from '../state/uiSettings';
 import { DevtoolsPanel } from './ui/DevtoolsPanel';
@@ -231,7 +231,9 @@ export class GameScene extends Phaser.Scene {
     // If needed for debugging, re-enable drawGridLines() temporarily.
 
     // Render entities — static first, then dynamic
-    this.entityRenderer = new EntityRenderer(this, offset);
+    // VISUAL-06E: Pass resourceStyle to EntityRenderer for style-aware resource rendering
+    const resourceStyle: ResourceStyle = this.setupConfig.resourceStyle ?? 'legacy';
+    this.entityRenderer = new EntityRenderer(this, offset, resourceStyle);
     this.entityRenderer.renderStaticEntities(this.gameState.entities);
     this.entityRenderer.renderDynamicInit(
       this.gameState.harvesters,
