@@ -212,3 +212,14 @@ export function loadGeneratedTerrainAndResourceAssets(
 ): string[] {
   return loadGeneratedImageAssetFamilies(scene, ['terrain', 'resources']);
 }
+
+/**
+ * Convenience: load industrialTerrain family from the generated manifest.
+ * VISUAL-05A-PR2: Industrial platform tiles are always loaded (small set)
+ * so they are available when a user selects industrial mapStyle.
+ */
+export function loadGeneratedIndustrialTerrainAssets(
+  scene: Phaser.Scene,
+): string[] {
+  return loadGeneratedImageAssetFamilies(scene, ['industrialTerrain']);
+}

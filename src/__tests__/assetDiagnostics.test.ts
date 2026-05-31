@@ -219,15 +219,15 @@ describe('ARCH-17A/17B: assetDiagnostics', () => {
   // ── Summary counts ─────────────────────────────────────────────
 
   describe('summary counts', () => {
-    it('countManifestKeys returns 109', () => {
-      // TERRAIN-02A: Generated manifest has 109 keys: hq(4) + buildings(24) + civilUnits(8) + modularUnits(64) + terrain(6) + resources(3)
-      expect(countManifestKeys()).toBe(109);
+    it('countManifestKeys returns 117', () => {
+      // TERRAIN-02A + VISUAL-05A-PR2: Generated manifest has 117 keys: hq(4) + buildings(24) + civilUnits(8) + modularUnits(64) + terrain(6) + industrialTerrain(8) + resources(3)
+      expect(countManifestKeys()).toBe(117);
     });
 
     it('summarizeAssetDiagnostics has correct total', () => {
       const entries = buildAssetDiagnostics();
       const summary = summarizeAssetDiagnostics(entries);
-      expect(summary.totalManifest).toBe(109);
+      expect(summary.totalManifest).toBe(117);
       expect(summary.expected).toBeGreaterThan(0);
       expect(summary.manifestOnly).toBeGreaterThan(0);
       expect(summary.placeholder).toBeGreaterThan(0);
@@ -261,15 +261,16 @@ describe('ARCH-17A/17B: assetDiagnostics', () => {
   // ── Manifest families ──────────────────────────────────────────
 
   describe('manifest families', () => {
-    it('getManifestFamilies returns all 6 families', () => {
+    it('getManifestFamilies returns all 7 families', () => {
       const families = getManifestFamilies();
       expect(families).toContain('hq');
       expect(families).toContain('buildings');
       expect(families).toContain('civilUnits');
       expect(families).toContain('modularUnits');
       expect(families).toContain('terrain');
+      expect(families).toContain('industrialTerrain');
       expect(families).toContain('resources');
-      expect(families.length).toBe(6);
+      expect(families.length).toBe(7);
     });
   });
 

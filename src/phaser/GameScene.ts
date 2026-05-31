@@ -17,6 +17,7 @@ import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
 import { DEFAULT_SETUP, getMapDataFromConfig, getMapDisplayName } from '../state/gameSetup';
+import type { MapStyle } from '../state/gameSetup';
 import { saveGame } from '../state/saveGame';
 import { loadUiSettings, applyUiScale } from '../state/uiSettings';
 import { DevtoolsPanel } from './ui/DevtoolsPanel';
@@ -181,11 +182,14 @@ export class GameScene extends Phaser.Scene {
     this.verifyAssets();
 
     // Render terrain from GameState.mapData.terrain
+    // VISUAL-05A-PR2: Pass mapStyle to TerrainRenderer for industrial/sand rendering
+    const mapStyle: MapStyle = this.setupConfig.mapStyle ?? 'sand';
     this.terrainRenderer = new TerrainRenderer(
       this,
       this.gameState.mapData.terrain,
       this.gameState.mapWidth,
       this.gameState.mapHeight,
+      mapStyle,
     );
 
     // Get offset for entity placement

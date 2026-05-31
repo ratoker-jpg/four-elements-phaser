@@ -16,13 +16,15 @@ import {
   FACTION_CSS_COLORS,
   MAP_LIST,
   MAP_SIZE_OPTIONS,
+  MAP_STYLE_OPTIONS,
+  MAP_STYLE_LABELS,
   DEFAULT_SETUP,
   GAME_MODE_LIST,
   GAME_MODE_LABELS,
   buildGameLaunchUrl,
   saveSetupToSession,
 } from '../state/gameSetup';
-import type { GameSetupConfig, MapMode, GameMode } from '../state/gameSetup';
+import type { GameSetupConfig, MapMode, GameMode, MapStyle } from '../state/gameSetup';
 import type { Faction } from '../state/types';
 import type { MapSizeOption } from '../state/generatedMap';
 import { createRandomSeed, generatedMapId, mapSizeToDimensions } from '../state/generatedMap';
@@ -34,6 +36,7 @@ export class NewGameSetupScene extends Phaser.Scene {
   private selectedMapMode: MapMode = DEFAULT_SETUP.mapMode;
   private selectedMapId: string = DEFAULT_SETUP.mapId;
   private selectedMapSize: MapSizeOption = DEFAULT_SETUP.mapSize;
+  private selectedMapStyle: MapStyle = DEFAULT_SETUP.mapStyle;
   private selectedGameMode: GameMode = DEFAULT_SETUP.gameMode;
   private seedInput: HTMLInputElement | null = null;
   private sizeContainer: HTMLDivElement | null = null;
@@ -42,6 +45,7 @@ export class NewGameSetupScene extends Phaser.Scene {
   private gameModeNote: HTMLDivElement | null = null;
   private mapSection: HTMLDivElement | null = null;
   private sizeSection: HTMLDivElement | null = null;
+  private mapStyleSection: HTMLDivElement | null = null;
   private seedSection: HTMLDivElement | null = null;
   /** MENU-02: Overlay shown during modularUnits late-loading. */
   private lateLoadingOverlay: HTMLDivElement | null = null;
@@ -286,6 +290,47 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.sizeSection.appendChild(this.sizeContainer);
     setupBox.appendChild(this.sizeSection);
 
+    // ── Map Style selection (VISUAL-05A-PR2) ──────────────────────
+    this.mapStyleSection = document.createElement('div');
+    const mapStyleLabel = document.createElement('div');
+    mapStyleLabel.textContent = 'Map Style';
+    mapStyleLabel.style.cssText = `
+      font-size: 14px;
+      font-weight: 600;
+      color: #999;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    `;
+    this.mapStyleSection.appendChild(mapStyleLabel);
+
+    const mapStyleGrid = document.createElement('div');
+    mapStyleGrid.style.cssText = `
+      display: flex;
+      gap: 8px;
+    `;
+
+    for (const style of MAP_STYLE_OPTIONS) {
+      const btn = document.createElement('button');
+      btn.textContent = MAP_STYLE_LABELS[style];
+      btn.dataset.mapStyle = style;
+      btn.style.cssText = this.mapStyleButtonStyle(style, style === this.selectedMapStyle);
+
+      btn.addEventListener('click', () => {
+        this.selectedMapStyle = style;
+        const buttons = mapStyleGrid.querySelectorAll('button');
+        buttons.forEach(b => {
+          const s = (b as HTMLButtonElement).dataset.mapStyle as MapStyle;
+          b.style.cssText = this.mapStyleButtonStyle(s, s === this.selectedMapStyle);
+        });
+        this.updateMapSummary();
+      });
+
+      mapStyleGrid.appendChild(btn);
+    }
+    this.mapStyleSection.appendChild(mapStyleGrid);
+    setupBox.appendChild(this.mapStyleSection);
+
     // ── Seed input (only for generated maps) ─────────────────────
     this.seedSection = document.createElement('div');
     const seedLabel = document.createElement('div');
@@ -455,9 +500,11 @@ export class NewGameSetupScene extends Phaser.Scene {
     if (this.selectedMapMode === 'generated') {
       const dims = mapSizeToDimensions(this.selectedMapSize);
       const seed = this.seedInput?.value.trim() || DEFAULT_SETUP.seed;
-      this.mapSummary.textContent = `${dims.width}x${dims.height} tiles — seed: ${seed}`;
+      const styleLabel = this.selectedMapStyle === 'industrial' ? ' [Industrial]' : '';
+      this.mapSummary.textContent = `${dims.width}x${dims.height} tiles — seed: ${seed}${styleLabel}`;
     } else {
-      this.mapSummary.textContent = '48x48 tiles — predefined map';
+      const styleLabel = this.selectedMapStyle === 'industrial' ? ' [Industrial]' : '';
+      this.mapSummary.textContent = `48x48 tiles — predefined map${styleLabel}`;
     }
   }
 
@@ -504,6 +551,25 @@ export class NewGameSetupScene extends Phaser.Scene {
       border: 2px solid ${selected ? '#81c784' : 'rgba(255,255,255,0.1)'};
       border-radius: 4px;
       color: ${selected ? '#81c784' : '#888'};
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: ${selected ? '600' : '400'};
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, border-color 0.15s;
+    `;
+  }
+
+  /** Map style button style. VISUAL-05A-PR2: teal accent for industrial. */
+  private mapStyleButtonStyle(style: MapStyle, selected: boolean): string {
+    const color = style === 'industrial' ? '#80cbc4' : '#a1887f';
+    return `
+      flex: 1;
+      padding: 8px 10px;
+      background: ${selected ? `${color}22` : 'rgba(255,255,255,0.03)'};
+      border: 2px solid ${selected ? color : 'rgba(255,255,255,0.1)'};
+      border-radius: 4px;
+      color: ${selected ? color : '#888'};
       font-size: 13px;
       font-family: inherit;
       font-weight: ${selected ? '600' : '400'};
@@ -600,6 +666,7 @@ export class NewGameSetupScene extends Phaser.Scene {
       mapSize: this.selectedMapSize,
       seed,
       gameMode: this.selectedGameMode,
+      mapStyle: this.selectedMapStyle,
     };
 
     if (this.selectedGameMode === 'standard') {
@@ -725,6 +792,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.gameModeNote = null;
     this.mapSection = null;
     this.sizeSection = null;
+    this.mapStyleSection = null;
     this.seedSection = null;
     this.isLateLoading = false;
   }

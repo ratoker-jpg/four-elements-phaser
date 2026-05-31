@@ -37,6 +37,7 @@
  */
 
 import type { MapData, TerrainType, ResourceType, Faction } from './types';
+import type { MapStyle } from './gameSetup';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -161,15 +162,17 @@ const HQ_OFFSET_TY = 4;
  * - Obstacles and decor are deferred (empty arrays) — no visual assets yet
  * - No buildings (MVP)
  */
-export function createGeneratedMapData(seed: string, size: MapSizeOption, faction: Faction = 'cyan'): MapData {
+export function createGeneratedMapData(seed: string, size: MapSizeOption, faction: Faction = 'cyan', mapStyle: MapStyle = 'sand'): MapData {
   const dims = mapSizeToDimensions(size);
   const W = dims.width;
   const H = dims.height;
   const seedInt = normalizeSeed(seed);
   const rng = mulberry32(seedInt);
 
-  // ── Terrain: patch-based clustering ──
-  const terrain = generateTerrain(rng, W, H);
+  // ── Terrain: patch-based clustering or industrial flat fill ──
+  const terrain = mapStyle === 'industrial'
+    ? generateIndustrialTerrain(W, H)
+    : generateTerrain(rng, W, H);
 
   // ── HQ ──
   const hq = { tx: HQ_OFFSET_TX, ty: HQ_OFFSET_TY, faction };
@@ -365,6 +368,29 @@ function generateTerrain(rng: () => number, W: number, H: number): TerrainType[]
   return terrain;
 }
 
+// ─── Industrial terrain generation (VISUAL-05A-PR2) ────────────────────
+
+/**
+ * Generate a flat uniform industrial terrain map.
+ *
+ * VISUAL-05A-PR2: When mapStyle === 'industrial', the entire map is filled
+ * with a single 'industrial' TerrainType. Visual variation (which tile ID
+ * to show) is determined at render time by the WeightedTilePicker in
+ * TerrainRenderer, NOT by the TerrainType. This keeps the state model
+ * simple and avoids expanding terrain variants unnecessarily.
+ */
+function generateIndustrialTerrain(W: number, H: number): TerrainType[][] {
+  const terrain: TerrainType[][] = [];
+  for (let y = 0; y < H; y++) {
+    const row: TerrainType[] = [];
+    for (let x = 0; x < W; x++) {
+      row.push('industrial');
+    }
+    terrain.push(row);
+  }
+  return terrain;
+}
+
 // ─── Resource generation ────────────────────────────────────────────
 
 /**
@@ -544,6 +570,7 @@ export function createValidatedGeneratedMapData(
   seed: string,
   size: MapSizeOption,
   faction: Faction = 'cyan',
+  mapStyle: MapStyle = 'sand',
 ): ValidatedGeneratedMapResult {
   const warnings: string[] = [];
   let bestMapData: MapData | null = null;
@@ -552,7 +579,7 @@ export function createValidatedGeneratedMapData(
   for (let attempt = 0; attempt < MAX_VALIDATION_ATTEMPTS; attempt++) {
     // Deterministic seed offset for retry: append attempt number
     const attemptSeed = attempt === 0 ? seed : `${seed}__retry${attempt}`;
-    const mapData = createGeneratedMapData(attemptSeed, size, faction);
+    const mapData = createGeneratedMapData(attemptSeed, size, faction, mapStyle);
 
     // Run lightweight validation checks (pure, no GameState needed)
     const validation = validateGeneratedMap(mapData);

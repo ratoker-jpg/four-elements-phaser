@@ -62,14 +62,16 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom
+VISUAL-05A PR 2 — Production terrain/platform assets behind mapStyle flag
 ```
 
 Goal:
 
 ```text
-Extend the ?visual04a dev preview to support larger map sizes (96/128/192)
-with camera pan/zoom, proving the visual model scales before production integration.
+Add industrial terrain rendering to production behind a mapStyle flag.
+When mapStyle === 'industrial', the terrain uses WeightedTilePicker for
+deterministic industrial tile distribution. When mapStyle === 'sand',
+existing sand terrain behavior is unchanged. Default is 'sand'.
 ```
 
 The full integration plan is documented in:
@@ -81,8 +83,8 @@ docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md
 PR sequence (from the plan):
 
 ```text
-PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom
-PR 2 — Production terrain/platform assets behind mapStyle flag
+PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom — DONE (PR #144 merged)
+PR 2 — Production terrain/platform assets behind mapStyle flag — CURRENT
 PR 3 — Production frame/background layer
 PR 4 — Lower-left HQ/camera/resource composition
 PR 5 — Make industrial map default for new games after QA
@@ -137,8 +139,8 @@ Large:  192×192 playable, 194×194 outer
 ## Immediate implementation queue
 
 ```text
-1. VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 — current
-2. VISUAL-05A PR 2 — Production terrain behind mapStyle flag
+1. VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 — DONE (PR #144)
+2. VISUAL-05A PR 2 — Production terrain behind mapStyle flag — current
 3. VISUAL-05A PR 3 — Production frame/background layer
 4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition
 5. VISUAL-05A PR 5 — Make industrial map default after QA
