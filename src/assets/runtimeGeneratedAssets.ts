@@ -223,3 +223,15 @@ export function loadGeneratedIndustrialTerrainAssets(
 ): string[] {
   return loadGeneratedImageAssetFamilies(scene, ['industrialTerrain']);
 }
+
+/**
+ * Convenience: load industrialFrame family from the generated manifest.
+ * VISUAL-05A-PR3: Frame top block, wall face block, and background world
+ * image are always loaded (3 images, small) so they are available when
+ * a user selects industrial mapStyle.
+ */
+export function loadGeneratedIndustrialFrameAssets(
+  scene: Phaser.Scene,
+): string[] {
+  return loadGeneratedImageAssetFamilies(scene, ['industrialFrame']);
+}

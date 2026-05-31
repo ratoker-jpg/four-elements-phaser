@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets/assetManifest';
 import { TerrainRenderer } from './render/TerrainRenderer';
+import { IndustrialFrameRenderer } from './render/IndustrialFrameRenderer';
 import { EntityRenderer } from './render/EntityRenderer';
 import { BuildingStatusRenderer } from './render/BuildingStatusRenderer';
 import { CameraControls } from './input/CameraControls';
@@ -69,6 +70,7 @@ function inferMapStyleFromTerrain(terrain: TerrainType[][]): MapStyle {
 
 export class GameScene extends Phaser.Scene {
   private terrainRenderer: TerrainRenderer | null = null;
+  private industrialFrameRenderer: IndustrialFrameRenderer | null = null;
   private entityRenderer: EntityRenderer | null = null;
   private buildingStatusRenderer: BuildingStatusRenderer | null = null;
   private cameraControls: CameraControls | null = null;
@@ -211,6 +213,15 @@ export class GameScene extends Phaser.Scene {
       mapStyle,
     );
 
+    // VISUAL-05A-PR3: Create industrial frame/background renderer when industrial
+    if (mapStyle === 'industrial') {
+      this.industrialFrameRenderer = new IndustrialFrameRenderer(
+        this,
+        this.gameState.mapWidth,
+        this.gameState.mapHeight,
+      );
+    }
+
     // Get offset for entity placement
     const offset = mapOriginOffset(this.gameState.mapWidth, this.gameState.mapHeight);
     this._offset = offset;
@@ -240,8 +251,11 @@ export class GameScene extends Phaser.Scene {
     this.motionFxRenderer = new UnitMotionFxRenderer(this, offset);
 
     // Setup camera
+    // VISUAL-05A-PR3: Use extended bounds when industrial frame is present
     this.cameraControls = new CameraControls(this);
-    const bounds = this.terrainRenderer.getBounds();
+    const bounds = this.industrialFrameRenderer
+      ? this.industrialFrameRenderer.getExtendedBounds()
+      : this.terrainRenderer.getBounds();
     this.cameraControls.setBounds(bounds);
 
     // Center camera on HQ from state (HQ has 3x3 footprint, center on +1,+1)
@@ -519,6 +533,7 @@ export class GameScene extends Phaser.Scene {
     this.cameraControls?.destroy();
     this.entityRenderer?.destroy();
     this.terrainRenderer?.destroy();
+    this.industrialFrameRenderer?.destroy();
     this.paused = false;
   }
 }

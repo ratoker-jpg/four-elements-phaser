@@ -62,16 +62,17 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-05A PR 2 — Production terrain/platform assets behind mapStyle flag
+VISUAL-05A PR 3 — Production frame/background layer
 ```
 
 Goal:
 
 ```text
-Add industrial terrain rendering to production behind a mapStyle flag.
-When mapStyle === 'industrial', the terrain uses WeightedTilePicker for
-deterministic industrial tile distribution. When mapStyle === 'sand',
-existing sand terrain behavior is unchanged. Default is 'sand'.
+Add the visual frame border and background/world layer to the production
+industrial renderer. When mapStyle === 'industrial', render frame top blocks,
+wall face blocks with mirroring/tint, and a background world image beneath
+the arena. Frame is visual-only — no pathfinding/occupancy/save changes.
+When mapStyle === 'sand', no frame/background appears.
 ```
 
 The full integration plan is documented in:
@@ -83,9 +84,9 @@ docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md
 PR sequence (from the plan):
 
 ```text
-PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom — DONE (PR #144 merged)
-PR 2 — Production terrain/platform assets behind mapStyle flag — CURRENT
-PR 3 — Production frame/background layer
+PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom — DONE (PR #144)
+PR 2 — Production terrain/platform assets behind mapStyle flag — DONE (PR #145)
+PR 3 — Production frame/background layer — CURRENT
 PR 4 — Lower-left HQ/camera/resource composition
 PR 5 — Make industrial map default for new games after QA
 ```
@@ -140,8 +141,8 @@ Large:  192×192 playable, 194×194 outer
 
 ```text
 1. VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 — DONE (PR #144)
-2. VISUAL-05A PR 2 — Production terrain behind mapStyle flag — current
-3. VISUAL-05A PR 3 — Production frame/background layer
+2. VISUAL-05A PR 2 — Production terrain behind mapStyle flag — DONE (PR #145)
+3. VISUAL-05A PR 3 — Production frame/background layer — current
 4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition
 5. VISUAL-05A PR 5 — Make industrial map default after QA
 6. VISUAL-06 — Resource field visual model design

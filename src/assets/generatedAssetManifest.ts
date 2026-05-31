@@ -45,6 +45,11 @@ export const GENERATED_ASSET_MANIFEST = {
       loadType: 'image',
       enabled: true,
     },
+    industrialFrame: {
+      keys: ['frame_top_block', 'frame_wall_face_block_left', 'background_world'],
+      loadType: 'image',
+      enabled: true,
+    },
   },
   paths: {
     'hq_cyan': 'assets/factions/cyan/buildings/hq_t1.png',
@@ -164,6 +169,9 @@ export const GENERATED_ASSET_MANIFEST = {
     'mineral_small': 'assets/environment/mineral_small_02.png',
     'mineral_medium': 'assets/environment/mineral_medium_02.png',
     'mineral_large': 'assets/environment/mineral_large_02.png',
+    'frame_top_block': 'dev-visual/visual-04/frame/frame_top_block.png',
+    'frame_wall_face_block_left': 'dev-visual/visual-04/frame/frame_wall_face_block_left.png',
+    'background_world': 'dev-visual/visual-02a/background_world_candidate_01.png',
   },
 } as const;
 
