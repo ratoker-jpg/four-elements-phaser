@@ -5,7 +5,7 @@
  * Replaces procedural side wall faces with a PNG wall face asset
  * (frame_wall_face_block_left.png). The left-facing PNG is placed
  * normally; the right-facing side mirrors the same PNG and applies
- * a lighter tint to simulate directional lighting. Procedural walls remain as
+ * no darkening tint (white/original brightness) to simulate directional lighting. Procedural walls remain as
  * fallback. W key toggles PNG/procedural wall mode.
  *
  * VISUAL-04D: Integrate single PNG frame top block asset.
@@ -20,10 +20,10 @@
  *   - Load frame_wall_face_block_left.png (384×288 canvas) for wall faces
  *   - PNG wall face replaces procedural walls when available and toggled ON
  *   - Left side: normal PNG wall image
- *   - Right side: horizontally mirrored PNG wall image with lighter tint
+ *   - Right side: horizontally mirrored PNG wall image, no tint (original brightness)
  *   - W key toggles between PNG and procedural wall faces
  *   - Fallback to procedural walls if PNG wall fails to load
- *   - Wall side tint: darker tint on left side (shadow), lighter on right (lit)
+ *   - Wall side tint: dark tint on left side (shadow), no tint on right (original brightness)
  *
  * VISUAL-04D additions:
  *   - Load frame_top_block.png (384×348 canvas, 368×184 diamond) for frame top surfaces
@@ -181,20 +181,20 @@ const WALL_FACE_ANCHOR_Y = 40 / WALL_FACE_SRC_H;    // ≈ 0.1389
 const WALL_FACE_SCALE_ADJUST = 1.0;
 
 /**
- * Tint color applied to the left-side wall face to create depth/volume
- * illusion. Applied via setTint (multiplicative), so this darkens
- * the left face as if lit from the upper-right.
- * ~53% brightness, blue-gray tint for industrial concrete/metal look.
+ * Tint color applied to the left-side (shadow) wall face.
+ * Applied via setTint (multiplicative), so this darkens the left face
+ * to simulate directional lighting from the upper-right.
+ * ~47% brightness, blue-gray tint for industrial concrete/metal shadow.
  */
-const WALL_FACE_LEFT_TINT = 0x888899;
+const WALL_FACE_LEFT_TINT = 0x777788;
 
 /**
- * Tint color applied to the right-side (mirrored) wall face.
- * Slightly lighter than the left face to simulate directional lighting
- * from the upper-right. ~75% brightness preserves most original color
- * with a subtle warm-gray tone.
+ * Tint color applied to the right-side (lit) wall face.
+ * 0xffffff = no darkening. Phaser setTint is multiplicative, so white
+ * preserves the original PNG pixel colors exactly — this is the lit side,
+ * not an extra glow.
  */
-const WALL_FACE_RIGHT_TINT = 0xbcbcc8;
+const WALL_FACE_RIGHT_TINT = 0xffffff;
 
 // ─── Depth layers ─────────────────────────────────────────────────
 
@@ -841,7 +841,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
    *     Mirrored via setScale(-scale, scale) with the SAME origin as the left
    *     wall. Phaser's negative X scale flips the image around the origin,
    *     so the anchor (top-left polygon point) maps to the right vertex and
-   *     the wall extends down-left. A lighter tint is applied (lit side).
+   *     the wall extends down-left. No tint applied (original brightness, lit side).
    *
    * This filtering prevents "black vertical fins" on the top/far edges of
    * the arena where wall faces would face inward (toward the platform) and
@@ -898,7 +898,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
         leftCount++;
       }
 
-      // ─── Right wall face PNG (mirrored + lighter tint) ────────────
+      // ─── Right wall face PNG (mirrored, no tint — lit side) ────────
       // The right wall face hangs from the right→bottom edge (= Edge 1).
       // Only draw if Edge 1 (right→bottom) faces outward.
       // Use setScale(-scale, scale) with the SAME origin as the left wall.
@@ -912,7 +912,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
         img.setOrigin(WALL_FACE_ANCHOR_X, WALL_FACE_ANCHOR_Y);
         img.setDepth(DEPTH_FRAME_WALLS);
         img.setVisible(this.pngWallFaceVisible);
-        // Apply lighter multiplicative tint (right face is lit side).
+        // No tint (0xffffff = original brightness, lit side).
         img.setTint(WALL_FACE_RIGHT_TINT);
         this.pngWallFaceImages.push(img);
         rightCount++;
