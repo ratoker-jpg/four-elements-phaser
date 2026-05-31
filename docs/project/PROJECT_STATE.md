@@ -53,7 +53,7 @@ Always confirm this in `package.json` before planning Phaser API work.
 - **Tile standard**: 384×192 source assets, 2:1 top-surface-only platform tiles.
 - **Runtime logical tile**: existing isometric 2:1 map model remains the source of gameplay coordinates.
 - **Start position**: lower-left start zone (VISUAL-05A PR 4).
-- **Production map sizes**: 96×96 (small), 128×128 (medium), 192×192 (large).
+- **Target production map sizes**: 96×96 (small), 128×128 (medium), 192×192 (large) — deferred migration; current production small is still 32×32 until a separate scoped task/PR sequence changes map dimensions.
 - **Frame border**: 1 tile around playable area (visual only, not in logical grid).
 - **HUD target**: bottom bar — minimap left, info center, commands right.
 - **Menu**: preserve cinematic central composition, update background to industrial.
@@ -140,6 +140,28 @@ VISUAL-05A PR5 — Make industrial generated map default for new games — done 
 
 VISUAL-05A production industrial map integration is complete. All five PRs merged.
 
+VISUAL-05A completion status:
+
+```text
+- VISUAL-05A production industrial map integration is COMPLETE.
+- PR #144, #145, #146, #147, #148 are all merged/done.
+- Industrial generated map is now the default for new games.
+- mapStyle 'industrial' and 'sand' both remain available.
+- Sand/fixed/custom map paths remain as fallback/reference, not active primary direction.
+- HQ/start/resources are now lower-left for industrial generated maps.
+- Frame/background/walls are connected in production for industrial.
+- Save/load compatibility is preserved: old saves load as saved.
+```
+
+Production map size note:
+
+```text
+Current production small map is still 32×32.
+The 96×96 / 128×128 / 192×192 production size migration is deferred
+and must be handled as a separate scoped task/PR sequence.
+Do NOT silently change map dimensions without an explicit task.
+```
+
 VISUAL-02C rejection note:
 
 ```text
@@ -218,6 +240,8 @@ Do not start these as immediate implementation:
 - production terrain replacement before dev-only proof
 - gameplay/pathfinding/economy changes inside VISUAL runtime prototype PRs
 - using PR #131 / VISUAL-02C static proof as approved production art
+- production map size migration (96/128/192) without separate scoped task
+- silently changing map dimensions from current 32/48/64
 ```
 
 ---
