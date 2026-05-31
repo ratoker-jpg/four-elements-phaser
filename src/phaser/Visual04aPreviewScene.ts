@@ -1,6 +1,11 @@
 /**
  * Visual04aPreviewScene — modular grid-aligned arena frame prototype.
  *
+ * VISUAL-05A-PR1: Parameterize map size preview (96/128/192).
+ * Extends the ?visual04a dev preview to support production-planned map
+ * sizes with camera pan/zoom, proving the visual model scales before
+ * production integration.
+ *
  * VISUAL-04F: Integrate single PNG wall face block.
  * Replaces procedural side wall faces with a PNG wall face asset
  * (frame_wall_face_block_left.png). The left-facing PNG is placed
@@ -16,31 +21,20 @@
  * Improves visual quality of the Phaser Graphics placeholder art while
  * keeping the exact same grid-aligned geometry from VISUAL-04A.
  *
- * VISUAL-04F additions:
- *   - Load frame_wall_face_block_left.png (384×288 canvas) for wall faces
- *   - PNG wall face replaces procedural walls when available and toggled ON
- *   - Left side: normal PNG wall image
- *   - Right side: horizontally mirrored PNG wall image, no tint (original brightness)
- *   - W key toggles between PNG and procedural wall faces
- *   - Fallback to procedural walls if PNG wall fails to load
- *   - Wall side tint: dark tint on left side (shadow), no tint on right (original brightness)
- *
- * VISUAL-04D additions:
- *   - Load frame_top_block.png (384×348 canvas, 368×184 diamond) for frame top surfaces
- *   - PNG overlay replaces procedural tops when available and toggled ON
- *   - P key toggles between PNG and procedural frame tops
- *   - Fallback to procedural tops if PNG fails to load
- *   - Inner lip always drawn regardless of PNG/procedural mode
+ * VISUAL-05A-PR1 additions:
+ *   - URL param `map` controls playable size: ?visual04a&map=96
+ *   - Aliases: small=96, medium=128, large=192
+ *   - Default (no map param) = 9 (unchanged legacy behavior)
+ *   - Camera pan (Arrow keys), zoom (mouse wheel), reset (R/Home) for maps > 9
+ *   - CanvasTexture for platform tiles (perf-safe for large maps)
+ *   - Frame-focused fallback for extremely large maps
+ *   - Adaptive grid: full grid for small maps, major gridlines for large
+ *   - Extended info overlay with zoom, FPS, render mode, camera controls
  *
  * All variation is deterministic — hash-based, no Math.random.
  *
- * Geometry intentionally UNCHANGED from VISUAL-04A:
- *   - GRID_N = 9, FRAME_BORDER = 1, ARENA_N = 11
- *   - Coordinate math (tile positioning, mask, diamond geometry)
- *   - Asset loading, BootScene route, gameConfig
- *
  *   Layer 0 — background world image (optional, with procedural fallback)
- *   Layer 1 — platform tile layer (9×9 grid, clipped to inner diamond)
+ *   Layer 1 — platform tile layer (clipped to inner diamond for small maps)
  *   Layer 2a — frame wall faces (dark, behind tops)
  *             (PNG wall images OR procedural, toggled with W)
  *   Layer 2b — frame top surfaces + inner lip (in front)
@@ -67,13 +61,23 @@
  *   F — toggle frame debug outlines
  *   P — toggle PNG/procedural frame top
  *   W — toggle PNG/procedural wall faces
+ *   R / Home — reset camera (maps > 9)
+ *   Arrow keys — pan camera (maps > 9)
+ *   Mouse wheel — zoom (maps > 9)
  *   ESC — exit to PreloadScene → menu
  *
  * This scene does NOT replace production terrain.
  * It does NOT modify gameplay, pathfinding, economy, or any production system.
  * It is activated only via the ?visual04a URL parameter.
  *
- * Access: http://localhost:3000/?visual04a
+ * Access:
+ *   http://localhost:3000/?visual04a           — default 9×9
+ *   http://localhost:3000/?visual04a&map=96    — 96×96 playable
+ *   http://localhost:3000/?visual04a&map=128   — 128×128 playable
+ *   http://localhost:3000/?visual04a&map=192   — 192×192 playable
+ *   http://localhost:3000/?visual04a&map=small — alias for 96
+ *   http://localhost:3000/?visual04a&map=medium — alias for 128
+ *   http://localhost:3000/?visual04a&map=large — alias for 192
  */
 
 import Phaser from 'phaser';
@@ -89,14 +93,8 @@ interface TileMeta {
 
 // ─── Grid configuration ──────────────────────────────────────────
 
-/** Platform grid size (inner playable area) */
-const GRID_N = 9;
-
 /** Frame border width in tiles (1 tile thick wall around platform) */
 const FRAME_BORDER = 1;
-
-/** Full arena grid size (platform + border on each side) */
-const ARENA_N = GRID_N + 2 * FRAME_BORDER;  // 11
 
 /** Source tile dimensions (from metadata / PNG files) */
 const SOURCE_TILE_W = 384;
@@ -107,6 +105,20 @@ const WALL_HEIGHT_RATIO = 0.6;
 
 /** Corner wall height multiplier (corners are more substantial) */
 const CORNER_WALL_MULT = 1.35;
+
+// ─── Camera / render constants (VISUAL-05A-PR1) ─────────────────
+
+/** Minimum zoom level for large maps */
+const MIN_ZOOM = 0.15;
+
+/** Maximum zoom level for large maps */
+const MAX_ZOOM = 1.5;
+
+/** Maximum canvas/texture dimension before fallback (px) */
+const MAX_RT_SIZE = 8192;
+
+/** Base camera pan speed (px/frame at zoom=1) */
+const BASE_PAN_SPEED = 8;
 
 // ─── Asset keys ───────────────────────────────────────────────────
 
@@ -348,30 +360,77 @@ interface FramePiece {
   isCorner: boolean;
 }
 
+// ─── Render mode types ────────────────────────────────────────────
+
+type RenderMode = 'full-individual' | 'canvas-texture' | 'frame-focused';
+
+// ─── URL parameter parsing ────────────────────────────────────────
+
+/**
+ * Parse the `map` URL parameter to determine playable size.
+ * Returns 9 (default) if no param is specified.
+ * Supports: 9, 96, 128, 192, small, medium, large
+ */
+function parseMapSizeParam(): number {
+  if (typeof window === 'undefined') return 9;
+  const params = new URLSearchParams(window.location.search);
+  const mapParam = params.get('map');
+  if (!mapParam) return 9;
+
+  const lower = mapParam.toLowerCase();
+  switch (lower) {
+    case 'small': return 96;
+    case 'medium': return 128;
+    case 'large': return 192;
+    default: {
+      const n = parseInt(mapParam, 10);
+      return Number.isFinite(n) && n > 0 ? n : 9;
+    }
+  }
+}
+
 // ─── Scene ────────────────────────────────────────────────────────
 
 export class Visual04aPreviewScene extends Phaser.Scene {
-  // Toggle state
+  // ─── Parameterized map sizing (VISUAL-05A-PR1) ───────────────
+  private playableSize = 9;
+  private frameBorder = FRAME_BORDER;
+  private outerSize = 9 + 2 * FRAME_BORDER;
+
+  // ─── Render mode ──────────────────────────────────────────────
+  private renderMode: RenderMode = 'full-individual';
+  private _estimatedObjectCount = 0;
+
+  // ─── Camera state (VISUAL-05A-PR1) ───────────────────────────
+  private currentZoom = 1;
+  private defaultZoom = 1;
+  private panKeys: Record<string, boolean> = {
+    up: false, down: false, left: false, right: false,
+  };
+  private fpsFrameCount = 0;
+
+  // ─── Toggle state ─────────────────────────────────────────────
   private gridVisible = false;
   private frameDebugVisible = false;
+  private gridIsFullDetail = false;  // for large maps, track if G was toggled to full
 
-  // Graphics layers
+  // ─── Graphics layers ──────────────────────────────────────────
   private gridGraphics: Phaser.GameObjects.Graphics | null = null;
   private frameDebugGraphics: Phaser.GameObjects.Graphics | null = null;
   private frameWallGraphics: Phaser.GameObjects.Graphics | null = null;
   private frameTopGraphics: Phaser.GameObjects.Graphics | null = null;
   private infoText: Phaser.GameObjects.Text | null = null;
 
-  // Computed tile dimensions (always exact 2:1)
+  // ─── Computed tile dimensions (always exact 2:1) ─────────────
   private runtimeTileW = 0;
   private runtimeTileH = 0;
   private wallH = 0;
 
-  // Platform origin (center of tile 0,0) in display coords
+  // ─── Platform origin (center of tile 0,0) in display coords ──
   private platformOriginX = 0;
   private platformOriginY = 0;
 
-  // Arena diamond geometry (display coords)
+  // ─── Arena diamond geometry (display coords) ──────────────────
   private arenaCX = 0;
   private arenaCY = 0;
   private innerHW = 0;
@@ -379,26 +438,29 @@ export class Visual04aPreviewScene extends Phaser.Scene {
   private outerHW = 0;
   private outerHH = 0;
 
-  // Tile data
+  // ─── Tile data ────────────────────────────────────────────────
   private tilePlacements: { col: number; row: number; tileId: number }[] = [];
   private framePieces: FramePiece[] = [];
 
-  // Background availability
+  // ─── Background availability ──────────────────────────────────
   private bgAvailable = false;
 
-  // PNG frame top block (VISUAL-04D)
+  // ─── PNG frame top block (VISUAL-04D) ─────────────────────────
   private pngFrameTopAvailable = false;
   private pngFrameTopVisible = true;  // default ON if asset loads
   private pngFrameTopImages: Phaser.GameObjects.Image[] = [];
 
-  // PNG wall face block (VISUAL-04F)
+  // ─── PNG wall face block (VISUAL-04F) ─────────────────────────
   private pngWallFaceAvailable = false;
   private pngWallFaceVisible = true;  // default ON if asset loads
   private pngWallFaceImages: Phaser.GameObjects.Image[] = [];
 
-  // Mask
+  // ─── Mask ──────────────────────────────────────────────────────
   private maskGraphics: Phaser.GameObjects.Graphics | null = null;
   private tileContainer: Phaser.GameObjects.Container | null = null;
+
+  // ─── CanvasTexture images (VISUAL-05A-PR1) ────────────────
+  private canvasTextureImages: Phaser.GameObjects.Image[] = [];
 
   constructor() {
     super({ key: 'Visual04aPreviewScene' });
@@ -448,15 +510,29 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const canvasW = cam.width;
     const canvasH = cam.height;
 
+    // ─── Parse URL parameter for map size (VISUAL-05A-PR1) ─────
+    this.playableSize = parseMapSizeParam();
+    this.frameBorder = FRAME_BORDER;
+    this.outerSize = this.playableSize + 2 * this.frameBorder;
+
+    const isLargeMap = this.playableSize > 9;
+
     // ─── Compute tile dimensions ──────────────────────────────────
 
-    // Tile size to fit the full arena (11×11 diamond) in canvas
-    // Arena diamond: height = ARENA_N * th, width = 2 * ARENA_N * th
-    const margin = 0.82;
-    this.runtimeTileH = Math.min(
-      canvasH * margin / ARENA_N,
-      canvasW * margin / (2 * ARENA_N)
-    );
+    // For the default 9×9, fit the arena in the canvas (unchanged behavior).
+    // For large maps, use a fixed tile size that gives good visual detail.
+    if (!isLargeMap) {
+      const margin = 0.82;
+      this.runtimeTileH = Math.min(
+        canvasH * margin / this.outerSize,
+        canvasW * margin / (2 * this.outerSize)
+      );
+    } else {
+      // For large maps, use a fixed small tile height for detail.
+      // Tile height of ~8px gives 96*8=768px arena height, manageable.
+      // But we need the tile to be at least renderable.
+      this.runtimeTileH = Math.max(4, Math.min(16, canvasH / (this.outerSize * 1.2)));
+    }
     this.runtimeTileW = 2 * this.runtimeTileH;
     this.wallH = this.runtimeTileH * WALL_HEIGHT_RATIO;
 
@@ -465,26 +541,24 @@ export class Visual04aPreviewScene extends Phaser.Scene {
 
     // ─── Arena diamond geometry ───────────────────────────────────
 
-    // Center of the arena (same as center of the canvas)
+    // Center of the arena
     this.arenaCX = canvasW / 2;
     this.arenaCY = canvasH / 2;
 
-    // Inner diamond half-extents (platform area, 9×9 grid)
-    this.innerHH = GRID_N * this.runtimeTileH / 2;
-    this.innerHW = GRID_N * this.runtimeTileW / 2;  // = GRID_N * runtimeTileH
+    // Inner diamond half-extents (platform area)
+    this.innerHH = this.playableSize * this.runtimeTileH / 2;
+    this.innerHW = this.playableSize * this.runtimeTileW / 2;
 
-    // Outer diamond half-extents (full arena including frame, 11×11 grid)
-    this.outerHH = ARENA_N * this.runtimeTileH / 2;
-    this.outerHW = ARENA_N * this.runtimeTileW / 2;
+    // Outer diamond half-extents (full arena including frame)
+    this.outerHH = this.outerSize * this.runtimeTileH / 2;
+    this.outerHW = this.outerSize * this.runtimeTileW / 2;
 
     // Platform origin: center of tile (0,0)
-    // Top vertex of inner diamond is at (arenaCX, arenaCY - innerHH)
-    // Tile (0,0) center is at (arenaCX, arenaCY - innerHH + halfTH)
     this.platformOriginX = this.arenaCX;
     this.platformOriginY = this.arenaCY - this.innerHH + halfTH;
 
     const tileRatio = this.runtimeTileW / this.runtimeTileH;
-    console.log(`[Visual04a] Arena: ${ARENA_N}×${ARENA_N} (platform ${GRID_N}+border ${FRAME_BORDER})`);
+    console.log(`[Visual04a] Arena: ${this.outerSize}×${this.outerSize} (platform ${this.playableSize}+border ${this.frameBorder})`);
     console.log(`[Visual04a] Tile: ${this.runtimeTileW.toFixed(1)}×${this.runtimeTileH.toFixed(1)}, ratio: ${tileRatio.toFixed(4)}`);
     console.log(`[Visual04a] Inner diamond: ${(2*this.innerHW).toFixed(1)}×${(2*this.innerHH).toFixed(1)}`);
     console.log(`[Visual04a] Outer diamond: ${(2*this.outerHW).toFixed(1)}×${(2*this.outerHH).toFixed(1)}`);
@@ -503,39 +577,41 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     ];
     const picker = new WeightedTilePicker(tileMetas, 42);
 
-    // ─── Diamond hit-test helpers ─────────────────────────────────
+    // ─── Grid-range classification ─────────────────────────────────
+    //
+    // Use explicit grid coordinate ranges instead of fuzzy screen-space
+    // diamond hit-tests. The old `isInInnerDiamond(sx, sy) <= 1.1` and
+    // `isInOuterDiamond(sx, sy) <= 1.05` had tolerance slop that swallowed
+    // the 1-tile frame border on large maps (96/128/192), producing 0 frame
+    // pieces. Grid-range checks are exact and scale-correct.
 
-    const isInInnerDiamond = (px: number, py: number): boolean => {
-      return (Math.abs(px - this.arenaCX) / this.innerHW +
-              Math.abs(py - this.arenaCY) / this.innerHH) <= 1.1;
+    const isPlayableCell = (col: number, row: number): boolean => {
+      return col >= 0 && col < this.playableSize &&
+             row >= 0 && row < this.playableSize;
     };
 
-    const isInOuterDiamond = (px: number, py: number): boolean => {
-      return (Math.abs(px - this.arenaCX) / this.outerHW +
-              Math.abs(py - this.arenaCY) / this.outerHH) <= 1.05;
+    const isOuterArenaCell = (col: number, row: number): boolean => {
+      return col >= -this.frameBorder && col < this.playableSize + this.frameBorder &&
+             row >= -this.frameBorder && row < this.playableSize + this.frameBorder;
     };
 
     // ─── Classify grid cells ──────────────────────────────────────
 
-    // Iterate over the full arena range (platform + border)
     this.tilePlacements = [];
     this.framePieces = [];
 
-    for (let row = -FRAME_BORDER; row < GRID_N + FRAME_BORDER; row++) {
-      for (let col = -FRAME_BORDER; col < GRID_N + FRAME_BORDER; col++) {
+    for (let row = -this.frameBorder; row < this.playableSize + this.frameBorder; row++) {
+      for (let col = -this.frameBorder; col < this.playableSize + this.frameBorder; col++) {
         const sx = (col - row) * halfTW + this.platformOriginX;
         const sy = (col + row) * halfTH + this.platformOriginY;
 
-        if (isInInnerDiamond(sx, sy)) {
-          // Platform tile
+        if (isPlayableCell(col, row)) {
           const tileId = picker.pick();
           this.tilePlacements.push({ col, row, tileId });
-        } else if (isInOuterDiamond(sx, sy)) {
-          // Frame piece
+        } else if (isOuterArenaCell(col, row)) {
           const isCorner = this.isCornerPiece(col, row, sx, sy);
           this.framePieces.push({ col, row, sx, sy, isCorner });
         }
-        // else: outside arena, skip
       }
     }
 
@@ -545,6 +621,10 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     console.log(`[Visual04a] Platform tiles: ${this.tilePlacements.length}`);
     console.log(`[Visual04a] Frame pieces: ${this.framePieces.length} (corners: ${this.framePieces.filter(f => f.isCorner).length})`);
 
+    // ─── Determine render mode (VISUAL-05A-PR1) ──────────────────
+    this.determineRenderMode();
+    console.log(`[Visual04a] Render mode: ${this.renderMode}`);
+
     // ─── Layer 0: Background (optional image or procedural fallback) ─
 
     if (this.bgAvailable) {
@@ -552,11 +632,18 @@ export class Visual04aPreviewScene extends Phaser.Scene {
         const bgImg = this.textures.get(ASSET_KEY_BG);
         const src = bgImg.getSourceImage() as HTMLImageElement | HTMLCanvasElement | ImageBitmap;
         if (src && src.width && src.height) {
-          const bgScale = Math.max(canvasW / src.width, canvasH / src.height);
-          const bg = this.add.image(canvasW / 2, canvasH / 2, ASSET_KEY_BG);
+          // For large maps, extend background to cover the full world
+          const bgScale = isLargeMap
+            ? Math.max(
+                (this.outerHW * 2 + this.runtimeTileW * 6) / src.width,
+                (this.outerHH * 2 + this.wallH * CORNER_WALL_MULT * 2 + this.runtimeTileH * 6) / src.height
+              )
+            : Math.max(canvasW / src.width, canvasH / src.height);
+          const bg = this.add.image(this.arenaCX, this.arenaCY, ASSET_KEY_BG);
           bg.setScale(bgScale);
           bg.setDepth(DEPTH_BG);
           bg.setOrigin(0.5, 0.5);
+          bg.setScrollFactor(1);
         } else {
           this.bgAvailable = false;
           this.drawFallbackBackground(canvasW, canvasH);
@@ -580,8 +667,230 @@ export class Visual04aPreviewScene extends Phaser.Scene {
 
     this.createPngWallFaces();
 
-    // ─── Layer 1: Platform tiles (masked to inner diamond) ────────
+    // ─── Layer 1: Platform tiles ──────────────────────────────────
+    this.renderPlatformTiles();
 
+    // ─── Layer 2b: Frame top surfaces + inner lip ────────────────
+
+    this.frameTopGraphics = this.add.graphics();
+    this.frameTopGraphics.setDepth(DEPTH_FRAME_TOP);
+    this.drawFrameTops();
+
+    // ─── Layer 2c: PNG frame top block overlay (VISUAL-04D) ────────
+
+    this.createPngFrameTops();
+
+    // ─── Layer 3: Debug grid overlay (initially hidden) ───────────
+
+    this.gridGraphics = this.add.graphics();
+    this.gridGraphics.setDepth(DEPTH_GRID);
+    this.gridGraphics.setVisible(this.gridVisible);
+    this.drawGridOverlay();
+
+    // ─── Layer 4: Frame debug outlines (initially hidden) ────────
+
+    this.frameDebugGraphics = this.add.graphics();
+    this.frameDebugGraphics.setDepth(DEPTH_FRAME_DEBUG);
+    this.frameDebugGraphics.setVisible(this.frameDebugVisible);
+    this.drawFrameDebug();
+
+    // ─── Camera ───────────────────────────────────────────────────
+
+    cam.setBackgroundColor('#1a1a2e');
+
+    if (isLargeMap) {
+      // Calculate initial zoom to show a reasonable portion of the map
+      // Fit the full arena in the canvas
+      const zoomToFitH = canvasH / (this.outerHH * 2 + this.wallH * CORNER_WALL_MULT * 2);
+      const zoomToFitW = canvasW / (this.outerHW * 2);
+      this.defaultZoom = Math.min(zoomToFitH, zoomToFitW) * 0.85;
+      this.defaultZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, this.defaultZoom));
+      this.currentZoom = this.defaultZoom;
+      cam.setZoom(this.currentZoom);
+      cam.centerOn(this.arenaCX, this.arenaCY);
+
+      // Mouse wheel zoom
+      this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _gameObjects: Phaser.GameObjects.GameObject[], _dx: number, dy: number, _dz: number) => {
+        const zoomDelta = dy > 0 ? 0.9 : 1.1;
+        this.currentZoom = Phaser.Math.Clamp(this.currentZoom * zoomDelta, MIN_ZOOM, MAX_ZOOM);
+        cam.setZoom(this.currentZoom);
+        this.updateInfoText();
+      });
+
+      // Pan key tracking via keydown/keyup for smooth continuous panning
+      const setPanKey = (_keyCode: string, direction: string, pressed: boolean) => {
+        if (direction) this.panKeys[direction] = pressed;
+      };
+
+      // NOTE: Only Arrow keys used for panning (not WASD).
+      // W and P are already toggle keys (wall/top PNG mode) and must not
+      // conflict with camera movement. Arrow keys are unambiguous.
+      this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
+        switch (event.code) {
+          case 'ArrowUp':    setPanKey(event.code, 'up', true); break;
+          case 'ArrowDown':  setPanKey(event.code, 'down', true); break;
+          case 'ArrowLeft':  setPanKey(event.code, 'left', true); break;
+          case 'ArrowRight': setPanKey(event.code, 'right', true); break;
+        }
+      });
+
+      this.input.keyboard?.on('keyup', (event: KeyboardEvent) => {
+        switch (event.code) {
+          case 'ArrowUp':    setPanKey(event.code, 'up', false); break;
+          case 'ArrowDown':  setPanKey(event.code, 'down', false); break;
+          case 'ArrowLeft':  setPanKey(event.code, 'left', false); break;
+          case 'ArrowRight': setPanKey(event.code, 'right', false); break;
+        }
+      });
+
+      // R / Home = reset camera
+      this.input.keyboard?.on('keydown-R', () => {
+        this.resetCamera();
+      });
+      this.input.keyboard?.on('keydown-HOME', () => {
+        this.resetCamera();
+      });
+    } else {
+      cam.setScroll(0, 0);
+      this.defaultZoom = 1;
+      this.currentZoom = 1;
+    }
+
+    // ─── Keyboard controls (shared) ────────────────────────────────
+
+    this.input.keyboard?.on('keydown-G', () => {
+      if (this.playableSize > 20) {
+        // Toggle between adaptive grid and (attempted) full grid
+        this.gridIsFullDetail = !this.gridIsFullDetail;
+        if (this.gridIsFullDetail) {
+          console.warn('[Visual04a] Full grid for large map may be slow');
+        }
+      }
+      this.gridVisible = !this.gridVisible;
+      this.gridGraphics?.setVisible(this.gridVisible);
+      this.drawGridOverlay();
+      this.updateInfoText();
+    });
+
+    this.input.keyboard?.on('keydown-F', () => {
+      this.frameDebugVisible = !this.frameDebugVisible;
+      this.frameDebugGraphics?.setVisible(this.frameDebugVisible);
+      this.updateInfoText();
+    });
+
+    this.input.keyboard?.on('keydown-P', () => {
+      if (!this.pngFrameTopAvailable) return;  // no PNG to toggle
+      this.pngFrameTopVisible = !this.pngFrameTopVisible;
+      this.applyFrameTopMode();
+      this.updateInfoText();
+    });
+
+    this.input.keyboard?.on('keydown-W', () => {
+      if (!this.pngWallFaceAvailable) return;  // no PNG wall to toggle
+      this.pngWallFaceVisible = !this.pngWallFaceVisible;
+      this.applyWallFaceMode();
+      this.updateInfoText();
+    });
+
+    this.input.keyboard?.on('keydown-ESC', () => {
+      console.log('[Visual04aPreviewScene] ESC pressed. Starting PreloadScene to load production assets before menu.');
+      this.scene.start('PreloadScene');
+    });
+
+    // ─── Info text ────────────────────────────────────────────────
+
+    this.infoText = this.add.text(12, 12, '', {
+      fontFamily: 'monospace',
+      fontSize: this.playableSize > 20 ? '11px' : '13px',
+      color: '#aaaaaa',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      padding: { x: 8, y: 4 },
+    });
+    this.infoText.setDepth(DEPTH_UI);
+    this.infoText.setScrollFactor(0);
+    this.updateInfoText();
+  }
+
+  // ─── Update loop (VISUAL-05A-PR1) ────────────────────────────────
+
+  update(): void {
+    // Continuous camera panning for large maps
+    if (this.playableSize > 9) {
+      const cam = this.cameras.main;
+      // Pan speed scales inversely with zoom (faster when zoomed out)
+      const panSpeed = BASE_PAN_SPEED / this.currentZoom;
+
+      if (this.panKeys.up)    cam.scrollY -= panSpeed;
+      if (this.panKeys.down)  cam.scrollY += panSpeed;
+      if (this.panKeys.left)  cam.scrollX -= panSpeed;
+      if (this.panKeys.right) cam.scrollX += panSpeed;
+    }
+
+    // Throttled FPS update in info text
+    this.fpsFrameCount++;
+    if (this.fpsFrameCount % 30 === 0) {
+      this.updateInfoText();
+    }
+  }
+
+  // ─── Reset camera to arena center (VISUAL-05A-PR1) ──────────────
+
+  private resetCamera(): void {
+    const cam = this.cameras.main;
+    this.currentZoom = this.defaultZoom;
+    cam.setZoom(this.currentZoom);
+    cam.centerOn(this.arenaCX, this.arenaCY);
+    this.updateInfoText();
+  }
+
+  // ─── Render mode determination (VISUAL-05A-PR1) ─────────────────
+
+  private determineRenderMode(): void {
+    // Calculate arena size in pixels
+    const arenaW = this.outerSize * this.runtimeTileW;
+    const arenaH = this.outerSize * this.runtimeTileH;
+
+    // Estimate total objects
+    this._estimatedObjectCount = this.tilePlacements.length + this.framePieces.length;
+
+    // For small maps (≤9), use individual images (original behavior)
+    if (this.playableSize <= 9) {
+      this.renderMode = 'full-individual';
+      return;
+    }
+
+    // For large maps, use CanvasTexture (draw tiles onto an offscreen canvas,
+    // then display as a single image — avoids Phaser 4 RenderTexture draw issues)
+    if (arenaW <= MAX_RT_SIZE && arenaH <= MAX_RT_SIZE) {
+      this.renderMode = 'canvas-texture';
+      return;
+    }
+
+    // Fallback: frame-focused mode (only render frame pieces, fill interior with solid)
+    this.renderMode = 'frame-focused';
+  }
+
+  // ─── Platform tile rendering (VISUAL-05A-PR1) ────────────────────
+
+  private renderPlatformTiles(): void {
+    const halfTW = this.runtimeTileW / 2;
+    const halfTH = this.runtimeTileH / 2;
+
+    switch (this.renderMode) {
+      case 'full-individual':
+        this.renderTilesIndividual(halfTW, halfTH);
+        break;
+      case 'canvas-texture':
+        this.renderTilesCanvasTexture(halfTW, halfTH);
+        break;
+      case 'frame-focused':
+        this.renderTilesFrameFocused(halfTW, halfTH);
+        break;
+    }
+  }
+
+  /** Original rendering: individual Image objects in a masked Container. */
+  private renderTilesIndividual(halfTW: number, halfTH: number): void {
     // Create diamond mask for platform clipping
     this.maskGraphics = this.make.graphics({ x: 0, y: 0 }, false);
     this.maskGraphics.fillStyle(MASK_COLOR, 1);
@@ -615,82 +924,132 @@ export class Visual04aPreviewScene extends Phaser.Scene {
 
       this.tileContainer.add(tileImg);
     }
-
-    // ─── Layer 2b: Frame top surfaces + inner lip ────────────────
-
-    this.frameTopGraphics = this.add.graphics();
-    this.frameTopGraphics.setDepth(DEPTH_FRAME_TOP);
-    this.drawFrameTops();
-
-    // ─── Layer 2c: PNG frame top block overlay (VISUAL-04D) ────────
-
-    this.createPngFrameTops();
-
-    // ─── Layer 3: Debug grid overlay (initially hidden) ───────────
-
-    this.gridGraphics = this.add.graphics();
-    this.gridGraphics.setDepth(DEPTH_GRID);
-    this.gridGraphics.setVisible(this.gridVisible);
-    this.drawGridOverlay();
-
-    // ─── Layer 4: Frame debug outlines (initially hidden) ────────
-
-    this.frameDebugGraphics = this.add.graphics();
-    this.frameDebugGraphics.setDepth(DEPTH_FRAME_DEBUG);
-    this.frameDebugGraphics.setVisible(this.frameDebugVisible);
-    this.drawFrameDebug();
-
-    // ─── Camera ───────────────────────────────────────────────────
-
-    cam.setBackgroundColor('#1a1a2e');
-    cam.setScroll(0, 0);
-
-    // ─── Keyboard controls ────────────────────────────────────────
-
-    this.input.keyboard?.on('keydown-G', () => {
-      this.gridVisible = !this.gridVisible;
-      this.gridGraphics?.setVisible(this.gridVisible);
-      this.updateInfoText();
-    });
-
-    this.input.keyboard?.on('keydown-F', () => {
-      this.frameDebugVisible = !this.frameDebugVisible;
-      this.frameDebugGraphics?.setVisible(this.frameDebugVisible);
-      this.updateInfoText();
-    });
-
-    this.input.keyboard?.on('keydown-P', () => {
-      if (!this.pngFrameTopAvailable) return;  // no PNG to toggle
-      this.pngFrameTopVisible = !this.pngFrameTopVisible;
-      this.applyFrameTopMode();
-      this.updateInfoText();
-    });
-
-    this.input.keyboard?.on('keydown-W', () => {
-      if (!this.pngWallFaceAvailable) return;  // no PNG wall to toggle
-      this.pngWallFaceVisible = !this.pngWallFaceVisible;
-      this.applyWallFaceMode();
-      this.updateInfoText();
-    });
-
-    this.input.keyboard?.on('keydown-ESC', () => {
-      console.log('[Visual04aPreviewScene] ESC pressed. Starting PreloadScene to load production assets before menu.');
-      this.scene.start('PreloadScene');
-    });
-
-    // ─── Info text ────────────────────────────────────────────────
-
-    this.infoText = this.add.text(12, 12, '', {
-      fontFamily: 'monospace',
-      fontSize: '13px',
-      color: '#aaaaaa',
-      backgroundColor: 'rgba(0,0,0,0.6)',
-      padding: { x: 8, y: 4 },
-    });
-    this.infoText.setDepth(DEPTH_UI);
-    this.infoText.setScrollFactor(0);
-    this.updateInfoText();
   }
+
+  /** CanvasTexture: draw all tiles onto an offscreen canvas, display as one image. */
+  private renderTilesCanvasTexture(halfTW: number, halfTH: number): void {
+    const bounds = this.calculateTileBounds(halfTW, halfTH);
+    if (!bounds) return;
+
+    // Canvas origin = top-left of the bounding box of all tile images
+    const canvasOriginX = bounds.minX;
+    const canvasOriginY = bounds.minY;
+    const canvasW = Math.ceil(bounds.maxX - bounds.minX);
+    const canvasH = Math.ceil(bounds.maxY - bounds.minY);
+
+    if (canvasW > MAX_RT_SIZE || canvasH > MAX_RT_SIZE) {
+      // Fall back to frame-focused mode
+      console.warn('[Visual04a] Canvas too large, falling back to frame-focused');
+      this.renderMode = 'frame-focused';
+      this.renderTilesFrameFocused(halfTW, halfTH);
+      return;
+    }
+
+    const key = `visual04a-platform-canvas-${this.playableSize}`;
+
+    // Remove existing canvas texture if it exists (e.g. from a previous scene run)
+    if (this.textures.exists(key)) {
+      this.textures.remove(key);
+    }
+
+    const canvasTexture = this.textures.createCanvas(key, canvasW, canvasH);
+    if (!canvasTexture) {
+      console.error('[Visual04a] Failed to create canvas texture, falling back to frame-focused');
+      this.renderMode = 'frame-focused';
+      this.renderTilesFrameFocused(halfTW, halfTH);
+      return;
+    }
+
+    const ctx = canvasTexture.getContext();
+
+    for (const placement of this.tilePlacements) {
+      const sx = (placement.col - placement.row) * halfTW + this.platformOriginX;
+      const sy = (placement.col + placement.row) * halfTH + this.platformOriginY;
+
+      const assetKey = `${TILE_ASSET_KEY_PREFIX}${placement.tileId}`;
+      const tex = this.textures.get(assetKey);
+      const src = tex.getSourceImage() as HTMLImageElement | HTMLCanvasElement | ImageBitmap;
+
+      ctx.drawImage(
+        src,
+        sx - canvasOriginX - halfTW,
+        sy - canvasOriginY - halfTH,
+        this.runtimeTileW,
+        this.runtimeTileH
+      );
+    }
+
+    canvasTexture.refresh();
+
+    const img = this.add.image(canvasOriginX, canvasOriginY, key);
+    img.setOrigin(0, 0);
+    img.setDepth(DEPTH_TILES);
+    this.canvasTextureImages.push(img);
+
+    console.log(`[Visual04a] Canvas texture: ${canvasW}×${canvasH} px, ${this.tilePlacements.length} tiles drawn`);
+  }
+
+  /** Frame-focused: solid fill for playable area + individual frame pieces. */
+  private renderTilesFrameFocused(halfTW: number, halfTH: number): void {
+    // Draw a solid colored rectangle approximating the playable diamond
+    const fillGraphics = this.add.graphics();
+    fillGraphics.setDepth(DEPTH_TILES);
+
+    // Fill the inner diamond with a solid color
+    fillGraphics.fillStyle(0x2a2a1a, 0.8);
+    fillGraphics.beginPath();
+    fillGraphics.moveTo(this.arenaCX, this.arenaCY - this.innerHH);
+    fillGraphics.lineTo(this.arenaCX + this.innerHW, this.arenaCY);
+    fillGraphics.lineTo(this.arenaCX, this.arenaCY + this.innerHH);
+    fillGraphics.lineTo(this.arenaCX - this.innerHW, this.arenaCY);
+    fillGraphics.closePath();
+    fillGraphics.fillPath();
+
+    // Stamp a few representative tiles as texture samples in the center
+    const tileScaleX = this.runtimeTileW / SOURCE_TILE_W;
+    const tileScaleY = this.runtimeTileH / SOURCE_TILE_H;
+
+    // Sample a sparse grid of tiles (every Nth tile)
+    const sampleStep = Math.max(1, Math.floor(this.playableSize / 20));
+    const picker = new WeightedTilePicker([
+      { id: 1, file: 'platform_tile_001.png', tags: ['base'], recommendedWeight: 1 },
+    ], 42);
+
+    for (let row = 0; row < this.playableSize; row += sampleStep) {
+      for (let col = 0; col < this.playableSize; col += sampleStep) {
+        const sx = (col - row) * halfTW + this.platformOriginX;
+        const sy = (col + row) * halfTH + this.platformOriginY;
+
+        // All cells in [0, playableSize) are playable — no diamond check needed
+        const tileId = picker.pick();
+        const assetKey = `${TILE_ASSET_KEY_PREFIX}${tileId}`;
+        const tileImg = this.add.image(sx, sy, assetKey);
+        tileImg.setScale(tileScaleX * sampleStep, tileScaleY * sampleStep);
+        tileImg.setOrigin(0.5, 0.5);
+        tileImg.setDepth(DEPTH_TILES);
+        tileImg.setAlpha(0.3);  // very subtle
+      }
+    }
+
+    console.log(`[Visual04a] Frame-focused mode: ${this.tilePlacements.length} tiles replaced with solid fill`);
+  }
+
+  /** Calculate world-space bounding box of all platform tiles. */
+  private calculateTileBounds(halfTW: number, halfTH: number): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    if (this.tilePlacements.length === 0) return null;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const placement of this.tilePlacements) {
+      const sx = (placement.col - placement.row) * halfTW + this.platformOriginX;
+      const sy = (placement.col + placement.row) * halfTH + this.platformOriginY;
+      minX = Math.min(minX, sx - halfTW);
+      minY = Math.min(minY, sy - halfTH);
+      maxX = Math.max(maxX, sx + halfTW);
+      maxY = Math.max(maxY, sy + halfTH);
+    }
+    return { minX, minY, maxX, maxY };
+  }
+
 
   // ─── Fallback background ──────────────────────────────────────────
 
@@ -703,12 +1062,12 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const bg = this.add.graphics();
     bg.setDepth(DEPTH_BG);
 
-    // Dark solid fill
+    // Dark solid fill covering the full world area
+    const fillExtent = Math.max(canvasW, canvasH, this.outerHW * 3, this.outerHH * 3);
     bg.fillStyle(0x12121e, 1);
-    bg.fillRect(0, 0, canvasW, canvasH);
+    bg.fillRect(-fillExtent, -fillExtent, fillExtent * 3, fillExtent * 3);
 
     // Subtle ground rectangle under the arena area
-    // Slightly lighter than the camera clear color to provide visual ground
     const groundPad = this.runtimeTileH * 2;
     const groundX = this.arenaCX - this.outerHW - groundPad;
     const groundY = this.arenaCY - this.outerHH - groundPad;
@@ -721,6 +1080,8 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     // Very subtle border around ground area
     bg.lineStyle(1, 0x2a2a3a, 0.3);
     bg.strokeRect(groundX, groundY, groundW, groundH);
+
+    bg.setScrollFactor(1);
   }
 
   // ─── Corner piece detection ──────────────────────────────────────
@@ -825,29 +1186,6 @@ export class Visual04aPreviewScene extends Phaser.Scene {
   /**
    * Create PNG wall face images for each frame piece.
    * If the PNG failed to load, this is a no-op and procedural walls remain.
-   *
-   * The wall face PNG (384×288 canvas) contains a visible wall polygon:
-   *   top-left: [96, 40], top-right: [288, 136],
-   *   bottom-right: [288, 248], bottom-left: [96, 152]
-   *
-   * Placement strategy:
-   *   - For each frame piece, determine which wall faces are visible (outer)
-   *     using getEdgeInfo(). Only outer-facing wall sides get a PNG image;
-   *     inner-facing sides are hidden by the platform/tiles above.
-   *   - Left wall face: created only if the bottom→left edge (Edge 2) is outer.
-   *     Placed with anchor at the top-left polygon point, aligned to the
-   *     left→bottom side edge of the diamond.
-   *   - Right wall face: created only if the right→bottom edge (Edge 1) is outer.
-   *     Mirrored via setScale(-scale, scale) with the SAME origin as the left
-   *     wall. Phaser's negative X scale flips the image around the origin,
-   *     so the anchor (top-left polygon point) maps to the right vertex and
-   *     the wall extends down-left. No tint applied (original brightness, lit side).
-   *
-   * This filtering prevents "black vertical fins" on the top/far edges of
-   * the arena where wall faces would face inward (toward the platform) and
-   * should not be visible.
-   *
-   * Scale = runtimeTileW / 384 (canvas width), adjusted by WALL_FACE_SCALE_ADJUST.
    */
   private createPngWallFaces(): void {
     if (!this.pngWallFaceAvailable) return;
@@ -879,40 +1217,27 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       const { sx, sy } = piece;
 
       // Determine which diamond edges face outward (visible walls)
-      // Edge indices: 0=top→right, 1=right→bottom, 2=bottom→left, 3=left→top
       const edges = getEdgeInfo(sx, sy, this.arenaCX, this.arenaCY);
 
-      // ─── Left wall face PNG ─────────────────────────────────────
-      // The left wall face hangs from the left→bottom edge (= Edge 2 reversed).
-      // Only draw if Edge 2 (bottom→left) faces outward.
+      // Left wall face PNG
       if (edges[2].isOuter) {
-        // Anchor (top-left polygon point) maps to the left vertex of the diamond.
         const img = this.add.image(sx - halfTW, sy, ASSET_KEY_WALL_FACE_LEFT);
         img.setScale(scale);
         img.setOrigin(WALL_FACE_ANCHOR_X, WALL_FACE_ANCHOR_Y);
         img.setDepth(DEPTH_FRAME_WALLS);
         img.setVisible(this.pngWallFaceVisible);
-        // Apply darker multiplicative tint for depth (left face in shadow).
         img.setTint(WALL_FACE_LEFT_TINT);
         this.pngWallFaceImages.push(img);
         leftCount++;
       }
 
-      // ─── Right wall face PNG (mirrored, no tint — lit side) ────────
-      // The right wall face hangs from the right→bottom edge (= Edge 1).
-      // Only draw if Edge 1 (right→bottom) faces outward.
-      // Use setScale(-scale, scale) with the SAME origin as the left wall.
-      // Phaser's negative X scale flips the image around the origin point,
-      // so the anchor (top-left polygon point at origin) stays at position
-      // (right vertex) and the wall content mirrors to extend down-left.
+      // Right wall face PNG (mirrored, no tint — lit side)
       if (edges[1].isOuter) {
         const img = this.add.image(sx + halfTW, sy, ASSET_KEY_WALL_FACE_LEFT);
-        img.setScale(-scale, scale);  // flip horizontally via negative X scale
-        // Same origin as left wall — negative scale handles the mirror correctly.
+        img.setScale(-scale, scale);
         img.setOrigin(WALL_FACE_ANCHOR_X, WALL_FACE_ANCHOR_Y);
         img.setDepth(DEPTH_FRAME_WALLS);
         img.setVisible(this.pngWallFaceVisible);
-        // No tint (0xffffff = original brightness, lit side).
         img.setTint(WALL_FACE_RIGHT_TINT);
         this.pngWallFaceImages.push(img);
         rightCount++;
@@ -921,24 +1246,20 @@ export class Visual04aPreviewScene extends Phaser.Scene {
 
     console.log(`[Visual04a] PNG wall face: ${this.pngWallFaceImages.length} images created (left=${leftCount}, right=${rightCount}, scale=${scale.toFixed(4)})`);
 
-    // Apply initial mode (may hide procedural walls if PNG walls are active)
+    // Apply initial mode
     this.applyWallFaceMode();
   }
 
   /**
    * Apply the current wall face mode (PNG or procedural).
-   * When PNG walls are ON and available: hide procedural wall graphics, show PNG images.
-   * When PNG walls are OFF or unavailable: show procedural wall graphics, hide PNG images.
    */
   private applyWallFaceMode(): void {
     const usePng = this.pngWallFaceAvailable && this.pngWallFaceVisible;
 
-    // Toggle PNG wall images
     for (const img of this.pngWallFaceImages) {
       img.setVisible(usePng);
     }
 
-    // Toggle procedural wall graphics
     if (this.frameWallGraphics) {
       this.frameWallGraphics.setVisible(!usePng);
     }
@@ -947,15 +1268,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
   // ─── Frame wall face rendering (VISUAL-04B polished) ────────────
 
   /**
-   * Draw wall faces for all frame pieces with industrial detail:
-   *   - Left and right face halves with directional shading
-   *   - Panel rib lines dividing each face into sections
-   *   - Darker top shadow where wall meets top surface
-   *   - Corners get taller walls for more substantial look
-   *
-   * When PNG wall mode is active (VISUAL-04F), these procedural walls
-   * are hidden — PNG images replace them. They remain drawn in case the
-   * user toggles back to procedural mode with W.
+   * Draw wall faces for all frame pieces with industrial detail.
    */
   private drawFrameWalls(): void {
     if (!this.frameWallGraphics) return;
@@ -969,30 +1282,29 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       const { sx, sy, isCorner } = piece;
       const effWallH = isCorner ? this.wallH * CORNER_WALL_MULT : this.wallH;
 
-      // ─── Left wall face (darker, as if lit from upper-right) ───
+      // Left wall face (darker, as if lit from upper-right)
       const leftWallColor = isCorner ? FRAME_CORNER_WALL : FRAME_WALL_BASE;
       g.fillStyle(leftWallColor, 1);
       g.beginPath();
-      g.moveTo(sx - halfTW, sy);                   // left vertex of diamond
-      g.lineTo(sx, sy + halfTH);                    // bottom vertex
-      g.lineTo(sx, sy + halfTH + effWallH);         // bottom + wall
-      g.lineTo(sx - halfTW, sy + effWallH);         // left + wall
+      g.moveTo(sx - halfTW, sy);
+      g.lineTo(sx, sy + halfTH);
+      g.lineTo(sx, sy + halfTH + effWallH);
+      g.lineTo(sx - halfTW, sy + effWallH);
       g.closePath();
       g.fillPath();
 
-      // ─── Right wall face (slightly lighter) ───────────────────
+      // Right wall face (slightly lighter)
       const rightWallColor = isCorner ? FRAME_CORNER_WALL_LIGHT : FRAME_WALL_LIGHT;
       g.fillStyle(rightWallColor, 1);
       g.beginPath();
-      g.moveTo(sx + halfTW, sy);                   // right vertex of diamond
-      g.lineTo(sx, sy + halfTH);                    // bottom vertex
-      g.lineTo(sx, sy + halfTH + effWallH);         // bottom + wall
-      g.lineTo(sx + halfTW, sy + effWallH);         // right + wall
+      g.moveTo(sx + halfTW, sy);
+      g.lineTo(sx, sy + halfTH);
+      g.lineTo(sx, sy + halfTH + effWallH);
+      g.lineTo(sx + halfTW, sy + effWallH);
       g.closePath();
       g.fillPath();
 
-      // ─── Panel rib lines on left face ─────────────────────────
-      // Two vertical ribs dividing left face into 3 panels
+      // Panel rib lines on left face
       g.lineStyle(1, FRAME_WALL_RIB, 0.8);
       for (const frac of [0.33, 0.67]) {
         const ribX = sx - halfTW + halfTW * frac;
@@ -1004,7 +1316,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
         g.strokePath();
       }
 
-      // ─── Panel rib lines on right face ────────────────────────
+      // Panel rib lines on right face
       for (const frac of [0.33, 0.67]) {
         const ribX = sx + halfTW - halfTW * frac;
         const ribTopY = sy + halfTH * frac;
@@ -1015,18 +1327,17 @@ export class Visual04aPreviewScene extends Phaser.Scene {
         g.strokePath();
       }
 
-      // ─── Top edge shadow (darkest line where wall meets top) ──
+      // Top edge shadow (darkest line where wall meets top)
       g.lineStyle(2, FRAME_WALL_TOP_SHADOW, 0.9);
       g.beginPath();
-      g.moveTo(sx - halfTW, sy);                   // left vertex
-      g.lineTo(sx, sy + halfTH);                    // bottom vertex
-      g.lineTo(sx + halfTW, sy);                    // right vertex
+      g.moveTo(sx - halfTW, sy);
+      g.lineTo(sx, sy + halfTH);
+      g.lineTo(sx + halfTW, sy);
       g.strokePath();
 
-      // ─── Corner outline accent ────────────────────────────────
+      // Corner outline accent
       if (isCorner) {
         g.lineStyle(1, CORNER_OUTLINE_COLOR, 0.6);
-        // Outline the entire wall shape
         g.beginPath();
         g.moveTo(sx - halfTW, sy);
         g.lineTo(sx + halfTW, sy);
@@ -1043,12 +1354,6 @@ export class Visual04aPreviewScene extends Phaser.Scene {
 
   /**
    * Create PNG frame top block images for each frame piece.
-   * If the PNG failed to load, this is a no-op and procedural tops remain.
-   *
-   * The PNG (384×348 canvas) contains a normalized isometric diamond
-   * (368×184) centered at y=120. Scaling uses the diamond width (368)
-   * to match the runtime tile width, and origin Y = 120/348 aligns
-   * the diamond center to the frame cell grid position (sx, sy).
    */
   private createPngFrameTops(): void {
     if (!this.pngFrameTopAvailable) return;
@@ -1082,15 +1387,12 @@ export class Visual04aPreviewScene extends Phaser.Scene {
 
     console.log(`[Visual04a] PNG frame top block: ${this.pngFrameTopImages.length} images created (scale=${scale.toFixed(4)})`);
 
-    // Apply initial mode (may hide procedural tops if PNG is active)
+    // Apply initial mode
     this.applyFrameTopMode();
   }
 
   /**
    * Apply the current frame top mode (PNG or procedural).
-   * When PNG is ON and available: hide procedural tops, show PNG images.
-   * When PNG is OFF or unavailable: show procedural tops, hide PNG images.
-   * The inner lip is always drawn (by drawFrameTops).
    */
   private applyFrameTopMode(): void {
     const usePng = this.pngFrameTopAvailable && this.pngFrameTopVisible;
@@ -1100,8 +1402,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       img.setVisible(usePng);
     }
 
-    // Redraw procedural tops: if PNG is active, only draw the inner lip
-    // (skip procedural top surfaces since PNG covers them)
+    // Redraw procedural tops
     this.drawFrameTops();
   }
 
@@ -1111,17 +1412,6 @@ export class Visual04aPreviewScene extends Phaser.Scene {
    * Draw top surfaces for all frame pieces + inner lip, with layered
    * industrial detail. When PNG mode is active (VISUAL-04D), only the
    * inner lip is drawn — the PNG images replace procedural top surfaces.
-   *
-   * Procedural detail (when PNG is OFF or unavailable):
-   *   1. Base fill with deterministic dirt variation
-   *   2. Outer bevel (dark border on outward-facing edges)
-   *   3. Raised center surface (inset diamond, lighter — preserves 2:1)
-   *   4. Inner bevel (bright highlight on platform-facing edges)
-   *   5. Panel division lines
-   *   6. Bolt details (deterministic placement from hash)
-   *   7. Dirt spots (deterministic from hash)
-   *   8. Hazard stripes (corner pieces only)
-   *   9. Inner lip along platform boundary (always drawn)
    */
   private drawFrameTops(): void {
     if (!this.frameTopGraphics) return;
@@ -1135,32 +1425,26 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const usePng = this.pngFrameTopAvailable && this.pngFrameTopVisible;
 
     if (!usePng) {
-      // Bevel inset: must preserve 2:1 ratio of the inset diamond
-      // Inset by (2*bevelInset, bevelInset) in (x, y) to maintain 2:1
       const bevelInset = Math.max(2, Math.round(this.runtimeTileH * 0.07));
       const bevelInsetX = bevelInset * 2;
       const bevelInsetY = bevelInset;
 
-      // Bolt radius scales with tile size
       const boltR = Math.max(1.5, this.runtimeTileH * 0.028);
 
-      // Draw frame top surfaces (sorted by y for correct overlap)
       for (const piece of this.framePieces) {
         const { sx, sy, isCorner, col, row } = piece;
         const h = hashColRow(col, row);
 
-        // Determine inner/outer edges for this piece
         const edges = getEdgeInfo(sx, sy, this.arenaCX, this.arenaCY);
 
-        // ─── 1. Base fill (full diamond) with dirt variation ────────
+        // 1. Base fill with dirt variation
         const baseColor = isCorner ? FRAME_CORNER_TOP : FRAME_TOP_BASE;
-        // Apply subtle per-piece color variation from hash (-1..+1 range)
-        const dirtShift = (h - 0.5) * 2;  // -1..+1
+        const dirtShift = (h - 0.5) * 2;
         const adjustedBase = this.varyColor(baseColor, dirtShift * 0.5);
         g.fillStyle(adjustedBase, 1);
         this.fillDiamond(g, sx, sy, halfTW, halfTH);
 
-        // ─── 2. Outer bevel (dark line on outward-facing edges) ────
+        // 2. Outer bevel
         for (let i = 0; i < 4; i++) {
           if (edges[i].isOuter) {
             g.lineStyle(2, FRAME_OUTER_BEVEL, 0.85);
@@ -1168,13 +1452,12 @@ export class Visual04aPreviewScene extends Phaser.Scene {
           }
         }
 
-        // ─── 3. Raised center surface (inset diamond, lighter) ─────
-        // Inset preserves exact 2:1 ratio: width = 2*(halfTW - 2*bi), height = 2*(halfTH - bi)
+        // 3. Raised center surface
         const raisedColor = isCorner ? FRAME_CORNER_TOP_RAISED : FRAME_TOP_RAISED;
         g.fillStyle(raisedColor, 0.65);
         this.fillDiamond(g, sx, sy, halfTW - bevelInsetX, halfTH - bevelInsetY);
 
-        // ─── 4. Inner bevel (bright highlight on platform edges) ───
+        // 4. Inner bevel
         for (let i = 0; i < 4; i++) {
           if (edges[i].isInner) {
             g.lineStyle(2, FRAME_INNER_BEVEL, 0.7);
@@ -1182,51 +1465,42 @@ export class Visual04aPreviewScene extends Phaser.Scene {
           }
         }
 
-        // ─── 5. Panel division lines on top surface ────────────────
-        // Two thin lines crossing at center, dividing diamond into quadrants
+        // 5. Panel division lines
         g.lineStyle(1, FRAME_TOP_DARK, 0.25);
-        // Vertical axis: top vertex → bottom vertex
         g.beginPath();
         g.moveTo(sx, sy - halfTH * 0.55);
         g.lineTo(sx, sy + halfTH * 0.55);
         g.strokePath();
-        // Horizontal axis: left vertex → right vertex
         g.beginPath();
         g.moveTo(sx - halfTW * 0.55, sy);
         g.lineTo(sx + halfTW * 0.55, sy);
         g.strokePath();
 
-        // ─── 6. Bolt details (deterministic from hash) ─────────────
-        // Four possible bolt positions in the diamond quadrants
+        // 6. Bolt details
         const boltInsetX = halfTW * 0.32;
         const boltInsetY = halfTH * 0.32;
         const boltPositions = [
-          { x: sx + boltInsetX, y: sy - boltInsetY },  // top-right quadrant
-          { x: sx + boltInsetX, y: sy + boltInsetY },  // bottom-right quadrant
-          { x: sx - boltInsetX, y: sy + boltInsetY },  // bottom-left quadrant
-          { x: sx - boltInsetX, y: sy - boltInsetY },  // top-left quadrant
+          { x: sx + boltInsetX, y: sy - boltInsetY },
+          { x: sx + boltInsetX, y: sy + boltInsetY },
+          { x: sx - boltInsetX, y: sy + boltInsetY },
+          { x: sx - boltInsetX, y: sy - boltInsetY },
         ];
 
-        // Pick 2 bolt positions from hash (deterministic, no Math.random)
         const bolt1 = Math.floor(h * 4) % 4;
         const bolt2 = Math.floor(h * 7 + 0.5) % 4;
 
         for (const boltIdx of [bolt1, bolt2]) {
           const bp = boltPositions[boltIdx];
-          // Shadow (offset slightly)
           g.fillStyle(BOLT_SHADOW, 0.5);
           g.fillCircle(bp.x + 0.7, bp.y + 0.7, boltR + 0.3);
-          // Head
           g.fillStyle(BOLT_HEAD, 0.9);
           g.fillCircle(bp.x, bp.y, boltR);
-          // Highlight dot
           g.fillStyle(FRAME_INNER_BEVEL, 0.3);
           g.fillCircle(bp.x - boltR * 0.3, bp.y - boltR * 0.3, boltR * 0.35);
         }
 
-        // ─── 7. Deterministic dirt spots ───────────────────────────
-        // 0-2 small stain circles based on hash
-        const dirtCount = Math.floor(h * 3);  // 0, 1, or 2 spots
+        // 7. Deterministic dirt spots
+        const dirtCount = Math.floor(h * 3);
         const dirtAlpha = DIRT_ALPHA_BASE + h * DIRT_ALPHA_VARIATION;
 
         for (let d = 0; d < dirtCount; d++) {
@@ -1239,28 +1513,27 @@ export class Visual04aPreviewScene extends Phaser.Scene {
           g.fillCircle(dirtX, dirtY, dirtR);
         }
 
-        // ─── 8. Hazard stripes (corner pieces only) ────────────────
+        // 8. Hazard stripes (corner pieces only)
         if (isCorner) {
           this.drawHazardStripes(g, sx, sy, halfTW, halfTH);
         }
       }
     }
 
-    // ─── 9. Inner lip: highlight line along the platform boundary ──
-    // Always drawn regardless of PNG/procedural mode
+    // 9. Inner lip (always drawn)
     g.lineStyle(2, FRAME_LIP_COLOR, FRAME_LIP_ALPHA);
     g.beginPath();
-    g.moveTo(this.arenaCX, this.arenaCY - this.innerHH);         // top
-    g.lineTo(this.arenaCX + this.innerHW, this.arenaCY);         // right
-    g.lineTo(this.arenaCX, this.arenaCY + this.innerHH);         // bottom
-    g.lineTo(this.arenaCX - this.innerHW, this.arenaCY);         // left
+    g.moveTo(this.arenaCX, this.arenaCY - this.innerHH);
+    g.lineTo(this.arenaCX + this.innerHW, this.arenaCY);
+    g.lineTo(this.arenaCX, this.arenaCY + this.innerHH);
+    g.lineTo(this.arenaCX - this.innerHW, this.arenaCY);
     g.closePath();
     g.strokePath();
   }
 
   // ─── Debug grid overlay ──────────────────────────────────────────
 
-  /** Draw the debug grid overlay: tile outlines + inner diamond boundary. */
+  /** Draw the debug grid overlay: tile outlines + inner/outer diamond boundaries. */
   private drawGridOverlay(): void {
     if (!this.gridGraphics) return;
     const g = this.gridGraphics;
@@ -1269,23 +1542,45 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const halfTW = this.runtimeTileW / 2;
     const halfTH = this.runtimeTileH / 2;
 
-    // Platform tile outlines (green)
-    g.lineStyle(1, GRID_COLOR, GRID_ALPHA);
+    if (this.playableSize <= 20 || this.gridIsFullDetail) {
+      // Full per-tile grid (original behavior, or user explicitly toggled)
+      g.lineStyle(1, GRID_COLOR, GRID_ALPHA);
 
-    for (const placement of this.tilePlacements) {
-      const sx = (placement.col - placement.row) * halfTW + this.platformOriginX;
-      const sy = (placement.col + placement.row) * halfTH + this.platformOriginY;
+      for (const placement of this.tilePlacements) {
+        const sx = (placement.col - placement.row) * halfTW + this.platformOriginX;
+        const sy = (placement.col + placement.row) * halfTH + this.platformOriginY;
 
-      g.beginPath();
-      g.moveTo(sx, sy - halfTH);
-      g.lineTo(sx + halfTW, sy);
-      g.lineTo(sx, sy + halfTH);
-      g.lineTo(sx - halfTW, sy);
-      g.closePath();
-      g.strokePath();
+        g.beginPath();
+        g.moveTo(sx, sy - halfTH);
+        g.lineTo(sx + halfTW, sy);
+        g.lineTo(sx, sy + halfTH);
+        g.lineTo(sx - halfTW, sy);
+        g.closePath();
+        g.strokePath();
+      }
+    } else {
+      // Adaptive grid: major gridlines every N cells + diamond boundaries
+      const majorStep = Math.ceil(this.playableSize / 20);
+      g.lineStyle(1, GRID_COLOR, GRID_ALPHA * 0.7);
+
+      for (let row = 0; row < this.playableSize; row += majorStep) {
+        for (let col = 0; col < this.playableSize; col += majorStep) {
+          const sx = (col - row) * halfTW + this.platformOriginX;
+          const sy = (col + row) * halfTH + this.platformOriginY;
+
+          // All cells in [0, playableSize) are playable — no diamond check needed
+          g.beginPath();
+          g.moveTo(sx, sy - halfTH);
+          g.lineTo(sx + halfTW, sy);
+          g.lineTo(sx, sy + halfTH);
+          g.lineTo(sx - halfTW, sy);
+          g.closePath();
+          g.strokePath();
+        }
+      }
     }
 
-    // Inner diamond boundary (yellow)
+    // Inner diamond boundary (yellow) — always drawn
     g.lineStyle(2, DEBUG_INNER_DIAMOND_COLOR, 0.7);
     g.beginPath();
     g.moveTo(this.arenaCX, this.arenaCY - this.innerHH);
@@ -1294,6 +1589,18 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     g.lineTo(this.arenaCX - this.innerHW, this.arenaCY);
     g.closePath();
     g.strokePath();
+
+    // Outer diamond boundary (cyan) — for large maps
+    if (this.playableSize > 9) {
+      g.lineStyle(2, DEBUG_OUTER_DIAMOND_COLOR, 0.5);
+      g.beginPath();
+      g.moveTo(this.arenaCX, this.arenaCY - this.outerHH);
+      g.lineTo(this.arenaCX + this.outerHW, this.arenaCY);
+      g.lineTo(this.arenaCX, this.arenaCY + this.outerHH);
+      g.lineTo(this.arenaCX - this.outerHW, this.arenaCY);
+      g.closePath();
+      g.strokePath();
+    }
   }
 
   // ─── Frame debug outlines ────────────────────────────────────────
@@ -1307,7 +1614,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     const halfTW = this.runtimeTileW / 2;
     const halfTH = this.runtimeTileH / 2;
 
-    // Frame piece outlines (orange for regular, magenta for corners)
+    // Frame piece outlines
     for (const piece of this.framePieces) {
       const { sx, sy, isCorner } = piece;
       const color = isCorner ? DEBUG_CORNER_COLOR : DEBUG_FRAME_OUTLINE_COLOR;
@@ -1360,21 +1667,27 @@ export class Visual04aPreviewScene extends Phaser.Scene {
 
     const tileRatio = this.runtimeTileW / this.runtimeTileH;
     const cornerCount = this.framePieces.filter(f => f.isCorner).length;
+    const fps = this.game.loop.actualFps;
 
     const frameTopMode = this.pngFrameTopAvailable && this.pngFrameTopVisible
       ? 'PNG'
-      : 'procedural fallback';
+      : 'procedural';
 
     const wallFaceMode = this.pngWallFaceAvailable && this.pngWallFaceVisible
       ? 'PNG'
-      : 'procedural fallback';
+      : 'procedural';
+
+    const isLargeMap = this.playableSize > 9;
+    const totalObjects = this._estimatedObjectCount +
+      this.pngFrameTopImages.length + this.pngWallFaceImages.length + this.canvasTextureImages.length;
 
     const lines = [
-      'VISUAL-04F — Single PNG Wall Face Block',
+      `VISUAL-05A-PR1 — Parameterized Map Size Preview`,
       '',
-      `Arena: ${ARENA_N}×${ARENA_N} (platform ${GRID_N} + border ${FRAME_BORDER})`,
+      `Playable: ${this.playableSize}×${this.playableSize}  Outer: ${this.outerSize}×${this.outerSize}  Border: ${this.frameBorder}`,
       `Platform tiles: ${this.tilePlacements.length}`,
       `Frame pieces: ${this.framePieces.length} (${cornerCount} corners)`,
+      `Total objects: ~${totalObjects}`,
       '',
       `Tile: ${this.runtimeTileW.toFixed(1)}×${this.runtimeTileH.toFixed(1)} px`,
       `Tile ratio: ${tileRatio.toFixed(4)} (exact 2:1)`,
@@ -1384,20 +1697,34 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       `Outer diamond: ${(2*this.outerHW).toFixed(0)}×${(2*this.outerHH).toFixed(0)} px`,
       `Wall height: ${this.wallH.toFixed(1)} px`,
       '',
-      `Grid overlay:    ${this.gridVisible ? 'ON' : 'OFF'}  [G] toggle`,
+      `RENDER MODE: ${this.renderMode}`,
+      `Zoom: ${this.currentZoom.toFixed(3)} (default: ${this.defaultZoom.toFixed(3)})`,
+      `FPS: ${fps.toFixed(1)}`,
+      '',
+      `Grid overlay:    ${this.gridVisible ? (this.playableSize > 20 && this.gridIsFullDetail ? 'FULL' : 'ON') : 'OFF'}  [G] toggle`,
       `Frame debug:     ${this.frameDebugVisible ? 'ON' : 'OFF'}  [F] toggle`,
       `Frame top:       ${frameTopMode}  [P] toggle`,
       `Wall:            ${wallFaceMode}  [W] toggle`,
       `Wall side tint:  enabled`,
-      '[ESC] exit → preload → menu',
+    ];
+
+    if (isLargeMap) {
+      lines.push(
+        '',
+        'Camera controls:',
+        '  Arrows — pan camera',
+        '  Mouse wheel — zoom',
+        '  R / Home — reset camera',
+      );
+    }
+
+    lines.push(
       '',
       `Background:      ${this.bgAvailable ? 'image' : 'fallback (procedural)'}`,
-      `Frame top:       ${frameTopMode}`,
-      `Wall:            ${wallFaceMode}`,
-      'Mask: GeometryMask (inner diamond clip)',
-      'Variation: deterministic hash (no Math.random)',
+      '[ESC] exit → preload → menu',
+      '',
       'Dev-only prototype. No runtime integration.',
-    ];
+    );
 
     this.infoText.setText(lines.join('\n'));
   }
