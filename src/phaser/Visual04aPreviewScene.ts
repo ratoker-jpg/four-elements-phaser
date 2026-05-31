@@ -578,16 +578,22 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     ];
     const picker = new WeightedTilePicker(tileMetas, 42);
 
-    // ─── Diamond hit-test helpers ─────────────────────────────────
+    // ─── Grid-range classification ─────────────────────────────────
+    //
+    // Use explicit grid coordinate ranges instead of fuzzy screen-space
+    // diamond hit-tests. The old `isInInnerDiamond(sx, sy) <= 1.1` and
+    // `isInOuterDiamond(sx, sy) <= 1.05` had tolerance slop that swallowed
+    // the 1-tile frame border on large maps (96/128/192), producing 0 frame
+    // pieces. Grid-range checks are exact and scale-correct.
 
-    const isInInnerDiamond = (px: number, py: number): boolean => {
-      return (Math.abs(px - this.arenaCX) / this.innerHW +
-              Math.abs(py - this.arenaCY) / this.innerHH) <= 1.1;
+    const isPlayableCell = (col: number, row: number): boolean => {
+      return col >= 0 && col < this.playableSize &&
+             row >= 0 && row < this.playableSize;
     };
 
-    const isInOuterDiamond = (px: number, py: number): boolean => {
-      return (Math.abs(px - this.arenaCX) / this.outerHW +
-              Math.abs(py - this.arenaCY) / this.outerHH) <= 1.05;
+    const isOuterArenaCell = (col: number, row: number): boolean => {
+      return col >= -this.frameBorder && col < this.playableSize + this.frameBorder &&
+             row >= -this.frameBorder && row < this.playableSize + this.frameBorder;
     };
 
     // ─── Classify grid cells ──────────────────────────────────────
@@ -600,10 +606,10 @@ export class Visual04aPreviewScene extends Phaser.Scene {
         const sx = (col - row) * halfTW + this.platformOriginX;
         const sy = (col + row) * halfTH + this.platformOriginY;
 
-        if (isInInnerDiamond(sx, sy)) {
+        if (isPlayableCell(col, row)) {
           const tileId = picker.pick();
           this.tilePlacements.push({ col, row, tileId });
-        } else if (isInOuterDiamond(sx, sy)) {
+        } else if (isOuterArenaCell(col, row)) {
           const isCorner = this.isCornerPiece(col, row, sx, sy);
           this.framePieces.push({ col, row, sx, sy, isCorner });
         }
@@ -1066,17 +1072,14 @@ export class Visual04aPreviewScene extends Phaser.Scene {
         const sx = (col - row) * halfTW + this.platformOriginX;
         const sy = (col + row) * halfTH + this.platformOriginY;
 
-        // Check if inside diamond
-        if ((Math.abs(sx - this.arenaCX) / this.innerHW +
-             Math.abs(sy - this.arenaCY) / this.innerHH) <= 1.1) {
-          const tileId = picker.pick();
-          const assetKey = `${TILE_ASSET_KEY_PREFIX}${tileId}`;
-          const tileImg = this.add.image(sx, sy, assetKey);
-          tileImg.setScale(tileScaleX * sampleStep, tileScaleY * sampleStep);
-          tileImg.setOrigin(0.5, 0.5);
-          tileImg.setDepth(DEPTH_TILES);
-          tileImg.setAlpha(0.3);  // very subtle
-        }
+        // All cells in [0, playableSize) are playable — no diamond check needed
+        const tileId = picker.pick();
+        const assetKey = `${TILE_ASSET_KEY_PREFIX}${tileId}`;
+        const tileImg = this.add.image(sx, sy, assetKey);
+        tileImg.setScale(tileScaleX * sampleStep, tileScaleY * sampleStep);
+        tileImg.setOrigin(0.5, 0.5);
+        tileImg.setDepth(DEPTH_TILES);
+        tileImg.setAlpha(0.3);  // very subtle
       }
     }
 
@@ -1657,17 +1660,14 @@ export class Visual04aPreviewScene extends Phaser.Scene {
           const sx = (col - row) * halfTW + this.platformOriginX;
           const sy = (col + row) * halfTH + this.platformOriginY;
 
-          // Check if inside inner diamond
-          if ((Math.abs(sx - this.arenaCX) / this.innerHW +
-               Math.abs(sy - this.arenaCY) / this.innerHH) <= 1.1) {
-            g.beginPath();
-            g.moveTo(sx, sy - halfTH);
-            g.lineTo(sx + halfTW, sy);
-            g.lineTo(sx, sy + halfTH);
-            g.lineTo(sx - halfTW, sy);
-            g.closePath();
-            g.strokePath();
-          }
+          // All cells in [0, playableSize) are playable — no diamond check needed
+          g.beginPath();
+          g.moveTo(sx, sy - halfTH);
+          g.lineTo(sx + halfTW, sy);
+          g.lineTo(sx, sy + halfTH);
+          g.lineTo(sx - halfTW, sy);
+          g.closePath();
+          g.strokePath();
         }
       }
     }
