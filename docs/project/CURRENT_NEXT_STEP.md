@@ -62,7 +62,7 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-06A — Resource field visual model and asset contract (docs/design)
+VISUAL-06B — Resource candidate asset review package (review/prompts)
 ```
 
 Alternative:
@@ -74,11 +74,11 @@ Post-VISUAL-05A QA polish backlog
 Reason:
 
 ```text
-VISUAL-05A production industrial map integration is COMPLETE.
-VISUAL-06A is the docs/design step that defines the resource field visual model,
-asset contract, and field composition rules before any asset generation or runtime work.
-
-VISUAL-06A is a prerequisite for VISUAL-06B (candidate asset review).
+VISUAL-06A is COMPLETE (PR #150).
+VISUAL-06B is the candidate review step — prompts and acceptance checklist
+for industrial resource visuals, based on the approved Option A direction.
+VISUAL-06C (approved assets to repo) only after owner visual approval.
+No implementation before candidate approval.
 ```
 
 VISUAL-05A PR sequence (all DONE):
@@ -191,8 +191,8 @@ VISUAL-06 may (with explicit task scope):
 3. VISUAL-05A PR 3 — Production frame/background layer — DONE (PR #146)
 4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition — DONE (PR #147)
 5. VISUAL-05A PR 5 — Make industrial map default after QA — DONE (PR #148)
-6. VISUAL-06A — Resource field visual model (docs/design) — current
-7. VISUAL-06B — Resource candidate asset review — after 06A approval
+6. VISUAL-06A — Resource field visual model (docs/design) — DONE (PR #150)
+7. VISUAL-06B — Resource candidate asset review — current
 8. VISUAL-06C — Approved resource assets added to repo — after 06B approval
 9. VISUAL-06D — Preload/manifest wiring behind resourceStyle flag — after 06C
 10. VISUAL-06E — Production resource rendering for industrial — after 06D
