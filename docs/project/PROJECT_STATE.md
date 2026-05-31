@@ -53,7 +53,7 @@ Always confirm this in `package.json` before planning Phaser API work.
 - **Tile standard**: 384×192 source assets, 2:1 top-surface-only platform tiles.
 - **Runtime logical tile**: existing isometric 2:1 map model remains the source of gameplay coordinates.
 - **Start position**: lower-left start zone (VISUAL-05A PR 4).
-- **Production map sizes**: 96×96 (small), 128×128 (medium), 192×192 (large).
+- **Target production map sizes**: 96×96 (small), 128×128 (medium), 192×192 (large) — deferred migration; current production small is still 32×32 until a separate scoped task/PR sequence changes map dimensions.
 - **Frame border**: 1 tile around playable area (visual only, not in logical grid).
 - **HUD target**: bottom bar — minimap left, info center, commands right.
 - **Menu**: preserve cinematic central composition, update background to industrial.
