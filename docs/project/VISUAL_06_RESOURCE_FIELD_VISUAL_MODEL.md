@@ -4,7 +4,7 @@ Status: **Design/contract document — docs only, no runtime changes, no assets*
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
 Phaser version: 4.1.0
-Date: 2026-06-01
+Date: 2026-05-31
 
 ---
 
@@ -308,25 +308,34 @@ Depleted resources are hidden via `setVisible(false)`. The sprite still exists i
 
 ### VISUAL-06C — Approved resource assets added to repo
 
-**Scope**: After owner approves a visual direction, move approved assets to `public/assets/environment/` and add entries to `generatedAssetManifest.ts`. Asset-only PR — no renderer changes.
+**Scope**: After owner approves a visual direction, add approved PNG resource assets to `public/assets/environment/`. This PR is asset-only:
+- No manifest changes.
+- No preload changes.
+- No renderer changes.
+- No runtime loading.
+- No `src/**` changes.
 
-**Non-goals**: No renderer changes, no mapStyle/resourceStyle flag, no production rendering.
+**Non-goals**: No manifest/preload/renderer changes, no mapStyle/resourceStyle flag, no production rendering, no runtime behavior.
 
-**Validation**: Assets load without errors in PreloadScene. Existing sand resources still work.
+**Validation**:
+- Confirm files are present at expected paths under `public/assets/environment/`.
+- Confirm PNGs are transparent and visually approved.
+- Confirm no `src/**` files changed.
+- Runtime loading is not validated in 06C because wiring is deferred to 06D.
 
-**Rollback**: Remove the new asset files and manifest entries. No runtime impact on existing resources.
+**Rollback**: Remove the newly added approved asset files. No runtime/code rollback needed.
 
 ---
 
 ### VISUAL-06D — Preload/manifest wiring behind mapStyle or resourceStyle flag
 
-**Scope**: Add a `resourceStyle: 'industrial' | 'sand'` configuration (or extend `mapStyle` to cover resources). Wire the industrial resource assets to load when the industrial style is active. Sand resources load when sand style is active. Update `RESOURCE_ASSET_MAP` to be style-aware.
+**Scope**: Add a `resourceStyle: 'industrial' | 'sand'` configuration (or extend `mapStyle` to cover resources). Wire the industrial resource assets to load when the industrial style is active. Sand resources load when sand style is active. Update `RESOURCE_ASSET_MAP` to be style-aware. This is the first PR allowed to touch `generatedAssetManifest.ts`, asset manifest entries, and preload wiring for industrial resources.
 
 **Non-goals**: No visual replacement of production resources yet — just wiring behind a flag. No gameplay changes.
 
 **Validation**: Both sand and industrial resource sets load correctly when their style is selected. Tests pass.
 
-**Rollback**: Remove the style-aware wiring. Fallback to sand resources.
+**Rollback**: Remove the style-aware wiring and manifest entries. Fallback to sand resources.
 
 ---
 
