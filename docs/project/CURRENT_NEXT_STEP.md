@@ -62,7 +62,7 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-06C — Add approved industrial resource assets (asset-only)
+VISUAL-06D — Preload/manifest wiring behind resourceStyle flag
 ```
 
 Alternative:
@@ -75,8 +75,8 @@ Reason:
 
 ```text
 VISUAL-06A/06B/06B1 are COMPLETE (PR #150, #151, #152).
-VISUAL-06C adds approved industrial resource PNG assets to the repo.
-Assets are not wired into runtime yet — that is VISUAL-06D.
+VISUAL-06C approved resource assets are added (PR #153, ready to merge).
+VISUAL-06D will wire assets into preload/manifest behind resourceStyle flag.
 ```
 
 VISUAL-05A PR sequence (all DONE):
@@ -192,8 +192,8 @@ VISUAL-06 may (with explicit task scope):
 6. VISUAL-06A — Resource field visual model (docs/design) — DONE (PR #150)
 7. VISUAL-06B — Resource candidate asset review — DONE (PR #151)
 8. VISUAL-06B1 — Resource model pivot: 1x1 richness tiers + 2x2 infinite — DONE (PR #152)
-9. VISUAL-06C — Approved resource assets added to repo — current
-10. VISUAL-06D — Preload/manifest wiring behind resourceStyle flag — after 06C
+9. VISUAL-06C — Approved resource assets added to repo — current PR / ready to merge
+10. VISUAL-06D — Preload/manifest wiring behind resourceStyle flag — next after merge
 11. VISUAL-06E — Production resource rendering for industrial — after 06D
 12. VISUAL-06F — QA polish if readability issues — after 06E
 13. VISUAL-07 — HUD layout design doc

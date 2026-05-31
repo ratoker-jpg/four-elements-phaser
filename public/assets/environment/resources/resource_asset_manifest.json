@@ -4,67 +4,67 @@
       "file": "resource_industrial_very_poor_01.png",
       "logical_footprint": "1x1",
       "final_canvas": [
-        384,
-        348
+        155,
+        104
       ],
-      "anchor_x": 192,
-      "anchor_y": 120,
-      "notes": "fixed 1x1 production canvas; scaled to preserve crystal tips and safe margins"
+      "anchor_x": 78,
+      "anchor_y": 75,
+      "notes": "variable cropped canvas; preliminary anchor for visual preview; runtime placement must be verified in VISUAL-06D"
     },
     {
       "file": "resource_industrial_poor_01.png",
       "logical_footprint": "1x1",
       "final_canvas": [
-        384,
-        348
+        203,
+        181
       ],
-      "anchor_x": 192,
-      "anchor_y": 120,
-      "notes": "fixed 1x1 production canvas; scaled to preserve crystal tips and safe margins"
+      "anchor_x": 102,
+      "anchor_y": 130,
+      "notes": "variable cropped canvas; preliminary anchor for visual preview; runtime placement must be verified in VISUAL-06D"
     },
     {
       "file": "resource_industrial_medium_01.png",
       "logical_footprint": "1x1",
       "final_canvas": [
-        384,
-        348
+        247,
+        182
       ],
-      "anchor_x": 192,
-      "anchor_y": 120,
-      "notes": "fixed 1x1 production canvas; scaled to preserve crystal tips and safe margins"
+      "anchor_x": 124,
+      "anchor_y": 131,
+      "notes": "variable cropped canvas; preliminary anchor for visual preview; runtime placement must be verified in VISUAL-06D"
     },
     {
       "file": "resource_industrial_rich_01.png",
       "logical_footprint": "1x1",
       "final_canvas": [
-        384,
-        348
+        234,
+        180
       ],
-      "anchor_x": 192,
-      "anchor_y": 120,
-      "notes": "fixed 1x1 production canvas; scaled to preserve crystal tips and safe margins"
+      "anchor_x": 117,
+      "anchor_y": 130,
+      "notes": "variable cropped canvas; preliminary anchor for visual preview; runtime placement must be verified in VISUAL-06D"
     },
     {
       "file": "resource_industrial_very_rich_01.png",
       "logical_footprint": "1x1",
       "final_canvas": [
-        384,
-        348
+        188,
+        171
       ],
-      "anchor_x": 192,
-      "anchor_y": 120,
-      "notes": "fixed 1x1 production canvas; scaled to preserve crystal tips and safe margins"
+      "anchor_x": 94,
+      "anchor_y": 123,
+      "notes": "variable cropped canvas; preliminary anchor for visual preview; runtime placement must be verified in VISUAL-06D"
     },
     {
       "file": "resource_industrial_infinite_center_2x2_01.png",
       "logical_footprint": "2x2",
       "final_canvas": [
-        752,
-        532
+        449,
+        280
       ],
-      "anchor_x": 376,
-      "anchor_y": 212,
-      "notes": "fixed 2x2 production canvas; scaled to preserve crystal tips and safe margins"
+      "anchor_x": 225,
+      "anchor_y": 202,
+      "notes": "variable cropped canvas; preliminary anchor for visual preview; runtime placement must be verified in VISUAL-06D"
     }
   ]
 }
