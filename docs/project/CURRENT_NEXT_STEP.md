@@ -62,7 +62,7 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-06B1 — Resource model pivot: 1x1 richness tiers + 2x2 central infinite (docs)
+VISUAL-06C — Add approved industrial resource assets (asset-only)
 ```
 
 Alternative:
@@ -74,12 +74,9 @@ Post-VISUAL-05A QA polish backlog
 Reason:
 
 ```text
-VISUAL-06A is COMPLETE (PR #150). VISUAL-06B review package is COMPLETE (PR #151).
-VISUAL-06B1 pivots the resource model: normal nodes are 1x1 richness-tier
-(very_poor/poor/medium/rich/very_rich), central infinite is a single 2x2 deposit.
-No 3x3 infinite group. No normal 2x2/3x3 resources.
-VISUAL-06C (approved assets to repo) only after owner visual approval.
-No implementation before candidate approval.
+VISUAL-06A/06B/06B1 are COMPLETE (PR #150, #151, #152).
+VISUAL-06C adds approved industrial resource PNG assets to the repo.
+Assets are not wired into runtime yet — that is VISUAL-06D.
 ```
 
 VISUAL-05A PR sequence (all DONE):
@@ -194,8 +191,8 @@ VISUAL-06 may (with explicit task scope):
 5. VISUAL-05A PR 5 — Make industrial map default after QA — DONE (PR #148)
 6. VISUAL-06A — Resource field visual model (docs/design) — DONE (PR #150)
 7. VISUAL-06B — Resource candidate asset review — DONE (PR #151)
-8. VISUAL-06B1 — Resource model pivot: 1x1 richness tiers + 2x2 infinite — current
-9. VISUAL-06C — Approved resource assets added to repo — after visual approval
+8. VISUAL-06B1 — Resource model pivot: 1x1 richness tiers + 2x2 infinite — DONE (PR #152)
+9. VISUAL-06C — Approved resource assets added to repo — current
 10. VISUAL-06D — Preload/manifest wiring behind resourceStyle flag — after 06C
 11. VISUAL-06E — Production resource rendering for industrial — after 06D
 12. VISUAL-06F — QA polish if readability issues — after 06E
