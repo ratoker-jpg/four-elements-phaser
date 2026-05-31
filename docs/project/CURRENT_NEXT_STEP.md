@@ -2,7 +2,7 @@
 
 Status: active next-step checkpoint  
 Project: Four Elements Phaser  
-Date: 2026-05-30
+Date: 2026-06-01
 
 ---
 
@@ -62,40 +62,34 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-05A PR 5 — Make industrial generated map default for new games
+VISUAL-06 — Resource field visual model design
 ```
 
-Goal:
+Alternative:
 
 ```text
-Switch the default new-game experience to the industrial generated map.
-DEFAULT_SETUP changes from fixed/sand/standard to generated/industrial/small.
-Sand/fixed remain available as manual fallback options.
-Save/load compatibility preserved: old saves load as saved.
+Post-VISUAL-05A QA polish backlog
 ```
 
-The full integration plan is documented in:
+Reason:
 
 ```text
-docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md
+VISUAL-05A production industrial map integration is COMPLETE.
+All five PRs in the VISUAL-05A sequence are merged (PR #144–#148).
+The industrial generated map is now the default for new games.
+
+Next logical step is VISUAL-06 (resource field visual model design),
+or a QA polish pass to address any remaining visual integration issues.
 ```
 
-PR sequence (from the plan):
+VISUAL-05A PR sequence (all DONE):
 
 ```text
 PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom — DONE (PR #144)
 PR 2 — Production terrain/platform assets behind mapStyle flag — DONE (PR #145)
 PR 3 — Production frame/background layer — DONE (PR #146)
 PR 4 — Lower-left HQ/camera/resource composition — DONE (PR #147)
-PR 5 — Make industrial map default for new games after QA — CURRENT
-```
-
-Production map sizes:
-
-```text
-Small:  96×96 playable,  98×98 outer
-Medium: 128×128 playable, 130×130 outer
-Large:  192×192 playable, 194×194 outer
+PR 5 — Make industrial map default for new games — DONE (PR #148)
 ```
 
 ---
@@ -143,8 +137,8 @@ Large:  192×192 playable, 194×194 outer
 2. VISUAL-05A PR 2 — Production terrain behind mapStyle flag — DONE (PR #145)
 3. VISUAL-05A PR 3 — Production frame/background layer — DONE (PR #146)
 4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition — DONE (PR #147)
-5. VISUAL-05A PR 5 — Make industrial map default after QA — current
-6. VISUAL-06 — Resource field visual model design
+5. VISUAL-05A PR 5 — Make industrial map default after QA — DONE (PR #148)
+6. VISUAL-06 — Resource field visual model design — next
 7. VISUAL-07 — HUD layout design doc
 8. VISUAL-08 — HUD shell implementation
 9. VISUAL-09 — Command panel/hotkey visual pass
@@ -153,7 +147,7 @@ Large:  192×192 playable, 194×194 outer
 12. VISUAL-12 — Approved unit visual integration
 ```
 
-After PR5 is complete, the VISUAL-05A sequence is done.
+VISUAL-05A sequence is COMPLETE (PR #144–#148 all merged).
 Proposed next work: VISUAL-06 (resource field visual model) or post-VISUAL-05A QA polish backlog.
 
 Previously listed Phase 2 tasks are already completed/merged — see `PROJECT_STATE.md` "Completed foundation" section.

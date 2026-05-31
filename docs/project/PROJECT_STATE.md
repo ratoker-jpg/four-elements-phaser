@@ -93,33 +93,24 @@ If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or c
 ## Active next work
 
 ```text
-VISUAL-05A PR 5 — Make industrial generated map default for new games
+VISUAL-06 — Resource field visual model design
+```
+
+Alternative:
+
+```text
+Post-VISUAL-05A QA polish backlog
 ```
 
 Reason:
 
 ```text
-VISUAL-05A PR 4 (#147) moved HQ/start composition to the lower-left start zone.
-Now we switch the default new-game experience to the industrial generated map.
+VISUAL-05A production industrial map integration is complete.
+All five PRs in the VISUAL-05A sequence are merged.
+The industrial generated map is now the default for new games.
 
-VISUAL-05A PR 5 changes:
-- DEFAULT_SETUP changed from fixed/sand/standard to generated/industrial/small
-- NewGameSetupScene defaults now show Generated + Small + Industrial Platform
-- Sand/fixed remain available as manual fallback options
-- Save/load compatibility: old saves load as saved (mapStyle inferred from terrain)
-```
-
-Note: Current 'small' map size is 32×32 (not yet migrated to 96×96).
-96×96 migration is a separate follow-up task.
-
-Key integration steps (see VISUAL_05A doc for full PR sequence):
-
-```text
-PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom
-PR 2 — Production terrain/platform assets behind mapStyle flag
-PR 3 — Production frame/background layer
-PR 4 — Lower-left HQ/camera/resource composition
-PR 5 — Make industrial map default for new games after QA
+Next logical step is VISUAL-06 (resource field visual model design),
+or a QA polish pass to address any remaining visual integration issues.
 ```
 
 ---
@@ -144,7 +135,10 @@ VISUAL-05A PR1 — Parameterize dev preview 96/128/192 — done / PR #144 merged
 VISUAL-05A PR2 — Production terrain behind mapStyle flag — done / PR #145 merged
 VISUAL-05A PR3 — Production frame/background layer — done / PR #146 merged
 VISUAL-05A PR4 — Lower-left HQ/camera/resource composition — done / PR #147 merged
+VISUAL-05A PR5 — Make industrial generated map default for new games — done / PR #148 merged
 ```
+
+VISUAL-05A production industrial map integration is complete. All five PRs merged.
 
 VISUAL-02C rejection note:
 
