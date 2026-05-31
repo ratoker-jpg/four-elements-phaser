@@ -70,6 +70,7 @@ docs/project/VISUAL_SYSTEM_AUDIT.md
 docs/project/VISUAL_CANDIDATE_SUMMARY.md
 docs/project/VISUAL_01B_LAYERED_PLATFORM_FRAME.md
 docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md
+docs/project/VISUAL_06_RESOURCE_FIELD_VISUAL_MODEL.md
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
@@ -84,6 +85,7 @@ VISUAL_SYSTEM_AUDIT.md is the accepted audit with staged PR sequence.
 VISUAL_CANDIDATE_SUMMARY.md records the selected Candidate A direction.
 VISUAL_01B_LAYERED_PLATFORM_FRAME.md records the accepted layered platform model.
 VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md records the production integration plan with PR sequence.
+VISUAL_06_RESOURCE_FIELD_VISUAL_MODEL.md records the resource field visual model, asset contract, and field composition rules.
 Implementation tasks covered by the audit can proceed without a new mini-audit if they do not expand scope.
 If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or combines multiple phases, stop and request approval.
 ```
