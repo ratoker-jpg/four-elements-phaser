@@ -20,6 +20,7 @@ import { HARVESTER_RENDER_SCALE } from '../../config/unitRenderConfig';
 import { getHqAssetKey } from '../../assets/buildingAssets';
 import { computeTargetDisplayWidth } from '../../assets/buildingPlacementMeta';
 import { getCivilUnitKey, CIVIL_FACTIONS } from '../../assets/civilUnitAssets';
+import type { ResourceStyle } from '../../state/gameSetup';
 
 /**
  * EntityRenderer — renders and syncs entities from GameState onto the scene.
@@ -61,21 +62,96 @@ const HARVESTER_WALK_FPS = 8;
 /** Scale for infinite resources — rendered as a large mineral at bigger scale. */
 const INFINITE_MINERAL_SCALE = 0.65;
 
-/** Resource type → asset key mapping. */
-const RESOURCE_ASSET_MAP: Record<ResourceType, string> = {
-  small: ASSET_KEYS.MINERAL_SMALL,
-  medium: ASSET_KEYS.MINERAL_MEDIUM,
-  large: ASSET_KEYS.MINERAL_LARGE,
-  infinite: ASSET_KEYS.MINERAL_LARGE, // No infinite-specific asset; use large
+/**
+ * VISUAL-06E: Resource type → asset key mapping, parametrized by resourceStyle.
+ * Legacy keeps the original sand mineral crystal keys.
+ * Industrial maps to approved VISUAL-06 crystal assets.
+ *
+ * Preferred first mapping (per VISUAL-06E task):
+ *   small  -> resource_industrial_poor_01
+ *   medium -> resource_industrial_medium_01
+ *   large  -> resource_industrial_rich_01
+ *   infinite -> resource_industrial_infinite_center_2x2_01
+ *
+ * very_poor and very_rich are preloaded but reserved for future mapgen/richness PR.
+ */
+const RESOURCE_ASSET_MAPS: Record<ResourceStyle, Record<ResourceType, string>> = {
+  legacy: {
+    small: ASSET_KEYS.MINERAL_SMALL,
+    medium: ASSET_KEYS.MINERAL_MEDIUM,
+    large: ASSET_KEYS.MINERAL_LARGE,
+    infinite: ASSET_KEYS.MINERAL_LARGE, // No infinite-specific asset; use large
+  },
+  industrial: {
+    small: ASSET_KEYS.RESOURCE_INDUSTRIAL_POOR_01,
+    medium: ASSET_KEYS.RESOURCE_INDUSTRIAL_MEDIUM_01,
+    large: ASSET_KEYS.RESOURCE_INDUSTRIAL_RICH_01,
+    infinite: ASSET_KEYS.RESOURCE_INDUSTRIAL_INFINITE_CENTER_2X2_01,
+  },
 };
 
-/** Resource type → display scale. */
-const RESOURCE_SCALE_MAP: Record<ResourceType, number> = {
-  small: 0.3,
-  medium: 0.4,
-  large: 0.5,
-  infinite: INFINITE_MINERAL_SCALE,
+/**
+ * VISUAL-06E: Resource type → display scale, parametrized by resourceStyle.
+ * Legacy scales match the original mineral crystal rendering.
+ * Industrial scales are calibrated for the approved variable-cropped PNG assets.
+ *
+ * Industrial resources are larger source images (155–247px wide vs 384px mineral
+ * canvases), so they need smaller scale factors to fit the 76×38 isometric cell.
+ * The infinite 2×2 asset uses a moderate scale to visually fill the 2×2 footprint.
+ *
+ * These are initial conservative values; VISUAL-06F may adjust for polish.
+ */
+const RESOURCE_SCALE_MAPS: Record<ResourceStyle, Record<ResourceType, number>> = {
+  legacy: {
+    small: 0.3,
+    medium: 0.4,
+    large: 0.5,
+    infinite: INFINITE_MINERAL_SCALE,
+  },
+  industrial: {
+    small: 0.20,
+    medium: 0.22,
+    large: 0.22,
+    infinite: 0.35,
+  },
 };
+
+/**
+ * VISUAL-06E: Get the asset key for a resource type given the current resourceStyle.
+ * Falls back to legacy keys if the industrial texture is not loaded.
+ *
+ * Exported for testing — production code should use EntityRenderer which
+ * calls this internally via createResourceSprite().
+ */
+export function getResourceAssetKey(resourceType: ResourceType, resourceStyle: ResourceStyle, textureManager: Phaser.Textures.TextureManager): string {
+  const preferredKey = RESOURCE_ASSET_MAPS[resourceStyle][resourceType];
+  if (textureManager.exists(preferredKey)) return preferredKey;
+  // Fallback: if the preferred style's texture is missing, use legacy
+  const legacyKey = RESOURCE_ASSET_MAPS.legacy[resourceType];
+  if (textureManager.exists(legacyKey)) return legacyKey;
+  // Last resort: return the preferred key anyway (will produce a missing texture warning)
+  return preferredKey;
+}
+
+/**
+ * VISUAL-06E: Get the display scale for a resource type given the current resourceStyle.
+ * Uses legacy scale when falling back to legacy textures.
+ *
+ * Exported for testing.
+ */
+export function getResourceScale(resourceType: ResourceType, resourceStyle: ResourceStyle, assetKey: string): number {
+  // If using a legacy key (fallback), use legacy scale
+  const isLegacyKey = Object.values(RESOURCE_ASSET_MAPS.legacy).includes(assetKey);
+  return isLegacyKey
+    ? RESOURCE_SCALE_MAPS.legacy[resourceType]
+    : RESOURCE_SCALE_MAPS[resourceStyle][resourceType];
+}
+
+/**
+ * VISUAL-06E: Exported for testing — returns the asset map for a given resourceStyle.
+ * Pure data lookup, no texture fallback.
+ */
+export { RESOURCE_ASSET_MAPS, RESOURCE_SCALE_MAPS };
 
 export class EntityRenderer {
   private scene: Phaser.Scene;
@@ -111,9 +187,13 @@ export class EntityRenderer {
   /** Construction renderer — owns construction site + building placeholder graphics. */
   private constructionRenderer: ConstructionRenderer;
 
-  constructor(scene: Phaser.Scene, offset: IsoPoint) {
+  /** VISUAL-06E: Active resource visual style. */
+  private resourceStyle: ResourceStyle;
+
+  constructor(scene: Phaser.Scene, offset: IsoPoint, resourceStyle: ResourceStyle = 'legacy') {
     this.scene = scene;
     this.offset = offset;
+    this.resourceStyle = resourceStyle;
     this.modularTankRenderer = new ModularTankRenderer(scene, offset);
     this.constructionRenderer = new ConstructionRenderer(scene, offset);
   }
@@ -447,8 +527,10 @@ export class EntityRenderer {
   }
 
   private createResourceSprite(r: ResourceNodeState): void {
-    const assetKey = RESOURCE_ASSET_MAP[r.resourceType];
-    const scale = RESOURCE_SCALE_MAP[r.resourceType];
+    // VISUAL-06E: Use resourceStyle-aware asset key and scale lookup.
+    // Falls back to legacy key if industrial texture is not loaded.
+    const assetKey = getResourceAssetKey(r.resourceType, this.resourceStyle, this.scene.textures);
+    const scale = getResourceScale(r.resourceType, this.resourceStyle, assetKey);
 
     const screenPos = tileToScreen(r.tx, r.ty);
     const worldX = screenPos.x + this.offset.x;
@@ -456,7 +538,15 @@ export class EntityRenderer {
 
     const img = this.scene.add.image(worldX, worldY, assetKey);
     img.setScale(scale);
-    img.setOrigin(0.5, 0.75);
+    // VISUAL-06E: Industrial infinite (2×2) uses a slightly different origin
+    // to center the larger asset over the 2×2 footprint. For 1×1 nodes,
+    // the standard (0.5, 0.75) origin keeps crystals visually grounded.
+    // The infinite 2×2 asset needs origin closer to center to align properly.
+    if (r.resourceType === 'infinite' && this.resourceStyle === 'industrial' && assetKey === RESOURCE_ASSET_MAPS.industrial.infinite) {
+      img.setOrigin(0.5, 0.72);
+    } else {
+      img.setOrigin(0.5, 0.75);
+    }
     img.setDepth(100 + worldY);
 
     this.resourceSprites.set(r.id, img);
