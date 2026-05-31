@@ -32,10 +32,12 @@ These decisions are sourced from VISUAL-06A (docs/project/VISUAL_06_RESOURCE_FIE
 
 ## 3. Scope
 
-- Produce 2-3 static visual candidate images for industrial resource nodes.
-- Place candidates in `docs/project/visual_review/resources/` for owner review.
-- Provide generation prompts for external re-generation if needed.
+- Provide prompts for generating static industrial resource candidate images externally.
+- Define expected candidate filenames and review location under `docs/project/visual_review/resources/`.
 - Define acceptance checklist for candidate approval.
+- Document that candidate PNG images are pending external generation and are not included in this PR.
+
+Candidate PNG images are not included in this PR because image generation was unavailable in the execution environment. This package is still review-only and prepares the next visual generation step.
 
 ### Non-goals
 
