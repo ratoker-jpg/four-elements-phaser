@@ -182,8 +182,8 @@ describe('VISUAL-06E: getResourceScale', () => {
 // ─── resourceStyle default ────────────────────────────────────────
 
 describe('VISUAL-06E: resourceStyle default in gameSetup', () => {
-  it('DEFAULT_SETUP.resourceStyle is legacy', async () => {
+  it('DEFAULT_SETUP.resourceStyle is industrial (matches default industrial mapStyle)', async () => {
     const { DEFAULT_SETUP } = await import('../state/gameSetup');
-    expect(DEFAULT_SETUP.resourceStyle).toBe('legacy');
+    expect(DEFAULT_SETUP.resourceStyle).toBe('industrial');
   });
 });

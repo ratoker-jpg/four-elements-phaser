@@ -17,7 +17,7 @@ import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '.
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
 import type { GameSetupConfig } from '../state/gameSetup';
-import { DEFAULT_SETUP, getMapDataFromConfig, getMapDisplayName } from '../state/gameSetup';
+import { DEFAULT_SETUP, getMapDataFromConfig, getMapDisplayName, resolveResourceStyleForMapStyle } from '../state/gameSetup';
 import type { MapStyle, ResourceStyle } from '../state/gameSetup';
 import { saveGame } from '../state/saveGame';
 import { loadUiSettings, applyUiScale } from '../state/uiSettings';
@@ -140,6 +140,7 @@ export class GameScene extends Phaser.Scene {
         faction: data.loadedGameState.playerFaction,
         mapId: data.mapId ?? 'customMap1',
         mapStyle: inferredStyle,
+        resourceStyle: resolveResourceStyleForMapStyle(inferredStyle),
       };
       this.loadedGameState = data.loadedGameState;
       // Fix 1: Preserve loaded slot ID for re-save
