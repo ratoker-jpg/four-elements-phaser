@@ -93,16 +93,23 @@ If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or c
 ## Active next work
 
 ```text
-VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom
+VISUAL-05A PR 2 — Production terrain/platform assets behind mapStyle flag
 ```
 
 Reason:
 
 ```text
-VISUAL-03A through VISUAL-04F established the approved MVP visual direction in the
-?visual04a dev preview: industrial platform tiles, PNG frame top/wall blocks,
-background/world layer, modular grid-aligned frame with edge-filtered walls.
-Now the visual direction must be integrated into the production game map.
+VISUAL-05A PR 1 (#144) proved the industrial platform visual model scales for
+96/128/192 maps using CanvasTexture in the ?visual04a dev preview. Now we need
+to bring industrial terrain to production behind a mapStyle flag.
+
+VISUAL-05A PR 2 adds:
+- MapStyle type ('sand' | 'industrial') in GameSetupConfig
+- 'industrial' TerrainType for flat uniform terrain
+- Industrial tile assets in the generated manifest
+- WeightedTilePicker in TerrainRenderer for deterministic tile selection
+- Map Style selection in NewGameSetupScene
+- Default remains 'sand' for backward compatibility
 ```
 
 Production map sizes:
@@ -141,6 +148,7 @@ VISUAL-04A — Modular frame placeholder (?visual04a) — done / merged
 VISUAL-04B — Procedural wall polish — done / merged
 VISUAL-04D — Single PNG frame top block — done / PR #139 merged
 VISUAL-04F — Single PNG wall face block — done / PR #142 merged
+VISUAL-05A PR1 — Parameterize dev preview 96/128/192 — done / PR #144 merged
 ```
 
 VISUAL-02C rejection note:

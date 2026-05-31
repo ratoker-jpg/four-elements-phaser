@@ -16,7 +16,8 @@
  *  add texture variety for repetition reduction. */
 export type TerrainType =
   | 'sand' | 'sand-dark' | 'sand-light'
-  | 'sand-ripple' | 'sand-pebble' | 'sand-cracked';
+  | 'sand-ripple' | 'sand-pebble' | 'sand-cracked'
+  | 'industrial';
 
 // ─── Factions ───────────────────────────────────────────────────────
 

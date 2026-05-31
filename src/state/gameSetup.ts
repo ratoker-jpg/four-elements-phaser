@@ -28,6 +28,18 @@ export type MapMode = 'fixed' | 'generated';
 /** Game mode: standard play, debug with devtools, or arena combat sandbox. MENU-01. */
 export type GameMode = 'standard' | 'debug' | 'arena';
 
+/** Map visual style: sand (classic desert) or industrial platform. VISUAL-05A-PR2. */
+export type MapStyle = 'sand' | 'industrial';
+
+/** Available map style options. */
+export const MAP_STYLE_OPTIONS: MapStyle[] = ['sand', 'industrial'];
+
+/** Display labels for map styles. */
+export const MAP_STYLE_LABELS: Record<MapStyle, string> = {
+  sand: 'Sand / Classic',
+  industrial: 'Industrial Platform',
+};
+
 /** Configuration for starting a new game. Passed between scenes. */
 export interface GameSetupConfig {
   /** Player faction selection. */
@@ -42,6 +54,8 @@ export interface GameSetupConfig {
   seed: string;
   /** Game mode: standard, debug (devtools), or arena. MENU-01. */
   gameMode: GameMode;
+  /** Map visual style. VISUAL-05A-PR2. */
+  mapStyle: MapStyle;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -95,6 +109,7 @@ export const DEFAULT_SETUP: GameSetupConfig = {
   mapSize: 'standard',
   seed: DEFAULT_SEED,
   gameMode: 'standard',
+  mapStyle: 'sand',
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -133,7 +148,7 @@ export function getMapDataFromConfig(config: GameSetupConfig): MapData {
 
   // Generated map — use validated creation with retry fallback
   if (config.mapMode === 'generated') {
-    const result = createValidatedGeneratedMapData(config.seed, config.mapSize, config.faction);
+    const result = createValidatedGeneratedMapData(config.seed, config.mapSize, config.faction, config.mapStyle ?? 'sand');
     if (!result.valid && result.warnings.length > 0) {
       console.warn('[gameSetup] Generated map validation warnings:', result.warnings);
     }

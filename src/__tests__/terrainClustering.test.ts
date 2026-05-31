@@ -315,6 +315,7 @@ describe('TERRAIN-02A 6-variant coverage', () => {
     'sand-ripple': 'terrain_sand_ripple_256x128',
     'sand-pebble': 'terrain_sand_pebble_256x128',
     'sand-cracked': 'terrain_sand_cracked_256x128',
+    industrial: '',
   };
 
   it('all 6 terrain types are in TERRAIN_KEY_MAP', () => {
@@ -386,11 +387,12 @@ describe('TERRAIN-02A TerrainRenderer is pure mapping layer (no smoothing, no va
       'sand-ripple': 'terrain_sand_ripple_256x128',
       'sand-pebble': 'terrain_sand_pebble_256x128',
       'sand-cracked': 'terrain_sand_cracked_256x128',
+      industrial: '',
     };
     const keys = Object.values(TERRAIN_KEY_MAP);
     const uniqueKeys = new Set(keys);
-    // All 6 terrain types should map to 6 distinct asset keys
-    expect(uniqueKeys.size).toBe(6);
+    // All 7 terrain types map to asset keys (industrial uses picker at render time)
+    expect(uniqueKeys.size).toBe(7);
   });
 
   it('renderer stamps terrain directly — no smoothing or variant reassignment', () => {
@@ -421,6 +423,7 @@ describe('TERRAIN-02A TerrainRenderer is pure mapping layer (no smoothing, no va
       'sand-ripple': 'terrain_sand_ripple_256x128',
       'sand-pebble': 'terrain_sand_pebble_256x128',
       'sand-cracked': 'terrain_sand_cracked_256x128',
+      industrial: '',
     };
     // Before and after smoothing, same type → same key
     const typesBeforeSmoothing: TerrainType[] = ['sand', 'sand-ripple', 'sand-pebble'];
@@ -498,10 +501,12 @@ describe('TERRAIN-FIX-01 tint amplitude and overlap factor', () => {
       'sand-ripple': 'terrain_sand_ripple_256x128',
       'sand-pebble': 'terrain_sand_pebble_256x128',
       'sand-cracked': 'terrain_sand_cracked_256x128',
+      industrial: '',
     };
     const allKeys = Object.values(TERRAIN_KEY_MAP);
-    // All keys should contain '256x128'
+    // All non-empty keys should contain '256x128' (industrial uses picker at render time)
     for (const key of allKeys) {
+      if (key === '') continue; // industrial type uses WeightedTilePicker
       expect(key).toContain('256x128');
     }
     // No key should be a legacy key
