@@ -5,10 +5,11 @@
  * around the playable industrial map. This renderer is ONLY instantiated when
  * mapStyle === 'industrial'.
  *
- * Layer model (depth order):
- *   Depth 1  — background world image (beneath terrain)
- *   Depth 2  — wall face images (behind terrain, in front of background)
- *   Depth 90 — frame top block images (in front of terrain, behind entities)
+ * Layer model (depth order, TerrainRenderer is depth 0):
+ *   Depth -20 — background world image (below terrain, lowest layer)
+ *   Depth 0   — terrain (TerrainRenderer CanvasTexture)
+ *   Depth 10  — wall face images (visual side faces around the frame, above terrain)
+ *   Depth 90  — frame top block images (above terrain, behind entities at depth 100+)
  *
  * The frame border is visual-only — it does NOT add cells to MapData, does NOT
  * change mapWidth/mapHeight, does NOT affect pathfinding/occupancy, does NOT
@@ -69,13 +70,13 @@ const WALL_FACE_RIGHT_TINT = 0xffffff;
 
 // ─── Depth layers ────────────────────────────────────────────────────
 
-/** Background world image depth — beneath terrain RT (depth 0) */
-const DEPTH_BG = 1;
+/** Background world image depth — below terrain (depth 0) so terrain renders on top */
+const DEPTH_BG = -20;
 
-/** Wall face images depth — in front of background, behind terrain */
-const DEPTH_FRAME_WALLS = 2;
+/** Wall face images depth — visual side faces around the frame border, above terrain */
+const DEPTH_FRAME_WALLS = 10;
 
-/** Frame top block images depth — in front of terrain (depth 0), behind entities (depth 100+) */
+/** Frame top block images depth — above terrain (depth 0), behind entities (depth 100+) */
 const DEPTH_FRAME_TOP = 90;
 
 // ─── Frame border ────────────────────────────────────────────────────
@@ -194,13 +195,13 @@ export class IndustrialFrameRenderer {
 
     console.log(`[IndustrialFrameRenderer] Frame pieces: ${this.framePieces.length} (corners: ${this.framePieces.filter(f => f.isCorner).length})`);
 
-    // ─── Layer 0: Background world image ────────────────────────
+    // ─── Layer -20: Background world image (below terrain) ───────────
     this.createBackground(scene);
 
-    // ─── Layer 1: Wall face images (behind terrain, in front of bg) ──
+    // ─── Layer 10: Wall face images (above terrain, visual side faces) ──
     this.createWallFaces(scene);
 
-    // ─── Layer 2: Frame top block images (in front of terrain) ──
+    // ─── Layer 90: Frame top block images (above terrain, behind entities) ──
     this.createFrameTops(scene);
   }
 
