@@ -322,20 +322,24 @@ describe('getFlags', () => {
 });
 
 describe('integration — createInitialState', () => {
-  it('HQ at (4,4) makes a 3×3 area impassable', () => {
+  it('HQ makes a 3×3 area impassable', () => {
     const state = createInitialState();
     const map = buildOccupancyMap(state);
 
-    // HQ footprint: (4,4) to (6,6)
+    // VISUAL-05A-PR4: HQ is now at (4, 41) for customMap1 (48×48)
+    const hqTx = state.mapData.hq.tx;
+    const hqTy = state.mapData.hq.ty;
+
+    // HQ footprint: (hqTx, hqTy) to (hqTx+2, hqTy+2)
     for (let dy = 0; dy < 3; dy++) {
       for (let dx = 0; dx < 3; dx++) {
-        expect(isPassable(map, 4 + dx, 4 + dy)).toBe(false);
+        expect(isPassable(map, hqTx + dx, hqTy + dy)).toBe(false);
       }
     }
 
     // Just outside HQ should be passable
-    expect(isPassable(map, 7, 4)).toBe(true);
-    expect(isPassable(map, 4, 7)).toBe(true);
+    expect(isPassable(map, hqTx + 3, hqTy)).toBe(true);
+    expect(isPassable(map, hqTx, hqTy + 3)).toBe(true);
   });
 
   it('infinite resource at (23,22) with footprint 3 is unbuildable', () => {

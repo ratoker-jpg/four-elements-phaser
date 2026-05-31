@@ -356,12 +356,14 @@ function createExtraHarvesters(mapData: MapData, faction: Faction): Array<{ tx: 
 
   const positions: Array<{ tx: number; ty: number }> = [];
 
+  // VISUAL-05A-PR4: Place harvesters NE of HQ (toward map center) since HQ
+  // is now in the lower-left. Prefer north and east spawn tiles.
   const candidates = [
-    { tx: hqCx + 2, ty: hqCy },
-    { tx: hqCx + 2, ty: hqCy + 1 },
-    { tx: hqCx + 1, ty: hqCy + 2 },
-    { tx: hqCx, ty: hqCy + 2 },
-    { tx: hqCx - 1, ty: hqCy + 2 },
+    { tx: hqCx + 2, ty: hqCy },        // east
+    { tx: hqCx + 2, ty: hqCy - 1 },    // east-north
+    { tx: hqCx + 1, ty: hqCy - 2 },    // north-east
+    { tx: hqCx, ty: hqCy - 2 },         // north
+    { tx: hqCx - 1, ty: hqCy - 2 },     // west-north
   ];
 
   const occupied = buildStarterOccupiedSet(mapData);
@@ -392,18 +394,19 @@ function createExtraModularCombat(
   const occupied = buildStarterOccupiedSet(mapData, extraHarvesters);
   const hq = mapData.hq;
 
+  // VISUAL-05A-PR4: Modular combat candidates biased NE of HQ (toward center)
   const candidates = [
-    { tx: hq.tx + 3, ty: hq.ty + 1 },
-    { tx: hq.tx + 1, ty: hq.ty + 3 },
-    { tx: hq.tx - 1, ty: hq.ty + 1 },
-    { tx: hq.tx + 1, ty: hq.ty - 1 },
-    { tx: hq.tx + 3, ty: hq.ty + 2 },
-    { tx: hq.tx + 2, ty: hq.ty + 3 },
-    { tx: hq.tx, ty: hq.ty + 3 },
-    { tx: hq.tx - 1, ty: hq.ty + 2 },
+    { tx: hq.tx + 3, ty: hq.ty - 1 },
+    { tx: hq.tx + 1, ty: hq.ty - 3 },
+    { tx: hq.tx - 1, ty: hq.ty - 1 },
+    { tx: hq.tx + 1, ty: hq.ty + 1 },
+    { tx: hq.tx + 3, ty: hq.ty - 2 },
+    { tx: hq.tx + 2, ty: hq.ty - 3 },
+    { tx: hq.tx, ty: hq.ty - 3 },
+    { tx: hq.tx - 1, ty: hq.ty - 2 },
     { tx: hq.tx - 1, ty: hq.ty },
-    { tx: hq.tx, ty: hq.ty - 1 },
-    { tx: hq.tx + 2, ty: hq.ty - 1 },
+    { tx: hq.tx, ty: hq.ty + 1 },
+    { tx: hq.tx + 2, ty: hq.ty + 1 },
     { tx: hq.tx + 3, ty: hq.ty },
   ];
 

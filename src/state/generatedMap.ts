@@ -145,17 +145,29 @@ export function isGeneratedRuntimeState(state: { mapName: string }): boolean {
 
 // ─── Generated map creation ─────────────────────────────────────────
 
-/** HQ position offset from top-left (same for all generated maps). */
+/** HQ X offset from left edge (near left side for lower-left start). */
 const HQ_OFFSET_TX = 4;
-const HQ_OFFSET_TY = 4;
+
+/**
+ * HQ Y offset from bottom edge: mapHeight - 7.
+ * Places HQ in the lower-left start zone so the player expands
+ * toward the center/north-east. For a 3×3 HQ footprint at (4, mapHeight-7),
+ * the bottom edge of the HQ is at row mapHeight-4, leaving 3 tiles of
+ * margin from the bottom map edge.
+ *
+ * Examples: 32×32 → (4,25), 48×48 → (4,41), 64×64 → (4,57)
+ */
+function hqOffsetTy(mapHeight: number): number {
+  return mapHeight - 7;
+}
 
 /**
  * Create a deterministic generated MapData from seed and size.
  *
  * The map has:
  * - Patch-based terrain with sand-dominant base and soft sand-light/sand-dark patches
- * - HQ at (4, 4) with a 3×3 footprint
- * - One idle builder at (3, 3)
+ * - HQ at (4, mapHeight-7) with a 3×3 footprint (lower-left start zone)
+ * - One idle builder NE of HQ at (hq.tx+1, hq.ty-1)
  * - Starter resource cluster near HQ (reliable small + medium resources)
  * - Central infinite resource deposit
  * - Distance-based resource clusters (more medium/large farther from HQ)
@@ -174,23 +186,26 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
     ? generateIndustrialTerrain(W, H)
     : generateTerrain(rng, W, H);
 
-  // ── HQ ──
-  const hq = { tx: HQ_OFFSET_TX, ty: HQ_OFFSET_TY, faction };
+  // ── HQ: lower-left start zone ──
+  const hqTy = hqOffsetTy(H);
+  const hq = { tx: HQ_OFFSET_TX, ty: hqTy, faction };
 
-  // ── Builder ──
+  // ── Builder: NE of HQ, toward map center ──
+  const builderTx = hq.tx + 1;
+  const builderTy = hq.ty - 1;
   const builders = [
     {
       id: 'builder-0',
-      tx: 3,
-      ty: 3,
+      tx: builderTx,
+      ty: builderTy,
       busy: false,
       phase: 'idle' as const,
       path: [],
       pathIndex: 0,
-      ftx: 3.5,
-      fty: 3.5,
-      targetTx: 3,
-      targetTy: 3,
+      ftx: builderTx + 0.5,
+      fty: builderTy + 0.5,
+      targetTx: builderTx,
+      targetTy: builderTy,
       assignedSiteId: -1,
     },
   ];
@@ -436,38 +451,43 @@ function generateResources(
     return true;
   }
 
-  // 1. Starter cluster: guaranteed medium resources SE of HQ for reliable early harvesting
+  // 1. Starter cluster: guaranteed medium resources NE of HQ for reliable early harvesting
+  // VISUAL-05A-PR4: Resources placed toward map center (north/east) from lower-left HQ,
+  // not toward the corner. Negative Y offsets go north (toward center).
   const starterMediums = [
-    { tx: hq.tx + 5, ty: hq.ty + 4 },
-    { tx: hq.tx + 6, ty: hq.ty + 4 },
-    { tx: hq.tx + 5, ty: hq.ty + 5 },
-    { tx: hq.tx + 7, ty: hq.ty + 5 },
-    { tx: hq.tx + 6, ty: hq.ty + 6 },
-    { tx: hq.tx + 4, ty: hq.ty + 5 },
+    { tx: hq.tx + 5, ty: hq.ty - 4 },
+    { tx: hq.tx + 6, ty: hq.ty - 4 },
+    { tx: hq.tx + 5, ty: hq.ty - 5 },
+    { tx: hq.tx + 7, ty: hq.ty - 5 },
+    { tx: hq.tx + 6, ty: hq.ty - 6 },
+    { tx: hq.tx + 4, ty: hq.ty - 5 },
   ];
   for (const pos of starterMediums) {
     tryPlace(pos.tx, pos.ty, 'medium', 1);
   }
 
-  // Small starter resources nearby
+  // Small starter resources nearby (NE of HQ, toward center)
   const starterSmalls = [
-    { tx: hq.tx + 4, ty: hq.ty + 4 },
-    { tx: hq.tx + 7, ty: hq.ty + 4 },
-    { tx: hq.tx + 8, ty: hq.ty + 5 },
-    { tx: hq.tx + 7, ty: hq.ty + 6 },
-    { tx: hq.tx + 4, ty: hq.ty + 7 },
-    { tx: hq.tx + 5, ty: hq.ty + 7 },
+    { tx: hq.tx + 4, ty: hq.ty - 4 },
+    { tx: hq.tx + 7, ty: hq.ty - 4 },
+    { tx: hq.tx + 8, ty: hq.ty - 5 },
+    { tx: hq.tx + 7, ty: hq.ty - 6 },
+    { tx: hq.tx + 4, ty: hq.ty - 7 },
+    { tx: hq.tx + 5, ty: hq.ty - 7 },
   ];
   for (const pos of starterSmalls) {
     tryPlace(pos.tx, pos.ty, 'small', 1);
   }
 
   // 2. Near-HQ ring: medium resources at moderate distance (tiles 10-18 from HQ center)
+  // VISUAL-05A-PR4: Bias toward north/east (center direction) from lower-left HQ.
   const hqCenterX = hq.tx + 1;
   const hqCenterY = hq.ty + 1;
   const nearRingCount = 3 + Math.floor(rng() * 3); // 3-5
   for (let i = 0; i < nearRingCount; i++) {
-    const angle = rng() * Math.PI * 2;
+    // Bias angle toward NE (center direction): use -PI/2 to PI range
+    // instead of full circle, with some randomness
+    const angle = -Math.PI / 2 + rng() * Math.PI * 1.5;
     const dist = 10 + Math.floor(rng() * 8);
     const rtx = Math.round(hqCenterX + Math.cos(angle) * dist);
     const rty = Math.round(hqCenterY + Math.sin(angle) * dist);

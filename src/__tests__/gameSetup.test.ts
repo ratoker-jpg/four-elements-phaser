@@ -164,8 +164,9 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
       const mapData = getMapDataById('customMap1');
       expect(mapData.width).toBe(48);
       expect(mapData.height).toBe(48);
+      // VISUAL-05A-PR4: customMap1 HQ now at (4, 41) for lower-left start
       expect(mapData.hq.tx).toBe(4);
-      expect(mapData.hq.ty).toBe(4);
+      expect(mapData.hq.ty).toBe(41);
     });
 
     it('returns default map for unknown ID', () => {
