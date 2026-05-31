@@ -14,12 +14,13 @@ describe('createInitialState', () => {
     expect(state.entities.length).toBeGreaterThan(0);
   });
 
-  it('includes an HQ entity', () => {
+  it('includes an HQ entity at lower-left position', () => {
     const state = createInitialState();
     const hq = state.entities.find(e => e.kind === 'hq');
     expect(hq).toBeDefined();
+    // VISUAL-05A-PR4: customMap1 HQ now at (4, 41) for 48×48 map
     expect(hq!.tx).toBe(4);
-    expect(hq!.ty).toBe(4);
+    expect(hq!.ty).toBe(41);
     expect(hq!.faction).toBe('cyan');
   });
 
@@ -63,8 +64,8 @@ describe('createInitialState', () => {
 
   it('sets HQ position to center of 3x3 footprint', () => {
     const state = createInitialState();
-    // HQ at (4,4), center = (5,5)
-    expect(state.hqPosition).toEqual({ tx: 5, ty: 5 });
+    // VISUAL-05A-PR4: HQ at (4,41), center = (5,42)
+    expect(state.hqPosition).toEqual({ tx: 5, ty: 42 });
   });
 
   it('player faction matches map HQ faction', () => {

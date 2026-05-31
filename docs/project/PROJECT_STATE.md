@@ -93,23 +93,22 @@ If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or c
 ## Active next work
 
 ```text
-VISUAL-05A PR 3 — Production frame/background layer
+VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition
 ```
 
 Reason:
 
 ```text
-VISUAL-05A PR 2 (#145) added industrial terrain behind mapStyle flag. Now we
-need the visual frame border and background/world layer for industrial maps.
+VISUAL-05A PR 3 (#146) added the production industrial frame/background layer.
+Now we move the player HQ/start composition to the lower-left start zone and
+adjust starter resources so the start remains playable.
 
-VISUAL-05A PR 3 adds:
-- IndustrialFrameRenderer for frame top blocks, wall face blocks, background
-- Background/world image layer beneath the arena
-- Frame top surfaces using frame_top_block.png
-- Wall face blocks using frame_wall_face_block_left.png with mirroring and tint
-- Extended camera bounds to show frame and margin
-- Frame is visual-only — no pathfinding/occupancy/save format changes
-- Only active when mapStyle === 'industrial'
+VISUAL-05A PR 4 adds:
+- HQ position moved from (4,4) upper-left to (4, mapHeight-7) lower-left
+- Starter resource placement reworked to NE of HQ (toward map center)
+- Builder and harvester spawn positions adjusted for lower-left start
+- customMap1 updated to match new HQ position
+- Camera centering on HQ remains automatic (no changes needed)
 ```
 
 Production map sizes:
@@ -150,6 +149,7 @@ VISUAL-04D — Single PNG frame top block — done / PR #139 merged
 VISUAL-04F — Single PNG wall face block — done / PR #142 merged
 VISUAL-05A PR1 — Parameterize dev preview 96/128/192 — done / PR #144 merged
 VISUAL-05A PR2 — Production terrain behind mapStyle flag — done / PR #145 merged
+VISUAL-05A PR3 — Production frame/background layer — done / PR #146 merged
 ```
 
 VISUAL-02C rejection note:

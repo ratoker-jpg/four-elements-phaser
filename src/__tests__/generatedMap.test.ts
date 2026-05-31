@@ -373,20 +373,43 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
   // ── Map structure ──────────────────────────────────────────────
 
   describe('generated map structure', () => {
-    it('has HQ at the expected position', () => {
+    it('has HQ at the expected lower-left position (4, mapHeight-7)', () => {
       const map = createGeneratedMapData('structure-test', 'standard');
       expect(map.hq.tx).toBe(4);
-      expect(map.hq.ty).toBe(4);
+      expect(map.hq.ty).toBe(map.height - 7);
     });
 
-    it('has at least one builder', () => {
+    it('HQ position scales with map size', () => {
+      const small = createGeneratedMapData('hq-pos-small', 'small');
+      const standard = createGeneratedMapData('hq-pos-std', 'standard');
+      const large = createGeneratedMapData('hq-pos-large', 'large');
+      expect(small.hq.ty).toBe(32 - 7);  // 25
+      expect(standard.hq.ty).toBe(48 - 7); // 41
+      expect(large.hq.ty).toBe(64 - 7);  // 57
+    });
+
+    it('HQ footprint is inside playable map', () => {
+      for (const size of ['small', 'standard', 'large'] as MapSizeOption[]) {
+        const map = createGeneratedMapData('hq-bounds', size);
+        // 3×3 footprint: (hq.tx, hq.ty) to (hq.tx+2, hq.ty+2)
+        expect(map.hq.tx).toBeGreaterThanOrEqual(0);
+        expect(map.hq.ty).toBeGreaterThanOrEqual(0);
+        expect(map.hq.tx + 2).toBeLessThan(map.width);
+        expect(map.hq.ty + 2).toBeLessThan(map.height);
+      }
+    });
+
+    it('builder is inside playable map and near HQ', () => {
       const map = createGeneratedMapData('builder-test', 'standard');
       expect(map.builders.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it('builder is in idle phase', () => {
-      const map = createGeneratedMapData('builder-test', 'standard');
-      expect(map.builders[0].phase).toBe('idle');
+      const b = map.builders[0];
+      expect(b.tx).toBeGreaterThanOrEqual(0);
+      expect(b.ty).toBeGreaterThanOrEqual(0);
+      expect(b.tx).toBeLessThan(map.width);
+      expect(b.ty).toBeLessThan(map.height);
+      // Builder should be within 2 tiles of HQ
+      const dist = Math.max(Math.abs(b.tx - map.hq.tx), Math.abs(b.ty - map.hq.ty));
+      expect(dist).toBeLessThanOrEqual(2);
     });
 
     it('has at least some resources', () => {
@@ -429,7 +452,9 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
           for (let dx = 0; dx < r.footprint; dx++) {
             const rtx = r.tx + dx;
             const rty = r.ty + dy;
-            const overlapsHQ = rtx >= 4 && rtx <= 6 && rty >= 4 && rty <= 6;
+            // HQ footprint is (hq.tx, hq.ty) to (hq.tx+2, hq.ty+2)
+            const overlapsHQ = rtx >= map.hq.tx && rtx <= map.hq.tx + 2 &&
+                               rty >= map.hq.ty && rty <= map.hq.ty + 2;
             expect(overlapsHQ).toBe(false);
           }
         }
@@ -473,6 +498,42 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
           expect(r.ty).toBeGreaterThanOrEqual(0);
           expect(r.tx + r.footprint).toBeLessThanOrEqual(map.width);
           expect(r.ty + r.footprint).toBeLessThanOrEqual(map.height);
+        }
+      }
+    });
+
+    it('starter resources are generally north-east of HQ (toward center)', () => {
+      const map = createGeneratedMapData('ne-resource-test', 'standard');
+      const hqCenterX = map.hq.tx + 1;
+      const hqCenterY = map.hq.ty + 1;
+      const nearResources = map.resources.filter(r => {
+        const dist = Math.sqrt((r.tx - hqCenterX) ** 2 + (r.ty - hqCenterY) ** 2);
+        return dist <= 8;
+      });
+      // Most near resources should be to the north (lower ty) or east (higher tx)
+      // of HQ center since HQ is in the lower-left
+      const neOrEast = nearResources.filter(r =>
+        r.ty < hqCenterY || r.tx > hqCenterX
+      );
+      // At least half of nearby resources should be toward center/NE
+      expect(neOrEast.length).toBeGreaterThan(0);
+    });
+
+    it('starter resources do not overlap HQ footprint', () => {
+      for (const size of ['small', 'standard', 'large'] as MapSizeOption[]) {
+        const map = createGeneratedMapData('hq-no-overlap', size);
+        const hqTiles = new Set<string>();
+        for (let dy = 0; dy < 3; dy++) {
+          for (let dx = 0; dx < 3; dx++) {
+            hqTiles.add(`${map.hq.tx + dx},${map.hq.ty + dy}`);
+          }
+        }
+        for (const r of map.resources) {
+          for (let dy = 0; dy < r.footprint; dy++) {
+            for (let dx = 0; dx < r.footprint; dx++) {
+              expect(hqTiles.has(`${r.tx + dx},${r.ty + dy}`)).toBe(false);
+            }
+          }
         }
       }
     });

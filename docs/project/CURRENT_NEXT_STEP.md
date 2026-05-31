@@ -62,17 +62,16 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-05A PR 3 — Production frame/background layer
+VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition
 ```
 
 Goal:
 
 ```text
-Add the visual frame border and background/world layer to the production
-industrial renderer. When mapStyle === 'industrial', render frame top blocks,
-wall face blocks with mirroring/tint, and a background world image beneath
-the arena. Frame is visual-only — no pathfinding/occupancy/save changes.
-When mapStyle === 'sand', no frame/background appears.
+Move the player HQ/start composition to the lower-left start zone and adjust
+starter resources so the start remains playable. HQ position changes from
+(4, 4) upper-left to (4, mapHeight-7) lower-left. Starter resources placed
+NE of HQ toward map center. Camera centering on HQ remains automatic.
 ```
 
 The full integration plan is documented in:
@@ -86,8 +85,8 @@ PR sequence (from the plan):
 ```text
 PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom — DONE (PR #144)
 PR 2 — Production terrain/platform assets behind mapStyle flag — DONE (PR #145)
-PR 3 — Production frame/background layer — CURRENT
-PR 4 — Lower-left HQ/camera/resource composition
+PR 3 — Production frame/background layer — DONE (PR #146)
+PR 4 — Lower-left HQ/camera/resource composition — CURRENT
 PR 5 — Make industrial map default for new games after QA
 ```
 
@@ -142,8 +141,8 @@ Large:  192×192 playable, 194×194 outer
 ```text
 1. VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 — DONE (PR #144)
 2. VISUAL-05A PR 2 — Production terrain behind mapStyle flag — DONE (PR #145)
-3. VISUAL-05A PR 3 — Production frame/background layer — current
-4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition
+3. VISUAL-05A PR 3 — Production frame/background layer — DONE (PR #146)
+4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition — current
 5. VISUAL-05A PR 5 — Make industrial map default after QA
 6. VISUAL-06 — Resource field visual model design
 7. VISUAL-07 — HUD layout design doc

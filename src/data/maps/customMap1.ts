@@ -5,11 +5,10 @@ import type { MapData } from '../../state/types';
  *
  * Map data imported from uploaded saved custom map JSON.
  * 48×48 isometric desert map with:
- * - HQ at (4,4), builder at (3,3)
+ * - HQ at (4,41), builder at (5,40) — lower-left start zone (VISUAL-05A-PR4)
  * - Central infinite crystal deposit at (23,22)
- * - Starter resource clusters in upper-left corner
+ * - Starter resource clusters NE of HQ (toward center) for reliable early harvesting
  * - Resource clusters in all four corners
- * - Nearby starter resources SE of HQ for reliable early harvesting
  * - No obstacles, no decor, no buildings
  */
 
@@ -89,14 +88,14 @@ const RESOURCES: MapData['resources'] = [
   { tx: 3, ty: 2, type: 'small', footprint: 1 },
   { tx: 3, ty: 0, type: 'small', footprint: 1 },
   { tx: 0, ty: 3, type: 'small', footprint: 1 },
-  // ARCH-08/09/10: Nearby starter resources SE of HQ for reliable early harvesting.
-  // Harvesters spawn around (6,5)-(6,6); these are within 3-5 tiles.
-  { tx: 8, ty: 7, type: 'medium', footprint: 1 },
-  { tx: 9, ty: 7, type: 'medium', footprint: 1 },
-  { tx: 10, ty: 8, type: 'medium', footprint: 1 },
-  { tx: 8, ty: 8, type: 'small', footprint: 1 },
-  { tx: 9, ty: 8, type: 'small', footprint: 1 },
-  { tx: 10, ty: 9, type: 'small', footprint: 1 },
+  // ARCH-08/09/10 + VISUAL-05A-PR4: Nearby starter resources NE of HQ for reliable early harvesting.
+  // HQ is at (4,41); harvesters spawn NE of HQ. Resources are toward center.
+  { tx: 9, ty: 37, type: 'medium', footprint: 1 },
+  { tx: 10, ty: 37, type: 'medium', footprint: 1 },
+  { tx: 11, ty: 36, type: 'medium', footprint: 1 },
+  { tx: 9, ty: 36, type: 'small', footprint: 1 },
+  { tx: 10, ty: 36, type: 'small', footprint: 1 },
+  { tx: 11, ty: 35, type: 'small', footprint: 1 },
   { tx: 22, ty: 24, type: 'large', footprint: 1 },
   { tx: 22, ty: 23, type: 'large', footprint: 1 },
   { tx: 22, ty: 22, type: 'large', footprint: 1 },
@@ -228,21 +227,21 @@ const OBSTACLES: MapData['obstacles'] = [];
 
 const DECOR: MapData['decor'] = [];
 
-const HQ: MapData['hq'] = { tx: 4, ty: 4, faction: 'cyan' };
+const HQ: MapData['hq'] = { tx: 4, ty: 41, faction: 'cyan' };
 
 const BUILDERS: MapData['builders'] = [
   {
     id: 'builder-0',
-    tx: 3,
-    ty: 3,
+    tx: 5,
+    ty: 40,
     busy: false,
     phase: 'idle',
     path: [],
     pathIndex: 0,
-    ftx: 3.5,
-    fty: 3.5,
-    targetTx: 3,
-    targetTy: 3,
+    ftx: 5.5,
+    fty: 40.5,
+    targetTx: 5,
+    targetTy: 40,
     assignedSiteId: -1,
   },
 ];
