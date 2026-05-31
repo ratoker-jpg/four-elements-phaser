@@ -692,4 +692,52 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
       expect(id).not.toBe('arena1');
     });
   });
+
+  // ── VISUAL-05A-PR5: Industrial terrain generation ─────────────────
+
+  describe('VISUAL-05A-PR5: industrial terrain generation', () => {
+    it('industrial mapStyle produces all-industrial terrain', () => {
+      const map = createGeneratedMapData('industrial-test', 'small', 'cyan', 'industrial');
+      expect(map.width).toBe(32);
+      expect(map.height).toBe(32);
+      for (const row of map.terrain) {
+        for (const cell of row) {
+          expect(cell).toBe('industrial');
+        }
+      }
+    });
+
+    it('industrial map has same HQ position and builder as sand', () => {
+      const sandMap = createGeneratedMapData('compare-sand', 'small', 'cyan', 'sand');
+      const indMap = createGeneratedMapData('compare-ind', 'small', 'cyan', 'industrial');
+      // Same HQ position
+      expect(indMap.hq.tx).toBe(sandMap.hq.tx);
+      expect(indMap.hq.ty).toBe(sandMap.hq.ty);
+      // Same builder position
+      expect(indMap.builders[0].tx).toBe(sandMap.builders[0].tx);
+      expect(indMap.builders[0].ty).toBe(sandMap.builders[0].ty);
+      // Resources may differ because industrial terrain uses fewer PRNG calls
+      // (flat fill vs patch-based), shifting the RNG state. Both must be valid.
+      expect(indMap.resources.length).toBeGreaterThan(0);
+      expect(sandMap.resources.length).toBeGreaterThan(0);
+    });
+
+    it('industrial validated generation works', () => {
+      const result = createValidatedGeneratedMapData('ind-validated', 'small', 'cyan', 'industrial');
+      expect(result.mapData).toBeDefined();
+      expect(result.mapData.width).toBe(32);
+      // All terrain should be industrial
+      expect(result.mapData.terrain[0][0]).toBe('industrial');
+      // Should have resources
+      expect(result.mapData.resources.length).toBeGreaterThan(0);
+    });
+
+    it('sand mapStyle still produces sand terrain (not industrial)', () => {
+      const map = createGeneratedMapData('sand-still-works', 'small', 'cyan', 'sand');
+      const hasIndustrial = map.terrain.some(row => row.some(t => t === 'industrial'));
+      expect(hasIndustrial).toBe(false);
+      const hasSand = map.terrain.some(row => row.some(t => t === 'sand'));
+      expect(hasSand).toBe(true);
+    });
+  });
 });

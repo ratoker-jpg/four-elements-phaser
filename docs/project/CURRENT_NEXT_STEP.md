@@ -62,16 +62,16 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition
+VISUAL-05A PR 5 — Make industrial generated map default for new games
 ```
 
 Goal:
 
 ```text
-Move the player HQ/start composition to the lower-left start zone and adjust
-starter resources so the start remains playable. HQ position changes from
-(4, 4) upper-left to (4, mapHeight-7) lower-left. Starter resources placed
-NE of HQ toward map center. Camera centering on HQ remains automatic.
+Switch the default new-game experience to the industrial generated map.
+DEFAULT_SETUP changes from fixed/sand/standard to generated/industrial/small.
+Sand/fixed remain available as manual fallback options.
+Save/load compatibility preserved: old saves load as saved.
 ```
 
 The full integration plan is documented in:
@@ -86,8 +86,8 @@ PR sequence (from the plan):
 PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom — DONE (PR #144)
 PR 2 — Production terrain/platform assets behind mapStyle flag — DONE (PR #145)
 PR 3 — Production frame/background layer — DONE (PR #146)
-PR 4 — Lower-left HQ/camera/resource composition — CURRENT
-PR 5 — Make industrial map default for new games after QA
+PR 4 — Lower-left HQ/camera/resource composition — DONE (PR #147)
+PR 5 — Make industrial map default for new games after QA — CURRENT
 ```
 
 Production map sizes:
@@ -142,8 +142,8 @@ Large:  192×192 playable, 194×194 outer
 1. VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 — DONE (PR #144)
 2. VISUAL-05A PR 2 — Production terrain behind mapStyle flag — DONE (PR #145)
 3. VISUAL-05A PR 3 — Production frame/background layer — DONE (PR #146)
-4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition — current
-5. VISUAL-05A PR 5 — Make industrial map default after QA
+4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition — DONE (PR #147)
+5. VISUAL-05A PR 5 — Make industrial map default after QA — current
 6. VISUAL-06 — Resource field visual model design
 7. VISUAL-07 — HUD layout design doc
 8. VISUAL-08 — HUD shell implementation
@@ -152,6 +152,9 @@ Large:  192×192 playable, 194×194 outer
 11. VISUAL-11 — Harvester/builder visual workflow design
 12. VISUAL-12 — Approved unit visual integration
 ```
+
+After PR5 is complete, the VISUAL-05A sequence is done.
+Proposed next work: VISUAL-06 (resource field visual model) or post-VISUAL-05A QA polish backlog.
 
 Previously listed Phase 2 tasks are already completed/merged — see `PROJECT_STATE.md` "Completed foundation" section.
 

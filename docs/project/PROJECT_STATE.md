@@ -93,31 +93,24 @@ If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or c
 ## Active next work
 
 ```text
-VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition
+VISUAL-05A PR 5 — Make industrial generated map default for new games
 ```
 
 Reason:
 
 ```text
-VISUAL-05A PR 3 (#146) added the production industrial frame/background layer.
-Now we move the player HQ/start composition to the lower-left start zone and
-adjust starter resources so the start remains playable.
+VISUAL-05A PR 4 (#147) moved HQ/start composition to the lower-left start zone.
+Now we switch the default new-game experience to the industrial generated map.
 
-VISUAL-05A PR 4 adds:
-- HQ position moved from (4,4) upper-left to (4, mapHeight-7) lower-left
-- Starter resource placement reworked to NE of HQ (toward map center)
-- Builder and harvester spawn positions adjusted for lower-left start
-- customMap1 updated to match new HQ position
-- Camera centering on HQ remains automatic (no changes needed)
+VISUAL-05A PR 5 changes:
+- DEFAULT_SETUP changed from fixed/sand/standard to generated/industrial/small
+- NewGameSetupScene defaults now show Generated + Small + Industrial Platform
+- Sand/fixed remain available as manual fallback options
+- Save/load compatibility: old saves load as saved (mapStyle inferred from terrain)
 ```
 
-Production map sizes:
-
-```text
-Small:  96×96 playable,  98×98 outer (with 1-tile frame border)
-Medium: 128×128 playable, 130×130 outer
-Large:  192×192 playable, 194×194 outer
-```
+Note: Current 'small' map size is 32×32 (not yet migrated to 96×96).
+96×96 migration is a separate follow-up task.
 
 Key integration steps (see VISUAL_05A doc for full PR sequence):
 
@@ -150,6 +143,7 @@ VISUAL-04F — Single PNG wall face block — done / PR #142 merged
 VISUAL-05A PR1 — Parameterize dev preview 96/128/192 — done / PR #144 merged
 VISUAL-05A PR2 — Production terrain behind mapStyle flag — done / PR #145 merged
 VISUAL-05A PR3 — Production frame/background layer — done / PR #146 merged
+VISUAL-05A PR4 — Lower-left HQ/camera/resource composition — done / PR #147 merged
 ```
 
 VISUAL-02C rejection note:
