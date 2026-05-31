@@ -62,7 +62,7 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-06 — Resource field visual model design
+VISUAL-06A — Resource field visual model and asset contract (docs/design)
 ```
 
 Alternative:
@@ -75,11 +75,10 @@ Reason:
 
 ```text
 VISUAL-05A production industrial map integration is COMPLETE.
-All five PRs in the VISUAL-05A sequence are merged (PR #144–#148).
-The industrial generated map is now the default for new games.
+VISUAL-06A is the docs/design step that defines the resource field visual model,
+asset contract, and field composition rules before any asset generation or runtime work.
 
-Next logical step is VISUAL-06 (resource field visual model design),
-or a QA polish pass to address any remaining visual integration issues.
+VISUAL-06A is a prerequisite for VISUAL-06B (candidate asset review).
 ```
 
 VISUAL-05A PR sequence (all DONE):
@@ -192,13 +191,18 @@ VISUAL-06 may (with explicit task scope):
 3. VISUAL-05A PR 3 — Production frame/background layer — DONE (PR #146)
 4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition — DONE (PR #147)
 5. VISUAL-05A PR 5 — Make industrial map default after QA — DONE (PR #148)
-6. VISUAL-06 — Resource field visual model design — next
-7. VISUAL-07 — HUD layout design doc
-8. VISUAL-08 — HUD shell implementation
-9. VISUAL-09 — Command panel/hotkey visual pass
-10. VISUAL-10 — Main menu visual refresh
-11. VISUAL-11 — Harvester/builder visual workflow design
-12. VISUAL-12 — Approved unit visual integration
+6. VISUAL-06A — Resource field visual model (docs/design) — current
+7. VISUAL-06B — Resource candidate asset review — after 06A approval
+8. VISUAL-06C — Approved resource assets added to repo — after 06B approval
+9. VISUAL-06D — Preload/manifest wiring behind resourceStyle flag — after 06C
+10. VISUAL-06E — Production resource rendering for industrial — after 06D
+11. VISUAL-06F — QA polish if readability issues — after 06E
+12. VISUAL-07 — HUD layout design doc
+13. VISUAL-08 — HUD shell implementation
+14. VISUAL-09 — Command panel/hotkey visual pass
+15. VISUAL-10 — Main menu visual refresh
+16. VISUAL-11 — Harvester/builder visual workflow design
+17. VISUAL-12 — Approved unit visual integration
 ```
 
 VISUAL-05A sequence is COMPLETE (PR #144–#148 all merged).
@@ -224,6 +228,7 @@ docs/project/VISUAL_ROADMAP.md
 docs/project/VISUAL_SYSTEM_AUDIT.md
 docs/project/VISUAL_CANDIDATE_SUMMARY.md
 docs/project/VISUAL_01B_LAYERED_PLATFORM_FRAME.md
+docs/project/VISUAL_06_RESOURCE_FIELD_VISUAL_MODEL.md
 docs/project/PROJECT_STATE.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
