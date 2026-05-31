@@ -26,8 +26,7 @@
  *   - Aliases: small=96, medium=128, large=192
  *   - Default (no map param) = 9 (unchanged legacy behavior)
  *   - Camera pan (Arrow keys), zoom (mouse wheel), reset (R/Home) for maps > 9
- *   - RenderTexture for platform tiles (perf-safe for large maps)
- *   - Chunked RenderTexture when single RT exceeds MAX_RT_SIZE
+ *   - CanvasTexture for platform tiles (perf-safe for large maps)
  *   - Frame-focused fallback for extremely large maps
  *   - Adaptive grid: full grid for small maps, major gridlines for large
  *   - Extended info overlay with zoom, FPS, render mode, camera controls
@@ -115,7 +114,7 @@ const MIN_ZOOM = 0.15;
 /** Maximum zoom level for large maps */
 const MAX_ZOOM = 1.5;
 
-/** Maximum RenderTexture dimension before chunking (px) */
+/** Maximum canvas/texture dimension before fallback (px) */
 const MAX_RT_SIZE = 8192;
 
 /** Base camera pan speed (px/frame at zoom=1) */
@@ -363,7 +362,7 @@ interface FramePiece {
 
 // ─── Render mode types ────────────────────────────────────────────
 
-type RenderMode = 'full-individual' | 'render-texture' | 'chunked-rt' | 'frame-focused';
+type RenderMode = 'full-individual' | 'canvas-texture' | 'frame-focused';
 
 // ─── URL parameter parsing ────────────────────────────────────────
 
@@ -460,8 +459,8 @@ export class Visual04aPreviewScene extends Phaser.Scene {
   private maskGraphics: Phaser.GameObjects.Graphics | null = null;
   private tileContainer: Phaser.GameObjects.Container | null = null;
 
-  // ─── RenderTexture references (VISUAL-05A-PR1) ────────────────
-  private renderTextures: Phaser.GameObjects.RenderTexture[] = [];
+  // ─── CanvasTexture images (VISUAL-05A-PR1) ────────────────
+  private canvasTextureImages: Phaser.GameObjects.Image[] = [];
 
   constructor() {
     super({ key: 'Visual04aPreviewScene' });
@@ -860,18 +859,10 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       return;
     }
 
-    // For medium maps, use RenderTexture if the arena fits in a single RT
+    // For large maps, use CanvasTexture (draw tiles onto an offscreen canvas,
+    // then display as a single image — avoids Phaser 4 RenderTexture draw issues)
     if (arenaW <= MAX_RT_SIZE && arenaH <= MAX_RT_SIZE) {
-      this.renderMode = 'render-texture';
-      return;
-    }
-
-    // For larger maps, try chunked RenderTexture
-    // Each chunk must be <= MAX_RT_SIZE
-    const chunkTileSize = Math.floor(MAX_RT_SIZE / this.runtimeTileW);
-    if (chunkTileSize >= 4) {
-      // At least 4 tiles per chunk dimension
-      this.renderMode = 'chunked-rt';
+      this.renderMode = 'canvas-texture';
       return;
     }
 
@@ -889,11 +880,8 @@ export class Visual04aPreviewScene extends Phaser.Scene {
       case 'full-individual':
         this.renderTilesIndividual(halfTW, halfTH);
         break;
-      case 'render-texture':
-        this.renderTilesSingleRT(halfTW, halfTH);
-        break;
-      case 'chunked-rt':
-        this.renderTilesChunkedRT(halfTW, halfTH);
+      case 'canvas-texture':
+        this.renderTilesCanvasTexture(halfTW, halfTH);
         break;
       case 'frame-focused':
         this.renderTilesFrameFocused(halfTW, halfTH);
@@ -938,113 +926,67 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     }
   }
 
-  /** RenderTexture: stamp all tiles onto a single RT. */
-  private renderTilesSingleRT(halfTW: number, halfTH: number): void {
-    // Calculate bounding box of all platform tiles
+  /** CanvasTexture: draw all tiles onto an offscreen canvas, display as one image. */
+  private renderTilesCanvasTexture(halfTW: number, halfTH: number): void {
     const bounds = this.calculateTileBounds(halfTW, halfTH);
     if (!bounds) return;
 
-    const rtWidth = Math.ceil(bounds.maxX - bounds.minX) + this.runtimeTileW;
-    const rtHeight = Math.ceil(bounds.maxY - bounds.minY) + this.runtimeTileH;
+    // Canvas origin = top-left of the bounding box of all tile images
+    const canvasOriginX = bounds.minX;
+    const canvasOriginY = bounds.minY;
+    const canvasW = Math.ceil(bounds.maxX - bounds.minX);
+    const canvasH = Math.ceil(bounds.maxY - bounds.minY);
 
-    if (rtWidth > MAX_RT_SIZE || rtHeight > MAX_RT_SIZE) {
-      // Fall back to chunked
-      console.warn('[Visual04a] Single RT too large, falling back to chunked');
-      this.renderMode = 'chunked-rt';
-      this.renderTilesChunkedRT(halfTW, halfTH);
+    if (canvasW > MAX_RT_SIZE || canvasH > MAX_RT_SIZE) {
+      // Fall back to frame-focused mode
+      console.warn('[Visual04a] Canvas too large, falling back to frame-focused');
+      this.renderMode = 'frame-focused';
+      this.renderTilesFrameFocused(halfTW, halfTH);
       return;
     }
 
-    const rt = this.add.renderTexture(
-      bounds.minX - this.runtimeTileW / 2,
-      bounds.minY - this.runtimeTileH / 2,
-      rtWidth,
-      rtHeight
-    );
-    rt.setOrigin(0, 0);  // Position refers to top-left, matching tile coordinate calculations
-    rt.setDepth(DEPTH_TILES);
-    this.renderTextures.push(rt);
+    const key = `visual04a-platform-canvas-${this.playableSize}`;
 
-    const tileScaleX = this.runtimeTileW / SOURCE_TILE_W;
-    const tileScaleY = this.runtimeTileH / SOURCE_TILE_H;
-    const rtOriginX = bounds.minX - this.runtimeTileW / 2;
-    const rtOriginY = bounds.minY - this.runtimeTileH / 2;
-
-    // Stamp tiles onto the RenderTexture
-    this.stampTilesOntoRT(rt, rtOriginX, rtOriginY, tileScaleX, tileScaleY, halfTW, halfTH);
-
-    // Apply diamond mask for small maps (playableSize <= 20)
-    if (this.playableSize <= 20) {
-      this.applyDiamondMaskToRT();
+    // Remove existing canvas texture if it exists (e.g. from a previous scene run)
+    if (this.textures.exists(key)) {
+      this.textures.remove(key);
     }
 
-    console.log(`[Visual04a] Single RT: ${rtWidth}×${rtHeight} px`);
-  }
+    const canvasTexture = this.textures.createCanvas(key, canvasW, canvasH);
+    if (!canvasTexture) {
+      console.error('[Visual04a] Failed to create canvas texture, falling back to frame-focused');
+      this.renderMode = 'frame-focused';
+      this.renderTilesFrameFocused(halfTW, halfTH);
+      return;
+    }
 
-  /** Chunked RenderTexture: split tiles into multiple RTs. */
-  private renderTilesChunkedRT(halfTW: number, halfTH: number): void {
-    const chunkTileSize = Math.max(4, Math.floor(MAX_RT_SIZE / this.runtimeTileW));
-    const chunkPixelW = chunkTileSize * this.runtimeTileW + this.runtimeTileW;
-    const chunkPixelH = chunkTileSize * this.runtimeTileH + this.runtimeTileH;
-
-    // Group tile placements by chunk
-    const chunks = new Map<string, { col: number; row: number; tileId: number }[]>();
+    const ctx = canvasTexture.getContext();
 
     for (const placement of this.tilePlacements) {
-      const chunkCol = Math.floor((placement.col + this.frameBorder) / chunkTileSize);
-      const chunkRow = Math.floor((placement.row + this.frameBorder) / chunkTileSize);
-      const key = `${chunkCol},${chunkRow}`;
-      if (!chunks.has(key)) {
-        chunks.set(key, []);
-      }
-      chunks.get(key)!.push(placement);
+      const sx = (placement.col - placement.row) * halfTW + this.platformOriginX;
+      const sy = (placement.col + placement.row) * halfTH + this.platformOriginY;
+
+      const assetKey = `${TILE_ASSET_KEY_PREFIX}${placement.tileId}`;
+      const tex = this.textures.get(assetKey);
+      const src = tex.getSourceImage() as HTMLImageElement | HTMLCanvasElement | ImageBitmap;
+
+      ctx.drawImage(
+        src,
+        sx - canvasOriginX - halfTW,
+        sy - canvasOriginY - halfTH,
+        this.runtimeTileW,
+        this.runtimeTileH
+      );
     }
 
-    const tileScaleX = this.runtimeTileW / SOURCE_TILE_W;
-    const tileScaleY = this.runtimeTileH / SOURCE_TILE_H;
+    canvasTexture.refresh();
 
-    // Reusable stamp image — avoids creating/destroying per-tile temp images.
-    // Direct construction with texture key ensures Phaser initializes the frame correctly.
-    const stamp = new Phaser.GameObjects.Image(this, 0, 0, `${TILE_ASSET_KEY_PREFIX}1`);
-    stamp.setScale(tileScaleX, tileScaleY);
-    stamp.setOrigin(0.5, 0.5);
+    const img = this.add.image(canvasOriginX, canvasOriginY, key);
+    img.setOrigin(0, 0);
+    img.setDepth(DEPTH_TILES);
+    this.canvasTextureImages.push(img);
 
-    console.log(`[Visual04a] Chunked RT: ${chunks.size} chunks, chunk tile size: ${chunkTileSize}`);
-
-    for (const [key, placements] of chunks) {
-      const [chunkCol, chunkRow] = key.split(',').map(Number);
-
-      // Calculate chunk origin in world coordinates
-      const chunkOriginCol = chunkCol * chunkTileSize - this.frameBorder;
-      const chunkOriginRow = chunkRow * chunkTileSize - this.frameBorder;
-      const chunkWorldX = (chunkOriginCol - chunkOriginRow) * halfTW + this.platformOriginX;
-      const chunkWorldY = (chunkOriginCol + chunkOriginRow) * halfTH + this.platformOriginY;
-
-      const rtX = chunkWorldX - this.runtimeTileW / 2;
-      const rtY = chunkWorldY - this.runtimeTileH / 2;
-
-      // Clamp RT size to MAX_RT_SIZE
-      const rtW = Math.min(chunkPixelW, MAX_RT_SIZE);
-      const rtH = Math.min(chunkPixelH, MAX_RT_SIZE);
-
-      const rt = this.add.renderTexture(rtX, rtY, rtW, rtH);
-      rt.setOrigin(0, 0);  // Position refers to top-left, matching tile coordinate calculations
-      rt.setDepth(DEPTH_TILES);
-      this.renderTextures.push(rt);
-
-      // Stamp tiles in this chunk using reusable stamp image
-      for (const placement of placements) {
-        const sx = (placement.col - placement.row) * halfTW + this.platformOriginX;
-        const sy = (placement.col + placement.row) * halfTH + this.platformOriginY;
-
-        const assetKey = `${TILE_ASSET_KEY_PREFIX}${placement.tileId}`;
-        stamp.setTexture(assetKey);
-        stamp.setPosition(sx - rtX, sy - rtY);
-        rt.draw(stamp);
-      }
-    }
-
-    stamp.destroy();
+    console.log(`[Visual04a] Canvas texture: ${canvasW}×${canvasH} px, ${this.tilePlacements.length} tiles drawn`);
   }
 
   /** Frame-focused: solid fill for playable area + individual frame pieces. */
@@ -1108,51 +1050,6 @@ export class Visual04aPreviewScene extends Phaser.Scene {
     return { minX, minY, maxX, maxY };
   }
 
-  /** Stamp tiles onto a RenderTexture using a reusable stamp image. */
-  private stampTilesOntoRT(
-    rt: Phaser.GameObjects.RenderTexture,
-    rtOriginX: number, rtOriginY: number,
-    tileScaleX: number, tileScaleY: number,
-    halfTW: number, halfTH: number
-  ): void {
-    // Reusable stamp image — avoids creating/destroying per-tile temp images.
-    // Direct construction with texture key ensures Phaser initializes the frame
-    // and dimensions correctly. setTexture() swaps the frame for each tile.
-    const stamp = new Phaser.GameObjects.Image(this, 0, 0, `${TILE_ASSET_KEY_PREFIX}1`);
-    stamp.setScale(tileScaleX, tileScaleY);
-    stamp.setOrigin(0.5, 0.5);
-
-    for (const placement of this.tilePlacements) {
-      const sx = (placement.col - placement.row) * halfTW + this.platformOriginX;
-      const sy = (placement.col + placement.row) * halfTH + this.platformOriginY;
-
-      const assetKey = `${TILE_ASSET_KEY_PREFIX}${placement.tileId}`;
-      stamp.setTexture(assetKey);
-      stamp.setPosition(sx - rtOriginX, sy - rtOriginY);
-      rt.draw(stamp);
-    }
-
-    stamp.destroy();
-  }
-
-  /** Apply diamond mask to the RenderTexture (for small maps where clipping matters). */
-  private applyDiamondMaskToRT(): void {
-    this.maskGraphics = this.make.graphics({ x: 0, y: 0 }, false);
-    this.maskGraphics.fillStyle(MASK_COLOR, 1);
-    this.maskGraphics.beginPath();
-    this.maskGraphics.moveTo(this.arenaCX, this.arenaCY - this.innerHH);
-    this.maskGraphics.lineTo(this.arenaCX + this.innerHW, this.arenaCY);
-    this.maskGraphics.lineTo(this.arenaCX, this.arenaCY + this.innerHH);
-    this.maskGraphics.lineTo(this.arenaCX - this.innerHW, this.arenaCY);
-    this.maskGraphics.closePath();
-    this.maskGraphics.fillPath();
-
-    const diamondMask = this.maskGraphics.createGeometryMask();
-
-    if (this.renderTextures.length === 1) {
-      this.renderTextures[0].setMask(diamondMask);
-    }
-  }
 
   // ─── Fallback background ──────────────────────────────────────────
 
@@ -1782,7 +1679,7 @@ export class Visual04aPreviewScene extends Phaser.Scene {
 
     const isLargeMap = this.playableSize > 9;
     const totalObjects = this._estimatedObjectCount +
-      this.pngFrameTopImages.length + this.pngWallFaceImages.length + this.renderTextures.length;
+      this.pngFrameTopImages.length + this.pngWallFaceImages.length + this.canvasTextureImages.length;
 
     const lines = [
       `VISUAL-05A-PR1 — Parameterized Map Size Preview`,
