@@ -93,40 +93,24 @@ If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or c
 ## Active next work
 
 ```text
-VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition
+VISUAL-06 — Resource field visual model design
+```
+
+Alternative:
+
+```text
+Post-VISUAL-05A QA polish backlog
 ```
 
 Reason:
 
 ```text
-VISUAL-05A PR 3 (#146) added the production industrial frame/background layer.
-Now we move the player HQ/start composition to the lower-left start zone and
-adjust starter resources so the start remains playable.
+VISUAL-05A production industrial map integration is complete.
+All five PRs in the VISUAL-05A sequence are merged.
+The industrial generated map is now the default for new games.
 
-VISUAL-05A PR 4 adds:
-- HQ position moved from (4,4) upper-left to (4, mapHeight-7) lower-left
-- Starter resource placement reworked to NE of HQ (toward map center)
-- Builder and harvester spawn positions adjusted for lower-left start
-- customMap1 updated to match new HQ position
-- Camera centering on HQ remains automatic (no changes needed)
-```
-
-Production map sizes:
-
-```text
-Small:  96×96 playable,  98×98 outer (with 1-tile frame border)
-Medium: 128×128 playable, 130×130 outer
-Large:  192×192 playable, 194×194 outer
-```
-
-Key integration steps (see VISUAL_05A doc for full PR sequence):
-
-```text
-PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom
-PR 2 — Production terrain/platform assets behind mapStyle flag
-PR 3 — Production frame/background layer
-PR 4 — Lower-left HQ/camera/resource composition
-PR 5 — Make industrial map default for new games after QA
+Next logical step is VISUAL-06 (resource field visual model design),
+or a QA polish pass to address any remaining visual integration issues.
 ```
 
 ---
@@ -150,7 +134,11 @@ VISUAL-04F — Single PNG wall face block — done / PR #142 merged
 VISUAL-05A PR1 — Parameterize dev preview 96/128/192 — done / PR #144 merged
 VISUAL-05A PR2 — Production terrain behind mapStyle flag — done / PR #145 merged
 VISUAL-05A PR3 — Production frame/background layer — done / PR #146 merged
+VISUAL-05A PR4 — Lower-left HQ/camera/resource composition — done / PR #147 merged
+VISUAL-05A PR5 — Make industrial generated map default for new games — done / PR #148 merged
 ```
+
+VISUAL-05A production industrial map integration is complete. All five PRs merged.
 
 VISUAL-02C rejection note:
 

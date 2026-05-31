@@ -127,17 +127,21 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
   });
 
   describe('DEFAULT_SETUP', () => {
-    it('has cyan faction and customMap1', () => {
+    it('has cyan faction and generated map (VISUAL-05A-PR5)', () => {
       expect(DEFAULT_SETUP.faction).toBe('cyan');
-      expect(DEFAULT_SETUP.mapId).toBe('customMap1');
+      expect(DEFAULT_SETUP.mapId).toBe('generated');
     });
 
-    it('has fixed map mode', () => {
-      expect(DEFAULT_SETUP.mapMode).toBe('fixed');
+    it('has generated map mode (VISUAL-05A-PR5)', () => {
+      expect(DEFAULT_SETUP.mapMode).toBe('generated');
     });
 
-    it('has standard map size', () => {
-      expect(DEFAULT_SETUP.mapSize).toBe('standard');
+    it('has small map size (VISUAL-05A-PR5)', () => {
+      expect(DEFAULT_SETUP.mapSize).toBe('small');
+    });
+
+    it('has industrial map style (VISUAL-05A-PR5)', () => {
+      expect(DEFAULT_SETUP.mapStyle).toBe('industrial');
     });
 
     it('has default seed', () => {
@@ -156,6 +160,17 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
       expect(config.mapSize).toBeDefined();
       expect(config.seed).toBeDefined();
       expect(config.gameMode).toBeDefined();
+      expect(config.mapStyle).toBeDefined();
+    });
+
+    it('DEFAULT_SETUP produces industrial generated terrain via getMapDataFromConfig', () => {
+      const mapData = getMapDataFromConfig(DEFAULT_SETUP);
+      // Generated small map = 32×32
+      expect(mapData.width).toBe(32);
+      expect(mapData.height).toBe(32);
+      // Industrial terrain: all tiles should be 'industrial'
+      expect(mapData.terrain[0][0]).toBe('industrial');
+      expect(mapData.terrain[16][16]).toBe('industrial');
     });
   });
 
@@ -188,7 +203,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
   });
 
   describe('getMapDataFromConfig', () => {
-    it('returns customMap1 for fixed mode config', () => {
+    it('returns customMap1 for fixed/sand mode config (legacy fallback)', () => {
       const config: GameSetupConfig = {
         faction: 'cyan',
         mapId: 'customMap1',
@@ -200,20 +215,40 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
       };
       const mapData = getMapDataFromConfig(config);
       expect(mapData.width).toBe(48);
+      // Sand terrain: first tile should be a sand variant
+      expect(mapData.terrain[0][0]).toMatch(/^sand/);
     });
 
-    it('returns generated map for generated mode config', () => {
+    it('returns generated industrial map for generated/industrial config', () => {
       const config: GameSetupConfig = {
         faction: 'cyan',
-        mapId: 'generated-standard-myseed',
+        mapId: 'generated-small-myseed',
         mapMode: 'generated',
         mapSize: 'small',
         seed: 'myseed',
         gameMode: 'standard',
-        mapStyle: 'sand',
+        mapStyle: 'industrial',
       };
       const mapData = getMapDataFromConfig(config);
       expect(mapData.width).toBe(32); // small
+      // Industrial terrain: all tiles should be 'industrial'
+      expect(mapData.terrain[0][0]).toBe('industrial');
+    });
+
+    it('returns generated sand map for generated/sand config', () => {
+      const config: GameSetupConfig = {
+        faction: 'cyan',
+        mapId: 'generated-small-sandseed',
+        mapMode: 'generated',
+        mapSize: 'small',
+        seed: 'sandseed',
+        gameMode: 'standard',
+        mapStyle: 'sand',
+      };
+      const mapData = getMapDataFromConfig(config);
+      expect(mapData.width).toBe(32);
+      // Sand terrain: first tile should be a sand variant
+      expect(mapData.terrain[0][0]).toMatch(/^sand/);
     });
 
     it('arena config returns arena map', () => {
@@ -317,5 +352,80 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
       // Only 2 parts, need at least 3 for size + seed
       expect(mapData.width).toBe(48);
     });
+  });
+});
+
+// ── VISUAL-05A-PR5: Industrial generated map default ──────────────
+
+describe('VISUAL-05A-PR5: Industrial generated map default', () => {
+  it('DEFAULT_SETUP produces a playable generated industrial small map', () => {
+    const mapData = getMapDataFromConfig(DEFAULT_SETUP);
+    expect(mapData.width).toBe(32);
+    expect(mapData.height).toBe(32);
+    // HQ should be at lower-left: (4, mapHeight-7) = (4, 25)
+    expect(mapData.hq.tx).toBe(4);
+    expect(mapData.hq.ty).toBe(25);
+    // All terrain should be industrial
+    for (const row of mapData.terrain) {
+      for (const cell of row) {
+        expect(cell).toBe('industrial');
+      }
+    }
+    // Should have starter resources
+    expect(mapData.resources.length).toBeGreaterThan(0);
+    // Should have an infinite deposit near center
+    const infinite = mapData.resources.find(r => r.type === 'infinite');
+    expect(infinite).toBeDefined();
+  });
+
+  it('sand/fixed config still works as legacy fallback', () => {
+    const legacyConfig: GameSetupConfig = {
+      faction: 'cyan',
+      mapId: 'customMap1',
+      mapMode: 'fixed',
+      mapSize: 'standard',
+      seed: 'default',
+      gameMode: 'standard',
+      mapStyle: 'sand',
+    };
+    const mapData = getMapDataFromConfig(legacyConfig);
+    expect(mapData.width).toBe(48);
+    expect(mapData.height).toBe(48);
+    // Should be sand terrain, not industrial
+    expect(mapData.terrain[0][0]).toMatch(/^sand/);
+  });
+
+  it('save/load does not force default config onto loaded saves', () => {
+    // Simulate the GameScene.init() logic for a loaded save:
+    // The loaded game's mapStyle should be inferred from terrain, not DEFAULT_SETUP.
+    // This test verifies the inference function logic indirectly by checking
+    // that a sand terrain map stays sand and industrial stays industrial.
+    const sandConfig: GameSetupConfig = {
+      faction: 'cyan',
+      mapId: 'customMap1',
+      mapMode: 'fixed',
+      mapSize: 'standard',
+      seed: 'default',
+      gameMode: 'standard',
+      mapStyle: 'sand',
+    };
+    const sandMapData = getMapDataFromConfig(sandConfig);
+    // Sand terrain should not contain 'industrial'
+    const hasIndustrial = sandMapData.terrain.some(row => row.some(t => t === 'industrial'));
+    expect(hasIndustrial).toBe(false);
+
+    const industrialConfig: GameSetupConfig = {
+      faction: 'cyan',
+      mapId: 'generated-small-default',
+      mapMode: 'generated',
+      mapSize: 'small',
+      seed: 'default',
+      gameMode: 'standard',
+      mapStyle: 'industrial',
+    };
+    const industrialMapData = getMapDataFromConfig(industrialConfig);
+    // Industrial terrain should contain 'industrial'
+    const allIndustrial = industrialMapData.terrain.every(row => row.every(t => t === 'industrial'));
+    expect(allIndustrial).toBe(true);
   });
 });

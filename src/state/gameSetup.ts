@@ -101,15 +101,22 @@ export const GAME_MODE_LABELS: Record<GameMode, string> = {
 /** Default seed for generated maps. */
 export const DEFAULT_SEED = 'default';
 
-/** Default setup configuration (cyan faction, Map 1, standard mode). */
+/**
+ * Default setup configuration for new games.
+ *
+ * VISUAL-05A-PR5: Default changed from fixed/sand/standard to
+ * generated/industrial/small. The industrial generated map is now
+ * the default new-game experience. Sand/fixed remains available
+ * as a manual fallback option.
+ */
 export const DEFAULT_SETUP: GameSetupConfig = {
   faction: 'cyan',
-  mapId: 'customMap1',
-  mapMode: 'fixed',
-  mapSize: 'standard',
+  mapId: GENERATED_MAP_ID_PREFIX,
+  mapMode: 'generated',
+  mapSize: 'small',
   seed: DEFAULT_SEED,
   gameMode: 'standard',
-  mapStyle: 'sand',
+  mapStyle: 'industrial',
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────
