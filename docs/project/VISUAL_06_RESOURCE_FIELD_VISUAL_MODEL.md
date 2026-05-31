@@ -47,11 +47,11 @@ The current mineral crystal sprites use a sand/desert color palette that does no
 ## 3. Goals
 
 - Resources must match the industrial mining platform / industrial mineral wasteland visual direction established in VISUAL-05A.
-- Resource fields must be readable at gameplay zoom levels — the player should instantly see where resources are and distinguish small/medium/large/infinite.
+- Resource fields must be readable at gameplay zoom levels — the player should instantly see where resources are and distinguish richness tiers (very_poor through very_rich) and the central infinite deposit.
 - Resource nodes must stand out against gray/industrial platform tiles without being visually jarring. Contrast should come from color and glow, not size alone.
 - Resource visuals must support the three field types present in the current map: starter fields near HQ, mid/far clusters, and the central infinite deposit.
-- The 1×1 resource node model is preferred — each resource occupies exactly one isometric cell. This is already the production model for small, medium, and large resources.
-- Resource fields are groups of 1×1 nodes, not large multi-tile blobs. The infinite deposit is the only exception (3×3 footprint) and should receive special visual treatment.
+- Normal resource nodes are always 1×1 — each resource occupies exactly one isometric cell. Richness is shown by crystal count/density/glow, not footprint size.
+- Resource fields are groups of 1×1 richness-tier nodes. The only 2×2 mineral is the central infinite deposit, which is a separate visual category.
 
 ---
 
@@ -83,7 +83,7 @@ Three possible industrial resource visual directions are defined below. The proj
 **Readability strengths**:
 - Naturally integrates with the industrial platform surface — looks like part of the floor, not an object placed on top.
 - The crack/marking provides a visual anchor that reads clearly at gameplay zoom.
-- Small/medium/large variants can be distinguished by crack size, ore volume, and glow intensity.
+- Richness variants (very_poor through very_rich) can be distinguished by crystal count/density and glow intensity, all within the same 1×1 footprint.
 
 **Risks**:
 - If the crack is too subtle, resources may blend into the floor at low zoom.
@@ -139,27 +139,46 @@ Rationale:
 - Simplest depletion visual: ore fades or disappears, crack remains (or crack fades too).
 
 Recommended model constraints:
-- 1×1 resource node per cell.
-- Repeated/grouped into resource fields.
+- Normal resource nodes are 1×1 per cell. Richness is visual only (crystal count/density/glow), not footprint size.
+- Normal nodes are classified by richness tier: very_poor, poor, medium, rich, very_rich.
+- The central infinite deposit is the only 2×2 resource visual. It is a separate category, not part of the 1×1 richness-tier classification.
+- No normal 2×2 or 3×3 resource assets.
 - Clear silhouette — the ore protrusion must be taller than the floor plane so it reads as a distinct object.
 - Glowing ore/mineral accent — amber or teal glow is recommended to contrast against gray industrial tiles.
 - Industrial base/plate is optional — a subtle crack or marking around the ore is sufficient.
-- No large multi-cell resource sprite as default. The infinite deposit uses a group of 1×1 nodes with a special visual marker, not a single oversized sprite.
+- Visual richness may later map to resource amount, but this design doc does not implement that mapping.
+- The current runtime ResourceType ('small' | 'medium' | 'large' | 'infinite') remains unchanged until a later implementation task maps or renames it.
 
 ---
 
 ## 7. Resource categories / variants
 
-These are visual variants only. They do not imply economy amount changes. The existing `ResourceType` enum and `RESOURCE_RAW_AMOUNTS` remain unchanged.
+These are visual variants only. They do not imply economy amount changes. The existing `ResourceType` enum and `RESOURCE_RAW_AMOUNTS` remain unchanged until a later implementation task maps or renames them.
 
-| Variant | Visual description | Size relative to cell | Distinguishing features |
-|---------|-------------------|-----------------------|------------------------|
-| **small** | Small ore protrusion with faint glow. Minimal crack/marking around base. | Covers approximately 25–35% of the cell diamond area. | Low glow intensity, small crack, subtle presence. |
-| **medium** | Moderate ore cluster with visible glow. Wider crack pattern around base. | Covers approximately 35–50% of the cell diamond area. | Medium glow intensity, visible crack, clearly harvestable. |
-| **large** | Prominent ore formation with strong glow. Large crack or fractured floor section. | Covers approximately 50–65% of the cell diamond area. | Strong glow intensity, wide crack, unmistakably rich. |
-| **infinite** | Special marker for the central infinite deposit. Distinct from small/medium/large. Either a larger ore formation with pulsing/bright glow, or a unique extractor well visual. Uses the same 1×1 cell approach, but the 3×3 infinite deposit is composed of 9 coordinated nodes. | Largest individual node, or uses a unique silhouette not used elsewhere. | Unique visual — should read as "this is special" without being confused with a building. Recommended: brighter glow, larger crystal formation, or unique color shift. |
+### Normal 1×1 richness-tier nodes
 
-Important: The infinite deposit currently uses the `mineral_large` asset at scale 0.65. The new design should provide a dedicated infinite visual rather than scaling up the large variant.
+All normal resource nodes are 1×1 footprint. Richness is shown by crystal count, density, and glow intensity — not by footprint size. No normal 2×2 or 3×3 resource assets exist.
+
+| Variant | Visual description | Crystal density | Distinguishing features |
+|---------|-------------------|----------------|------------------------|
+| **very_poor** | 1–2 tiny crystals, barely rising from the floor. Weak glow. | 1–2 crystals | Weakest glow, minimal visual footprint, subtle presence. |
+| **poor** | 2–4 small crystals with low glow. | 2–4 crystals | Low glow intensity, small cluster, clearly a resource but not rich. |
+| **medium** | 5–8 moderate crystals with visible medium glow. | 5–8 crystals | Medium glow intensity, clearly harvestable, standard field node. |
+| **rich** | 8–12 crystals with stronger glow. Dense cluster. | 8–12 crystals | Strong glow, dense crystal formation, unmistakably rich. |
+| **very_rich** | 12–16 crystals, dense but still within 1×1 footprint. Bright glow. | 12–16 crystals | Densest 1×1 node, strong glow, visually exceptional for a single cell. |
+
+### Central infinite deposit (separate category)
+
+| Variant | Visual description | Footprint | Distinguishing features |
+|---------|-------------------|-----------|------------------------|
+| **infinite_center_2x2** | Large central infinite mineral deposit with special glow. The only 2×2 resource visual. Not part of the 1×1 richness classification. | 2×2 isometric cells | Unique visual — must read as special without being confused with a building. Recommended: brighter glow, unique color shift (amber-teal), large crystal formation. |
+
+Important notes:
+- The infinite deposit currently uses the `mineral_large` asset at scale 0.65. The new design provides a dedicated 2×2 infinite visual rather than scaling up a 1×1 variant.
+- The central infinite deposit is NOT modeled as a group of 1×1 nodes. It is a single 2×2 resource object.
+- No normal 2×2 or 3×3 resource assets — the infinite_center_2x2 is the only multi-cell resource visual.
+- Visual richness may later map to resource amount, but this design doc does not implement that mapping.
+- The current runtime ResourceType ('small' | 'medium' | 'large' | 'infinite') remains unchanged until a later implementation task maps or renames it.
 
 ---
 
@@ -168,7 +187,7 @@ Important: The infinite deposit currently uses the `mineral_large` asset at scal
 ### Starter field near HQ
 
 - Location: north/east of HQ (toward the map center from the lower-left start).
-- Composition: 6 medium + 6 small nodes in a loose cluster.
+- Composition: 1×1 richness-tier nodes (mix of poor, medium, rich) in a loose cluster.
 - Visual rules:
   - Nodes should be close enough to read as a group, but with clear gaps between them for unit pathing.
   - No two nodes should overlap visually — each must be individually selectable at gameplay zoom.
@@ -176,25 +195,26 @@ Important: The infinite deposit currently uses the `mineral_large` asset at scal
 
 ### Mid/far fields
 
-- Composition: 2–5 nodes per cluster.
+- Composition: 2–5 1×1 richness-tier nodes per cluster.
 - Visual rules:
   - Denser groupings are acceptable since these fields are discovered, not immediately visible.
   - Individual nodes still must be distinguishable — no merged blob sprites.
 
 ### Central infinite deposit
 
-- Composition: 3×3 footprint of 9 cells, all with infinite resource type.
+- Composition: A single 2×2 infinite_center_2x2 resource object.
 - Visual rules:
-  - The 9 nodes should read as a coherent "field center" — a visually special zone.
-  - Recommended: the center node has the strongest glow; surrounding nodes have moderate glow, creating a gradient effect.
+  - The infinite deposit is the only 2×2 resource visual. It is not composed of 1×1 nodes.
+  - It should read as a coherent, visually special "field center" — a unique focal point on the map.
+  - Recommended: special glow (amber-teal shift), pronounced crystal formation.
   - The infinite deposit must not visually block movement or hide passable/blocked status of adjacent cells.
-  - The deposit must remain compatible with grid/pathfinding — it occupies 9 cells in the logical grid, and that does not change.
+  - The deposit must remain compatible with grid/pathfinding — it occupies 4 cells in the logical grid (2×2).
 
 ### General field rules
 
-- No huge art blob that covers multiple logical cells unless a later separate design explicitly approves it.
+- No normal 2×2 or 3×3 resource assets — only the central infinite deposit is 2×2.
 - Fields should not visually hide passable/blocked status — a player must be able to see where paths exist between resource nodes.
-- Resource node sprites must not extend significantly beyond the isometric diamond of their cell at runtime scale.
+- 1×1 resource node sprites must not extend significantly beyond the isometric diamond of their cell at runtime scale.
 - In dense fields, node glow should not produce a wash of light that obscures the platform surface.
 
 ---
@@ -205,9 +225,11 @@ This section defines the expected asset contract for future asset generation and
 
 ### General requirements
 
-- 1×1 resource node sprite per variant.
+- 1×1 resource node sprite per richness variant.
+- 2×2 resource sprite for the central infinite deposit (the only multi-cell resource visual).
 - Transparent PNG — 32-bit RGBA, no background, no chroma key inside the final asset.
 - Consistent isometric camera — sprites must match the existing 2:1 isometric perspective used by all other game assets.
+- Normal 1×1 sprites are crystal overlay only — no platform tile, no floor slab included in the sprite.
 - Readable at runtime tile scale (76×38 px tile) — sprites are loaded at source resolution and scaled down. Source art should be clear enough to remain readable after scaling.
 - No oversized shadows — small contact shadow is acceptable, but the shadow must not extend beyond the cell boundary.
 - No gameplay-relevant information encoded only in art — resource type must be readable from code/state, not only from visual appearance.
@@ -216,11 +238,12 @@ This section defines the expected asset contract for future asset generation and
 ### Filename/naming proposal
 
 ```text
-resource_industrial_small_01.png
+resource_industrial_very_poor_01.png
+resource_industrial_poor_01.png
 resource_industrial_medium_01.png
-resource_industrial_large_01.png
-resource_industrial_infinite_01.png
-resource_industrial_depleted_01.png
+resource_industrial_rich_01.png
+resource_industrial_very_rich_01.png
+resource_industrial_infinite_center_2x2_01.png
 ```
 
 The `_01` suffix allows for variant alternatives without renaming existing files.
@@ -228,14 +251,17 @@ The `_01` suffix allows for variant alternatives without renaming existing files
 ### Asset key mapping proposal
 
 ```text
-resource_industrial_small  → resource_industrial_small_01
-resource_industrial_medium → resource_industrial_medium_01
-resource_industrial_large  → resource_industrial_large_01
-resource_industrial_infinite → resource_industrial_infinite_01
-resource_industrial_depleted → resource_industrial_depleted_01
+resource_industrial_very_poor       → resource_industrial_very_poor_01
+resource_industrial_poor            → resource_industrial_poor_01
+resource_industrial_medium          → resource_industrial_medium_01
+resource_industrial_rich            → resource_industrial_rich_01
+resource_industrial_very_rich       → resource_industrial_very_rich_01
+resource_industrial_infinite_center_2x2 → resource_industrial_infinite_center_2x2_01
 ```
 
 These keys would be added to `generatedAssetManifest.ts` alongside the existing sand-era mineral keys. The existing keys (`mineral_small`, `mineral_medium`, `mineral_large`) remain as sand fallback.
+
+No depleted visual asset is included in the current plan — depleted resources continue using `setVisible(false)`. A depleted asset can be added later if desired.
 
 ### Review directory proposal
 
@@ -385,15 +411,15 @@ The following criteria apply to each VISUAL-06 implementation PR:
 
 ## 14. Open questions for owner review
 
-These questions must be answered before VISUAL-06B (candidate asset review) begins:
+These questions were resolved by owner decisions during VISUAL-06B1. They are retained for historical reference.
 
-1. **Which visual option is preferred?** Option A (ore in cracked floor), Option B (crystal with metal ring), or Option C (drill/extractor marker). Or a combination/variant not listed here?
+1. **Which visual option is preferred?** — RESOLVED: Option A (ore in cracked floor).
 
-2. **Should the infinite deposit be a special 1×1 marker group or a visually larger center composition?** The current model places 9 infinite-type resources in a 3×3 grid. Should the visual treatment coordinate these 9 nodes into one coherent "deposit center" composition, or should each node be an independent visual element?
+2. **Should the infinite deposit be a special 1×1 marker group or a visually larger center composition?** — RESOLVED: The central infinite deposit is a single 2×2 resource visual (infinite_center_2x2), not a group of 1×1 nodes.
 
-3. **Should depleted state have a specific visual asset or just hide/remove the node?** A dedicated depleted visual (faint crack) communicates "resource was here" but adds asset and rendering complexity. Hiding the sprite is simpler but provides no spatial memory cue.
+3. **Should depleted state have a specific visual asset or just hide/remove the node?** — RESOLVED: No depleted asset in this step. Keep current hidden/removed behavior.
 
-4. **How bright should resource glow be against industrial tiles?** The industrial platform tiles are predominantly gray. Resource ore must stand out via color and glow, but overly bright glow may create visual noise in dense fields. Should the glow be a subtle accent or a strong beacon?
+4. **How bright should resource glow be against industrial tiles?** — RESOLVED: Medium accent glow, readable against gray platform tiles, not overly bright.
 
 ---
 
