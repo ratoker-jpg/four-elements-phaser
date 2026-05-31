@@ -52,7 +52,9 @@ Always confirm this in `package.json` before planning Phaser API work.
 - **Playable platform**: logically flat; visual height only on the outer frame / side walls.
 - **Tile standard**: 384×192 source assets, 2:1 top-surface-only platform tiles.
 - **Runtime logical tile**: existing isometric 2:1 map model remains the source of gameplay coordinates.
-- **Start position**: lower-left start zone in a later VISUAL step.
+- **Start position**: lower-left start zone (VISUAL-05A PR 4).
+- **Production map sizes**: 96×96 (small), 128×128 (medium), 192×192 (large).
+- **Frame border**: 1 tile around playable area (visual only, not in logical grid).
 - **HUD target**: bottom bar — minimap left, info center, commands right.
 - **Menu**: preserve cinematic central composition, update background to industrial.
 
@@ -67,6 +69,7 @@ docs/project/VISUAL_ROADMAP.md
 docs/project/VISUAL_SYSTEM_AUDIT.md
 docs/project/VISUAL_CANDIDATE_SUMMARY.md
 docs/project/VISUAL_01B_LAYERED_PLATFORM_FRAME.md
+docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
@@ -80,6 +83,7 @@ VISUAL_ROADMAP.md is the accepted planning direction.
 VISUAL_SYSTEM_AUDIT.md is the accepted audit with staged PR sequence.
 VISUAL_CANDIDATE_SUMMARY.md records the selected Candidate A direction.
 VISUAL_01B_LAYERED_PLATFORM_FRAME.md records the accepted layered platform model.
+VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md records the production integration plan with PR sequence.
 Implementation tasks covered by the audit can proceed without a new mini-audit if they do not expand scope.
 If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or combines multiple phases, stop and request approval.
 ```
@@ -89,31 +93,35 @@ If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or c
 ## Active next work
 
 ```text
-VISUAL-03A — Runtime Layered Platform Prototype
+VISUAL-05A — Production Industrial Map Integration Plan
 ```
 
 Reason:
 
 ```text
-VISUAL-02A proved a dev-only layered preview can load background + tiles + frame + grid.
-VISUAL-02B proved exact 2:1 frame geometry.
-VISUAL-02C static PNG proof was closed/rejected because static tilefill proof kept producing visually wrong composition.
+VISUAL-03A through VISUAL-04F established the approved MVP visual direction in the
+?visual04a dev preview: industrial platform tiles, PNG frame top/wall blocks,
+background/world layer, modular grid-aligned frame with edge-filtered walls.
+Now the visual direction must be integrated into the production game map.
 ```
 
-Current decision:
+Production map sizes:
 
 ```text
-Do not continue static PNG tilefill proof.
-Do not use PR #131 as a basis for runtime integration.
-Proceed with runtime/dev prototype using separate Phaser layers:
-background world
-+ tile layer inside arena center
-+ clipping/mask for playable diamond
-+ arena frame overlay
-+ optional debug grid
+Small:  96×96 playable,  98×98 outer (with 1-tile frame border)
+Medium: 128×128 playable, 130×130 outer
+Large:  192×192 playable, 194×194 outer
 ```
 
-VISUAL-03A must remain dev/prototype scoped first. It must not replace production terrain aggressively in the first PR.
+Key integration steps (see VISUAL_05A doc for full PR sequence):
+
+```text
+PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom
+PR 2 — Production terrain/platform assets behind mapStyle flag
+PR 3 — Production frame/background layer
+PR 4 — Lower-left HQ/camera/resource composition
+PR 5 — Make industrial map default for new games after QA
+```
 
 ---
 
@@ -128,6 +136,11 @@ VISUAL-01C — Tile visual balancing proof — done / PR #128 merged
 VISUAL-02A — Layered Platform Frame Prototype — done / PR #129 merged
 VISUAL-02B — Production Frame Geometry Proof — done / PR #130 merged
 VISUAL-02C — Final static frame art proof — closed/rejected / PR #131 not merged
+VISUAL-03A — Runtime modular frame preview (?visual03a) — done / merged
+VISUAL-04A — Modular frame placeholder (?visual04a) — done / merged
+VISUAL-04B — Procedural wall polish — done / merged
+VISUAL-04D — Single PNG frame top block — done / PR #138 merged
+VISUAL-04F — Single PNG wall face block — done / PR #142
 ```
 
 VISUAL-02C rejection note:
