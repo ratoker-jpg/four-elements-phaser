@@ -131,10 +131,24 @@ export const DEFAULT_SETUP: GameSetupConfig = {
   seed: DEFAULT_SEED,
   gameMode: 'standard',
   mapStyle: 'industrial',
-  resourceStyle: 'legacy',
+  resourceStyle: 'industrial',
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────
+
+/**
+ * VISUAL-06E fixup: Resolve default resourceStyle from mapStyle.
+ *
+ * - industrial mapStyle → industrial resourceStyle (VISUAL-06 crystal assets)
+ * - sand mapStyle → legacy resourceStyle (sand mineral sprites)
+ *
+ * Used when creating a new setup config (NewGameSetupScene) or
+ * inferring config from a loaded save (GameScene).
+ * If resourceStyle is explicitly provided, it should be preserved.
+ */
+export function resolveResourceStyleForMapStyle(mapStyle: MapStyle): ResourceStyle {
+  return mapStyle === 'industrial' ? 'industrial' : 'legacy';
+}
 
 /** Valid map size strings for validation. */
 const VALID_MAP_SIZES: ReadonlySet<string> = new Set<string>(MAP_SIZE_OPTIONS);

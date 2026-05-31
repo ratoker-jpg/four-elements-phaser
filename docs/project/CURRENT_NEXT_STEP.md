@@ -77,7 +77,8 @@ Reason:
 VISUAL-06A/06B/06B1 are COMPLETE (PR #150, #151, #152).
 VISUAL-06C approved resource assets are added (PR #153, merged).
 VISUAL-06D wires assets into preload/manifest behind resourceStyle flag (PR #154, merged).
-VISUAL-06E renders industrial resources behind resourceStyle flag (current PR).
+VISUAL-06E renders industrial resources behind resourceStyle flag (PR #155, merged).
+VISUAL-06E fixup resolves resourceStyle from mapStyle so industrial maps use industrial resources by default (current PR).
 VISUAL-06F will address QA polish for readability, scale, and origin adjustments.
 ```
 
@@ -196,8 +197,9 @@ VISUAL-06 may (with explicit task scope):
 8. VISUAL-06B1 — Resource model pivot: 1x1 richness tiers + 2x2 infinite — DONE (PR #152)
 9. VISUAL-06C — Approved resource assets added to repo — DONE (PR #153)
 10. VISUAL-06D — Preload/manifest wiring behind resourceStyle flag — DONE (PR #154)
-11. VISUAL-06E — Render industrial resources behind resourceStyle — current PR
-12. VISUAL-06F — QA polish if readability issues — after 06E
+11. VISUAL-06E — Render industrial resources behind resourceStyle — DONE (PR #155, merged)
+11b. VISUAL-06E fixup — Resolve resourceStyle from mapStyle — current PR
+12. VISUAL-06F — QA polish if readability issues — after 06E fixup
 13. VISUAL-07 — HUD layout design doc
 14. VISUAL-08 — HUD shell implementation
 15. VISUAL-09 — Command panel/hotkey visual pass

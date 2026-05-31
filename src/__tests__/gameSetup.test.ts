@@ -15,6 +15,7 @@ import {
   getMapDataById,
   getMapDataFromConfig,
   getMapDisplayName,
+  resolveResourceStyleForMapStyle,
   type GameSetupConfig,
   type GameMode,
 } from '../state/gameSetup';
@@ -152,8 +153,8 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
       expect(DEFAULT_SETUP.gameMode).toBe('standard');
     });
 
-    it('has legacy resource style (VISUAL-06D)', () => {
-      expect(DEFAULT_SETUP.resourceStyle).toBe('legacy');
+    it('has industrial resource style (VISUAL-06E fixup: matches default industrial mapStyle)', () => {
+      expect(DEFAULT_SETUP.resourceStyle).toBe('industrial');
     });
 
     it('satisfies GameSetupConfig type', () => {
@@ -443,5 +444,21 @@ describe('VISUAL-05A-PR5: Industrial generated map default', () => {
     // Industrial terrain should contain 'industrial'
     const allIndustrial = industrialMapData.terrain.every(row => row.every(t => t === 'industrial'));
     expect(allIndustrial).toBe(true);
+  });
+});
+
+// ── VISUAL-06E fixup: resolveResourceStyleForMapStyle ──────────────
+
+describe('VISUAL-06E fixup: resolveResourceStyleForMapStyle', () => {
+  it('industrial mapStyle resolves to industrial resourceStyle', () => {
+    expect(resolveResourceStyleForMapStyle('industrial')).toBe('industrial');
+  });
+
+  it('sand mapStyle resolves to legacy resourceStyle', () => {
+    expect(resolveResourceStyleForMapStyle('sand')).toBe('legacy');
+  });
+
+  it('DEFAULT_SETUP resourceStyle matches resolveResourceStyleForMapStyle(DEFAULT_SETUP.mapStyle)', () => {
+    expect(DEFAULT_SETUP.resourceStyle).toBe(resolveResourceStyleForMapStyle(DEFAULT_SETUP.mapStyle));
   });
 });
