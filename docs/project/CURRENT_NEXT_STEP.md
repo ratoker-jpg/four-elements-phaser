@@ -96,6 +96,8 @@ PR 5 — Make industrial map default for new games — DONE (PR #148)
 
 ## What VISUAL-05A is allowed to do
 
+VISUAL-05A is COMPLETE. This section is retained for reference only.
+
 ```text
 - create production integration code behind feature flag or mapStyle config
 - extend the ?visual04a dev preview to support larger map sizes
@@ -114,6 +116,8 @@ PR 5 — Make industrial map default for new games — DONE (PR #148)
 
 ## What VISUAL-05A must NOT do
 
+VISUAL-05A is COMPLETE. This section is retained for reference only.
+
 ```text
 - do not change economy values or resource amounts
 - do not change pathfinding or occupancy logic
@@ -126,6 +130,56 @@ PR 5 — Make industrial map default for new games — DONE (PR #148)
 - do not add new dependencies
 - do not change Phaser version
 - do not mix multiple PRs into one
+```
+
+---
+
+## VISUAL-05A completion status
+
+```text
+- VISUAL-05A production industrial map integration is COMPLETE.
+- PR #144, #145, #146, #147, #148 are all merged/done.
+- Industrial generated map is now the default for new games.
+- mapStyle 'industrial' and 'sand' both remain available.
+- Sand/fixed/custom map paths remain as fallback/reference.
+- HQ/start/resources are now lower-left for industrial generated maps.
+- Frame/background/walls are connected in production for industrial.
+- Save/load compatibility is preserved: old saves load as saved.
+- Current production small map is still 32×32 (not yet migrated to 96×96).
+```
+
+---
+
+## VISUAL-06 guardrails
+
+Before VISUAL-06 implementation, resource work must have an approved asset/model contract.
+
+VISUAL-06 initial PR should be docs/design only unless a task explicitly scopes candidate review assets.
+
+Do NOT implement resource visual changes until:
+- Resource visual model/contract is approved by project owner
+- Candidate resource visuals are reviewed and accepted
+- Implementation scope is explicitly defined in an approved task
+
+VISUAL-06 must NOT:
+
+```text
+- replace production resource assets without approved visual direction
+- change resource gameplay mechanics
+- change resource amounts or economy values
+- change depletion logic
+- change pathfinding or occupancy
+- migrate production map sizes to 96/128/192
+- silently change any gameplay behavior
+```
+
+VISUAL-06 may (with explicit task scope):
+
+```text
+- produce resource visual candidate images for review
+- write resource visual model design document
+- define resource visual contract (sizes, variants, naming)
+- plan implementation PR sequence for resource visual integration
 ```
 
 ---
