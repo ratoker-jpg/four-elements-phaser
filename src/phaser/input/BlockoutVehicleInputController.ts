@@ -3,6 +3,8 @@
  * for blockout vehicles in arena/dev mode.
  *
  * BLOCKOUT-03H: Selection/control + turret aiming.
+ * BLOCKOUT-03H fixup: Turret aim angle computed from actual turret mount
+ * origin (not body/tile center), using shared blockoutVehicleGeometry.
  *
  * This controller is dev-only. It does NOT interfere with normal
  * game input (builders/harvesters). It only processes input when
@@ -16,25 +18,16 @@
  */
 
 import Phaser from 'phaser';
-import { tileToScreen, type IsoPoint } from '../render/isometric';
+import type { IsoPoint } from '../render/isometric';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
-import { getBodyProfile } from '../../config/blockoutBodyData';
-import type { BlockoutShape } from '../../config/blockoutProfiles';
+import { computeTurretWorldOrigin, computeBodyWorldCenter, getBodyPixelSize } from '../render/blockoutVehicleGeometry';
 import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state/angleMath';
 import type { GameState } from '../../state/types';
 
 // ─── Hit-test constants ────────────────────────────────────────────
 
-/** Size mapping from blockoutShape to body rectangle dimensions in pixels.
- *  Must match BlockoutVehicleRenderer's SHAPE_SIZE_MAP. */
-const SHAPE_SIZE_MAP: Record<BlockoutShape, { w: number; h: number }> = {
-  small_fast: { w: 16, h: 10 },
-  light_fast: { w: 18, h: 12 },
-  medium: { w: 22, h: 14 },
-  large_fast: { w: 24, h: 14 },
-  heavy: { w: 28, h: 18 },
-  super_heavy: { w: 32, h: 22 },
-};
+// SHAPE_SIZE_MAP is imported from shared blockoutVehicleGeometry.
+// Do not duplicate it here.
 
 /** Extra hit radius padding in pixels around the body for click detection. */
 const HIT_RADIUS_PADDING = 8;
@@ -135,13 +128,12 @@ export class BlockoutVehicleInputController {
     if (this._selectedVehicleId) {
       const selected = vehicles.find(v => v.id === this._selectedVehicleId);
       if (selected) {
-        // Compute turret position in world coordinates
-        const screenPos = tileToScreen(selected.tx, selected.ty);
-        const turretWorldX = screenPos.x + this.offset.x;
-        const turretWorldY = screenPos.y + this.offset.y;
+        // Compute turret mount position in world coordinates
+        // (not body/tile center — uses actual mount offset)
+        const turretOrigin = computeTurretWorldOrigin(selected, this.offset);
 
-        // Target angle from turret position to mouse
-        const targetAngle = angleFromTo(turretWorldX, turretWorldY, this._mouseWorldX, this._mouseWorldY);
+        // Target angle from turret mount position to mouse
+        const targetAngle = angleFromTo(turretOrigin.x, turretOrigin.y, this._mouseWorldX, this._mouseWorldY);
         selected.turretTargetAngle = targetAngle;
 
         // Rate-limited rotation
@@ -225,16 +217,13 @@ export class BlockoutVehicleInputController {
     let bestDist = Infinity;
 
     for (const vehicle of vehicles) {
-      const bodyProfile = getBodyProfile(vehicle.bodyId);
-      const bodySize = bodyProfile ? SHAPE_SIZE_MAP[bodyProfile.blockoutShape] : SHAPE_SIZE_MAP.medium;
+      const bodySize = getBodyPixelSize(vehicle.bodyId);
       const hitRadius = Math.max(bodySize.w, bodySize.h) / 2 + HIT_RADIUS_PADDING;
 
-      const screenPos = tileToScreen(vehicle.tx, vehicle.ty);
-      const vehicleWorldX = screenPos.x + this.offset.x;
-      const vehicleWorldY = screenPos.y + this.offset.y;
+      const bodyCenter = computeBodyWorldCenter(vehicle, this.offset);
 
-      const dx = worldX - vehicleWorldX;
-      const dy = worldY - vehicleWorldY;
+      const dx = worldX - bodyCenter.x;
+      const dy = worldY - bodyCenter.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist < hitRadius && dist < bestDist) {
@@ -277,16 +266,13 @@ export function findBlockoutVehicleNearPoint(
   let bestDist = Infinity;
 
   for (const vehicle of vehicles) {
-    const bodyProfile = getBodyProfile(vehicle.bodyId);
-    const bodySize = bodyProfile ? SHAPE_SIZE_MAP[bodyProfile.blockoutShape] : SHAPE_SIZE_MAP.medium;
+    const bodySize = getBodyPixelSize(vehicle.bodyId);
     const hitRadius = Math.max(bodySize.w, bodySize.h) / 2 + HIT_RADIUS_PADDING;
 
-    const screenPos = tileToScreen(vehicle.tx, vehicle.ty);
-    const vehicleWorldX = screenPos.x + offset.x;
-    const vehicleWorldY = screenPos.y + offset.y;
+    const bodyCenter = computeBodyWorldCenter(vehicle, offset);
 
-    const dx = clickWorldX - vehicleWorldX;
-    const dy = clickWorldY - vehicleWorldY;
+    const dx = clickWorldX - bodyCenter.x;
+    const dy = clickWorldY - bodyCenter.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < hitRadius && dist < bestDist) {

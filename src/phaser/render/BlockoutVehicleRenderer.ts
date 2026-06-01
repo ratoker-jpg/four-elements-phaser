@@ -8,6 +8,8 @@
  * BLOCKOUT-02H: First visible blockout vehicles.
  * BLOCKOUT-03H: Added selection highlight, hover marker, turret aiming
  * with independent rotation, and debug aim line for selected vehicles.
+ * BLOCKOUT-03H fixup: Uses shared blockoutVehicleGeometry for body sizes
+ * and mount offsets to ensure renderer and input controller agree.
  */
 
 import Phaser from 'phaser';
@@ -15,23 +17,15 @@ import { tileToScreen, type IsoPoint } from './isometric';
 import { getBodyProfile } from '../../config/blockoutBodyData';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
-import type { BlockoutShape, MountCategory } from '../../config/blockoutProfiles';
+import { SHAPE_SIZE_MAP, computeMountPixelOffset, computeBodyWorldCenter, getBodyPixelSize } from './blockoutVehicleGeometry';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
 /** Depth for blockout vehicles (above terrain, coexisting with entities). */
 const BLOCKOUT_DEPTH = 120;
 
-/** Size mapping from blockoutShape to body rectangle dimensions in pixels.
- *  These are approximate and tunable. Larger = heavier body. */
-const SHAPE_SIZE_MAP: Record<BlockoutShape, { w: number; h: number }> = {
-  small_fast: { w: 16, h: 10 },
-  light_fast: { w: 18, h: 12 },
-  medium: { w: 22, h: 14 },
-  large_fast: { w: 24, h: 14 },
-  heavy: { w: 28, h: 18 },
-  super_heavy: { w: 32, h: 22 },
-};
+// SHAPE_SIZE_MAP is imported from shared blockoutVehicleGeometry.
+// Do not duplicate it here.
 
 /** Turret rectangle size (consistent across bodies, weapon barrel varies). */
 const TURRET_SIZE = { w: 10, h: 6 };
@@ -98,31 +92,6 @@ const AIM_LINE_DASH = 8;
 
 /** Aim line gap length. */
 const AIM_LINE_GAP = 5;
-
-// ─── Mount offset computation ──────────────────────────────────────
-
-/**
- * Compute the pixel offset of the turret mount point relative to
- * the body center, based on mount category and body size.
- */
-function computeMountPixelOffset(
-  mountCategory: MountCategory,
-  bodyWidth: number,
-  _bodyHeight: number,
-): { dx: number; dy: number } {
-  const fractionMap: Record<MountCategory, number> = {
-    rear: -0.3,
-    center_rear: -0.15,
-    center: 0,
-    front_center: 0.2,
-    front: 0.3,
-  };
-
-  const fraction = fractionMap[mountCategory] ?? 0;
-  const offset = fraction * bodyWidth;
-
-  return { dx: offset, dy: 0 };
-}
 
 // ─── Renderer ──────────────────────────────────────────────────────
 
@@ -233,15 +202,12 @@ export class BlockoutVehicleRenderer {
       }
 
       if (label) {
-        const bodyProfile = getBodyProfile(vehicle.bodyId);
-        const bodySize = bodyProfile ? SHAPE_SIZE_MAP[bodyProfile.blockoutShape] : SHAPE_SIZE_MAP.medium;
-        const screenPos = tileToScreen(vehicle.tx, vehicle.ty);
-        const worldX = screenPos.x + this.offset.x;
-        const worldY = screenPos.y + this.offset.y;
+        const bodySize = getBodyPixelSize(vehicle.bodyId);
+        const bodyCenter = computeBodyWorldCenter(vehicle, this.offset);
 
         const selectedMarker = isSelected ? ' [SEL]' : '';
         label.setText(`${vehicle.bodyId}+${vehicle.weaponId}${selectedMarker}`);
-        label.setPosition(worldX, worldY - bodySize.h / 2 - 6);
+        label.setPosition(bodyCenter.x, bodyCenter.y - bodySize.h / 2 - 6);
         label.setVisible(this.showDebugLabels);
       }
     }
