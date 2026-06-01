@@ -17,6 +17,11 @@ import { ELEMENT_UNITS_PER_ELEMENT } from './types';
 import { buildOccupancyMap, isPassable, isTileOccupiedByUnit } from './occupancy';
 import { createHarvester } from './updateGameState';
 import { isArenaEnabled, ARENA_MAP_ID } from './devArena';
+import { createBlockoutVehicle, resetBlockoutVehicleIdCounter } from './blockoutVehicleState';
+import { BLOCKOUT_SPAWN_VEHICLE_IDS, VEHICLE_PROFILES } from '../config/blockoutVehicleData';
+import { BODY_PROFILES } from '../config/blockoutBodyData';
+import { WEAPON_PROFILES } from '../config/blockoutWeaponData';
+import type { BodyId, WeaponId } from '../config/blockoutProfiles';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -332,4 +337,85 @@ export function devGetDiagnostics(state: GameState): DevDiagnostics {
     separatorCount: state.economy.separators.length,
     factoryQueueSummary,
   };
+}
+
+// ─── Blockout vehicle spawn commands ────────────────────────────────
+
+/**
+ * Spawn a single blockout vehicle near the HQ.
+ * BLOCKOUT-02H: Dev-only spawn command for blockout vehicles.
+ */
+export function devSpawnBlockoutVehicle(
+  state: GameState,
+  bodyId: BodyId,
+  weaponId: WeaponId,
+): DevCommandResult {
+  // Validate body and weapon IDs
+  if (!BODY_PROFILES[bodyId]) {
+    return { success: false, message: `Unknown body ID: ${bodyId}` };
+  }
+  if (!WEAPON_PROFILES[weaponId]) {
+    return { success: false, message: `Unknown weapon ID: ${weaponId}` };
+  }
+
+  const pos = findSpawnTileNearHq(state);
+  if (!pos) {
+    return { success: false, message: 'No valid spawn tile near HQ for blockout vehicle' };
+  }
+
+  const vehicle = createBlockoutVehicle(bodyId, weaponId, state.playerFaction, pos.tx, pos.ty);
+  if (!state.blockoutVehicles) {
+    state.blockoutVehicles = [];
+  }
+  state.blockoutVehicles.push(vehicle);
+
+  return {
+    success: true,
+    message: `Blockout vehicle spawned: ${bodyId}+${weaponId} at (${pos.tx}, ${pos.ty})`,
+  };
+}
+
+/**
+ * Spawn the default blockout vehicle set near the HQ.
+ * BLOCKOUT-02H: Minimum expected spawn set.
+ */
+export function devSpawnBlockoutVehicleSet(state: GameState): DevCommandResult {
+  const results: string[] = [];
+  const errors: string[] = [];
+
+  for (const vehicleId of BLOCKOUT_SPAWN_VEHICLE_IDS) {
+    const profile = VEHICLE_PROFILES[vehicleId];
+    if (!profile) {
+      errors.push(`Unknown vehicle profile: ${vehicleId}`);
+      continue;
+    }
+
+    const result = devSpawnBlockoutVehicle(state, profile.bodyId, profile.weaponId);
+    if (result.success) {
+      results.push(`${profile.bodyId}+${profile.weaponId}`);
+    } else {
+      errors.push(result.message);
+    }
+  }
+
+  if (errors.length > 0 && results.length === 0) {
+    return { success: false, message: `All spawns failed: ${errors.join('; ')}` };
+  }
+
+  const message = errors.length > 0
+    ? `Spawned: ${results.join(', ')}. Errors: ${errors.join('; ')}`
+    : `Spawned blockout vehicle set: ${results.join(', ')}`;
+
+  return { success: true, message };
+}
+
+/**
+ * Clear all blockout vehicles from state.
+ * BLOCKOUT-02H: Dev-only cleanup command.
+ */
+export function devClearBlockoutVehicles(state: GameState): DevCommandResult {
+  const count = state.blockoutVehicles?.length ?? 0;
+  state.blockoutVehicles = [];
+  resetBlockoutVehicleIdCounter();
+  return { success: true, message: `Cleared ${count} blockout vehicle(s)` };
 }

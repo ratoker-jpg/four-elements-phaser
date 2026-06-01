@@ -8,6 +8,8 @@
  * nodes (ResourceNodeState) to support the civil gather/deliver loop.
  */
 
+import type { BodyId, WeaponId } from '../config/blockoutProfiles';
+
 // ─── Terrain ────────────────────────────────────────────────────────
 
 /** Terrain types for the 6-variant 256×128 sand tile family (TERRAIN-02A).
@@ -451,4 +453,20 @@ export interface GameState {
   // ── ARCH-01F: Production state ────────────────────────────────
   /** Production state for all units-factories. */
   production: ProductionState;
+
+  // ── BLOCKOUT-02H: Blockout vehicle state (dev-only, not persisted) ──
+  /** Blockout vehicles — only populated in dev/arena mode.
+   *  Optional: old saves and standard mode games have this as undefined/empty.
+   *  Blockout vehicles are stripped from saves and never serialized. */
+  blockoutVehicles?: Array<{
+    id: string;
+    bodyId: BodyId;
+    weaponId: WeaponId;
+    faction: Faction;
+    tx: number;
+    ty: number;
+    bodyAngle: number;
+    turretAngle: number;
+    createdAt: number;
+  }>;
 }

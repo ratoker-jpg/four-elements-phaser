@@ -152,13 +152,21 @@ export function stripModularCombatFromState(
   // Nothing to strip if state already has no modular-combat
   const hasModularEntities = state.entities.some(e => e.kind === 'modular-combat');
   const hasExtraModular = state.extraModularCombat && state.extraModularCombat.length > 0;
-  if (!hasModularEntities && !hasExtraModular) return state;
+  const hasBlockoutVehicles = (state.blockoutVehicles?.length ?? 0) > 0;
+  if (!hasModularEntities && !hasExtraModular && !hasBlockoutVehicles) return state;
 
-  return {
+  const result: GameState = {
     ...state,
     entities: state.entities.filter(e => e.kind !== 'modular-combat'),
     extraModularCombat: [],
   };
+
+  // BLOCKOUT-02H: Strip blockout vehicles from saves in standard mode
+  if (hasBlockoutVehicles) {
+    result.blockoutVehicles = [];
+  }
+
+  return result;
 }
 
 // ─── BUILDER-ID: Migration helper ──────────────────────────────────

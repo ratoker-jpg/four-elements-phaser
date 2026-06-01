@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: BLOCKOUT-01 audit complete / BLOCKOUT-02H next — high/high+ visible implementation sequence  
-Project: Four Elements Phaser  
-Date: 2026-06-01
+Status: BLOCKOUT-02H implemented / BLOCKOUT-03H next
+Project: Four Elements Phaser
+Date: 2026-06-02
 
 ---
 
@@ -21,9 +21,8 @@ What should GPT/GLM/Codex do next by default?
 Current answer:
 
 ```text
-BLOCKOUT-01 audit is complete. Owner decision: no standalone low-risk PRs.
-Next step: BLOCKOUT-02H — First visible blockout vehicles.
-Every PR must produce visible gameplay/blockout progress.
+BLOCKOUT-02H is implemented. Visible blockout vehicles now exist in arena/dev mode.
+Next step: BLOCKOUT-03H — Selection/control + turret aiming.
 ```
 
 ---
@@ -31,21 +30,30 @@ Every PR must produce visible gameplay/blockout progress.
 ## Current next step
 
 ```text
-BLOCKOUT-01 audit is complete.
-Owner decision: no standalone low-risk implementation PRs.
-Next step: BLOCKOUT-02H — First visible blockout vehicles.
-Every PR must produce visible gameplay/blockout progress.
+BLOCKOUT-02H — First visible blockout vehicles — IMPLEMENTED
+
+Visible blockout vehicles now appear in arena/dev mode as Phaser Graphics primitives:
+- colored rectangle body (size varies by body profile)
+- separate turret rectangle
+- barrel line (length varies by weapon profile)
+- mount point circle (visible in debug/dev display)
+- different body sizes readable (Wasp small, Mammoth large)
+- different barrel lengths visible (Railgun long, Smoky medium)
+- rear-mounted turrets visible on Wasp/Dictator
+- front_center turrets visible on Titan/Mammoth
+- production/default game unchanged when devtools is off
+
+Next step: BLOCKOUT-03H — Selection/control + turret aiming
 ```
 
 Mode:
 
 ```text
-READY FOR BLOCKOUT-02H IMPLEMENTATION
+BLOCKOUT-02H COMPLETE
+READY FOR BLOCKOUT-03H IMPLEMENTATION
 No standalone low-risk PRs.
 High/high+ visible progress steps only.
 ```
-
-The audit exists to inspect the current repo and convert `BLOCKOUT_MVP_ROADMAP.md` into a safe scoped implementation sequence.
 
 ---
 
@@ -54,8 +62,8 @@ The audit exists to inspect the current repo and convert `BLOCKOUT_MVP_ROADMAP.m
 ```text
 VISUAL/UI roadmap slice: CLOSED
 Current active planning direction: BLOCKOUT-MVP
-Current implementation task: NONE (audit complete, roadmap fixup applied)
-Next action: start BLOCKOUT-02H — First visible blockout vehicles
+Current implementation task: BLOCKOUT-02H COMPLETE
+Next action: BLOCKOUT-03H — Selection/control + turret aiming
 ```
 
 Roadmap document:
@@ -99,17 +107,17 @@ Do not make it beautiful before it is clear what exactly must become beautiful.
 The roadmap focuses on Phaser/blockout placeholders for:
 
 ```text
-- vehicle bodies
-- body-specific turret mount points
-- independent turret rotation
-- semi-physics vehicle movement feel
-- recoil
-- weapon behavior families
-- primitive VFX placeholders
-- direct/splash/penetration/status damage placeholders
-- obstacle blockers
-- upgrade skeleton
-- combat readability sandbox
+- vehicle bodies ✓ (BLOCKOUT-02H)
+- body-specific turret mount points ✓ (BLOCKOUT-02H)
+- independent turret rotation (BLOCKOUT-03H)
+- semi-physics vehicle movement feel (BLOCKOUT-04H+)
+- recoil (BLOCKOUT-05H+)
+- weapon behavior families (BLOCKOUT-05H+/06H+)
+- primitive VFX placeholders (BLOCKOUT-05H+/06H+)
+- direct/splash/penetration/status damage placeholders (BLOCKOUT-07H+)
+- obstacle blockers (BLOCKOUT-08H)
+- upgrade skeleton (BLOCKOUT-09H)
+- combat readability sandbox (BLOCKOUT-10H+)
 ```
 
 This is not a final-art roadmap.
@@ -137,54 +145,6 @@ Do not start these by default:
 
 ---
 
-## Required next audit questions
-
-The BLOCKOUT-01 audit must answer:
-
-```text
-1. Where current unit rendering lives.
-2. Where current unit/tank data lives.
-3. How to add blockout vehicle renderer behind a flag or dev route.
-4. Whether a separate scene/dev route is safer than production wiring.
-5. How to avoid save/load breakage.
-6. How to avoid economy/mapgen/resource changes.
-7. Exact files/functions to touch.
-8. Exact forbidden files/functions.
-9. Test plan.
-10. Rollback plan.
-11. First implementation PR after the audit.
-```
-
-The audit has been completed and updated with the owner decision: no standalone low-risk PRs, only high/high+ visible progress steps.
-
-The audit ends with:
-
-```text
-Жду Делай
-```
-
----
-
-## Closed roadmap summary
-
-The previous VISUAL/UI roadmap remains closed.
-
-Completed:
-
-```text
-VISUAL-05A — Production industrial map integration — DONE
-VISUAL-06 — Resource model/assets/wiring/rendering — DONE
-UI-01 — Main menu polish — DONE
-UI-02 — New Game setup polish — DONE
-UI-03 — ESC menu polish — DONE
-UI-04 — Save/Continue flow polish — DONE
-HUD-01 — Playtest HUD readability polish — DONE
-```
-
-Do not continue the old VISUAL/UI queue by inertia.
-
----
-
 ## Read before doing anything
 
 ```text
@@ -204,7 +164,8 @@ docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
 We are working in ratoker-jpg/four-elements-phaser.
 The VISUAL/UI roadmap is closed after PR #144-#162.
 The new active planning direction is BLOCKOUT-MVP: vehicle/combat/upgrade skeleton before final art.
-BLOCKOUT-01 huge roadmap audit is complete (docs/project/BLOCKOUT_01_HUGE_ROADMAP_AUDIT.md).
-Owner decision: no standalone low-risk PRs. Only high/high+ visible progress steps.
-Next step: BLOCKOUT-02H — First visible blockout vehicles.
+BLOCKOUT-01 huge roadmap audit is complete.
+BLOCKOUT-02H first visible blockout vehicles is implemented.
+Visible blockout vehicles now exist in arena/dev mode.
+Next step: BLOCKOUT-03H — Selection/control + turret aiming.
 ```
