@@ -32,6 +32,8 @@ import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
 import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
 import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputController';
 import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
+import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
+import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 
 /**
  * GameScene — orchestration-only scene.
@@ -501,11 +503,21 @@ export class GameScene extends Phaser.Scene {
 
     // 8f. BLOCKOUT-02H: Sync blockout vehicle renderer
     // BLOCKOUT-03H: Also update input controller and sync hover/selection state
+    // BLOCKOUT-04H+: Also update movement per frame
     if (this.blockoutVehicleInputController && this.devtoolsActive) {
       this.blockoutVehicleInputController.update(delta);
       // Sync hover state to renderer
       if (this.blockoutVehicleRenderer) {
         this.blockoutVehicleRenderer.setHoveredVehicleId(this.blockoutVehicleInputController.hoveredVehicleId);
+      }
+    }
+    // BLOCKOUT-04H+: Update blockout vehicle movement
+    if (this.gameState.blockoutVehicles && this.devtoolsActive) {
+      for (const vehicle of this.gameState.blockoutVehicles) {
+        const profile = MOVEMENT_PROFILES[vehicle.bodyId];
+        if (profile) {
+          updateBlockoutVehicleMovement(vehicle, profile, delta);
+        }
       }
     }
     if (this.blockoutVehicleRenderer && this.gameState.blockoutVehicles) {

@@ -10,10 +10,12 @@
  * with independent rotation, and debug aim line for selected vehicles.
  * BLOCKOUT-03H fixup: Uses shared blockoutVehicleGeometry for body sizes
  * and mount offsets to ensure renderer and input controller agree.
+ * BLOCKOUT-04H+: Uses vehicle.worldX/worldY for smooth continuous position.
+ * Added movement target marker and move line for selected vehicles.
  */
 
 import Phaser from 'phaser';
-import { tileToScreen, type IsoPoint } from './isometric';
+import type { IsoPoint } from './isometric';
 import { getBodyProfile } from '../../config/blockoutBodyData';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
@@ -92,6 +94,26 @@ const AIM_LINE_DASH = 8;
 
 /** Aim line gap length. */
 const AIM_LINE_GAP = 5;
+
+// ─── Movement target visual constants ───────────────────────────────
+
+/** Move target marker color. BLOCKOUT-04H+. */
+const MOVE_TARGET_COLOR = 0x44ff44;
+
+/** Move target marker alpha. */
+const MOVE_TARGET_ALPHA = 0.7;
+
+/** Move target crosshair arm length in pixels. */
+const MOVE_TARGET_CROSSHAIR_LEN = 8;
+
+/** Move line color from vehicle to target. BLOCKOUT-04H+. */
+const MOVE_LINE_COLOR = 0x44ff44;
+
+/** Move line alpha. */
+const MOVE_LINE_ALPHA = 0.3;
+
+/** Move target ring radius. */
+const MOVE_TARGET_RING_RADIUS = 6;
 
 // ─── Renderer ──────────────────────────────────────────────────────
 
@@ -206,7 +228,8 @@ export class BlockoutVehicleRenderer {
         const bodyCenter = computeBodyWorldCenter(vehicle, this.offset);
 
         const selectedMarker = isSelected ? ' [SEL]' : '';
-        label.setText(`${vehicle.bodyId}+${vehicle.weaponId}${selectedMarker}`);
+        const speedMarker = vehicle.speed > 1 ? ` v=${Math.round(vehicle.speed)}` : '';
+        label.setText(`${vehicle.bodyId}+${vehicle.weaponId}${selectedMarker}${speedMarker}`);
         label.setPosition(bodyCenter.x, bodyCenter.y - bodySize.h / 2 - 6);
         label.setVisible(this.showDebugLabels);
       }
@@ -242,10 +265,9 @@ export class BlockoutVehicleRenderer {
     const barrelLength = weaponProfile.blockoutBarrelLength;
     const barrelWidth = weaponProfile.blockoutBarrelWidth;
 
-    // Screen position of the tile
-    const screenPos = tileToScreen(vehicle.tx, vehicle.ty);
-    const cx = screenPos.x + this.offset.x;
-    const cy = screenPos.y + this.offset.y;
+    // BLOCKOUT-04H+: Use continuous worldX/worldY + offset for position
+    const cx = vehicle.worldX + this.offset.x;
+    const cy = vehicle.worldY + this.offset.y;
 
     const bodyAngle = vehicle.bodyAngle;
     const turretAngle = vehicle.turretAngle;
@@ -253,6 +275,34 @@ export class BlockoutVehicleRenderer {
     // Faction colors
     const bodyColor = FACTION_BODY_COLORS[vehicle.faction] ?? FACTION_BODY_COLORS.cyan;
     const turretColor = FACTION_TURRET_COLORS[vehicle.faction] ?? FACTION_TURRET_COLORS.cyan;
+
+    // ── Movement target marker (selected vehicle only) ──────────
+    if (isSelected && vehicle.hasMoveTarget) {
+      const targetScreenX = vehicle.targetWorldX + this.offset.x;
+      const targetScreenY = vehicle.targetWorldY + this.offset.y;
+
+      // Thin line from vehicle to target
+      g.lineStyle(1, MOVE_LINE_COLOR, MOVE_LINE_ALPHA);
+      g.beginPath();
+      g.moveTo(cx, cy);
+      g.lineTo(targetScreenX, targetScreenY);
+      g.strokePath();
+
+      // Target crosshair
+      g.lineStyle(1.5, MOVE_TARGET_COLOR, MOVE_TARGET_ALPHA);
+      // Horizontal arm
+      g.beginPath();
+      g.moveTo(targetScreenX - MOVE_TARGET_CROSSHAIR_LEN, targetScreenY);
+      g.lineTo(targetScreenX + MOVE_TARGET_CROSSHAIR_LEN, targetScreenY);
+      g.strokePath();
+      // Vertical arm
+      g.beginPath();
+      g.moveTo(targetScreenX, targetScreenY - MOVE_TARGET_CROSSHAIR_LEN);
+      g.lineTo(targetScreenX, targetScreenY + MOVE_TARGET_CROSSHAIR_LEN);
+      g.strokePath();
+      // Target ring
+      g.strokeCircle(targetScreenX, targetScreenY, MOVE_TARGET_RING_RADIUS);
+    }
 
     // ── Selection highlight ring ──────────────────────────────────
     if (isSelected) {

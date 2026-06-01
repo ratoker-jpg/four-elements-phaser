@@ -7,10 +7,13 @@
  * BLOCKOUT-02H: First visible blockout vehicles.
  * BLOCKOUT-03H: Added turretTargetAngle and turretTurnSpeedDeg for
  * independent turret aiming.
+ * BLOCKOUT-04H+: Added movement fields (worldX/worldY, velocity,
+ * move target) for semi-physics movement.
  */
 
 import type { Faction } from './types';
 import type { BodyId, WeaponId } from '../config/blockoutProfiles';
+import { tileToScreen } from '../phaser/render/isometric';
 
 // ─── Blockout Vehicle State ────────────────────────────────────────
 
@@ -24,11 +27,11 @@ export interface BlockoutVehicleState {
   weaponId: WeaponId;
   /** Faction / color group for rendering. */
   faction: Faction;
-  /** Tile X position. */
+  /** Tile X position (updated approximately from worldX/worldY). */
   tx: number;
-  /** Tile Y position. */
+  /** Tile Y position (updated approximately from worldX/worldY). */
   ty: number;
-  /** Body angle in radians (continuous). In BLOCKOUT-02H, this is fixed at spawn. */
+  /** Body angle in radians (continuous). Updated by movement toward movement direction. */
   bodyAngle: number;
   /** Turret angle in radians (continuous). Updated each frame toward turretTargetAngle. */
   turretAngle: number;
@@ -45,6 +48,28 @@ export interface BlockoutVehicleState {
    * Default value used when no weapon-specific speed is configured.
    */
   turretTurnSpeedDeg: number;
+
+  // ── BLOCKOUT-04H+: Movement fields ───────────────────────────────
+
+  /** Screen-space pixel X position (continuous). BLOCKOUT-04H+.
+   *  Use worldX + offset.x for world position. */
+  worldX: number;
+  /** Screen-space pixel Y position (continuous). BLOCKOUT-04H+.
+   *  Use worldY + offset.y for world position. */
+  worldY: number;
+  /** Current velocity X in pixels/second. BLOCKOUT-04H+. */
+  vx: number;
+  /** Current velocity Y in pixels/second. BLOCKOUT-04H+. */
+  vy: number;
+  /** Current scalar speed in pixels/second. BLOCKOUT-04H+. */
+  speed: number;
+  /** Movement target X in screen-space pixels. BLOCKOUT-04H+. */
+  targetWorldX: number;
+  /** Movement target Y in screen-space pixels. BLOCKOUT-04H+. */
+  targetWorldY: number;
+  /** Whether a movement target is currently active. BLOCKOUT-04H+. */
+  hasMoveTarget: boolean;
+
   /** Creation timestamp (ms since epoch). Useful for debug labels. */
   createdAt: number;
 }
@@ -58,7 +83,9 @@ export const DEFAULT_TURRET_TURN_SPEED_DEG = 120;
 
 let nextBlockoutVehicleId = 1;
 
-/** Create a new BlockoutVehicleState with the given parameters. */
+/** Create a new BlockoutVehicleState with the given parameters.
+ *  worldX/worldY are initialized from tileToScreen(tx, ty).
+ */
 export function createBlockoutVehicle(
   bodyId: BodyId,
   weaponId: WeaponId,
@@ -68,6 +95,8 @@ export function createBlockoutVehicle(
   bodyAngle: number = Math.PI / 2, // default: facing south in isometric
   turretTurnSpeedDeg: number = DEFAULT_TURRET_TURN_SPEED_DEG,
 ): BlockoutVehicleState {
+  const screenPos = tileToScreen(tx, ty);
+
   return {
     id: `blockout-vehicle-${nextBlockoutVehicleId++}`,
     bodyId,
@@ -79,6 +108,14 @@ export function createBlockoutVehicle(
     turretAngle: bodyAngle, // Initially turret matches body
     turretTargetAngle: bodyAngle, // Initially target matches body
     turretTurnSpeedDeg,
+    worldX: screenPos.x,
+    worldY: screenPos.y,
+    vx: 0,
+    vy: 0,
+    speed: 0,
+    targetWorldX: 0,
+    targetWorldY: 0,
+    hasMoveTarget: false,
     createdAt: Date.now(),
   };
 }

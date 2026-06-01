@@ -7,12 +7,14 @@
  *
  * BLOCKOUT-03H fixup: Turret aiming must use actual turret mount/barrel
  * origin, not body/tile center. This module is the single source of truth.
+ * BLOCKOUT-04H+: Updated to use vehicle.worldX/worldY for continuous
+ * position instead of tileToScreen(tx,ty).
  */
 
 import type { BlockoutShape, MountCategory } from '../../config/blockoutProfiles';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { getBodyProfile } from '../../config/blockoutBodyData';
-import { tileToScreen, type IsoPoint } from './isometric';
+import type { IsoPoint } from './isometric';
 
 // ─── Body pixel size by blockoutShape ──────────────────────────────
 
@@ -73,6 +75,8 @@ export function computeMountPixelOffset(
  * rotated by the body angle. This is the point from which aim angles should
  * be computed and from which the aim line should be drawn.
  *
+ * BLOCKOUT-04H+: Uses vehicle.worldX/worldY for continuous position.
+ *
  * @param vehicle - Blockout vehicle state
  * @param offset - Map offset (from GameScene)
  * @returns World-space position of the turret mount origin
@@ -84,9 +88,9 @@ export function computeTurretWorldOrigin(
   const bodyProfile = getBodyProfile(vehicle.bodyId);
   const bodySize = bodyProfile ? SHAPE_SIZE_MAP[bodyProfile.blockoutShape] : DEFAULT_BODY_SIZE;
 
-  const screenPos = tileToScreen(vehicle.tx, vehicle.ty);
-  const bodyCenterX = screenPos.x + offset.x;
-  const bodyCenterY = screenPos.y + offset.y;
+  // BLOCKOUT-04H+: Use continuous screen-space position + offset
+  const bodyCenterX = vehicle.worldX + offset.x;
+  const bodyCenterY = vehicle.worldY + offset.y;
 
   const mountCategory = bodyProfile?.mountCategory ?? 'center';
   const mountOffset = computeMountPixelOffset(mountCategory, bodySize.w, bodySize.h);
@@ -107,7 +111,9 @@ export function computeTurretWorldOrigin(
 
 /**
  * Compute the world-space center of a blockout vehicle's body.
- * This is the tile center + map offset, without mount offset.
+ * This is the screen-space position + map offset.
+ *
+ * BLOCKOUT-04H+: Uses vehicle.worldX/worldY for continuous position.
  *
  * @param vehicle - Blockout vehicle state
  * @param offset - Map offset (from GameScene)
@@ -117,10 +123,9 @@ export function computeBodyWorldCenter(
   vehicle: BlockoutVehicleState,
   offset: IsoPoint,
 ): { x: number; y: number } {
-  const screenPos = tileToScreen(vehicle.tx, vehicle.ty);
   return {
-    x: screenPos.x + offset.x,
-    y: screenPos.y + offset.y,
+    x: vehicle.worldX + offset.x,
+    y: vehicle.worldY + offset.y,
   };
 }
 

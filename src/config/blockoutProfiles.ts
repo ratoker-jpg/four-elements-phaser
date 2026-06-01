@@ -125,7 +125,8 @@ export interface VehicleProfile {
 
 // ─── Movement Profile ──────────────────────────────────────────────
 
-/** Movement profile per body. Blockout placeholder — not used for physics in this PR. */
+/** Movement profile per body. Blockout placeholder.
+ *  BLOCKOUT-04H+: Added pixel-speed fields for semi-physics movement. */
 export interface MovementProfile {
   bodyId: BodyId;
   maxSpeed: number;
@@ -137,6 +138,14 @@ export interface MovementProfile {
   massKg: number;
   enginePower: number;
   bodyRotationLag: number;
+  /** Maximum speed in pixels per second. BLOCKOUT-04H+. */
+  maxSpeedPxPerSec: number;
+  /** Acceleration in pixels per second². BLOCKOUT-04H+. */
+  accelerationPxPerSec2: number;
+  /** Braking deceleration in pixels per second². BLOCKOUT-04H+. */
+  brakingPxPerSec2: number;
+  /** How close (in pixels) the vehicle must get to target to count as arrived. BLOCKOUT-04H+. */
+  arrivalRadiusPx: number;
 }
 
 // ─── Recoil Profile ────────────────────────────────────────────────

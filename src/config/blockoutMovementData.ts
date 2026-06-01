@@ -1,11 +1,11 @@
 /**
  * Blockout movement data — movement profiles per body.
  *
- * Blockout placeholder — NOT used for physics in BLOCKOUT-02H.
- * Vehicles are stationary in this PR.
- * Data exists so profiles are complete for future steps.
- *
  * BLOCKOUT-02H: First visible blockout vehicles.
+ * BLOCKOUT-04H+: Added pixel-speed fields for semi-physics movement.
+ * Vehicles now accelerate, brake, and turn gradually.
+ * Abstract maxSpeed/acceleration values remain for reference;
+ * pixel-speed fields are what the movement update actually uses.
  */
 
 import type { MovementProfile } from './blockoutProfiles';
@@ -23,6 +23,10 @@ export const MOVEMENT_PROFILES: Record<string, MovementProfile> = {
     massKg: 2200,
     enginePower: 1300,
     bodyRotationLag: 0.1,
+    maxSpeedPxPerSec: 200,
+    accelerationPxPerSec2: 240,
+    brakingPxPerSec2: 180,
+    arrivalRadiusPx: 8,
   },
   hornet: {
     bodyId: 'hornet',
@@ -35,6 +39,10 @@ export const MOVEMENT_PROFILES: Record<string, MovementProfile> = {
     massKg: 2400,
     enginePower: 1400,
     bodyRotationLag: 0.15,
+    maxSpeedPxPerSec: 180,
+    accelerationPxPerSec2: 210,
+    brakingPxPerSec2: 165,
+    arrivalRadiusPx: 8,
   },
   hunter: {
     bodyId: 'hunter',
@@ -47,6 +55,10 @@ export const MOVEMENT_PROFILES: Record<string, MovementProfile> = {
     massKg: 3000,
     enginePower: 1400,
     bodyRotationLag: 0.2,
+    maxSpeedPxPerSec: 150,
+    accelerationPxPerSec2: 165,
+    brakingPxPerSec2: 135,
+    arrivalRadiusPx: 10,
   },
   viking: {
     bodyId: 'viking',
@@ -59,6 +71,10 @@ export const MOVEMENT_PROFILES: Record<string, MovementProfile> = {
     massKg: 3000,
     enginePower: 1500,
     bodyRotationLag: 0.25,
+    maxSpeedPxPerSec: 135,
+    accelerationPxPerSec2: 150,
+    brakingPxPerSec2: 120,
+    arrivalRadiusPx: 10,
   },
   dictator: {
     bodyId: 'dictator',
@@ -71,6 +87,10 @@ export const MOVEMENT_PROFILES: Record<string, MovementProfile> = {
     massKg: 3300,
     enginePower: 1500,
     bodyRotationLag: 0.2,
+    maxSpeedPxPerSec: 120,
+    accelerationPxPerSec2: 135,
+    brakingPxPerSec2: 105,
+    arrivalRadiusPx: 12,
   },
   titan: {
     bodyId: 'titan',
@@ -83,6 +103,10 @@ export const MOVEMENT_PROFILES: Record<string, MovementProfile> = {
     massKg: 5000,
     enginePower: 1600,
     bodyRotationLag: 0.4,
+    maxSpeedPxPerSec: 90,
+    accelerationPxPerSec2: 90,
+    brakingPxPerSec2: 75,
+    arrivalRadiusPx: 14,
   },
   mammoth: {
     bodyId: 'mammoth',
@@ -95,5 +119,9 @@ export const MOVEMENT_PROFILES: Record<string, MovementProfile> = {
     massKg: 5500,
     enginePower: 1500,
     bodyRotationLag: 0.5,
+    maxSpeedPxPerSec: 75,
+    accelerationPxPerSec2: 75,
+    brakingPxPerSec2: 60,
+    arrivalRadiusPx: 16,
   },
 };
