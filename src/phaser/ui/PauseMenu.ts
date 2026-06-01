@@ -93,6 +93,8 @@ export class PauseMenu {
   private statusTimer: ReturnType<typeof setTimeout> | null = null;
   /** UI-04: In-game load overlay container. */
   private loadListContainer: HTMLDivElement | null = null;
+  /** UI-04-fixup: Reference to Load button so we can refresh its enabled/disabled state. */
+  private loadButton: HTMLButtonElement | null = null;
 
   /** Whether the pause menu is currently shown. */
   get visible(): boolean {
@@ -189,6 +191,8 @@ export class PauseMenu {
           // ARCH-15B: Show timestamp with success message
           const now = new Date().toISOString();
           this.showStatus(`Saved — ${formatSaveTimestamp(now)}`, true);
+          // UI-04-fixup: After successful save, refresh Load button state
+          this.refreshLoadButtonState();
         } else {
           this.showStatus('Save failed', false);
         }
@@ -198,9 +202,13 @@ export class PauseMenu {
     // UI-04: Load button — secondary (teal), opens save slot list
     // Enabled only when saves exist; disabled with clear label when no saves
     const savesExist = hasSaves();
-    btnContainer.appendChild(this.createMenuButton('Load', 'secondary', savesExist ? () => {
+    const loadBtn = this.createMenuButton('Load', 'secondary', savesExist ? () => {
       this.showLoadList();
-    } : null, !savesExist));
+    } : null, !savesExist);
+    this.loadButton = loadBtn;
+    btnContainer.appendChild(loadBtn);
+    // Ensure initial state matches current hasSaves()
+    this.refreshLoadButtonState();
 
     // Settings button — secondary, disabled placeholder
     btnContainer.appendChild(this.createMenuButton('Settings', 'secondary', null, true));
@@ -327,6 +335,7 @@ export class PauseMenu {
   show(): void {
     this.clearStatus();
     this.hideLoadList();
+    this.refreshLoadButtonState();
     if (this.container) {
       this.container.style.display = 'flex';
       this._visible = true;
@@ -397,6 +406,7 @@ export class PauseMenu {
     this.callbacks = null;
     this.config = null;
     this.statusEl = null;
+    this.loadButton = null;
   }
 
   // ── UI-04: In-game Load save slot list ──────────────────────────
@@ -524,6 +534,8 @@ export class PauseMenu {
       clearAllBtn.addEventListener('click', () => {
         if (confirm('Delete all save data? This cannot be undone.')) {
           clearAllSaves();
+          // UI-04-fixup: Refresh Load button after clearing all saves
+          this.refreshLoadButtonState();
           this.hideLoadList();
           this.showLoadList();
         }
@@ -666,6 +678,8 @@ export class PauseMenu {
       e.stopPropagation();
       if (confirm(`Delete this save (${meta.faction} — ${meta.mapName})?`)) {
         deleteSave(meta.id);
+        // UI-04-fixup: Refresh Load button after deleting a save
+        this.refreshLoadButtonState();
         this.hideLoadList();
         this.showLoadList();
       }
@@ -681,6 +695,83 @@ export class PauseMenu {
       this.loadListContainer.parentNode.removeChild(this.loadListContainer);
     }
     this.loadListContainer = null;
+    // UI-04-fixup: Refresh Load button state after closing the load list
+    this.refreshLoadButtonState();
+  }
+
+  /**
+   * UI-04-fixup: Refresh the Load button's enabled/disabled state based on current hasSaves().
+   * Called after save, delete, clear-all, show, and hideLoadList to keep the
+   * button state in sync with the actual save data without recreating the button.
+   */
+  private refreshLoadButtonState(): void {
+    const btn = this.loadButton;
+    if (!btn) return;
+
+    const savesExist = hasSaves();
+
+    if (savesExist) {
+      btn.disabled = false;
+      // Clear any disabled-state suffix and set normal text
+      btn.textContent = 'Load';
+      btn.style.cursor = 'pointer';
+      btn.style.background = `${MENU_THEME.secondaryAccent}0d`;
+      btn.style.borderColor = `${MENU_THEME.secondaryAccent}33`;
+      btn.style.color = MENU_THEME.secondaryAccent;
+      // Re-attach the click handler if it wasn't already there — we do this
+      // by swapping to a clone to drop old listeners, then adding the fresh one.
+      const newBtn = btn.cloneNode(true) as HTMLButtonElement;
+      newBtn.addEventListener('click', () => {
+        this.showLoadList();
+      });
+      // Re-attach hover/focus/active states for enabled button
+      const accent = MENU_THEME.secondaryAccent;
+      const baseBg = `${accent}0d`;
+      const baseBorder = `${accent}33`;
+      newBtn.addEventListener('mouseenter', () => {
+        newBtn.style.background = `${accent}1a`;
+        newBtn.style.borderColor = `${accent}55`;
+      });
+      newBtn.addEventListener('mouseleave', () => {
+        newBtn.style.background = baseBg;
+        newBtn.style.borderColor = baseBorder;
+        newBtn.style.boxShadow = 'none';
+      });
+      newBtn.addEventListener('focus', () => {
+        newBtn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        newBtn.style.outlineOffset = '2px';
+      });
+      newBtn.addEventListener('blur', () => {
+        newBtn.style.outline = 'none';
+      });
+      newBtn.addEventListener('mousedown', () => {
+        newBtn.style.background = `${accent}26`;
+      });
+      newBtn.addEventListener('mouseup', () => {
+        newBtn.style.background = `${accent}1a`;
+      });
+      btn.parentNode?.replaceChild(newBtn, btn);
+      this.loadButton = newBtn;
+    } else {
+      btn.disabled = true;
+      btn.textContent = 'Load';
+      const suffix = document.createElement('span');
+      suffix.textContent = ' — no saves';
+      suffix.style.cssText = `
+        font-size: 10px;
+        color: ${MENU_THEME.disabledText};
+        margin-left: 6px;
+      `;
+      btn.appendChild(suffix);
+      btn.style.cursor = 'not-allowed';
+      btn.style.background = 'rgba(55, 65, 81, 0.3)';
+      btn.style.borderColor = 'rgba(55, 65, 81, 0.4)';
+      btn.style.color = MENU_THEME.disabledText;
+      // Remove any existing click listeners by cloning without events
+      const newBtn = btn.cloneNode(true) as HTMLButtonElement;
+      btn.parentNode?.replaceChild(newBtn, btn);
+      this.loadButton = newBtn;
+    }
   }
 
   /**
