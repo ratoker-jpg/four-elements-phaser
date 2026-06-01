@@ -3,27 +3,33 @@
 Status: operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Current phase: current VISUAL/UI roadmap closed — waiting for next owner-defined roadmap
+Current phase: BLOCKOUT-MVP planning direction active — next step is huge audit only
 
 ---
 
 ## Current mode
 
 ```text
-Roadmap closed / planning pause.
+Roadmap planning / audit preparation.
 ```
 
-The completed VISUAL/UI roadmap slice ended after PR #161.
+The completed VISUAL/UI roadmap slice ended after PR #162.
 
-There is no active implementation task by default.
-
-Next action must be owner-defined roadmap planning, not automatic continuation of the old queue.
-
-Closure document:
+The new active planning direction is:
 
 ```text
-docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
+BLOCKOUT-MVP — Vehicle / Combat / Upgrade Skeleton
 ```
+
+There is no active implementation task yet.
+
+Next action:
+
+```text
+BLOCKOUT-01 — Huge Roadmap Audit / Phase 1 Audit Only
+```
+
+No runtime/code implementation should start before that audit is complete and reviewed.
 
 ---
 
@@ -39,14 +45,15 @@ Always confirm this in `package.json` before planning Phaser API work.
 
 ## Current source-of-truth docs
 
-Read these before planning the next roadmap:
+Read these before doing anything:
 
 ```text
-docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
+docs/project/BLOCKOUT_MVP_ROADMAP.md
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
+docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
 ```
 
 Historical VISUAL docs remain valid background, but they are not an active implementation queue:
@@ -65,7 +72,7 @@ Important:
 ```text
 Do not continue old VISUAL tasks by inertia.
 Do not treat old queue items as active unless the owner explicitly reopens them.
-Do not start runtime/code implementation before a new roadmap/scope is accepted.
+Do not start runtime/code implementation before the BLOCKOUT-01 huge audit is accepted.
 ```
 
 ---
@@ -90,44 +97,148 @@ The project currently has:
 - polished Playtest HUD readability
 ```
 
-This is the expected baseline for the next roadmap.
+This is the expected baseline for BLOCKOUT-MVP.
 
 ---
 
-## Key decisions still in force
+## Current active roadmap
 
-- **Primary biome**: Industrial RTS battlefield / mining platform, not sand desert.
-- **Selected map direction**: Candidate A — Heavy Mining Platform.
-- **Allowed enrichment**: selected Candidate C details as secondary visual enrichment only.
-- **Rejected as primary**: Candidate B visible grid direction.
-- **Practical map model**: Layered Platform Frame + Tile Fill.
-- **Sand terrain**: paused as primary direction. Sand assets remain in repo as fallback.
-- **MAPLIFE #120**: rejected. Desert decor must not be continued.
-- **Map presentation**: grounded industrial platform with outer world frame.
-- **Playable platform**: logically flat; visual height only on the outer frame / side walls.
-- **Tile standard**: 384×192 source assets, 2:1 top-surface-only platform tiles.
-- **Runtime logical tile**: existing isometric 2:1 map model remains the source of gameplay coordinates.
-- **Start position**: lower-left start zone.
-- **Target production map sizes**: 96×96 / 128×128 / 192×192 remain deferred; current production small is still 32×32.
-- **Frame border**: 1 tile around playable area, visual only, not in logical grid.
-- **Resource visual model**: normal resources are 1×1 visual nodes; central infinite is 2×2.
-- **UI style**: industrial sci-fi, dark slate panels, bronze/gold primary accent, teal secondary accents.
+```text
+BLOCKOUT-MVP — Vehicle / Combat / Upgrade Skeleton
+```
+
+Roadmap document:
+
+```text
+docs/project/BLOCKOUT_MVP_ROADMAP.md
+```
+
+Purpose:
+
+```text
+Build the gameplay skeleton first using Phaser/blockout placeholders.
+Validate body geometry, turret mount points, vehicle physics, recoil, weapon behavior, obstacles, and upgrade hooks before final art integration.
+```
+
+Working model:
+
+```text
+reference → contract → blockout → audit → scoped implementation → validation → final assets later
+```
+
+Core rule:
+
+```text
+Do not make it beautiful before it is clear what exactly must become beautiful.
+```
+
+---
+
+## BLOCKOUT-MVP reference contracts
+
+### Body references
+
+Standard hulls collected and accepted for planning:
+
+```text
+Wasp / Васп
+Hornet / Хорнет
+Hunter / Хантер
+Viking / Викинг
+Dictator / Диктатор
+Titan / Титан
+Mammoth / Мамонт
+```
+
+Body contract covers:
+
+```text
+- HP / armor
+- max speed
+- anti-inertia acceleration
+- turn speed
+- turn acceleration
+- anti-inertia turn acceleration
+- lateral acceleration
+- mass
+- engine power
+- body-specific turret mount category
+```
+
+Confirmed owner-visible mount categories:
+
+```text
+Wasp     -> rear
+Hornet   -> center_rear
+Hunter   -> center
+Viking   -> center
+Dictator -> rear
+Titan    -> front_center
+Mammoth  -> front_center
+```
+
+Exact normalized mount `x/y` is intentionally deferred to a later blockout preview/debug calibration step.
+
+### Weapon references
+
+Weapons collected and accepted for planning:
+
+```text
+Flamethrower / Огнемёт
+Freeze / Фриз
+Isida / Изида
+Ricochet / Рикошет
+Twins / Твинс
+Hammer / Молот
+Smoky / Смоки
+Vulcan / Вулкан
+Thunder / Гром
+Railgun / Рельса
+Shaft / Шафт
+```
+
+Weapon contract covers:
+
+```text
+- instant projectile
+- instant splash
+- line penetration
+- charge/sniper line
+- cone stream
+- beam support
+- rapid fire / overheat
+- plasma projectile
+- ricochet projectile
+- shotgun cone
+```
 
 ---
 
 ## Active next work
 
 ```text
-NONE.
+BLOCKOUT-01 — Huge Roadmap Audit / Phase 1 Audit Only
 ```
 
-Next action:
+Mode:
 
 ```text
-Define a new roadmap from owner goals.
+AUDIT ONLY
+NO CODE
+NO DOC EDITS
+NO ASSETS
+NO RUNTIME CHANGES
+NO COMMITS
+NO PR
 ```
 
-No code PR should be proposed until the new target is clear, unless the owner asks for a tiny concrete bugfix.
+The audit must inspect the current repo architecture and propose a safe scoped implementation plan.
+
+The audit must end with:
+
+```text
+Жду Делай
+```
 
 ---
 
@@ -204,6 +315,7 @@ PR #158 — UI-02: New Game setup polish
 PR #159 — UI-03: ESC menu polish
 PR #160 — UI-04: Save/Continue flow polish
 PR #161 — HUD-01: Playtest HUD readability polish
+PR #162 — VISUAL/UI roadmap closure checkpoint
 ```
 
 Final state:
@@ -218,6 +330,7 @@ Final state:
 - save format/schema unchanged
 - Playtest HUD readability polished
 - HUD callbacks and gameplay logic preserved
+- old VISUAL/UI queue closed
 ```
 
 ---
@@ -252,9 +365,11 @@ These are known future candidates, not current tasks:
 - full RTS bottom-bar HUD with minimap/info/commands
 - fog of war
 - arena mode
-- unit visual workflow
-- combat/enemy/bot/AI systems
-- upgrades/progression
+- final unit visual workflow
+- final tank asset integration
+- enemy/bot/AI systems
+- attack waves
+- full upgrade shop UI
 - deeper economy/resource mechanics
 - save schema/migration/autosave/cloud saves
 - resource richness gameplay/mapgen beyond small/medium/large/infinite
@@ -280,51 +395,35 @@ Sand assets and code remain in repo as fallback/reference.
 
 ---
 
-## Constraints before next roadmap
+## Constraints before implementation
 
-Do not start these as immediate implementation without a new owner-approved roadmap:
+Do not start these as immediate implementation without BLOCKOUT-01 audit acceptance:
 
 ```text
-- bot / enemy AI
-- full combat in main sandbox
-- attack waves
-- elements economy expansion
-- upgrades / progression
-- SpriteGPULayer / TilemapGPULayer implementation
-- normal maps implementation before feasibility spike
-- sand terrain as primary visual direction
-- MAPLIFE #120 continuation
-- mass image generation in docs PRs
-- runtime implementation without accepted audit/design
-- mass asset generation without visual approval
-- fixing bad art by code-only patches
-- four-biome system
-- copying StarCraft assets/UI exactly
-- production map size migration without separate scoped task
-- silently changing map dimensions from current production behavior
-- changing save schema during UI polish
-- changing economy/resource values during visual/UI work
+- blockout vehicle renderer
+- body/weapon config runtime consumption
+- movement physics changes
+- turret rotation runtime changes
+- recoil system
+- weapon VFX placeholders
+- damage behavior placeholders
+- obstacle blockers
+- upgrade skeleton
+- combat readability sandbox
 ```
 
 ---
 
-## Next roadmap workflow
+## Next workflow
 
-Use this sequence for the next major workstream:
-
-```text
-1. owner defines target outcome
-2. GPT writes/updates roadmap document
-3. roadmap audit/design if scope is broad or risky
-4. implementation split into small scoped PRs
-5. GLM executes only accepted scopes
-6. GPT reviews every PR before merge
-```
-
-For small bugfixes:
+Use this sequence:
 
 ```text
-A tiny, concrete, low-risk bugfix can proceed without a new roadmap if it does not change direction, gameplay, economy, save schema, or asset contracts.
+1. BLOCKOUT-00 roadmap docs PR
+2. BLOCKOUT-01 huge audit only
+3. owner/GPT review of audit
+4. first small implementation PR only after explicit approval
+5. GPT review before each merge
 ```
 
 ---
@@ -334,7 +433,7 @@ A tiny, concrete, low-risk bugfix can proceed without a new roadmap if it does n
 The following documents are archived or historical reference only:
 
 ```text
-docs/project/PHASE_2_ROADMAP.md → deprecated, see closure/current roadmap docs
+docs/project/PHASE_2_ROADMAP.md → deprecated
 docs/project/PHASE_2_ROADMAP_AUDIT.md → deprecated
 docs/project/PHASE_2_ROADMAP_AUDIT_PROMPT.md → deprecated
 docs/project/TERRAIN_02_QUALITY_AUDIT_AND_PIPELINE.md → paused/superseded
