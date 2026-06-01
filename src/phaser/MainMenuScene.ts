@@ -1,20 +1,17 @@
 /**
- * MainMenuScene — lightweight main menu.
+ * MainMenuScene — polished main menu navigation shell.
+ *
+ * UI-01: Clean industrial sci-fi visual direction with warm bronze/gold
+ * primary accent and teal secondary accent. DOM overlay consistent with
+ * the project's UI pattern. Pointer cursor on all interactive elements.
+ * Focus-visible outlines for keyboard accessibility.
  *
  * ARCH-14B: Provides New Game / Continue / Settings entry points.
- * Uses DOM overlay (consistent with PlaytestHud pattern).
- * No images, no art assets — simple and readable only.
+ * ARCH-15A: Continue button is enabled when saves exist.
+ * ARCH-14C+15B: Save list with delete per slot, Settings with UI Scale.
  *
  * If ?skipMenu or ?autostart is in the URL, auto-advances to
  * GameScene with default settings (for QA smoke test).
- *
- * ARCH-15A: Continue button is enabled when saves exist.
- * Clicking Continue shows a save list overlay where the player
- * can select a save to load.
- *
- * ARCH-14C+15B: Save list now shows empty state, delete per slot
- * with confirmation, clear all saves, and richer slot summaries.
- * Settings screen now has UI Scale (100/125/150%).
  */
 
 import Phaser from 'phaser';
@@ -37,6 +34,31 @@ import {
   applyUiScale,
   UI_SCALE_OPTIONS,
 } from '../state/uiSettings';
+
+/** UI-01: Shared CSS custom properties for the industrial menu theme. */
+const MENU_THEME = {
+  bg: '#111827',
+  bgOverlay: 'rgba(17, 24, 39, 0.97)',
+  titleColor: '#e0f2fe',
+  subtitleColor: '#64748b',
+  primaryAccent: '#d4a574',
+  primaryAccentLight: '#e8c9a0',
+  secondaryAccent: '#80cbc4',
+  secondaryAccentLight: '#a7d8d2',
+  disabledColor: '#374151',
+  disabledText: '#4b5563',
+  borderColor: 'rgba(212, 165, 116, 0.2)',
+  hoverBorder: 'rgba(212, 165, 116, 0.5)',
+  focusOutline: '#d4a574',
+  dangerColor: '#ef9a9a',
+  dangerBg: 'rgba(239, 154, 154, 0.08)',
+  dangerBorder: 'rgba(239, 154, 154, 0.2)',
+  panelBg: 'rgba(17, 24, 39, 0.97)',
+  panelBorder: 'rgba(255, 255, 255, 0.08)',
+  rowBg: 'rgba(255, 255, 255, 0.02)',
+  rowBorder: 'rgba(255, 255, 255, 0.05)',
+  footerColor: '#334155',
+} as const;
 
 export class MainMenuScene extends Phaser.Scene {
   private container: HTMLDivElement | null = null;
@@ -68,7 +90,7 @@ export class MainMenuScene extends Phaser.Scene {
     const settings = loadUiSettings();
     applyUiScale(settings.uiScale);
 
-    this.cameras.main.setBackgroundColor('#1a1a2e');
+    this.cameras.main.setBackgroundColor(MENU_THEME.bg);
     this.createDomOverlay();
 
     // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
@@ -88,7 +110,7 @@ export class MainMenuScene extends Phaser.Scene {
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      background: rgba(26, 26, 46, 0.95);
+      background: ${MENU_THEME.bgOverlay};
       z-index: 30;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #e0e0e0;
@@ -96,77 +118,195 @@ export class MainMenuScene extends Phaser.Scene {
       transform-origin: center center;
     `;
 
-    // Title
+    // ── Title area ──────────────────────────────────────────────
+    const titleArea = document.createElement('div');
+    titleArea.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 56px;
+    `;
+
     const title = document.createElement('div');
     title.textContent = 'Four Elements';
     title.style.cssText = `
-      font-size: 48px;
+      font-size: 52px;
       font-weight: 700;
-      color: #4fc3f7;
-      margin-bottom: 40px;
-      letter-spacing: 2px;
+      color: ${MENU_THEME.titleColor};
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      text-shadow: 0 0 40px rgba(212, 165, 116, 0.15);
     `;
-    root.appendChild(title);
+    titleArea.appendChild(title);
 
-    // Subtitle
+    // Decorative line under title
+    const titleLine = document.createElement('div');
+    titleLine.style.cssText = `
+      width: 120px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, ${MENU_THEME.primaryAccent}, transparent);
+      margin: 16px 0 12px;
+    `;
+    titleArea.appendChild(titleLine);
+
     const subtitle = document.createElement('div');
-    subtitle.textContent = 'Phaser Prototype';
+    subtitle.textContent = 'Industrial RTS Prototype';
     subtitle.style.cssText = `
-      font-size: 14px;
-      color: #666;
-      margin-bottom: 48px;
+      font-size: 13px;
+      color: ${MENU_THEME.subtitleColor};
+      letter-spacing: 2px;
+      text-transform: uppercase;
     `;
-    root.appendChild(subtitle);
+    titleArea.appendChild(subtitle);
 
-    // Button container
+    root.appendChild(titleArea);
+
+    // ── Button container ────────────────────────────────────────
     const btnContainer = document.createElement('div');
     btnContainer.style.cssText = `
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      width: 260px;
+      gap: 14px;
+      width: 280px;
     `;
 
-    // New Game button
-    const newGameBtn = this.createButton('New Game', '#4fc3f7', () => {
+    // New Game button — primary (warm bronze/gold)
+    const newGameBtn = this.createMenuButton('New Game', 'primary', () => {
       this.scene.start('NewGameSetupScene');
     });
     btnContainer.appendChild(newGameBtn);
 
-    // Continue button — enabled only if saves exist
+    // Continue button — secondary (teal), enabled only if saves exist
     const savesExist = hasSaves();
-    this.continueBtn = this.createButton('Continue', '#81c784', savesExist ? () => {
+    this.continueBtn = this.createMenuButton('Continue', 'secondary', savesExist ? () => {
       this.showSaveList();
     } : null, !savesExist);
     btnContainer.appendChild(this.continueBtn);
 
-    // Settings button — now functional
-    const settingsBtn = this.createButton('Settings', '#4fc3f7', () => {
+    // Settings button — secondary (teal)
+    const settingsBtn = this.createMenuButton('Settings', 'secondary', () => {
       this.showSettings();
     });
     btnContainer.appendChild(settingsBtn);
 
     root.appendChild(btnContainer);
 
-    // Version hint
-    const version = document.createElement('div');
-    version.textContent = 'v0.1 — ARCH-14C-15B';
-    version.style.cssText = `
+    // ── Version footer ──────────────────────────────────────────
+    const footer = document.createElement('div');
+    footer.style.cssText = `
       position: absolute;
-      bottom: 16px;
-      font-size: 10px;
-      color: #444;
+      bottom: 20px;
+      right: 24px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     `;
-    root.appendChild(version);
+
+    const versionDot = document.createElement('div');
+    versionDot.style.cssText = `
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: ${MENU_THEME.primaryAccent};
+      opacity: 0.4;
+    `;
+    footer.appendChild(versionDot);
+
+    const version = document.createElement('div');
+    version.textContent = 'v0.1';
+    version.style.cssText = `
+      font-size: 10px;
+      color: ${MENU_THEME.footerColor};
+      letter-spacing: 1px;
+    `;
+    footer.appendChild(version);
+
+    root.appendChild(footer);
 
     document.body.appendChild(root);
     this.container = root;
   }
 
   /**
+   * UI-01: Create a styled menu button with hover/focus/active states.
+   *
+   * - 'primary' style: warm bronze/gold accent — for the main action (New Game)
+   * - 'secondary' style: teal accent — for secondary actions (Continue, Settings)
+   *
+   * All interactive buttons get pointer cursor. Disabled buttons show
+   * a clear dimmed state with not-allowed cursor.
+   */
+  private createMenuButton(
+    text: string,
+    style: 'primary' | 'secondary',
+    onClick: (() => void) | null,
+    disabled = false,
+  ): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.textContent = text;
+    btn.disabled = disabled;
+
+    const accent = style === 'primary' ? MENU_THEME.primaryAccent : MENU_THEME.secondaryAccent;
+
+    const baseBg = disabled ? 'rgba(55, 65, 81, 0.3)' : `${accent}0d`;
+    const baseBorder = disabled ? 'rgba(55, 65, 81, 0.4)' : `${accent}33`;
+    const textColor = disabled ? MENU_THEME.disabledText : accent;
+
+    btn.style.cssText = `
+      width: 100%;
+      padding: 14px 24px;
+      background: ${baseBg};
+      border: 1px solid ${baseBorder};
+      border-radius: 4px;
+      color: ${textColor};
+      font-size: 15px;
+      font-family: inherit;
+      font-weight: ${style === 'primary' ? '600' : '400'};
+      letter-spacing: 1px;
+      cursor: ${disabled ? 'not-allowed' : 'pointer'};
+      text-align: center;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    `;
+
+    if (!disabled && onClick) {
+      btn.addEventListener('mouseenter', () => {
+        btn.style.background = `${accent}1a`;
+        btn.style.borderColor = `${accent}55`;
+        if (style === 'primary') {
+          btn.style.boxShadow = `0 0 20px ${accent}15`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.background = baseBg;
+        btn.style.borderColor = baseBorder;
+        btn.style.boxShadow = 'none';
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
+      btn.addEventListener('mousedown', () => {
+        btn.style.background = `${accent}26`;
+      });
+      btn.addEventListener('mouseup', () => {
+        btn.style.background = `${accent}1a`;
+      });
+      btn.addEventListener('click', onClick);
+    }
+
+    return btn;
+  }
+
+  /**
    * ARCH-15B: Show save list overlay with delete controls.
    * Lists all saves with metadata, allows the player to pick one to load,
    * delete a slot (with confirmation), or clear all saves.
+   *
+   * UI-01: Styled with industrial panel theme.
    */
   private showSaveList(): void {
     this.hideSaveList();
@@ -192,10 +332,10 @@ export class MainMenuScene extends Phaser.Scene {
 
     const panel = document.createElement('div');
     panel.style.cssText = `
-      background: rgba(26, 26, 46, 0.95);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: ${MENU_THEME.panelBg};
+      border: 1px solid ${MENU_THEME.panelBorder};
       border-radius: 8px;
-      padding: 24px 28px;
+      padding: 28px 32px;
       min-width: 380px;
       max-width: 460px;
       max-height: 70vh;
@@ -206,27 +346,26 @@ export class MainMenuScene extends Phaser.Scene {
     const title = document.createElement('div');
     title.textContent = 'Load Game';
     title.style.cssText = `
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 600;
-      color: #4fc3f7;
-      margin-bottom: 16px;
+      color: ${MENU_THEME.secondaryAccent};
+      margin-bottom: 20px;
       text-align: center;
+      letter-spacing: 1px;
     `;
     panel.appendChild(title);
 
     if (metas.length === 0) {
-      // ARCH-15B: Empty state
       const emptyMsg = document.createElement('div');
       emptyMsg.textContent = 'No saves yet';
       emptyMsg.style.cssText = `
         text-align: center;
-        color: #666;
-        font-size: 14px;
-        padding: 20px 0;
+        color: ${MENU_THEME.subtitleColor};
+        font-size: 13px;
+        padding: 24px 0;
       `;
       panel.appendChild(emptyMsg);
     } else {
-      // Save slots
       for (const meta of metas) {
         const row = this.createSaveRow(meta);
         panel.appendChild(row);
@@ -237,37 +376,44 @@ export class MainMenuScene extends Phaser.Scene {
     const btnRow = document.createElement('div');
     btnRow.style.cssText = `
       display: flex;
-      gap: 8px;
-      margin-top: 12px;
+      gap: 10px;
+      margin-top: 16px;
     `;
 
-    // Clear All button (only if saves exist)
     if (metas.length > 0) {
       const clearAllBtn = document.createElement('button');
       clearAllBtn.textContent = 'Clear All';
       clearAllBtn.style.cssText = `
         flex: 1;
         padding: 10px 12px;
-        background: rgba(239, 154, 154, 0.1);
-        border: 1px solid rgba(239, 154, 154, 0.25);
+        background: ${MENU_THEME.dangerBg};
+        border: 1px solid ${MENU_THEME.dangerBorder};
         border-radius: 4px;
-        color: #ef9a9a;
-        font-size: 13px;
+        color: ${MENU_THEME.dangerColor};
+        font-size: 12px;
         font-family: inherit;
         cursor: pointer;
         text-align: center;
+        letter-spacing: 0.5px;
         transition: background 0.15s;
+        outline: none;
       `;
+      clearAllBtn.addEventListener('focus', () => {
+        clearAllBtn.style.outline = `2px solid ${MENU_THEME.dangerColor}`;
+        clearAllBtn.style.outlineOffset = '2px';
+      });
+      clearAllBtn.addEventListener('blur', () => {
+        clearAllBtn.style.outline = 'none';
+      });
       clearAllBtn.addEventListener('mouseenter', () => {
-        clearAllBtn.style.background = 'rgba(239, 154, 154, 0.2)';
+        clearAllBtn.style.background = 'rgba(239, 154, 154, 0.16)';
       });
       clearAllBtn.addEventListener('mouseleave', () => {
-        clearAllBtn.style.background = 'rgba(239, 154, 154, 0.1)';
+        clearAllBtn.style.background = MENU_THEME.dangerBg;
       });
       clearAllBtn.addEventListener('click', () => {
         if (confirm('Delete all save data? This cannot be undone.')) {
           clearAllSaves();
-          // Refresh the save list
           this.hideSaveList();
           this.showSaveList();
           this.updateContinueButton();
@@ -276,27 +422,35 @@ export class MainMenuScene extends Phaser.Scene {
       btnRow.appendChild(clearAllBtn);
     }
 
-    // Back button
     const backBtn = document.createElement('button');
     backBtn.textContent = 'Back';
     backBtn.style.cssText = `
       flex: 1;
       padding: 10px 12px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.15);
+      background: ${MENU_THEME.rowBg};
+      border: 1px solid ${MENU_THEME.rowBorder};
       border-radius: 4px;
-      color: #999;
-      font-size: 13px;
+      color: ${MENU_THEME.subtitleColor};
+      font-size: 12px;
       font-family: inherit;
       cursor: pointer;
       text-align: center;
+      letter-spacing: 0.5px;
       transition: background 0.15s;
+      outline: none;
     `;
+    backBtn.addEventListener('focus', () => {
+      backBtn.style.outline = `2px solid ${MENU_THEME.secondaryAccent}`;
+      backBtn.style.outlineOffset = '2px';
+    });
+    backBtn.addEventListener('blur', () => {
+      backBtn.style.outline = 'none';
+    });
     backBtn.addEventListener('mouseenter', () => {
-      backBtn.style.background = 'rgba(255,255,255,0.08)';
+      backBtn.style.background = 'rgba(255,255,255,0.06)';
     });
     backBtn.addEventListener('mouseleave', () => {
-      backBtn.style.background = 'rgba(255,255,255,0.03)';
+      backBtn.style.background = MENU_THEME.rowBg;
     });
     backBtn.addEventListener('click', () => {
       this.hideSaveList();
@@ -319,13 +473,13 @@ export class MainMenuScene extends Phaser.Scene {
       align-items: center;
       padding: 10px 12px;
       margin-bottom: 6px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.08);
+      background: ${MENU_THEME.rowBg};
+      border: 1px solid ${MENU_THEME.rowBorder};
       border-radius: 4px;
       transition: background 0.15s, border-color 0.15s;
     `;
 
-    const factionColor = FACTION_CSS_COLORS[meta.faction as Faction] ?? '#4fc3f7';
+    const factionColor = FACTION_CSS_COLORS[meta.faction as Faction] ?? MENU_THEME.secondaryAccent;
 
     // Left: info (clickable to load)
     const info = document.createElement('div');
@@ -337,12 +491,12 @@ export class MainMenuScene extends Phaser.Scene {
     info.appendChild(nameLine);
 
     const detailLine = document.createElement('div');
-    detailLine.style.cssText = 'font-size: 10px; color: #888; margin-top: 2px;';
+    detailLine.style.cssText = 'font-size: 10px; color: #6b7280; margin-top: 2px;';
     detailLine.textContent = formatSaveSlotSummary(meta.summary);
     info.appendChild(detailLine);
 
     const timeLine = document.createElement('div');
-    timeLine.style.cssText = 'font-size: 10px; color: #666; margin-top: 1px;';
+    timeLine.style.cssText = 'font-size: 10px; color: #4b5563; margin-top: 1px;';
     timeLine.textContent = formatSaveTimestamp(meta.updatedAt);
     info.appendChild(timeLine);
 
@@ -362,12 +516,12 @@ export class MainMenuScene extends Phaser.Scene {
     });
 
     info.addEventListener('mouseenter', () => {
-      row.style.background = 'rgba(79, 195, 247, 0.08)';
-      row.style.borderColor = 'rgba(79, 195, 247, 0.2)';
+      row.style.background = 'rgba(128, 203, 196, 0.06)';
+      row.style.borderColor = 'rgba(128, 203, 196, 0.15)';
     });
     info.addEventListener('mouseleave', () => {
-      row.style.background = 'rgba(255,255,255,0.03)';
-      row.style.borderColor = 'rgba(255,255,255,0.08)';
+      row.style.background = MENU_THEME.rowBg;
+      row.style.borderColor = MENU_THEME.rowBorder;
     });
 
     row.appendChild(info);
@@ -377,28 +531,35 @@ export class MainMenuScene extends Phaser.Scene {
     deleteBtn.textContent = 'Delete';
     deleteBtn.style.cssText = `
       padding: 4px 8px;
-      background: rgba(239, 154, 154, 0.08);
-      border: 1px solid rgba(239, 154, 154, 0.2);
+      background: ${MENU_THEME.dangerBg};
+      border: 1px solid ${MENU_THEME.dangerBorder};
       border-radius: 3px;
-      color: #ef9a9a;
+      color: ${MENU_THEME.dangerColor};
       font-size: 10px;
       font-family: inherit;
       cursor: pointer;
       margin-left: 8px;
       flex-shrink: 0;
       transition: background 0.15s;
+      outline: none;
     `;
+    deleteBtn.addEventListener('focus', () => {
+      deleteBtn.style.outline = `2px solid ${MENU_THEME.dangerColor}`;
+      deleteBtn.style.outlineOffset = '1px';
+    });
+    deleteBtn.addEventListener('blur', () => {
+      deleteBtn.style.outline = 'none';
+    });
     deleteBtn.addEventListener('mouseenter', () => {
-      deleteBtn.style.background = 'rgba(239, 154, 154, 0.2)';
+      deleteBtn.style.background = 'rgba(239, 154, 154, 0.16)';
     });
     deleteBtn.addEventListener('mouseleave', () => {
-      deleteBtn.style.background = 'rgba(239, 154, 154, 0.08)';
+      deleteBtn.style.background = MENU_THEME.dangerBg;
     });
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (confirm(`Delete this save (${meta.faction} — ${meta.mapName})?`)) {
         deleteSave(meta.id);
-        // Refresh the save list
         this.hideSaveList();
         this.showSaveList();
         this.updateContinueButton();
@@ -414,14 +575,16 @@ export class MainMenuScene extends Phaser.Scene {
     if (!this.continueBtn) return;
     const savesExist = hasSaves();
     this.continueBtn.disabled = !savesExist;
-    this.continueBtn.style.background = savesExist ? 'rgba(129, 199, 132, 0.1)' : 'rgba(100,100,100,0.1)';
-    this.continueBtn.style.borderColor = savesExist ? 'rgba(129, 199, 132, 0.3)' : 'rgba(100,100,100,0.2)';
-    this.continueBtn.style.color = savesExist ? '#81c784' : '#555';
+    const accent = MENU_THEME.secondaryAccent;
+    this.continueBtn.style.background = savesExist ? `${accent}0d` : 'rgba(55, 65, 81, 0.3)';
+    this.continueBtn.style.borderColor = savesExist ? `${accent}33` : 'rgba(55, 65, 81, 0.4)';
+    this.continueBtn.style.color = savesExist ? accent : MENU_THEME.disabledText;
     this.continueBtn.style.cursor = savesExist ? 'pointer' : 'not-allowed';
   }
 
   /**
    * ARCH-14C: Show settings overlay with UI Scale option.
+   * UI-01: Styled with industrial panel theme.
    */
   private showSettings(): void {
     this.hideSettings();
@@ -447,10 +610,10 @@ export class MainMenuScene extends Phaser.Scene {
 
     const panel = document.createElement('div');
     panel.style.cssText = `
-      background: rgba(26, 26, 46, 0.95);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: ${MENU_THEME.panelBg};
+      border: 1px solid ${MENU_THEME.panelBorder};
       border-radius: 8px;
-      padding: 24px 28px;
+      padding: 28px 32px;
       min-width: 340px;
       max-width: 420px;
     `;
@@ -459,11 +622,12 @@ export class MainMenuScene extends Phaser.Scene {
     const title = document.createElement('div');
     title.textContent = 'Settings';
     title.style.cssText = `
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 600;
-      color: #4fc3f7;
-      margin-bottom: 20px;
+      color: ${MENU_THEME.secondaryAccent};
+      margin-bottom: 24px;
       text-align: center;
+      letter-spacing: 1px;
     `;
     panel.appendChild(title);
 
@@ -471,12 +635,12 @@ export class MainMenuScene extends Phaser.Scene {
     const scaleLabel = document.createElement('div');
     scaleLabel.textContent = 'UI Scale';
     scaleLabel.style.cssText = `
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
-      color: #999;
+      color: ${MENU_THEME.subtitleColor};
       text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 8px;
+      letter-spacing: 1.5px;
+      margin-bottom: 10px;
     `;
     panel.appendChild(scaleLabel);
 
@@ -492,12 +656,17 @@ export class MainMenuScene extends Phaser.Scene {
       const isSelected = scaleOption === currentSettings.uiScale;
       btn.style.cssText = this.scaleButtonStyle(isSelected);
 
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.secondaryAccent}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
       btn.addEventListener('click', () => {
-        // Update UI scale immediately
         applyUiScale(scaleOption);
         saveUiSettings({ uiScale: scaleOption });
 
-        // Update all scale button styles
         const buttons = scaleRow.querySelectorAll('button');
         buttons.forEach(b => {
           b.style.cssText = this.scaleButtonStyle(false);
@@ -514,8 +683,8 @@ export class MainMenuScene extends Phaser.Scene {
     note.textContent = 'Applies to DOM overlays. Game canvas zoom is unchanged.';
     note.style.cssText = `
       font-size: 10px;
-      color: #555;
-      margin-top: 6px;
+      color: #4b5563;
+      margin-top: 8px;
     `;
     panel.appendChild(note);
 
@@ -524,23 +693,32 @@ export class MainMenuScene extends Phaser.Scene {
     backBtn.textContent = 'Back';
     backBtn.style.cssText = `
       width: 100%;
-      margin-top: 20px;
-      padding: 10px 16px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.15);
+      margin-top: 24px;
+      padding: 12px 16px;
+      background: ${MENU_THEME.rowBg};
+      border: 1px solid ${MENU_THEME.rowBorder};
       border-radius: 4px;
-      color: #999;
-      font-size: 14px;
+      color: ${MENU_THEME.subtitleColor};
+      font-size: 13px;
       font-family: inherit;
       cursor: pointer;
       text-align: center;
+      letter-spacing: 0.5px;
       transition: background 0.15s;
+      outline: none;
     `;
+    backBtn.addEventListener('focus', () => {
+      backBtn.style.outline = `2px solid ${MENU_THEME.secondaryAccent}`;
+      backBtn.style.outlineOffset = '2px';
+    });
+    backBtn.addEventListener('blur', () => {
+      backBtn.style.outline = 'none';
+    });
     backBtn.addEventListener('mouseenter', () => {
-      backBtn.style.background = 'rgba(255,255,255,0.08)';
+      backBtn.style.background = 'rgba(255,255,255,0.06)';
     });
     backBtn.addEventListener('mouseleave', () => {
-      backBtn.style.background = 'rgba(255,255,255,0.03)';
+      backBtn.style.background = MENU_THEME.rowBg;
     });
     backBtn.addEventListener('click', () => {
       this.hideSettings();
@@ -556,16 +734,17 @@ export class MainMenuScene extends Phaser.Scene {
     return `
       flex: 1;
       padding: 10px 12px;
-      background: ${selected ? 'rgba(79, 195, 247, 0.2)' : 'rgba(255,255,255,0.03)'};
-      border: 2px solid ${selected ? '#4fc3f7' : 'rgba(255,255,255,0.1)'};
+      background: ${selected ? `${MENU_THEME.secondaryAccent}1a` : MENU_THEME.rowBg};
+      border: 1px solid ${selected ? `${MENU_THEME.secondaryAccent}55` : MENU_THEME.rowBorder};
       border-radius: 4px;
-      color: ${selected ? '#4fc3f7' : '#888'};
-      font-size: 14px;
+      color: ${selected ? MENU_THEME.secondaryAccent : '#6b7280'};
+      font-size: 13px;
       font-family: inherit;
       font-weight: ${selected ? '600' : '400'};
       cursor: pointer;
       text-align: center;
       transition: background 0.15s, border-color 0.15s;
+      outline: none;
     `;
   }
 
@@ -583,46 +762,6 @@ export class MainMenuScene extends Phaser.Scene {
       this.settingsContainer.parentNode.removeChild(this.settingsContainer);
     }
     this.settingsContainer = null;
-  }
-
-  private createButton(
-    text: string,
-    color: string,
-    onClick: (() => void) | null,
-    disabled = false,
-  ): HTMLButtonElement {
-    const btn = document.createElement('button');
-    btn.textContent = text;
-    btn.disabled = disabled;
-    const baseBg = disabled ? 'rgba(100,100,100,0.1)' : 'rgba(79, 195, 247, 0.1)';
-    const baseBorder = disabled ? 'rgba(100,100,100,0.2)' : 'rgba(79, 195, 247, 0.3)';
-    btn.style.cssText = `
-      width: 100%;
-      padding: 12px 20px;
-      background: ${baseBg};
-      border: 1px solid ${baseBorder};
-      border-radius: 4px;
-      color: ${disabled ? '#555' : color};
-      font-size: 16px;
-      font-family: inherit;
-      cursor: ${disabled ? 'not-allowed' : 'pointer'};
-      text-align: center;
-      transition: background 0.15s, border-color 0.15s;
-    `;
-
-    if (!disabled && onClick) {
-      btn.addEventListener('mouseenter', () => {
-        btn.style.background = 'rgba(79, 195, 247, 0.2)';
-        btn.style.borderColor = 'rgba(79, 195, 247, 0.5)';
-      });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.background = baseBg;
-        btn.style.borderColor = baseBorder;
-      });
-      btn.addEventListener('click', onClick);
-    }
-
-    return btn;
   }
 
   private startGame(config: GameSetupConfig): void {
