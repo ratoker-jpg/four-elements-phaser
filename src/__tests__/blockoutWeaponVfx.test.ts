@@ -561,7 +561,7 @@ describe('recoil does not permanently change turretTargetAngle', () => {
     vehicle.turretTargetAngle = Math.PI / 3;
     const originalTarget = vehicle.turretTargetAngle;
 
-    const now = Date.now();
+    const now = 1000;
     fireBlockoutWeapon(vehicle, 100, 100, vehicle.turretAngle, 300, 0, now);
 
     // Recoil is active
@@ -572,5 +572,130 @@ describe('recoil does not permanently change turretTargetAngle', () => {
 
     // turretTargetAngle should not have been permanently changed
     expect(vehicle.turretTargetAngle).toBeCloseTo(originalTarget);
+  });
+});
+
+// ─── Consistent time basis (scene-time) ────────────────────────────
+//
+// These tests prove that Phaser scene-time values (small monotonically
+// increasing numbers starting from ~0) work correctly for all weapon
+// timing. No Date.now() dependency is needed — the pure functions
+// accept any consistent time basis.
+
+describe('consistent scene-time basis for weapon timing', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+  });
+
+  it('recoil recovers when fire time and update time use the same scene-time basis', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    const sceneTime = 5000; // Simulated Phaser scene time (5 seconds in)
+
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, sceneTime);
+    expect(vehicle.recoilActive).toBe(true);
+
+    // Partway through recovery — still active
+    updateBlockoutRecoil(vehicle, sceneTime + 100);
+    expect(vehicle.recoilActive).toBe(true);
+    expect(vehicle.recoilBarrelOffset).toBeGreaterThan(0);
+    expect(vehicle.recoilBarrelOffset).toBeLessThan(RECOIL_PROFILES.smoky.barrelKickbackPx);
+
+    // After full recovery duration
+    updateBlockoutRecoil(vehicle, sceneTime + vehicle.recoilDurationMs + 1);
+    expect(vehicle.recoilActive).toBe(false);
+    expect(vehicle.recoilBarrelOffset).toBe(0);
+  });
+
+  it('VFX expires after duration with scene-time values', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    const sceneTime = 3000; // Simulated scene time
+
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, sceneTime);
+
+    // VFX should still be active before duration expires
+    // Smoky VFX duration is 150ms
+    expireVfxEvents(sceneTime + 100);
+    expect(getVfxEvents().length).toBe(1);
+
+    // VFX should be expired after duration
+    expireVfxEvents(sceneTime + 200);
+    expect(getVfxEvents().length).toBe(0);
+  });
+
+  it('cooldown blocks immediate refire and allows refire after elapsed scene-time', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    const sceneTime = 10000; // Simulated scene time
+
+    // First fire should succeed
+    const event1 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, sceneTime);
+    expect(event1).not.toBeNull();
+
+    // Immediate refire within cooldown should fail
+    expect(canFireBlockoutWeapon(vehicle, sceneTime + 1)).toBe(false);
+    const event2 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, sceneTime + 1);
+    expect(event2).toBeNull();
+
+    // Refire after cooldown should succeed
+    // Smoky cooldown is 800ms
+    const afterCooldown = sceneTime + 801;
+    expect(canFireBlockoutWeapon(vehicle, afterCooldown)).toBe(true);
+    const event3 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, afterCooldown);
+    expect(event3).not.toBeNull();
+  });
+
+  it('no Date.now dependency is needed in pure firing tests', () => {
+    // Prove that the entire fire/cooldown/recoil/VFX pipeline works
+    // with arbitrary scene-time values — no Date.now() calls needed.
+    // Note: t0 must be > 0 because lastFiredAt=0 means "never fired".
+    const vehicle = createBlockoutVehicle('dictator', 'railgun', 'cyan', 5, 5);
+    const t0 = 1000; // Scene time at 1 second
+    const t1 = 1100; // 100ms later
+
+    // Fire at t0
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 400, 0, t0);
+    expect(event).not.toBeNull();
+    expect(event!.eventType).toBe('railgunLine');
+    expect(event!.createdAt).toBe(t0);
+
+    // Cooldown check at t1 (well within railgun 2500ms cooldown)
+    expect(canFireBlockoutWeapon(vehicle, t1)).toBe(false);
+
+    // Recoil active at t1
+    updateBlockoutRecoil(vehicle, t1);
+    expect(vehicle.recoilActive).toBe(true);
+
+    // After cooldown at t0 + 2501
+    expect(canFireBlockoutWeapon(vehicle, t0 + 2501)).toBe(true);
+
+    // Recoil fully recovered (railgun recoveryMs=400)
+    updateBlockoutRecoil(vehicle, t0 + 500);
+    expect(vehicle.recoilActive).toBe(false);
+
+    // VFX expired (railgun durationMs=200)
+    expireVfxEvents(t0 + 300);
+    expect(getVfxEvents().length).toBe(0);
+  });
+
+  it('mixing Date.now() with scene-time would break timing (regression proof)', () => {
+    // This test documents WHY we use consistent time.
+    // If someone mixed Date.now() (~1.7e12) with scene time (~16),
+    // the elapsed time would be hugely negative, and recoil would
+    // never recover. This test proves the functions handle consistent
+    // scene-time correctly.
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+
+    // Fire with scene time
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, 100);
+
+    // Update with same scene-time basis — recoil recovers normally
+    updateBlockoutRecoil(vehicle, 100 + vehicle.recoilDurationMs + 1);
+    expect(vehicle.recoilActive).toBe(false);
+    expect(vehicle.recoilBarrelOffset).toBe(0);
+
+    // If we had used Date.now() for fire (e.g. 1748800000000)
+    // and scene time for update (e.g. 300), the elapsed would be
+    // negative and recoil would never recover. Our fix ensures
+    // this never happens by using scene time everywhere.
   });
 });

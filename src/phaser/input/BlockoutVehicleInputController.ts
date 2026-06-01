@@ -19,6 +19,11 @@
  *
  * Movement targets are set via RMB (right-click). RMB drag is camera pan
  * and does NOT set a movement target.
+ *
+ * BLOCKOUT-05H+ fixup: All weapon timing uses Phaser scene time
+ * (this.scene.time.now), NOT Date.now(). Mixing epoch time with
+ * scene time caused negative elapsed times, broken recoil recovery,
+ * and VFX that never expired.
  */
 
 import Phaser from 'phaser';
@@ -326,7 +331,10 @@ export class BlockoutVehicleInputController {
     const selected = vehicles.find(v => v.id === this._selectedVehicleId);
     if (!selected) return;
 
-    const nowMs = Date.now();
+    // Use Phaser scene time consistently (never Date.now()) for weapon timing.
+    // Mixing Date.now() (epoch ms ~1.7e12) with this.time.now (scene ms ~16ms)
+    // causes negative elapsed times, broken recoil recovery, and VFX that never expire.
+    const nowMs = this.scene.time.now;
     if (!canFireBlockoutWeapon(selected, nowMs)) return;
 
     // Compute barrel tip position in world coordinates (screen-space + offset)
