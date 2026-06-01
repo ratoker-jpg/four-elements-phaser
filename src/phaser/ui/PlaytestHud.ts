@@ -7,6 +7,12 @@
  * ARCH-07A: Extended with separator status, factory queue/progress,
  * button disable reasons, and resource change feedback.
  *
+ * HUD-01: Polished to match UI-01/UI-02/UI-03/UI-04 industrial sci-fi
+ * visual direction. Dark slate panel, bronze/gold primary accent,
+ * teal secondary accent, red/danger for blocked/error states.
+ * Clear section separation, better spacing, readable typography,
+ * proper hover/focus/active/disabled button states.
+ *
  * Lifecycle:
  * - Created by GameScene in create().
  * - Updated each frame via update(state).
@@ -100,6 +106,32 @@ function getHotkeyString(commandId: string): string {
   return getMvpCommandHotkey(commandId);
 }
 
+// ─── HUD Theme (HUD-01: Industrial sci-fi, matches UI-01/02/03/04) ──────
+
+const HUD_THEME = {
+  bg: 'rgba(17, 24, 39, 0.92)',
+  border: 'rgba(212, 165, 116, 0.15)',
+  titleColor: '#e0f2fe',
+  sectionTitleColor: '#d4a574',
+  bodyColor: '#c0c0c0',
+  mutedColor: '#64748b',
+  dimColor: '#4b5563',
+  primaryAccent: '#d4a574',
+  primaryAccentLight: '#e8c9a0',
+  secondaryAccent: '#80cbc4',
+  secondaryAccentLight: '#a7d8d2',
+  dangerColor: '#ef9a9a',
+  dangerBg: 'rgba(239, 154, 154, 0.08)',
+  dangerBorder: 'rgba(239, 154, 154, 0.2)',
+  successColor: '#80cbc4',
+  dividerColor: 'rgba(212, 165, 116, 0.12)',
+  panelRadius: '6px',
+  buttonRadius: '4px',
+  focusOutline: '#d4a574',
+  rowBg: 'rgba(255, 255, 255, 0.02)',
+  rowBorder: 'rgba(255, 255, 255, 0.05)',
+} as const;
+
 // ─── PlaytestHud class ──────────────────────────────────────────────
 
 export class PlaytestHud {
@@ -154,14 +186,14 @@ export class PlaytestHud {
       position: fixed;
       top: 48px;
       right: 8px;
-      width: 228px;
-      background: rgba(0, 0, 0, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 6px;
-      padding: 10px;
+      width: 236px;
+      background: ${HUD_THEME.bg};
+      border: 1px solid ${HUD_THEME.border};
+      border-radius: ${HUD_THEME.panelRadius};
+      padding: 12px;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       font-size: 12px;
-      color: #e0e0e0;
+      color: ${HUD_THEME.bodyColor};
       z-index: 20;
       pointer-events: auto;
       user-select: none;
@@ -169,47 +201,62 @@ export class PlaytestHud {
       overflow-y: auto;
       transform: scale(var(--ui-scale, 1));
       transform-origin: top right;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
     `;
 
     // ── Economy section ──────────────────────────────────────────
-    const econTitle = document.createElement('div');
-    econTitle.textContent = 'Economy';
-    econTitle.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #4fc3f7;';
-    root.appendChild(econTitle);
+    root.appendChild(this.createSectionTitle('Economy'));
 
     this.economyEl = document.createElement('div');
     this.economyEl.id = 'hud-economy'; // HUD-01: preserved for qa:smoke DOM assertion
-    this.economyEl.style.cssText = 'line-height: 1.6; margin-bottom: 8px; color: #c0c0c0;';
+    this.economyEl.style.cssText = `
+      line-height: 1.7;
+      margin-bottom: 4px;
+      color: ${HUD_THEME.bodyColor};
+      font-size: 11px;
+    `;
     root.appendChild(this.economyEl);
 
+    root.appendChild(this.createDivider());
+
     // ── Harvester section (FIX-02) ──────────────────────────────────
-    const harvTitle = document.createElement('div');
-    harvTitle.textContent = 'Harvesters';
-    harvTitle.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #4fc3f7;';
-    root.appendChild(harvTitle);
+    root.appendChild(this.createSectionTitle('Harvesters'));
 
     this.harvesterEl = document.createElement('div');
-    this.harvesterEl.style.cssText = 'line-height: 1.5; margin-bottom: 8px; color: #b0b0b0; font-size: 11px;';
+    this.harvesterEl.style.cssText = `
+      line-height: 1.6;
+      margin-bottom: 4px;
+      color: ${HUD_THEME.bodyColor};
+      font-size: 11px;
+    `;
     root.appendChild(this.harvesterEl);
 
+    root.appendChild(this.createDivider());
+
     // ── Separator section ────────────────────────────────────────
-    const sepTitle = document.createElement('div');
-    sepTitle.textContent = 'Separators';
-    sepTitle.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #66bbff;';
-    root.appendChild(sepTitle);
+    root.appendChild(this.createSectionTitle('Separators'));
 
     this.separatorEl = document.createElement('div');
-    this.separatorEl.style.cssText = 'line-height: 1.5; margin-bottom: 8px; color: #b0b0b0; font-size: 11px;';
+    this.separatorEl.style.cssText = `
+      line-height: 1.6;
+      margin-bottom: 4px;
+      color: ${HUD_THEME.bodyColor};
+      font-size: 11px;
+    `;
     root.appendChild(this.separatorEl);
 
+    root.appendChild(this.createDivider());
+
     // ── Factory section ──────────────────────────────────────────
-    const factTitle = document.createElement('div');
-    factTitle.textContent = 'Factory';
-    factTitle.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #ffcc44;';
-    root.appendChild(factTitle);
+    root.appendChild(this.createSectionTitle('Factory'));
 
     this.factoryEl = document.createElement('div');
-    this.factoryEl.style.cssText = 'line-height: 1.5; margin-bottom: 8px; color: #b0b0b0; font-size: 11px;';
+    this.factoryEl.style.cssText = `
+      line-height: 1.6;
+      margin-bottom: 4px;
+      color: ${HUD_THEME.bodyColor};
+      font-size: 11px;
+    `;
     // FIX-04 fixup: Delegated click handler for cancel buttons
     this.factoryEl.addEventListener('click', (e: Event) => {
       const target = e.target as HTMLElement;
@@ -224,15 +271,19 @@ export class PlaytestHud {
     });
     root.appendChild(this.factoryEl);
 
+    root.appendChild(this.createDivider());
+
     // ── Build section ────────────────────────────────────────────
-    const buildTitle = document.createElement('div');
-    buildTitle.textContent = 'Build';
-    buildTitle.style.cssText = 'font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #81c784;';
-    root.appendChild(buildTitle);
+    root.appendChild(this.createSectionTitle('Build'));
 
     for (const def of BUILD_BUTTONS) {
       const row = document.createElement('div');
-      row.style.cssText = 'display: flex; align-items: center; margin: 2px 0;';
+      row.style.cssText = `
+        display: flex;
+        align-items: center;
+        margin: 3px 0;
+        gap: 6px;
+      `;
 
       const btn = document.createElement('button');
       const config = BUILDING_CONFIG[def.buildingType];
@@ -241,31 +292,59 @@ export class PlaytestHud {
       btn.textContent = hotkey ? `${hotkey} = ${def.label}${costStr}` : `${def.label}${costStr}`;
       btn.style.cssText = `
         flex: 1;
-        padding: 4px 8px;
-        background: rgba(129, 199, 132, 0.15);
-        border: 1px solid rgba(129, 199, 132, 0.3);
-        border-radius: 3px;
-        color: #a5d6a7;
+        padding: 6px 10px;
+        background: rgba(212, 165, 116, 0.08);
+        border: 1px solid rgba(212, 165, 116, 0.2);
+        border-radius: ${HUD_THEME.buttonRadius};
+        color: ${HUD_THEME.primaryAccent};
         font-size: 11px;
         font-family: inherit;
         cursor: pointer;
         text-align: left;
+        letter-spacing: 0.3px;
+        transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+        outline: none;
       `;
-      btn.addEventListener('click', () => this.handleBuildClick(def.buildingType));
       btn.addEventListener('mouseenter', () => {
-        btn.style.background = 'rgba(129, 199, 132, 0.3)';
+        if (!btn.disabled) {
+          btn.style.background = 'rgba(212, 165, 116, 0.16)';
+          btn.style.borderColor = 'rgba(212, 165, 116, 0.4)';
+        }
       });
       btn.addEventListener('mouseleave', () => {
-        btn.style.background = 'rgba(129, 199, 132, 0.15)';
+        if (!btn.disabled) {
+          btn.style.background = 'rgba(212, 165, 116, 0.08)';
+          btn.style.borderColor = 'rgba(212, 165, 116, 0.2)';
+          btn.style.boxShadow = 'none';
+        }
       });
+      btn.addEventListener('focus', () => {
+        if (!btn.disabled) {
+          btn.style.outline = `2px solid ${HUD_THEME.focusOutline}`;
+          btn.style.outlineOffset = '1px';
+        }
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
+      btn.addEventListener('mousedown', () => {
+        if (!btn.disabled) {
+          btn.style.background = 'rgba(212, 165, 116, 0.22)';
+        }
+      });
+      btn.addEventListener('mouseup', () => {
+        if (!btn.disabled) {
+          btn.style.background = 'rgba(212, 165, 116, 0.16)';
+        }
+      });
+      btn.addEventListener('click', () => this.handleBuildClick(def.buildingType));
       row.appendChild(btn);
 
       // Reason label (shown when disabled)
       const reasonSpan = document.createElement('span');
       reasonSpan.style.cssText = `
         font-size: 9px;
-        color: #ef9a9a;
-        margin-left: 4px;
+        color: ${HUD_THEME.dangerColor};
         white-space: nowrap;
         display: none;
       `;
@@ -276,46 +355,78 @@ export class PlaytestHud {
       this.buildReasonEls.set(def.buildingType, reasonSpan);
     }
 
+    root.appendChild(this.createDivider());
+
     // ── Production section ───────────────────────────────────────
-    const prodTitle = document.createElement('div');
-    prodTitle.textContent = 'Produce';
-    prodTitle.style.cssText = 'font-weight: 600; font-size: 13px; margin: 8px 0 4px; color: #ffb74d;';
-    root.appendChild(prodTitle);
+    root.appendChild(this.createSectionTitle('Produce'));
 
     for (const def of PRODUCTION_BUTTONS) {
       const row = document.createElement('div');
-      row.style.cssText = 'display: flex; align-items: center; margin: 2px 0;';
+      row.style.cssText = `
+        display: flex;
+        align-items: center;
+        margin: 3px 0;
+        gap: 6px;
+      `;
 
       const btn = document.createElement('button');
       const hotkey = getHotkeyString(def.commandId);
       btn.textContent = hotkey ? `${hotkey} = ${def.label}` : `${def.label}`;
       btn.style.cssText = `
         flex: 1;
-        padding: 4px 8px;
-        background: rgba(255, 183, 77, 0.15);
-        border: 1px solid rgba(255, 183, 77, 0.3);
-        border-radius: 3px;
-        color: #ffcc80;
+        padding: 6px 10px;
+        background: rgba(128, 203, 196, 0.08);
+        border: 1px solid rgba(128, 203, 196, 0.2);
+        border-radius: ${HUD_THEME.buttonRadius};
+        color: ${HUD_THEME.secondaryAccent};
         font-size: 11px;
         font-family: inherit;
         cursor: pointer;
         text-align: left;
+        letter-spacing: 0.3px;
+        transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+        outline: none;
       `;
-      btn.addEventListener('click', () => this.handleProductionClick(def.unitType));
       btn.addEventListener('mouseenter', () => {
-        btn.style.background = 'rgba(255, 183, 77, 0.3)';
+        if (!btn.disabled) {
+          btn.style.background = 'rgba(128, 203, 196, 0.16)';
+          btn.style.borderColor = 'rgba(128, 203, 196, 0.4)';
+        }
       });
       btn.addEventListener('mouseleave', () => {
-        btn.style.background = 'rgba(255, 183, 77, 0.15)';
+        if (!btn.disabled) {
+          btn.style.background = 'rgba(128, 203, 196, 0.08)';
+          btn.style.borderColor = 'rgba(128, 203, 196, 0.2)';
+          btn.style.boxShadow = 'none';
+        }
       });
+      btn.addEventListener('focus', () => {
+        if (!btn.disabled) {
+          btn.style.outline = `2px solid ${HUD_THEME.focusOutline}`;
+          btn.style.outlineOffset = '1px';
+        }
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
+      btn.addEventListener('mousedown', () => {
+        if (!btn.disabled) {
+          btn.style.background = 'rgba(128, 203, 196, 0.22)';
+        }
+      });
+      btn.addEventListener('mouseup', () => {
+        if (!btn.disabled) {
+          btn.style.background = 'rgba(128, 203, 196, 0.16)';
+        }
+      });
+      btn.addEventListener('click', () => this.handleProductionClick(def.unitType));
       row.appendChild(btn);
 
       // Reason label (shown when disabled)
       const reasonSpan = document.createElement('span');
       reasonSpan.style.cssText = `
         font-size: 9px;
-        color: #ef9a9a;
-        margin-left: 4px;
+        color: ${HUD_THEME.dangerColor};
         white-space: nowrap;
         display: none;
       `;
@@ -329,13 +440,14 @@ export class PlaytestHud {
     // ── Status section ───────────────────────────────────────────
     this.statusEl = document.createElement('div');
     this.statusEl.style.cssText = `
-      margin-top: 8px;
-      padding: 4px 6px;
-      min-height: 16px;
+      margin-top: 10px;
+      padding: 6px 8px;
+      min-height: 18px;
       font-size: 11px;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.3);
-      border-radius: 3px;
+      color: ${HUD_THEME.bodyColor};
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid ${HUD_THEME.rowBorder};
+      border-radius: ${HUD_THEME.buttonRadius};
       transition: opacity 0.3s;
     `;
     root.appendChild(this.statusEl);
@@ -346,10 +458,10 @@ export class PlaytestHud {
       margin-top: 6px;
       padding: 4px 6px;
       font-size: 9px;
-      color: #888;
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 3px;
-      line-height: 1.4;
+      color: ${HUD_THEME.dimColor};
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: ${HUD_THEME.buttonRadius};
+      line-height: 1.5;
     `;
     root.appendChild(this.diagnosticsEl);
 
@@ -402,8 +514,19 @@ export class PlaytestHud {
       const reason = getBuildBlockReason(s, buildingType);
       const disabled = reason !== null;
       btn.disabled = disabled;
-      btn.style.opacity = disabled ? '0.4' : '1';
-      btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+      if (disabled) {
+        btn.style.opacity = '0.4';
+        btn.style.cursor = 'not-allowed';
+        btn.style.background = 'rgba(55, 65, 81, 0.2)';
+        btn.style.borderColor = 'rgba(55, 65, 81, 0.3)';
+        btn.style.color = HUD_THEME.dimColor;
+      } else {
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.style.background = 'rgba(212, 165, 116, 0.08)';
+        btn.style.borderColor = 'rgba(212, 165, 116, 0.2)';
+        btn.style.color = HUD_THEME.primaryAccent;
+      }
 
       const reasonEl = this.buildReasonEls.get(buildingType);
       if (reasonEl) {
@@ -421,8 +544,19 @@ export class PlaytestHud {
       const reason = getProductionBlockReason(s, unitType);
       const disabled = reason !== null;
       btn.disabled = disabled;
-      btn.style.opacity = disabled ? '0.4' : '1';
-      btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+      if (disabled) {
+        btn.style.opacity = '0.4';
+        btn.style.cursor = 'not-allowed';
+        btn.style.background = 'rgba(55, 65, 81, 0.2)';
+        btn.style.borderColor = 'rgba(55, 65, 81, 0.3)';
+        btn.style.color = HUD_THEME.dimColor;
+      } else {
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.style.background = 'rgba(128, 203, 196, 0.08)';
+        btn.style.borderColor = 'rgba(128, 203, 196, 0.2)';
+        btn.style.color = HUD_THEME.secondaryAccent;
+      }
 
       const reasonEl = this.prodReasonEls.get(unitType);
       if (reasonEl) {
@@ -456,7 +590,7 @@ export class PlaytestHud {
 
     this.statusEl.textContent = message;
     this.statusEl.style.opacity = '1';
-    this.statusEl.style.color = success ? '#a5d6a7' : '#ef9a9a';
+    this.statusEl.style.color = success ? HUD_THEME.successColor : HUD_THEME.dangerColor;
 
     this.statusTimer = setTimeout(() => {
       if (this.statusEl) {
@@ -510,13 +644,40 @@ export class PlaytestHud {
     this.showStatus(result.message, result.success);
   }
 
+  // ─── HUD-01: Visual helper elements ───────────────────────────────
+
+  /** Create a section title element matching the industrial sci-fi theme. */
+  private createSectionTitle(text: string): HTMLDivElement {
+    const el = document.createElement('div');
+    el.textContent = text;
+    el.style.cssText = `
+      font-weight: 600;
+      font-size: 11px;
+      margin-bottom: 5px;
+      color: ${HUD_THEME.sectionTitleColor};
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    `;
+    return el;
+  }
+
+  /** Create a subtle horizontal divider between sections. */
+  private createDivider(): HTMLDivElement {
+    const el = document.createElement('div');
+    el.style.cssText = `
+      border-top: 1px solid ${HUD_THEME.dividerColor};
+      margin: 8px 0;
+    `;
+    return el;
+  }
+
   // ─── Harvester section (FIX-02) ──────────────────────────────────────
 
   private updateHarvesterSection(state: GameState): void {
     if (!this.harvesterEl) return;
 
     if (state.harvesters.length === 0) {
-      this.harvesterEl.innerHTML = '<div style="color:#666;">None spawned</div>';
+      this.harvesterEl.innerHTML = `<div style="color:${HUD_THEME.dimColor};">None spawned</div>`;
       return;
     }
 
@@ -526,10 +687,10 @@ export class PlaytestHud {
       const status = getHarvesterStatus(h);
       const label = harvesterStatusLabel(status);
       const blocked = isHarvesterBlocked(status);
-      const color = blocked ? '#ef9a9a' : this.harvesterPhaseColor(status);
+      const color = blocked ? HUD_THEME.dangerColor : this.harvesterPhaseColor(status);
       const cargoStr = h.cargoRaw > 0 ? ` [${h.cargoRaw}/${h.cargoCapacity}]` : '';
       parts.push(
-        `<div><span style="color:${color};">H${i + 1}:</span> ${label}${cargoStr}</div>`,
+        `<div><span style="color:${color}; font-weight:600;">H${i + 1}:</span> ${label}${cargoStr}</div>`,
       );
     }
     this.harvesterEl.innerHTML = parts.join('');
@@ -537,12 +698,12 @@ export class PlaytestHud {
 
   private harvesterPhaseColor(status: string): string {
     switch (status) {
-      case 'gathering': return '#81c784';
+      case 'gathering': return HUD_THEME.successColor;
       case 'moving-to-resource':
-      case 'returning-to-hq': return '#66bbff';
-      case 'unloading': return '#ffcc44';
-      case 'idle': return '#999';
-      default: return '#b0b0b0';
+      case 'returning-to-hq': return HUD_THEME.secondaryAccent;
+      case 'unloading': return HUD_THEME.primaryAccent;
+      case 'idle': return HUD_THEME.mutedColor;
+      default: return HUD_THEME.bodyColor;
     }
   }
 
@@ -552,7 +713,7 @@ export class PlaytestHud {
     if (!this.separatorEl) return;
 
     if (state.economy.separators.length === 0) {
-      this.separatorEl.innerHTML = '<div style="color:#666;">None built</div>';
+      this.separatorEl.innerHTML = `<div style="color:${HUD_THEME.dimColor};">None built</div>`;
       return;
     }
 
@@ -566,7 +727,7 @@ export class PlaytestHud {
         ? ` ${Math.round(sep.progress * 100)}%`
         : '';
       parts.push(
-        `<div><span style="color:${color};">Sep ${i + 1}:</span> ${label}${progressStr}</div>`,
+        `<div><span style="color:${color}; font-weight:600;">Sep ${i + 1}:</span> ${label}${progressStr}</div>`,
       );
     }
     this.separatorEl.innerHTML = parts.join('');
@@ -574,9 +735,9 @@ export class PlaytestHud {
 
   private separatorStatusColor(status: string): string {
     switch (status) {
-      case 'processing': return '#66bbff';
-      case 'idle': return '#999';
-      default: return '#ff8866'; // blocked
+      case 'processing': return HUD_THEME.secondaryAccent;
+      case 'idle': return HUD_THEME.mutedColor;
+      default: return HUD_THEME.dangerColor; // blocked
     }
   }
 
@@ -586,7 +747,7 @@ export class PlaytestHud {
     if (!this.factoryEl) return;
 
     if (state.production.factories.length === 0) {
-      this.factoryEl.innerHTML = '<div style="color:#666;">None built</div>';
+      this.factoryEl.innerHTML = `<div style="color:${HUD_THEME.dimColor};">None built</div>`;
       return;
     }
 
@@ -600,7 +761,7 @@ export class PlaytestHud {
       // Queue display with spawn blockage feedback + cancel buttons (FIX-04)
       let queueStr = '';
       if (factory.queue.length === 0) {
-        queueStr = '<span style="color:#666;">Queue: empty</span>';
+        queueStr = `<span style="color:${HUD_THEME.dimColor};">Queue: empty</span>`;
       } else {
         const slots: string[] = [];
         for (let qi = 0; qi < factory.queue.length; qi++) {
@@ -608,7 +769,8 @@ export class PlaytestHud {
           const typeChar = item.unitType === 'builder' ? 'B' : 'H';
           const pct = item.completed ? 'done' : `${Math.round(item.progress * 100)}%`;
           // Cancel button for each queue item — uses data attributes for delegated handler
-          const cancelBtn = `<button data-fe-cancel data-factory-index="${i}" data-queue-index="${qi}" style="background:rgba(239,154,154,0.2);border:1px solid rgba(239,154,154,0.4);border-radius:2px;color:#ef9a9a;font-size:8px;padding:0 3px;cursor:pointer;margin-left:2px;">X</button>`;
+          // HUD-01: Styled consistently with the industrial sci-fi theme
+          const cancelBtn = `<button data-fe-cancel data-factory-index="${i}" data-queue-index="${qi}" style="background:${HUD_THEME.dangerBg};border:1px solid ${HUD_THEME.dangerBorder};border-radius:2px;color:${HUD_THEME.dangerColor};font-size:8px;padding:1px 4px;cursor:pointer;margin-left:3px;outline:none;font-family:inherit;transition:background 0.15s;">X</button>`;
           slots.push(`${typeChar}${pct}${cancelBtn}`);
         }
         queueStr = `Queue: ${slots.join(' ')}`;
@@ -618,11 +780,11 @@ export class PlaytestHud {
       const spawnBlock = getFactorySpawnBlockReason(state, factory);
       let blockageStr = '';
       if (spawnBlock) {
-        blockageStr = `<div style="margin-left:8px; font-size:10px; color:#ef9a9a;">Blocked: ${spawnBlockLabel(spawnBlock)}</div>`;
+        blockageStr = `<div style="margin-left:8px; font-size:10px; color:${HUD_THEME.dangerColor};">Blocked: ${spawnBlockLabel(spawnBlock)}</div>`;
       }
 
       parts.push(
-        `<div><span style="color:${color};">Factory ${i + 1}:</span> ${label}</div>` +
+        `<div><span style="color:${color}; font-weight:600;">Factory ${i + 1}:</span> ${label}</div>` +
         `<div style="margin-left:8px; font-size:10px;">${queueStr}</div>` +
         blockageStr,
       );
@@ -634,9 +796,9 @@ export class PlaytestHud {
     switch (status) {
       case 'producing-builder':
       case 'producing-harvester':
-        return '#ffcc44';
-      case 'idle': return '#999';
-      default: return '#ff8866'; // blocked
+        return HUD_THEME.primaryAccent;
+      case 'idle': return HUD_THEME.mutedColor;
+      default: return HUD_THEME.dangerColor; // blocked
     }
   }
 
@@ -679,7 +841,7 @@ export class PlaytestHud {
   private formatDelta(delta: number, changed: boolean): string {
     if (!this.deltaActive || !changed || delta === 0) return '';
     const sign = delta > 0 ? '+' : '';
-    const color = delta > 0 ? '#81c784' : '#ef9a9a';
+    const color = delta > 0 ? HUD_THEME.successColor : HUD_THEME.dangerColor;
     return `<span style="color:${color}; font-size:10px;"> ${sign}${Number.isInteger(delta) ? delta : delta.toFixed(1)}</span>`;
   }
 
@@ -698,7 +860,7 @@ export class PlaytestHud {
 
     // Reachable resources count
     parts.push(
-      `<div>Reachable: <span style="color:${v.reachableResourceCount >= 2 ? '#81c784' : '#ef9a9a'};">${v.reachableResourceCount}</span>/${v.totalResourceCount}</div>`,
+      `<div>Reachable: <span style="color:${v.reachableResourceCount >= 2 ? HUD_THEME.successColor : HUD_THEME.dangerColor};">${v.reachableResourceCount}</span>/${v.totalResourceCount}</div>`,
     );
 
     // Show warnings for failed checks
@@ -709,12 +871,12 @@ export class PlaytestHud {
         if (check.id === 'resources-not-in-impassable') {
           // Soft informational — show as muted, not a blocking warning
           parts.push(
-            `<div style="color:#777;">ℹ ${check.message}</div>`,
+            `<div style="color:${HUD_THEME.dimColor};">i ${check.message}</div>`,
           );
         } else {
           // Critical — show as red warning
           parts.push(
-            `<div style="color:#ef9a9a;">⚠ ${check.message}</div>`,
+            `<div style="color:${HUD_THEME.dangerColor};">! ${check.message}</div>`,
           );
         }
       }
@@ -722,7 +884,7 @@ export class PlaytestHud {
 
     // ARCH-14B: Quick hint about pause menu for controls reference
     parts.push(
-      `<div style="margin-top:4px; color:#555;">Esc = Pause & Controls</div>`,
+      `<div style="margin-top:4px; color:${HUD_THEME.dimColor};">Esc = Pause & Controls</div>`,
     );
 
     this.diagnosticsEl.innerHTML = parts.join('');

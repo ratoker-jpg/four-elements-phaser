@@ -62,7 +62,7 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-HUD polish
+Post-UI visual QA checkpoint / owner review
 ```
 
 UI roadmap:
@@ -71,24 +71,25 @@ UI roadmap:
 1. UI-01 — Main menu visual polish and navigation shell — DONE (PR #157)
 2. UI-02 — New Game setup polish — DONE
 3. UI-03 — ESC menu polish — DONE
-4. UI-04 — Save/Continue flow polish — DONE (current PR)
-5. HUD polish — next
+4. UI-04 — Save/Continue flow polish — DONE
+5. HUD-01 — Playtest HUD readability polish — DONE (current PR)
 ```
 
 Reason:
 
 ```text
-UI-04 polished the Save/Continue flow:
-- Main Menu Continue opens a polished save slot list (existing, enhanced)
-- Save slot rows show faction, map name, economy summary, timestamp
-- Empty state includes helpful hint about creating first save
-- ESC menu Load button is now functional (opens save slot list)
-- In-game load uses existing loadGame flow via scene restart with LoadSceneData
-- Load button disabled with "no saves" label when no saves exist
-- Delete per slot and Clear All with confirmation preserved
-- Settings remains disabled placeholder
-- All save/load format and core logic unchanged
-Next is HUD polish.
+HUD-01 polished the playtest HUD visual/readability layer:
+- Economy, harvester, separator, factory sections restyled to industrial sci-fi theme
+- Build buttons use bronze/gold primary accent with proper hover/focus/active/disabled states
+- Production buttons use teal secondary accent with matching interaction states
+- Section dividers, improved spacing, and uppercase section titles
+- Cancel buttons in factory queue styled with danger accent
+- Diagnostics section uses theme-consistent colors
+- Status feedback uses success/danger colors matching theme
+- Resource delta indicators use theme success/danger colors
+- All gameplay/economy/command behavior unchanged
+- #hud-economy DOM id and text content preserved for qa:smoke
+Next is post-UI visual QA checkpoint or owner review.
 ```
 
 VISUAL-05A PR sequence (all DONE):
