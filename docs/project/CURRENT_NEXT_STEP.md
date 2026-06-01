@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: roadmap closed / waiting for next owner-defined roadmap  
+Status: BLOCKOUT-MVP roadmap active / next step is audit-only  
 Project: Four Elements Phaser  
 Date: 2026-06-01
 
@@ -21,8 +21,8 @@ What should GPT/GLM/Codex do next by default?
 Current answer:
 
 ```text
-Nothing by default. The current VISUAL/UI roadmap is closed.
-Wait for the owner to define the next roadmap.
+Run BLOCKOUT-01 Huge Roadmap Audit only.
+Do not start implementation yet.
 ```
 
 ---
@@ -30,16 +30,22 @@ Wait for the owner to define the next roadmap.
 ## Current next step
 
 ```text
-No active implementation task.
+BLOCKOUT-01 — Huge Roadmap Audit / Phase 1 Audit Only
 ```
 
-Next action:
+Mode:
 
 ```text
-Owner defines the next roadmap target.
+AUDIT ONLY
+NO CODE
+NO DOC EDITS
+NO ASSETS
+NO RUNTIME CHANGES
+NO COMMITS
+NO PR
 ```
 
-Do not start a new implementation PR from the old VISUAL/UI queue unless the owner explicitly reopens a specific item.
+The audit exists to inspect the current repo and convert `BLOCKOUT_MVP_ROADMAP.md` into a safe scoped implementation sequence.
 
 ---
 
@@ -47,183 +53,145 @@ Do not start a new implementation PR from the old VISUAL/UI queue unless the own
 
 ```text
 VISUAL/UI roadmap slice: CLOSED
-Implementation task: NONE
-Recommended mode: roadmap definition / owner review
+Current active planning direction: BLOCKOUT-MVP
+Current implementation task: NONE
+Next action: huge audit only
 ```
 
-Closure checkpoint:
+Roadmap document:
+
+```text
+docs/project/BLOCKOUT_MVP_ROADMAP.md
+```
+
+Previous closure document:
 
 ```text
 docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
 ```
 
-That closure document is the handoff for everything completed in PR #144 through PR #161.
+---
+
+## BLOCKOUT-MVP goal
+
+The new roadmap direction is:
+
+```text
+Vehicle / Combat / Upgrade Skeleton before final art.
+```
+
+The working model:
+
+```text
+reference → contract → blockout → audit → scoped implementation → validation → final assets later
+```
+
+Core rule:
+
+```text
+Do not make it beautiful before it is clear what exactly must become beautiful.
+```
+
+---
+
+## What BLOCKOUT-MVP is about
+
+The roadmap focuses on Phaser/blockout placeholders for:
+
+```text
+- vehicle bodies
+- body-specific turret mount points
+- independent turret rotation
+- semi-physics vehicle movement feel
+- recoil
+- weapon behavior families
+- primitive VFX placeholders
+- direct/splash/penetration/status damage placeholders
+- obstacle blockers
+- upgrade skeleton
+- combat readability sandbox
+```
+
+This is not a final-art roadmap.
+
+---
+
+## What is explicitly NOT active
+
+Do not start these by default:
+
+```text
+- final tank asset integration
+- deleting current/legacy tank assets
+- mass asset generation
+- full combat system
+- enemy AI/bots
+- attack waves
+- save schema rewrite
+- economy expansion
+- map size migration
+- fog of war
+- full upgrade shop UI
+- broad renderer refactor
+```
+
+---
+
+## Required next audit questions
+
+The BLOCKOUT-01 audit must answer:
+
+```text
+1. Where current unit rendering lives.
+2. Where current unit/tank data lives.
+3. How to add blockout vehicle renderer behind a flag or dev route.
+4. Whether a separate scene/dev route is safer than production wiring.
+5. How to avoid save/load breakage.
+6. How to avoid economy/mapgen/resource changes.
+7. Exact files/functions to touch.
+8. Exact forbidden files/functions.
+9. Test plan.
+10. Rollback plan.
+11. Smallest safe first code PR after the audit.
+```
+
+The audit must end with:
+
+```text
+Жду Делай
+```
 
 ---
 
 ## Closed roadmap summary
 
-### VISUAL-05A — Production industrial map integration
+The previous VISUAL/UI roadmap remains closed.
+
+Completed:
 
 ```text
-DONE
-PR #144 — Parameterize ?visual04a map preview 96/128/192
-PR #145 — Industrial terrain behind mapStyle
-PR #146 — Production industrial frame/background layer
-PR #147 — Lower-left HQ/start/resources
-PR #148 — Industrial generated map default
+VISUAL-05A — Production industrial map integration — DONE
+VISUAL-06 — Resource model/assets/wiring/rendering — DONE
+UI-01 — Main menu polish — DONE
+UI-02 — New Game setup polish — DONE
+UI-03 — ESC menu polish — DONE
+UI-04 — Save/Continue flow polish — DONE
+HUD-01 — Playtest HUD readability polish — DONE
 ```
 
-Final state:
-
-```text
-- industrial generated map is default for new games
-- mapStyle industrial/sand is preserved
-- sand/fixed/custom map paths remain fallback/reference
-- HQ/start/resources use lower-left industrial composition
-- frame/background/walls are connected in production for industrial
-- save/load compatibility preserved
-- current production small map remains 32x32
-- 96/128/192 production migration is deferred
-```
-
-### VISUAL-06 — Resource model/assets/wiring/rendering
-
-```text
-DONE
-PR #150 — VISUAL-06A resource visual model docs/design
-PR #151 — VISUAL-06B resource candidate review package
-PR #152 — VISUAL-06B1 resource model pivot
-PR #153 — VISUAL-06C approved industrial resources added
-PR #154 — VISUAL-06D preload/manifest wiring behind resourceStyle
-PR #155 — VISUAL-06E renderer wiring behind resourceStyle
-PR #156 — VISUAL-06E fixup: resourceStyle resolved from mapStyle
-```
-
-Final state:
-
-```text
-- normal resource model: 1x1 richness-tier visual assets
-- central infinite resource: 2x2 industrial asset
-- approved resource PNGs are in repo
-- industrial resource assets are preloaded through generated manifest pipeline
-- industrial resource rendering works through resourceStyle
-- industrial mapStyle resolves to industrial resourceStyle by default
-- sand mapStyle resolves to legacy resourceStyle
-- old mineral assets remain available
-- no resource economy, amount, depletion, pathfinding, or mapgen behavior changed
-```
-
-### UI roadmap — Menus, Save/Continue, HUD readability
-
-```text
-DONE
-PR #157 — UI-01 main menu visual polish and navigation shell
-PR #158 — UI-02 New Game setup polish
-PR #159 — UI-03 ESC menu polish
-PR #160 — UI-04 Save/Continue flow polish
-PR #161 — HUD-01 Playtest HUD readability polish
-```
-
-Final state:
-
-```text
-- main menu uses industrial sci-fi style
-- New Game setup matches the same style
-- ESC menu matches the same style
-- Save/Continue flow is polished around existing save/load behavior
-- ESC Load uses existing loadGame flow
-- save schema/core was not changed
-- Playtest HUD readability was polished
-- HUD gameplay/economy/build/production callbacks remain unchanged
-```
+Do not continue the old VISUAL/UI queue by inertia.
 
 ---
 
-## What is NOT active now
-
-The following are not active implementation tasks:
+## Read before doing anything
 
 ```text
-VISUAL-06F resource QA polish
-VISUAL-07 HUD layout design doc
-VISUAL-08 HUD shell implementation
-VISUAL-09 command panel/hotkey visual pass
-VISUAL-10 main menu visual refresh
-VISUAL-11 harvester/builder visual workflow design
-VISUAL-12 approved unit visual integration
-```
-
-Some of these names existed in older queue drafts, but they are not the current active roadmap.
-
-The UI work was completed through UI-01/UI-04 and HUD-01 instead.
-
----
-
-## Known deferred topics
-
-These remain known future options, not current tasks:
-
-```text
-- production map size migration to 96/128/192
-- full RTS HUD bottom bar with minimap/info/commands
-- fog of war
-- arena mode
-- unit visual workflow
-- combat/enemy/bot/AI systems
-- upgrades/progression
-- save schema/migration/autosave/cloud saves
-- resource richness gameplay/mapgen beyond small/medium/large/infinite
-```
-
-Each needs a new owner-approved roadmap or scoped task before implementation.
-
----
-
-## Rules for the next message/task
-
-If the owner asks for the next roadmap:
-
-```text
-1. Ask/derive the desired target outcome.
-2. Write a clear roadmap with phases and PR boundaries.
-3. Separate design/docs from implementation.
-4. Keep PRs small and reviewable.
-5. Do not start code until the roadmap/scope is accepted.
-```
-
-If the owner asks for immediate code without a new roadmap:
-
-```text
-Stop and clarify unless the task is a tiny, concrete bugfix.
-```
-
-If the owner asks for visual changes:
-
-```text
-Do not generate batches of assets or change runtime visuals without an approved visual contract/reference.
-```
-
----
-
-## Read before next roadmap planning
-
-```text
-docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
+docs/project/BLOCKOUT_MVP_ROADMAP.md
 docs/project/PROJECT_STATE.md
+docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
-```
-
-Historical VISUAL docs remain useful background, but they are no longer an active implementation queue:
-
-```text
-docs/project/VISUAL_ROADMAP.md
-docs/project/VISUAL_SYSTEM_AUDIT.md
-docs/project/VISUAL_CANDIDATE_SUMMARY.md
-docs/project/VISUAL_01B_LAYERED_PLATFORM_FRAME.md
-docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md
-docs/project/VISUAL_06_RESOURCE_FIELD_VISUAL_MODEL.md
+docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
 ```
 
 ---
@@ -232,9 +200,8 @@ docs/project/VISUAL_06_RESOURCE_FIELD_VISUAL_MODEL.md
 
 ```text
 We are working in ratoker-jpg/four-elements-phaser.
-The VISUAL/UI roadmap slice is closed after PR #144-#161.
-Industrial map is default, approved industrial resources are visible by default, and UI-01 through UI-04 plus HUD-01 are complete.
-Current implementation task: none.
-Next step: define a new roadmap from owner goals.
-Do not continue the old VISUAL/UI queue by inertia.
+The VISUAL/UI roadmap is closed after PR #144-#162.
+The new active planning direction is BLOCKOUT-MVP: vehicle/combat/upgrade skeleton before final art.
+Do not implement runtime code yet.
+Next step is BLOCKOUT-01 Huge Roadmap Audit, audit-only, no code.
 ```
