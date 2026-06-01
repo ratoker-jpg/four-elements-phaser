@@ -610,7 +610,9 @@ Full upgrade UI is deferred.
 
 ---
 
-## 15. High+ PR sequence
+## 15. High/High+ PR sequence
+
+Owner decision: no standalone low-risk implementation PRs. Every PR must produce visible gameplay/blockout progress. Low-risk preparatory work may exist only inside high/high+ steps that produce visible output.
 
 ### BLOCKOUT-00 — Define BLOCKOUT-MVP roadmap
 
@@ -652,53 +654,73 @@ The audit must answer:
 
 No code changes in the audit.
 
-### BLOCKOUT-02 — Config skeleton only
-
-Type: implementation  
-Risk: medium  
-Goal: add typed body/weapon/vehicle config without runtime consumption.
-
-Expected outcome:
-
-```text
-- bodyProfiles exist
-- weaponProfiles exist
-- vehicleProfiles exist
-- tests verify ids/mount categories/behavior categories
-- game output unchanged
-```
-
-### BLOCKOUT-03 — Dev-only blockout vehicle renderer
+### BLOCKOUT-02H — First visible blockout vehicles
 
 Type: implementation  
 Risk: high  
-Goal: render bodies/turrets/barrels as Phaser primitives behind a flag/dev mode.
+Goal: blockout vehicles appear as visible Graphics primitives in arena/dev mode.
 
-Expected outcome:
+This PR merges the former BLOCKOUT-02 (config skeleton), BLOCKOUT-03 (dev-only state), and BLOCKOUT-04 (primitive renderer) into a single high step that produces visible output on the first implementation PR.
+
+Includes:
 
 ```text
-- Wasp/Hunter/Dictator/Titan/Mammoth are readable as different placeholder bodies
-- mount points are visible
-- turret and barrel are separate from body
-- production/default game is unchanged when flag is off
+- blockout profile types and data (BodyProfile, WeaponProfile, VehicleProfile, MovementProfile, RecoilProfile, DamageProfile, ObstacleProfile)
+- blockout vehicle state (BlockoutVehicleState type, optional blockoutVehicles on GameState)
+- dev-only spawn command (devSpawnBlockoutVehicle)
+- primitive Phaser Graphics renderer (body rectangle, turret rectangle, barrel line, mount point circle)
+- visible arena/dev output: different body sizes readable, turret separate from body, barrel visible, mount point visible with debug overlay
+- stripModularCombatFromState extended to strip blockout vehicles
+- unit tests for profiles, state, and spawn
 ```
 
-### BLOCKOUT-04 — Turret mount/rotation skeleton
+Explicitly forbidden in this PR:
+
+```text
+- movement physics (no acceleration/braking/turn speed — vehicles are stationary or instant-movement only)
+- turret aiming (turret direction fixed to body direction — no independent turret rotation)
+- recoil (no barrel kickback or body impulse)
+- weapon VFX (no muzzle flash, projectile, cone, beam, or splash effects)
+- damage (no HP, no damage application, no status effects)
+- obstacles (no blockout obstacle placement or blocking)
+- upgrades (no upgrade config or indicators)
+- save schema (blockout vehicles are transient, not persisted)
+- economy (no resource consumption by blockout vehicles)
+- production/factory (no combat unit production in factory queue)
+- mapgen (no map generation changes)
+- final assets (no PNG sprites, no asset manifest entries)
+```
+
+Expected visible outcome:
+
+```text
+- spawn blockout vehicle via dev command in arena/dev mode
+- colored rectangle body appears at spawn tile (size varies by body profile)
+- turret rectangle + barrel line visible on body (positioned at mount point)
+- mount point circle visible with debug overlay ON
+- different body sizes readable for Wasp vs Mammoth
+- different barrel lengths visible for Smoky vs Railgun
+- production/default game unchanged when devtools flag is off
+```
+
+### BLOCKOUT-03H — Selection/control + turret aiming
 
 Type: implementation  
 Risk: high  
-Goal: independent turret rotation from body.
+Goal: blockout vehicles can be selected, controlled, and turret aims independently.
 
 Expected outcome:
 
 ```text
-- body can face one direction
-- turret can aim elsewhere
-- turret starts at body-specific mount point
-- turret turn speed is configurable
+- click to select blockout vehicle
+- right-click or WASD to control movement (instant or simple interpolation, not physics yet)
+- body rotates in movement direction
+- turret aims at mouse cursor independently from body
+- turret turn speed is configurable per body/weapon
+- visible separation between body facing and turret facing
 ```
 
-### BLOCKOUT-05 — Vehicle movement feel
+### BLOCKOUT-04H+ — Semi-physics movement
 
 Type: implementation  
 Risk: high+  
@@ -709,53 +731,68 @@ Expected outcome:
 ```text
 - Wasp feels fastest/lightest
 - Mammoth feels slowest/heaviest
+- acceleration/braking are visible
 - turn speed differences are visible
-- acceleration/braking are visible but controllable
+- body rotation lag is visible on heavy vehicles
+- mass/power influence is distinguishable across body profiles
 ```
 
-### BLOCKOUT-06 — Recoil skeleton
-
-Type: implementation  
-Risk: high  
-Goal: recoil visible by weapon type.
-
-Expected outcome:
-
-```text
-- Smoky kicks once
-- Railgun kicks hard
-- Vulcan has small repeated impulses
-- cone/beam weapons have minimal recoil
-```
-
-### BLOCKOUT-07 — Weapon VFX placeholders
+### BLOCKOUT-05H+ — Recoil + first weapon VFX set: Smoky/Railgun/Thunder
 
 Type: implementation  
 Risk: high+  
-Goal: primitive VFX for all weapon behavior families.
+Goal: visual recoil and the first three weapon VFX families.
 
 Expected outcome:
 
 ```text
-- projectile / splash / line pierce / cone / beam / rapid fire / ricochet / shotgun are visually distinct
+- Smoky: short muzzle flash + single impact dot + medium recoil
+- Railgun: bright line through target + strong recoil
+- Thunder: impact circle + splash radius ring + medium recoil + optional self-damage debug ring
+- barrel kickback visible on all three
+- recoil recovery timing is smooth
 ```
 
-### BLOCKOUT-08 — Damage behavior placeholders
+### BLOCKOUT-06H+ — Remaining weapon VFX families
 
 Type: implementation  
 Risk: high+  
-Goal: parameterized direct/splash/penetration/status behavior.
+Goal: primitive VFX for all remaining weapon behavior families.
 
 Expected outcome:
 
 ```text
-- Thunder shows splash
-- Railgun shows penetration
-- Flamethrower/Freeze show cone damage/status
-- Isida shows beam lock
+- Flamethrower: cone sector + tick markers + burn badge
+- Freeze: cone sector + freeze badge
+- Isida: beam tether + heal/damage color mode
+- Vulcan: rapid short rays + overheat meter
+- Twins: repeated plasma dots/projectiles
+- Ricochet: projectile path + bounce markers
+- Hammer: spread rays/pellets
+- Shaft: aim/charge line + final long shot line
+- all weapon families visually distinct and identifiable
 ```
 
-### BLOCKOUT-09 — Obstacle blockout
+### BLOCKOUT-07H+ — Damage placeholders
+
+Type: implementation  
+Risk: high+  
+Goal: parameterized direct/splash/penetration/status damage behavior.
+
+Expected outcome:
+
+```text
+- direct hit damage reduces HP
+- Thunder shows splash radius and damages nearby vehicles
+- Railgun shows penetration through multiple targets
+- Flamethrower/Freeze show cone damage + status effects
+- Isida shows beam lock + heal/damage mode
+- HP bars decrease on hit
+- status badges appear (burn, freeze, overheat)
+- self-damage for Thunder is testable
+```
+
+### BLOCKOUT-08H — Blockout obstacles
 
 Type: implementation  
 Risk: high  
@@ -764,26 +801,34 @@ Goal: blockers for movement/projectiles/cones/beams.
 Expected outcome:
 
 ```text
-- movement blockers work
-- projectile/cone/beam blocker behavior is testable
+- visual-only obstacles appear as colored rectangles
+- vehicles cannot drive through movement blockers
+- projectiles stop at obstacles
+- cones are clipped by obstacles
+- beams are truncated by obstacles
 - no final obstacle art required
 ```
 
-### BLOCKOUT-10 — Upgrade skeleton
+### BLOCKOUT-09H — Upgrade skeleton + visual indicators
 
-Type: docs + implementation  
+Type: implementation  
 Risk: high  
-Goal: debug/config upgrade model.
+Goal: debug/config upgrade model with visible indicators.
 
 Expected outcome:
 
 ```text
-- upgrades can be applied through debug controls/dev hotkeys
-- upgrade effects are visible via placeholder badges/outlines/parameter changes
+- upgrades applied through debug controls/dev hotkeys
+- armor upgrade shows thicker outline
+- speed upgrade shows badge
+- range upgrade shows longer aim line
+- damage upgrade shows brighter muzzle/impact
+- penetration upgrade shows different line style
+- splash upgrade shows bigger radius ring
 - no full upgrade shop UI yet
 ```
 
-### BLOCKOUT-11 — Combat readability sandbox
+### BLOCKOUT-10H+ — Combat readability sandbox
 
 Type: implementation  
 Risk: high+  
@@ -792,7 +837,7 @@ Goal: integrated test sandbox for vehicle/weapon/obstacle/upgrade readability.
 Expected outcome:
 
 ```text
-- multiple blockout vehicles visible
+- multiple blockout vehicles visible simultaneously
 - different bodies readable
 - different weapon families readable
 - recoil readable
@@ -846,7 +891,7 @@ This roadmap step is complete when:
 We are working in ratoker-jpg/four-elements-phaser.
 The VISUAL/UI roadmap is closed after PR #144-#162.
 The new active planning direction is BLOCKOUT-MVP: vehicle/combat/upgrade skeleton before final art.
-Do not implement runtime code yet.
-Next step is BLOCKOUT-01 Huge Roadmap Audit, audit-only, no code.
+BLOCKOUT-01 audit is complete. Next step is BLOCKOUT-02H (first visible blockout vehicles).
+No standalone low-risk PRs. Every PR must produce visible gameplay/blockout progress.
 Read docs/project/BLOCKOUT_MVP_ROADMAP.md, PROJECT_STATE.md, CURRENT_NEXT_STEP.md, GPT_WORKFLOW.md, and GLM_EXECUTOR_RULES.md before doing anything.
 ```

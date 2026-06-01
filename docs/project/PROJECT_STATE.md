@@ -3,14 +3,14 @@
 Status: operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Current phase: BLOCKOUT-MVP planning direction active — next step is huge audit only
+Current phase: BLOCKOUT-MVP — next step is BLOCKOUT-02H (first visible blockout vehicles)
 
 ---
 
 ## Current mode
 
 ```text
-Roadmap planning / audit preparation.
+Roadmap planning / audit complete. Ready for BLOCKOUT-02H implementation.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
@@ -21,15 +21,13 @@ The new active planning direction is:
 BLOCKOUT-MVP — Vehicle / Combat / Upgrade Skeleton
 ```
 
-There is no active implementation task yet.
+Owner decision: no standalone low-risk implementation PRs. Only high/high+ steps that produce visible gameplay/blockout progress.
 
 Next action:
 
 ```text
-BLOCKOUT-01 — Huge Roadmap Audit / Phase 1 Audit Only
+BLOCKOUT-02H — First visible blockout vehicles
 ```
-
-No runtime/code implementation should start before that audit is complete and reviewed.
 
 ---
 
@@ -72,7 +70,7 @@ Important:
 ```text
 Do not continue old VISUAL tasks by inertia.
 Do not treat old queue items as active unless the owner explicitly reopens them.
-Do not start runtime/code implementation before the BLOCKOUT-01 huge audit is accepted.
+No standalone low-risk implementation PRs — every PR must produce visible gameplay/blockout progress.
 ```
 
 ---
@@ -217,27 +215,15 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-01 — Huge Roadmap Audit / Phase 1 Audit Only
+BLOCKOUT-02H — First visible blockout vehicles
 ```
 
 Mode:
 
 ```text
-AUDIT ONLY
-NO CODE
-NO DOC EDITS
-NO ASSETS
-NO RUNTIME CHANGES
-NO COMMITS
-NO PR
-```
-
-The audit must inspect the current repo architecture and propose a safe scoped implementation plan.
-
-The audit must end with:
-
-```text
-Жду Делай
+HIGH/HIGH+ IMPLEMENTATION
+NO STANDALONE LOW-RISK PRS
+EVERY PR MUST PRODUCE VISIBLE PROGRESS
 ```
 
 ---
@@ -397,19 +383,19 @@ Sand assets and code remain in repo as fallback/reference.
 
 ## Constraints before implementation
 
-Do not start these as immediate implementation without BLOCKOUT-01 audit acceptance:
+Do not start these as immediate implementation without BLOCKOUT-02H approval:
 
 ```text
-- blockout vehicle renderer
-- body/weapon config runtime consumption
-- movement physics changes
-- turret rotation runtime changes
-- recoil system
-- weapon VFX placeholders
-- damage behavior placeholders
-- obstacle blockers
-- upgrade skeleton
-- combat readability sandbox
+- blockout vehicle renderer (part of BLOCKOUT-02H)
+- body/weapon config runtime consumption (part of BLOCKOUT-02H)
+- movement physics changes (BLOCKOUT-04H+)
+- turret rotation runtime changes (BLOCKOUT-03H)
+- recoil system (BLOCKOUT-05H+)
+- weapon VFX placeholders (BLOCKOUT-05H+, BLOCKOUT-06H+)
+- damage behavior placeholders (BLOCKOUT-07H+)
+- obstacle blockers (BLOCKOUT-08H)
+- upgrade skeleton (BLOCKOUT-09H)
+- combat readability sandbox (BLOCKOUT-10H+)
 ```
 
 ---
@@ -419,11 +405,13 @@ Do not start these as immediate implementation without BLOCKOUT-01 audit accepta
 Use this sequence:
 
 ```text
-1. BLOCKOUT-00 roadmap docs PR
-2. BLOCKOUT-01 huge audit only
-3. owner/GPT review of audit
-4. first small implementation PR only after explicit approval
-5. GPT review before each merge
+1. BLOCKOUT-00 roadmap docs PR — DONE
+2. BLOCKOUT-01 huge audit — DONE
+3. BLOCKOUT-01 fixup (date, Telegram status) — DONE
+4. BLOCKOUT roadmap fixup (high/high+ sequence) — DONE
+5. owner/GPT review of high/high+ sequence
+6. BLOCKOUT-02H first visible blockout vehicles
+7. GPT review before each merge
 ```
 
 ---
