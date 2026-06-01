@@ -265,12 +265,16 @@ export class BlockoutVehicleRenderer {
     const barrelLength = weaponProfile.blockoutBarrelLength;
     const barrelWidth = weaponProfile.blockoutBarrelWidth;
 
-    // BLOCKOUT-04H+: Use continuous worldX/worldY + offset for position
-    const cx = vehicle.worldX + this.offset.x;
-    const cy = vehicle.worldY + this.offset.y;
-
     const bodyAngle = vehicle.bodyAngle;
     const turretAngle = vehicle.turretAngle;
+
+    // BLOCKOUT-04H+: Use continuous worldX/worldY + offset for position
+    // BLOCKOUT-05H+: Include recoil body impulse offset (shifts body backward)
+    const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
+    const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
+    const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
+    const cx = vehicle.worldX + this.offset.x + bodyImpulseX;
+    const cy = vehicle.worldY + this.offset.y + bodyImpulseY;
 
     // Faction colors
     const bodyColor = FACTION_BODY_COLORS[vehicle.faction] ?? FACTION_BODY_COLORS.cyan;
@@ -368,7 +372,9 @@ export class BlockoutVehicleRenderer {
     g.translateCanvas(mountOffset.dx, mountOffset.dy);
 
     // Now rotate to turret angle (relative to body)
-    g.rotateCanvas(turretAngle - bodyAngle);
+    // BLOCKOUT-05H+: Include recoil turret kickback offset
+    const recoilTurretOffset = vehicle.recoilTurretOffset ?? 0;
+    g.rotateCanvas(turretAngle - bodyAngle - recoilTurretOffset);
 
     // Turret rectangle
     g.fillStyle(turretColor, 1);
@@ -380,10 +386,13 @@ export class BlockoutVehicleRenderer {
     g.strokeRect(-turretSize.w / 2, -turretSize.h / 2, turretSize.w, turretSize.h);
 
     // Barrel line (extends from turret center forward)
+    // BLOCKOUT-05H+: Barrel kickback — shorten barrel when recoil is active
+    const recoilBarrelOffset = vehicle.recoilBarrelOffset ?? 0;
+    const effectiveBarrelLength = Math.max(0, barrelLength - recoilBarrelOffset);
     g.lineStyle(barrelWidth, BARREL_COLOR, 1);
     g.beginPath();
     g.moveTo(turretSize.w / 2, 0);
-    g.lineTo(turretSize.w / 2 + barrelLength, 0);
+    g.lineTo(turretSize.w / 2 + effectiveBarrelLength, 0);
     g.strokePath();
 
     // ── Aim line for selected vehicle ─────────────────────────────

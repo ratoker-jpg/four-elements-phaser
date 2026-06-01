@@ -3,15 +3,15 @@
 Status: operational project state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Current phase: BLOCKOUT-MVP — BLOCKOUT-04H+ implemented, BLOCKOUT-05H+ next
+Current phase: BLOCKOUT-MVP — BLOCKOUT-05H+ implemented, BLOCKOUT-06H+ next
 
 ---
 
 ## Current mode
 
 ```text
-BLOCKOUT-04H+ implemented. Blockout vehicles have semi-physics movement.
-Next: BLOCKOUT-05H+ — Recoil + first weapon VFX set.
+BLOCKOUT-05H+ implemented. Blockout vehicles have visual-only firing, recoil, and weapon VFX for Smoky/Railgun/Thunder.
+Next: BLOCKOUT-06H+ — Remaining weapon VFX families.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
@@ -27,7 +27,7 @@ Owner decision: no standalone low-risk implementation PRs. Only high/high+ steps
 Next action:
 
 ```text
-BLOCKOUT-05H+ — Recoil + first weapon VFX set
+BLOCKOUT-06H+ — Remaining weapon VFX families
 ```
 
 ---
@@ -115,18 +115,22 @@ The project currently has:
   - movement target marker (green crosshair) and line visible
   - speed shown in debug label when moving
   - production/default game unchanged when devtools is off
-  - LMB click to select vehicle, click empty ground to deselect
-  - gold pulsing selection highlight ring on selected vehicle
-  - subtle white hover marker on hovered vehicle
-  - turret rotates toward mouse cursor independently from body
-  - turret turn speed rate-limited per weapon profile
-  - dashed red aim line from barrel toward cursor for selected vehicle
-  - weapon-specific turret turn speeds (Smoky 150deg/s, Railgun 90deg/s)
-  - body angle independent from turret angle
-  - only one vehicle selected at a time
+- FIRING BLOCKOUT VEHICLES with visual-only weapon VFX (BLOCKOUT-05H+)
+  - Press Space or F to fire selected blockout vehicle
+  - Smoky: muzzle flash + short tracer + impact dot + medium recoil
+  - Railgun: long bright line + pierce ticks + strong recoil
+  - Thunder: short tracer + explosion circle + splash radius ring + medium-heavy recoil
+  - barrel kickback visible on firing
+  - turret kickback deflects turret angle temporarily during recoil
+  - body impulse shifts vehicle backward visually during recoil
+  - recoil recovers smoothly over time
+  - cooldown prevents uncontrolled VFX spam
+  - VFX origin uses actual barrel/mount origin (not body center)
+  - rear-mounted and front_center vehicles fire from correct origin
+  - production/default game unchanged when devtools is off
 ```
 
-This is the expected baseline for BLOCKOUT-04H+.
+This is the expected baseline for BLOCKOUT-05H+.
 
 ---
 
@@ -246,7 +250,7 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-05H+ — Recoil + first weapon VFX set
+BLOCKOUT-06H+ — Remaining weapon VFX families
 ```
 
 Mode:
@@ -340,6 +344,38 @@ Implemented:
 - blockoutVehicleGeometry uses worldX/worldY instead of tileToScreen
 - all movement state is transient and not persisted in saves
 - 22 unit tests for movement, profiles, acceleration, braking, body angle, turret independence
+```
+
+### BLOCKOUT-05H+ — Recoil + first weapon VFX set
+
+```text
+Type: implementation
+Risk: HIGH+
+Status: DONE
+
+Implemented:
+- recoil profiles with pixel kickback fields (barrelKickbackPx, turretKickbackRad, bodyImpulsePx)
+- Railgun recoil > Smoky recoil on all visible dimensions
+- weapon VFX config with rendering parameters (muzzleFlashRadiusPx, impactRadiusPx, effectLengthPx)
+- weapon cooldown config (blockoutCooldownMs) prevents uncontrolled VFX spam
+- weapon range config (blockoutRangePx) for VFX length
+- BlockoutVehicleState recoil/firing fields (lastFiredAt, recoilActive, recoilStartedAt, recoilDurationMs, recoilBarrelOffset, recoilTurretOffset, recoilBodyOffset)
+- VFX event system (blockoutWeaponVfx.ts) — fire, cooldown, expire, recoil update
+- fire input (Space or F key) for selected blockout vehicle
+- Smoky VFX: muzzle flash + short tracer + impact dot + medium recoil
+- Railgun VFX: long bright line + pierce ticks + strong recoil
+- Thunder VFX: short tracer + explosion circle + splash radius ring + medium-heavy recoil
+- barrel kickback visible on firing (shortened barrel during recoil)
+- turret kickback deflects turret angle temporarily during recoil
+- body impulse shifts vehicle backward visually during recoil
+- recoil recovers smoothly over time (ease-out decay)
+- VFX origin uses actual barrel/mount origin (not body center)
+- rear-mounted and front_center vehicles fire from correct origin
+- movement from BLOCKOUT-04H+ keeps working while firing
+- turret aiming from BLOCKOUT-03H keeps working while firing
+- all firing/recoil/VFX state is transient and not persisted in saves
+- 41 unit tests for recoil, VFX, cooldown, geometry, save stripping
+- non-implemented weapons (Flamethrower, Freeze, etc.) return null from fire — no VFX
 ```
 
 ---
@@ -483,7 +519,8 @@ Use this sequence:
 6. BLOCKOUT-02H first visible blockout vehicles — DONE
 7. BLOCKOUT-03H selection/control + turret aiming — DONE
 8. BLOCKOUT-04H+ semi-physics movement — DONE
-9. BLOCKOUT-05H+ recoil + first weapon VFX set — NEXT
+9. BLOCKOUT-05H+ recoil + first weapon VFX set — DONE
+10. BLOCKOUT-06H+ remaining weapon VFX families — NEXT
 ```
 
 ---

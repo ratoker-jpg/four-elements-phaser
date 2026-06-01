@@ -70,6 +70,23 @@ export interface BlockoutVehicleState {
   /** Whether a movement target is currently active. BLOCKOUT-04H+. */
   hasMoveTarget: boolean;
 
+  // ── BLOCKOUT-05H+: Recoil/firing fields ─────────────────────────────
+
+  /** Timestamp of last weapon fire (ms since epoch). BLOCKOUT-05H+. Used for cooldown. */
+  lastFiredAt: number;
+  /** Whether recoil is currently active. BLOCKOUT-05H+. */
+  recoilActive: boolean;
+  /** Recoil start timestamp (ms since epoch). BLOCKOUT-05H+. */
+  recoilStartedAt: number;
+  /** Recoil recovery duration in ms. BLOCKOUT-05H+. */
+  recoilDurationMs: number;
+  /** Current barrel kickback offset in pixels. BLOCKOUT-05H+. Decays to 0 over recovery. */
+  recoilBarrelOffset: number;
+  /** Current turret kickback angle in radians. BLOCKOUT-05H+. Decays to 0 over recovery. */
+  recoilTurretOffset: number;
+  /** Current body impulse offset in pixels. BLOCKOUT-05H+. Decays to 0 over recovery. */
+  recoilBodyOffset: number;
+
   /** Creation timestamp (ms since epoch). Useful for debug labels. */
   createdAt: number;
 }
@@ -116,6 +133,13 @@ export function createBlockoutVehicle(
     targetWorldX: 0,
     targetWorldY: 0,
     hasMoveTarget: false,
+    lastFiredAt: 0,
+    recoilActive: false,
+    recoilStartedAt: 0,
+    recoilDurationMs: 0,
+    recoilBarrelOffset: 0,
+    recoilTurretOffset: 0,
+    recoilBodyOffset: 0,
     createdAt: Date.now(),
   };
 }

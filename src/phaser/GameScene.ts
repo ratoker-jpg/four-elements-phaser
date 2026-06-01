@@ -31,8 +31,10 @@ import { AssetPreviewTool } from './dev/AssetPreviewTool';
 import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
 import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
 import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputController';
+import { BlockoutWeaponVfxRenderer } from './render/BlockoutWeaponVfxRenderer';
 import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
+import { updateBlockoutRecoil, expireVfxEvents } from '../state/blockoutWeaponVfx';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 
 /**
@@ -128,6 +130,9 @@ export class GameScene extends Phaser.Scene {
 
   // BLOCKOUT-03H: Blockout vehicle input controller (selection/aim, only when devtools is active)
   private blockoutVehicleInputController: BlockoutVehicleInputController | null = null;
+
+  // BLOCKOUT-05H+: Blockout weapon VFX renderer (only when devtools is active)
+  private blockoutWeaponVfxRenderer: BlockoutWeaponVfxRenderer | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -370,6 +375,7 @@ export class GameScene extends Phaser.Scene {
     // BLOCKOUT-02H: Create blockout vehicle renderer and spawn initial set if devtools is active
     if (this.devtoolsActive) {
       this.blockoutVehicleRenderer = new BlockoutVehicleRenderer(this, this._offset as IsoPoint);
+      this.blockoutWeaponVfxRenderer = new BlockoutWeaponVfxRenderer(this, this._offset as IsoPoint);
       // Spawn the default blockout vehicle set in arena/dev mode
       devSpawnBlockoutVehicleSet(this.gameState);
       console.log('[GameScene] Blockout vehicle renderer enabled. Spawned default vehicle set.');
@@ -520,8 +526,21 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
+    // BLOCKOUT-05H+: Update blockout vehicle recoil
+    if (this.gameState.blockoutVehicles && this.devtoolsActive) {
+      const nowMs = this.time.now;
+      for (const vehicle of this.gameState.blockoutVehicles) {
+        updateBlockoutRecoil(vehicle, nowMs);
+      }
+      // Expire old VFX events
+      expireVfxEvents(nowMs);
+    }
     if (this.blockoutVehicleRenderer && this.gameState.blockoutVehicles) {
       this.blockoutVehicleRenderer.syncFromState(this.gameState.blockoutVehicles);
+    }
+    // BLOCKOUT-05H+: Sync weapon VFX renderer
+    if (this.blockoutWeaponVfxRenderer && this.devtoolsActive) {
+      this.blockoutWeaponVfxRenderer.syncFromState(this.time.now);
     }
 
     // 10. Debug log on unload completion
@@ -598,6 +617,8 @@ export class GameScene extends Phaser.Scene {
     this.blockoutVehicleInputController = null;
     this.blockoutVehicleRenderer?.destroy();
     this.blockoutVehicleRenderer = null;
+    this.blockoutWeaponVfxRenderer?.destroy();
+    this.blockoutWeaponVfxRenderer = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
     this.playtestHud?.destroy();
