@@ -3,7 +3,7 @@
 Status: audit complete / docs-only  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Date: 2026-06-02  
+Date: 2026-06-01  
 Source: BLOCKOUT-MVP roadmap audit — Phase 1  
 Precedes: BLOCKOUT-02 (config skeleton implementation)
 
@@ -1302,3 +1302,7 @@ No runtime code consumes these profiles yet. The game runs identically before an
 After BLOCKOUT-02 is reviewed and merged, the implementation sequence should proceed in order: BLOCKOUT-03 (state), BLOCKOUT-04 (renderer), BLOCKOUT-05 (turret), BLOCKOUT-06 (movement), BLOCKOUT-07 (recoil), BLOCKOUT-08 (VFX), BLOCKOUT-09 (damage), BLOCKOUT-10 (obstacles), BLOCKOUT-11 (upgrades), BLOCKOUT-12 (sandbox).
 
 Each PR must pass full validation (typecheck, test, build, qa:smoke) and must not modify files outside its allowed scope.
+
+---
+
+Telegram: sent

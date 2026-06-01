@@ -2,7 +2,7 @@
 
 Status: BLOCKOUT-01 audit complete / awaiting owner review before BLOCKOUT-02  
 Project: Four Elements Phaser  
-Date: 2026-06-02
+Date: 2026-06-01
 
 ---
 
