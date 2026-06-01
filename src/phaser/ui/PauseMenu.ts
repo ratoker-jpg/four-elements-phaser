@@ -17,10 +17,27 @@
  * placeholders (Save/Continue flow is UI-04). Pointer cursor on all
  * interactive elements. Focus-visible outlines for keyboard
  * accessibility. Clear hover, focus, active, and disabled states.
+ *
+ * UI-04: Load button is now functional — opens a save slot list
+ * allowing in-game load of any existing save. Load uses existing
+ * loadGame flow from saveGame module. Save slot list styled
+ * consistently with MainMenuScene's save list. Settings remains
+ * a disabled placeholder.
  */
 
 import type { GameSetupConfig } from '../../state/gameSetup';
-import { formatSaveTimestamp } from '../../state/saveGame';
+import type { Faction } from '../../state/types';
+import { FACTION_CSS_COLORS } from '../../state/gameSetup';
+import {
+  hasSaves,
+  getSaveSlotMetas,
+  loadGame,
+  deleteSave,
+  clearAllSaves,
+  formatSaveSlotSummary,
+  formatSaveTimestamp,
+  type SaveSlotMeta,
+} from '../../state/saveGame';
 
 /** Callbacks provided by GameScene for pause menu actions. */
 export interface PauseMenuCallbacks {
@@ -32,6 +49,8 @@ export interface PauseMenuCallbacks {
   onMainMenu: () => void;
   /** ARCH-15A: Save the current game. */
   onSave: () => SaveResult;
+  /** UI-04: Load a saved game. Called when player selects a save slot from in-game load list. */
+  onLoad: (gameState: import('../../state/types').GameState, mapId: string, saveSlotId: string) => void;
 }
 
 /** Result of a save operation from the pause menu. */
@@ -72,6 +91,10 @@ export class PauseMenu {
   private _visible = false;
   private statusEl: HTMLDivElement | null = null;
   private statusTimer: ReturnType<typeof setTimeout> | null = null;
+  /** UI-04: In-game load overlay container. */
+  private loadListContainer: HTMLDivElement | null = null;
+  /** UI-04-fixup: Reference to Load button so we can refresh its enabled/disabled state. */
+  private loadButton: HTMLButtonElement | null = null;
 
   /** Whether the pause menu is currently shown. */
   get visible(): boolean {
@@ -168,14 +191,24 @@ export class PauseMenu {
           // ARCH-15B: Show timestamp with success message
           const now = new Date().toISOString();
           this.showStatus(`Saved — ${formatSaveTimestamp(now)}`, true);
+          // UI-04-fixup: After successful save, refresh Load button state
+          this.refreshLoadButtonState();
         } else {
           this.showStatus('Save failed', false);
         }
       }
     }));
 
-    // Load button — secondary, disabled placeholder (UI-04)
-    btnContainer.appendChild(this.createMenuButton('Load', 'secondary', null, true));
+    // UI-04: Load button — secondary (teal), opens save slot list
+    // Enabled only when saves exist; disabled with clear label when no saves
+    const savesExist = hasSaves();
+    const loadBtn = this.createMenuButton('Load', 'secondary', savesExist ? () => {
+      this.showLoadList();
+    } : null, !savesExist);
+    this.loadButton = loadBtn;
+    btnContainer.appendChild(loadBtn);
+    // Ensure initial state matches current hasSaves()
+    this.refreshLoadButtonState();
 
     // Settings button — secondary, disabled placeholder
     btnContainer.appendChild(this.createMenuButton('Settings', 'secondary', null, true));
@@ -298,17 +331,20 @@ export class PauseMenu {
     this.container = root;
   }
 
-  /** Show the pause menu. Clears stale status. */
+  /** Show the pause menu. Clears stale status. UI-04: Also refreshes Load button state. */
   show(): void {
     this.clearStatus();
+    this.hideLoadList();
+    this.refreshLoadButtonState();
     if (this.container) {
       this.container.style.display = 'flex';
       this._visible = true;
     }
   }
 
-  /** Hide the pause menu. */
+  /** Hide the pause menu. UI-04: Also hides load list if open. */
   hide(): void {
+    this.hideLoadList();
     if (this.container) {
       this.container.style.display = 'none';
       this._visible = false;
@@ -361,6 +397,7 @@ export class PauseMenu {
       clearTimeout(this.statusTimer);
       this.statusTimer = null;
     }
+    this.hideLoadList();
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
@@ -369,6 +406,372 @@ export class PauseMenu {
     this.callbacks = null;
     this.config = null;
     this.statusEl = null;
+    this.loadButton = null;
+  }
+
+  // ── UI-04: In-game Load save slot list ──────────────────────────
+
+  /**
+   * UI-04: Show the load save slot list overlay.
+   * Lists all saves with metadata, allows the player to pick one to load,
+   * or delete a slot. Styled consistently with MainMenuScene's save list
+   * and the industrial sci-fi theme.
+   */
+  private showLoadList(): void {
+    this.hideLoadList();
+
+    const metas = getSaveSlotMetas();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'load-list-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 45;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e0e0e0;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: center center;
+    `;
+
+    const panel = document.createElement('div');
+    panel.style.cssText = `
+      background: ${MENU_THEME.panelBg};
+      border: 1px solid ${MENU_THEME.panelBorder};
+      border-radius: 8px;
+      padding: 28px 32px;
+      min-width: 380px;
+      max-width: 460px;
+      max-height: 70vh;
+      overflow-y: auto;
+    `;
+
+    // Title
+    const title = document.createElement('div');
+    title.textContent = 'Load Game';
+    title.style.cssText = `
+      font-size: 20px;
+      font-weight: 600;
+      color: ${MENU_THEME.secondaryAccent};
+      margin-bottom: 20px;
+      text-align: center;
+      letter-spacing: 1px;
+    `;
+    panel.appendChild(title);
+
+    if (metas.length === 0) {
+      const emptyMsg = document.createElement('div');
+      emptyMsg.textContent = 'No saves available';
+      emptyMsg.style.cssText = `
+        text-align: center;
+        color: ${MENU_THEME.subtitleColor};
+        font-size: 13px;
+        padding: 24px 0;
+      `;
+      panel.appendChild(emptyMsg);
+    } else {
+      // Warning about unsaved progress
+      const warning = document.createElement('div');
+      warning.textContent = 'Loading will replace your current game. Unsaved progress is lost.';
+      warning.style.cssText = `
+        text-align: center;
+        color: ${MENU_THEME.dangerColor};
+        font-size: 11px;
+        margin-bottom: 16px;
+        opacity: 0.8;
+      `;
+      panel.appendChild(warning);
+
+      for (const meta of metas) {
+        const row = this.createLoadRow(meta);
+        panel.appendChild(row);
+      }
+    }
+
+    // Button row: Clear All + Back
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = `
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    `;
+
+    if (metas.length > 0) {
+      const clearAllBtn = document.createElement('button');
+      clearAllBtn.textContent = 'Clear All';
+      clearAllBtn.style.cssText = `
+        flex: 1;
+        padding: 10px 12px;
+        background: ${MENU_THEME.dangerBg};
+        border: 1px solid ${MENU_THEME.dangerBorder};
+        border-radius: 4px;
+        color: ${MENU_THEME.dangerColor};
+        font-size: 12px;
+        font-family: inherit;
+        cursor: pointer;
+        text-align: center;
+        letter-spacing: 0.5px;
+        transition: background 0.15s;
+        outline: none;
+      `;
+      clearAllBtn.addEventListener('focus', () => {
+        clearAllBtn.style.outline = `2px solid ${MENU_THEME.dangerColor}`;
+        clearAllBtn.style.outlineOffset = '2px';
+      });
+      clearAllBtn.addEventListener('blur', () => {
+        clearAllBtn.style.outline = 'none';
+      });
+      clearAllBtn.addEventListener('mouseenter', () => {
+        clearAllBtn.style.background = 'rgba(239, 154, 154, 0.16)';
+      });
+      clearAllBtn.addEventListener('mouseleave', () => {
+        clearAllBtn.style.background = MENU_THEME.dangerBg;
+      });
+      clearAllBtn.addEventListener('click', () => {
+        if (confirm('Delete all save data? This cannot be undone.')) {
+          clearAllSaves();
+          // UI-04-fixup: Refresh Load button after clearing all saves
+          this.refreshLoadButtonState();
+          this.hideLoadList();
+          this.showLoadList();
+        }
+      });
+      btnRow.appendChild(clearAllBtn);
+    }
+
+    const backBtn = document.createElement('button');
+    backBtn.textContent = 'Back';
+    backBtn.style.cssText = `
+      flex: 1;
+      padding: 10px 12px;
+      background: ${MENU_THEME.rowBg};
+      border: 1px solid ${MENU_THEME.rowBorder};
+      border-radius: 4px;
+      color: ${MENU_THEME.subtitleColor};
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: center;
+      letter-spacing: 0.5px;
+      transition: background 0.15s;
+      outline: none;
+    `;
+    backBtn.addEventListener('focus', () => {
+      backBtn.style.outline = `2px solid ${MENU_THEME.secondaryAccent}`;
+      backBtn.style.outlineOffset = '2px';
+    });
+    backBtn.addEventListener('blur', () => {
+      backBtn.style.outline = 'none';
+    });
+    backBtn.addEventListener('mouseenter', () => {
+      backBtn.style.background = 'rgba(255,255,255,0.06)';
+    });
+    backBtn.addEventListener('mouseleave', () => {
+      backBtn.style.background = MENU_THEME.rowBg;
+    });
+    backBtn.addEventListener('click', () => {
+      this.hideLoadList();
+    });
+    btnRow.appendChild(backBtn);
+
+    panel.appendChild(btnRow);
+
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    this.loadListContainer = overlay;
+  }
+
+  /** UI-04: Create a single save slot row for the in-game load list. */
+  private createLoadRow(meta: SaveSlotMeta): HTMLDivElement {
+    const row = document.createElement('div');
+    row.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: ${MENU_THEME.rowBg};
+      border: 1px solid ${MENU_THEME.rowBorder};
+      border-radius: 4px;
+      transition: background 0.15s, border-color 0.15s;
+    `;
+
+    const factionColor = FACTION_CSS_COLORS[meta.faction as Faction] ?? MENU_THEME.secondaryAccent;
+
+    // Left: info (clickable to load)
+    const info = document.createElement('div');
+    info.style.cssText = 'flex: 1; cursor: pointer;';
+
+    const nameLine = document.createElement('div');
+    nameLine.style.cssText = `font-size: 13px; font-weight: 600; color: ${factionColor};`;
+    nameLine.textContent = `${meta.faction.charAt(0).toUpperCase() + meta.faction.slice(1)} — ${meta.mapName}`;
+    info.appendChild(nameLine);
+
+    const detailLine = document.createElement('div');
+    detailLine.style.cssText = 'font-size: 10px; color: #6b7280; margin-top: 2px;';
+    detailLine.textContent = formatSaveSlotSummary(meta.summary);
+    info.appendChild(detailLine);
+
+    const timeLine = document.createElement('div');
+    timeLine.style.cssText = 'font-size: 10px; color: #4b5563; margin-top: 1px;';
+    timeLine.textContent = formatSaveTimestamp(meta.updatedAt);
+    info.appendChild(timeLine);
+
+    // Click to load
+    info.addEventListener('click', () => {
+      const result = loadGame(meta.id);
+      if (result.success && result.gameState) {
+        this.hideLoadList();
+        this.hide();
+        this.callbacks?.onLoad(result.gameState, meta.mapId, meta.id);
+      } else {
+        this.showStatus(`Load failed: ${result.message}`, false);
+      }
+    });
+
+    info.addEventListener('mouseenter', () => {
+      row.style.background = 'rgba(128, 203, 196, 0.06)';
+      row.style.borderColor = 'rgba(128, 203, 196, 0.15)';
+    });
+    info.addEventListener('mouseleave', () => {
+      row.style.background = MENU_THEME.rowBg;
+      row.style.borderColor = MENU_THEME.rowBorder;
+    });
+
+    row.appendChild(info);
+
+    // Right: delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.style.cssText = `
+      padding: 4px 8px;
+      background: ${MENU_THEME.dangerBg};
+      border: 1px solid ${MENU_THEME.dangerBorder};
+      border-radius: 3px;
+      color: ${MENU_THEME.dangerColor};
+      font-size: 10px;
+      font-family: inherit;
+      cursor: pointer;
+      margin-left: 8px;
+      flex-shrink: 0;
+      transition: background 0.15s;
+      outline: none;
+    `;
+    deleteBtn.addEventListener('focus', () => {
+      deleteBtn.style.outline = `2px solid ${MENU_THEME.dangerColor}`;
+      deleteBtn.style.outlineOffset = '1px';
+    });
+    deleteBtn.addEventListener('blur', () => {
+      deleteBtn.style.outline = 'none';
+    });
+    deleteBtn.addEventListener('mouseenter', () => {
+      deleteBtn.style.background = 'rgba(239, 154, 154, 0.16)';
+    });
+    deleteBtn.addEventListener('mouseleave', () => {
+      deleteBtn.style.background = MENU_THEME.dangerBg;
+    });
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm(`Delete this save (${meta.faction} — ${meta.mapName})?`)) {
+        deleteSave(meta.id);
+        // UI-04-fixup: Refresh Load button after deleting a save
+        this.refreshLoadButtonState();
+        this.hideLoadList();
+        this.showLoadList();
+      }
+    });
+    row.appendChild(deleteBtn);
+
+    return row;
+  }
+
+  /** UI-04: Hide and remove the load save slot list overlay. */
+  private hideLoadList(): void {
+    if (this.loadListContainer && this.loadListContainer.parentNode) {
+      this.loadListContainer.parentNode.removeChild(this.loadListContainer);
+    }
+    this.loadListContainer = null;
+    // UI-04-fixup: Refresh Load button state after closing the load list
+    this.refreshLoadButtonState();
+  }
+
+  /**
+   * UI-04-fixup: Refresh the Load button's enabled/disabled state based on current hasSaves().
+   * Called after save, delete, clear-all, show, and hideLoadList to keep the
+   * button state in sync with the actual save data without recreating the button.
+   */
+  private refreshLoadButtonState(): void {
+    const btn = this.loadButton;
+    if (!btn) return;
+
+    const savesExist = hasSaves();
+
+    if (savesExist) {
+      btn.disabled = false;
+      // Clear any disabled-state suffix and set normal text
+      btn.textContent = 'Load';
+      btn.style.cursor = 'pointer';
+      btn.style.background = `${MENU_THEME.secondaryAccent}0d`;
+      btn.style.borderColor = `${MENU_THEME.secondaryAccent}33`;
+      btn.style.color = MENU_THEME.secondaryAccent;
+      // Re-attach the click handler if it wasn't already there — we do this
+      // by swapping to a clone to drop old listeners, then adding the fresh one.
+      const newBtn = btn.cloneNode(true) as HTMLButtonElement;
+      newBtn.addEventListener('click', () => {
+        this.showLoadList();
+      });
+      // Re-attach hover/focus/active states for enabled button
+      const accent = MENU_THEME.secondaryAccent;
+      const baseBg = `${accent}0d`;
+      const baseBorder = `${accent}33`;
+      newBtn.addEventListener('mouseenter', () => {
+        newBtn.style.background = `${accent}1a`;
+        newBtn.style.borderColor = `${accent}55`;
+      });
+      newBtn.addEventListener('mouseleave', () => {
+        newBtn.style.background = baseBg;
+        newBtn.style.borderColor = baseBorder;
+        newBtn.style.boxShadow = 'none';
+      });
+      newBtn.addEventListener('focus', () => {
+        newBtn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        newBtn.style.outlineOffset = '2px';
+      });
+      newBtn.addEventListener('blur', () => {
+        newBtn.style.outline = 'none';
+      });
+      newBtn.addEventListener('mousedown', () => {
+        newBtn.style.background = `${accent}26`;
+      });
+      newBtn.addEventListener('mouseup', () => {
+        newBtn.style.background = `${accent}1a`;
+      });
+      btn.parentNode?.replaceChild(newBtn, btn);
+      this.loadButton = newBtn;
+    } else {
+      btn.disabled = true;
+      btn.textContent = 'Load';
+      const suffix = document.createElement('span');
+      suffix.textContent = ' — no saves';
+      suffix.style.cssText = `
+        font-size: 10px;
+        color: ${MENU_THEME.disabledText};
+        margin-left: 6px;
+      `;
+      btn.appendChild(suffix);
+      btn.style.cursor = 'not-allowed';
+      btn.style.background = 'rgba(55, 65, 81, 0.3)';
+      btn.style.borderColor = 'rgba(55, 65, 81, 0.4)';
+      btn.style.color = MENU_THEME.disabledText;
+      // Remove any existing click listeners by cloning without events
+      const newBtn = btn.cloneNode(true) as HTMLButtonElement;
+      btn.parentNode?.replaceChild(newBtn, btn);
+      this.loadButton = newBtn;
+    }
   }
 
   /**
@@ -418,11 +821,13 @@ export class PauseMenu {
       outline: none;
     `;
 
-    // Disabled placeholder: show label text + subtle "Coming soon" suffix
+    // Disabled placeholder: show label text + subtle context suffix
     if (disabled) {
       btn.textContent = `${text}`;
       const suffix = document.createElement('span');
-      suffix.textContent = ' — coming soon';
+      // UI-04: Load with no saves shows "No saves" instead of generic "coming soon"
+      const suffixText = text === 'Load' ? ' — no saves' : ' — coming soon';
+      suffix.textContent = suffixText;
       suffix.style.cssText = `
         font-size: 10px;
         color: ${MENU_THEME.disabledText};

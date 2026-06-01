@@ -62,7 +62,7 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-UI-04 — Save/Continue flow polish
+HUD polish
 ```
 
 UI roadmap:
@@ -70,26 +70,25 @@ UI roadmap:
 ```text
 1. UI-01 — Main menu visual polish and navigation shell — DONE (PR #157)
 2. UI-02 — New Game setup polish — DONE
-3. UI-03 — ESC menu polish — DONE (current PR)
-4. UI-04 — Save/Continue
-5. HUD polish
+3. UI-03 — ESC menu polish — DONE
+4. UI-04 — Save/Continue flow polish — DONE (current PR)
+5. HUD polish — next
 ```
 
 Reason:
 
 ```text
-VISUAL-06A through VISUAL-06E fixup are COMPLETE (PR #150–#156).
-UI-01 polished the main menu as a clean production-ready navigation shell (PR #157).
-UI-02 polished the New Game setup screen to match the UI-01 industrial sci-fi style.
-UI-03 polishes the in-game ESC/pause menu:
-- Same bronze/gold primary accent and teal secondary accent as UI-01/UI-02
-- Resume uses primary accent (bronze/gold), other buttons use secondary (teal)
-- Load and Settings shown as disabled placeholders (UI-04 will implement)
-- Main Menu uses danger style (soft red) to indicate leaving game
-- Decorative title line, "Esc to resume" hint, hotkey help section
-- Clear hover/focus/active/disabled states on all buttons
-- All existing pause menu behavior preserved (ESC toggle, save, restart, main menu)
-Next is UI-04: Save/Continue flow polish.
+UI-04 polished the Save/Continue flow:
+- Main Menu Continue opens a polished save slot list (existing, enhanced)
+- Save slot rows show faction, map name, economy summary, timestamp
+- Empty state includes helpful hint about creating first save
+- ESC menu Load button is now functional (opens save slot list)
+- In-game load uses existing loadGame flow via scene restart with LoadSceneData
+- Load button disabled with "no saves" label when no saves exist
+- Delete per slot and Clear All with confirmation preserved
+- Settings remains disabled placeholder
+- All save/load format and core logic unchanged
+Next is HUD polish.
 ```
 
 VISUAL-05A PR sequence (all DONE):

@@ -277,6 +277,7 @@ export class GameScene extends Phaser.Scene {
 
     // ARCH-14B: Create pause menu with callbacks
     // ARCH-15A: Added onSave callback
+    // UI-04: Added onLoad callback for in-game save slot loading
     this.pauseMenu = new PauseMenu();
     this.pauseMenu.create(
       {
@@ -300,6 +301,16 @@ export class GameScene extends Phaser.Scene {
             this.currentSaveSlotId = result.slotId;
           }
           return { success: result.success, message: result.message };
+        },
+        onLoad: (gameState: GameState, mapId: string, saveSlotId: string) => {
+          // UI-04: Load a saved game from in-game ESC menu
+          // Uses scene restart with LoadSceneData, same as MainMenuScene loading
+          this.paused = false;
+          this.scene.restart({
+            loadedGameState: gameState,
+            mapId,
+            saveSlotId,
+          } as LoadSceneData);
         },
       },
       this.setupConfig,

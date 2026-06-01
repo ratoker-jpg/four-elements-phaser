@@ -365,6 +365,17 @@ export class MainMenuScene extends Phaser.Scene {
         padding: 24px 0;
       `;
       panel.appendChild(emptyMsg);
+
+      // UI-04: Helpful subtext for empty state
+      const emptyHint = document.createElement('div');
+      emptyHint.textContent = 'Start a new game and save to create your first slot.';
+      emptyHint.style.cssText = `
+        text-align: center;
+        color: #4b5563;
+        font-size: 11px;
+        margin-top: 8px;
+      `;
+      panel.appendChild(emptyHint);
     } else {
       for (const meta of metas) {
         const row = this.createSaveRow(meta);
