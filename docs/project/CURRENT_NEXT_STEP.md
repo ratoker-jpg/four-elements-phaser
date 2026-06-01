@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: BLOCKOUT-MVP roadmap active / next step is audit-only  
+Status: BLOCKOUT-01 audit complete / awaiting owner review before BLOCKOUT-02  
 Project: Four Elements Phaser  
-Date: 2026-06-01
+Date: 2026-06-02
 
 ---
 
@@ -21,8 +21,9 @@ What should GPT/GLM/Codex do next by default?
 Current answer:
 
 ```text
-Run BLOCKOUT-01 Huge Roadmap Audit only.
-Do not start implementation yet.
+Review BLOCKOUT-01 Huge Roadmap Audit (docs/project/BLOCKOUT_01_HUGE_ROADMAP_AUDIT.md).
+If audit is accepted, proceed to BLOCKOUT-02 config skeleton.
+Do not start implementation until audit is reviewed.
 ```
 
 ---
@@ -30,19 +31,17 @@ Do not start implementation yet.
 ## Current next step
 
 ```text
-BLOCKOUT-01 — Huge Roadmap Audit / Phase 1 Audit Only
+BLOCKOUT-01 audit is complete.
+Awaiting owner/GPT review of docs/project/BLOCKOUT_01_HUGE_ROADMAP_AUDIT.md.
+After review, first implementation PR is BLOCKOUT-02 (config skeleton only).
 ```
 
 Mode:
 
 ```text
-AUDIT ONLY
-NO CODE
-NO DOC EDITS
-NO ASSETS
-NO RUNTIME CHANGES
-NO COMMITS
-NO PR
+AUDIT COMPLETE — DOCS-ONLY PR
+No runtime code changes.
+No implementation until audit is reviewed.
 ```
 
 The audit exists to inspect the current repo and convert `BLOCKOUT_MVP_ROADMAP.md` into a safe scoped implementation sequence.
@@ -54,8 +53,8 @@ The audit exists to inspect the current repo and convert `BLOCKOUT_MVP_ROADMAP.m
 ```text
 VISUAL/UI roadmap slice: CLOSED
 Current active planning direction: BLOCKOUT-MVP
-Current implementation task: NONE
-Next action: huge audit only
+Current implementation task: NONE (audit complete, awaiting review)
+Next action: review BLOCKOUT-01 audit, then start BLOCKOUT-02
 ```
 
 Roadmap document:
@@ -202,6 +201,6 @@ docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
 We are working in ratoker-jpg/four-elements-phaser.
 The VISUAL/UI roadmap is closed after PR #144-#162.
 The new active planning direction is BLOCKOUT-MVP: vehicle/combat/upgrade skeleton before final art.
-Do not implement runtime code yet.
-Next step is BLOCKOUT-01 Huge Roadmap Audit, audit-only, no code.
+BLOCKOUT-01 huge roadmap audit is complete (docs/project/BLOCKOUT_01_HUGE_ROADMAP_AUDIT.md).
+Awaiting owner/GPT review before starting BLOCKOUT-02 config skeleton.
 ```
