@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createBlockoutVehicle, resetBlockoutVehicleIdCounter } from '../state/blockoutVehicleState';
 import { devSpawnBlockoutVehicle, devSpawnBlockoutVehicleSet, devClearBlockoutVehicles } from '../state/devCommands';
 import { stripModularCombatFromState } from '../state/createInitialState';
+import { saveGame, loadGame, setSaveStorage, type SaveStorage } from '../state/saveGame';
 import type { GameState } from '../state/types';
 
 /** Create a minimal GameState for testing. */
@@ -170,6 +171,15 @@ describe('devSpawnBlockoutVehicleSet', () => {
     );
     expect(hasMammothThunder).toBe(true);
   });
+
+  it('should spawn default vehicles on unique tx/ty positions (no stacking)', () => {
+    devSpawnBlockoutVehicleSet(state);
+    expect(state.blockoutVehicles).toBeDefined();
+    const positions = state.blockoutVehicles!.map(v => `${v.tx},${v.ty}`);
+    const uniquePositions = new Set(positions);
+    // Every vehicle must be on a distinct tile
+    expect(uniquePositions.size).toBe(positions.length);
+  });
 });
 
 describe('devClearBlockoutVehicles', () => {
@@ -217,5 +227,69 @@ describe('stripModularCombatFromState with blockout vehicles', () => {
     const stripped = stripModularCombatFromState(state, { includeModularCombat: false });
     // Should not crash
     expect(stripped.blockoutVehicles).toBeUndefined();
+  });
+});
+
+// ─── Save sanitization tests ────────────────────────────────────────
+
+describe('saveGame does not persist blockoutVehicles', () => {
+  let mockStorage: SaveStorage;
+
+  beforeEach(() => {
+    const store: Record<string, string> = {};
+    mockStorage = {
+      getItem(key: string): string | null {
+        return store[key] ?? null;
+      },
+      setItem(key: string, value: string): boolean {
+        store[key] = value;
+        return true;
+      },
+      removeItem(key: string): void {
+        delete store[key];
+      },
+    };
+    setSaveStorage(mockStorage);
+    resetBlockoutVehicleIdCounter();
+  });
+
+  it('saveGame should not write blockoutVehicles into saved gameState', () => {
+    const state = createTestGameState();
+    // Spawn blockout vehicles so they exist in state
+    devSpawnBlockoutVehicleSet(state);
+    expect(state.blockoutVehicles!.length).toBeGreaterThan(0);
+
+    // Save the game
+    const saveResult = saveGame(state, 'test-map');
+    expect(saveResult.success).toBe(true);
+
+    // Load the saved game
+    const loadResult = loadGame(saveResult.slotId!);
+    expect(loadResult.success).toBe(true);
+    expect(loadResult.gameState).toBeDefined();
+
+    // blockoutVehicles must NOT be in the loaded save
+    const loadedState = loadResult.gameState!;
+    expect(loadedState.blockoutVehicles).toBeUndefined();
+  });
+
+  it('saveGame should strip blockoutVehicles even when updating existing slot', () => {
+    const state = createTestGameState();
+
+    // First save without blockout vehicles
+    const saveResult = saveGame(state, 'test-map');
+    expect(saveResult.success).toBe(true);
+
+    // Add blockout vehicles and save again to same slot
+    devSpawnBlockoutVehicleSet(state);
+    expect(state.blockoutVehicles!.length).toBeGreaterThan(0);
+
+    const updateResult = saveGame(state, 'test-map', saveResult.slotId);
+    expect(updateResult.success).toBe(true);
+
+    // Load and verify blockout vehicles are NOT in the save
+    const loadResult = loadGame(saveResult.slotId!);
+    expect(loadResult.success).toBe(true);
+    expect(loadResult.gameState!.blockoutVehicles).toBeUndefined();
   });
 });

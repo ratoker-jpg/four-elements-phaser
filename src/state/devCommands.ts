@@ -215,11 +215,23 @@ export function devSpawnHarvester(state: GameState): DevCommandResult {
  * do not stack on the same tile. This is dev-spawn validation
  * only — it does not change the global passability model.
  *
+ * BLOCKOUT-02H fixup: Also rejects tiles occupied by existing
+ * blockoutVehicles so the default spawn set does not stack
+ * vehicles on the same tile.
+ *
  * Exported for testing.
  */
 export function findSpawnTileNearHq(state: GameState): { tx: number; ty: number } | null {
   const hq = state.mapData.hq;
   const occupancyMap = buildOccupancyMap(state);
+
+  // BLOCKOUT-02H fixup: Build a set of positions occupied by blockout vehicles
+  const blockoutPositions = new Set<string>();
+  if (state.blockoutVehicles) {
+    for (const bv of state.blockoutVehicles) {
+      blockoutPositions.add(`${bv.tx},${bv.ty}`);
+    }
+  }
 
   // Search rings around the 3x3 HQ footprint
   for (let ring = 0; ring < 8; ring++) {
@@ -235,6 +247,10 @@ export function findSpawnTileNearHq(state: GameState): { tx: number; ty: number 
       }
       // Reject tiles already occupied by civil units (dev-spawn validation only)
       if (isTileOccupiedByUnit(state, pos.tx, pos.ty)) {
+        continue;
+      }
+      // BLOCKOUT-02H fixup: Reject tiles occupied by existing blockout vehicles
+      if (blockoutPositions.has(`${pos.tx},${pos.ty}`)) {
         continue;
       }
       return pos;
