@@ -1,16 +1,17 @@
 # PROJECT_STATE.md
 
-Status: operational project state  
-Project: Four Elements Phaser  
-Repo: `ratoker-jpg/four-elements-phaser`  
-Current phase: BLOCKOUT-MVP — next step is BLOCKOUT-02H (first visible blockout vehicles)
+Status: operational project state
+Project: Four Elements Phaser
+Repo: `ratoker-jpg/four-elements-phaser`
+Current phase: BLOCKOUT-MVP — BLOCKOUT-02H implemented, BLOCKOUT-03H next
 
 ---
 
 ## Current mode
 
 ```text
-Roadmap planning / audit complete. Ready for BLOCKOUT-02H implementation.
+BLOCKOUT-02H implemented. Visible blockout vehicles exist in arena/dev mode.
+Next: BLOCKOUT-03H — Selection/control + turret aiming.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
@@ -26,7 +27,7 @@ Owner decision: no standalone low-risk implementation PRs. Only high/high+ steps
 Next action:
 
 ```text
-BLOCKOUT-02H — First visible blockout vehicles
+BLOCKOUT-03H — Selection/control + turret aiming
 ```
 
 ---
@@ -93,9 +94,19 @@ The project currently has:
 - polished ESC menu
 - polished Save/Continue flow
 - polished Playtest HUD readability
+- VISIBLE BLOCKOUT VEHICLES in arena/dev mode (BLOCKOUT-02H)
+  - colored rectangle body per body profile
+  - separate turret rectangle
+  - barrel line per weapon profile
+  - mount point circle (debug overlay)
+  - body size differentiation (Wasp small, Mammoth large)
+  - barrel length differentiation (Railgun long, Smoky medium)
+  - rear-mounted turrets on Wasp/Dictator
+  - front_center turrets on Titan/Mammoth
+  - production/default game unchanged when devtools is off
 ```
 
-This is the expected baseline for BLOCKOUT-MVP.
+This is the expected baseline for BLOCKOUT-03H.
 
 ---
 
@@ -215,7 +226,7 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-02H — First visible blockout vehicles
+BLOCKOUT-03H — Selection/control + turret aiming
 ```
 
 Mode:
@@ -224,6 +235,41 @@ Mode:
 HIGH/HIGH+ IMPLEMENTATION
 NO STANDALONE LOW-RISK PRS
 EVERY PR MUST PRODUCE VISIBLE PROGRESS
+```
+
+---
+
+## Completed BLOCKOUT-MVP steps
+
+### BLOCKOUT-00 — Define BLOCKOUT-MVP roadmap
+
+```text
+Type: docs-only
+Status: DONE
+```
+
+### BLOCKOUT-01 — Huge roadmap audit
+
+```text
+Type: audit-only
+Status: DONE
+```
+
+### BLOCKOUT-02H — First visible blockout vehicles
+
+```text
+Type: implementation
+Risk: HIGH
+Status: DONE
+
+Implemented:
+- blockout profile types and data (BodyProfile, WeaponProfile, VehicleProfile, MovementProfile, RecoilProfile, DamageProfile, ObstacleProfile)
+- blockout vehicle state (BlockoutVehicleState, optional blockoutVehicles on GameState)
+- dev-only spawn commands (devSpawnBlockoutVehicle, devSpawnBlockoutVehicleSet, devClearBlockoutVehicles)
+- primitive Phaser Graphics renderer (body rectangle, turret rectangle, barrel line, mount point circle)
+- visible arena/dev output: different body sizes readable, turret separate from body, barrel visible, mount point visible
+- stripModularCombatFromState extended to strip blockout vehicles
+- 45 unit tests for profiles, state, and spawn
 ```
 
 ---
@@ -264,35 +310,6 @@ PR #155 — VISUAL-06E: Render industrial resources behind resourceStyle
 PR #156 — VISUAL-06E fixup: Resolve resourceStyle from mapStyle
 ```
 
-Final state:
-
-```text
-- resource visual model accepted: 1x1 normal resources + 2x2 central infinite
-- approved resource PNGs are committed under public/assets/environment/resources
-- assets are loaded through generated manifest/preload pipeline
-- renderer maps current ResourceType values to approved industrial assets
-- mapStyle=industrial resolves to resourceStyle=industrial
-- mapStyle=sand resolves to resourceStyle=legacy
-- old minerals remain available
-- resource gameplay/economy/amount/depletion/pathfinding unchanged
-```
-
-Current production resource visual mapping:
-
-```text
-small    -> resource_industrial_poor_01
-medium   -> resource_industrial_medium_01
-large    -> resource_industrial_rich_01
-infinite -> resource_industrial_infinite_center_2x2_01
-```
-
-Available but not production-mapped yet:
-
-```text
-resource_industrial_very_poor_01
-resource_industrial_very_rich_01
-```
-
 ### UI roadmap — menus, setup, pause, save/continue, HUD
 
 ```text
@@ -302,21 +319,6 @@ PR #159 — UI-03: ESC menu polish
 PR #160 — UI-04: Save/Continue flow polish
 PR #161 — HUD-01: Playtest HUD readability polish
 PR #162 — VISUAL/UI roadmap closure checkpoint
-```
-
-Final state:
-
-```text
-- main menu uses industrial UI direction
-- New Game setup uses same UI direction
-- ESC menu uses same UI direction
-- Main Menu Continue flow is polished
-- ESC Save remains functional
-- ESC Load opens save slot list using existing loadGame flow
-- save format/schema unchanged
-- Playtest HUD readability polished
-- HUD callbacks and gameplay logic preserved
-- old VISUAL/UI queue closed
 ```
 
 ---
@@ -383,13 +385,12 @@ Sand assets and code remain in repo as fallback/reference.
 
 ## Constraints before implementation
 
-Do not start these as immediate implementation without BLOCKOUT-02H approval:
+Do not start these as immediate implementation without BLOCKOUT-03H approval:
 
 ```text
-- blockout vehicle renderer (part of BLOCKOUT-02H)
-- body/weapon config runtime consumption (part of BLOCKOUT-02H)
+- blockout vehicle selection/control (part of BLOCKOUT-03H)
+- turret aiming runtime changes (BLOCKOUT-03H)
 - movement physics changes (BLOCKOUT-04H+)
-- turret rotation runtime changes (BLOCKOUT-03H)
 - recoil system (BLOCKOUT-05H+)
 - weapon VFX placeholders (BLOCKOUT-05H+, BLOCKOUT-06H+)
 - damage behavior placeholders (BLOCKOUT-07H+)
@@ -409,9 +410,10 @@ Use this sequence:
 2. BLOCKOUT-01 huge audit — DONE
 3. BLOCKOUT-01 fixup (date, Telegram status) — DONE
 4. BLOCKOUT roadmap fixup (high/high+ sequence) — DONE
-5. owner/GPT review of high/high+ sequence
-6. BLOCKOUT-02H first visible blockout vehicles
-7. GPT review before each merge
+5. owner/GPT review of high/high+ sequence — DONE
+6. BLOCKOUT-02H first visible blockout vehicles — DONE
+7. BLOCKOUT-03H selection/control + turret aiming — NEXT
+8. GPT review before each merge
 ```
 
 ---

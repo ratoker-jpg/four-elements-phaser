@@ -201,10 +201,32 @@ export function getLatestSaveMeta(): SaveSlotMeta | null {
 }
 
 /**
+ * Strip dev-only transient data from GameState before serialization.
+ *
+ * BLOCKOUT-02H fixup: blockoutVehicles are dev-only and must never
+ * be persisted in saves. This function creates a sanitized copy
+ * (does not mutate the input) with blockoutVehicles removed.
+ *
+ * Does not bump save version. Does not change save schema.
+ */
+function sanitizeForSave(gameState: GameState): GameState {
+  if (!gameState.blockoutVehicles || gameState.blockoutVehicles.length === 0) {
+    // No blockout vehicles to strip — return as-is to avoid unnecessary copy
+    return gameState;
+  }
+  // Create a shallow copy with blockoutVehicles omitted
+  const { blockoutVehicles: _bv, ...rest } = gameState;
+  return rest;
+}
+
+/**
  * Save the current game state into a new or existing slot.
  *
  * If a slot with the given slotId exists, it is updated.
  * Otherwise a new slot is created (if under MAX_SAVE_SLOTS).
+ *
+ * BLOCKOUT-02H fixup: GameState is sanitized before writing to
+ * ensure dev-only transient data (blockoutVehicles) is not persisted.
  */
 export function saveGame(
   gameState: GameState,
@@ -214,7 +236,10 @@ export function saveGame(
   const slots = readSlots();
   const now = new Date().toISOString();
 
-  const summary = buildSummary(gameState);
+  // BLOCKOUT-02H fixup: Strip dev-only data before serialization
+  const sanitizedState = sanitizeForSave(gameState);
+
+  const summary = buildSummary(sanitizedState);
 
   if (slotId) {
     // Update existing slot
@@ -227,7 +252,7 @@ export function saveGame(
       updatedAt: now,
       summary,
       version: SAVE_VERSION,
-      gameState,
+      gameState: sanitizedState,
     };
     if (!writeSlots(slots)) {
       return { success: false, message: 'Save failed' };
@@ -245,12 +270,12 @@ export function saveGame(
     id: newId,
     createdAt: now,
     updatedAt: now,
-    faction: gameState.playerFaction,
+    faction: sanitizedState.playerFaction,
     mapId,
-    mapName: gameState.mapName,
+    mapName: sanitizedState.mapName,
     summary,
     version: SAVE_VERSION,
-    gameState,
+    gameState: sanitizedState,
   };
 
   slots.push(newSlot);
