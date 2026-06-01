@@ -62,24 +62,29 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-VISUAL-06F — QA polish for resource readability, placement/origin, scale
+UI-02 — New Game setup polish
 ```
 
-Alternative:
+UI roadmap:
 
 ```text
-Post-VISUAL-05A QA polish backlog
+1. UI-01 — Main menu visual polish and navigation shell — DONE (current PR)
+2. UI-02 — New Game setup polish
+3. UI-03 — ESC menu
+4. UI-04 — Save/Continue
+5. HUD polish
 ```
 
 Reason:
 
 ```text
-VISUAL-06A/06B/06B1 are COMPLETE (PR #150, #151, #152).
-VISUAL-06C approved resource assets are added (PR #153, merged).
-VISUAL-06D wires assets into preload/manifest behind resourceStyle flag (PR #154, merged).
-VISUAL-06E renders industrial resources behind resourceStyle flag (PR #155, merged).
-VISUAL-06E fixup resolves resourceStyle from mapStyle so industrial maps use industrial resources by default (current PR).
-VISUAL-06F will address QA polish for readability, scale, and origin adjustments.
+VISUAL-06A through VISUAL-06E fixup are COMPLETE (PR #150–#156).
+UI-01 polishes the main menu as a clean production-ready navigation shell:
+- Industrial sci-fi visual direction with warm bronze/gold primary accent
+- Clean vertical button layout with hover/focus/active feedback
+- Continue disabled when no saves, Settings functional with UI Scale
+- skipMenu/devtools/arena flows preserved
+Next is UI-02: New Game setup scene polish.
 ```
 
 VISUAL-05A PR sequence (all DONE):
