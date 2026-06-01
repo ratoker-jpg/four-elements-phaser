@@ -27,7 +27,7 @@ Owner decision: no standalone low-risk implementation PRs. Only high/high+ steps
 Next action:
 
 ```text
-BLOCKOUT-05H+ — Recoil + first weapon VFX set
+BLOCKOUT-06H+ — Remaining weapon VFX families
 ```
 
 ---
