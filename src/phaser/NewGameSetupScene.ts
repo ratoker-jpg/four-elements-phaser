@@ -8,6 +8,12 @@
  * (small/standard/large), and seed input with random seed button.
  *
  * ARCH-14C: Esc goes back, consistent button hover/disabled states.
+ *
+ * UI-02: Polished to match UI-01 main menu industrial sci-fi visual
+ * direction. Warm bronze/gold primary accent, teal secondary accent,
+ * dark slate background. Pointer cursor on all interactive elements.
+ * Focus-visible outlines for keyboard accessibility. Clear selected,
+ * hover, focus, and active states on all option selectors.
  */
 
 import Phaser from 'phaser';
@@ -30,6 +36,35 @@ import type { Faction } from '../state/types';
 import type { MapSizeOption } from '../state/generatedMap';
 import { createRandomSeed, generatedMapId, mapSizeToDimensions } from '../state/generatedMap';
 import { loadGeneratedModularUnitAssets, isModularUnitsLoaded } from '../assets/runtimeGeneratedAssets';
+
+/** UI-02: Shared CSS custom properties matching UI-01 industrial menu theme. */
+const MENU_THEME = {
+  bg: '#111827',
+  bgOverlay: 'rgba(17, 24, 39, 0.97)',
+  titleColor: '#e0f2fe',
+  subtitleColor: '#64748b',
+  primaryAccent: '#d4a574',
+  primaryAccentLight: '#e8c9a0',
+  secondaryAccent: '#80cbc4',
+  secondaryAccentLight: '#a7d8d2',
+  disabledColor: '#374151',
+  disabledText: '#4b5563',
+  borderColor: 'rgba(212, 165, 116, 0.2)',
+  hoverBorder: 'rgba(212, 165, 116, 0.5)',
+  focusOutline: '#d4a574',
+  dangerColor: '#ef9a9a',
+  dangerBg: 'rgba(239, 154, 154, 0.08)',
+  dangerBorder: 'rgba(239, 154, 154, 0.2)',
+  panelBg: 'rgba(17, 24, 39, 0.97)',
+  panelBorder: 'rgba(255, 255, 255, 0.08)',
+  rowBg: 'rgba(255, 255, 255, 0.02)',
+  rowBorder: 'rgba(255, 255, 255, 0.05)',
+  footerColor: '#334155',
+  /** Unselected option base color */
+  unselectedBg: 'rgba(255, 255, 255, 0.03)',
+  unselectedBorder: 'rgba(255, 255, 255, 0.08)',
+  unselectedText: '#6b7280',
+} as const;
 
 export class NewGameSetupScene extends Phaser.Scene {
   private container: HTMLDivElement | null = null;
@@ -58,7 +93,7 @@ export class NewGameSetupScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
+    this.cameras.main.setBackgroundColor(MENU_THEME.bg);
     this.createDomOverlay();
 
     // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
@@ -83,7 +118,7 @@ export class NewGameSetupScene extends Phaser.Scene {
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      background: rgba(26, 26, 46, 0.95);
+      background: ${MENU_THEME.bgOverlay};
       z-index: 30;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #e0e0e0;
@@ -91,44 +126,66 @@ export class NewGameSetupScene extends Phaser.Scene {
       transform-origin: center center;
     `;
 
-    // Title
+    // ── Title area ──────────────────────────────────────────────
+    const titleArea = document.createElement('div');
+    titleArea.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 32px;
+    `;
+
     const title = document.createElement('div');
     title.textContent = 'New Game';
     title.style.cssText = `
-      font-size: 32px;
-      font-weight: 600;
-      color: #4fc3f7;
-      margin-bottom: 32px;
+      font-size: 36px;
+      font-weight: 700;
+      color: ${MENU_THEME.titleColor};
+      letter-spacing: 3px;
+      text-transform: uppercase;
     `;
-    root.appendChild(title);
+    titleArea.appendChild(title);
 
-    // Setup container
+    // Decorative line under title (matching UI-01 main menu)
+    const titleLine = document.createElement('div');
+    titleLine.style.cssText = `
+      width: 80px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, ${MENU_THEME.primaryAccent}, transparent);
+      margin: 12px 0 8px;
+    `;
+    titleArea.appendChild(titleLine);
+
+    const subtitle = document.createElement('div');
+    subtitle.textContent = 'Configure your game';
+    subtitle.style.cssText = `
+      font-size: 11px;
+      color: ${MENU_THEME.subtitleColor};
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    `;
+    titleArea.appendChild(subtitle);
+
+    root.appendChild(titleArea);
+
+    // ── Setup container ─────────────────────────────────────────
     const setupBox = document.createElement('div');
     setupBox.style.cssText = `
       display: flex;
       flex-direction: column;
-      gap: 20px;
-      width: 400px;
+      gap: 18px;
+      width: 420px;
     `;
 
     // ── Faction selection ────────────────────────────────────────
     const factionSection = document.createElement('div');
-    const factionLabel = document.createElement('div');
-    factionLabel.textContent = 'Faction';
-    factionLabel.style.cssText = `
-      font-size: 14px;
-      font-weight: 600;
-      color: #999;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    `;
+    const factionLabel = this.createSectionLabel('Faction');
     factionSection.appendChild(factionLabel);
 
     const factionGrid = document.createElement('div');
     factionGrid.style.cssText = `
       display: flex;
-      gap: 8px;
+      gap: 6px;
     `;
 
     for (const faction of FACTION_LIST) {
@@ -137,6 +194,22 @@ export class NewGameSetupScene extends Phaser.Scene {
       btn.dataset.faction = faction;
       btn.style.cssText = this.factionButtonStyle(faction, faction === this.selectedFaction);
 
+      btn.addEventListener('mouseenter', () => {
+        if (faction !== this.selectedFaction) {
+          btn.style.borderColor = `${FACTION_CSS_COLORS[faction]}44`;
+          btn.style.background = `${FACTION_CSS_COLORS[faction]}0d`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.cssText = this.factionButtonStyle(faction, faction === this.selectedFaction);
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
       btn.addEventListener('click', () => {
         this.selectedFaction = faction;
         const buttons = factionGrid.querySelectorAll('button');
@@ -153,36 +226,51 @@ export class NewGameSetupScene extends Phaser.Scene {
 
     // ── Game Mode selection (MENU-01) ────────────────────────────
     const gameModeSection = document.createElement('div');
-    const gameModeLabel = document.createElement('div');
-    gameModeLabel.textContent = 'Game Mode';
-    gameModeLabel.style.cssText = `
-      font-size: 14px;
-      font-weight: 600;
-      color: #999;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    `;
+    const gameModeLabel = this.createSectionLabel('Game Mode');
     gameModeSection.appendChild(gameModeLabel);
 
     const gameModeGrid = document.createElement('div');
     gameModeGrid.style.cssText = `
       display: flex;
-      gap: 8px;
+      gap: 6px;
     `;
+
+    // Colors per mode matching UI-01 industrial theme
+    const gameModeColors: Record<GameMode, string> = {
+      standard: MENU_THEME.secondaryAccent,
+      debug: '#ffa726',
+      arena: '#ef5350',
+    };
 
     for (const mode of GAME_MODE_LIST) {
       const btn = document.createElement('button');
       btn.textContent = GAME_MODE_LABELS[mode];
       btn.dataset.gameMode = mode;
-      btn.style.cssText = this.gameModeButtonStyle(mode, mode === this.selectedGameMode);
+      const color = gameModeColors[mode];
+      btn.style.cssText = this.optionButtonStyle(color, mode === this.selectedGameMode);
 
+      btn.addEventListener('mouseenter', () => {
+        if (mode !== this.selectedGameMode) {
+          btn.style.borderColor = `${color}44`;
+          btn.style.background = `${color}0d`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.cssText = this.optionButtonStyle(color, mode === this.selectedGameMode);
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
       btn.addEventListener('click', () => {
         this.selectedGameMode = mode;
         const buttons = gameModeGrid.querySelectorAll('button');
         buttons.forEach(b => {
           const m = (b as HTMLButtonElement).dataset.gameMode as GameMode;
-          b.style.cssText = this.gameModeButtonStyle(m, m === this.selectedGameMode);
+          b.style.cssText = this.optionButtonStyle(gameModeColors[m], m === this.selectedGameMode);
         });
         this.updateConditionalSections();
         this.updateMapSummary();
@@ -197,30 +285,22 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.gameModeNote = document.createElement('div');
     this.gameModeNote.style.cssText = `
       font-size: 11px;
-      color: #888;
-      min-height: 16px;
+      color: ${MENU_THEME.subtitleColor};
+      min-height: 14px;
       font-style: italic;
+      margin-top: -10px;
     `;
     setupBox.appendChild(this.gameModeNote);
 
     // ── Map mode selection ────────────────────────────────────────
     this.mapSection = document.createElement('div');
-    const mapLabel = document.createElement('div');
-    mapLabel.textContent = 'Map';
-    mapLabel.style.cssText = `
-      font-size: 14px;
-      font-weight: 600;
-      color: #999;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    `;
+    const mapLabel = this.createSectionLabel('Map');
     this.mapSection.appendChild(mapLabel);
 
     const mapGrid = document.createElement('div');
     mapGrid.style.cssText = `
       display: flex;
-      gap: 8px;
+      gap: 6px;
     `;
 
     for (const map of MAP_LIST) {
@@ -229,17 +309,34 @@ export class NewGameSetupScene extends Phaser.Scene {
       btn.dataset.mapId = map.id;
       btn.dataset.mapMode = map.mode;
       const isSelected = map.id === this.selectedMapId && map.mode === this.selectedMapMode;
-      btn.style.cssText = this.mapButtonStyle(isSelected);
+      btn.style.cssText = this.optionButtonStyle(MENU_THEME.secondaryAccent, isSelected);
 
+      btn.addEventListener('mouseenter', () => {
+        const currentlySelected = map.id === this.selectedMapId && map.mode === this.selectedMapMode;
+        if (!currentlySelected) {
+          btn.style.borderColor = `${MENU_THEME.secondaryAccent}44`;
+          btn.style.background = `${MENU_THEME.secondaryAccent}0d`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        const currentlySelected = map.id === this.selectedMapId && map.mode === this.selectedMapMode;
+        btn.style.cssText = this.optionButtonStyle(MENU_THEME.secondaryAccent, currentlySelected);
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
       btn.addEventListener('click', () => {
         this.selectedMapMode = map.mode as MapMode;
         this.selectedMapId = map.id;
-        // Update all map button styles
         const buttons = mapGrid.querySelectorAll('button');
         buttons.forEach(b => {
           const bMapId = (b as HTMLButtonElement).dataset.mapId!;
           const bMode = (b as HTMLButtonElement).dataset.mapMode as MapMode;
-          b.style.cssText = this.mapButtonStyle(bMapId === this.selectedMapId && bMode === this.selectedMapMode);
+          b.style.cssText = this.optionButtonStyle(MENU_THEME.secondaryAccent, bMapId === this.selectedMapId && bMode === this.selectedMapMode);
         });
         this.updateConditionalSections();
         this.updateMapSummary();
@@ -250,79 +347,51 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.mapSection.appendChild(mapGrid);
     setupBox.appendChild(this.mapSection);
 
-    // ── Size selection (only for generated maps) ──────────────────
-    this.sizeSection = document.createElement('div');
-    const sizeLabel = document.createElement('div');
-    sizeLabel.textContent = 'Map Size';
-    sizeLabel.style.cssText = `
-      font-size: 14px;
-      font-weight: 600;
-      color: #999;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    `;
-    this.sizeSection.appendChild(sizeLabel);
-
-    this.sizeContainer = document.createElement('div');
-    this.sizeContainer.style.cssText = `
-      display: flex;
-      gap: 8px;
-    `;
-
-    for (const size of MAP_SIZE_OPTIONS) {
-      const btn = document.createElement('button');
-      btn.textContent = size.charAt(0).toUpperCase() + size.slice(1);
-      btn.dataset.mapSize = size;
-      btn.style.cssText = this.sizeButtonStyle(size === this.selectedMapSize);
-
-      btn.addEventListener('click', () => {
-        this.selectedMapSize = size;
-        const buttons = this.sizeContainer!.querySelectorAll('button');
-        buttons.forEach(b => {
-          const s = (b as HTMLButtonElement).dataset.mapSize as MapSizeOption;
-          b.style.cssText = this.sizeButtonStyle(s === this.selectedMapSize);
-        });
-        this.updateMapSummary();
-      });
-
-      this.sizeContainer.appendChild(btn);
-    }
-    this.sizeSection.appendChild(this.sizeContainer);
-    setupBox.appendChild(this.sizeSection);
-
     // ── Map Style selection (VISUAL-05A-PR2) ──────────────────────
     this.mapStyleSection = document.createElement('div');
-    const mapStyleLabel = document.createElement('div');
-    mapStyleLabel.textContent = 'Map Style';
-    mapStyleLabel.style.cssText = `
-      font-size: 14px;
-      font-weight: 600;
-      color: #999;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    `;
+    const mapStyleLabel = this.createSectionLabel('Map Style');
     this.mapStyleSection.appendChild(mapStyleLabel);
 
     const mapStyleGrid = document.createElement('div');
     mapStyleGrid.style.cssText = `
       display: flex;
-      gap: 8px;
+      gap: 6px;
     `;
+
+    const mapStyleColors: Record<MapStyle, string> = {
+      industrial: MENU_THEME.secondaryAccent,
+      sand: '#a1887f',
+    };
 
     for (const style of MAP_STYLE_OPTIONS) {
       const btn = document.createElement('button');
       btn.textContent = MAP_STYLE_LABELS[style];
       btn.dataset.mapStyle = style;
-      btn.style.cssText = this.mapStyleButtonStyle(style, style === this.selectedMapStyle);
+      const color = mapStyleColors[style];
+      btn.style.cssText = this.optionButtonStyle(color, style === this.selectedMapStyle);
 
+      btn.addEventListener('mouseenter', () => {
+        if (style !== this.selectedMapStyle) {
+          btn.style.borderColor = `${color}44`;
+          btn.style.background = `${color}0d`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.cssText = this.optionButtonStyle(color, style === this.selectedMapStyle);
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
       btn.addEventListener('click', () => {
         this.selectedMapStyle = style;
         const buttons = mapStyleGrid.querySelectorAll('button');
         buttons.forEach(b => {
           const s = (b as HTMLButtonElement).dataset.mapStyle as MapStyle;
-          b.style.cssText = this.mapStyleButtonStyle(s, s === this.selectedMapStyle);
+          b.style.cssText = this.optionButtonStyle(mapStyleColors[s], s === this.selectedMapStyle);
         });
         this.updateMapSummary();
       });
@@ -332,18 +401,57 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.mapStyleSection.appendChild(mapStyleGrid);
     setupBox.appendChild(this.mapStyleSection);
 
+    // ── Size selection (only for generated maps) ──────────────────
+    this.sizeSection = document.createElement('div');
+    const sizeLabel = this.createSectionLabel('Map Size');
+    this.sizeSection.appendChild(sizeLabel);
+
+    this.sizeContainer = document.createElement('div');
+    this.sizeContainer.style.cssText = `
+      display: flex;
+      gap: 6px;
+    `;
+
+    for (const size of MAP_SIZE_OPTIONS) {
+      const btn = document.createElement('button');
+      btn.textContent = size.charAt(0).toUpperCase() + size.slice(1);
+      btn.dataset.mapSize = size;
+      btn.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, size === this.selectedMapSize, '13px');
+
+      btn.addEventListener('mouseenter', () => {
+        if (size !== this.selectedMapSize) {
+          btn.style.borderColor = `${MENU_THEME.primaryAccent}44`;
+          btn.style.background = `${MENU_THEME.primaryAccent}0d`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, size === this.selectedMapSize, '13px');
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
+      btn.addEventListener('click', () => {
+        this.selectedMapSize = size;
+        const buttons = this.sizeContainer!.querySelectorAll('button');
+        buttons.forEach(b => {
+          const s = (b as HTMLButtonElement).dataset.mapSize as MapSizeOption;
+          b.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, s === this.selectedMapSize, '13px');
+        });
+        this.updateMapSummary();
+      });
+
+      this.sizeContainer.appendChild(btn);
+    }
+    this.sizeSection.appendChild(this.sizeContainer);
+    setupBox.appendChild(this.sizeSection);
+
     // ── Seed input (only for generated maps) ─────────────────────
     this.seedSection = document.createElement('div');
-    const seedLabel = document.createElement('div');
-    seedLabel.textContent = 'Seed';
-    seedLabel.style.cssText = `
-      font-size: 14px;
-      font-weight: 600;
-      color: #999;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    `;
+    const seedLabel = this.createSectionLabel('Seed');
     this.seedSection.appendChild(seedLabel);
 
     this.seedContainer = document.createElement('div');
@@ -358,46 +466,67 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.seedInput.placeholder = 'Enter seed...';
     this.seedInput.style.cssText = `
       flex: 1;
-      padding: 8px 12px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.15);
+      padding: 9px 12px;
+      background: ${MENU_THEME.rowBg};
+      border: 1px solid ${MENU_THEME.rowBorder};
       border-radius: 4px;
       color: #e0e0e0;
-      font-size: 14px;
+      font-size: 13px;
       font-family: monospace;
       outline: none;
+      transition: border-color 0.15s;
     `;
     this.seedInput.addEventListener('input', () => {
       this.updateMapSummary();
     });
     this.seedInput.addEventListener('focus', () => {
-      this.seedInput!.style.borderColor = 'rgba(79, 195, 247, 0.5)';
+      this.seedInput!.style.borderColor = `${MENU_THEME.secondaryAccent}55`;
     });
     this.seedInput.addEventListener('blur', () => {
-      this.seedInput!.style.borderColor = 'rgba(255,255,255,0.15)';
+      this.seedInput!.style.borderColor = MENU_THEME.rowBorder;
     });
     this.seedContainer.appendChild(this.seedInput);
 
-    // Random seed button
+    // Random seed button — secondary accent style
     const randomSeedBtn = document.createElement('button');
     randomSeedBtn.textContent = 'Random';
+    const randomSeedAccent = MENU_THEME.secondaryAccent;
+    const randomSeedBaseBg = `${randomSeedAccent}0d`;
+    const randomSeedBaseBorder = `${randomSeedAccent}33`;
     randomSeedBtn.style.cssText = `
-      padding: 8px 12px;
-      background: rgba(79, 195, 247, 0.1);
-      border: 1px solid rgba(79, 195, 247, 0.3);
+      padding: 9px 14px;
+      background: ${randomSeedBaseBg};
+      border: 1px solid ${randomSeedBaseBorder};
       border-radius: 4px;
-      color: #4fc3f7;
-      font-size: 13px;
+      color: ${randomSeedAccent};
+      font-size: 12px;
       font-family: inherit;
+      font-weight: 500;
       cursor: pointer;
       white-space: nowrap;
-      transition: background 0.15s;
+      transition: background 0.15s, border-color 0.15s;
+      outline: none;
     `;
     randomSeedBtn.addEventListener('mouseenter', () => {
-      randomSeedBtn.style.background = 'rgba(79, 195, 247, 0.2)';
+      randomSeedBtn.style.background = `${randomSeedAccent}1a`;
+      randomSeedBtn.style.borderColor = `${randomSeedAccent}55`;
     });
     randomSeedBtn.addEventListener('mouseleave', () => {
-      randomSeedBtn.style.background = 'rgba(79, 195, 247, 0.1)';
+      randomSeedBtn.style.background = randomSeedBaseBg;
+      randomSeedBtn.style.borderColor = randomSeedBaseBorder;
+    });
+    randomSeedBtn.addEventListener('focus', () => {
+      randomSeedBtn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+      randomSeedBtn.style.outlineOffset = '2px';
+    });
+    randomSeedBtn.addEventListener('blur', () => {
+      randomSeedBtn.style.outline = 'none';
+    });
+    randomSeedBtn.addEventListener('mousedown', () => {
+      randomSeedBtn.style.background = `${randomSeedAccent}26`;
+    });
+    randomSeedBtn.addEventListener('mouseup', () => {
+      randomSeedBtn.style.background = `${randomSeedAccent}1a`;
     });
     randomSeedBtn.addEventListener('click', () => {
       if (this.seedInput) {
@@ -414,8 +543,9 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.mapSummary = document.createElement('div');
     this.mapSummary.style.cssText = `
       font-size: 11px;
-      color: #666;
-      min-height: 16px;
+      color: ${MENU_THEME.subtitleColor};
+      min-height: 14px;
+      margin-top: -8px;
     `;
     setupBox.appendChild(this.mapSummary);
 
@@ -423,36 +553,18 @@ export class NewGameSetupScene extends Phaser.Scene {
     const buttonRow = document.createElement('div');
     buttonRow.style.cssText = `
       display: flex;
-      gap: 12px;
-      margin-top: 8px;
+      gap: 10px;
+      margin-top: 4px;
     `;
 
-    // Back button
-    const backBtn = document.createElement('button');
-    backBtn.textContent = 'Back';
-    backBtn.style.cssText = this.actionButtonStyle('#888', 'rgba(150,150,150,0.1)');
-    backBtn.addEventListener('mouseenter', () => {
-      backBtn.style.background = 'rgba(150,150,150,0.2)';
-    });
-    backBtn.addEventListener('mouseleave', () => {
-      backBtn.style.background = 'rgba(150,150,150,0.1)';
-    });
-    backBtn.addEventListener('click', () => {
+    // Back button — secondary (teal) style
+    const backBtn = this.createMenuButton('Back', 'secondary', () => {
       this.scene.start('MainMenuScene');
     });
     buttonRow.appendChild(backBtn);
 
-    // Start Game button
-    const startBtn = document.createElement('button');
-    startBtn.textContent = 'Start Game';
-    startBtn.style.cssText = this.actionButtonStyle('#4fc3f7', 'rgba(79,195,247,0.15)');
-    startBtn.addEventListener('mouseenter', () => {
-      startBtn.style.background = 'rgba(79,195,247,0.25)';
-    });
-    startBtn.addEventListener('mouseleave', () => {
-      startBtn.style.background = 'rgba(79,195,247,0.15)';
-    });
-    startBtn.addEventListener('click', () => {
+    // Start Game button — primary (warm bronze/gold) style
+    const startBtn = this.createMenuButton('Start', 'primary', () => {
       this.startGameWithMode();
     });
     buttonRow.appendChild(startBtn);
@@ -466,6 +578,142 @@ export class NewGameSetupScene extends Phaser.Scene {
     // Initialize visibility and summary
     this.updateConditionalSections();
     this.updateMapSummary();
+  }
+
+  // ── Shared UI helpers (matching UI-01 MainMenuScene pattern) ────
+
+  /** Create a styled section label matching UI-01 industrial theme. */
+  private createSectionLabel(text: string): HTMLDivElement {
+    const label = document.createElement('div');
+    label.textContent = text;
+    label.style.cssText = `
+      font-size: 11px;
+      font-weight: 600;
+      color: ${MENU_THEME.subtitleColor};
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    `;
+    return label;
+  }
+
+  /**
+   * UI-02: Create a styled action button with hover/focus/active states.
+   * Matches the UI-01 MainMenuScene.createMenuButton pattern.
+   *
+   * - 'primary' style: warm bronze/gold accent — for the main action (Start)
+   * - 'secondary' style: teal accent — for secondary actions (Back)
+   */
+  private createMenuButton(
+    text: string,
+    style: 'primary' | 'secondary',
+    onClick: () => void,
+    disabled = false,
+  ): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.textContent = text;
+    btn.disabled = disabled;
+
+    const accent = style === 'primary' ? MENU_THEME.primaryAccent : MENU_THEME.secondaryAccent;
+
+    const baseBg = disabled ? 'rgba(55, 65, 81, 0.3)' : `${accent}0d`;
+    const baseBorder = disabled ? 'rgba(55, 65, 81, 0.4)' : `${accent}33`;
+    const textColor = disabled ? MENU_THEME.disabledText : accent;
+
+    btn.style.cssText = `
+      flex: 1;
+      padding: 12px 20px;
+      background: ${baseBg};
+      border: 1px solid ${baseBorder};
+      border-radius: 4px;
+      color: ${textColor};
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: ${style === 'primary' ? '600' : '400'};
+      letter-spacing: 0.5px;
+      cursor: ${disabled ? 'not-allowed' : 'pointer'};
+      text-align: center;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    `;
+
+    if (!disabled) {
+      btn.addEventListener('mouseenter', () => {
+        btn.style.background = `${accent}1a`;
+        btn.style.borderColor = `${accent}55`;
+        if (style === 'primary') {
+          btn.style.boxShadow = `0 0 20px ${accent}15`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.background = baseBg;
+        btn.style.borderColor = baseBorder;
+        btn.style.boxShadow = 'none';
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
+      btn.addEventListener('mousedown', () => {
+        btn.style.background = `${accent}26`;
+      });
+      btn.addEventListener('mouseup', () => {
+        btn.style.background = `${accent}1a`;
+      });
+      btn.addEventListener('click', onClick);
+    }
+
+    return btn;
+  }
+
+  /**
+   * UI-02: Generic option selector button style.
+   * Used for game mode, map, map style, and map size selectors.
+   * Provides consistent selected/unselected/hover/focus states.
+   *
+   * @param accentColor - The accent color for the selected state
+   * @param selected - Whether this option is currently selected
+   * @param fontSize - Font size override (default 13px)
+   */
+  private optionButtonStyle(accentColor: string, selected: boolean, fontSize = '13px'): string {
+    return `
+      flex: 1;
+      padding: 9px 10px;
+      background: ${selected ? `${accentColor}1a` : MENU_THEME.unselectedBg};
+      border: 1px solid ${selected ? `${accentColor}55` : MENU_THEME.unselectedBorder};
+      border-radius: 4px;
+      color: ${selected ? accentColor : MENU_THEME.unselectedText};
+      font-size: ${fontSize};
+      font-family: inherit;
+      font-weight: ${selected ? '600' : '400'};
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, border-color 0.15s;
+      outline: none;
+    `;
+  }
+
+  /** Faction button style — uses per-faction colors. */
+  private factionButtonStyle(faction: Faction, selected: boolean): string {
+    const color = FACTION_CSS_COLORS[faction];
+    return `
+      flex: 1;
+      padding: 9px 10px;
+      background: ${selected ? `${color}1a` : MENU_THEME.unselectedBg};
+      border: 1px solid ${selected ? `${color}55` : MENU_THEME.unselectedBorder};
+      border-radius: 4px;
+      color: ${selected ? color : MENU_THEME.unselectedText};
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: ${selected ? '600' : '400'};
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, border-color 0.15s;
+      outline: none;
+    `;
   }
 
   /** Show/hide size, seed, and map sections based on map mode and game mode. MENU-01. */
@@ -501,124 +749,12 @@ export class NewGameSetupScene extends Phaser.Scene {
     if (this.selectedMapMode === 'generated') {
       const dims = mapSizeToDimensions(this.selectedMapSize);
       const seed = this.seedInput?.value.trim() || DEFAULT_SETUP.seed;
-      const styleLabel = this.selectedMapStyle === 'industrial' ? ' [Industrial]' : '';
-      this.mapSummary.textContent = `${dims.width}x${dims.height} tiles — seed: ${seed}${styleLabel}`;
+      const styleLabel = this.selectedMapStyle === 'industrial' ? 'Industrial' : 'Sand';
+      this.mapSummary.textContent = `${dims.width}x${dims.height} tiles \u00B7 ${styleLabel} \u00B7 seed: ${seed}`;
     } else {
-      const styleLabel = this.selectedMapStyle === 'industrial' ? ' [Industrial]' : '';
-      this.mapSummary.textContent = `48x48 tiles — predefined map${styleLabel}`;
+      const styleLabel = this.selectedMapStyle === 'industrial' ? 'Industrial' : 'Sand';
+      this.mapSummary.textContent = `48x48 tiles \u00B7 ${styleLabel} \u00B7 predefined map`;
     }
-  }
-
-  private factionButtonStyle(faction: Faction, selected: boolean): string {
-    const color = FACTION_CSS_COLORS[faction];
-    return `
-      flex: 1;
-      padding: 10px 12px;
-      background: ${selected ? `${color}22` : 'rgba(255,255,255,0.03)'};
-      border: 2px solid ${selected ? color : 'rgba(255,255,255,0.1)'};
-      border-radius: 4px;
-      color: ${selected ? color : '#888'};
-      font-size: 14px;
-      font-family: inherit;
-      font-weight: ${selected ? '600' : '400'};
-      cursor: pointer;
-      text-align: center;
-      transition: background 0.15s, border-color 0.15s;
-    `;
-  }
-
-  private mapButtonStyle(selected: boolean): string {
-    return `
-      flex: 1;
-      padding: 10px 12px;
-      background: ${selected ? 'rgba(79, 195, 247, 0.2)' : 'rgba(255,255,255,0.03)'};
-      border: 2px solid ${selected ? '#4fc3f7' : 'rgba(255,255,255,0.1)'};
-      border-radius: 4px;
-      color: ${selected ? '#4fc3f7' : '#888'};
-      font-size: 14px;
-      font-family: inherit;
-      font-weight: ${selected ? '600' : '400'};
-      cursor: pointer;
-      text-align: center;
-      transition: background 0.15s, border-color 0.15s;
-    `;
-  }
-
-  private sizeButtonStyle(selected: boolean): string {
-    return `
-      flex: 1;
-      padding: 8px 10px;
-      background: ${selected ? 'rgba(129, 199, 132, 0.2)' : 'rgba(255,255,255,0.03)'};
-      border: 2px solid ${selected ? '#81c784' : 'rgba(255,255,255,0.1)'};
-      border-radius: 4px;
-      color: ${selected ? '#81c784' : '#888'};
-      font-size: 13px;
-      font-family: inherit;
-      font-weight: ${selected ? '600' : '400'};
-      cursor: pointer;
-      text-align: center;
-      transition: background 0.15s, border-color 0.15s;
-    `;
-  }
-
-  /** Map style button style. VISUAL-05A-PR2: teal accent for industrial. */
-  private mapStyleButtonStyle(style: MapStyle, selected: boolean): string {
-    const color = style === 'industrial' ? '#80cbc4' : '#a1887f';
-    return `
-      flex: 1;
-      padding: 8px 10px;
-      background: ${selected ? `${color}22` : 'rgba(255,255,255,0.03)'};
-      border: 2px solid ${selected ? color : 'rgba(255,255,255,0.1)'};
-      border-radius: 4px;
-      color: ${selected ? color : '#888'};
-      font-size: 13px;
-      font-family: inherit;
-      font-weight: ${selected ? '600' : '400'};
-      cursor: pointer;
-      text-align: center;
-      transition: background 0.15s, border-color 0.15s;
-    `;
-  }
-
-  private actionButtonStyle(color: string, bg: string): string {
-    return `
-      flex: 1;
-      padding: 10px 16px;
-      background: ${bg};
-      border: 1px solid ${color}44;
-      border-radius: 4px;
-      color: ${color};
-      font-size: 15px;
-      font-family: inherit;
-      cursor: pointer;
-      text-align: center;
-      transition: background 0.15s, border-color 0.15s;
-    `;
-  }
-
-  /** Game mode button style. MENU-01: orange accent for debug, red for arena. */
-  private gameModeButtonStyle(mode: GameMode, selected: boolean): string {
-    // Color per mode: standard = blue, debug = orange, arena = red-orange
-    const colors: Record<GameMode, string> = {
-      standard: '#4fc3f7',
-      debug: '#ffa726',
-      arena: '#ef5350',
-    };
-    const color = colors[mode];
-    return `
-      flex: 1;
-      padding: 10px 12px;
-      background: ${selected ? `${color}22` : 'rgba(255,255,255,0.03)'};
-      border: 2px solid ${selected ? color : 'rgba(255,255,255,0.1)'};
-      border-radius: 4px;
-      color: ${selected ? color : '#888'};
-      font-size: 14px;
-      font-family: inherit;
-      font-weight: ${selected ? '600' : '400'};
-      cursor: pointer;
-      text-align: center;
-      transition: background 0.15s, border-color 0.15s;
-    `;
   }
 
   /** Update game mode note text. MENU-01. */
@@ -630,7 +766,7 @@ export class NewGameSetupScene extends Phaser.Scene {
         this.gameModeNote.textContent = 'Developer tools and combat test assets enabled.';
         break;
       case 'arena':
-        this.gameModeNote.textContent = 'Combat Sandbox — small test arena with combat units.';
+        this.gameModeNote.textContent = 'Combat Sandbox \u2014 small test arena with combat units.';
         break;
       case 'standard':
       default:
@@ -728,7 +864,7 @@ export class NewGameSetupScene extends Phaser.Scene {
 
   /**
    * Show a minimal loading overlay while late-loading modularUnits.
-   * MENU-02: Simple DOM overlay consistent with the PreloadScene style.
+   * MENU-02: Simple DOM overlay styled with UI-02 industrial theme.
    */
   private showLateLoadingOverlay(): void {
     this.hideLateLoadingOverlay();
@@ -741,7 +877,7 @@ export class NewGameSetupScene extends Phaser.Scene {
       display: flex;
       justify-content: center;
       align-items: center;
-      background: rgba(26, 26, 46, 0.85);
+      background: rgba(17, 24, 39, 0.85);
       z-index: 40;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       color: #e0e0e0;
@@ -753,10 +889,10 @@ export class NewGameSetupScene extends Phaser.Scene {
     const text = document.createElement('div');
     text.textContent = 'Loading combat assets...';
     text.style.cssText = `
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 600;
-      color: #4fc3f7;
-      margin-bottom: 12px;
+      color: ${MENU_THEME.secondaryAccent};
+      margin-bottom: 10px;
     `;
     content.appendChild(text);
 
@@ -764,7 +900,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     hint.textContent = 'Preparing debug/arena mode';
     hint.style.cssText = `
       font-size: 12px;
-      color: #666;
+      color: ${MENU_THEME.subtitleColor};
     `;
     content.appendChild(hint);
 

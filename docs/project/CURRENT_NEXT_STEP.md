@@ -62,14 +62,14 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-UI-02 — New Game setup polish
+UI-03 — ESC menu
 ```
 
 UI roadmap:
 
 ```text
-1. UI-01 — Main menu visual polish and navigation shell — DONE (current PR)
-2. UI-02 — New Game setup polish
+1. UI-01 — Main menu visual polish and navigation shell — DONE (PR #157)
+2. UI-02 — New Game setup polish — DONE (current PR)
 3. UI-03 — ESC menu
 4. UI-04 — Save/Continue
 5. HUD polish
@@ -79,12 +79,15 @@ Reason:
 
 ```text
 VISUAL-06A through VISUAL-06E fixup are COMPLETE (PR #150–#156).
-UI-01 polishes the main menu as a clean production-ready navigation shell:
-- Industrial sci-fi visual direction with warm bronze/gold primary accent
-- Clean vertical button layout with hover/focus/active feedback
-- Continue disabled when no saves, Settings functional with UI Scale
-- skipMenu/devtools/arena flows preserved
-Next is UI-02: New Game setup scene polish.
+UI-01 polished the main menu as a clean production-ready navigation shell (PR #157).
+UI-02 polishes the New Game setup screen to match the UI-01 industrial sci-fi style:
+- Same bronze/gold primary accent and teal secondary accent
+- Consistent hover/focus/active states on all option selectors
+- Start button uses primary accent, Back uses secondary
+- Decorative title line, section labels, seed input all themed
+- Late-loading overlay styled consistently
+- All game setup behavior and defaults preserved
+Next is UI-03: ESC menu polish.
 ```
 
 VISUAL-05A PR sequence (all DONE):
