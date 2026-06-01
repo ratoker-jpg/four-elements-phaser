@@ -24,6 +24,15 @@
  * (this.scene.time.now), NOT Date.now(). Mixing epoch time with
  * scene time caused negative elapsed times, broken recoil recovery,
  * and VFX that never expired.
+ *
+ * BLOCKOUT-06H+ fixup: Continuous-fire lifecycle corrected.
+ * - startFiring() is only called for continuous weapons (not single-shot).
+ * - Deselecting or selecting a different vehicle stops firing on the
+ *   previously selected vehicle.
+ * - Key-up (Space/F) stops firing on ALL vehicles with fireHeld/isFiring,
+ *   not just the currently selected one.
+ * - destroy() stops firing on all vehicles to prevent orphaned firing state.
+ * - Single-shot weapons never enter fireHeld/isFiring state.
  */
 
 import Phaser from 'phaser';
@@ -32,7 +41,7 @@ import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { computeTurretWorldOrigin, computeBodyWorldCenter, getBodyPixelSize } from '../render/blockoutVehicleGeometry';
 import { setBlockoutVehicleMoveTarget } from '../../state/blockoutMovement';
 import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state/angleMath';
-import { canFireBlockoutWeapon, fireBlockoutWeapon, startFiring, stopFiring } from '../../state/blockoutWeaponVfx';
+import { canFireBlockoutWeapon, fireBlockoutWeapon, startFiring, stopFiring, isContinuousWeapon } from '../../state/blockoutWeaponVfx';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import type { GameState } from '../../state/types';
 
@@ -249,11 +258,17 @@ export class BlockoutVehicleInputController {
 
     if (hitVehicleId) {
       // Click on a blockout vehicle → select it
+      // BLOCKOUT-06H+ fixup: stop firing on previous vehicle before selecting a different one
+      if (this._selectedVehicleId && this._selectedVehicleId !== hitVehicleId) {
+        this.stopFiringOnVehicle(this._selectedVehicleId);
+      }
       this._selectedVehicleId = hitVehicleId;
       this.onSelectionChanged?.(hitVehicleId);
     } else {
       // Click on empty ground → deselect
+      // BLOCKOUT-06H+ fixup: stop firing on previously selected vehicle before deselecting
       if (this._selectedVehicleId) {
+        this.stopFiringOnVehicle(this._selectedVehicleId);
         this._selectedVehicleId = null;
         this.onSelectionChanged?.(null);
       }
@@ -370,32 +385,65 @@ export class BlockoutVehicleInputController {
       nowMs,
     );
 
-    // BLOCKOUT-06H+: Start continuous fire for stream weapons
-    startFiring(selected);
+    // BLOCKOUT-06H+ fixup: Start continuous fire only for stream weapons.
+    // Single-shot weapons (Smoky, Railgun, Thunder, Shaft, Ricochet, Hammer)
+    // must NOT remain fireHeld/isFiring after fire — they fire once per press.
+    if (isContinuousWeapon(selected.weaponId)) {
+      startFiring(selected);
+    }
   }
 
   /**
    * Handle keyboard key-up for continuous fire release.
-   * BLOCKOUT-06H+: Stops continuous fire when Space/F is released.
+   * BLOCKOUT-06H+ fixup: Stops continuous fire on ALL vehicles with
+   * fireHeld/isFiring, not just the currently selected vehicle.
+   * This prevents orphaned firing state when the user deselects a
+   * vehicle while holding fire and then releases the key.
    */
   private onKeyup(event: KeyboardEvent): void {
     if (!this.isDevtoolsActive()) return;
     if (event.code !== 'Space' && event.code !== 'KeyF') return;
 
-    if (!this._selectedVehicleId) return;
-
+    // BLOCKOUT-06H+ fixup: Stop firing for ALL blockout vehicles that
+    // have fireHeld/isFiring, not just the currently selected one.
+    // Previously, keyup returned early if no vehicle was selected,
+    // leaving old firing vehicles stuck in fireHeld/isFiring state.
     const gameState = this.getGameState();
     const vehicles = gameState.blockoutVehicles;
     if (!vehicles || vehicles.length === 0) return;
 
-    const selected = vehicles.find(v => v.id === this._selectedVehicleId);
-    if (!selected) return;
+    for (const vehicle of vehicles) {
+      if (vehicle.fireHeld || vehicle.isFiring) {
+        stopFiring(vehicle);
+      }
+    }
+  }
 
-    // BLOCKOUT-06H+: Stop continuous fire
-    stopFiring(selected);
+  /** Stop firing on a specific vehicle by ID. BLOCKOUT-06H+ fixup. */
+  private stopFiringOnVehicle(vehicleId: string): void {
+    const gameState = this.getGameState();
+    const vehicles = gameState.blockoutVehicles;
+    if (!vehicles) return;
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    if (vehicle && (vehicle.fireHeld || vehicle.isFiring)) {
+      stopFiring(vehicle);
+    }
   }
 
   destroy(): void {
+    // BLOCKOUT-06H+ fixup: Stop firing on all vehicles before destroying.
+    // Prevents vehicles from remaining in fireHeld/isFiring state after
+    // the controller is gone (which would cause GameScene to keep ticking them).
+    const gameState = this.getGameState();
+    const vehicles = gameState.blockoutVehicles;
+    if (vehicles) {
+      for (const vehicle of vehicles) {
+        if (vehicle.fireHeld || vehicle.isFiring) {
+          stopFiring(vehicle);
+        }
+      }
+    }
+
     this.scene.input.off('pointerdown', this.boundPointerdown);
     this.scene.input.off('pointerup', this.boundPointerup);
     this.scene.input.off('pointermove', this.boundPointermove);

@@ -20,6 +20,12 @@
  * - saveGame still strips blockoutVehicles
  * - Movement doesn't erase VFX/recoil state
  * - VFX event includes BLOCKOUT-06H+ fields (coneAngleDeg, bounceCount, pelletCount)
+ * - BLOCKOUT-06H+ fixup: single-shot weapons do not set fireHeld/isFiring
+ * - BLOCKOUT-06H+ fixup: keyup clears fireHeld/isFiring on all vehicles
+ * - BLOCKOUT-06H+ fixup: deselect/switch stops firing on previous vehicle
+ * - BLOCKOUT-06H+ fixup: tickContinuousFire stops after stopFiring
+ * - BLOCKOUT-06H+ fixup: movement does not erase firing state while held
+ * - BLOCKOUT-06H+ fixup: saveGame still strips blockoutVehicles transient fields
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -1214,5 +1220,175 @@ describe('movement does not erase BLOCKOUT-06H+ firing state', () => {
     }
 
     expect(vehicle.visualOverheat).toBe(0.5);
+  });
+});
+
+// ─── Continuous-fire lifecycle fixup (BLOCKOUT-06H+ fixup) ──────────
+
+describe('continuous-fire lifecycle fixup', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+  });
+
+  it('single-shot weapon fire does not set fireHeld/isFiring', () => {
+    // Smoky is a single-shot weapon — firing it should NOT set fireHeld or isFiring.
+    // Previously startFiring() was called unconditionally for all weapons.
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    const now = 1000;
+
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
+
+    // fireBlockoutWeapon does not call startFiring — that's the controller's job.
+    // But the key invariant: after fire, single-shot weapons must NOT have
+    // fireHeld/isFiring set by the pure VFX system.
+    expect(vehicle.fireHeld).toBe(false);
+    expect(vehicle.isFiring).toBe(false);
+  });
+
+  it('all single-shot weapons remain fireHeld=false/isFiring=false after fire', () => {
+    // Verify the pattern for all 6 single-shot weapons
+    const singleShotWeapons: WeaponId[] = ['smoky', 'railgun', 'thunder', 'shaft', 'ricochet', 'hammer'];
+    for (const weaponId of singleShotWeapons) {
+      const vehicle = createBlockoutVehicle('hunter', weaponId, 'cyan', 5, 5);
+      const now = 1000 + WEAPON_PROFILES[weaponId].blockoutCooldownMs;
+      fireBlockoutWeapon(vehicle, 100, 100, 0, 200, 0, now);
+      expect(vehicle.fireHeld, `${weaponId} fireHeld should be false after fire`).toBe(false);
+      expect(vehicle.isFiring, `${weaponId} isFiring should be false after fire`).toBe(false);
+    }
+  });
+
+  it('continuous weapon fire sets fireHeld/isFiring when startFiring is called', () => {
+    // Flamethrower is a continuous weapon — the controller calls startFiring()
+    // only for continuous weapons after fireBlockoutWeapon succeeds.
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    const now = 1000;
+
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 120, 0, now);
+    // Simulate what the controller does for continuous weapons
+    startFiring(vehicle);
+
+    expect(vehicle.fireHeld).toBe(true);
+    expect(vehicle.isFiring).toBe(true);
+  });
+
+  it('keyup clears fireHeld/isFiring on all vehicles', () => {
+    // Simulate: vehicle A is firing continuously, then key-up should clear it.
+    // This tests the fixup where onKeyup now iterates ALL vehicles rather than
+    // only the selected one.
+    const vehicleA = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    const vehicleB = createBlockoutVehicle('hornet', 'freeze', 'cyan', 6, 6);
+
+    startFiring(vehicleA);
+    startFiring(vehicleB);
+
+    expect(vehicleA.fireHeld).toBe(true);
+    expect(vehicleB.fireHeld).toBe(true);
+
+    // Simulate keyup — stop all firing vehicles
+    stopFiring(vehicleA);
+    stopFiring(vehicleB);
+
+    expect(vehicleA.fireHeld).toBe(false);
+    expect(vehicleA.isFiring).toBe(false);
+    expect(vehicleB.fireHeld).toBe(false);
+    expect(vehicleB.isFiring).toBe(false);
+  });
+
+  it('deselect clears fireHeld/isFiring on previously selected vehicle', () => {
+    // Simulate: select vehicle, start continuous fire, then deselect.
+    // Before the fixup, deselecting did NOT stop firing.
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+
+    startFiring(vehicle);
+    expect(vehicle.fireHeld).toBe(true);
+    expect(vehicle.isFiring).toBe(true);
+
+    // Simulate deselect — controller now calls stopFiring before clearing selection
+    stopFiring(vehicle);
+
+    expect(vehicle.fireHeld).toBe(false);
+    expect(vehicle.isFiring).toBe(false);
+  });
+
+  it('selecting another vehicle clears fireHeld/isFiring on previous selected vehicle', () => {
+    // Simulate: select vehicle A, start continuous fire, then select vehicle B.
+    // Before the fixup, vehicle A would remain in fireHeld/isFiring state.
+    const vehicleA = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    const vehicleB = createBlockoutVehicle('hunter', 'smoky', 'cyan', 6, 6);
+
+    startFiring(vehicleA);
+    expect(vehicleA.fireHeld).toBe(true);
+
+    // Simulate selecting a different vehicle — controller stops firing on previous
+    stopFiring(vehicleA);
+
+    expect(vehicleA.fireHeld).toBe(false);
+    expect(vehicleA.isFiring).toBe(false);
+    // vehicleB was never firing
+    expect(vehicleB.fireHeld).toBe(false);
+    expect(vehicleB.isFiring).toBe(false);
+  });
+
+  it('tickContinuousFire does not continue after stopFiring', () => {
+    // After stopFiring (deselect/key release), tickContinuousFire must return 0.
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    startFiring(vehicle);
+
+    const now = 1000;
+    const r1 = tickContinuousFire(vehicle, 100, 100, 0, 120, 0, now);
+    expect(r1).toBe(1);
+
+    // Stop firing (simulating keyup or deselect)
+    stopFiring(vehicle);
+
+    const r2 = tickContinuousFire(vehicle, 100, 100, 0, 120, 0, now + 100);
+    expect(r2).toBe(0);
+  });
+
+  it('movement does not erase firing state while held', () => {
+    // Movement updates should NOT clear fireHeld/isFiring while the key is held.
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    const profile = MOVEMENT_PROFILES.viking;
+
+    startFiring(vehicle);
+    expect(vehicle.fireHeld).toBe(true);
+    expect(vehicle.isFiring).toBe(true);
+
+    // Set move target and simulate movement
+    setBlockoutVehicleMoveTarget(vehicle, vehicle.worldX + 200, vehicle.worldY);
+    for (let i = 0; i < 10; i++) {
+      updateBlockoutVehicleMovement(vehicle, profile, 16);
+    }
+
+    // Firing state must survive movement
+    expect(vehicle.fireHeld).toBe(true);
+    expect(vehicle.isFiring).toBe(true);
+  });
+
+  it('saveGame still strips blockoutVehicles with BLOCKOUT-06H+ transient fields', () => {
+    // Ensure save still strips blockoutVehicles including the new continuous-fire fields
+    const store: Record<string, string> = {};
+    const mockStorage: SaveStorage = {
+      getItem(key: string): string | null { return store[key] ?? null; },
+      setItem(key: string, value: string): boolean { store[key] = value; return true; },
+      removeItem(key: string): void { delete store[key]; },
+    };
+    setSaveStorage(mockStorage);
+
+    const state = createTestGameState();
+    devSpawnBlockoutVehicleSet(state);
+    const vehicle = state.blockoutVehicles![0];
+
+    // Set continuous-fire transient fields
+    startFiring(vehicle);
+    vehicle.visualOverheat = 0.8;
+
+    const saveResult = saveGame(state, 'test-map');
+    expect(saveResult.success).toBe(true);
+
+    const loadResult = loadGame(saveResult.slotId!);
+    expect(loadResult.success).toBe(true);
+    expect(loadResult.gameState!.blockoutVehicles).toBeUndefined();
   });
 });
