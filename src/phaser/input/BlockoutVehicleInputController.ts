@@ -1,10 +1,11 @@
 /**
- * BlockoutVehicleInputController — handles selection and turret aiming
- * for blockout vehicles in arena/dev mode.
+ * BlockoutVehicleInputController — handles selection, turret aiming,
+ * and movement targeting for blockout vehicles in arena/dev mode.
  *
  * BLOCKOUT-03H: Selection/control + turret aiming.
  * BLOCKOUT-03H fixup: Turret aim angle computed from actual turret mount
  * origin (not body/tile center), using shared blockoutVehicleGeometry.
+ * BLOCKOUT-04H+: RMB click sets movement target for selected vehicle.
  *
  * This controller is dev-only. It does NOT interfere with normal
  * game input (builders/harvesters). It only processes input when
@@ -15,12 +16,16 @@
  *
  * The turret aim target is updated from the mouse position each frame.
  * Turret rotation is rate-limited by the weapon's blockoutTurretTurnSpeedDeg.
+ *
+ * Movement targets are set via RMB (right-click). RMB drag is camera pan
+ * and does NOT set a movement target.
  */
 
 import Phaser from 'phaser';
 import type { IsoPoint } from '../render/isometric';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { computeTurretWorldOrigin, computeBodyWorldCenter, getBodyPixelSize } from '../render/blockoutVehicleGeometry';
+import { setBlockoutVehicleMoveTarget } from '../../state/blockoutMovement';
 import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state/angleMath';
 import type { GameState } from '../../state/types';
 
@@ -66,10 +71,15 @@ export class BlockoutVehicleInputController {
   private _mouseWorldX: number = 0;
   private _mouseWorldY: number = 0;
 
-  /** Click detection state. */
-  private _clickStartX: number = 0;
-  private _clickStartY: number = 0;
-  private _clickButtonDown: boolean = false;
+  /** LMB click detection state. */
+  private _lmbClickStartX: number = 0;
+  private _lmbClickStartY: number = 0;
+  private _lmbButtonDown: boolean = false;
+
+  /** RMB click detection state. BLOCKOUT-04H+: RMB sets movement target. */
+  private _rmbClickStartX: number = 0;
+  private _rmbClickStartY: number = 0;
+  private _rmbButtonDown: boolean = false;
 
   /** Bound handler references for cleanup. */
   private boundPointerdown: (pointer: Phaser.Input.Pointer) => void;
@@ -151,25 +161,49 @@ export class BlockoutVehicleInputController {
 
   private onPointerdown(pointer: Phaser.Input.Pointer): void {
     if (!this.isDevtoolsActive()) return;
-    if (!pointer.leftButtonDown()) return;
 
-    this._clickStartX = pointer.x;
-    this._clickStartY = pointer.y;
-    this._clickButtonDown = true;
+    if (pointer.leftButtonDown()) {
+      this._lmbClickStartX = pointer.x;
+      this._lmbClickStartY = pointer.y;
+      this._lmbButtonDown = true;
+    }
+
+    // BLOCKOUT-04H+: Track RMB for movement target
+    if (pointer.rightButtonDown()) {
+      this._rmbClickStartX = pointer.x;
+      this._rmbClickStartY = pointer.y;
+      this._rmbButtonDown = true;
+    }
   }
 
   private onPointerup(pointer: Phaser.Input.Pointer): void {
-    if (!this._clickButtonDown) return;
-    this._clickButtonDown = false;
+    // Handle LMB click
+    if (this._lmbButtonDown) {
+      this._lmbButtonDown = false;
 
-    if (!this.isDevtoolsActive()) return;
+      if (this.isDevtoolsActive()) {
+        const dx = pointer.x - this._lmbClickStartX;
+        const dy = pointer.y - this._lmbClickStartY;
+        const moved = Math.sqrt(dx * dx + dy * dy);
+        if (moved <= CLICK_DRAG_THRESHOLD) {
+          this.handleLeftClick(pointer);
+        }
+      }
+    }
 
-    const dx = pointer.x - this._clickStartX;
-    const dy = pointer.y - this._clickStartY;
-    const moved = Math.sqrt(dx * dx + dy * dy);
-    if (moved > CLICK_DRAG_THRESHOLD) return; // was a drag
+    // BLOCKOUT-04H+: Handle RMB click for movement target
+    if (this._rmbButtonDown) {
+      this._rmbButtonDown = false;
 
-    this.handleLeftClick(pointer);
+      if (this.isDevtoolsActive()) {
+        const dx = pointer.x - this._rmbClickStartX;
+        const dy = pointer.y - this._rmbClickStartY;
+        const moved = Math.sqrt(dx * dx + dy * dy);
+        if (moved <= CLICK_DRAG_THRESHOLD) {
+          this.handleRightClick(pointer);
+        }
+      }
+    }
   }
 
   private onPointermove(pointer: Phaser.Input.Pointer): void {
@@ -202,6 +236,31 @@ export class BlockoutVehicleInputController {
     }
   }
 
+  /**
+   * BLOCKOUT-04H+: Handle right-click to set movement target for selected vehicle.
+   *
+   * RMB drag is camera pan (handled by CameraControls). Only short clicks
+   * (no drag) set a movement target. This prevents conflict with camera controls.
+   */
+  private handleRightClick(pointer: Phaser.Input.Pointer): void {
+    if (!this._selectedVehicleId) return; // No vehicle selected — ignore RMB
+
+    const gameState = this.getGameState();
+    const vehicles = gameState.blockoutVehicles;
+    if (!vehicles || vehicles.length === 0) return;
+
+    const selected = vehicles.find(v => v.id === this._selectedVehicleId);
+    if (!selected) return;
+
+    // Convert world click position to screen-space (subtract offset)
+    const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const screenX = worldPoint.x - this.offset.x;
+    const screenY = worldPoint.y - this.offset.y;
+
+    // Set movement target
+    setBlockoutVehicleMoveTarget(selected, screenX, screenY);
+  }
+
   // ─── Hit testing ─────────────────────────────────────────────
 
   /**
@@ -209,8 +268,6 @@ export class BlockoutVehicleInputController {
    *
    * Uses simple distance check from the world-space position of the vehicle.
    * The hit radius is based on the body profile size plus padding.
-   *
-   * Exported as a pure function for testing.
    */
   private findVehicleNearPoint(worldX: number, worldY: number, vehicles: BlockoutVehicleState[]): string | null {
     let bestId: string | null = null;

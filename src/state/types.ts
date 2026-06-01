@@ -458,7 +458,8 @@ export interface GameState {
   /** Blockout vehicles — only populated in dev/arena mode.
    *  Optional: old saves and standard mode games have this as undefined/empty.
    *  Blockout vehicles are stripped from saves and never serialized.
-   *  BLOCKOUT-03H: Added turretTargetAngle and turretTurnSpeedDeg for independent turret aiming. */
+   *  BLOCKOUT-03H: Added turretTargetAngle and turretTurnSpeedDeg for independent turret aiming.
+   *  BLOCKOUT-04H+: Added movement fields (worldX/worldY, velocity, move target). */
   blockoutVehicles?: Array<{
     id: string;
     bodyId: BodyId;
@@ -470,6 +471,14 @@ export interface GameState {
     turretAngle: number;
     turretTargetAngle: number;
     turretTurnSpeedDeg: number;
+    worldX: number;
+    worldY: number;
+    vx: number;
+    vy: number;
+    speed: number;
+    targetWorldX: number;
+    targetWorldY: number;
+    hasMoveTarget: boolean;
     createdAt: number;
   }>;
 }

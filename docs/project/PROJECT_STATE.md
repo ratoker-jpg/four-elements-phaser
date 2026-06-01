@@ -3,15 +3,15 @@
 Status: operational project state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Current phase: BLOCKOUT-MVP — BLOCKOUT-03H implemented, BLOCKOUT-04H+ next
+Current phase: BLOCKOUT-MVP — BLOCKOUT-04H+ implemented, BLOCKOUT-05H+ next
 
 ---
 
 ## Current mode
 
 ```text
-BLOCKOUT-03H implemented. Blockout vehicles can be selected and turrets aim independently.
-Next: BLOCKOUT-04H+ — Semi-physics movement.
+BLOCKOUT-04H+ implemented. Blockout vehicles have semi-physics movement.
+Next: BLOCKOUT-05H+ — Recoil + first weapon VFX set.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
@@ -27,7 +27,7 @@ Owner decision: no standalone low-risk implementation PRs. Only high/high+ steps
 Next action:
 
 ```text
-BLOCKOUT-04H+ — Semi-physics movement
+BLOCKOUT-05H+ — Recoil + first weapon VFX set
 ```
 
 ---
@@ -104,7 +104,17 @@ The project currently has:
   - rear-mounted turrets on Wasp/Dictator
   - front_center turrets on Titan/Mammoth
   - production/default game unchanged when devtools is off
-- SELECTABLE BLOCKOUT VEHICLES with independent turret aiming (BLOCKOUT-03H)
+- MOVING BLOCKOUT VEHICLES with semi-physics feel (BLOCKOUT-04H+)
+  - RMB click sets movement target for selected vehicle
+  - vehicle accelerates gradually toward target
+  - vehicle brakes/stops near target instead of snapping
+  - body rotates gradually toward movement direction
+  - body rotation independent from turret rotation
+  - turret can continue aiming at mouse while body turns/moves
+  - Wasp fastest/lightest, Mammoth slowest/heaviest
+  - movement target marker (green crosshair) and line visible
+  - speed shown in debug label when moving
+  - production/default game unchanged when devtools is off
   - LMB click to select vehicle, click empty ground to deselect
   - gold pulsing selection highlight ring on selected vehicle
   - subtle white hover marker on hovered vehicle
@@ -236,7 +246,7 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-04H+ — Semi-physics movement
+BLOCKOUT-05H+ — Recoil + first weapon VFX set
 ```
 
 Mode:
@@ -304,6 +314,32 @@ Implemented:
 - selected vehicle label shows [SEL] marker
 - all selection/aim state is transient and not persisted in saves
 - 39 unit tests for angle math, hit-test, turret rotation, and save isolation
+```
+
+### BLOCKOUT-04H+ — Semi-physics movement
+
+```text
+Type: implementation
+Risk: HIGH+
+Status: DONE
+
+Implemented:
+- movement profile pixel-speed fields (maxSpeedPxPerSec, accelerationPxPerSec2, brakingPxPerSec2, arrivalRadiusPx)
+- body-specific movement feel: Wasp fastest/lightest, Mammoth slowest/heaviest
+- BlockoutVehicleState movement fields (worldX/worldY, vx/vy, speed, targetWorldX/Y, hasMoveTarget)
+- pure movement update helper (blockoutMovement.ts) — accelerate, brake, turn, arrive
+- vehicle accelerates gradually toward movement target
+- vehicle brakes/stops near target instead of snapping
+- body rotates gradually toward movement direction (rate-limited by turnSpeedDeg)
+- body rotation independent from turret rotation
+- RMB click sets movement target for selected vehicle
+- RMB drag does NOT set target (avoids conflict with camera pan)
+- movement target marker (green crosshair) and line visible for selected vehicle
+- speed shown in debug label when moving
+- BlockoutVehicleRenderer uses continuous worldX/worldY for smooth position
+- blockoutVehicleGeometry uses worldX/worldY instead of tileToScreen
+- all movement state is transient and not persisted in saves
+- 22 unit tests for movement, profiles, acceleration, braking, body angle, turret independence
 ```
 
 ---
@@ -446,7 +482,8 @@ Use this sequence:
 5. owner/GPT review of high/high+ sequence — DONE
 6. BLOCKOUT-02H first visible blockout vehicles — DONE
 7. BLOCKOUT-03H selection/control + turret aiming — DONE
-8. BLOCKOUT-04H+ semi-physics movement — NEXT
+8. BLOCKOUT-04H+ semi-physics movement — DONE
+9. BLOCKOUT-05H+ recoil + first weapon VFX set — NEXT
 ```
 
 ---

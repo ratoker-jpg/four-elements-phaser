@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: BLOCKOUT-03H implemented / BLOCKOUT-04H+ next
+Status: BLOCKOUT-04H+ implemented / BLOCKOUT-05H+ next
 Project: Four Elements Phaser
 Date: 2026-06-01
 
@@ -21,8 +21,8 @@ What should GPT/GLM/Codex do next by default?
 Current answer:
 
 ```text
-BLOCKOUT-03H is implemented. Blockout vehicles can be selected and turrets aim independently.
-Next step: BLOCKOUT-04H+ — Semi-physics movement.
+BLOCKOUT-04H+ is implemented. Blockout vehicles have semi-physics movement in arena/dev mode.
+Next step: BLOCKOUT-05H+ — Recoil + first weapon VFX set.
 ```
 
 ---
@@ -30,28 +30,29 @@ Next step: BLOCKOUT-04H+ — Semi-physics movement.
 ## Current next step
 
 ```text
-BLOCKOUT-03H — Selection/control + turret aiming — IMPLEMENTED
+BLOCKOUT-04H+ — Semi-physics movement — IMPLEMENTED
 
-Blockout vehicles can now be selected and controlled in arena/dev mode:
-- LMB click selects a blockout vehicle (deselect on empty ground click)
-- Selected vehicle has visible gold selection highlight ring
-- Hovered vehicle shows subtle white hover marker
-- Selected vehicle turret rotates toward mouse cursor independently from body
-- Turret turn speed is rate-limited per weapon profile
-- Debug aim line (dashed red) extends from barrel toward cursor
-- Different weapons have different turret turn speeds (Smoky fast, Railgun slow)
-- Body angle remains independent from turret angle
-- Only one vehicle selected at a time
+Blockout vehicles can now move in arena/dev mode:
+- Select a blockout vehicle with LMB
+- RMB click on ground sets a movement target
+- Vehicle accelerates gradually toward target
+- Vehicle brakes/stops near target instead of snapping
+- Body rotates gradually toward movement direction
+- Body rotation is independent from turret rotation
+- Turret can continue aiming at mouse while body turns/moves
+- Wasp feels faster/lighter than Mammoth
+- Movement target marker (crosshair) and line visible for selected vehicle
+- Speed shown in debug label when moving
 - Production/default game remains unchanged when devtools/arena is off
 
-Next step: BLOCKOUT-04H+ — Semi-physics movement
+Next step: BLOCKOUT-05H+ — Recoil + first weapon VFX set: Smoky/Railgun/Thunder
 ```
 
 Mode:
 
 ```text
-BLOCKOUT-03H COMPLETE
-READY FOR BLOCKOUT-04H+ IMPLEMENTATION
+BLOCKOUT-04H+ COMPLETE
+READY FOR BLOCKOUT-05H+ IMPLEMENTATION
 No standalone low-risk PRs.
 High/high+ visible progress steps only.
 ```
@@ -63,8 +64,8 @@ High/high+ visible progress steps only.
 ```text
 VISUAL/UI roadmap slice: CLOSED
 Current active planning direction: BLOCKOUT-MVP
-Current implementation task: BLOCKOUT-03H COMPLETE
-Next action: BLOCKOUT-04H+ — Semi-physics movement
+Current implementation task: BLOCKOUT-04H+ COMPLETE
+Next action: BLOCKOUT-05H+ — Recoil + first weapon VFX set
 ```
 
 Roadmap document:
@@ -105,7 +106,7 @@ The roadmap focuses on Phaser/blockout placeholders for:
 - vehicle bodies ✓ (BLOCKOUT-02H)
 - body-specific turret mount points ✓ (BLOCKOUT-02H)
 - independent turret rotation ✓ (BLOCKOUT-03H)
-- semi-physics vehicle movement feel (BLOCKOUT-04H+)
+- semi-physics vehicle movement feel ✓ (BLOCKOUT-04H+)
 - recoil (BLOCKOUT-05H+)
 - weapon behavior families (BLOCKOUT-05H+/06H+)
 - primitive VFX placeholders (BLOCKOUT-05H+/06H+)
@@ -128,6 +129,7 @@ The new active planning direction is BLOCKOUT-MVP: vehicle/combat/upgrade skelet
 BLOCKOUT-01 huge roadmap audit is complete.
 BLOCKOUT-02H first visible blockout vehicles is implemented.
 BLOCKOUT-03H selection/control + turret aiming is implemented.
-Blockout vehicles can now be selected and turrets aim independently.
-Next step: BLOCKOUT-04H+ — Semi-physics movement.
+BLOCKOUT-04H+ semi-physics movement is implemented.
+Blockout vehicles can now accelerate, brake, turn, and move to targets.
+Next step: BLOCKOUT-05H+ — Recoil + first weapon VFX set.
 ```
