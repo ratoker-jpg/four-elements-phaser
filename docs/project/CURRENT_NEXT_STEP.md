@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: BLOCKOUT-01 audit complete / awaiting owner review before BLOCKOUT-02  
+Status: BLOCKOUT-01 audit complete / BLOCKOUT-02H next — high/high+ visible implementation sequence  
 Project: Four Elements Phaser  
 Date: 2026-06-01
 
@@ -21,9 +21,9 @@ What should GPT/GLM/Codex do next by default?
 Current answer:
 
 ```text
-Review BLOCKOUT-01 Huge Roadmap Audit (docs/project/BLOCKOUT_01_HUGE_ROADMAP_AUDIT.md).
-If audit is accepted, proceed to BLOCKOUT-02 config skeleton.
-Do not start implementation until audit is reviewed.
+BLOCKOUT-01 audit is complete. Owner decision: no standalone low-risk PRs.
+Next step: BLOCKOUT-02H — First visible blockout vehicles.
+Every PR must produce visible gameplay/blockout progress.
 ```
 
 ---
@@ -32,16 +32,17 @@ Do not start implementation until audit is reviewed.
 
 ```text
 BLOCKOUT-01 audit is complete.
-Awaiting owner/GPT review of docs/project/BLOCKOUT_01_HUGE_ROADMAP_AUDIT.md.
-After review, first implementation PR is BLOCKOUT-02 (config skeleton only).
+Owner decision: no standalone low-risk implementation PRs.
+Next step: BLOCKOUT-02H — First visible blockout vehicles.
+Every PR must produce visible gameplay/blockout progress.
 ```
 
 Mode:
 
 ```text
-AUDIT COMPLETE — DOCS-ONLY PR
-No runtime code changes.
-No implementation until audit is reviewed.
+READY FOR BLOCKOUT-02H IMPLEMENTATION
+No standalone low-risk PRs.
+High/high+ visible progress steps only.
 ```
 
 The audit exists to inspect the current repo and convert `BLOCKOUT_MVP_ROADMAP.md` into a safe scoped implementation sequence.
@@ -53,8 +54,8 @@ The audit exists to inspect the current repo and convert `BLOCKOUT_MVP_ROADMAP.m
 ```text
 VISUAL/UI roadmap slice: CLOSED
 Current active planning direction: BLOCKOUT-MVP
-Current implementation task: NONE (audit complete, awaiting review)
-Next action: review BLOCKOUT-01 audit, then start BLOCKOUT-02
+Current implementation task: NONE (audit complete, roadmap fixup applied)
+Next action: start BLOCKOUT-02H — First visible blockout vehicles
 ```
 
 Roadmap document:
@@ -151,10 +152,12 @@ The BLOCKOUT-01 audit must answer:
 8. Exact forbidden files/functions.
 9. Test plan.
 10. Rollback plan.
-11. Smallest safe first code PR after the audit.
+11. First implementation PR after the audit.
 ```
 
-The audit must end with:
+The audit has been completed and updated with the owner decision: no standalone low-risk PRs, only high/high+ visible progress steps.
+
+The audit ends with:
 
 ```text
 Жду Делай
@@ -202,5 +205,6 @@ We are working in ratoker-jpg/four-elements-phaser.
 The VISUAL/UI roadmap is closed after PR #144-#162.
 The new active planning direction is BLOCKOUT-MVP: vehicle/combat/upgrade skeleton before final art.
 BLOCKOUT-01 huge roadmap audit is complete (docs/project/BLOCKOUT_01_HUGE_ROADMAP_AUDIT.md).
-Awaiting owner/GPT review before starting BLOCKOUT-02 config skeleton.
+Owner decision: no standalone low-risk PRs. Only high/high+ visible progress steps.
+Next step: BLOCKOUT-02H — First visible blockout vehicles.
 ```

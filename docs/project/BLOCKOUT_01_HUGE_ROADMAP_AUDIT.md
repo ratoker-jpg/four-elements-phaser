@@ -5,7 +5,7 @@ Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-06-01  
 Source: BLOCKOUT-MVP roadmap audit — Phase 1  
-Precedes: BLOCKOUT-02 (config skeleton implementation)
+Precedes: BLOCKOUT-02H (first visible blockout vehicles)
 
 ---
 
@@ -54,27 +54,36 @@ The following systems required by BLOCKOUT-MVP are completely absent from the cu
 
 ### Main recommendation
 
-Start the BLOCKOUT-MVP implementation sequence with a **config-only PR** (BLOCKOUT-02) that adds typed body/weapon/vehicle/movement/recoil/damage/obstacle profile contracts to `src/config/` without any runtime consumption. This is the safest possible first step because:
+Start the BLOCKOUT-MVP implementation sequence with **BLOCKOUT-02H — First visible blockout vehicles**. This PR merges the former config skeleton, dev-only state, and primitive renderer steps into a single high step that produces visible blockout vehicles on the first implementation PR. This follows the owner decision that no standalone low-risk implementation PRs should exist — every PR must produce visible gameplay/blockout progress.
 
-1. It adds only TypeScript types and constant data objects — zero runtime behavior change.
-2. It can be fully tested with pure unit tests that verify IDs, categories, and completeness.
-3. It establishes the contract that all subsequent PRs will consume, preventing ad-hoc interfaces.
-4. It forces the team to validate the roadmap's type contracts against the actual codebase before any rendering or state work begins.
-5. Rollback is trivial — delete the new config files.
+BLOCKOUT-02H includes:
 
-The overall sequence should follow: config contracts → dev-only state → primitive renderer → turret rotation → movement feel → recoil → weapon VFX → damage placeholders → obstacles → upgrade skeleton → readability sandbox. Each PR should be gated behind the `devtools` flag until the blockout system is stable enough for production.
+1. Blockout profile types and data (BodyProfile, WeaponProfile, VehicleProfile, MovementProfile, RecoilProfile, DamageProfile, ObstacleProfile)
+2. Blockout vehicle state (BlockoutVehicleState type, optional blockoutVehicles on GameState)
+3. Dev-only spawn command (devSpawnBlockoutVehicle)
+4. Primitive Phaser Graphics renderer (body rectangle, turret rectangle, barrel line, mount point circle)
+5. Visible arena/dev output: different body sizes readable, turret separate from body, barrel visible, mount point visible
+6. Unit tests for profiles, state, and spawn
 
-### Smallest safe first PR
+BLOCKOUT-02H explicitly forbids: movement physics, turret aiming, recoil, weapon VFX, damage, obstacles, upgrades, save schema, economy, production/factory, mapgen, final assets.
 
-**BLOCKOUT-02 — Config skeleton only**
+The overall sequence should follow: first visible vehicles → selection/control + turret aiming → semi-physics movement → recoil + first VFX → remaining VFX → damage → obstacles → upgrades → readability sandbox. Each PR should be gated behind the `devtools` flag until the blockout system is stable enough for production.
+
+### First implementation PR
+
+**BLOCKOUT-02H — First visible blockout vehicles**
 
 - Add `src/config/blockoutProfiles.ts` with `BodyProfile`, `WeaponProfile`, `VehicleProfile`, `MovementProfile`, `RecoilProfile`, `DamageProfile`, `ObstacleProfile` types
 - Add `src/config/blockoutBodyData.ts` with body profile data for all 7 hulls
 - Add `src/config/blockoutWeaponData.ts` with weapon profile data for all 11 weapons
 - Add `src/config/blockoutVehicleData.ts` with vehicle composition data for test combinations
+- Add `src/state/blockoutVehicleState.ts` with `BlockoutVehicleState` type and optional `blockoutVehicles` on GameState
+- Add `src/state/devCommands.ts` extension with `devSpawnBlockoutVehicle` command
+- Add `src/phaser/render/BlockoutVehicleRenderer.ts` with primitive Graphics renderer (body, turret, barrel, mount point)
 - Add `src/__tests__/blockoutProfiles.test.ts` with pure unit tests verifying completeness, IDs, categories
-- No runtime consumption, no renderer changes, no state changes, no asset changes
-- Rollback: delete the new files, typecheck/build/tests pass unchanged
+- Visible output: colored rectangles with turret/barrel in arena/dev mode
+- Forbidden: movement physics, turret aiming, recoil, weapon VFX, damage, obstacles, upgrades, save schema, economy, production/factory, mapgen, final assets
+- Rollback: revert all new files and changes, typecheck/build/tests pass unchanged
 
 ---
 
@@ -881,22 +890,22 @@ Each upgrade category has a placeholder visual indicator:
 
 ## 13. Risk map
 
+Owner decision: no standalone low-risk implementation PRs. Every PR must produce visible gameplay/blockout progress. Low-risk preparatory work may exist only inside high/high+ steps.
+
 | Area | Risk | Why | Mitigation | When to implement |
 |---|---|---|---|---|
-| Config skeleton (BLOCKOUT-02) | low | Additive only, no runtime consumption | Pure unit tests verify completeness | First PR |
-| Dev-only vehicle state (BLOCKOUT-03) | medium | New state type, may conflict with existing GameState structure | Optional field on GameState, gated by devtools flag | Second PR |
-| Primitive renderer (BLOCKOUT-04) | medium | New Graphics-based renderer, may have depth-sorting issues with existing entities | Test alongside existing entities, use depth values above/below existing layers | Third PR |
-| Turret rotation (BLOCKOUT-05) | medium | Continuous rotation is new for this codebase (current is 8-direction discrete) | Separate turret angle state, independent from body angle | Fourth PR |
-| Movement feel (BLOCKOUT-06) | high | Semi-physics model changes how vehicles move fundamentally. Risk of vehicles getting stuck, oscillating, or feeling wrong | Extensive manual testing in arena mode, tune profiles iteratively | Fifth PR |
-| Recoil (BLOCKOUT-07) | medium | Visual recoil with barrel kickback and body impulse. Risk of visual glitching if timing is wrong | Simple lerp-based recovery, test per weapon family | Sixth PR |
-| Weapon VFX (BLOCKOUT-08) | high+ | 11 different weapon VFX families, each with unique geometry and state. Cone/beam/ricochet are complex | Implement in order of complexity: Smoky first (simplest), then Thunder, then Railgun, then cone/beam, then ricochet last | Seventh PR |
-| Damage placeholders (BLOCKOUT-09) | high | Damage affects HP, status effects, self-damage. Risk of cascading into civil units if not properly scoped | Blockout vehicles only, separate HP field, no civil unit HP | Eighth PR |
-| Obstacles (BLOCKOUT-10) | high | Projectile/cone/beam blocking requires ray-cast and geometry clipping. Risk of performance issues with many obstacles | Start with visual-only, add movement blockers, then projectile blockers | Ninth PR |
-| Upgrade skeleton (BLOCKOUT-11) | medium | Config and dev hotkeys are straightforward, but visual indicators may clash with existing debug overlays | Separate upgrade indicator layer, test with debug overlay ON and OFF | Tenth PR |
-| Combat readability sandbox (BLOCKOUT-12) | high+ | Integration test of all systems together. Risk of interaction bugs between movement, turret, VFX, damage, obstacles, upgrades | Full manual QA in arena mode, test each weapon + body combination | Eleventh PR |
+| First visible blockout vehicles (BLOCKOUT-02H) | high | Merges config skeleton + state + renderer into one PR. Multiple new files and systems touching state, config, renderer, and dev commands simultaneously. Risk of integration issues between profile data, state type, spawn command, and renderer. | All blockout code gated by devtoolsActive flag. Blockout vehicles are transient (not saved). Pure unit tests for profiles and state. Manual QA for renderer. | First PR |
+| Selection/control + turret aiming (BLOCKOUT-03H) | high | Independent turret rotation is new for this codebase (current is 8-direction discrete). Input handling must not conflict with civil unit controls. | Separate turret angle state from body angle. Test input isolation carefully. | Second PR |
+| Semi-physics movement (BLOCKOUT-04H+) | high+ | Semi-physics model changes how vehicles move fundamentally. Risk of vehicles getting stuck, oscillating, or feeling wrong. | Extensive manual testing in arena mode, tune profiles iteratively. | Third PR |
+| Recoil + first VFX: Smoky/Railgun/Thunder (BLOCKOUT-05H+) | high+ | First weapon VFX with recoil combines two complex systems. Three weapon families must produce readable, distinct effects. | Simple lerp-based recoil recovery. Implement Smoky first (simplest), then Thunder, then Railgun. | Fourth PR |
+| Remaining weapon VFX families (BLOCKOUT-06H+) | high+ | 8 remaining weapon VFX families with unique geometry. Cone/beam/ricochet are complex. | Implement in order of complexity. Test each family individually. | Fifth PR |
+| Damage placeholders (BLOCKOUT-07H+) | high+ | Damage affects HP, status effects, self-damage. Risk of cascading into civil units if not properly scoped. | Blockout vehicles only, separate HP field, no civil unit HP. | Sixth PR |
+| Obstacles (BLOCKOUT-08H) | high | Projectile/cone/beam blocking requires ray-cast and geometry clipping. Risk of performance issues with many obstacles. | Start with visual-only, add movement blockers, then projectile blockers. | Seventh PR |
+| Upgrade skeleton + visual indicators (BLOCKOUT-09H) | high | Config and dev hotkeys are straightforward, but visual indicators may clash with existing debug overlays. | Separate upgrade indicator layer, test with debug overlay ON and OFF. | Eighth PR |
+| Combat readability sandbox (BLOCKOUT-10H+) | high+ | Integration test of all systems together. Risk of interaction bugs between movement, turret, VFX, damage, obstacles, upgrades. | Full manual QA in arena mode, test each weapon + body combination. | Ninth PR |
 | Save/load compatibility | high | New state fields may break old saves or cause serialization issues | Optional fields with defaults, strip blockout data on save, extend stripModularCombatFromState | All PRs |
-| Performance | medium | Graphics-based rendering of many vehicles + VFX may be slower than sprite-based | Profile in arena mode, limit max vehicles, use object pooling for VFX | BLOCKOUT-04+ |
-| Depth sorting | medium | Isometric depth sorting must handle vehicles, VFX, obstacles, and existing entities correctly | Use consistent depth formula (100 + worldY), VFX at depth + 0.5 | BLOCKOUT-04+ |
+| Performance | medium | Graphics-based rendering of many vehicles + VFX may be slower than sprite-based | Profile in arena mode, limit max vehicles, use object pooling for VFX | BLOCKOUT-02H+ |
+| Depth sorting | medium | Isometric depth sorting must handle vehicles, VFX, obstacles, and existing entities correctly | Use consistent depth formula (100 + worldY), VFX at depth + 0.5 | BLOCKOUT-02H+ |
 
 ---
 
@@ -947,87 +956,75 @@ Each upgrade category has a placeholder visual indicator:
 
 ## 15. Proposed PR sequence
 
-### BLOCKOUT-02 — Config skeleton only
+Owner decision: no standalone low-risk implementation PRs. The sequence below uses only high and high+ steps. Low-risk preparatory work (config types, data, unit tests) is included inside the first high step that produces visible output.
 
-- **PR id**: BLOCKOUT-02
-- **Title**: BLOCKOUT-02: Add body/weapon/vehicle/movement/recoil/damage/obstacle/upgrade profile contracts
-- **Goal**: Add typed profile contracts and data without runtime consumption. Establish the data foundation for all subsequent PRs.
-- **Risk**: low
-- **Expected visible effect**: None. Game output unchanged.
-- **Allowed files**:
-  - `src/config/blockoutProfiles.ts` (types)
+### BLOCKOUT-02H — First visible blockout vehicles
+
+- **PR id**: BLOCKOUT-02H
+- **Title**: BLOCKOUT-02H: First visible blockout vehicles
+- **Goal**: Blockout vehicles appear as visible Graphics primitives in arena/dev mode. This merges the former BLOCKOUT-02 (config skeleton), BLOCKOUT-03 (dev-only state), and BLOCKOUT-04 (primitive renderer) into a single high step.
+- **Risk**: high
+- **Expected visible effect**: Colored rectangle body appears at spawn tile (size varies by body profile). Turret rectangle + barrel line visible on body. Mount point circle visible with debug overlay ON. Different body sizes readable for Wasp vs Mammoth. Different barrel lengths visible for Smoky vs Railgun. Production/default game unchanged when devtools flag is off.
+- **Includes**:
+  - `src/config/blockoutProfiles.ts` (types: BodyProfile, WeaponProfile, VehicleProfile, MovementProfile, RecoilProfile, DamageProfile, ObstacleProfile)
   - `src/config/blockoutBodyData.ts` (7 body profiles)
   - `src/config/blockoutWeaponData.ts` (11 weapon profiles)
   - `src/config/blockoutVehicleData.ts` (7+ vehicle compositions)
-  - `src/config/blockoutMovementData.ts` (7 movement profiles)
-  - `src/config/blockoutRecoilData.ts` (11 recoil profiles)
-  - `src/config/blockoutVfxData.ts` (10 VFX profiles)
-  - `src/config/blockoutDamageData.ts` (11 damage profiles)
-  - `src/config/blockoutObstacleData.ts` (6 obstacle profiles)
-  - `src/config/blockoutUpgradeData.ts` (upgrade definitions)
-  - `src/__tests__/blockoutProfiles.test.ts` (unit tests)
-- **Forbidden files**: All runtime files, renderers, state files, asset files, save/load files
-- **Automated tests**: Pure TS unit tests verifying: all body IDs present, mount categories match roadmap, weapon behaviors match roadmap, vehicle compositions reference valid bodies/weapons, movement profiles have required fields, damage profiles have correct zero values for non-applicable fields
-- **Manual validation**: typecheck + build + test pass. Game runs unchanged.
-- **Rollback plan**: Delete all new files. No other files were changed.
-
-### BLOCKOUT-03 — Dev-only blockout vehicle state/spawn
-
-- **PR id**: BLOCKOUT-03
-- **Title**: BLOCKOUT-03: Add blockout vehicle state type and dev-spawn commands
-- **Goal**: Define `BlockoutVehicleState` type, add optional `blockoutVehicles` field to GameState, add dev-spawn command for blockout vehicles, extend `stripModularCombatFromState()` to strip blockout vehicles.
-- **Risk**: medium
-- **Expected visible effect**: None yet (no renderer). Dev-spawn command creates state but vehicle is invisible. Console log confirms spawn.
-- **Allowed files**:
-  - `src/state/blockoutVehicleState.ts` (new)
-  - `src/state/types.ts` (add optional `blockoutVehicles` field to GameState)
-  - `src/state/createInitialState.ts` (extend strip function)
+  - `src/config/blockoutMovementData.ts` (7 movement profiles — data only, not consumed by movement controller yet)
+  - `src/config/blockoutRecoilData.ts` (11 recoil profiles — data only)
+  - `src/config/blockoutVfxData.ts` (10 VFX profiles — data only)
+  - `src/config/blockoutDamageData.ts` (11 damage profiles — data only)
+  - `src/config/blockoutObstacleData.ts` (6 obstacle profiles — data only)
+  - `src/config/blockoutUpgradeData.ts` (upgrade definitions — data only)
+  - `src/state/blockoutVehicleState.ts` (new — BlockoutVehicleState type, optional blockoutVehicles on GameState)
+  - `src/state/types.ts` (add optional blockoutVehicles field to GameState)
+  - `src/state/createInitialState.ts` (extend stripModularCombatFromState to strip blockout vehicles)
   - `src/state/devCommands.ts` (add devSpawnBlockoutVehicle command)
-  - `src/__tests__/blockoutVehicleState.test.ts` (new)
-- **Forbidden files**: Renderers, assets, save schema (blockout vehicles are not persisted)
-- **Automated tests**: Test blockout vehicle state creation, strip function, dev-spawn command
-- **Manual validation**: typecheck + build + test pass. Game runs unchanged. Dev-spawn command creates state (verify in console).
-- **Rollback plan**: Revert changes. Remove `blockoutVehicles` field from GameState. Delete new files.
-
-### BLOCKOUT-04 — Primitive renderer
-
-- **PR id**: BLOCKOUT-04
-- **Title**: BLOCKOUT-04: Blockout vehicle primitive renderer with Graphics API
-- **Goal**: Render blockout vehicles as Phaser Graphics primitives (body rectangle, turret rectangle, barrel line, mount point circle, HP bar, debug outline).
-- **Risk**: medium
-- **Expected visible effect**: Blockout vehicles appear as colored rectangles with turret and barrel when devtools is active. Different body sizes visible. Mount points visible with debug overlay.
-- **Allowed files**:
-  - `src/phaser/render/BlockoutVehicleRenderer.ts` (new)
-  - `src/phaser/GameScene.ts` (create BlockoutVehicleRenderer, wire into update loop)
+  - `src/phaser/render/BlockoutVehicleRenderer.ts` (new — primitive Graphics renderer with body, turret, barrel, mount point)
+  - `src/phaser/GameScene.ts` (create BlockoutVehicleRenderer, wire into update loop, gated by devtoolsActive)
   - `src/phaser/render/EntityRenderer.ts` (delegate blockout vehicle kind to new renderer)
   - `src/config/unitRenderConfig.ts` (add blockout render scale constants)
-- **Forbidden files**: ModularTankRenderer (must remain unchanged), asset files, state logic files
-- **Automated tests**: typecheck + build pass
-- **Manual validation**: Open arena mode. Spawn blockout vehicle via dev command. Verify colored rectangle with turret and barrel appears. Verify mount point with debug overlay ON. Verify different body sizes for different profiles.
-- **Rollback plan**: Revert changes. Blockout vehicles become invisible again (state still exists but no rendering). Game still functions.
+  - `src/__tests__/blockoutProfiles.test.ts` (unit tests for profiles, state, and spawn)
+- **Explicitly forbidden**:
+  - Movement physics (no acceleration/braking/turn speed — vehicles are stationary or instant-movement only)
+  - Turret aiming (turret direction fixed to body direction — no independent turret rotation)
+  - Recoil (no barrel kickback or body impulse)
+  - Weapon VFX (no muzzle flash, projectile, cone, beam, or splash effects)
+  - Damage (no HP, no damage application, no status effects)
+  - Obstacles (no blockout obstacle placement or blocking)
+  - Upgrades (no upgrade config or indicators — upgrade data exists but is not applied)
+  - Save schema (blockout vehicles are transient, not persisted)
+  - Economy (no resource consumption by blockout vehicles)
+  - Production/factory (no combat unit production in factory queue)
+  - Mapgen (no map generation changes)
+  - Final assets (no PNG sprites, no asset manifest entries)
+- **Automated tests**: Pure TS unit tests verifying: all body IDs present, mount categories match roadmap, weapon behaviors match roadmap, vehicle compositions reference valid bodies/weapons, blockout vehicle state creation, strip function, dev-spawn command
+- **Manual validation**: typecheck + build + test pass. Open arena mode. Spawn blockout vehicle via dev command. Verify colored rectangle with turret and barrel appears. Verify mount point with debug overlay ON. Verify different body sizes. Game runs normally without devtools.
+- **Rollback plan**: Revert all changes. Delete new files. Remove blockoutVehicles from GameState. Game runs normally.
 
-### BLOCKOUT-05 — Turret rotation
+### BLOCKOUT-03H — Selection/control + turret aiming
 
-- **PR id**: BLOCKOUT-05
-- **Title**: BLOCKOUT-05: Independent turret rotation with configurable turn speed
-- **Goal**: Turret rotates independently from body. Turret aim follows mouse cursor (in dev mode) or movement direction. Turret turn speed is configurable per weapon/turret profile.
+- **PR id**: BLOCKOUT-03H
+- **Title**: BLOCKOUT-03H: Selection/control + turret aiming
+- **Goal**: Blockout vehicles can be selected, controlled, and turret aims independently from body.
 - **Risk**: high
-- **Expected visible effect**: Body rotates in movement direction. Turret aims at mouse cursor separately. Visible separation between body and turret facing when vehicle turns.
+- **Expected visible effect**: Click to select blockout vehicle. Right-click or WASD to move (instant or simple interpolation, not physics yet). Body rotates in movement direction. Turret follows mouse cursor independently. Visible separation between body and turret facing.
 - **Allowed files**:
   - `src/state/blockoutVehicleState.ts` (add turretAngle, turretTargetAngle, turretTurnSpeed fields)
   - `src/phaser/render/BlockoutVehicleRenderer.ts` (turret rendering follows turretAngle)
-  - `src/phaser/input/GameInputController.ts` (mouse position drives turret aim)
+  - `src/phaser/input/GameInputController.ts` (blockout vehicle selection, movement, mouse position drives turret aim)
   - `src/config/blockoutMovementData.ts` (add turret turn speed per body/weapon)
-- **Forbidden files**: Civil unit logic, ModularTankRenderer
-- **Automated tests**: Unit tests for turret angle interpolation, turn speed clamping
-- **Manual validation**: Move vehicle. Verify body rotates in movement direction. Verify turret follows mouse. Verify heavy vehicles have slower turret rotation.
+  - `src/__tests__/blockoutTurret.test.ts` (new)
+- **Forbidden files**: Civil unit logic, ModularTankRenderer, save schema, economy
+- **Automated tests**: Unit tests for turret angle interpolation, turn speed clamping, selection state
+- **Manual validation**: Click blockout vehicle. Verify selection highlight. Move vehicle. Verify body rotates. Verify turret follows mouse. Verify heavy vehicles have slower turret rotation.
 - **Rollback plan**: Revert changes. Turret reverts to fixed position (matches body direction).
 
-### BLOCKOUT-06 — Movement feel
+### BLOCKOUT-04H+ — Semi-physics movement
 
-- **PR id**: BLOCKOUT-06
-- **Title**: BLOCKOUT-06: Semi-physics movement feel for blockout vehicles
-- **Goal**: Implement acceleration, braking, turn speed, body rotation lag, mass/power influence for blockout vehicles.
+- **PR id**: BLOCKOUT-04H+
+- **Title**: BLOCKOUT-04H+: Semi-physics movement feel for blockout vehicles
+- **Goal**: Acceleration, braking, turn speed, body rotation lag, mass/power influence for blockout vehicles.
 - **Risk**: high+
 - **Expected visible effect**: Wasp feels fastest and most responsive. Mammoth feels slowest and heaviest. Acceleration visible. Braking visible. Turn speed differences visible. Body rotation lag visible on heavy vehicles.
 - **Allowed files**:
@@ -1040,50 +1037,54 @@ Each upgrade category has a placeholder visual indicator:
   - `src/__tests__/blockoutMovement.test.ts` (new)
 - **Forbidden files**: `updateGameState.ts` (additive call only), civil unit movement, pathfinding core
 - **Automated tests**: Unit tests for acceleration, braking, turn speed, velocity clamping, arrival detection
-- **Manual validation**: Drive Wasp — verify fast acceleration, quick turns, responsive feel. Drive Mammoth — verify slow acceleration, wide turns, heavy feel. Test all 7 bodies.
-- **Rollback plan**: Revert changes. Vehicles revert to instant movement (teleport to destination).
+- **Manual validation**: Drive Wasp — verify fast acceleration, quick turns, responsive feel. Drive Mammoth — verify slow acceleration, wide turns, heavy feel.
+- **Rollback plan**: Revert changes. Vehicles revert to instant movement.
 
-### BLOCKOUT-07 — Recoil
+### BLOCKOUT-05H+ — Recoil + first weapon VFX set: Smoky/Railgun/Thunder
 
-- **PR id**: BLOCKOUT-07
-- **Title**: BLOCKOUT-07: Visual recoil by weapon family
-- **Goal**: Implement visual-only recoil: barrel kickback, turret kickback, body impulse. Recoil profiles vary by weapon family.
-- **Risk**: high
-- **Expected visible effect**: Smoky kicks once. Railgun kicks hard. Vulcan has small repeated impulses. Cone/beam weapons have minimal recoil. Hammer has shotgun kick.
+- **PR id**: BLOCKOUT-05H+
+- **Title**: BLOCKOUT-05H+: Recoil + first weapon VFX set: Smoky/Railgun/Thunder
+- **Goal**: Visual recoil and the first three weapon VFX families implemented together.
+- **Risk**: high+
+- **Expected visible effect**: Smoky: short muzzle flash + single impact dot + medium recoil. Railgun: bright line through target + strong recoil. Thunder: impact circle + splash radius ring + medium recoil. Barrel kickback visible on all three. Recoil recovery timing is smooth.
 - **Allowed files**:
   - `src/state/blockoutVehicleState.ts` (add recoilState field)
   - `src/state/blockoutRecoil.ts` (new — recoil controller)
+  - `src/phaser/render/BlockoutVfxRenderer.ts` (new — weapon VFX renderer for first three weapons)
+  - `src/state/blockoutVfxState.ts` (new — VFX state)
+  - `src/phaser/GameScene.ts` (add VfxRenderer creation and update)
   - `src/phaser/render/BlockoutVehicleRenderer.ts` (recoil visual: barrel shortened, turret displaced)
   - `src/config/blockoutRecoilData.ts` (tune recoil parameters)
+  - `src/config/blockoutVfxData.ts` (tune VFX parameters for first three)
   - `src/__tests__/blockoutRecoil.test.ts` (new)
-- **Forbidden files**: Civil unit logic, camera system (no camera shake)
-- **Automated tests**: Unit tests for recoil recovery timing, kickback magnitude per weapon
-- **Manual validation**: Fire each weapon type. Verify recoil magnitude and recovery match expectations.
-- **Rollback plan**: Revert changes. No recoil visual. Firing has no visual kickback.
+- **Forbidden files**: Civil unit logic, camera system (no camera shake), EntityRenderer
+- **Automated tests**: Recoil recovery timing tests, kickback magnitude per weapon, VFX state lifecycle tests
+- **Manual validation**: Fire Smoky. Verify muzzle flash, impact dot, medium recoil. Fire Railgun. Verify bright line, strong recoil. Fire Thunder. Verify splash ring, medium recoil.
+- **Rollback plan**: Revert changes. No recoil or weapon VFX.
 
-### BLOCKOUT-08 — Weapon VFX visual-only
+### BLOCKOUT-06H+ — Remaining weapon VFX families
 
-- **PR id**: BLOCKOUT-08
-- **Title**: BLOCKOUT-08: Primitive VFX placeholders for all weapon behavior families
-- **Goal**: Implement primitive VFX for all 10 weapon behaviors. Each weapon family has a visually distinct effect using Graphics primitives.
+- **PR id**: BLOCKOUT-06H+
+- **Title**: BLOCKOUT-06H+: Primitive VFX placeholders for remaining weapon behavior families
+- **Goal**: Primitive VFX for Flamethrower, Freeze, Isida, Vulcan, Twins, Ricochet, Hammer, Shaft.
 - **Risk**: high+
-- **Expected visible effect**: Projectile / splash / line pierce / cone / beam / rapid fire / plasma / ricochet / shotgun are visually distinct and identifiable.
+- **Expected visible effect**: All remaining weapon families produce visually distinct and identifiable effects.
 - **Allowed files**:
-  - `src/phaser/render/BlockoutVfxRenderer.ts` (new — weapon VFX renderer)
-  - `src/state/blockoutVfxState.ts` (new — VFX state: active effects, timers)
-  - `src/phaser/GameScene.ts` (add VfxRenderer creation and update)
-  - `src/config/blockoutVfxData.ts` (VFX parameters)
-  - `src/__tests__/blockoutVfx.test.ts` (new — pure logic tests for VFX state)
+  - `src/phaser/render/BlockoutVfxRenderer.ts` (add remaining weapon VFX)
+  - `src/state/blockoutVfxState.ts` (add remaining VFX state types)
+  - `src/config/blockoutVfxData.ts` (add remaining VFX parameters)
+  - `src/config/blockoutRecoilData.ts` (add remaining recoil parameters if not already present)
+  - `src/__tests__/blockoutVfx.test.ts` (extend)
 - **Forbidden files**: EntityRenderer, ModularTankRenderer, civil unit rendering
-- **Automated tests**: VFX state lifecycle tests (create, update, expire)
-- **Manual validation**: Fire each weapon type. Verify each produces the correct visual effect. Verify effects fade after their duration.
-- **Rollback plan**: Revert changes. No weapon VFX. Firing has no visible effect.
+- **Automated tests**: VFX state lifecycle tests for each family
+- **Manual validation**: Fire each remaining weapon type. Verify each produces the correct visual effect.
+- **Rollback plan**: Revert changes. Only Smoky/Railgun/Thunder VFX remain.
 
-### BLOCKOUT-09 — Damage placeholders
+### BLOCKOUT-07H+ — Damage placeholders
 
-- **PR id**: BLOCKOUT-09
-- **Title**: BLOCKOUT-09: Parameterized damage behavior placeholders
-- **Goal**: Implement direct hit, splash, penetration, cone tick, beam lock, status effects, self-damage. Blockout-only HP.
+- **PR id**: BLOCKOUT-07H+
+- **Title**: BLOCKOUT-07H+: Parameterized damage behavior placeholders
+- **Goal**: Direct hit, splash, penetration, cone tick, beam lock, status effects, self-damage. Blockout-only HP.
 - **Risk**: high+
 - **Expected visible effect**: Thunder shows splash radius. Railgun shows penetration. Flamethrower/Freeze show cone damage + status. Isida shows beam lock. HP bars decrease. Status badges appear.
 - **Allowed files**:
@@ -1095,16 +1096,16 @@ Each upgrade category has a placeholder visual indicator:
   - `src/__tests__/blockoutDamage.test.ts` (new)
 - **Forbidden files**: Civil unit types, economy, resource system, save schema
 - **Automated tests**: Damage calculation tests (direct, splash with falloff, penetration, cone tick, beam, status effect duration)
-- **Manual validation**: Shoot vehicles with each weapon. Verify HP decreases. Verify splash damages nearby vehicles. Verify status effects apply and expire.
-- **Rollback plan**: Revert changes. No damage behavior. Firing has VFX but no HP effect.
+- **Manual validation**: Shoot vehicles with each weapon. Verify HP decreases. Verify splash. Verify status effects.
+- **Rollback plan**: Revert changes. No damage behavior. VFX still plays but no HP change.
 
-### BLOCKOUT-10 — Obstacles
+### BLOCKOUT-08H — Blockout obstacles
 
-- **PR id**: BLOCKOUT-10
-- **Title**: BLOCKOUT-10: Blockout obstacle visual, movement, and projectile blockers
-- **Goal**: Add visual-only obstacles, then movement blockers, then projectile/cone/beam blockers.
+- **PR id**: BLOCKOUT-08H
+- **Title**: BLOCKOUT-08H: Blockout obstacle visual, movement, and projectile blockers
+- **Goal**: Visual-only obstacles, then movement blockers, then projectile/cone/beam blockers.
 - **Risk**: high
-- **Expected visible effect**: Colored rectangles appear for blockout obstacles. Vehicles cannot drive through them. Projectiles stop at obstacles. Cones are clipped. Beams are truncated.
+- **Expected visible effect**: Colored rectangles for obstacles. Vehicles cannot drive through. Projectiles stop at obstacles. Cones clipped. Beams truncated.
 - **Allowed files**:
   - `src/config/blockoutObstacleData.ts` (obstacle profiles)
   - `src/state/blockoutObstacle.ts` (new — obstacle placement and blocking logic)
@@ -1114,18 +1115,18 @@ Each upgrade category has a placeholder visual indicator:
   - `src/__tests__/blockoutObstacle.test.ts` (new)
 - **Forbidden files**: Map generation, terrain system, existing obstacle types
 - **Automated tests**: Obstacle blocking tests (movement, projectile, cone, beam)
-- **Manual validation**: Place obstacles. Drive vehicle into obstacle — verify it stops. Fire projectile at obstacle — verify it stops. Fire cone at obstacle — verify it clips.
-- **Rollback plan**: Revert changes. No blockout obstacles. Existing obstacle system unchanged.
+- **Manual validation**: Place obstacles. Drive into obstacle — stops. Fire at obstacle — stops. Cone at obstacle — clips.
+- **Rollback plan**: Revert changes. No blockout obstacles.
 
-### BLOCKOUT-11 — Upgrade skeleton
+### BLOCKOUT-09H — Upgrade skeleton + visual indicators
 
-- **PR id**: BLOCKOUT-11
-- **Title**: BLOCKOUT-11: Debug/config upgrade model with visual indicators
-- **Goal**: Upgrade definitions in config. Dev hotkeys to apply upgrades. Visual indicators for armor/speed/range/damage/penetration/splash.
+- **PR id**: BLOCKOUT-09H
+- **Title**: BLOCKOUT-09H: Debug/config upgrade model with visual indicators
+- **Goal**: Upgrade definitions consumed from config. Dev hotkeys to apply upgrades. Visual indicators for armor/speed/range/damage/penetration/splash.
 - **Risk**: high
 - **Expected visible effect**: Dev hotkeys apply upgrades. Armor upgrade shows thicker outline. Speed upgrade shows badge. Damage upgrade shows brighter muzzle. Penetration upgrade shows different line style.
 - **Allowed files**:
-  - `src/config/blockoutUpgradeData.ts` (upgrade definitions)
+  - `src/config/blockoutUpgradeData.ts` (upgrade definitions — consumed, not just data)
   - `src/state/blockoutUpgrade.ts` (new — upgrade application logic)
   - `src/state/blockoutVehicleState.ts` (add upgradeState field)
   - `src/phaser/render/BlockoutVehicleRenderer.ts` (upgrade visual indicators)
@@ -1134,16 +1135,16 @@ Each upgrade category has a placeholder visual indicator:
   - `src/__tests__/blockoutUpgrade.test.ts` (new)
 - **Forbidden files**: Production UI, economy, save system
 - **Automated tests**: Upgrade application tests (each category, level stacking, visual indicator config)
-- **Manual validation**: Apply each upgrade via hotkey. Verify visual indicator appears. Verify parameter changes (faster movement, longer range, etc.).
+- **Manual validation**: Apply each upgrade via hotkey. Verify visual indicator appears. Verify parameter changes.
 - **Rollback plan**: Revert changes. No upgrade system. Vehicles have fixed parameters.
 
-### BLOCKOUT-12 — Readability sandbox
+### BLOCKOUT-10H+ — Combat readability sandbox
 
-- **PR id**: BLOCKOUT-12
-- **Title**: BLOCKOUT-12: Combat readability sandbox — integrated test environment
-- **Goal**: Integrated test sandbox for vehicle/weapon/obstacle/upgrade readability. Multiple vehicles visible simultaneously. All weapon families testable.
+- **PR id**: BLOCKOUT-10H+
+- **Title**: BLOCKOUT-10H+: Combat readability sandbox — integrated test environment
+- **Goal**: Integrated test sandbox for vehicle/weapon/obstacle/upgrade readability. Multiple vehicles visible simultaneously.
 - **Risk**: high+
-- **Expected visible effect**: Multiple blockout vehicles with different bodies and weapons visible. Different bodies are readable. Different weapon families are readable. Recoil readable. Splash/penetration/cone/beam readable. Obstacles affect behavior. Upgrades visibly modify behavior.
+- **Expected visible effect**: Multiple blockout vehicles with different bodies and weapons visible. Different bodies readable. Different weapon families readable. Recoil readable. Splash/penetration/cone/beam readable. Obstacles affect behavior. Upgrades visibly modify behavior.
 - **Allowed files**:
   - `src/state/devArena.ts` (extend arena map with blockout vehicle presets and obstacles)
   - `src/phaser/GameScene.ts` (arena mode spawns multiple blockout vehicles)
@@ -1158,24 +1159,22 @@ Each upgrade category has a placeholder visual indicator:
 
 ## 16. First implementation PR recommendation
 
-**BLOCKOUT-02 — Config skeleton only**
+**BLOCKOUT-02H — First visible blockout vehicles**
 
-This is the smallest and safest first implementation PR because:
+This is the first implementation PR because:
 
-1. **Zero runtime change**: The PR adds TypeScript types and constant data objects. No code path consumes them yet. The game runs identically before and after the PR.
-2. **Fully testable**: Pure unit tests verify every profile has required fields, every ID is valid, every cross-reference (body in vehicle → body in bodyData) resolves correctly.
-3. **Foundation for all subsequent PRs**: Every later BLOCKOUT PR depends on these types and data. Getting the contracts right first prevents interface mismatches and ad-hoc type definitions scattered across later PRs.
-4. **Easy to review**: The PR contains only type definitions and data constants. No behavioral logic. Reviewers can verify data against the roadmap tables.
-5. **Trivial rollback**: Delete the new files. No other files were changed.
+1. **Owner decision requires visible progress**: No standalone low-risk PRs. BLOCKOUT-02H merges config skeleton, dev-only state, and primitive renderer into one high step that produces visible blockout vehicles.
+2. **Visible output on first PR**: After BLOCKOUT-02H merges, blockout vehicles appear as colored Graphics primitives in arena/dev mode. This is immediately testable and reviewable.
+3. **All preparatory work is inside**: Profile types, data, state type, spawn command, and renderer are all included. No prior "invisible" PR needed.
+4. **Devtools flag protects production**: All blockout code is gated by `devtoolsActive`. When the flag is off, no blockout vehicles exist, no renderer runs, no state is created.
 
 **What it must NOT do**:
 
-- Must not add any runtime consumption of the profile data.
-- Must not modify any existing types, state, renderer, asset, or save files.
-- Must not add any new GameState fields.
-- Must not add any Phaser imports.
-- Must not change the game output in any way.
-- Must not add any new npm dependencies.
+- Must not add movement physics, turret aiming, recoil, weapon VFX, damage, obstacles, or upgrades.
+- Must not modify any existing civil unit types, economy, resource, construction, or production systems.
+- Must not change the save schema.
+- Must not add any PNG assets or asset manifest entries.
+- Must not change the game output for standard (non-devtools) mode.
 
 ---
 
@@ -1201,14 +1200,14 @@ npm --prefix /home/z/my-project/four-elements-phaser run test:e2e
 # Status: unavailable (no E2E test suite exists)
 ```
 
-For BLOCKOUT-02 specifically:
+For BLOCKOUT-02H specifically:
 
-- typecheck: must pass (new types are valid TypeScript)
-- test: must pass with additional blockout profile tests (expected test count increases)
-- build: must pass (no runtime changes)
+- typecheck: must pass (new types are valid TypeScript, new renderer compiles)
+- test: must pass with additional blockout profile and state tests (expected test count increases)
+- build: must pass (no runtime changes for non-devtools mode)
 - qa:smoke: must pass (2/2)
 
-For subsequent PRs with runtime changes (BLOCKOUT-04+):
+For subsequent PRs with runtime changes (BLOCKOUT-03H+):
 
 - All above commands must pass.
 - Manual QA: open the game in devtools/arena mode, verify expected visual effects.
@@ -1223,44 +1222,44 @@ For subsequent PRs with runtime changes (BLOCKOUT-04+):
 - **Rollback**: Close the PR. Delete `BLOCKOUT_01_HUGE_ROADMAP_AUDIT.md`. Revert `CURRENT_NEXT_STEP.md` if changed.
 - **Impact**: None on runtime code.
 
-### Config-only PR (BLOCKOUT-02)
+### First visible vehicles PR (BLOCKOUT-02H)
 
-- **Rollback**: Delete all `src/config/blockout*.ts` files and `src/__tests__/blockoutProfiles.test.ts`. No other files changed.
-- **Impact**: Zero runtime impact. Types and data were not consumed by any runtime code.
+- **Rollback**: Delete all `src/config/blockout*.ts` files, `src/state/blockoutVehicleState.ts`, `src/phaser/render/BlockoutVehicleRenderer.ts`. Remove `blockoutVehicles` from GameState. Revert changes to `GameScene.ts`, `EntityRenderer.ts`, `devCommands.ts`, `createInitialState.ts`, `unitRenderConfig.ts`.
+- **Impact**: Blockout vehicles gone entirely. No config, no state, no renderer. Game runs normally.
 
-### Renderer PR (BLOCKOUT-04)
+### Selection/control + turret aiming (BLOCKOUT-03H)
 
-- **Rollback**: Delete `BlockoutVehicleRenderer.ts`. Revert changes to `GameScene.ts` and `EntityRenderer.ts` (remove blockout renderer creation and delegation).
-- **Impact**: Blockout vehicles become invisible (state exists but no rendering). Game runs normally.
+- **Rollback**: Revert turret angle fields from `BlockoutVehicleState`. Revert `BlockoutVehicleRenderer` turret rendering. Revert input controller changes.
+- **Impact**: Turret reverts to fixed position (matches body direction). Game runs normally.
 
-### State PR (BLOCKOUT-03)
-
-- **Rollback**: Delete `blockoutVehicleState.ts`. Remove `blockoutVehicles` field from `GameState`. Revert `devCommands.ts` and `createInitialState.ts` changes.
-- **Impact**: Blockout vehicle state is gone. Dev-spawn command no longer exists. Game runs normally.
-
-### Movement PR (BLOCKOUT-06)
+### Movement PR (BLOCKOUT-04H+)
 
 - **Rollback**: Delete `blockoutMovement.ts`. Revert `GameScene.ts` (remove blockout update call). Vehicles revert to instant movement or no movement.
 - **Impact**: Blockout vehicles don't move. Game runs normally.
 
-### VFX PR (BLOCKOUT-08)
+### Recoil + first VFX PR (BLOCKOUT-05H+)
 
-- **Rollback**: Delete `BlockoutVfxRenderer.ts` and `blockoutVfxState.ts`. Revert `GameScene.ts`. No weapon visual effects.
+- **Rollback**: Delete `BlockoutVfxRenderer.ts`, `blockoutVfxState.ts`, `blockoutRecoil.ts`. Revert `GameScene.ts` and `BlockoutVehicleRenderer.ts` recoil changes. No recoil or weapon VFX.
 - **Impact**: Firing produces no visual effect. Game runs normally.
 
-### Damage PR (BLOCKOUT-09)
+### Remaining VFX PR (BLOCKOUT-06H+)
+
+- **Rollback**: Revert `BlockoutVfxRenderer.ts` additions. Only Smoky/Railgun/Thunder VFX remain.
+- **Impact**: Some weapon VFX removed. Game runs normally.
+
+### Damage PR (BLOCKOUT-07H+)
 
 - **Rollback**: Delete `blockoutDamage.ts`. Remove HP/status fields from `BlockoutVehicleState`. Revert renderer HP bar/status badge changes.
 - **Impact**: No damage behavior. VFX still plays but no HP change. Game runs normally.
 
-### Obstacle PR (BLOCKOUT-10)
+### Obstacle PR (BLOCKOUT-08H)
 
 - **Rollback**: Delete `blockoutObstacle.ts` and `BlockoutObstacleRenderer.ts`. Remove obstacle flags from occupancy map. Remove dev-place-obstacle command.
 - **Impact**: No blockout obstacles. Existing obstacle system unchanged. Game runs normally.
 
-### Upgrade PR (BLOCKOUT-11)
+### Upgrade PR (BLOCKOUT-09H)
 
-- **Rollback**: Delete `blockoutUpgrade.ts` and `blockoutUpgradeData.ts`. Remove upgradeState from `BlockoutVehicleState`. Remove upgrade hotkeys and commands.
+- **Rollback**: Delete `blockoutUpgrade.ts`. Remove upgradeState from `BlockoutVehicleState`. Remove upgrade hotkeys and commands.
 - **Impact**: No upgrade system. Vehicles have fixed parameters. Game runs normally.
 
 ---
@@ -1293,15 +1292,13 @@ For subsequent PRs with runtime changes (BLOCKOUT-04+):
 
 The recommended next PR after this audit is:
 
-**BLOCKOUT-02 — Config skeleton only**
+**BLOCKOUT-02H — First visible blockout vehicles**
 
-This PR adds typed profile contracts and data for all 7 body profiles, all 11 weapon profiles, vehicle compositions, movement profiles, recoil profiles, VFX profiles, damage profiles, obstacle profiles, and upgrade definitions. It includes comprehensive unit tests verifying data completeness and cross-reference validity.
+This PR merges the former BLOCKOUT-02 (config skeleton), BLOCKOUT-03 (dev-only state), and BLOCKOUT-04 (primitive renderer) into a single high step. It adds blockout profile types and data for all 7 body profiles, all 11 weapon profiles, vehicle compositions, movement/recoil/VFX/damage/obstacle/upgrade profiles (data only), BlockoutVehicleState type with dev-spawn command, and the primitive Graphics renderer for body/turret/barrel/mount point. It includes comprehensive unit tests verifying data completeness and cross-reference validity.
 
-No runtime code consumes these profiles yet. The game runs identically before and after the PR. This is the safest possible first step and establishes the data contracts that all subsequent implementation PRs will depend on.
+After BLOCKOUT-02H is reviewed and merged, the implementation sequence should proceed in order: BLOCKOUT-03H (selection/control + turret aiming), BLOCKOUT-04H+ (semi-physics movement), BLOCKOUT-05H+ (recoil + first VFX: Smoky/Railgun/Thunder), BLOCKOUT-06H+ (remaining VFX families), BLOCKOUT-07H+ (damage placeholders), BLOCKOUT-08H (obstacles), BLOCKOUT-09H (upgrade skeleton + visual indicators), BLOCKOUT-10H+ (combat readability sandbox).
 
-After BLOCKOUT-02 is reviewed and merged, the implementation sequence should proceed in order: BLOCKOUT-03 (state), BLOCKOUT-04 (renderer), BLOCKOUT-05 (turret), BLOCKOUT-06 (movement), BLOCKOUT-07 (recoil), BLOCKOUT-08 (VFX), BLOCKOUT-09 (damage), BLOCKOUT-10 (obstacles), BLOCKOUT-11 (upgrades), BLOCKOUT-12 (sandbox).
-
-Each PR must pass full validation (typecheck, test, build, qa:smoke) and must not modify files outside its allowed scope.
+Each PR must pass full validation (typecheck, test, build, qa:smoke) and must not modify files outside its allowed scope. No standalone low-risk PRs — every PR must produce visible gameplay/blockout progress.
 
 ---
 
