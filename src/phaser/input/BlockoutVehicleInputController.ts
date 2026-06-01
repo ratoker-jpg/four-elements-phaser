@@ -32,7 +32,7 @@ import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { computeTurretWorldOrigin, computeBodyWorldCenter, getBodyPixelSize } from '../render/blockoutVehicleGeometry';
 import { setBlockoutVehicleMoveTarget } from '../../state/blockoutMovement';
 import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state/angleMath';
-import { canFireBlockoutWeapon, fireBlockoutWeapon } from '../../state/blockoutWeaponVfx';
+import { canFireBlockoutWeapon, fireBlockoutWeapon, startFiring, stopFiring } from '../../state/blockoutWeaponVfx';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import type { GameState } from '../../state/types';
 
@@ -98,6 +98,7 @@ export class BlockoutVehicleInputController {
   private boundPointerup: (pointer: Phaser.Input.Pointer) => void;
   private boundPointermove: (pointer: Phaser.Input.Pointer) => void;
   private boundKeydown: (event: KeyboardEvent) => void;
+  private boundKeyup: (event: KeyboardEvent) => void;
 
   constructor(deps: BlockoutVehicleInputDeps) {
     this.scene = deps.scene;
@@ -110,11 +111,13 @@ export class BlockoutVehicleInputController {
     this.boundPointerup = this.onPointerup.bind(this);
     this.boundPointermove = this.onPointermove.bind(this);
     this.boundKeydown = this.onKeydown.bind(this);
+    this.boundKeyup = this.onKeyup.bind(this);
 
     this.scene.input.on('pointerdown', this.boundPointerdown);
     this.scene.input.on('pointerup', this.boundPointerup);
     this.scene.input.on('pointermove', this.boundPointermove);
     this.scene.input.keyboard?.on('keydown', this.boundKeydown);
+    this.scene.input.keyboard?.on('keyup', this.boundKeyup);
   }
 
   // ─── Public accessors ──────────────────────────────────────────
@@ -128,6 +131,12 @@ export class BlockoutVehicleInputController {
   get hoveredVehicleId(): string | null {
     return this._hoveredVehicleId;
   }
+
+  /** Mouse world X position. BLOCKOUT-06H+. */
+  get mouseWorldX(): number { return this._mouseWorldX; }
+
+  /** Mouse world Y position. BLOCKOUT-06H+. */
+  get mouseWorldY(): number { return this._mouseWorldY; }
 
   // ─── Frame update ─────────────────────────────────────────────
 
@@ -360,6 +369,30 @@ export class BlockoutVehicleInputController {
       aimTargetY,
       nowMs,
     );
+
+    // BLOCKOUT-06H+: Start continuous fire for stream weapons
+    startFiring(selected);
+  }
+
+  /**
+   * Handle keyboard key-up for continuous fire release.
+   * BLOCKOUT-06H+: Stops continuous fire when Space/F is released.
+   */
+  private onKeyup(event: KeyboardEvent): void {
+    if (!this.isDevtoolsActive()) return;
+    if (event.code !== 'Space' && event.code !== 'KeyF') return;
+
+    if (!this._selectedVehicleId) return;
+
+    const gameState = this.getGameState();
+    const vehicles = gameState.blockoutVehicles;
+    if (!vehicles || vehicles.length === 0) return;
+
+    const selected = vehicles.find(v => v.id === this._selectedVehicleId);
+    if (!selected) return;
+
+    // BLOCKOUT-06H+: Stop continuous fire
+    stopFiring(selected);
   }
 
   destroy(): void {
@@ -367,6 +400,7 @@ export class BlockoutVehicleInputController {
     this.scene.input.off('pointerup', this.boundPointerup);
     this.scene.input.off('pointermove', this.boundPointermove);
     this.scene.input.keyboard?.off('keydown', this.boundKeydown);
+    this.scene.input.keyboard?.off('keyup', this.boundKeyup);
   }
 }
 

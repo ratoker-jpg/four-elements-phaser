@@ -460,7 +460,8 @@ export interface GameState {
    *  Blockout vehicles are stripped from saves and never serialized.
    *  BLOCKOUT-03H: Added turretTargetAngle and turretTurnSpeedDeg for independent turret aiming.
    *  BLOCKOUT-04H+: Added movement fields (worldX/worldY, velocity, move target).
-   *  BLOCKOUT-05H+: Added recoil/firing fields. */
+   *  BLOCKOUT-05H+: Added recoil/firing fields.
+   *  BLOCKOUT-06H+: Added continuous fire fields (fireHeld, isFiring, lastStreamTickAt, visualOverheat). */
   blockoutVehicles?: Array<{
     id: string;
     bodyId: BodyId;
@@ -487,6 +488,14 @@ export interface GameState {
     recoilBarrelOffset: number;
     recoilTurretOffset: number;
     recoilBodyOffset: number;
+    /** Whether fire key is currently held down. BLOCKOUT-06H+. */
+    fireHeld: boolean;
+    /** Whether weapon is actively producing VFX. BLOCKOUT-06H+. */
+    isFiring: boolean;
+    /** Timestamp of last continuous stream tick. BLOCKOUT-06H+. */
+    lastStreamTickAt: number;
+    /** Visual overheat indicator (0-1). BLOCKOUT-06H+. */
+    visualOverheat: number;
     createdAt: number;
   }>;
 }

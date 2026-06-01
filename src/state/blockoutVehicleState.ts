@@ -87,6 +87,17 @@ export interface BlockoutVehicleState {
   /** Current body impulse offset in pixels. BLOCKOUT-05H+. Decays to 0 over recovery. */
   recoilBodyOffset: number;
 
+  // ── BLOCKOUT-06H+: Continuous fire fields ──────────────────────────
+
+  /** Whether fire key is currently held down. BLOCKOUT-06H+. Transient. */
+  fireHeld: boolean;
+  /** Whether weapon is actively producing VFX (for continuous weapons). BLOCKOUT-06H+. Transient. */
+  isFiring: boolean;
+  /** Timestamp of last continuous stream tick. BLOCKOUT-06H+. Transient. */
+  lastStreamTickAt: number;
+  /** Visual overheat indicator (0-1). BLOCKOUT-06H+. Transient. */
+  visualOverheat: number;
+
   /** Creation timestamp (ms since epoch). Useful for debug labels. */
   createdAt: number;
 }
@@ -140,6 +151,10 @@ export function createBlockoutVehicle(
     recoilBarrelOffset: 0,
     recoilTurretOffset: 0,
     recoilBodyOffset: 0,
+    fireHeld: false,
+    isFiring: false,
+    lastStreamTickAt: 0,
+    visualOverheat: 0,
     createdAt: Date.now(),
   };
 }

@@ -2,21 +2,24 @@
  * Tests for blockout weapon VFX, recoil, and cooldown.
  *
  * BLOCKOUT-05H+: Recoil + first weapon VFX set (Smoky/Railgun/Thunder).
+ * BLOCKOUT-06H+: All 11 weapons implemented, continuous fire support.
+ *
  * Tests verify:
- * - Recoil profiles exist for Smoky/Railgun/Thunder with pixel fields
+ * - Recoil profiles exist for all weapons with pixel fields
  * - Railgun recoil > Smoky recoil on at least one visible dimension
- * - Weapon VFX config exists for Smoky/Railgun/Thunder
- * - Firing creates correct VFX event type
- * - Firing uses actual turret/barrel origin, not body center
- * - Rear-mounted body VFX origin differs from body center
- * - Front_center body VFX origin differs from body center
- * - Cooldown prevents repeated immediate firing
- * - Cooldown allows firing after elapsed time
- * - Recoil starts on fire
- * - Recoil recovers over time
- * - Movement update does not erase recoil state unexpectedly
- * - Turret aiming remains independent from recoil/movement
- * - saveGame still strips blockoutVehicles and transient fields
+ * - Weapon VFX config exists for all 11 weapons
+ * - Firing creates correct VFX event type for all 11 weapons
+ * - No weapon returns null from getVfxEventType anymore (all 11 implemented)
+ * - Continuous weapon identification
+ * - startFiring/stopFiring state management
+ * - tickContinuousFire creates events at cadence
+ * - tickContinuousFire respects cooldown
+ * - Cooldown/cadence allows later VFX with elapsed scene-time
+ * - No Date.now dependency
+ * - Recoil starts and recovers for new weapons
+ * - saveGame still strips blockoutVehicles
+ * - Movement doesn't erase VFX/recoil state
+ * - VFX event includes BLOCKOUT-06H+ fields (coneAngleDeg, bounceCount, pelletCount)
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -27,6 +30,10 @@ import {
   getVfxEvents,
   resetVfxEventIdCounter,
   expireVfxEvents,
+  tickContinuousFire,
+  isContinuousWeapon,
+  startFiring,
+  stopFiring,
 } from '../state/blockoutWeaponVfx';
 import { createBlockoutVehicle, resetBlockoutVehicleIdCounter } from '../state/blockoutVehicleState';
 import { RECOIL_PROFILES } from '../config/blockoutRecoilData';
@@ -38,6 +45,7 @@ import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { saveGame, loadGame, setSaveStorage, type SaveStorage } from '../state/saveGame';
 import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
 import type { GameState } from '../state/types';
+import type { WeaponId } from '../config/blockoutProfiles';
 
 // ─── Test helpers ────────────────────────────────────────────────────
 
@@ -87,6 +95,13 @@ function createTestGameState(): GameState {
     production: { factories: [] },
   };
 }
+
+// ─── All 11 weapon IDs for iteration ──────────────────────────────
+
+const ALL_WEAPON_IDS: WeaponId[] = [
+  'smoky', 'thunder', 'railgun', 'shaft', 'flamethrower',
+  'freeze', 'isida', 'vulcan', 'twins', 'ricochet', 'hammer',
+];
 
 // ─── Recoil profile existence and differentiation ────────────────────
 
@@ -138,9 +153,9 @@ describe('recoil profiles for Smoky/Railgun/Thunder', () => {
   });
 });
 
-// ─── VFX config existence ────────────────────────────────────────────
+// ─── VFX config existence for all 11 weapons ────────────────────────
 
-describe('VFX config for Smoky/Railgun/Thunder', () => {
+describe('VFX config for all 11 weapons', () => {
   it('Smoky has VFX profile via getWeaponVfxProfile', () => {
     const profile = getWeaponVfxProfile('smoky');
     expect(profile).toBeDefined();
@@ -177,11 +192,95 @@ describe('VFX config for Smoky/Railgun/Thunder', () => {
     const profile = getWeaponVfxProfile('railgun');
     expect(profile!.effectLengthPx).toBeGreaterThan(0);
   });
+
+  // BLOCKOUT-06H+: VFX config for 8 new weapons
+
+  it('Shaft has VFX profile via getWeaponVfxProfile', () => {
+    const profile = getWeaponVfxProfile('shaft');
+    expect(profile).toBeDefined();
+    expect(profile!.behavior).toBe('charge_sniper');
+    expect(profile!.durationMs).toBeGreaterThan(0);
+    expect(profile!.chargePulseMs).toBe(150);
+    expect(profile!.muzzleFlashRadiusPx).toBe(4);
+    expect(profile!.effectLengthPx).toBe(450);
+  });
+
+  it('Flamethrower has VFX profile via getWeaponVfxProfile', () => {
+    const profile = getWeaponVfxProfile('flamethrower');
+    expect(profile).toBeDefined();
+    expect(profile!.behavior).toBe('cone_stream');
+    expect(profile!.durationMs).toBeGreaterThan(0);
+    expect(profile!.coneAngleDeg).toBe(25);
+    expect(profile!.streamCadenceMs).toBe(50);
+    expect(profile!.effectLengthPx).toBe(120);
+  });
+
+  it('Freeze has VFX profile via getWeaponVfxProfile', () => {
+    const profile = getWeaponVfxProfile('freeze');
+    expect(profile).toBeDefined();
+    expect(profile!.behavior).toBe('cone_stream');
+    expect(profile!.durationMs).toBeGreaterThan(0);
+    expect(profile!.coneAngleDeg).toBe(25);
+    expect(profile!.streamCadenceMs).toBe(50);
+  });
+
+  it('Isida has VFX profile via getWeaponVfxProfile', () => {
+    const profile = getWeaponVfxProfile('isida');
+    expect(profile).toBeDefined();
+    expect(profile!.behavior).toBe('beam_support');
+    expect(profile!.durationMs).toBeGreaterThan(0);
+    expect(profile!.streamCadenceMs).toBe(50);
+    expect(profile!.effectLengthPx).toBe(150);
+  });
+
+  it('Vulcan has VFX profile via getWeaponVfxProfile', () => {
+    const profile = getWeaponVfxProfile('vulcan');
+    expect(profile).toBeDefined();
+    expect(profile!.behavior).toBe('rapid_fire_overheat');
+    expect(profile!.durationMs).toBeGreaterThan(0);
+    expect(profile!.streamCadenceMs).toBe(60);
+    expect(profile!.overheatDurationMs).toBe(3000);
+    expect(profile!.muzzleFlashRadiusPx).toBe(3);
+  });
+
+  it('Twins has VFX profile via getWeaponVfxProfile', () => {
+    const profile = getWeaponVfxProfile('twins');
+    expect(profile).toBeDefined();
+    expect(profile!.behavior).toBe('plasma_projectile');
+    expect(profile!.durationMs).toBeGreaterThan(0);
+    expect(profile!.muzzleFlashRadiusPx).toBe(3);
+  });
+
+  it('Ricochet has VFX profile via getWeaponVfxProfile', () => {
+    const profile = getWeaponVfxProfile('ricochet');
+    expect(profile).toBeDefined();
+    expect(profile!.behavior).toBe('ricochet_projectile');
+    expect(profile!.durationMs).toBeGreaterThan(0);
+    expect(profile!.bounceCount).toBe(2);
+  });
+
+  it('Hammer has VFX profile via getWeaponVfxProfile', () => {
+    const profile = getWeaponVfxProfile('hammer');
+    expect(profile).toBeDefined();
+    expect(profile!.behavior).toBe('shotgun_cone');
+    expect(profile!.durationMs).toBeGreaterThan(0);
+    expect(profile!.coneAngleDeg).toBe(30);
+    expect(profile!.pelletCount).toBe(5);
+    expect(profile!.muzzleFlashRadiusPx).toBe(6);
+  });
+
+  it('All 11 weapons have VFX profiles', () => {
+    for (const weaponId of ALL_WEAPON_IDS) {
+      const profile = getWeaponVfxProfile(weaponId);
+      expect(profile, `VFX profile for ${weaponId}`).toBeDefined();
+      expect(profile!.durationMs, `${weaponId} durationMs`).toBeGreaterThan(0);
+    }
+  });
 });
 
-// ─── Firing creates correct VFX event type ───────────────────────────
+// ─── Firing creates correct VFX event type for all 11 weapons ──────
 
-describe('firing creates correct VFX event', () => {
+describe('firing creates correct VFX event type', () => {
   beforeEach(() => {
     resetBlockoutVehicleIdCounter();
     resetVfxEventIdCounter();
@@ -189,7 +288,7 @@ describe('firing creates correct VFX event', () => {
 
   it('Smoky fire creates smokyShot event', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
 
     const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
 
@@ -200,7 +299,7 @@ describe('firing creates correct VFX event', () => {
 
   it('Railgun fire creates railgunLine event', () => {
     const vehicle = createBlockoutVehicle('dictator', 'railgun', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
 
     const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 400, 0, now);
 
@@ -211,7 +310,7 @@ describe('firing creates correct VFX event', () => {
 
   it('Thunder fire creates thunderSplash event', () => {
     const vehicle = createBlockoutVehicle('mammoth', 'thunder', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
 
     const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 200, 0, now);
 
@@ -220,13 +319,151 @@ describe('firing creates correct VFX event', () => {
     expect(event!.weaponId).toBe('thunder');
   });
 
-  it('Non-implemented weapon returns null', () => {
-    const vehicle = createBlockoutVehicle('hunter', 'twins', 'cyan', 5, 5);
-    const now = Date.now();
+  // BLOCKOUT-06H+: 8 new weapon event types
+
+  it('Shaft fire creates shaftLine event', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'shaft', 'cyan', 5, 5);
+    const now = 1000;
+
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 450, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.eventType).toBe('shaftLine');
+    expect(event!.weaponId).toBe('shaft');
+  });
+
+  it('Flamethrower fire creates flamethrowerCone event', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    const now = 1000;
+
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 120, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.eventType).toBe('flamethrowerCone');
+    expect(event!.weaponId).toBe('flamethrower');
+  });
+
+  it('Freeze fire creates freezeCone event', () => {
+    const vehicle = createBlockoutVehicle('viking', 'freeze', 'cyan', 5, 5);
+    const now = 1000;
+
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 120, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.eventType).toBe('freezeCone');
+    expect(event!.weaponId).toBe('freeze');
+  });
+
+  it('Isida fire creates isidaBeam event', () => {
+    const vehicle = createBlockoutVehicle('hornet', 'isida', 'cyan', 5, 5);
+    const now = 1000;
+
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 150, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.eventType).toBe('isidaBeam');
+    expect(event!.weaponId).toBe('isida');
+  });
+
+  it('Vulcan fire creates vulcanTracer event', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'vulcan', 'cyan', 5, 5);
+    const now = 1000;
 
     const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 200, 0, now);
 
-    expect(event).toBeNull();
+    expect(event).not.toBeNull();
+    expect(event!.eventType).toBe('vulcanTracer');
+    expect(event!.weaponId).toBe('vulcan');
+  });
+
+  it('Twins fire creates twinsPlasma event', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'twins', 'cyan', 5, 5);
+    const now = 1000;
+
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 220, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.eventType).toBe('twinsPlasma');
+    expect(event!.weaponId).toBe('twins');
+  });
+
+  it('Ricochet fire creates ricochetBounce event', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'ricochet', 'cyan', 5, 5);
+    const now = 1000;
+
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 200, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.eventType).toBe('ricochetBounce');
+    expect(event!.weaponId).toBe('ricochet');
+  });
+
+  it('Hammer fire creates hammerShotgun event', () => {
+    const vehicle = createBlockoutVehicle('titan', 'hammer', 'cyan', 5, 5);
+    const now = 1000;
+
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 150, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.eventType).toBe('hammerShotgun');
+    expect(event!.weaponId).toBe('hammer');
+  });
+
+  it('no weapon returns null from getVfxEventType — all 11 implemented', () => {
+    // All 11 weapons should produce a non-null event when firing
+    for (const weaponId of ALL_WEAPON_IDS) {
+      const vehicle = createBlockoutVehicle('hunter', weaponId, 'cyan', 5, 5);
+      const now = 1000 + WEAPON_PROFILES[weaponId].blockoutCooldownMs; // Ensure different base times
+      const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 200, 0, now);
+      expect(event, `${weaponId} should produce a VFX event`).not.toBeNull();
+    }
+  });
+});
+
+// ─── VFX event includes BLOCKOUT-06H+ fields ──────────────────────
+
+describe('VFX event includes BLOCKOUT-06H+ fields', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+  });
+
+  it('cone weapons include coneAngleDeg in event', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    const now = 1000;
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 120, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.coneAngleDeg).toBe(25);
+  });
+
+  it('ricochet includes bounceCount in event', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'ricochet', 'cyan', 5, 5);
+    const now = 1000;
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 200, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.bounceCount).toBe(2);
+  });
+
+  it('hammer includes pelletCount in event', () => {
+    const vehicle = createBlockoutVehicle('titan', 'hammer', 'cyan', 5, 5);
+    const now = 1000;
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 150, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.pelletCount).toBe(5);
+  });
+
+  it('smoky has coneAngleDeg=0, bounceCount=0, pelletCount=0', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    const now = 1000;
+    const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 250, 0, now);
+
+    expect(event).not.toBeNull();
+    expect(event!.coneAngleDeg).toBe(0);
+    expect(event!.bounceCount).toBe(0);
+    expect(event!.pelletCount).toBe(0);
   });
 });
 
@@ -240,21 +477,17 @@ describe('VFX origin uses actual barrel/mount origin', () => {
 
   it('Rear-mounted body (Wasp) VFX origin differs from body center', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
-    // Wasp has rear mount — turret origin should be behind body center
     const turretOrigin = computeTurretWorldOrigin(vehicle, TEST_OFFSET);
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
 
-    // Rear mount should have different X than body center
     expect(turretOrigin.x).not.toBeCloseTo(bodyCenter.x);
   });
 
   it('Front_center body (Mammoth) VFX origin differs from body center', () => {
     const vehicle = createBlockoutVehicle('mammoth', 'thunder', 'cyan', 5, 5, 0);
-    // Mammoth has front_center mount — turret origin should be ahead of body center
     const turretOrigin = computeTurretWorldOrigin(vehicle, TEST_OFFSET);
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
 
-    // Front_center mount should have different X than body center
     expect(turretOrigin.x).not.toBeCloseTo(bodyCenter.x);
   });
 
@@ -263,7 +496,6 @@ describe('VFX origin uses actual barrel/mount origin', () => {
     const turretOrigin = computeTurretWorldOrigin(vehicle, TEST_OFFSET);
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
 
-    // Front_center mount should have origin X > body center X when bodyAngle=0
     expect(turretOrigin.x).toBeGreaterThan(bodyCenter.x);
   });
 
@@ -272,7 +504,6 @@ describe('VFX origin uses actual barrel/mount origin', () => {
     const turretOrigin = computeTurretWorldOrigin(vehicle, TEST_OFFSET);
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
 
-    // Rear mount should have origin X < body center X when bodyAngle=0
     expect(turretOrigin.x).toBeLessThan(bodyCenter.x);
   });
 });
@@ -287,26 +518,24 @@ describe('weapon cooldown', () => {
 
   it('can fire initially (lastFiredAt=0)', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    expect(canFireBlockoutWeapon(vehicle, Date.now())).toBe(true);
+    expect(canFireBlockoutWeapon(vehicle, 1000)).toBe(true);
   });
 
   it('cannot fire immediately after firing (cooldown not elapsed)', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
 
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
 
-    // Try again immediately — cooldown not elapsed
     expect(canFireBlockoutWeapon(vehicle, now + 1)).toBe(false);
   });
 
   it('can fire after cooldown elapses', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
 
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
 
-    // Smoky cooldown is 800ms
     const afterCooldown = now + 801;
     expect(canFireBlockoutWeapon(vehicle, afterCooldown)).toBe(true);
   });
@@ -319,12 +548,11 @@ describe('weapon cooldown', () => {
 
   it('cannot fire twice within one cooldown window', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
 
     const event1 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
     expect(event1).not.toBeNull();
 
-    // Try again before cooldown elapses
     const event2 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now + 100);
     expect(event2).toBeNull();
   });
@@ -342,7 +570,7 @@ describe('recoil starts on fire and recovers', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
     expect(vehicle.recoilActive).toBe(false);
 
-    const now = Date.now();
+    const now = 1000;
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
 
     expect(vehicle.recoilActive).toBe(true);
@@ -353,14 +581,12 @@ describe('recoil starts on fire and recovers', () => {
 
   it('recoil recovers over time', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
 
-    // Recoil should still be active partway through
     updateBlockoutRecoil(vehicle, now + 50);
     expect(vehicle.recoilActive).toBe(true);
 
-    // After full recovery, recoil should be inactive
     updateBlockoutRecoil(vehicle, now + vehicle.recoilDurationMs + 10);
     expect(vehicle.recoilActive).toBe(false);
     expect(vehicle.recoilBarrelOffset).toBe(0);
@@ -370,12 +596,11 @@ describe('recoil starts on fire and recovers', () => {
 
   it('recoil barrel offset decays gradually', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
 
     const initialOffset = vehicle.recoilBarrelOffset;
 
-    // After half the recovery time, offset should be less than initial
     updateBlockoutRecoil(vehicle, now + vehicle.recoilDurationMs / 2);
     expect(vehicle.recoilBarrelOffset).toBeGreaterThan(0);
     expect(vehicle.recoilBarrelOffset).toBeLessThan(initialOffset);
@@ -384,12 +609,65 @@ describe('recoil starts on fire and recovers', () => {
   it('Railgun has stronger recoil than Smoky', () => {
     const smoky = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
     const railgun = createBlockoutVehicle('dictator', 'railgun', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
 
     fireBlockoutWeapon(smoky, 100, 100, 0, 300, 0, now);
     fireBlockoutWeapon(railgun, 100, 100, 0, 400, 0, now);
 
     expect(railgun.recoilBarrelOffset).toBeGreaterThan(smoky.recoilBarrelOffset);
+  });
+
+  // BLOCKOUT-06H+: Recoil starts and recovers for new weapons
+
+  it('recoil starts and recovers for Shaft', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'shaft', 'cyan', 5, 5);
+    const now = 1000;
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 450, 0, now);
+
+    expect(vehicle.recoilActive).toBe(true);
+    expect(vehicle.recoilBarrelOffset).toBeGreaterThan(0);
+
+    updateBlockoutRecoil(vehicle, now + vehicle.recoilDurationMs + 10);
+    expect(vehicle.recoilActive).toBe(false);
+    expect(vehicle.recoilBarrelOffset).toBe(0);
+  });
+
+  it('recoil starts and recovers for Hammer', () => {
+    const vehicle = createBlockoutVehicle('titan', 'hammer', 'cyan', 5, 5);
+    const now = 1000;
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 150, 0, now);
+
+    expect(vehicle.recoilActive).toBe(true);
+    expect(vehicle.recoilBarrelOffset).toBeGreaterThan(0);
+
+    updateBlockoutRecoil(vehicle, now + vehicle.recoilDurationMs + 10);
+    expect(vehicle.recoilActive).toBe(false);
+    expect(vehicle.recoilBarrelOffset).toBe(0);
+  });
+
+  it('recoil starts and recovers for Ricochet', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'ricochet', 'cyan', 5, 5);
+    const now = 1000;
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 200, 0, now);
+
+    expect(vehicle.recoilActive).toBe(true);
+
+    updateBlockoutRecoil(vehicle, now + vehicle.recoilDurationMs + 10);
+    expect(vehicle.recoilActive).toBe(false);
+    expect(vehicle.recoilBarrelOffset).toBe(0);
+  });
+
+  it('continuous weapons have minimal recoil that recovers quickly', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    const now = 1000;
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 120, 0, now);
+
+    expect(vehicle.recoilActive).toBe(true);
+
+    // Flamethrower recovery is 50ms
+    updateBlockoutRecoil(vehicle, now + 60);
+    expect(vehicle.recoilActive).toBe(false);
+    expect(vehicle.recoilBarrelOffset).toBe(0);
   });
 });
 
@@ -404,41 +682,34 @@ describe('movement does not erase recoil state', () => {
   it('movement update does not erase recoil state unexpectedly', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
     const profile = MOVEMENT_PROFILES.wasp;
-    const now = Date.now();
+    const now = 1000;
 
-    // Start recoil
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
     expect(vehicle.recoilActive).toBe(true);
 
-    // Set movement target and run some frames
     setBlockoutVehicleMoveTarget(vehicle, vehicle.worldX + 200, vehicle.worldY);
     for (let i = 0; i < 10; i++) {
       updateBlockoutVehicleMovement(vehicle, profile, 16);
     }
 
-    // Recoil should still be active (movement doesn't clear it)
     expect(vehicle.recoilActive).toBe(true);
   });
 
   it('turret aiming remains independent from recoil/movement', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
     const profile = MOVEMENT_PROFILES.wasp;
-    const now = Date.now();
+    const now = 1000;
 
-    // Set specific turret angles
     vehicle.turretAngle = -Math.PI / 4;
     vehicle.turretTargetAngle = -Math.PI / 4;
 
-    // Fire weapon (starts recoil)
     fireBlockoutWeapon(vehicle, 100, 100, vehicle.turretAngle, 300, 0, now);
 
-    // Run movement
     setBlockoutVehicleMoveTarget(vehicle, vehicle.worldX + 200, vehicle.worldY);
     for (let i = 0; i < 10; i++) {
       updateBlockoutVehicleMovement(vehicle, profile, 16);
     }
 
-    // turretTargetAngle should NOT have been changed by movement or recoil
     expect(vehicle.turretTargetAngle).toBeCloseTo(-Math.PI / 4);
   });
 });
@@ -453,7 +724,7 @@ describe('VFX event expiration', () => {
 
   it('events are available after creation', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
 
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
 
@@ -463,11 +734,11 @@ describe('VFX event expiration', () => {
 
   it('expired events are removed', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const now = Date.now();
+    const now = 1000;
 
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
 
-    // Smoky VFX duration is 150ms — expire after that
+    // Smoky VFX duration is 150ms
     expireVfxEvents(now + 200);
 
     const events = getVfxEvents();
@@ -504,9 +775,8 @@ describe('saveGame strips blockoutVehicles with recoil/VFX fields', () => {
     devSpawnBlockoutVehicleSet(state);
     expect(state.blockoutVehicles!.length).toBeGreaterThan(0);
 
-    // Fire a weapon to add recoil state
     const vehicle = state.blockoutVehicles![0];
-    const now = Date.now();
+    const now = 1000;
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
     expect(vehicle.recoilActive).toBe(true);
 
@@ -564,23 +834,15 @@ describe('recoil does not permanently change turretTargetAngle', () => {
     const now = 1000;
     fireBlockoutWeapon(vehicle, 100, 100, vehicle.turretAngle, 300, 0, now);
 
-    // Recoil is active
     expect(vehicle.recoilActive).toBe(true);
 
-    // Wait for full recovery
     updateBlockoutRecoil(vehicle, now + vehicle.recoilDurationMs + 10);
 
-    // turretTargetAngle should not have been permanently changed
     expect(vehicle.turretTargetAngle).toBeCloseTo(originalTarget);
   });
 });
 
 // ─── Consistent time basis (scene-time) ────────────────────────────
-//
-// These tests prove that Phaser scene-time values (small monotonically
-// increasing numbers starting from ~0) work correctly for all weapon
-// timing. No Date.now() dependency is needed — the pure functions
-// accept any consistent time basis.
 
 describe('consistent scene-time basis for weapon timing', () => {
   beforeEach(() => {
@@ -590,18 +852,16 @@ describe('consistent scene-time basis for weapon timing', () => {
 
   it('recoil recovers when fire time and update time use the same scene-time basis', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const sceneTime = 5000; // Simulated Phaser scene time (5 seconds in)
+    const sceneTime = 5000;
 
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, sceneTime);
     expect(vehicle.recoilActive).toBe(true);
 
-    // Partway through recovery — still active
     updateBlockoutRecoil(vehicle, sceneTime + 100);
     expect(vehicle.recoilActive).toBe(true);
     expect(vehicle.recoilBarrelOffset).toBeGreaterThan(0);
     expect(vehicle.recoilBarrelOffset).toBeLessThan(RECOIL_PROFILES.smoky.barrelKickbackPx);
 
-    // After full recovery duration
     updateBlockoutRecoil(vehicle, sceneTime + vehicle.recoilDurationMs + 1);
     expect(vehicle.recoilActive).toBe(false);
     expect(vehicle.recoilBarrelOffset).toBe(0);
@@ -609,35 +869,28 @@ describe('consistent scene-time basis for weapon timing', () => {
 
   it('VFX expires after duration with scene-time values', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const sceneTime = 3000; // Simulated scene time
+    const sceneTime = 3000;
 
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, sceneTime);
 
-    // VFX should still be active before duration expires
-    // Smoky VFX duration is 150ms
     expireVfxEvents(sceneTime + 100);
     expect(getVfxEvents().length).toBe(1);
 
-    // VFX should be expired after duration
     expireVfxEvents(sceneTime + 200);
     expect(getVfxEvents().length).toBe(0);
   });
 
   it('cooldown blocks immediate refire and allows refire after elapsed scene-time', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const sceneTime = 10000; // Simulated scene time
+    const sceneTime = 10000;
 
-    // First fire should succeed
     const event1 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, sceneTime);
     expect(event1).not.toBeNull();
 
-    // Immediate refire within cooldown should fail
     expect(canFireBlockoutWeapon(vehicle, sceneTime + 1)).toBe(false);
     const event2 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, sceneTime + 1);
     expect(event2).toBeNull();
 
-    // Refire after cooldown should succeed
-    // Smoky cooldown is 800ms
     const afterCooldown = sceneTime + 801;
     expect(canFireBlockoutWeapon(vehicle, afterCooldown)).toBe(true);
     const event3 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, afterCooldown);
@@ -645,57 +898,321 @@ describe('consistent scene-time basis for weapon timing', () => {
   });
 
   it('no Date.now dependency is needed in pure firing tests', () => {
-    // Prove that the entire fire/cooldown/recoil/VFX pipeline works
-    // with arbitrary scene-time values — no Date.now() calls needed.
-    // Note: t0 must be > 0 because lastFiredAt=0 means "never fired".
     const vehicle = createBlockoutVehicle('dictator', 'railgun', 'cyan', 5, 5);
-    const t0 = 1000; // Scene time at 1 second
-    const t1 = 1100; // 100ms later
+    const t0 = 1000;
+    const t1 = 1100;
 
-    // Fire at t0
     const event = fireBlockoutWeapon(vehicle, 100, 100, 0, 400, 0, t0);
     expect(event).not.toBeNull();
     expect(event!.eventType).toBe('railgunLine');
     expect(event!.createdAt).toBe(t0);
 
-    // Cooldown check at t1 (well within railgun 2500ms cooldown)
     expect(canFireBlockoutWeapon(vehicle, t1)).toBe(false);
 
-    // Recoil active at t1
     updateBlockoutRecoil(vehicle, t1);
     expect(vehicle.recoilActive).toBe(true);
 
-    // After cooldown at t0 + 2501
     expect(canFireBlockoutWeapon(vehicle, t0 + 2501)).toBe(true);
 
-    // Recoil fully recovered (railgun recoveryMs=400)
     updateBlockoutRecoil(vehicle, t0 + 500);
     expect(vehicle.recoilActive).toBe(false);
 
-    // VFX expired (railgun durationMs=200)
     expireVfxEvents(t0 + 300);
     expect(getVfxEvents().length).toBe(0);
   });
 
   it('mixing Date.now() with scene-time would break timing (regression proof)', () => {
-    // This test documents WHY we use consistent time.
-    // If someone mixed Date.now() (~1.7e12) with scene time (~16),
-    // the elapsed time would be hugely negative, and recoil would
-    // never recover. This test proves the functions handle consistent
-    // scene-time correctly.
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
 
-    // Fire with scene time
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, 100);
 
-    // Update with same scene-time basis — recoil recovers normally
     updateBlockoutRecoil(vehicle, 100 + vehicle.recoilDurationMs + 1);
     expect(vehicle.recoilActive).toBe(false);
     expect(vehicle.recoilBarrelOffset).toBe(0);
+  });
+});
 
-    // If we had used Date.now() for fire (e.g. 1748800000000)
-    // and scene time for update (e.g. 300), the elapsed would be
-    // negative and recoil would never recover. Our fix ensures
-    // this never happens by using scene time everywhere.
+// ─── Continuous weapon identification (BLOCKOUT-06H+) ────────────────
+
+describe('continuous weapon identification', () => {
+  it('flamethrower is a continuous weapon', () => {
+    expect(isContinuousWeapon('flamethrower')).toBe(true);
+  });
+
+  it('freeze is a continuous weapon', () => {
+    expect(isContinuousWeapon('freeze')).toBe(true);
+  });
+
+  it('isida is a continuous weapon', () => {
+    expect(isContinuousWeapon('isida')).toBe(true);
+  });
+
+  it('vulcan is a continuous weapon', () => {
+    expect(isContinuousWeapon('vulcan')).toBe(true);
+  });
+
+  it('twins is a continuous weapon', () => {
+    expect(isContinuousWeapon('twins')).toBe(true);
+  });
+
+  it('smoky is NOT a continuous weapon', () => {
+    expect(isContinuousWeapon('smoky')).toBe(false);
+  });
+
+  it('railgun is NOT a continuous weapon', () => {
+    expect(isContinuousWeapon('railgun')).toBe(false);
+  });
+
+  it('thunder is NOT a continuous weapon', () => {
+    expect(isContinuousWeapon('thunder')).toBe(false);
+  });
+
+  it('shaft is NOT a continuous weapon', () => {
+    expect(isContinuousWeapon('shaft')).toBe(false);
+  });
+
+  it('ricochet is NOT a continuous weapon', () => {
+    expect(isContinuousWeapon('ricochet')).toBe(false);
+  });
+
+  it('hammer is NOT a continuous weapon', () => {
+    expect(isContinuousWeapon('hammer')).toBe(false);
+  });
+});
+
+// ─── startFiring / stopFiring state management (BLOCKOUT-06H+) ──────
+
+describe('startFiring / stopFiring state management', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+  });
+
+  it('startFiring sets fireHeld and isFiring to true', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    expect(vehicle.fireHeld).toBe(false);
+    expect(vehicle.isFiring).toBe(false);
+
+    startFiring(vehicle);
+
+    expect(vehicle.fireHeld).toBe(true);
+    expect(vehicle.isFiring).toBe(true);
+  });
+
+  it('stopFiring sets fireHeld and isFiring to false', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    startFiring(vehicle);
+    expect(vehicle.fireHeld).toBe(true);
+    expect(vehicle.isFiring).toBe(true);
+
+    stopFiring(vehicle);
+
+    expect(vehicle.fireHeld).toBe(false);
+    expect(vehicle.isFiring).toBe(false);
+  });
+
+  it('stopFiring resets visualOverheat to 0', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'vulcan', 'cyan', 5, 5);
+    startFiring(vehicle);
+    vehicle.visualOverheat = 0.7;
+
+    stopFiring(vehicle);
+
+    expect(vehicle.visualOverheat).toBe(0);
+  });
+
+  it('newly created vehicle has fireHeld=false, isFiring=false, visualOverheat=0', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    expect(vehicle.fireHeld).toBe(false);
+    expect(vehicle.isFiring).toBe(false);
+    expect(vehicle.lastStreamTickAt).toBe(0);
+    expect(vehicle.visualOverheat).toBe(0);
+  });
+});
+
+// ─── tickContinuousFire (BLOCKOUT-06H+) ──────────────────────────────
+
+describe('tickContinuousFire', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+  });
+
+  it('returns 0 if fireHeld is false', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    vehicle.fireHeld = false;
+    vehicle.isFiring = true;
+
+    const result = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, 1000);
+    expect(result).toBe(0);
+  });
+
+  it('returns 0 if isFiring is false', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    vehicle.fireHeld = true;
+    vehicle.isFiring = false;
+
+    const result = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, 1000);
+    expect(result).toBe(0);
+  });
+
+  it('returns 0 for non-continuous weapon (no streamCadenceMs)', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    vehicle.fireHeld = true;
+    vehicle.isFiring = true;
+
+    const result = tickContinuousFire(vehicle, 100, 100, 0, 300, 0, 1000);
+    expect(result).toBe(0);
+  });
+
+  it('creates events at streamCadenceMs rate', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    startFiring(vehicle);
+    const now = 1000;
+
+    // First tick — should fire since lastStreamTickAt is 0
+    const result1 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now);
+    expect(result1).toBe(1);
+    expect(vehicle.lastStreamTickAt).toBe(now);
+    expect(getVfxEvents().length).toBe(1);
+
+    // Immediate tick before cadence — should not fire
+    const result2 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now + 10);
+    expect(result2).toBe(0);
+
+    // After cadence (flamethrower streamCadenceMs=50, cooldown=50)
+    const result3 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now + 55);
+    expect(result3).toBe(1);
+    expect(getVfxEvents().length).toBe(2);
+  });
+
+  it('respects weapon cooldown', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'vulcan', 'cyan', 5, 5);
+    startFiring(vehicle);
+    const now = 1000;
+
+    // Vulcan has cooldownMs=100, streamCadenceMs=60
+    // First fire
+    const result1 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now);
+    expect(result1).toBe(1);
+
+    // Try to fire again before cooldown (60ms cadence but 100ms cooldown)
+    const result2 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now + 60);
+    expect(result2).toBe(0); // Blocked by cooldown
+
+    // After cooldown + cadence
+    const result3 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now + 110);
+    expect(result3).toBe(1);
+  });
+
+  it('cooldown/cadence allows later VFX with elapsed scene-time', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    startFiring(vehicle);
+
+    // Flamethrower: cooldownMs=50, streamCadenceMs=50
+
+    // Fire at t=1000
+    const r1 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, 1000);
+    expect(r1).toBe(1);
+
+    // Not ready at t=1030 (30ms < 50ms cadence)
+    const r2 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, 1030);
+    expect(r2).toBe(0);
+
+    // Ready at t=1060 (60ms >= 50ms cadence AND >= 50ms cooldown)
+    const r3 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, 1060);
+    expect(r3).toBe(1);
+  });
+
+  it('updates lastStreamTickAt on successful fire', () => {
+    const vehicle = createBlockoutVehicle('hornet', 'isida', 'cyan', 5, 5);
+    startFiring(vehicle);
+
+    const now = 2000;
+    tickContinuousFire(vehicle, 100, 100, 0, 150, 0, now);
+
+    expect(vehicle.lastStreamTickAt).toBe(now);
+  });
+
+  it('continuous weapon creates correct event types', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    startFiring(vehicle);
+    const now = 1000;
+
+    tickContinuousFire(vehicle, 100, 100, 0, 120, 0, now);
+
+    const events = getVfxEvents();
+    expect(events.length).toBe(1);
+    expect(events[0].eventType).toBe('flamethrowerCone');
+  });
+});
+
+// ─── Vehicle state initialization with BLOCKOUT-06H+ fields ────────
+
+describe('vehicle state initialization with BLOCKOUT-06H+ fields', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+  });
+
+  it('new vehicle has fireHeld=false', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    expect(vehicle.fireHeld).toBe(false);
+  });
+
+  it('new vehicle has isFiring=false', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    expect(vehicle.isFiring).toBe(false);
+  });
+
+  it('new vehicle has lastStreamTickAt=0', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    expect(vehicle.lastStreamTickAt).toBe(0);
+  });
+
+  it('new vehicle has visualOverheat=0', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    expect(vehicle.visualOverheat).toBe(0);
+  });
+});
+
+// ─── Movement doesn't erase VFX/recoil state (BLOCKOUT-06H+) ────────
+
+describe('movement does not erase BLOCKOUT-06H+ firing state', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+  });
+
+  it('movement update does not erase fireHeld/isFiring state', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    const profile = MOVEMENT_PROFILES.viking;
+
+    startFiring(vehicle);
+    expect(vehicle.fireHeld).toBe(true);
+    expect(vehicle.isFiring).toBe(true);
+
+    setBlockoutVehicleMoveTarget(vehicle, vehicle.worldX + 200, vehicle.worldY);
+    for (let i = 0; i < 10; i++) {
+      updateBlockoutVehicleMovement(vehicle, profile, 16);
+    }
+
+    // Firing state should still be active
+    expect(vehicle.fireHeld).toBe(true);
+    expect(vehicle.isFiring).toBe(true);
+  });
+
+  it('movement update does not erase visualOverheat state', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'vulcan', 'cyan', 5, 5);
+    const profile = MOVEMENT_PROFILES.hunter;
+
+    vehicle.visualOverheat = 0.5;
+
+    setBlockoutVehicleMoveTarget(vehicle, vehicle.worldX + 200, vehicle.worldY);
+    for (let i = 0; i < 10; i++) {
+      updateBlockoutVehicleMovement(vehicle, profile, 16);
+    }
+
+    expect(vehicle.visualOverheat).toBe(0.5);
   });
 });

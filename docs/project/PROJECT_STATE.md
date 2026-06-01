@@ -3,15 +3,15 @@
 Status: operational project state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Current phase: BLOCKOUT-MVP — BLOCKOUT-05H+ implemented, BLOCKOUT-06H+ next
+Current phase: BLOCKOUT-MVP — BLOCKOUT-06H+ implemented, BLOCKOUT-07H+ next
 
 ---
 
 ## Current mode
 
 ```text
-BLOCKOUT-05H+ implemented. Blockout vehicles have visual-only firing, recoil, and weapon VFX for Smoky/Railgun/Thunder.
-Next: BLOCKOUT-06H+ — Remaining weapon VFX families.
+BLOCKOUT-06H+ implemented. All 11 blockout weapon families have visual-only VFX placeholders.
+Next: BLOCKOUT-07H+ — Damage placeholders.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
@@ -115,11 +115,20 @@ The project currently has:
   - movement target marker (green crosshair) and line visible
   - speed shown in debug label when moving
   - production/default game unchanged when devtools is off
-- FIRING BLOCKOUT VEHICLES with visual-only weapon VFX (BLOCKOUT-05H+)
+- FIRING BLOCKOUT VEHICLES with visual-only weapon VFX — ALL 11 WEAPONS (BLOCKOUT-05H+ + BLOCKOUT-06H+)
   - Press Space or F to fire selected blockout vehicle
+  - Hold Space/F for continuous-fire weapons (Flamethrower/Freeze/Isida/Vulcan/Twins)
   - Smoky: muzzle flash + short tracer + impact dot + medium recoil
   - Railgun: long bright line + pierce ticks + strong recoil
   - Thunder: short tracer + explosion circle + splash radius ring + medium-heavy recoil
+  - Shaft: charge pulse + focused long sniper line + crosshair
+  - Flamethrower: orange cone with flicker + inner yellow cone
+  - Freeze: cyan cone + inner blue cone + frost circles
+  - Isida: green pulsing beam + glow line + tether dots
+  - Vulcan: rapid short tracers + visual overheat indicator
+  - Twins: moving plasma dots with glow + trail
+  - Ricochet: segmented path with deterministic bounces + bounce markers
+  - Hammer: fan of pellet tracers in cone + impact dots
   - barrel kickback visible on firing
   - turret kickback deflects turret angle temporarily during recoil
   - body impulse shifts vehicle backward visually during recoil
@@ -127,10 +136,11 @@ The project currently has:
   - cooldown prevents uncontrolled VFX spam
   - VFX origin uses actual barrel/mount origin (not body center)
   - rear-mounted and front_center vehicles fire from correct origin
+  - all timing uses consistent Phaser scene time basis
   - production/default game unchanged when devtools is off
 ```
 
-This is the expected baseline for BLOCKOUT-05H+.
+This is the expected baseline for BLOCKOUT-06H+.
 
 ---
 
@@ -250,7 +260,7 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-06H+ — Remaining weapon VFX families
+BLOCKOUT-07H+ — Damage placeholders
 ```
 
 Mode:
@@ -376,6 +386,37 @@ Implemented:
 - all firing/recoil/VFX state is transient and not persisted in saves
 - 41 unit tests for recoil, VFX, cooldown, geometry, save stripping
 - non-implemented weapons (Flamethrower, Freeze, etc.) return null from fire — no VFX
+```
+
+### BLOCKOUT-06H+ — Remaining weapon VFX families
+
+```text
+Type: implementation
+Risk: HIGH+
+Status: DONE
+
+Implemented:
+- All 11 blockout weapon families now produce distinct visual-only VFX
+- Shaft VFX: charge pulse circle + thin bright sniper line + crosshair at end
+- Flamethrower VFX: orange cone with flicker + inner yellow cone + muzzle glow
+- Freeze VFX: cyan cone + inner blue cone + frost circles + muzzle glow
+- Isida VFX: green pulsing beam + glow line + tether dots at both ends
+- Vulcan VFX: rapid short tracers + small muzzle flash + visual overheat indicator
+- Twins VFX: moving plasma dots with glow and trail
+- Ricochet VFX: segmented path with deterministic bounces + bounce markers
+- Hammer VFX: fan of pellet tracers in cone + impact dots at ends
+- Continuous-fire support for Flamethrower/Freeze/Isida/Vulcan/Twins (hold Space/F)
+- startFiring()/stopFiring() manage continuous fire state
+- tickContinuousFire() creates VFX at weapon-specific streamCadenceMs rate
+- VfxProfile extended with coneAngleDeg, bounceCount, pelletCount, streamCadenceMs, overheatDurationMs, chargePulseMs
+- BlockoutVehicleState extended with fireHeld, isFiring, lastStreamTickAt, visualOverheat fields
+- Key-up event handling stops continuous fire properly
+- Vulcan vfxProfile bug fixed: was 'rapid_fire', corrected to 'rapid_fire_overheat'
+- All timing uses consistent Phaser scene time basis (no Date.now())
+- Recoil profiles active for all 11 weapons
+- Existing Smoky/Railgun/Thunder VFX unchanged
+- all state is transient and not persisted in saves
+- 100 unit tests for VFX, recoil, cooldown, continuous fire, save stripping, timing consistency
 ```
 
 ---
@@ -520,7 +561,8 @@ Use this sequence:
 7. BLOCKOUT-03H selection/control + turret aiming — DONE
 8. BLOCKOUT-04H+ semi-physics movement — DONE
 9. BLOCKOUT-05H+ recoil + first weapon VFX set — DONE
-10. BLOCKOUT-06H+ remaining weapon VFX families — NEXT
+10. BLOCKOUT-06H+ remaining weapon VFX families — DONE
+11. BLOCKOUT-07H+ damage placeholders — NEXT
 ```
 
 ---
