@@ -110,6 +110,10 @@ export interface WeaponProfile {
   blockoutBarrelWidth: number;
   /** Turret turn speed in degrees per second for blockout. BLOCKOUT-03H: different weapons may have different turret turn speeds. Heavier/slower weapons turn slower. */
   blockoutTurretTurnSpeedDeg: number;
+  /** Cooldown between shots in milliseconds. BLOCKOUT-05H+: prevents uncontrolled VFX spam. */
+  blockoutCooldownMs: number;
+  /** Maximum range for blockout VFX in pixels. BLOCKOUT-05H+. */
+  blockoutRangePx: number;
 }
 
 // ─── Vehicle Profile ───────────────────────────────────────────────
@@ -150,14 +154,24 @@ export interface MovementProfile {
 
 // ─── Recoil Profile ────────────────────────────────────────────────
 
-/** Recoil profile per weapon. Blockout placeholder — not used in this PR. */
+/** Recoil profile per weapon. BLOCKOUT-05H+: Visual recoil for blockout vehicles. */
 export interface RecoilProfile {
   weaponId: WeaponId;
+  /** Barrel kickback in abstract units (BLOCKOUT-02H placeholder). */
   barrelKickback: number;
+  /** Turret kickback in abstract units (BLOCKOUT-02H placeholder). */
   turretKickback: number;
+  /** Body impulse in abstract units (BLOCKOUT-02H placeholder). */
   bodyImpulse: number;
+  /** Recovery time in milliseconds. */
   recoveryMs: number;
   cameraShake: false;
+  /** Barrel kickback in pixels (BLOCKOUT-05H+). How far the barrel retracts visually. */
+  barrelKickbackPx: number;
+  /** Turret kickback in radians (BLOCKOUT-05H+). How much the turret angle deflects. */
+  turretKickbackRad: number;
+  /** Body impulse in pixels (BLOCKOUT-05H+). How much the body position shifts. */
+  bodyImpulsePx: number;
 }
 
 // ─── VFX Profile ───────────────────────────────────────────────────
@@ -175,13 +189,21 @@ export type VfxPrimitiveType =
   | 'bounce_marker'
   | 'beam_tether';
 
-/** VFX profile per weapon behavior. Blockout placeholder — not used in this PR. */
+/** VFX profile per weapon behavior. BLOCKOUT-05H+: Extended for visual rendering. */
 export interface VfxProfile {
   behavior: WeaponBehavior;
   primitiveType: VfxPrimitiveType;
   color: number;
   width: number;
   durationMs: number;
+  /** Secondary color for multi-element effects (impact, splash ring, etc.). BLOCKOUT-05H+. */
+  secondaryColor?: number;
+  /** Splash/impact radius in pixels for splash-type effects. BLOCKOUT-05H+. */
+  impactRadiusPx?: number;
+  /** Muzzle flash radius in pixels. BLOCKOUT-05H+. */
+  muzzleFlashRadiusPx?: number;
+  /** Line/ray length in pixels for beam/line effects. BLOCKOUT-05H+. */
+  effectLengthPx?: number;
 }
 
 // ─── Damage Profile ────────────────────────────────────────────────

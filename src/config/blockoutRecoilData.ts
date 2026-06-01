@@ -1,11 +1,10 @@
 /**
  * Blockout recoil data — recoil profiles per weapon.
  *
- * Blockout placeholder — NOT used in BLOCKOUT-02H.
- * No recoil behavior in this PR.
- * Data exists so profiles are complete for future steps.
- *
- * BLOCKOUT-02H: First visible blockout vehicles.
+ * BLOCKOUT-02H: First visible blockout vehicles (placeholder data).
+ * BLOCKOUT-05H+: Extended with pixel kickback fields for visual recoil.
+ * Smoky/Railgun/Thunder have meaningful visual recoil.
+ * Other weapons have minimal/placeholder values for future steps.
  */
 
 import type { RecoilProfile } from './blockoutProfiles';
@@ -19,6 +18,9 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 0.5,
     recoveryMs: 200,
     cameraShake: false,
+    barrelKickbackPx: 4,
+    turretKickbackRad: 0.03,
+    bodyImpulsePx: 1.5,
   },
   thunder: {
     weaponId: 'thunder',
@@ -27,6 +29,9 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 1.0,
     recoveryMs: 300,
     cameraShake: false,
+    barrelKickbackPx: 5,
+    turretKickbackRad: 0.05,
+    bodyImpulsePx: 2.5,
   },
   railgun: {
     weaponId: 'railgun',
@@ -35,6 +40,9 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 2.0,
     recoveryMs: 400,
     cameraShake: false,
+    barrelKickbackPx: 7,
+    turretKickbackRad: 0.07,
+    bodyImpulsePx: 4.0,
   },
   shaft: {
     weaponId: 'shaft',
@@ -43,6 +51,9 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 2.5,
     recoveryMs: 500,
     cameraShake: false,
+    barrelKickbackPx: 8,
+    turretKickbackRad: 0.08,
+    bodyImpulsePx: 5.0,
   },
   flamethrower: {
     weaponId: 'flamethrower',
@@ -51,6 +62,9 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 0.1,
     recoveryMs: 50,
     cameraShake: false,
+    barrelKickbackPx: 0.5,
+    turretKickbackRad: 0.005,
+    bodyImpulsePx: 0.2,
   },
   freeze: {
     weaponId: 'freeze',
@@ -59,6 +73,9 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 0.1,
     recoveryMs: 50,
     cameraShake: false,
+    barrelKickbackPx: 0.5,
+    turretKickbackRad: 0.005,
+    bodyImpulsePx: 0.2,
   },
   isida: {
     weaponId: 'isida',
@@ -67,6 +84,9 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 0.05,
     recoveryMs: 30,
     cameraShake: false,
+    barrelKickbackPx: 0.3,
+    turretKickbackRad: 0.003,
+    bodyImpulsePx: 0.1,
   },
   vulcan: {
     weaponId: 'vulcan',
@@ -75,6 +95,9 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 0.15,
     recoveryMs: 80,
     cameraShake: false,
+    barrelKickbackPx: 1.0,
+    turretKickbackRad: 0.01,
+    bodyImpulsePx: 0.5,
   },
   twins: {
     weaponId: 'twins',
@@ -83,6 +106,9 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 0.2,
     recoveryMs: 100,
     cameraShake: false,
+    barrelKickbackPx: 1.5,
+    turretKickbackRad: 0.015,
+    bodyImpulsePx: 0.8,
   },
   ricochet: {
     weaponId: 'ricochet',
@@ -91,6 +117,9 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 0.3,
     recoveryMs: 120,
     cameraShake: false,
+    barrelKickbackPx: 2.0,
+    turretKickbackRad: 0.02,
+    bodyImpulsePx: 1.0,
   },
   hammer: {
     weaponId: 'hammer',
@@ -99,5 +128,8 @@ export const RECOIL_PROFILES: Record<string, RecoilProfile> = {
     bodyImpulse: 1.5,
     recoveryMs: 350,
     cameraShake: false,
+    barrelKickbackPx: 6,
+    turretKickbackRad: 0.06,
+    bodyImpulsePx: 3.0,
   },
 };

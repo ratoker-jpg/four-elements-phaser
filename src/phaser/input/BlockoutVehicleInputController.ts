@@ -27,7 +27,14 @@ import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { computeTurretWorldOrigin, computeBodyWorldCenter, getBodyPixelSize } from '../render/blockoutVehicleGeometry';
 import { setBlockoutVehicleMoveTarget } from '../../state/blockoutMovement';
 import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state/angleMath';
+import { canFireBlockoutWeapon, fireBlockoutWeapon } from '../../state/blockoutWeaponVfx';
+import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import type { GameState } from '../../state/types';
+
+// ─── Turret size constant (matches BlockoutVehicleRenderer) ──────
+
+/** Turret rectangle size — must match BlockoutVehicleRenderer. */
+const TURRET_SIZE = { w: 10, h: 6 };
 
 // ─── Hit-test constants ────────────────────────────────────────────
 
@@ -85,6 +92,7 @@ export class BlockoutVehicleInputController {
   private boundPointerdown: (pointer: Phaser.Input.Pointer) => void;
   private boundPointerup: (pointer: Phaser.Input.Pointer) => void;
   private boundPointermove: (pointer: Phaser.Input.Pointer) => void;
+  private boundKeydown: (event: KeyboardEvent) => void;
 
   constructor(deps: BlockoutVehicleInputDeps) {
     this.scene = deps.scene;
@@ -96,10 +104,12 @@ export class BlockoutVehicleInputController {
     this.boundPointerdown = this.onPointerdown.bind(this);
     this.boundPointerup = this.onPointerup.bind(this);
     this.boundPointermove = this.onPointermove.bind(this);
+    this.boundKeydown = this.onKeydown.bind(this);
 
     this.scene.input.on('pointerdown', this.boundPointerdown);
     this.scene.input.on('pointerup', this.boundPointerup);
     this.scene.input.on('pointermove', this.boundPointermove);
+    this.scene.input.keyboard?.on('keydown', this.boundKeydown);
   }
 
   // ─── Public accessors ──────────────────────────────────────────
@@ -294,10 +304,61 @@ export class BlockoutVehicleInputController {
 
   // ─── Cleanup ──────────────────────────────────────────────────
 
+  // ─── Fire input (BLOCKOUT-05H+) ────────────────────────────────
+
+  /**
+   * Handle keyboard fire input (Space or F key).
+   * BLOCKOUT-05H+: Dev-only weapon fire for selected blockout vehicle.
+   * Only fires if a vehicle is selected, devtools is active,
+   * and cooldown has elapsed.
+   */
+  private onKeydown(event: KeyboardEvent): void {
+    if (!this.isDevtoolsActive()) return;
+    if (event.code !== 'Space' && event.code !== 'KeyF') return;
+
+    // Don't fire if no vehicle selected
+    if (!this._selectedVehicleId) return;
+
+    const gameState = this.getGameState();
+    const vehicles = gameState.blockoutVehicles;
+    if (!vehicles || vehicles.length === 0) return;
+
+    const selected = vehicles.find(v => v.id === this._selectedVehicleId);
+    if (!selected) return;
+
+    const nowMs = Date.now();
+    if (!canFireBlockoutWeapon(selected, nowMs)) return;
+
+    // Compute barrel tip position in world coordinates (screen-space + offset)
+    const turretOrigin = computeTurretWorldOrigin(selected, this.offset);
+    const weaponProfile = getWeaponProfile(selected.weaponId);
+    if (!weaponProfile) return;
+
+    // Barrel tip = turret origin + barrel length along turret angle
+    const totalBarrelLength = TURRET_SIZE.w / 2 + weaponProfile.blockoutBarrelLength;
+    const barrelTipX = turretOrigin.x + Math.cos(selected.turretAngle) * totalBarrelLength;
+    const barrelTipY = turretOrigin.y + Math.sin(selected.turretAngle) * totalBarrelLength;
+
+    // Aim target = mouse world position
+    const aimTargetX = this._mouseWorldX;
+    const aimTargetY = this._mouseWorldY;
+
+    fireBlockoutWeapon(
+      selected,
+      barrelTipX,
+      barrelTipY,
+      selected.turretAngle,
+      aimTargetX,
+      aimTargetY,
+      nowMs,
+    );
+  }
+
   destroy(): void {
     this.scene.input.off('pointerdown', this.boundPointerdown);
     this.scene.input.off('pointerup', this.boundPointerup);
     this.scene.input.off('pointermove', this.boundPointermove);
+    this.scene.input.keyboard?.off('keydown', this.boundKeydown);
   }
 }
 

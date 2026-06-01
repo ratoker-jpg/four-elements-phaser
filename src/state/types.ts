@@ -459,7 +459,8 @@ export interface GameState {
    *  Optional: old saves and standard mode games have this as undefined/empty.
    *  Blockout vehicles are stripped from saves and never serialized.
    *  BLOCKOUT-03H: Added turretTargetAngle and turretTurnSpeedDeg for independent turret aiming.
-   *  BLOCKOUT-04H+: Added movement fields (worldX/worldY, velocity, move target). */
+   *  BLOCKOUT-04H+: Added movement fields (worldX/worldY, velocity, move target).
+   *  BLOCKOUT-05H+: Added recoil/firing fields. */
   blockoutVehicles?: Array<{
     id: string;
     bodyId: BodyId;
@@ -479,6 +480,13 @@ export interface GameState {
     targetWorldX: number;
     targetWorldY: number;
     hasMoveTarget: boolean;
+    lastFiredAt: number;
+    recoilActive: boolean;
+    recoilStartedAt: number;
+    recoilDurationMs: number;
+    recoilBarrelOffset: number;
+    recoilTurretOffset: number;
+    recoilBodyOffset: number;
     createdAt: number;
   }>;
 }
