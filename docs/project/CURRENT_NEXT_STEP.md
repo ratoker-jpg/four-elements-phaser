@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: active next-step checkpoint  
+Status: roadmap closed / waiting for next owner-defined roadmap  
 Project: Four Elements Phaser  
 Date: 2026-06-01
 
@@ -12,49 +12,17 @@ This short checkpoint prevents confusion about the current operational workstrea
 
 Use `PROJECT_STATE.md` as the primary operational source of truth.
 
----
-
-## Current source of truth
-
-VISUAL roadmap is the active planning direction after:
+This file answers one question:
 
 ```text
-VISUAL-ROADMAP-01 — Archive old roadmap and add new Visual Roadmap
-VISUAL-AUDIT-01 — Full visual system audit and implementation plan
-VISUAL-01 — Industrial map visual direction candidates
-VISUAL-01B — Layered Platform Frame Direction checkpoint
-VISUAL-01C — Tile visual balancing proof
-VISUAL-02A — Dev-only layered platform preview
-VISUAL-02B — Exact 2:1 frame geometry proof
-VISUAL-02C — Closed/rejected static PNG proof
-VISUAL-03A through VISUAL-04F — Runtime modular frame prototypes and PNG assets
+What should GPT/GLM/Codex do next by default?
 ```
 
-`docs/project/VISUAL_ROADMAP.md` is the accepted planning direction.
-`docs/project/VISUAL_SYSTEM_AUDIT.md` is the accepted audit with staged PR sequence.
-`docs/project/VISUAL_CANDIDATE_SUMMARY.md` contains the selected Candidate A direction.
-`docs/project/VISUAL_01B_LAYERED_PLATFORM_FRAME.md` contains the accepted layered platform model.
-`docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md` contains the production integration plan.
-
-The previous Phase 2 roadmap, sand terrain as primary direction, and MAPLIFE desert decor are archived/rejected.
-
----
-
-## Current roadmap model
+Current answer:
 
 ```text
-roadmap first → huge roadmap audit second → implementation after audit
-```
-
-Implementation tasks covered by `VISUAL_SYSTEM_AUDIT.md` can proceed without a new mini-audit if they stay in scope.
-
-Stop and request approval if a task:
-
-```text
-- expands scope beyond VISUAL_SYSTEM_AUDIT
-- touches gameplay/pathfinding/economy unexpectedly
-- combines multiple VISUAL phases into one PR
-- changes visual direction away from industrial platform / mining battlefield
+Nothing by default. The current VISUAL/UI roadmap is closed.
+Wait for the owner to define the next roadmap.
 ```
 
 ---
@@ -62,193 +30,211 @@ Stop and request approval if a task:
 ## Current next step
 
 ```text
-Post-UI visual QA checkpoint / owner review
+No active implementation task.
 ```
 
-UI roadmap:
+Next action:
 
 ```text
-1. UI-01 — Main menu visual polish and navigation shell — DONE (PR #157)
-2. UI-02 — New Game setup polish — DONE
-3. UI-03 — ESC menu polish — DONE
-4. UI-04 — Save/Continue flow polish — DONE
-5. HUD-01 — Playtest HUD readability polish — DONE (current PR)
+Owner defines the next roadmap target.
 ```
 
-Reason:
+Do not start a new implementation PR from the old VISUAL/UI queue unless the owner explicitly reopens a specific item.
+
+---
+
+## Current roadmap state
 
 ```text
-HUD-01 polished the playtest HUD visual/readability layer:
-- Economy, harvester, separator, factory sections restyled to industrial sci-fi theme
-- Build buttons use bronze/gold primary accent with proper hover/focus/active/disabled states
-- Production buttons use teal secondary accent with matching interaction states
-- Section dividers, improved spacing, and uppercase section titles
-- Cancel buttons in factory queue styled with danger accent
-- Diagnostics section uses theme-consistent colors
-- Status feedback uses success/danger colors matching theme
-- Resource delta indicators use theme success/danger colors
-- All gameplay/economy/command behavior unchanged
-- #hud-economy DOM id and text content preserved for qa:smoke
-Next is post-UI visual QA checkpoint or owner review.
+VISUAL/UI roadmap slice: CLOSED
+Implementation task: NONE
+Recommended mode: roadmap definition / owner review
 ```
 
-VISUAL-05A PR sequence (all DONE):
+Closure checkpoint:
 
 ```text
-PR 1 — Parameterize dev preview to 96/128/192 and camera pan/zoom — DONE (PR #144)
-PR 2 — Production terrain/platform assets behind mapStyle flag — DONE (PR #145)
-PR 3 — Production frame/background layer — DONE (PR #146)
-PR 4 — Lower-left HQ/camera/resource composition — DONE (PR #147)
-PR 5 — Make industrial map default for new games — DONE (PR #148)
+docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
+```
+
+That closure document is the handoff for everything completed in PR #144 through PR #161.
+
+---
+
+## Closed roadmap summary
+
+### VISUAL-05A — Production industrial map integration
+
+```text
+DONE
+PR #144 — Parameterize ?visual04a map preview 96/128/192
+PR #145 — Industrial terrain behind mapStyle
+PR #146 — Production industrial frame/background layer
+PR #147 — Lower-left HQ/start/resources
+PR #148 — Industrial generated map default
+```
+
+Final state:
+
+```text
+- industrial generated map is default for new games
+- mapStyle industrial/sand is preserved
+- sand/fixed/custom map paths remain fallback/reference
+- HQ/start/resources use lower-left industrial composition
+- frame/background/walls are connected in production for industrial
+- save/load compatibility preserved
+- current production small map remains 32x32
+- 96/128/192 production migration is deferred
+```
+
+### VISUAL-06 — Resource model/assets/wiring/rendering
+
+```text
+DONE
+PR #150 — VISUAL-06A resource visual model docs/design
+PR #151 — VISUAL-06B resource candidate review package
+PR #152 — VISUAL-06B1 resource model pivot
+PR #153 — VISUAL-06C approved industrial resources added
+PR #154 — VISUAL-06D preload/manifest wiring behind resourceStyle
+PR #155 — VISUAL-06E renderer wiring behind resourceStyle
+PR #156 — VISUAL-06E fixup: resourceStyle resolved from mapStyle
+```
+
+Final state:
+
+```text
+- normal resource model: 1x1 richness-tier visual assets
+- central infinite resource: 2x2 industrial asset
+- approved resource PNGs are in repo
+- industrial resource assets are preloaded through generated manifest pipeline
+- industrial resource rendering works through resourceStyle
+- industrial mapStyle resolves to industrial resourceStyle by default
+- sand mapStyle resolves to legacy resourceStyle
+- old mineral assets remain available
+- no resource economy, amount, depletion, pathfinding, or mapgen behavior changed
+```
+
+### UI roadmap — Menus, Save/Continue, HUD readability
+
+```text
+DONE
+PR #157 — UI-01 main menu visual polish and navigation shell
+PR #158 — UI-02 New Game setup polish
+PR #159 — UI-03 ESC menu polish
+PR #160 — UI-04 Save/Continue flow polish
+PR #161 — HUD-01 Playtest HUD readability polish
+```
+
+Final state:
+
+```text
+- main menu uses industrial sci-fi style
+- New Game setup matches the same style
+- ESC menu matches the same style
+- Save/Continue flow is polished around existing save/load behavior
+- ESC Load uses existing loadGame flow
+- save schema/core was not changed
+- Playtest HUD readability was polished
+- HUD gameplay/economy/build/production callbacks remain unchanged
 ```
 
 ---
 
-## What VISUAL-05A is allowed to do
+## What is NOT active now
 
-VISUAL-05A is COMPLETE. This section is retained for reference only.
+The following are not active implementation tasks:
 
 ```text
-- create production integration code behind feature flag or mapStyle config
-- extend the ?visual04a dev preview to support larger map sizes
-- modify TerrainRenderer or create IndustrialTerrainRenderer
-- add frame border rendering to the production renderer
-- add background/world layer to the production renderer
-- move HQ to lower-left start zone
-- adjust camera start and bounds
-- update starter resource placement relative to new HQ position
-- update NewGameSetupScene with new size options and map style
-- update tests that assert HQ at (4, 4)
-- each PR in the sequence must be independently reviewable and mergeable
+VISUAL-06F resource QA polish
+VISUAL-07 HUD layout design doc
+VISUAL-08 HUD shell implementation
+VISUAL-09 command panel/hotkey visual pass
+VISUAL-10 main menu visual refresh
+VISUAL-11 harvester/builder visual workflow design
+VISUAL-12 approved unit visual integration
+```
+
+Some of these names existed in older queue drafts, but they are not the current active roadmap.
+
+The UI work was completed through UI-01/UI-04 and HUD-01 instead.
+
+---
+
+## Known deferred topics
+
+These remain known future options, not current tasks:
+
+```text
+- production map size migration to 96/128/192
+- full RTS HUD bottom bar with minimap/info/commands
+- fog of war
+- arena mode
+- unit visual workflow
+- combat/enemy/bot/AI systems
+- upgrades/progression
+- save schema/migration/autosave/cloud saves
+- resource richness gameplay/mapgen beyond small/medium/large/infinite
+```
+
+Each needs a new owner-approved roadmap or scoped task before implementation.
+
+---
+
+## Rules for the next message/task
+
+If the owner asks for the next roadmap:
+
+```text
+1. Ask/derive the desired target outcome.
+2. Write a clear roadmap with phases and PR boundaries.
+3. Separate design/docs from implementation.
+4. Keep PRs small and reviewable.
+5. Do not start code until the roadmap/scope is accepted.
+```
+
+If the owner asks for immediate code without a new roadmap:
+
+```text
+Stop and clarify unless the task is a tiny, concrete bugfix.
+```
+
+If the owner asks for visual changes:
+
+```text
+Do not generate batches of assets or change runtime visuals without an approved visual contract/reference.
 ```
 
 ---
 
-## What VISUAL-05A must NOT do
-
-VISUAL-05A is COMPLETE. This section is retained for reference only.
+## Read before next roadmap planning
 
 ```text
-- do not change economy values or resource amounts
-- do not change pathfinding or occupancy logic
-- do not change the isometric coordinate system
-- do not break save/load compatibility without version field
-- do not remove sand terrain code/assets (keep as fallback)
-- do not continue sand terrain as primary direction
-- do not continue MAPLIFE #120 / desert decor
-- do not change gameplay mechanics
-- do not add new dependencies
-- do not change Phaser version
-- do not mix multiple PRs into one
+docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
+docs/project/PROJECT_STATE.md
+docs/project/GPT_WORKFLOW.md
+docs/project/GLM_EXECUTOR_RULES.md
 ```
 
----
-
-## VISUAL-05A completion status
-
-```text
-- VISUAL-05A production industrial map integration is COMPLETE.
-- PR #144, #145, #146, #147, #148 are all merged/done.
-- Industrial generated map is now the default for new games.
-- mapStyle 'industrial' and 'sand' both remain available.
-- Sand/fixed/custom map paths remain as fallback/reference.
-- HQ/start/resources are now lower-left for industrial generated maps.
-- Frame/background/walls are connected in production for industrial.
-- Save/load compatibility is preserved: old saves load as saved.
-- Current production small map is still 32×32 (not yet migrated to 96×96).
-```
-
----
-
-## VISUAL-06 guardrails
-
-Before VISUAL-06 implementation, resource work must have an approved asset/model contract.
-
-VISUAL-06 initial PR should be docs/design only unless a task explicitly scopes candidate review assets.
-
-Do NOT implement resource visual changes until:
-- Resource visual model/contract is approved by project owner
-- Candidate resource visuals are reviewed and accepted
-- Implementation scope is explicitly defined in an approved task
-
-VISUAL-06 must NOT:
-
-```text
-- replace production resource assets without approved visual direction
-- change resource gameplay mechanics
-- change resource amounts or economy values
-- change depletion logic
-- change pathfinding or occupancy
-- migrate production map sizes to 96/128/192
-- silently change any gameplay behavior
-```
-
-VISUAL-06 may (with explicit task scope):
-
-```text
-- produce resource visual candidate images for review
-- write resource visual model design document
-- define resource visual contract (sizes, variants, naming)
-- plan implementation PR sequence for resource visual integration
-```
-
----
-
-## Immediate implementation queue
-
-```text
-1. VISUAL-05A PR 1 — Parameterize dev preview to 96/128/192 — DONE (PR #144)
-2. VISUAL-05A PR 2 — Production terrain behind mapStyle flag — DONE (PR #145)
-3. VISUAL-05A PR 3 — Production frame/background layer — DONE (PR #146)
-4. VISUAL-05A PR 4 — Lower-left HQ/camera/resource composition — DONE (PR #147)
-5. VISUAL-05A PR 5 — Make industrial map default after QA — DONE (PR #148)
-6. VISUAL-06A — Resource field visual model (docs/design) — DONE (PR #150)
-7. VISUAL-06B — Resource candidate asset review — DONE (PR #151)
-8. VISUAL-06B1 — Resource model pivot: 1x1 richness tiers + 2x2 infinite — DONE (PR #152)
-9. VISUAL-06C — Approved resource assets added to repo — DONE (PR #153)
-10. VISUAL-06D — Preload/manifest wiring behind resourceStyle flag — DONE (PR #154)
-11. VISUAL-06E — Render industrial resources behind resourceStyle — DONE (PR #155, merged)
-11b. VISUAL-06E fixup — Resolve resourceStyle from mapStyle — DONE
-12. VISUAL-06F — QA polish if readability issues — deferred
-13. VISUAL-07 — HUD layout design doc
-14. VISUAL-08 — HUD shell implementation
-15. VISUAL-09 — Command panel/hotkey visual pass
-16. VISUAL-10 — Main menu visual refresh
-17. VISUAL-11 — Harvester/builder visual workflow design
-18. VISUAL-12 — Approved unit visual integration
-```
-
-VISUAL-05A sequence is COMPLETE (PR #144–#148 all merged).
-VISUAL-06A through VISUAL-06E fixup are COMPLETE (PR #150–#156).
-
-Previously listed Phase 2 tasks are already completed/merged — see `PROJECT_STATE.md` "Completed foundation" section.
-
-Still needed, not yet started:
-
-```text
-FOG-01 — Two-layer fog of war (design + implementation)
-ARENA-01 — Arena mode from menu
-```
-
-These can proceed in parallel only where they do not conflict with VISUAL work.
-
----
-
-## Read before any VISUAL task
+Historical VISUAL docs remain useful background, but they are no longer an active implementation queue:
 
 ```text
 docs/project/VISUAL_ROADMAP.md
 docs/project/VISUAL_SYSTEM_AUDIT.md
 docs/project/VISUAL_CANDIDATE_SUMMARY.md
 docs/project/VISUAL_01B_LAYERED_PLATFORM_FRAME.md
+docs/project/VISUAL_05A_PRODUCTION_INDUSTRIAL_MAP_INTEGRATION_PLAN.md
 docs/project/VISUAL_06_RESOURCE_FIELD_VISUAL_MODEL.md
-docs/project/PROJECT_STATE.md
-docs/project/GPT_WORKFLOW.md
-docs/project/GLM_EXECUTOR_RULES.md
 ```
 
 ---
 
-## Obsolete guidance
+## Short handoff
 
-Previous references to DOCS-P2-00, MENU-01 as the first Phase 2 implementation task, the Phase 2 implementation sequence from PR #98, sand terrain as the primary direction, or MAPLIFE desert decor are superseded by the VISUAL roadmap direction.
+```text
+We are working in ratoker-jpg/four-elements-phaser.
+The VISUAL/UI roadmap slice is closed after PR #144-#161.
+Industrial map is default, approved industrial resources are visible by default, and UI-01 through UI-04 plus HUD-01 are complete.
+Current implementation task: none.
+Next step: define a new roadmap from owner goals.
+Do not continue the old VISUAL/UI queue by inertia.
+```
