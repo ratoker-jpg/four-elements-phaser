@@ -6,7 +6,8 @@
  * Only active when devtools/arena mode is on.
  *
  * BLOCKOUT-02H: First visible blockout vehicles.
- * Vehicles are stationary — no movement, no turret aiming, no recoil.
+ * BLOCKOUT-03H: Added selection highlight, hover marker, turret aiming
+ * with independent rotation, and debug aim line for selected vehicles.
  */
 
 import Phaser from 'phaser';
@@ -37,8 +38,6 @@ const TURRET_SIZE = { w: 10, h: 6 };
 
 /** Mount point circle radius. */
 const MOUNT_POINT_RADIUS = 3;
-
-
 
 // ─── Faction colors ────────────────────────────────────────────────
 
@@ -71,28 +70,46 @@ const MOUNT_POINT_COLOR = 0xff0000;
 /** Debug label color. */
 const DEBUG_LABEL_COLOR = '#ffffff';
 
+// ─── Selection / hover visual constants ────────────────────────────
+
+/** Selection highlight ring color (bright gold). */
+const SELECTION_RING_COLOR = 0xffd700;
+
+/** Selection highlight ring line width. */
+const SELECTION_RING_WIDTH = 2.5;
+
+/** Hover marker ring color (subtle white). */
+const HOVER_RING_COLOR = 0xffffff;
+
+/** Hover marker ring alpha. */
+const HOVER_RING_ALPHA = 0.3;
+
+/** Aim line color for selected vehicle. */
+const AIM_LINE_COLOR = 0xff4444;
+
+/** Aim line alpha. */
+const AIM_LINE_ALPHA = 0.6;
+
+/** Aim line length in pixels (from turret center). */
+const AIM_LINE_LENGTH = 120;
+
+/** Aim line dash segment length. */
+const AIM_LINE_DASH = 8;
+
+/** Aim line gap length. */
+const AIM_LINE_GAP = 5;
+
 // ─── Mount offset computation ──────────────────────────────────────
 
 /**
  * Compute the pixel offset of the turret mount point relative to
  * the body center, based on mount category and body size.
- *
- * mountOffsetNormalized.x: 0=rear, 1=front
- * mountOffsetNormalized.y: 0=left, 1=right (not used in blockout for simplicity)
- *
- * The offset is along the body's forward axis, projected to screen coordinates.
  */
 function computeMountPixelOffset(
   mountCategory: MountCategory,
   bodyWidth: number,
   _bodyHeight: number,
 ): { dx: number; dy: number } {
-  // In isometric view, "forward" (body facing direction) maps to a diagonal.
-  // For simplicity in blockout, we offset along the body's facing direction.
-  // The mount offset moves the turret position relative to the body center.
-
-  // Fractional offset along body's forward axis
-  // rear = negative offset (behind center), front = positive offset (ahead of center)
   const fractionMap: Record<MountCategory, number> = {
     rear: -0.3,
     center_rear: -0.15,
@@ -102,7 +119,6 @@ function computeMountPixelOffset(
   };
 
   const fraction = fractionMap[mountCategory] ?? 0;
-  // Offset in pixels along body forward direction
   const offset = fraction * bodyWidth;
 
   return { dx: offset, dy: 0 };
@@ -126,9 +142,27 @@ export class BlockoutVehicleRenderer {
   /** Whether mount points are shown. */
   private showMountPoints = true;
 
+  /** Currently selected vehicle ID (set from BlockoutVehicleInputController). */
+  private _selectedVehicleId: string | null = null;
+
+  /** Currently hovered vehicle ID (set from BlockoutVehicleInputController). */
+  private _hoveredVehicleId: string | null = null;
+
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
     this.offset = offset;
+  }
+
+  // ─── Selection state ───────────────────────────────────────────
+
+  /** Set the currently selected blockout vehicle ID. */
+  setSelectedVehicleId(id: string | null): void {
+    this._selectedVehicleId = id;
+  }
+
+  /** Set the currently hovered blockout vehicle ID. */
+  setHoveredVehicleId(id: string | null): void {
+    this._hoveredVehicleId = id;
   }
 
   // ─── Toggle methods ──────────────────────────────────────────────
@@ -177,8 +211,12 @@ export class BlockoutVehicleRenderer {
         this.vehicleGraphics.set(vehicle.id, g);
       }
 
+      // Determine selection/hover state for this vehicle
+      const isSelected = vehicle.id === this._selectedVehicleId;
+      const isHovered = vehicle.id === this._hoveredVehicleId;
+
       // Redraw this vehicle
-      this.renderVehicle(g, vehicle);
+      this.renderVehicle(g, vehicle, isSelected, isHovered);
 
       // Debug label
       let label = this.debugLabels.get(vehicle.id);
@@ -201,7 +239,8 @@ export class BlockoutVehicleRenderer {
         const worldX = screenPos.x + this.offset.x;
         const worldY = screenPos.y + this.offset.y;
 
-        label.setText(`${vehicle.bodyId}+${vehicle.weaponId}`);
+        const selectedMarker = isSelected ? ' [SEL]' : '';
+        label.setText(`${vehicle.bodyId}+${vehicle.weaponId}${selectedMarker}`);
         label.setPosition(worldX, worldY - bodySize.h / 2 - 6);
         label.setVisible(this.showDebugLabels);
       }
@@ -224,7 +263,7 @@ export class BlockoutVehicleRenderer {
 
   // ─── Vehicle rendering ──────────────────────────────────────────
 
-  private renderVehicle(g: Phaser.GameObjects.Graphics, vehicle: BlockoutVehicleState): void {
+  private renderVehicle(g: Phaser.GameObjects.Graphics, vehicle: BlockoutVehicleState, isSelected: boolean, isHovered: boolean): void {
     g.clear();
 
     const bodyProfile = getBodyProfile(vehicle.bodyId);
@@ -249,6 +288,23 @@ export class BlockoutVehicleRenderer {
     const bodyColor = FACTION_BODY_COLORS[vehicle.faction] ?? FACTION_BODY_COLORS.cyan;
     const turretColor = FACTION_TURRET_COLORS[vehicle.faction] ?? FACTION_TURRET_COLORS.cyan;
 
+    // ── Selection highlight ring ──────────────────────────────────
+    if (isSelected) {
+      const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 800) / 800 * Math.PI * 2);
+      const alpha = 0.6 + 0.4 * pulse;
+      const ringRadius = Math.max(bodySize.w, bodySize.h) / 2 + 6;
+
+      g.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
+      g.strokeCircle(cx, cy, ringRadius);
+    }
+
+    // ── Hover marker ─────────────────────────────────────────────
+    if (isHovered && !isSelected) {
+      const hoverRadius = Math.max(bodySize.w, bodySize.h) / 2 + 4;
+      g.lineStyle(1.5, HOVER_RING_COLOR, HOVER_RING_ALPHA);
+      g.strokeCircle(cx, cy, hoverRadius);
+    }
+
     // ── Body rectangle ────────────────────────────────────────────
     g.save();
     g.translateCanvas(cx, cy);
@@ -258,8 +314,9 @@ export class BlockoutVehicleRenderer {
     g.fillStyle(bodyColor, 1);
     g.fillRect(-bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
 
-    // Body outline
-    g.lineStyle(1.5, BODY_OUTLINE_COLOR, 1);
+    // Body outline (thicker when selected)
+    const outlineWidth = isSelected ? 2.5 : 1.5;
+    g.lineStyle(outlineWidth, BODY_OUTLINE_COLOR, 1);
     g.strokeRect(-bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
 
     // Forward direction indicator (small line from center toward front)
@@ -301,8 +358,9 @@ export class BlockoutVehicleRenderer {
     g.fillStyle(turretColor, 1);
     g.fillRect(-turretSize.w / 2, -turretSize.h / 2, turretSize.w, turretSize.h);
 
-    // Turret outline
-    g.lineStyle(1, TURRET_OUTLINE_COLOR, 1);
+    // Turret outline (brighter when selected)
+    const turretOutlineWidth = isSelected ? 2 : 1;
+    g.lineStyle(turretOutlineWidth, TURRET_OUTLINE_COLOR, 1);
     g.strokeRect(-turretSize.w / 2, -turretSize.h / 2, turretSize.w, turretSize.h);
 
     // Barrel line (extends from turret center forward)
@@ -311,6 +369,24 @@ export class BlockoutVehicleRenderer {
     g.moveTo(turretSize.w / 2, 0);
     g.lineTo(turretSize.w / 2 + barrelLength, 0);
     g.strokePath();
+
+    // ── Aim line for selected vehicle ─────────────────────────────
+    if (isSelected) {
+      g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
+      const aimStart = turretSize.w / 2 + barrelLength;
+      const aimEnd = aimStart + AIM_LINE_LENGTH;
+
+      // Draw dashed aim line
+      let pos = aimStart;
+      while (pos < aimEnd) {
+        const segEnd = Math.min(pos + AIM_LINE_DASH, aimEnd);
+        g.beginPath();
+        g.moveTo(pos, 0);
+        g.lineTo(segEnd, 0);
+        g.strokePath();
+        pos = segEnd + AIM_LINE_GAP;
+      }
+    }
 
     g.restore();
   }

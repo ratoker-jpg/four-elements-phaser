@@ -379,7 +379,9 @@ export function devSpawnBlockoutVehicle(
     return { success: false, message: 'No valid spawn tile near HQ for blockout vehicle' };
   }
 
-  const vehicle = createBlockoutVehicle(bodyId, weaponId, state.playerFaction, pos.tx, pos.ty);
+  const weaponProfile = WEAPON_PROFILES[weaponId];
+  const turretTurnSpeedDeg = weaponProfile?.blockoutTurretTurnSpeedDeg ?? 120;
+  const vehicle = createBlockoutVehicle(bodyId, weaponId, state.playerFaction, pos.tx, pos.ty, Math.PI / 2, turretTurnSpeedDeg);
   if (!state.blockoutVehicles) {
     state.blockoutVehicles = [];
   }

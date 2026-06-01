@@ -457,7 +457,8 @@ export interface GameState {
   // ── BLOCKOUT-02H: Blockout vehicle state (dev-only, not persisted) ──
   /** Blockout vehicles — only populated in dev/arena mode.
    *  Optional: old saves and standard mode games have this as undefined/empty.
-   *  Blockout vehicles are stripped from saves and never serialized. */
+   *  Blockout vehicles are stripped from saves and never serialized.
+   *  BLOCKOUT-03H: Added turretTargetAngle and turretTurnSpeedDeg for independent turret aiming. */
   blockoutVehicles?: Array<{
     id: string;
     bodyId: BodyId;
@@ -467,6 +468,8 @@ export interface GameState {
     ty: number;
     bodyAngle: number;
     turretAngle: number;
+    turretTargetAngle: number;
+    turretTurnSpeedDeg: number;
     createdAt: number;
   }>;
 }
