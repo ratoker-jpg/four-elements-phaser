@@ -148,6 +148,22 @@ describe('blockout weapon profiles', () => {
     }
   });
 
+  it('should have turret turn speed for blockout aiming (BLOCKOUT-03H)', () => {
+    for (const id of ALL_WEAPON_IDS) {
+      const profile = WEAPON_PROFILES[id];
+      expect(profile).toBeDefined();
+      expect(profile!.blockoutTurretTurnSpeedDeg, `Missing blockoutTurretTurnSpeedDeg for ${id}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('should have turret turn speed differentiation: Smoky > Railgun (BLOCKOUT-03H)', () => {
+    const smoky = WEAPON_PROFILES['smoky'];
+    const railgun = WEAPON_PROFILES['railgun'];
+    expect(smoky).toBeDefined();
+    expect(railgun).toBeDefined();
+    expect(smoky!.blockoutTurretTurnSpeedDeg).toBeGreaterThan(railgun!.blockoutTurretTurnSpeedDeg);
+  });
+
   it('should have barrel length differentiation: Railgun > Smoky', () => {
     const railgun = WEAPON_PROFILES['railgun'];
     const smoky = WEAPON_PROFILES['smoky'];

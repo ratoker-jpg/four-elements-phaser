@@ -3,8 +3,10 @@
  *
  * Blockout barrel lengths are approximate and tunable.
  * Damage model values are reference placeholders, not final game balance.
+ * Turret turn speeds are approximate and tunable.
  *
  * BLOCKOUT-02H: First visible blockout vehicles.
+ * BLOCKOUT-03H: Added blockoutTurretTurnSpeedDeg for independent turret aiming.
  */
 
 import type { WeaponProfile } from './blockoutProfiles';
@@ -26,6 +28,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 12,
     blockoutBarrelWidth: 3,
+    blockoutTurretTurnSpeedDeg: 150,
   },
   thunder: {
     id: 'thunder',
@@ -42,6 +45,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 10,
     blockoutBarrelWidth: 5,
+    blockoutTurretTurnSpeedDeg: 110,
   },
   railgun: {
     id: 'railgun',
@@ -59,6 +63,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 20,
     blockoutBarrelWidth: 3,
+    blockoutTurretTurnSpeedDeg: 90,
   },
   shaft: {
     id: 'shaft',
@@ -75,6 +80,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 18,
     blockoutBarrelWidth: 3,
+    blockoutTurretTurnSpeedDeg: 80,
   },
   flamethrower: {
     id: 'flamethrower',
@@ -92,6 +98,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 8,
     blockoutBarrelWidth: 4,
+    blockoutTurretTurnSpeedDeg: 130,
   },
   freeze: {
     id: 'freeze',
@@ -109,6 +116,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 8,
     blockoutBarrelWidth: 4,
+    blockoutTurretTurnSpeedDeg: 130,
   },
   isida: {
     id: 'isida',
@@ -126,6 +134,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 6,
     blockoutBarrelWidth: 4,
+    blockoutTurretTurnSpeedDeg: 140,
   },
   vulcan: {
     id: 'vulcan',
@@ -143,6 +152,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 14,
     blockoutBarrelWidth: 3,
+    blockoutTurretTurnSpeedDeg: 120,
   },
   twins: {
     id: 'twins',
@@ -159,6 +169,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 10,
     blockoutBarrelWidth: 3,
+    blockoutTurretTurnSpeedDeg: 140,
   },
   ricochet: {
     id: 'ricochet',
@@ -175,6 +186,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 11,
     blockoutBarrelWidth: 4,
+    blockoutTurretTurnSpeedDeg: 130,
   },
   hammer: {
     id: 'hammer',
@@ -191,6 +203,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     },
     blockoutBarrelLength: 7,
     blockoutBarrelWidth: 5,
+    blockoutTurretTurnSpeedDeg: 100,
   },
 };
 

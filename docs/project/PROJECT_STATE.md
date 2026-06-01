@@ -3,15 +3,15 @@
 Status: operational project state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Current phase: BLOCKOUT-MVP — BLOCKOUT-02H implemented, BLOCKOUT-03H next
+Current phase: BLOCKOUT-MVP — BLOCKOUT-03H implemented, BLOCKOUT-04H+ next
 
 ---
 
 ## Current mode
 
 ```text
-BLOCKOUT-02H implemented. Visible blockout vehicles exist in arena/dev mode.
-Next: BLOCKOUT-03H — Selection/control + turret aiming.
+BLOCKOUT-03H implemented. Blockout vehicles can be selected and turrets aim independently.
+Next: BLOCKOUT-04H+ — Semi-physics movement.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
@@ -27,7 +27,7 @@ Owner decision: no standalone low-risk implementation PRs. Only high/high+ steps
 Next action:
 
 ```text
-BLOCKOUT-03H — Selection/control + turret aiming
+BLOCKOUT-04H+ — Semi-physics movement
 ```
 
 ---
@@ -104,9 +104,19 @@ The project currently has:
   - rear-mounted turrets on Wasp/Dictator
   - front_center turrets on Titan/Mammoth
   - production/default game unchanged when devtools is off
+- SELECTABLE BLOCKOUT VEHICLES with independent turret aiming (BLOCKOUT-03H)
+  - LMB click to select vehicle, click empty ground to deselect
+  - gold pulsing selection highlight ring on selected vehicle
+  - subtle white hover marker on hovered vehicle
+  - turret rotates toward mouse cursor independently from body
+  - turret turn speed rate-limited per weapon profile
+  - dashed red aim line from barrel toward cursor for selected vehicle
+  - weapon-specific turret turn speeds (Smoky 150deg/s, Railgun 90deg/s)
+  - body angle independent from turret angle
+  - only one vehicle selected at a time
 ```
 
-This is the expected baseline for BLOCKOUT-03H.
+This is the expected baseline for BLOCKOUT-04H+.
 
 ---
 
@@ -226,7 +236,7 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-03H — Selection/control + turret aiming
+BLOCKOUT-04H+ — Semi-physics movement
 ```
 
 Mode:
@@ -269,7 +279,31 @@ Implemented:
 - primitive Phaser Graphics renderer (body rectangle, turret rectangle, barrel line, mount point circle)
 - visible arena/dev output: different body sizes readable, turret separate from body, barrel visible, mount point visible
 - stripModularCombatFromState extended to strip blockout vehicles
-- 45 unit tests for profiles, state, and spawn
+- save sanitization strips blockoutVehicles before writing
+- 48 unit tests for profiles, state, and spawn
+```
+
+### BLOCKOUT-03H — Selection/control + turret aiming
+
+```text
+Type: implementation
+Risk: HIGH
+Status: DONE
+
+Implemented:
+- angle math helpers (normalizeAngle, shortestAngleDelta, rotateTowardAngle, angleFromTo, degPerSecToRadPerMs)
+- turret targeting fields on BlockoutVehicleState (turretTargetAngle, turretTurnSpeedDeg)
+- weapon-specific turret turn speeds (blockoutTurretTurnSpeedDeg on WeaponProfile)
+- BlockoutVehicleInputController for dev-only selection and turret aiming
+- LMB click selects/deselects blockout vehicles (hit-test by distance)
+- mouse position updates selected vehicle turret target each frame
+- rate-limited turret rotation using rotateTowardAngle
+- selection highlight: gold pulsing ring on selected vehicle
+- hover marker: subtle white ring on hovered vehicle
+- aim line: dashed red line from barrel toward cursor for selected vehicle
+- selected vehicle label shows [SEL] marker
+- all selection/aim state is transient and not persisted in saves
+- 39 unit tests for angle math, hit-test, turret rotation, and save isolation
 ```
 
 ---
@@ -385,12 +419,11 @@ Sand assets and code remain in repo as fallback/reference.
 
 ## Constraints before implementation
 
-Do not start these as immediate implementation without BLOCKOUT-03H approval:
+Do not start these as immediate implementation without BLOCKOUT-04H+ approval:
 
 ```text
-- blockout vehicle selection/control (part of BLOCKOUT-03H)
-- turret aiming runtime changes (BLOCKOUT-03H)
-- movement physics changes (BLOCKOUT-04H+)
+- blockout vehicle movement physics (part of BLOCKOUT-04H+)
+- body rotation in movement direction (BLOCKOUT-04H+)
 - recoil system (BLOCKOUT-05H+)
 - weapon VFX placeholders (BLOCKOUT-05H+, BLOCKOUT-06H+)
 - damage behavior placeholders (BLOCKOUT-07H+)
@@ -412,8 +445,8 @@ Use this sequence:
 4. BLOCKOUT roadmap fixup (high/high+ sequence) — DONE
 5. owner/GPT review of high/high+ sequence — DONE
 6. BLOCKOUT-02H first visible blockout vehicles — DONE
-7. BLOCKOUT-03H selection/control + turret aiming — NEXT
-8. GPT review before each merge
+7. BLOCKOUT-03H selection/control + turret aiming — DONE
+8. BLOCKOUT-04H+ semi-physics movement — NEXT
 ```
 
 ---

@@ -30,6 +30,7 @@ import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData } from '../state/devAr
 import { AssetPreviewTool } from './dev/AssetPreviewTool';
 import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
 import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
+import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputController';
 import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
 
 /**
@@ -122,6 +123,9 @@ export class GameScene extends Phaser.Scene {
 
   // BLOCKOUT-02H: Blockout vehicle renderer (only when devtools is active)
   private blockoutVehicleRenderer: BlockoutVehicleRenderer | null = null;
+
+  // BLOCKOUT-03H: Blockout vehicle input controller (selection/aim, only when devtools is active)
+  private blockoutVehicleInputController: BlockoutVehicleInputController | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -369,6 +373,20 @@ export class GameScene extends Phaser.Scene {
       console.log('[GameScene] Blockout vehicle renderer enabled. Spawned default vehicle set.');
     }
 
+    // BLOCKOUT-03H: Create blockout vehicle input controller for selection/aiming
+    if (this.devtoolsActive) {
+      this.blockoutVehicleInputController = new BlockoutVehicleInputController({
+        scene: this,
+        offset: this._offset as IsoPoint,
+        getGameState: () => this.gameState,
+        isDevtoolsActive: () => this.devtoolsActive,
+        onSelectionChanged: (selectedId: string | null) => {
+          this.blockoutVehicleRenderer?.setSelectedVehicleId(selectedId);
+        },
+      });
+      console.log('[GameScene] Blockout vehicle input controller enabled.');
+    }
+
     // ── ARCH-18A-LITE: Create input controller ─────────────────────
     // All keyboard/pointer input wiring, selection state, and command
     // methods are now handled by GameInputController.
@@ -482,6 +500,14 @@ export class GameScene extends Phaser.Scene {
     this.assetPreviewTool?.update();
 
     // 8f. BLOCKOUT-02H: Sync blockout vehicle renderer
+    // BLOCKOUT-03H: Also update input controller and sync hover/selection state
+    if (this.blockoutVehicleInputController && this.devtoolsActive) {
+      this.blockoutVehicleInputController.update(delta);
+      // Sync hover state to renderer
+      if (this.blockoutVehicleRenderer) {
+        this.blockoutVehicleRenderer.setHoveredVehicleId(this.blockoutVehicleInputController.hoveredVehicleId);
+      }
+    }
     if (this.blockoutVehicleRenderer && this.gameState.blockoutVehicles) {
       this.blockoutVehicleRenderer.syncFromState(this.gameState.blockoutVehicles);
     }
@@ -556,6 +582,8 @@ export class GameScene extends Phaser.Scene {
     this.assetPreviewPanel = null;
     this.assetPreviewTool?.destroy();
     this.assetPreviewTool = null;
+    this.blockoutVehicleInputController?.destroy();
+    this.blockoutVehicleInputController = null;
     this.blockoutVehicleRenderer?.destroy();
     this.blockoutVehicleRenderer = null;
     this.pauseMenu?.destroy();

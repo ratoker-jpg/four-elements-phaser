@@ -5,8 +5,8 @@
  * and are not persisted in saves.
  *
  * BLOCKOUT-02H: First visible blockout vehicles.
- * Vehicles are stationary in this PR — no movement physics,
- * no turret aiming, no recoil, no damage.
+ * BLOCKOUT-03H: Added turretTargetAngle and turretTurnSpeedDeg for
+ * independent turret aiming.
  */
 
 import type { Faction } from './types';
@@ -30,11 +30,29 @@ export interface BlockoutVehicleState {
   ty: number;
   /** Body angle in radians (continuous). In BLOCKOUT-02H, this is fixed at spawn. */
   bodyAngle: number;
-  /** Turret angle in radians (continuous). In BLOCKOUT-02H, same as bodyAngle. */
+  /** Turret angle in radians (continuous). Updated each frame toward turretTargetAngle. */
   turretAngle: number;
+  /**
+   * Target angle for turret aiming in radians.
+   * BLOCKOUT-03H: When a vehicle is selected, this is set to the angle
+   * toward the mouse cursor. The turret rotates toward this angle each frame.
+   * When not selected, defaults to bodyAngle (turret matches body).
+   */
+  turretTargetAngle: number;
+  /**
+   * Turret turn speed in degrees per second.
+   * BLOCKOUT-03H: Different weapons may have different turret turn speeds.
+   * Default value used when no weapon-specific speed is configured.
+   */
+  turretTurnSpeedDeg: number;
   /** Creation timestamp (ms since epoch). Useful for debug labels. */
   createdAt: number;
 }
+
+// ─── Constants ─────────────────────────────────────────────────────
+
+/** Default turret turn speed in degrees per second. */
+export const DEFAULT_TURRET_TURN_SPEED_DEG = 120;
 
 // ─── State helpers ─────────────────────────────────────────────────
 
@@ -48,6 +66,7 @@ export function createBlockoutVehicle(
   tx: number,
   ty: number,
   bodyAngle: number = Math.PI / 2, // default: facing south in isometric
+  turretTurnSpeedDeg: number = DEFAULT_TURRET_TURN_SPEED_DEG,
 ): BlockoutVehicleState {
   return {
     id: `blockout-vehicle-${nextBlockoutVehicleId++}`,
@@ -57,7 +76,9 @@ export function createBlockoutVehicle(
     tx,
     ty,
     bodyAngle,
-    turretAngle: bodyAngle, // In BLOCKOUT-02H, turret matches body
+    turretAngle: bodyAngle, // Initially turret matches body
+    turretTargetAngle: bodyAngle, // Initially target matches body
+    turretTurnSpeedDeg,
     createdAt: Date.now(),
   };
 }

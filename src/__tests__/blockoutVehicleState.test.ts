@@ -78,6 +78,8 @@ describe('BlockoutVehicleState', () => {
     expect(vehicle.ty).toBe(5);
     expect(vehicle.bodyAngle).toBeGreaterThan(0);
     expect(vehicle.turretAngle).toBe(vehicle.bodyAngle);
+    expect(vehicle.turretTargetAngle).toBe(vehicle.bodyAngle);
+    expect(vehicle.turretTurnSpeedDeg).toBeGreaterThan(0);
     expect(vehicle.createdAt).toBeGreaterThan(0);
   });
 

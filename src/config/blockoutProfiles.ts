@@ -108,6 +108,8 @@ export interface WeaponProfile {
   blockoutBarrelLength: number;
   /** Barrel width in pixels for blockout renderer. */
   blockoutBarrelWidth: number;
+  /** Turret turn speed in degrees per second for blockout. BLOCKOUT-03H: different weapons may have different turret turn speeds. Heavier/slower weapons turn slower. */
+  blockoutTurretTurnSpeedDeg: number;
 }
 
 // ─── Vehicle Profile ───────────────────────────────────────────────
