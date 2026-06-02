@@ -204,6 +204,18 @@ export interface VfxProfile {
   muzzleFlashRadiusPx?: number;
   /** Line/ray length in pixels for beam/line effects. BLOCKOUT-05H+. */
   effectLengthPx?: number;
+  /** Cone half-angle in degrees for cone/stream effects. BLOCKOUT-06H+. */
+  coneAngleDeg?: number;
+  /** Number of bounce segments for ricochet. BLOCKOUT-06H+. */
+  bounceCount?: number;
+  /** Number of pellets for shotgun. BLOCKOUT-06H+. */
+  pelletCount?: number;
+  /** Stream tick cadence in ms for continuous weapons. BLOCKOUT-06H+. */
+  streamCadenceMs?: number;
+  /** Overheat visual duration in ms. BLOCKOUT-06H+. */
+  overheatDurationMs?: number;
+  /** Charge pulse duration in ms for shaft. BLOCKOUT-06H+. */
+  chargePulseMs?: number;
 }
 
 // ─── Damage Profile ────────────────────────────────────────────────

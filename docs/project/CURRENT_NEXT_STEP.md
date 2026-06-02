@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: BLOCKOUT-05H+ implemented / BLOCKOUT-06H+ next
+Status: BLOCKOUT-06H+ implemented / BLOCKOUT-07H+ next
 Project: Four Elements Phaser
-Date: 2026-06-02
+Date: 2026-06-01
 
 ---
 
@@ -21,8 +21,8 @@ What should GPT/GLM/Codex do next by default?
 Current answer:
 
 ```text
-BLOCKOUT-05H+ is implemented. Blockout vehicles have visual-only firing, recoil, and weapon VFX for Smoky/Railgun/Thunder.
-Next step: BLOCKOUT-06H+ — Remaining weapon VFX families.
+BLOCKOUT-06H+ is implemented. All 11 blockout weapon families have visual-only VFX placeholders.
+Next step: BLOCKOUT-07H+ — Damage placeholders.
 ```
 
 ---
@@ -30,33 +30,34 @@ Next step: BLOCKOUT-06H+ — Remaining weapon VFX families.
 ## Current next step
 
 ```text
-BLOCKOUT-05H+ — Recoil + first weapon VFX set — IMPLEMENTED
+BLOCKOUT-06H+ — Remaining weapon VFX families — IMPLEMENTED
 
-Blockout vehicles can now fire in arena/dev mode:
-- Select a blockout vehicle with LMB
-- Press Space or F to fire selected vehicle
-- Smoky: muzzle flash + short tracer + impact dot + medium recoil
-- Railgun: long bright line + pierce ticks + strong recoil
-- Thunder: short tracer + explosion circle + splash radius ring + medium-heavy recoil
-- Barrel kickback visible on all three weapons
-- Recoil recovers smoothly over time
-- Cooldown prevents uncontrolled VFX spam
-- Body impulse shifts vehicle backward visually during recoil
-- Turret kickback deflects turret angle temporarily during recoil
-- Movement from BLOCKOUT-04H+ keeps working while firing
-- Turret aiming from BLOCKOUT-03H keeps working while firing
-- VFX origin uses actual barrel/mount origin (not body center)
-- Rear-mounted and front_center vehicles fire from correct origin
+All 11 blockout weapons now have distinct visual-only VFX:
+- Smoky: muzzle flash + short tracer + impact dot + medium recoil (BLOCKOUT-05H+)
+- Railgun: long bright line + pierce ticks + strong recoil (BLOCKOUT-05H+)
+- Thunder: short tracer + explosion circle + splash radius ring + medium-heavy recoil (BLOCKOUT-05H+)
+- Shaft: charge pulse + focused long sniper line + crosshair at end
+- Flamethrower: orange cone with flicker + inner yellow cone + muzzle glow
+- Freeze: cyan cone + inner blue cone + frost circles + muzzle glow
+- Isida: green pulsing beam + glow line + tether dots
+- Vulcan: rapid short tracers + small muzzle flash + visual overheat indicator
+- Twins: moving plasma dots with glow + trail
+- Ricochet: segmented path with deterministic bounces + bounce markers
+- Hammer: fan of pellet tracers in cone + impact dots
+- Continuous weapons (Flamethrower/Freeze/Isida/Vulcan/Twins) fire while Space/F is held
+- Single-fire weapons (Smoky/Railgun/Thunder/Shaft/Ricochet/Hammer) fire on press
+- Recoil visible on all weapons (stronger on heavy weapons, lighter on stream weapons)
+- All timing uses consistent Phaser scene time basis
 - Production/default game remains unchanged when devtools/arena is off
 
-Next step: BLOCKOUT-06H+ — Remaining weapon VFX families: Flamethrower, Freeze, Isida, Vulcan, Twins, Ricochet, Hammer, Shaft
+Next step: BLOCKOUT-07H+ — Damage placeholders
 ```
 
 Mode:
 
 ```text
-BLOCKOUT-05H+ COMPLETE
-READY FOR BLOCKOUT-06H+ IMPLEMENTATION
+BLOCKOUT-06H+ COMPLETE
+READY FOR BLOCKOUT-07H+ IMPLEMENTATION
 No standalone low-risk PRs.
 High/high+ visible progress steps only.
 ```
@@ -68,8 +69,8 @@ High/high+ visible progress steps only.
 ```text
 VISUAL/UI roadmap slice: CLOSED
 Current active planning direction: BLOCKOUT-MVP
-Current implementation task: BLOCKOUT-05H+ COMPLETE
-Next action: BLOCKOUT-06H+ — Remaining weapon VFX families
+Current implementation task: BLOCKOUT-06H+ COMPLETE
+Next action: BLOCKOUT-07H+ — Damage placeholders
 ```
 
 Roadmap document:
@@ -114,7 +115,7 @@ The roadmap focuses on Phaser/blockout placeholders for:
 - recoil ✓ (BLOCKOUT-05H+)
 - weapon behavior families — first set ✓ (BLOCKOUT-05H+)
 - primitive VFX placeholders — first set ✓ (BLOCKOUT-05H+)
-- remaining weapon VFX families (BLOCKOUT-06H+)
+- remaining weapon VFX families ✓ (BLOCKOUT-06H+)
 - direct/splash/penetration/status damage placeholders (BLOCKOUT-07H+)
 - obstacle blockers (BLOCKOUT-08H)
 - upgrade skeleton (BLOCKOUT-09H)
@@ -136,6 +137,7 @@ BLOCKOUT-02H first visible blockout vehicles is implemented.
 BLOCKOUT-03H selection/control + turret aiming is implemented.
 BLOCKOUT-04H+ semi-physics movement is implemented.
 BLOCKOUT-05H+ recoil + first weapon VFX set is implemented.
-Blockout vehicles can now fire with visual recoil and weapon-specific VFX (Smoky/Railgun/Thunder).
-Next step: BLOCKOUT-06H+ — Remaining weapon VFX families.
+BLOCKOUT-06H+ remaining weapon VFX families is implemented.
+All 11 blockout weapons have distinct visual-only VFX placeholders.
+Next step: BLOCKOUT-07H+ — Damage placeholders.
 ```

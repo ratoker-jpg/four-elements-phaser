@@ -4,10 +4,15 @@
  * BLOCKOUT-05H+: Visual-only firing, recoil, and weapon VFX for
  * Smoky / Railgun / Thunder in arena/dev mode.
  *
+ * BLOCKOUT-06H+: Extended to all 11 weapons including continuous
+ * fire support (Flamethrower, Freeze, Isida, Vulcan, Twins).
+ *
  * This module provides:
  * - VFX event creation and aging
  * - Recoil start/update/recovery
  * - Cooldown check
+ * - Continuous fire tick (stream weapons)
+ * - Firing state management
  *
  * All state is transient and NOT persisted in saves.
  */
@@ -20,8 +25,12 @@ import { getWeaponProfile } from '../config/blockoutWeaponData';
 
 // ─── VFX Event ────────────────────────────────────────────────────
 
-/** Weapon VFX event type. */
-export type VfxEventType = 'smokyShot' | 'railgunLine' | 'thunderSplash';
+/** Weapon VFX event type. BLOCKOUT-06H+: All 11 weapons implemented. */
+export type VfxEventType =
+  | 'smokyShot' | 'railgunLine' | 'thunderSplash'
+  | 'shaftLine' | 'flamethrowerCone' | 'freezeCone'
+  | 'isidaBeam' | 'vulcanTracer' | 'twinsPlasma'
+  | 'ricochetBounce' | 'hammerShotgun';
 
 /** A single visual-only VFX event. Transient — not persisted. */
 export interface BlockoutWeaponVfxEvent {
@@ -49,6 +58,12 @@ export interface BlockoutWeaponVfxEvent {
   rangePx: number;
   /** Splash/impact radius in pixels (0 for non-splash). */
   impactRadiusPx: number;
+  /** Cone half-angle in degrees (for cone/stream effects). BLOCKOUT-06H+. */
+  coneAngleDeg: number;
+  /** Number of bounce segments (for ricochet). BLOCKOUT-06H+. */
+  bounceCount: number;
+  /** Number of pellets (for shotgun). BLOCKOUT-06H+. */
+  pelletCount: number;
 }
 
 // ─── VFX event list (module-local, transient) ─────────────────────
@@ -81,25 +96,31 @@ export function resetVfxEventIdCounter(): void {
 
 /**
  * Map weaponId to VFX event type.
+ * BLOCKOUT-06H+: All 11 weapons now have VFX event types.
  */
-function getVfxEventType(weaponId: WeaponId): VfxEventType | null {
+function getVfxEventType(weaponId: WeaponId): VfxEventType {
   switch (weaponId) {
     case 'smoky': return 'smokyShot';
     case 'railgun': return 'railgunLine';
     case 'thunder': return 'thunderSplash';
-    default: return null; // Not implemented in this PR
+    case 'shaft': return 'shaftLine';
+    case 'flamethrower': return 'flamethrowerCone';
+    case 'freeze': return 'freezeCone';
+    case 'isida': return 'isidaBeam';
+    case 'vulcan': return 'vulcanTracer';
+    case 'twins': return 'twinsPlasma';
+    case 'ricochet': return 'ricochetBounce';
+    case 'hammer': return 'hammerShotgun';
   }
 }
 
 /**
  * Fire a weapon VFX event from a blockout vehicle.
  *
- * Creates a VFX event and starts recoil if the weapon is supported
- * (Smoky, Railgun, Thunder). Returns the created event or null if
- * the weapon is not implemented or cooldown has not elapsed.
+ * Creates a VFX event and starts recoil. Returns the created event
+ * or null if cooldown has not elapsed.
  *
- * This function also checks cooldown. If the weapon is still on cooldown,
- * it returns null without creating a VFX event.
+ * BLOCKOUT-06H+: All 11 weapons are now implemented.
  *
  * @param vehicle - The firing vehicle
  * @param barrelTipX - Barrel tip X in screen-space pixels (with offset)
@@ -108,7 +129,7 @@ function getVfxEventType(weaponId: WeaponId): VfxEventType | null {
  * @param aimTargetX - Aim target X in screen-space pixels (with offset)
  * @param aimTargetY - Aim target Y in screen-space pixels (with offset)
  * @param nowMs - Current timestamp
- * @returns The VFX event, or null if weapon not implemented or on cooldown
+ * @returns The VFX event, or null if on cooldown
  */
 export function fireBlockoutWeapon(
   vehicle: BlockoutVehicleState,
@@ -121,7 +142,6 @@ export function fireBlockoutWeapon(
 ): BlockoutWeaponVfxEvent | null {
   const weaponId = vehicle.weaponId;
   const eventType = getVfxEventType(weaponId);
-  if (!eventType) return null; // Weapon not implemented in this PR
 
   // Check cooldown
   if (!canFireBlockoutWeapon(vehicle, nowMs)) return null;
@@ -153,6 +173,9 @@ export function fireBlockoutWeapon(
     durationMs: vfxProfile.durationMs,
     rangePx: weaponProfile.blockoutRangePx,
     impactRadiusPx: vfxProfile.impactRadiusPx ?? 0,
+    coneAngleDeg: vfxProfile.coneAngleDeg ?? 0,
+    bounceCount: vfxProfile.bounceCount ?? 0,
+    pelletCount: vfxProfile.pelletCount ?? 0,
   };
 
   vfxEvents.push(event);
@@ -251,4 +274,78 @@ export function updateBlockoutRecoil(
   vehicle.recoilBarrelOffset = recoilProfile.barrelKickbackPx * decay;
   vehicle.recoilTurretOffset = recoilProfile.turretKickbackRad * decay;
   vehicle.recoilBodyOffset = recoilProfile.bodyImpulsePx * decay;
+}
+
+// ─── Continuous Fire (BLOCKOUT-06H+) ──────────────────────────────
+
+/** Check if a weapon is a continuous-fire type. BLOCKOUT-06H+. */
+export function isContinuousWeapon(weaponId: WeaponId): boolean {
+  return weaponId === 'flamethrower' || weaponId === 'freeze' || weaponId === 'isida' || weaponId === 'vulcan' || weaponId === 'twins';
+}
+
+/** Start firing state for a vehicle. BLOCKOUT-06H+. */
+export function startFiring(vehicle: BlockoutVehicleState): void {
+  vehicle.fireHeld = true;
+  vehicle.isFiring = true;
+}
+
+/** Stop firing state for a vehicle. BLOCKOUT-06H+. */
+export function stopFiring(vehicle: BlockoutVehicleState): void {
+  vehicle.fireHeld = false;
+  vehicle.isFiring = false;
+  vehicle.visualOverheat = 0;
+}
+
+/**
+ * Tick continuous fire for a blockout vehicle.
+ * BLOCKOUT-06H+: For Flamethrower, Freeze, Isida, Vulcan, Twins —
+ * weapons that fire continuously while the key is held.
+ *
+ * Creates VFX events at the weapon's streamCadenceMs rate.
+ * Returns the number of VFX events created this tick.
+ *
+ * @param vehicle - The vehicle firing
+ * @param barrelTipX - Barrel tip X in screen-space pixels
+ * @param barrelTipY - Barrel tip Y in screen-space pixels
+ * @param aimAngle - Turret angle
+ * @param aimTargetX - Aim target X
+ * @param aimTargetY - Aim target Y
+ * @param nowMs - Current Phaser scene time
+ * @returns Number of VFX events created
+ */
+export function tickContinuousFire(
+  vehicle: BlockoutVehicleState,
+  barrelTipX: number,
+  barrelTipY: number,
+  aimAngle: number,
+  aimTargetX: number,
+  aimTargetY: number,
+  nowMs: number,
+): number {
+  if (!vehicle.fireHeld || !vehicle.isFiring) return 0;
+
+  const vfxProfile = getWeaponVfxProfile(vehicle.weaponId);
+  if (!vfxProfile || !vfxProfile.streamCadenceMs) return 0; // Not a continuous weapon
+
+  // Check if enough time has elapsed since last stream tick
+  const elapsed = nowMs - vehicle.lastStreamTickAt;
+  if (elapsed < vfxProfile.streamCadenceMs) return 0;
+
+  // Fire a VFX event (this handles cooldown, recoil, etc.)
+  const event = fireBlockoutWeapon(
+    vehicle,
+    barrelTipX,
+    barrelTipY,
+    aimAngle,
+    aimTargetX,
+    aimTargetY,
+    nowMs,
+  );
+
+  if (event) {
+    vehicle.lastStreamTickAt = nowMs;
+    return 1;
+  }
+
+  return 0;
 }

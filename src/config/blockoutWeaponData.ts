@@ -155,7 +155,7 @@ export const WEAPON_PROFILES: Record<string, WeaponProfile> = {
     displayName: 'Vulcan',
     behavior: 'rapid_fire_overheat',
     recoilProfile: 'vulcan',
-    vfxProfile: 'rapid_fire',
+    vfxProfile: 'rapid_fire_overheat',
     damageModel: {
       directDamage: 5,
       splashRadius: 0,

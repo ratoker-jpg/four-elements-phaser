@@ -52,8 +52,10 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     durationMs: 200,
     secondaryColor: 0xff88ff,
     impactRadiusPx: 3,
-    muzzleFlashRadiusPx: 5,
+    muzzleFlashRadiusPx: 4,
     effectLengthPx: 450,
+    coneAngleDeg: 0,
+    chargePulseMs: 150,
   },
   cone_stream: {
     behavior: 'cone_stream',
@@ -62,6 +64,8 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     width: 0,
     durationMs: 50,
     effectLengthPx: 120,
+    coneAngleDeg: 25,
+    streamCadenceMs: 50,
   },
   beam_support: {
     behavior: 'beam_support',
@@ -70,6 +74,7 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     width: 2,
     durationMs: 50,
     effectLengthPx: 150,
+    streamCadenceMs: 50,
   },
   rapid_fire_overheat: {
     behavior: 'rapid_fire_overheat',
@@ -79,6 +84,8 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     durationMs: 60,
     muzzleFlashRadiusPx: 3,
     effectLengthPx: 200,
+    streamCadenceMs: 60,
+    overheatDurationMs: 3000,
   },
   plasma_projectile: {
     behavior: 'plasma_projectile',
@@ -87,6 +94,7 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     width: 3,
     durationMs: 200,
     effectLengthPx: 220,
+    muzzleFlashRadiusPx: 3,
   },
   ricochet_projectile: {
     behavior: 'ricochet_projectile',
@@ -95,6 +103,7 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     width: 3,
     durationMs: 300,
     effectLengthPx: 200,
+    bounceCount: 2,
   },
   shotgun_cone: {
     behavior: 'shotgun_cone',
@@ -104,6 +113,8 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     durationMs: 80,
     muzzleFlashRadiusPx: 6,
     effectLengthPx: 150,
+    coneAngleDeg: 30,
+    pelletCount: 5,
   },
 };
 

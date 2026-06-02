@@ -34,8 +34,13 @@ import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputCont
 import { BlockoutWeaponVfxRenderer } from './render/BlockoutWeaponVfxRenderer';
 import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
-import { updateBlockoutRecoil, expireVfxEvents } from '../state/blockoutWeaponVfx';
+import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../state/blockoutWeaponVfx';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
+import { computeTurretWorldOrigin } from './render/blockoutVehicleGeometry';
+import { getWeaponProfile } from '../config/blockoutWeaponData';
+
+/** Turret size width constant (matches BlockoutVehicleRenderer). BLOCKOUT-06H+. */
+const TURRET_SIZE_W = 10;
 
 /**
  * GameScene — orchestration-only scene.
@@ -534,6 +539,25 @@ export class GameScene extends Phaser.Scene {
       }
       // Expire old VFX events
       expireVfxEvents(nowMs);
+    }
+    // BLOCKOUT-06H+: Tick continuous fire for stream weapons
+    if (this.gameState.blockoutVehicles && this.devtoolsActive) {
+      const nowMs = this.time.now;
+      for (const vehicle of this.gameState.blockoutVehicles) {
+        if (vehicle.fireHeld && vehicle.isFiring) {
+          const turretOrigin = computeTurretWorldOrigin(vehicle, this._offset as IsoPoint);
+          const weaponProfile = getWeaponProfile(vehicle.weaponId);
+          if (weaponProfile) {
+            const totalBarrelLength = TURRET_SIZE_W / 2 + weaponProfile.blockoutBarrelLength;
+            const barrelTipX = turretOrigin.x + Math.cos(vehicle.turretAngle) * totalBarrelLength;
+            const barrelTipY = turretOrigin.y + Math.sin(vehicle.turretAngle) * totalBarrelLength;
+            tickContinuousFire(vehicle, barrelTipX, barrelTipY, vehicle.turretAngle,
+              this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
+              this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
+              nowMs);
+          }
+        }
+      }
     }
     if (this.blockoutVehicleRenderer && this.gameState.blockoutVehicles) {
       this.blockoutVehicleRenderer.syncFromState(this.gameState.blockoutVehicles);
