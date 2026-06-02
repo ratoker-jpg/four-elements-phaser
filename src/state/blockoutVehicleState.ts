@@ -116,6 +116,11 @@ export interface BlockoutVehicleState {
   /** Active status tags (visual-only). BLOCKOUT-07H+. Transient. */
   activeStatusTags: string[];
 
+  /** Timestamp of last continuous damage tick. BLOCKOUT-07H+ fixup. Transient.
+   *  Separate from lastStreamTickAt so VFX cadence and damage cadence
+   *  do not block each other. */
+  lastDamageTickAt: number;
+
   /** Creation timestamp (ms since epoch). Useful for debug labels. */
   createdAt: number;
 }
@@ -180,6 +185,7 @@ export function createBlockoutVehicle(
     lastDamagedAt: 0,
     damageFlashUntil: 0,
     activeStatusTags: [],
+    lastDamageTickAt: 0,
     createdAt: Date.now(),
   };
 }

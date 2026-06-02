@@ -500,6 +500,7 @@ export interface GameState {
     lastDamagedAt: number;
     damageFlashUntil: number;
     activeStatusTags: string[];
+    lastDamageTickAt: number;
     createdAt: number;
   }>
 }

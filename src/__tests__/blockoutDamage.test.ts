@@ -48,7 +48,7 @@ import { createBlockoutVehicle, resetBlockoutVehicleIdCounter } from '../state/b
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
 import { BLOCKOUT_BODY_MAX_HP, getBlockoutBodyMaxHp } from '../config/blockoutBodyData';
 import { computeBodyWorldCenter } from '../phaser/render/blockoutVehicleGeometry';
-import { startFiring, stopFiring } from '../state/blockoutWeaponVfx';
+import { startFiring, stopFiring, tickContinuousFire } from '../state/blockoutWeaponVfx';
 import { resetVfxEventIdCounter } from '../state/blockoutWeaponVfx';
 import { saveGame, loadGame, setSaveStorage, type SaveStorage } from '../state/saveGame';
 import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
@@ -543,20 +543,20 @@ describe('continuous weapon damage ticks', () => {
     expect(result.length).toBe(0);
   });
 
-  it('tickContinuousDamage respects tickMs cadence', () => {
+  it('tickContinuousDamage respects tickMs cadence using lastDamageTickAt', () => {
     const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
     startFiring(vehicle);
-    vehicle.lastStreamTickAt = 1000;
+    vehicle.lastDamageTickAt = 1000;
     const vehicles = [vehicle];
 
-    // Too early
+    // Too early — less than tickMs (50ms for flamethrower) has elapsed
     const result1 = tickContinuousDamage(vehicle, vehicles, 100, 100, 0, 200, 0, TEST_OFFSET, 1020);
     expect(result1.length).toBe(0);
 
-    // After tickMs (50ms for flamethrower)
+    // After tickMs (50ms for flamethrower) — may produce damage if targets exist
     tickContinuousDamage(vehicle, vehicles, 100, 100, 0, 200, 0, TEST_OFFSET, 1060);
     // Note: This may or may not produce damage events depending on targets
-    // The key is that it doesn't crash and respects timing
+    // The key is that it doesn't crash and respects timing via lastDamageTickAt
   });
 
   it('stopFiring prevents further continuous damage', () => {
@@ -678,6 +678,184 @@ describe('saveGame strips blockoutVehicles with HP/damage fields', () => {
     const loadResult = loadGame(saveResult.slotId!);
     expect(loadResult.success).toBe(true);
     expect(loadResult.gameState!.blockoutVehicles).toBeUndefined();
+  });
+});
+
+// ─── BLOCKOUT-07H+ fixup: VFX/damage cadence independence ──────────
+
+describe('BLOCKOUT-07H+ fixup: VFX and damage cadence independence', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetDamageEventIdCounter();
+    resetVfxEventIdCounter();
+  });
+
+  it('tickContinuousFire followed by tickContinuousDamage in same frame can produce damage', () => {
+    // This is the core bug: previously, tickContinuousFire updated lastStreamTickAt,
+    // then tickContinuousDamage checked the same field and returned [] because
+    // elapsed < tickMs. Now they use separate timestamps.
+    const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+
+    // Set timestamps as if cadence has elapsed
+    attacker.lastStreamTickAt = 1000;
+    attacker.lastDamageTickAt = 1000;
+    attacker.lastFiredAt = 1000; // so cooldown is not a factor
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    const nowMs = 1060; // 60ms after last tick — past tickMs for flamethrower (50ms)
+
+    // VFX tick — this will update lastStreamTickAt to nowMs
+    tickContinuousFire(attacker, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, nowMs);
+
+    // Damage tick in the same frame — should NOT be blocked by VFX tick
+    const damageEvents = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, nowMs);
+
+    // Damage should have been applied (attacker has a target in cone range)
+    expect(damageEvents.length).toBeGreaterThan(0);
+    expect(target.hp).toBeLessThan(target.maxHp);
+  });
+
+  it('continuous damage repeats over scene time while fireHeld/isFiring', () => {
+    const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0; // ensure cooldown is not a factor
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    // First tick at t=1000 — no prior damage tick, so cadence check passes
+    const events1 = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1000);
+    expect(events1.length).toBeGreaterThan(0);
+    expect(attacker.lastDamageTickAt).toBe(1000);
+
+    // Second tick too early at t=1020 — should not tick
+    const events2 = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1020);
+    expect(events2.length).toBe(0);
+
+    // Third tick at t=1060 — past tickMs, should tick again
+    const events3 = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1060);
+    expect(events3.length).toBeGreaterThan(0);
+    expect(attacker.lastDamageTickAt).toBe(1060);
+
+    // Target should have received multiple damage ticks
+    expect(target.hp).toBeLessThan(target.maxHp);
+  });
+
+  it('continuous damage stops after stopFiring', () => {
+    const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    // First tick works
+    tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1000);
+
+    // Stop firing
+    stopFiring(attacker);
+
+    // Should not tick anymore
+    const events = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 2000);
+    expect(events.length).toBe(0);
+  });
+
+  it('VFX cadence does not block damage cadence', () => {
+    const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+    attacker.lastStreamTickAt = 950; // VFX ticked recently
+    attacker.lastDamageTickAt = 900; // Damage ticked a while ago
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    const nowMs = 1000;
+
+    // VFX cadence may not have elapsed (950 -> 1000 = 50ms, streamCadenceMs is 50ms, so it might tick)
+    // But damage cadence (900 -> 1000 = 100ms > 50ms tickMs) should definitely be ready
+    const damageEvents = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, nowMs);
+
+    expect(damageEvents.length).toBeGreaterThan(0);
+    // Verify lastStreamTickAt was NOT updated by damage tick
+    expect(attacker.lastStreamTickAt).toBe(950);
+    expect(attacker.lastDamageTickAt).toBe(1000);
+  });
+
+  it('damage cadence does not block VFX cadence', () => {
+    const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+    attacker.lastStreamTickAt = 900; // VFX ticked a while ago
+    attacker.lastDamageTickAt = 950; // Damage ticked recently
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    const nowMs = 1000;
+
+    // VFX cadence (900 -> 1000 = 100ms) should be ready
+    const vfxCount = tickContinuousFire(attacker, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, nowMs);
+    expect(vfxCount).toBe(1);
+
+    // Damage cadence (950 -> 1000 = 50ms = tickMs) should be at boundary
+    // Verify lastDamageTickAt was NOT updated by VFX tick
+    expect(attacker.lastDamageTickAt).toBe(950);
+  });
+
+  it('single-shot weapons do not enter continuous damage', () => {
+    const attacker = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    const events = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1000);
+    // Smoky is 'direct' — not a continuous damage kind
+    expect(events.length).toBe(0);
+  });
+
+  it('lastDamageTickAt is initialized to 0 on new vehicles', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    expect(vehicle.lastDamageTickAt).toBe(0);
+  });
+
+  it('lastDamageTickAt is updated only when damage events are produced', () => {
+    const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    // No target vehicles — so damage will produce no events
+    const vehicles = [attacker];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+
+    // Attempt continuous damage with no target
+    const events = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, 0, bodyCenter.x + 100, bodyCenter.y, TEST_OFFSET, 1000);
+    // No damage events (flamethrower doesn't damage self)
+    expect(events.length).toBe(0);
+    // lastDamageTickAt should NOT be updated if no damage was produced
+    expect(attacker.lastDamageTickAt).toBe(0);
   });
 });
 

@@ -615,7 +615,8 @@ export function applyBlockoutWeaponDamage(
 
 /**
  * Tick continuous damage for a firing vehicle.
- * For continuous weapons, check if tickMs has elapsed since lastStreamTickAt.
+ * BLOCKOUT-07H+ fixup: Uses lastDamageTickAt (separate from lastStreamTickAt)
+ * so VFX cadence and damage cadence do not block each other.
  *
  * @returns Array of damage events created
  */
@@ -639,16 +640,23 @@ export function tickContinuousDamage(
   if (!profile.damageKind || !continuousKinds.includes(profile.damageKind)) return [];
 
   const tickMs = profile.tickMs ?? 50;
-  const elapsed = nowMs - firingVehicle.lastStreamTickAt;
+  const elapsed = nowMs - firingVehicle.lastDamageTickAt;
   if (elapsed < tickMs) return [];
 
   // Apply damage using the main function (it handles the kind-specific logic)
-  return applyBlockoutWeaponDamage(
+  const events = applyBlockoutWeaponDamage(
     firingVehicle, vehicles,
     barrelTipX, barrelTipY, aimAngle,
     aimTargetX, aimTargetY,
     offset, nowMs,
   );
+
+  // Update damage cadence timestamp only if damage was applied
+  if (events.length > 0) {
+    firingVehicle.lastDamageTickAt = nowMs;
+  }
+
+  return events;
 }
 
 // ─── Damage event management ───────────────────────────────────────

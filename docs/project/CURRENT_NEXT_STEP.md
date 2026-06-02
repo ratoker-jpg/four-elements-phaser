@@ -54,6 +54,7 @@ Blockout vehicles now have placeholder HP/damage/destroyed state in arena/dev mo
   - Ricochet: segmented path hit, medium damage
   - Hammer: shotgun pellet fan, multiple small damage hits
 - Continuous weapons tick damage at weapon-specific cadence (not every frame)
+- BLOCKOUT-07H+ fixup: Separate lastDamageTickAt from lastStreamTickAt — VFX and damage cadence do not block each other
 - Destroyed vehicles cannot fire, move, or be damaged again
 - Firing vehicle does not damage itself by default
 - All damage state is transient (not persisted in saves)

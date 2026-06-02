@@ -446,11 +446,12 @@ Implemented:
 - Damage profile type with DamageKind enum (direct, splash, penetration, cone_tick, beam_tick, rapid_tick, plasma, ricochet, shotgun)
 - DAMAGE_PROFILES for all 11 weapons with damageKind, rangePx, and hit detection fields
 - BLOCKOUT_BODY_MAX_HP for all 7 bodies (Wasp=180, Hornet=210, Hunter=285, Viking=315, Dictator=345, Titan=420, Mammoth=500)
-- BlockoutVehicleState extended with HP/damage transient fields (hp, maxHp, isDestroyed, destroyedAt, lastDamagedAt, damageFlashUntil, activeStatusTags)
+- BlockoutVehicleState extended with HP/damage transient fields (hp, maxHp, isDestroyed, destroyedAt, lastDamagedAt, damageFlashUntil, activeStatusTags, lastDamageTickAt)
 - Pure TypeScript damage system (blockoutDamage.ts) — no Phaser imports, testable independently
 - Hit detection for all 9 damage kinds (findDirectHitTarget, findSplashTargets, findPenetrationTargets, findConeTargets, findBeamTargets, findShotgunTargets, findRicochetTargets)
 - applyBlockoutWeaponDamage dispatches to correct hit model per weapon
 - tickContinuousDamage handles continuous weapon damage ticks at weapon-specific cadence
+- BLOCKOUT-07H+ fixup: Separate lastDamageTickAt from lastStreamTickAt so VFX cadence and damage cadence do not block each other
 - Damage events with creation time, duration, kind, status tag, isKill
 - Damage event expiry based on scene time
 - BlockoutDamageRenderer renders floating damage numbers, hit markers, status tag indicators
@@ -462,7 +463,7 @@ Implemented:
 - blockoutMovement skips destroyed vehicles
 - All damage state is transient and not persisted in saves
 - No production combat, no save schema changes
-- 48 unit tests for damage profiles, HP, hit detection, damage application, continuous ticks, save stripping
+- 56 unit tests for damage profiles, HP, hit detection, damage application, continuous ticks, VFX/damage cadence independence, save stripping
 ```
 
 ---
