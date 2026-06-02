@@ -51,11 +51,11 @@ import { CameraProjectionDebugRenderer } from './render/CameraProjectionDebugRen
 import { DEFAULT_SANDBOX_SCENARIO, ARENA_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
 import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
-import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../state/blockoutWeaponVfx';
+import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring } from '../state/blockoutWeaponVfx';
 import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
-import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter, computeProjectedTurretMountScreen } from './render/blockoutVehicleGeometry';
+import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter } from './render/blockoutVehicleGeometry';
 import type { BlockoutVehicleState } from '../state/blockoutVehicleState';
 
 
@@ -719,7 +719,13 @@ export class GameScene extends Phaser.Scene {
           const barrelTipY = barrelTip.y;
 
           // ARENA-03H+: In Arena mode, continuous fire uses target-lock direction
+          // ARENA-03H+ fixup: null return means no valid target — stop fire and skip tick
           const aimTarget = this.getContinuousFireAimTarget(vehicle);
+          if (!aimTarget) {
+            // Arena mode: no valid target — stop continuous fire, do not fall back to turret angle
+            stopFiring(vehicle);
+            continue;
+          }
           const aimTargetX = aimTarget.x;
           const aimTargetY = aimTarget.y;
 
@@ -916,14 +922,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * ARENA-03H+: Compute the aim target for continuous fire/damage.
+   * Get the continuous fire aim target for a vehicle.
    *
-   * In Arena mode, if the vehicle has a targetVehicleId, aim at that target's
-   * body center. Otherwise, use the current turret angle direction at weapon range.
-   * In non-Arena devtools mode, use mouse position as before.
+   * ARENA-03H+ fixup: In Arena mode, returns null when there is no valid target.
+   * This prevents continuous fire from falling back to turret-angle direction
+   * or mouse position when the target is missing/destroyed.
+   *
+   * In non-Arena devtools mode, always returns mouse/fallback position (never null).
+   *
+   * @returns Aim target coordinates, or null if Arena mode has no valid target
    */
-  private getContinuousFireAimTarget(vehicle: BlockoutVehicleState): { x: number; y: number } {
-    // For non-Arena devtools mode, fall back to mouse position
+  private getContinuousFireAimTarget(vehicle: BlockoutVehicleState): { x: number; y: number } | null {
+    // For non-Arena devtools mode, fall back to mouse position (never null)
     if (!this.arenaMode) {
       return {
         x: this.blockoutVehicleInputController?.mouseWorldX ?? vehicle.worldX + this._offset.x,
@@ -939,18 +949,13 @@ export class GameScene extends Phaser.Scene {
         const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
         return { x: targetCenter.x, y: targetCenter.y };
       }
-      // Target gone — clear it
+      // Target gone/destroyed — clear it and return null (stop fire)
       vehicle.targetVehicleId = null;
+      return null;
     }
 
-    // No target: aim along current turret angle at weapon range (use turret direction)
-    // This keeps continuous fire going in the direction the turret is already pointing
-    const turretMountScreen = computeProjectedTurretMountScreen(vehicle, this._offset as IsoPoint);
-    const rangePx = 200; // fallback range
-    return {
-      x: turretMountScreen.x + Math.cos(vehicle.turretAngle) * rangePx,
-      y: turretMountScreen.y + Math.sin(vehicle.turretAngle) * rangePx,
-    };
+    // Arena mode with no target: do not fire, do not fall back to turret angle or mouse
+    return null;
   }
 
   /**

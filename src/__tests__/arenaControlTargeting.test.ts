@@ -10,6 +10,7 @@
  * - Firing uses target-lock direction when target exists
  * - Target clears on ally switch and deselect
  * - Non-Arena devtools mouse-follow behavior preserved
+ * - ARENA-03H+ fixup: Arena continuous fire stops when target is missing/destroyed/null
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -17,8 +18,19 @@ import {
   createBlockoutVehicle,
   resetBlockoutVehicleIdCounter,
   type BlockoutVehicleState,
-
 } from '../state/blockoutVehicleState';
+import {
+  startFiring,
+  stopFiring,
+  tickContinuousFire,
+  resetVfxEventIdCounter,
+  clearVfxEvents,
+} from '../state/blockoutWeaponVfx';
+import {
+  tickContinuousDamage,
+  clearDamageEvents,
+  resetDamageEventIdCounter,
+} from '../state/blockoutDamage';
 
 // ─── Vehicle state: targetVehicleId field ──────────────────────────
 
@@ -375,5 +387,210 @@ describe('ARENA-03H+ cycle selected vehicle skips enemies', () => {
     const candidates = isArenaMode ? vehicles.filter(v => v.team === 'ally') : vehicles;
 
     expect(candidates).toHaveLength(3);
+  });
+});
+
+// ─── ARENA-03H+ fixup: Arena continuous fire stops when target is missing/null ────
+
+/**
+ * Pure-logic mirror of GameScene.getContinuousFireAimTarget() Arena rules.
+ * In Arena mode, this returns null when:
+ *   - vehicle has no targetVehicleId
+ *   - targetVehicleId points to a destroyed vehicle
+ *   - targetVehicleId points to a vehicle missing from the array
+ * When null is returned, the continuous fire loop should stopFiring + skip.
+ *
+ * Non-Arena mode always returns a target (mouse/fallback), never null.
+ */
+function getArenaContinuousFireAimTarget(
+  vehicle: BlockoutVehicleState,
+  vehicles: BlockoutVehicleState[],
+  isArenaMode: boolean,
+): { x: number; y: number } | null {
+  // Non-Arena: always return something (mouse/fallback) — never null
+  if (!isArenaMode) {
+    return { x: vehicle.worldX, y: vehicle.worldY };
+  }
+
+  // Arena mode: target-lock
+  if (vehicle.targetVehicleId) {
+    const target = vehicles.find(v => v.id === vehicle.targetVehicleId);
+    if (target && !target.isDestroyed) {
+      return { x: target.worldX, y: target.worldY };
+    }
+    // Target gone/destroyed — clear it and return null
+    vehicle.targetVehicleId = null;
+    return null;
+  }
+
+  // Arena mode with no target: return null (stop fire)
+  return null;
+}
+
+describe('ARENA-03H+ fixup: Arena continuous fire stops when no target', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+    clearVfxEvents();
+    clearDamageEvents();
+    resetDamageEventIdCounter();
+  });
+
+  it('Arena continuous fire with no target returns null (stops fire)', () => {
+    const ally = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5, undefined, undefined, 'ally');
+    ally.targetVehicleId = null;
+
+    const result = getArenaContinuousFireAimTarget(ally, [ally], true);
+    expect(result).toBeNull();
+  });
+
+  it('Arena continuous fire with destroyed target clears target and returns null', () => {
+    const ally = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5, undefined, undefined, 'ally');
+    const enemy = createBlockoutVehicle('wasp', 'smoky', 'green', 8, 8, undefined, undefined, 'enemy');
+
+    ally.targetVehicleId = enemy.id;
+    enemy.isDestroyed = true;
+    enemy.hp = 0;
+
+    const result = getArenaContinuousFireAimTarget(ally, [ally, enemy], true);
+    expect(result).toBeNull();
+    expect(ally.targetVehicleId).toBeNull(); // target was cleared
+  });
+
+  it('Arena continuous fire with missing target clears target and returns null', () => {
+    const ally = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5, undefined, undefined, 'ally');
+    // Point at a target that doesn't exist in the vehicles array
+    ally.targetVehicleId = 'nonexistent-vehicle-999';
+
+    const result = getArenaContinuousFireAimTarget(ally, [ally], true);
+    expect(result).toBeNull();
+    expect(ally.targetVehicleId).toBeNull(); // target was cleared
+  });
+
+  it('Arena continuous fire with valid target returns target position', () => {
+    const ally = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5, undefined, undefined, 'ally');
+    const enemy = createBlockoutVehicle('wasp', 'smoky', 'green', 8, 8, undefined, undefined, 'enemy');
+
+    ally.targetVehicleId = enemy.id;
+
+    const result = getArenaContinuousFireAimTarget(ally, [ally, enemy], true);
+    expect(result).not.toBeNull();
+    expect(result!.x).toBe(enemy.worldX);
+    expect(result!.y).toBe(enemy.worldY);
+  });
+
+  it('non-Arena devtools continuous fire always returns a target (never null)', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    vehicle.targetVehicleId = null; // No target
+
+    const result = getArenaContinuousFireAimTarget(vehicle, [vehicle], false);
+    expect(result).not.toBeNull();
+    // Mouse/fallback behavior — returns some coordinate
+    expect(typeof result!.x).toBe('number');
+    expect(typeof result!.y).toBe('number');
+  });
+
+  it('non-Arena devtools continuous fire ignores targetVehicleId (mouse/fallback)', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    const enemy = createBlockoutVehicle('wasp', 'smoky', 'green', 8, 8, undefined, undefined, 'enemy');
+
+    // Even with a targetVehicleId set, non-Arena ignores it and uses mouse/fallback
+    vehicle.targetVehicleId = enemy.id;
+
+    const result = getArenaContinuousFireAimTarget(vehicle, [vehicle, enemy], false);
+    expect(result).not.toBeNull();
+    // In non-Arena mode, result is mouse/fallback — not enemy position
+    // (our test stub returns vehicle.worldX/Y for non-Arena, which differs from enemy)
+  });
+
+  it('stopFiring clears fire state after target goes null in Arena mode', () => {
+    const ally = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5, undefined, undefined, 'ally');
+    const enemy = createBlockoutVehicle('wasp', 'smoky', 'green', 8, 8, undefined, undefined, 'enemy');
+
+    ally.targetVehicleId = enemy.id;
+
+    // Start continuous fire (ally is firing at enemy)
+    startFiring(ally);
+    expect(ally.fireHeld).toBe(true);
+    expect(ally.isFiring).toBe(true);
+
+    // Enemy gets destroyed — aim target returns null
+    enemy.isDestroyed = true;
+    enemy.hp = 0;
+    const result = getArenaContinuousFireAimTarget(ally, [ally, enemy], true);
+    expect(result).toBeNull();
+
+    // Continuous fire loop should stop firing (as GameScene does on null)
+    stopFiring(ally);
+    expect(ally.fireHeld).toBe(false);
+    expect(ally.isFiring).toBe(false);
+  });
+
+  it('tickContinuousFire produces no VFX after stopFiring when target is null', () => {
+    const ally = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5, undefined, undefined, 'ally');
+    const enemy = createBlockoutVehicle('wasp', 'smoky', 'green', 8, 8, undefined, undefined, 'enemy');
+
+    ally.targetVehicleId = enemy.id;
+
+    // Start firing
+    startFiring(ally);
+
+    // Verify continuous fire can tick with valid target
+    const barrelTipX = ally.worldX + 50; // approximate barrel tip
+    const barrelTipY = ally.worldY;
+    const aimX = enemy.worldX;
+    const aimY = enemy.worldY;
+    const nowMs = 1000;
+    ally.lastStreamTickAt = 0;
+
+    const tickCount = tickContinuousFire(ally, barrelTipX, barrelTipY, ally.turretAngle, aimX, aimY, nowMs);
+    // May produce a tick (depends on cadence timing) — the key is no crash
+    expect(typeof tickCount).toBe('number');
+
+    // Now target is destroyed — simulating what GameScene does on null:
+    // 1. getContinuousFireAimTarget returns null
+    // 2. stopFiring is called
+    // 3. tickContinuousFire is skipped (continue in loop)
+    enemy.isDestroyed = true;
+    enemy.hp = 0;
+    const aimResult = getArenaContinuousFireAimTarget(ally, [ally, enemy], true);
+    expect(aimResult).toBeNull();
+
+    stopFiring(ally);
+
+    // After stopFiring, tickContinuousFire returns 0
+    const tickCount2 = tickContinuousFire(ally, barrelTipX, barrelTipY, ally.turretAngle, aimX, aimY, nowMs + 100);
+    expect(tickCount2).toBe(0);
+  });
+
+  it('tickContinuousDamage produces no damage after stopFiring when target is null', () => {
+    const ally = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5, undefined, undefined, 'ally');
+    const enemy = createBlockoutVehicle('wasp', 'smoky', 'green', 8, 8, undefined, undefined, 'enemy');
+
+    ally.targetVehicleId = enemy.id;
+
+    // Start firing
+    startFiring(ally);
+
+    // Destroy target
+    enemy.isDestroyed = true;
+    enemy.hp = 0;
+
+    // getContinuousFireAimTarget returns null — GameScene stops firing
+    const aimResult = getArenaContinuousFireAimTarget(ally, [ally, enemy], true);
+    expect(aimResult).toBeNull();
+
+    stopFiring(ally);
+
+    // After stopFiring, tickContinuousDamage returns empty
+    const offset = { x: 0, y: 0 };
+    const nowMs = 2000;
+    const events = tickContinuousDamage(
+      ally, [ally, enemy],
+      ally.worldX + 50, ally.worldY, ally.turretAngle,
+      enemy.worldX, enemy.worldY,
+      offset, nowMs,
+    );
+    expect(events).toHaveLength(0);
   });
 });
