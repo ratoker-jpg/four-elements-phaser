@@ -229,7 +229,8 @@ export class BlockoutVehicleRenderer {
 
         const selectedMarker = isSelected ? ' [SEL]' : '';
         const speedMarker = vehicle.speed > 1 ? ` v=${Math.round(vehicle.speed)}` : '';
-        label.setText(`${vehicle.bodyId}+${vehicle.weaponId}${selectedMarker}${speedMarker}`);
+        const hpMarker = vehicle.isDestroyed ? ' [DEAD]' : ` hp=${vehicle.hp}/${vehicle.maxHp}`;
+        label.setText(`${vehicle.bodyId}+${vehicle.weaponId}${selectedMarker}${hpMarker}${speedMarker}`);
         label.setPosition(bodyCenter.x, bodyCenter.y - bodySize.h / 2 - 6);
         label.setVisible(this.showDebugLabels);
       }
@@ -325,6 +326,38 @@ export class BlockoutVehicleRenderer {
       g.strokeCircle(cx, cy, hoverRadius);
     }
 
+    // ── BLOCKOUT-07H+: Destroyed vehicle rendering ────────────────
+    if (vehicle.isDestroyed) {
+      g.save();
+      g.translateCanvas(cx, cy);
+      g.rotateCanvas(bodyAngle);
+
+      // Dimmed body
+      g.fillStyle(bodyColor, 0.3);
+      g.fillRect(-bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
+
+      // Outline
+      g.lineStyle(1, BODY_OUTLINE_COLOR, 0.5);
+      g.strokeRect(-bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
+
+      // X marker over body
+      g.lineStyle(2, 0xff0000, 0.8);
+      const xSize = Math.min(bodySize.w, bodySize.h) / 2 - 2;
+      g.beginPath();
+      g.moveTo(-xSize, -xSize);
+      g.lineTo(xSize, xSize);
+      g.strokePath();
+      g.beginPath();
+      g.moveTo(xSize, -xSize);
+      g.lineTo(-xSize, xSize);
+      g.strokePath();
+
+      g.restore();
+
+      // No turret/barrel or HP bar for destroyed vehicles
+      return;
+    }
+
     // ── Body rectangle ────────────────────────────────────────────
     g.save();
     g.translateCanvas(cx, cy);
@@ -362,6 +395,43 @@ export class BlockoutVehicleRenderer {
     }
 
     g.restore();
+
+    // ── BLOCKOUT-07H+: HP bar above vehicle ──────────────────────
+    {
+      const hpRatio = vehicle.maxHp > 0 ? vehicle.hp / vehicle.maxHp : 0;
+      const barWidth = bodySize.w + 4;
+      const barHeight = 3;
+      const barY = cy - bodySize.h / 2 - 8;
+
+      // Background (dark)
+      g.fillStyle(0x333333, 0.7);
+      g.fillRect(cx - barWidth / 2, barY, barWidth, barHeight);
+
+      // HP fill (green > 60%, yellow 30-60%, red < 30%)
+      let hpColor = 0x44ff44; // green
+      if (hpRatio < 0.3) {
+        hpColor = 0xff4444; // red
+      } else if (hpRatio < 0.6) {
+        hpColor = 0xffcc00; // yellow
+      }
+      const fillWidth = barWidth * Math.max(0, hpRatio);
+      g.fillStyle(hpColor, 0.9);
+      g.fillRect(cx - barWidth / 2, barY, fillWidth, barHeight);
+    }
+
+    // ── BLOCKOUT-07H+: Damage flash ──────────────────────────────
+    {
+      const nowMs = this.scene.time.now;
+      if (nowMs < vehicle.damageFlashUntil) {
+        // White overlay on body
+        g.save();
+        g.translateCanvas(cx, cy);
+        g.rotateCanvas(bodyAngle);
+        g.fillStyle(0xffffff, 0.4);
+        g.fillRect(-bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
+        g.restore();
+      }
+    }
 
     // ── Turret + Barrel (rotated independently) ──────────────────
     g.save();

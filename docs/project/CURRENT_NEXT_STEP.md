@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: BLOCKOUT-06H+ implemented / BLOCKOUT-07H+ next
+Status: BLOCKOUT-07H+ implemented / BLOCKOUT-08H next
 Project: Four Elements Phaser
-Date: 2026-06-01
+Date: 2026-06-02
 
 ---
 
@@ -21,8 +21,9 @@ What should GPT/GLM/Codex do next by default?
 Current answer:
 
 ```text
-BLOCKOUT-06H+ is implemented. All 11 blockout weapon families have visual-only VFX placeholders.
-Next step: BLOCKOUT-07H+ — Damage placeholders.
+BLOCKOUT-07H+ is implemented. Blockout vehicles have HP/damage/destroyed placeholders.
+All 11 weapons apply placeholder damage in arena/dev mode.
+Next step: BLOCKOUT-08H — Blockout obstacles.
 ```
 
 ---
@@ -30,34 +31,44 @@ Next step: BLOCKOUT-07H+ — Damage placeholders.
 ## Current next step
 
 ```text
-BLOCKOUT-06H+ — Remaining weapon VFX families — IMPLEMENTED
+BLOCKOUT-07H+ — Damage placeholders — IMPLEMENTED
 
-All 11 blockout weapons now have distinct visual-only VFX:
-- Smoky: muzzle flash + short tracer + impact dot + medium recoil (BLOCKOUT-05H+)
-- Railgun: long bright line + pierce ticks + strong recoil (BLOCKOUT-05H+)
-- Thunder: short tracer + explosion circle + splash radius ring + medium-heavy recoil (BLOCKOUT-05H+)
-- Shaft: charge pulse + focused long sniper line + crosshair at end
-- Flamethrower: orange cone with flicker + inner yellow cone + muzzle glow
-- Freeze: cyan cone + inner blue cone + frost circles + muzzle glow
-- Isida: green pulsing beam + glow line + tether dots
-- Vulcan: rapid short tracers + small muzzle flash + visual overheat indicator
-- Twins: moving plasma dots with glow + trail
-- Ricochet: segmented path with deterministic bounces + bounce markers
-- Hammer: fan of pellet tracers in cone + impact dots
-- Continuous weapons (Flamethrower/Freeze/Isida/Vulcan/Twins) fire while Space/F is held
-- Single-fire weapons (Smoky/Railgun/Thunder/Shaft/Ricochet/Hammer) fire on press
-- Recoil visible on all weapons (stronger on heavy weapons, lighter on stream weapons)
-- All timing uses consistent Phaser scene time basis
+Blockout vehicles now have placeholder HP/damage/destroyed state in arena/dev mode:
+- Each blockout vehicle has HP initialized from body profile (Wasp=180, Mammoth=500)
+- HP bar visible above each vehicle (green > 60%, yellow 30-60%, red < 30%)
+- Damage flash (white overlay) when vehicle is hit
+- Floating damage numbers appear at hit location
+- Hit markers (white circle + red X) at hit point
+- Status tag markers: burn=orange, freeze=cyan, beam=green, overheat=red, plasma=purple, ricochet=yellow
+- Destroyed vehicles show dimmed body + red X marker, stop firing/movement
+- All 11 weapons apply damage via their damage behavior:
+  - Smoky: direct hit, medium damage
+  - Thunder: splash radius, medium damage
+  - Railgun: line penetration, high damage, pierce up to 3 vehicles
+  - Shaft: focused line direct, high single-shot damage
+  - Flamethrower: cone tick, low repeated damage, burn marker
+  - Freeze: cone tick, low repeated damage, freeze marker
+  - Isida: beam tick, low/medium repeated damage, beam marker
+  - Vulcan: rapid tick, low repeated damage, overheat marker
+  - Twins: plasma hit, medium repeated damage
+  - Ricochet: segmented path hit, medium damage
+  - Hammer: shotgun pellet fan, multiple small damage hits
+- Continuous weapons tick damage at weapon-specific cadence (not every frame)
+- BLOCKOUT-07H+ fixup: Separate lastDamageTickAt from lastStreamTickAt — VFX and damage cadence do not block each other
+- Destroyed vehicles cannot fire, move, or be damaged again
+- Firing vehicle does not damage itself by default
+- All damage state is transient (not persisted in saves)
+- No production combat, no save schema changes
 - Production/default game remains unchanged when devtools/arena is off
 
-Next step: BLOCKOUT-07H+ — Damage placeholders
+Next step: BLOCKOUT-08H — Blockout obstacles
 ```
 
 Mode:
 
 ```text
-BLOCKOUT-06H+ COMPLETE
-READY FOR BLOCKOUT-07H+ IMPLEMENTATION
+BLOCKOUT-07H+ COMPLETE
+READY FOR BLOCKOUT-08H IMPLEMENTATION
 No standalone low-risk PRs.
 High/high+ visible progress steps only.
 ```
@@ -69,8 +80,8 @@ High/high+ visible progress steps only.
 ```text
 VISUAL/UI roadmap slice: CLOSED
 Current active planning direction: BLOCKOUT-MVP
-Current implementation task: BLOCKOUT-06H+ COMPLETE
-Next action: BLOCKOUT-07H+ — Damage placeholders
+Current implementation task: BLOCKOUT-07H+ COMPLETE
+Next action: BLOCKOUT-08H — Blockout obstacles
 ```
 
 Roadmap document:
@@ -116,7 +127,7 @@ The roadmap focuses on Phaser/blockout placeholders for:
 - weapon behavior families — first set ✓ (BLOCKOUT-05H+)
 - primitive VFX placeholders — first set ✓ (BLOCKOUT-05H+)
 - remaining weapon VFX families ✓ (BLOCKOUT-06H+)
-- direct/splash/penetration/status damage placeholders (BLOCKOUT-07H+)
+- direct/splash/penetration/status damage placeholders ✓ (BLOCKOUT-07H+)
 - obstacle blockers (BLOCKOUT-08H)
 - upgrade skeleton (BLOCKOUT-09H)
 - combat readability sandbox (BLOCKOUT-10H+)
@@ -138,6 +149,7 @@ BLOCKOUT-03H selection/control + turret aiming is implemented.
 BLOCKOUT-04H+ semi-physics movement is implemented.
 BLOCKOUT-05H+ recoil + first weapon VFX set is implemented.
 BLOCKOUT-06H+ remaining weapon VFX families is implemented.
-All 11 blockout weapons have distinct visual-only VFX placeholders.
-Next step: BLOCKOUT-07H+ — Damage placeholders.
+BLOCKOUT-07H+ damage placeholders is implemented.
+All 11 blockout weapons apply placeholder damage in arena/dev mode.
+Next step: BLOCKOUT-08H — Blockout obstacles.
 ```

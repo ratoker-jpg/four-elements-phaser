@@ -126,3 +126,23 @@ export const ALL_BODY_IDS = Object.keys(BODY_PROFILES) as Array<keyof typeof BOD
 export function getBodyProfile(id: string): BodyProfile | undefined {
   return BODY_PROFILES[id];
 }
+
+// ─── Max HP by body (BLOCKOUT-07H+) ────────────────────────────────
+
+/** Maximum HP per body ID for blockout damage. BLOCKOUT-07H+.
+ *  Values match referenceM3.hp in body profiles.
+ *  Dev/arena-only — not persisted in saves. */
+export const BLOCKOUT_BODY_MAX_HP: Record<string, number> = {
+  wasp: 180,
+  hornet: 210,
+  hunter: 285,
+  viking: 315,
+  dictator: 345,
+  titan: 420,
+  mammoth: 500,
+};
+
+/** Get max HP for a body ID. Returns 200 as default if not found. BLOCKOUT-07H+. */
+export function getBlockoutBodyMaxHp(bodyId: string): number {
+  return BLOCKOUT_BODY_MAX_HP[bodyId] ?? 200;
+}

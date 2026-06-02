@@ -3,15 +3,16 @@
 Status: operational project state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Current phase: BLOCKOUT-MVP — BLOCKOUT-06H+ implemented, BLOCKOUT-07H+ next
+Current phase: BLOCKOUT-MVP — BLOCKOUT-07H+ implemented, BLOCKOUT-08H next
 
 ---
 
 ## Current mode
 
 ```text
-BLOCKOUT-06H+ implemented. All 11 blockout weapon families have visual-only VFX placeholders.
-Next: BLOCKOUT-07H+ — Damage placeholders.
+BLOCKOUT-07H+ implemented. Blockout vehicles have HP/damage/destroyed placeholders.
+All 11 weapons apply placeholder damage in arena/dev mode.
+Next: BLOCKOUT-08H — Blockout obstacles.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
@@ -27,7 +28,7 @@ Owner decision: no standalone low-risk implementation PRs. Only high/high+ steps
 Next action:
 
 ```text
-BLOCKOUT-07H+ — Damage placeholders
+BLOCKOUT-08H — Blockout obstacles
 ```
 
 ---
@@ -138,9 +139,24 @@ The project currently has:
   - rear-mounted and front_center vehicles fire from correct origin
   - all timing uses consistent Phaser scene time basis
   - production/default game unchanged when devtools is off
+- DAMAGE BLOCKOUT VEHICLES with placeholder damage system (BLOCKOUT-07H+)
+  - Each blockout vehicle has HP from body profile (Wasp=180, Mammoth=500)
+  - HP bar visible above each vehicle (green > 60%, yellow 30-60%, red < 30%)
+  - Damage flash (white overlay) when vehicle is hit
+  - Floating damage numbers appear at hit location
+  - Hit markers (white circle + red X) at hit point
+  - Status tag markers: burn=orange, freeze=cyan, beam=green, overheat=red, plasma=purple, ricochet=yellow
+  - All 11 weapons apply damage via their damage behavior (direct/splash/penetration/cone_tick/beam_tick/rapid_tick/plasma/ricochet/shotgun)
+  - Continuous weapons tick damage at weapon-specific cadence
+  - Destroyed vehicles show dimmed body + red X marker, stop firing/movement
+  - Destroyed vehicles cannot be damaged again
+  - Firing vehicle does not damage itself by default
+  - All damage state is transient (not persisted in saves)
+  - No production combat, no save schema changes
+  - production/default game unchanged when devtools is off
 ```
 
-This is the expected baseline for BLOCKOUT-06H+.
+This is the expected baseline for BLOCKOUT-07H+.
 
 ---
 
@@ -260,7 +276,7 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-07H+ — Damage placeholders
+BLOCKOUT-08H — Blockout obstacles
 ```
 
 Mode:
@@ -419,6 +435,37 @@ Implemented:
 - 100 unit tests for VFX, recoil, cooldown, continuous fire, save stripping, timing consistency
 ```
 
+### BLOCKOUT-07H+ — Damage placeholders
+
+```text
+Type: implementation
+Risk: HIGH+
+Status: DONE
+
+Implemented:
+- Damage profile type with DamageKind enum (direct, splash, penetration, cone_tick, beam_tick, rapid_tick, plasma, ricochet, shotgun)
+- DAMAGE_PROFILES for all 11 weapons with damageKind, rangePx, and hit detection fields
+- BLOCKOUT_BODY_MAX_HP for all 7 bodies (Wasp=180, Hornet=210, Hunter=285, Viking=315, Dictator=345, Titan=420, Mammoth=500)
+- BlockoutVehicleState extended with HP/damage transient fields (hp, maxHp, isDestroyed, destroyedAt, lastDamagedAt, damageFlashUntil, activeStatusTags, lastDamageTickAt)
+- Pure TypeScript damage system (blockoutDamage.ts) — no Phaser imports, testable independently
+- Hit detection for all 9 damage kinds (findDirectHitTarget, findSplashTargets, findPenetrationTargets, findConeTargets, findBeamTargets, findShotgunTargets, findRicochetTargets)
+- applyBlockoutWeaponDamage dispatches to correct hit model per weapon
+- tickContinuousDamage handles continuous weapon damage ticks at weapon-specific cadence
+- BLOCKOUT-07H+ fixup: Separate lastDamageTickAt from lastStreamTickAt so VFX cadence and damage cadence do not block each other
+- Damage events with creation time, duration, kind, status tag, isKill
+- Damage event expiry based on scene time
+- BlockoutDamageRenderer renders floating damage numbers, hit markers, status tag indicators
+- BlockoutVehicleRenderer shows HP bars, damage flash, destroyed vehicle (dimmed body + red X marker)
+- Destroyed vehicles cannot fire, move, or be damaged again
+- Firing vehicle does not damage itself by default
+- GameScene wires continuous damage tick and damage event expiry
+- BlockoutVehicleInputController applies damage on single-shot fire and blocks destroyed vehicle fire/move
+- blockoutMovement skips destroyed vehicles
+- All damage state is transient and not persisted in saves
+- No production combat, no save schema changes
+- 56 unit tests for damage profiles, HP, hit detection, damage application, continuous ticks, VFX/damage cadence independence, save stripping
+```
+
 ---
 
 ## Completed roadmap slice
@@ -562,7 +609,8 @@ Use this sequence:
 8. BLOCKOUT-04H+ semi-physics movement — DONE
 9. BLOCKOUT-05H+ recoil + first weapon VFX set — DONE
 10. BLOCKOUT-06H+ remaining weapon VFX families — DONE
-11. BLOCKOUT-07H+ damage placeholders — NEXT
+11. BLOCKOUT-07H+ damage placeholders — DONE
+12. BLOCKOUT-08H blockout obstacles — NEXT
 ```
 
 ---

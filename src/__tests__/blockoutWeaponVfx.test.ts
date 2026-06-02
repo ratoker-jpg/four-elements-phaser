@@ -255,6 +255,7 @@ describe('VFX config for all 11 weapons', () => {
     expect(profile!.behavior).toBe('plasma_projectile');
     expect(profile!.durationMs).toBeGreaterThan(0);
     expect(profile!.muzzleFlashRadiusPx).toBe(3);
+    expect(profile!.streamCadenceMs).toBe(600);
   });
 
   it('Ricochet has VFX profile via getWeaponVfxProfile', () => {
@@ -1150,6 +1151,33 @@ describe('tickContinuousFire', () => {
     const events = getVfxEvents();
     expect(events.length).toBe(1);
     expect(events[0].eventType).toBe('flamethrowerCone');
+  });
+
+  it('Twins tickContinuousFire creates plasma VFX at cadence', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'twins', 'cyan', 5, 5);
+    startFiring(vehicle);
+    const now = 1000;
+
+    // First tick — should fire since lastStreamTickAt is 0
+    const result1 = tickContinuousFire(vehicle, 100, 100, 0, 220, 0, now);
+    expect(result1).toBe(1);
+    expect(vehicle.lastStreamTickAt).toBe(now);
+
+    const events1 = getVfxEvents();
+    expect(events1.length).toBe(1);
+    expect(events1[0].eventType).toBe('twinsPlasma');
+
+    // Before cadence (twins streamCadenceMs=600, cooldown=600)
+    const result2 = tickContinuousFire(vehicle, 100, 100, 0, 220, 0, now + 300);
+    expect(result2).toBe(0);
+
+    // After cadence + cooldown (600ms)
+    const result3 = tickContinuousFire(vehicle, 100, 100, 0, 220, 0, now + 650);
+    expect(result3).toBe(1);
+
+    const events2 = getVfxEvents();
+    expect(events2.length).toBe(2);
+    expect(events2[1].eventType).toBe('twinsPlasma');
   });
 });
 
