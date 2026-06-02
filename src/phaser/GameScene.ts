@@ -35,8 +35,9 @@ import { BlockoutWeaponVfxRenderer } from './render/BlockoutWeaponVfxRenderer';
 import { BlockoutDamageRenderer } from './render/BlockoutDamageRenderer';
 import { BlockoutObstacleRenderer } from './render/BlockoutObstacleRenderer';
 import { BlockoutUpgradeRenderer } from './render/BlockoutUpgradeRenderer';
-import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
-import { createDefaultArenaObstacles } from '../config/blockoutObstacleData';
+import { BlockoutSandboxHudRenderer } from './render/BlockoutSandboxHudRenderer';
+import { DEFAULT_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
+import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
 import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../state/blockoutWeaponVfx';
 import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
@@ -153,6 +154,9 @@ export class GameScene extends Phaser.Scene {
 
   // BLOCKOUT-09H: Blockout upgrade renderer (only when devtools is active)
   private blockoutUpgradeRenderer: BlockoutUpgradeRenderer | null = null;
+
+  // BLOCKOUT-10H+: Blockout sandbox HUD renderer (only when devtools is active)
+  private blockoutSandboxHudRenderer: BlockoutSandboxHudRenderer | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -399,15 +403,15 @@ export class GameScene extends Phaser.Scene {
       this.blockoutDamageRenderer = new BlockoutDamageRenderer(this, this._offset as IsoPoint);
       this.blockoutObstacleRenderer = new BlockoutObstacleRenderer(this, this._offset as IsoPoint);
       this.blockoutUpgradeRenderer = new BlockoutUpgradeRenderer(this, this._offset as IsoPoint);
-      // Spawn the default blockout vehicle set in arena/dev mode
-      devSpawnBlockoutVehicleSet(this.gameState);
-      // BLOCKOUT-08H: Spawn default obstacle layout in arena/dev mode
-      this.gameState.blockoutObstacles = createDefaultArenaObstacles();
-      console.log('[GameScene] Blockout vehicle renderer enabled. Spawned default vehicle set.');
+      // BLOCKOUT-10H+: Use scenario-based spawn instead of devSpawnBlockoutVehicleSet
+      resetBlockoutScenario(this.gameState, DEFAULT_SANDBOX_SCENARIO);
+      console.log('[GameScene] Blockout vehicle renderer enabled. Spawned sandbox scenario.');
     }
 
     // BLOCKOUT-03H: Create blockout vehicle input controller for selection/aiming
+    // BLOCKOUT-10H+: Wire R/T/H hotkeys and sandbox HUD
     if (this.devtoolsActive) {
+      this.blockoutSandboxHudRenderer = new BlockoutSandboxHudRenderer(this);
       this.blockoutVehicleInputController = new BlockoutVehicleInputController({
         scene: this,
         offset: this._offset as IsoPoint,
@@ -415,6 +419,13 @@ export class GameScene extends Phaser.Scene {
         isDevtoolsActive: () => this.devtoolsActive,
         onSelectionChanged: (selectedId: string | null) => {
           this.blockoutVehicleRenderer?.setSelectedVehicleId(selectedId);
+        },
+        onResetScenario: () => {
+          resetBlockoutScenario(this.gameState, DEFAULT_SANDBOX_SCENARIO);
+          console.log('[GameScene] Scenario reset to defaults.');
+        },
+        onToggleHelp: () => {
+          this.blockoutSandboxHudRenderer?.toggleHelp();
         },
       });
       console.log('[GameScene] Blockout vehicle input controller enabled.');
@@ -611,6 +622,14 @@ export class GameScene extends Phaser.Scene {
     if (this.blockoutUpgradeRenderer && this.devtoolsActive && this.gameState.blockoutVehicles) {
       this.blockoutUpgradeRenderer.syncFromState(this.gameState.blockoutVehicles, this.blockoutVehicleInputController?.selectedVehicleId ?? null);
     }
+    // BLOCKOUT-10H+: Sync sandbox HUD renderer
+    if (this.blockoutSandboxHudRenderer && this.devtoolsActive) {
+      this.blockoutSandboxHudRenderer.syncFromState(
+        this.gameState.blockoutVehicles,
+        this.blockoutVehicleInputController?.selectedVehicleId ?? null,
+        this.time.now,
+      );
+    }
 
     // 10. Debug log on unload completion
     if (this.gameState.economy.raw > this.lastLoggedRaw) {
@@ -694,6 +713,8 @@ export class GameScene extends Phaser.Scene {
     this.blockoutObstacleRenderer = null;
     this.blockoutUpgradeRenderer?.destroy();
     this.blockoutUpgradeRenderer = null;
+    this.blockoutSandboxHudRenderer?.destroy();
+    this.blockoutSandboxHudRenderer = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
     this.playtestHud?.destroy();

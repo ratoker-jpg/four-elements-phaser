@@ -74,6 +74,10 @@ export interface BlockoutVehicleInputDeps {
   isDevtoolsActive: () => boolean;
   /** Callback when selection changes (so renderer can update). */
   onSelectionChanged?: (selectedId: string | null) => void;
+  /** BLOCKOUT-10H+: Callback to reset scenario (R key). Dev/arena-only. */
+  onResetScenario?: () => void;
+  /** BLOCKOUT-10H+: Callback to toggle help overlay (H key). Dev/arena-only. */
+  onToggleHelp?: () => void;
 }
 
 // ─── Controller ────────────────────────────────────────────────────
@@ -84,6 +88,8 @@ export class BlockoutVehicleInputController {
   private getGameState: () => GameState;
   private isDevtoolsActive: () => boolean;
   private onSelectionChanged?: (selectedId: string | null) => void;
+  private onResetScenario?: () => void;
+  private onToggleHelp?: () => void;
 
   /** Currently selected blockout vehicle ID (transient, not persisted). */
   private _selectedVehicleId: string | null = null;
@@ -118,6 +124,8 @@ export class BlockoutVehicleInputController {
     this.getGameState = deps.getGameState;
     this.isDevtoolsActive = deps.isDevtoolsActive;
     this.onSelectionChanged = deps.onSelectionChanged;
+    this.onResetScenario = deps.onResetScenario;
+    this.onToggleHelp = deps.onToggleHelp;
 
     this.boundPointerdown = this.onPointerdown.bind(this);
     this.boundPointerup = this.onPointerup.bind(this);
@@ -377,6 +385,24 @@ export class BlockoutVehicleInputController {
       }
     }
 
+    // BLOCKOUT-10H+: R key — reset scenario (dev/arena-only)
+    if (event.code === 'KeyR') {
+      this.onResetScenario?.();
+      return;
+    }
+
+    // BLOCKOUT-10H+: T key — cycle selected vehicle (dev/arena-only)
+    if (event.code === 'KeyT') {
+      this.cycleSelectedVehicle();
+      return;
+    }
+
+    // BLOCKOUT-10H+: H key — toggle help overlay (dev/arena-only)
+    if (event.code === 'KeyH') {
+      this.onToggleHelp?.();
+      return;
+    }
+
     if (event.code !== 'Space' && event.code !== 'KeyF') return;
 
     // Don't fire if no vehicle selected
@@ -476,6 +502,29 @@ export class BlockoutVehicleInputController {
     if (vehicle && (vehicle.fireHeld || vehicle.isFiring)) {
       stopFiring(vehicle);
     }
+  }
+
+  /**
+   * BLOCKOUT-10H+: Cycle selected vehicle to the next blockout vehicle.
+   * Dev/arena-only. Wraps around from last to first.
+   * If no vehicle is selected, selects the first vehicle.
+   */
+  private cycleSelectedVehicle(): void {
+    const gameState = this.getGameState();
+    const vehicles = gameState.blockoutVehicles;
+    if (!vehicles || vehicles.length === 0) return;
+
+    // Stop firing on currently selected vehicle before switching
+    if (this._selectedVehicleId) {
+      this.stopFiringOnVehicle(this._selectedVehicleId);
+    }
+
+    const currentIndex = vehicles.findIndex(v => v.id === this._selectedVehicleId);
+    const nextIndex = (currentIndex + 1) % vehicles.length;
+    const nextVehicle = vehicles[nextIndex];
+
+    this._selectedVehicleId = nextVehicle.id;
+    this.onSelectionChanged?.(nextVehicle.id);
   }
 
   destroy(): void {

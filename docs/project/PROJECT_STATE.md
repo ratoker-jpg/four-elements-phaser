@@ -3,32 +3,29 @@
 Status: operational project state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Current phase: BLOCKOUT-MVP — BLOCKOUT-09H implemented, BLOCKOUT-10H+ next
+Current phase: BLOCKOUT-MVP — CLOSED / next step is new roadmap audit
 
 ---
 
 ## Current mode
 
 ```text
-BLOCKOUT-09H implemented. Dev/arena upgrade skeleton exists.
-Upgrade visual indicators and upgrade effect helpers exist.
-Next: BLOCKOUT-10H+ — Combat readability sandbox / closure QA.
+BLOCKOUT-MVP is closed. All 9 implementation steps are complete.
+Next: create a new roadmap audit for the next direction.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
 
-The new active planning direction is:
+The BLOCKOUT-MVP roadmap is now closed.
 
 ```text
-BLOCKOUT-MVP — Vehicle / Combat / Upgrade Skeleton
+BLOCKOUT-MVP — Vehicle / Combat / Upgrade Skeleton — CLOSED
 ```
-
-Owner decision: no standalone low-risk implementation PRs. Only high/high+ steps that produce visible gameplay/blockout progress.
 
 Next action:
 
 ```text
-BLOCKOUT-10H+ — Combat readability sandbox / closure QA
+New roadmap audit for the next direction
 ```
 
 ---
@@ -303,15 +300,14 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-10H+ — Combat readability sandbox / closure QA
+BLOCKOUT-MVP is closed. Next: create a new roadmap audit for the next direction.
 ```
 
 Mode:
 
 ```text
-HIGH/HIGH+ IMPLEMENTATION
-NO STANDALONE LOW-RISK PRS
-EVERY PR MUST PRODUCE VISIBLE PROGRESS
+NO NEW IMPLEMENTATION WITHOUT NEW ROADMAP AUDIT
+Start a new roadmap audit before any implementation.
 ```
 
 ---
@@ -566,6 +562,31 @@ Implemented:
 - 53 unit tests for profiles, apply, effective profiles, damage multiplier, cooldown, range, integration
 ```
 
+### BLOCKOUT-10H+ — Combat readability sandbox / closure QA
+
+```text
+Type: implementation
+Risk: HIGH+
+Status: DONE
+
+Implemented:
+- Curated combat sandbox scenario with 9 vehicles and 6 obstacles in deterministic layout
+- blockoutScenarioData.ts: ScenarioVehicleSpawn, ScenarioObstaclePlacement, BlockoutScenario types
+- blockoutScenario.ts: createScenarioVehicles, createScenarioObstacles, resetBlockoutScenario
+- DEFAULT_SANDBOX_SCENARIO covers all weapon families and obstacle interaction patterns
+- Dev help/legend overlay (BlockoutSandboxHudRenderer) — top-left, H toggles
+- Selected vehicle status overlay — top-right, shows HP, upgrades, speed, fire readiness
+- Scenario reset: R key restores sandbox to deterministic defaults
+- Vehicle cycling: T key cycles selected vehicle to next
+- Readability polish: larger selection ring + direction arrow on selected vehicle
+- Damage numbers offset right to avoid HP bar overlap
+- Obstacle debug labels reduced noise
+- 40 unit tests for scenario layout, create, reset, save stripping
+- BLOCKOUT-MVP closure report (BLOCKOUT_MVP_CLOSURE_REPORT.md)
+- All blockout systems remain dev/arena-only, not persisted in saves
+- No production combat, no production upgrades, no economy costs, no final assets
+```
+
 ---
 
 ## Completed roadmap slice
@@ -712,7 +733,9 @@ Use this sequence:
 11. BLOCKOUT-07H+ damage placeholders — DONE
 12. BLOCKOUT-08H blockout obstacles — DONE
 13. BLOCKOUT-09H upgrade skeleton — DONE
-14. BLOCKOUT-10H+ combat readability sandbox — NEXT
+14. BLOCKOUT-10H+ combat readability sandbox — DONE
+15. BLOCKOUT-MVP — CLOSED
+16. Next: new roadmap audit for next direction
 ```
 
 ---
