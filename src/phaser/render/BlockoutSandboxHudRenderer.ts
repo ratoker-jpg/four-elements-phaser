@@ -174,9 +174,9 @@ export class BlockoutSandboxHudRenderer {
     this.statusText.setText(lines.join('\n'));
     this.statusText.setVisible(true);
 
-    // Position: top-right corner of camera view
+    // Position: top-right corner of screen (scrollFactor=0 → screen-space)
     const camera = this.scene.cameras.main;
-    const rightX = camera.scrollX + camera.width - 8;
+    const rightX = camera.width - 8;
     this.statusText.setPosition(rightX, 8);
   }
 

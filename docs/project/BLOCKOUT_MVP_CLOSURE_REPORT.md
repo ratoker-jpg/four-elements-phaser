@@ -46,7 +46,7 @@ All blockout systems are gated behind the devtools/arena flag. Normal/default ga
 | BLOCKOUT-07H+ | #171 | Damage placeholders (HP, hit detection, status effects) |
 | BLOCKOUT-08H | #172 | Blockout obstacles (movement collision, line-of-fire blocking) |
 | BLOCKOUT-09H | #173 | Upgrade skeleton + visual indicators |
-| BLOCKOUT-10H+ | #TBD | Combat readability sandbox + closure QA |
+| BLOCKOUT-10H+ | #174 | Combat readability sandbox + closure QA |
 
 ---
 
