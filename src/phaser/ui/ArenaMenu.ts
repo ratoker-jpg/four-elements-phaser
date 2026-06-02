@@ -9,6 +9,10 @@
  * and click placement. Body/weapon/team selectors replace the
  * placeholder "Add Unit" button.
  *
+ * ARENA-04H+: Extended with ArenaRoster for unit list, roster actions
+ * (select, delete, clear allies/enemies/all, reset), help overlay,
+ * and status messages.
+ *
  * Lifecycle:
  * - Created by GameScene in create() when arenaMode is active.
  * - Updated each frame via update().
@@ -18,6 +22,18 @@
 import type { GameState } from '../../state/types';
 import type { ArenaPlacementState } from '../../state/arenaPlacement';
 import { ArenaUnitComposer } from './ArenaUnitComposer';
+import {
+  deriveRosterRows,
+  deleteVehicle,
+  clearAllVehicles,
+  clearAllyVehicles,
+  clearEnemyVehicles,
+  deriveArenaStatus,
+  decideRosterClick,
+  ARENA_HELP_LINES,
+  type ArenaRosterRow,
+} from '../../state/arenaRoster';
+import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -35,6 +51,18 @@ export interface ArenaMenuCallbacks {
   onCancelPlacement: () => void;
   /** ARENA-02H+: Get the current placement state. */
   getPlacementState: () => ArenaPlacementState;
+  /** ARENA-04H+: Get current selected vehicle ID from input controller. */
+  getSelectedVehicleId: () => string | null;
+  /** ARENA-04H+: Get current target vehicle ID from the selected ally. */
+  getTargetVehicleId: () => string | null;
+  /** ARENA-04H+: Select a vehicle by ID (from roster click). */
+  onSelectVehicle: (vehicleId: string) => void;
+  /** ARENA-04H+: Assign a target by vehicle ID (from roster enemy click). */
+  onAssignTarget: (targetVehicleId: string) => void;
+  /** ARENA-04H+: Deselect current vehicle. */
+  onDeselectVehicle: () => void;
+  /** ARENA-04H+: Clear target on selected vehicle. */
+  onClearTarget: () => void;
 }
 
 // ─── ArenaMenu class ────────────────────────────────────────────────
@@ -52,6 +80,15 @@ export class ArenaMenu {
 
   // ARENA-02H+: Unit composer sub-component
   private unitComposer: ArenaUnitComposer | null = null;
+
+  // ARENA-04H+: Roster section
+  private rosterRowsContainer: HTMLDivElement | null = null;
+  private helpOverlay: HTMLDivElement | null = null;
+  private arenaStatusEl: HTMLDivElement | null = null;
+  private _helpVisible = false;
+
+  /** Cached roster rows from last update (for click handling). */
+  private _lastRosterRows: ArenaRosterRow[] = [];
 
   /** Whether the ArenaMenu is currently shown. */
   get visible(): boolean {
@@ -134,7 +171,21 @@ export class ArenaMenu {
       },
     });
 
-    // ── Actions section ──────────────────────────────────────
+    // ── ARENA-04H+: Roster section ─────────────────────────────
+    const rosterTitle = document.createElement('div');
+    rosterTitle.textContent = 'Roster';
+    rosterTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; margin-top: 6px; color: #ffab40;';
+    content.appendChild(rosterTitle);
+
+    this.rosterRowsContainer = document.createElement('div');
+    this.rosterRowsContainer.style.cssText = `
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 6px;
+    `;
+    content.appendChild(this.rosterRowsContainer);
+
+    // ── ARENA-04H+: Roster actions ─────────────────────────────
     const actionsTitle = document.createElement('div');
     actionsTitle.textContent = 'Actions';
     actionsTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; margin-top: 6px; color: #ffab40;';
@@ -142,22 +193,34 @@ export class ArenaMenu {
 
     const actionRow1 = document.createElement('div');
     actionRow1.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
-    actionRow1.appendChild(this.createArenaButton('Reset Arena', '#ffab40', () => {
+    actionRow1.appendChild(this.createArenaButton('Reset', '#ff8a65', () => {
       this.callbacks?.onResetArena();
       this.showStatus('Arena reset', true);
     }));
-    actionRow1.appendChild(this.createArenaButton('Clear Units', '#ffab40', () => {
-      this.callbacks?.onClearUnits();
-      this.showStatus('Units cleared', true);
+    actionRow1.appendChild(this.createArenaButton('Delete Sel', '#ef9a9a', () => {
+      this.deleteSelectedUnit();
     }));
     content.appendChild(actionRow1);
 
     const actionRow2 = document.createElement('div');
-    actionRow2.style.cssText = 'display: flex; gap: 4px; margin-bottom: 6px;';
-    actionRow2.appendChild(this.createArenaButton('Help [H]', '#ce93d8', () => {
-      this.callbacks?.onToggleHelp();
+    actionRow2.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
+    actionRow2.appendChild(this.createArenaButton('Clear All', '#ffab40', () => {
+      this.clearAllFromMenu();
+    }));
+    actionRow2.appendChild(this.createArenaButton('Clear Allies', '#64c8ff', () => {
+      this.clearAlliesFromMenu();
     }));
     content.appendChild(actionRow2);
+
+    const actionRow3 = document.createElement('div');
+    actionRow3.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
+    actionRow3.appendChild(this.createArenaButton('Clear Enemies', '#ff5050', () => {
+      this.clearEnemiesFromMenu();
+    }));
+    actionRow3.appendChild(this.createArenaButton('Help [H]', '#ce93d8', () => {
+      this.toggleHelp();
+    }));
+    content.appendChild(actionRow3);
 
     // ── Vehicle count ────────────────────────────────────────
     this.vehicleCountEl = document.createElement('div');
@@ -172,6 +235,21 @@ export class ArenaMenu {
     `;
     this.vehicleCountEl.textContent = 'Vehicles: 0';
     content.appendChild(this.vehicleCountEl);
+
+    // ── ARENA-04H+: Arena status ──────────────────────────────
+    this.arenaStatusEl = document.createElement('div');
+    this.arenaStatusEl.style.cssText = `
+      font-size: 10px;
+      line-height: 1.4;
+      color: #b0a080;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+      padding: 4px 6px;
+      margin-bottom: 6px;
+      min-height: 14px;
+    `;
+    this.arenaStatusEl.textContent = 'Arena empty';
+    content.appendChild(this.arenaStatusEl);
 
     // ── Status feedback ──────────────────────────────────────
     this.statusEl = document.createElement('div');
@@ -188,6 +266,9 @@ export class ArenaMenu {
     document.body.appendChild(root);
     this.container = root;
     this.content = content;
+
+    // ── ARENA-04H+: Help overlay (initially hidden) ──────────
+    this.createHelpOverlay();
   }
 
   /**
@@ -195,12 +276,16 @@ export class ArenaMenu {
    * Called each frame from GameScene.update().
    */
   update(state: GameState): void {
+    // ARENA-04H+: Store state for action handlers (delete, clear, etc.)
+    this._gameState = state;
+
     if (!this.vehicleCountEl || this._collapsed) return;
 
-    const vehicleCount = state.blockoutVehicles?.length ?? 0;
-    const aliveCount = state.blockoutVehicles?.filter(v => !v.isDestroyed).length ?? 0;
-    const allyCount = state.blockoutVehicles?.filter(v => v.team === 'ally' && !v.isDestroyed).length ?? 0;
-    const enemyCount = state.blockoutVehicles?.filter(v => v.team === 'enemy' && !v.isDestroyed).length ?? 0;
+    const vehicles = state.blockoutVehicles ?? [];
+    const vehicleCount = vehicles.length;
+    const aliveCount = vehicles.filter(v => !v.isDestroyed).length;
+    const allyCount = vehicles.filter(v => v.team === 'ally' && !v.isDestroyed).length;
+    const enemyCount = vehicles.filter(v => v.team === 'enemy' && !v.isDestroyed).length;
     this.vehicleCountEl.textContent = `Vehicles: ${vehicleCount} (alive: ${aliveCount}, ally: ${allyCount}, enemy: ${enemyCount})`;
 
     // ARENA-02H+: Sync unit composer with placement state
@@ -209,6 +294,20 @@ export class ArenaMenu {
       if (placementState) {
         this.unitComposer.syncFromPlacementState(placementState);
       }
+    }
+
+    // ARENA-04H+: Update roster
+    const selectedId = this.callbacks?.getSelectedVehicleId() ?? null;
+    const targetId = this.callbacks?.getTargetVehicleId() ?? null;
+    const rows = deriveRosterRows(vehicles, selectedId, targetId);
+    this._lastRosterRows = rows;
+    this.updateRosterDOM(rows);
+
+    // ARENA-04H+: Update arena status
+    const placementState = this.callbacks?.getPlacementState();
+    const placementMode = placementState?.mode ?? 'idle';
+    if (this.arenaStatusEl) {
+      this.arenaStatusEl.textContent = deriveArenaStatus(vehicles, selectedId, targetId, placementMode);
     }
   }
 
@@ -286,6 +385,10 @@ export class ArenaMenu {
     }
     this.unitComposer?.destroy();
     this.unitComposer = null;
+    if (this.helpOverlay && this.helpOverlay.parentNode) {
+      this.helpOverlay.parentNode.removeChild(this.helpOverlay);
+    }
+    this.helpOverlay = null;
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }
@@ -293,10 +396,307 @@ export class ArenaMenu {
     this.content = null;
     this.statusEl = null;
     this.vehicleCountEl = null;
+    this.rosterRowsContainer = null;
+    this.arenaStatusEl = null;
     this.callbacks = null;
     this._visible = true;
     this._collapsed = false;
     this._collapseLabel = null;
+    this._lastRosterRows = [];
+    this._helpVisible = false;
+  }
+
+  // ─── ARENA-04H+: Roster DOM ──────────────────────────────────
+
+  private updateRosterDOM(rows: ArenaRosterRow[]): void {
+    if (!this.rosterRowsContainer) return;
+
+    // Rebuild roster rows (simple approach — safe for blockout UI count)
+    this.rosterRowsContainer.innerHTML = '';
+
+    if (rows.length === 0) {
+      const emptyEl = document.createElement('div');
+      emptyEl.textContent = 'No units placed';
+      emptyEl.style.cssText = 'font-size: 9px; color: #706050; padding: 4px 0; text-align: center;';
+      this.rosterRowsContainer.appendChild(emptyEl);
+      return;
+    }
+
+    for (const row of rows) {
+      const rowEl = document.createElement('div');
+      rowEl.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 4px;
+        margin-bottom: 1px;
+        border-radius: 2px;
+        cursor: pointer;
+        font-size: 9px;
+        line-height: 1.3;
+        ${row.isSelected ? 'background: rgba(100, 200, 255, 0.12); border: 1px solid rgba(100, 200, 255, 0.3);' : ''}
+        ${row.isTargeted && !row.isSelected ? 'background: rgba(255, 80, 80, 0.08); border: 1px solid rgba(255, 80, 80, 0.2);' : ''}
+        ${!row.isSelected && !row.isTargeted ? 'border: 1px solid transparent;' : ''}
+        ${row.isDestroyed ? 'opacity: 0.5;' : ''}
+      `;
+
+      // Team indicator
+      const teamDot = document.createElement('span');
+      teamDot.style.cssText = `
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: ${row.team === 'ally' ? '#64c8ff' : '#ff5050'};
+      `;
+      rowEl.appendChild(teamDot);
+
+      // Body + Weapon
+      const nameEl = document.createElement('span');
+      const bodyLabel = row.bodyId.charAt(0).toUpperCase() + row.bodyId.slice(1);
+      const weaponLabel = row.weaponId.charAt(0).toUpperCase() + row.weaponId.slice(1);
+      nameEl.textContent = `${bodyLabel}+${weaponLabel}`;
+      nameEl.style.cssText = `flex: 1; color: ${row.team === 'ally' ? '#90caf9' : '#ef9a9a'};`;
+      rowEl.appendChild(nameEl);
+
+      // HP
+      const hpEl = document.createElement('span');
+      if (row.isDestroyed) {
+        hpEl.textContent = 'X';
+        hpEl.style.cssText = 'color: #ff5050; font-weight: 600;';
+      } else {
+        hpEl.textContent = `${Math.round(row.hp)}`;
+        const hpPct = row.hp / row.maxHp;
+        hpEl.style.cssText = `color: ${hpPct > 0.6 ? '#81c784' : hpPct > 0.3 ? '#ffb74d' : '#ef9a9a'};`;
+      }
+      rowEl.appendChild(hpEl);
+
+      // Selected marker
+      if (row.isSelected) {
+        const selMarker = document.createElement('span');
+        selMarker.textContent = '\u25B6'; // ▶
+        selMarker.style.cssText = 'color: #64c8ff; font-size: 8px;';
+        rowEl.appendChild(selMarker);
+      }
+
+      // Targeted marker
+      if (row.isTargeted && !row.isSelected) {
+        const tgtMarker = document.createElement('span');
+        tgtMarker.textContent = '\u2316'; // ⌖
+        tgtMarker.style.cssText = 'color: #ff5050; font-size: 9px;';
+        rowEl.appendChild(tgtMarker);
+      }
+
+      // Delete button per row
+      const delBtn = document.createElement('span');
+      delBtn.textContent = '\u00D7'; // ×
+      delBtn.style.cssText = `
+        color: #a07030;
+        cursor: pointer;
+        font-size: 12px;
+        line-height: 1;
+        padding: 0 2px;
+        opacity: 0.6;
+      `;
+      delBtn.addEventListener('mouseenter', () => { delBtn.style.opacity = '1'; delBtn.style.color = '#ef9a9a'; });
+      delBtn.addEventListener('mouseleave', () => { delBtn.style.opacity = '0.6'; delBtn.style.color = '#a07030'; });
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.deleteRowUnit(row.id);
+      });
+      rowEl.appendChild(delBtn);
+
+      // Click handler for roster row selection
+      rowEl.addEventListener('click', () => {
+        this.handleRosterRowClick(row);
+      });
+
+      this.rosterRowsContainer.appendChild(rowEl);
+    }
+  }
+
+  /**
+   * Handle roster row click — select ally or target enemy.
+   * ARENA-04H+: Delegates to pure decideRosterClick for the decision.
+   */
+  private handleRosterRowClick(row: ArenaRosterRow): void {
+    if (!this.callbacks) return;
+
+    const selectedId = this.callbacks.getSelectedVehicleId();
+    const vehicles = this.getVehicles();
+    const action = decideRosterClick(row, selectedId, vehicles);
+
+    switch (action.type) {
+      case 'select':
+        this.callbacks.onSelectVehicle(action.vehicleId);
+        break;
+      case 'assignTarget':
+        this.callbacks.onAssignTarget(action.targetVehicleId);
+        break;
+      case 'noop':
+        break;
+    }
+  }
+
+  /** Get current vehicles from cached game state. */
+  private getVehicles(): BlockoutVehicleState[] | undefined {
+    return this._gameState?.blockoutVehicles;
+  }
+
+  /** Delete a unit from a roster row's × button. */
+  private deleteRowUnit(vehicleId: string): void {
+    if (!this.callbacks) return;
+    // Find the vehicle in roster rows to get team info
+    const row = this._lastRosterRows.find(r => r.id === vehicleId);
+    if (!row) return;
+
+    // If deleting the currently selected vehicle, deselect first
+    const selectedId = this.callbacks.getSelectedVehicleId();
+    if (vehicleId === selectedId) {
+      this.callbacks.onDeselectVehicle();
+    }
+
+    // Perform the delete — state mutation happens in arenaRoster helper,
+    // but we need to call it with the actual state. Instead, we delegate
+    // to GameScene through a new callback.
+    // For now, we'll use the same approach as onClearUnits — GameScene handles it.
+    this.deleteUnitById(vehicleId);
+  }
+
+  /** Delete the currently selected unit. */
+  private deleteSelectedUnit(): void {
+    if (!this.callbacks) return;
+    const selectedId = this.callbacks.getSelectedVehicleId();
+    if (!selectedId) {
+      this.showStatus('No unit selected', false);
+      return;
+    }
+    this.callbacks.onDeselectVehicle();
+    this.deleteUnitById(selectedId);
+  }
+
+  /** Delete a unit by ID — mutates state via arenaRoster helper. */
+  private deleteUnitById(vehicleId: string): void {
+    if (this._gameState) {
+      const vehicles = this._gameState.blockoutVehicles;
+      if (vehicles) {
+        const selectedId = this.callbacks?.getSelectedVehicleId() ?? null;
+        const result = deleteVehicle(vehicles, vehicleId, selectedId);
+        this.showStatus(result.message, result.removedCount > 0);
+        if (result.selectedCleared) {
+          this.callbacks?.onDeselectVehicle();
+        }
+      }
+    }
+  }
+
+  /** Store game state from last update for action handlers. */
+  private _gameState: GameState | null = null;
+
+  /** Clear all units from menu button. */
+  private clearAllFromMenu(): void {
+    if (!this._gameState?.blockoutVehicles) return;
+    const selectedId = this.callbacks?.getSelectedVehicleId() ?? null;
+    const result = clearAllVehicles(this._gameState.blockoutVehicles, selectedId);
+    if (result.selectedCleared) {
+      this.callbacks?.onDeselectVehicle();
+    }
+    this.showStatus(result.message, true);
+  }
+
+  /** Clear ally units from menu button. */
+  private clearAlliesFromMenu(): void {
+    if (!this._gameState?.blockoutVehicles) return;
+    const selectedId = this.callbacks?.getSelectedVehicleId() ?? null;
+    const result = clearAllyVehicles(this._gameState.blockoutVehicles, selectedId);
+    if (result.selectedCleared) {
+      this.callbacks?.onDeselectVehicle();
+    }
+    this.showStatus(result.message, true);
+  }
+
+  /** Clear enemy units from menu button. */
+  private clearEnemiesFromMenu(): void {
+    if (!this._gameState?.blockoutVehicles) return;
+    const selectedId = this.callbacks?.getSelectedVehicleId() ?? null;
+    const result = clearEnemyVehicles(this._gameState.blockoutVehicles, selectedId);
+    if (result.targetCleared) {
+      this.callbacks?.onClearTarget();
+    }
+    this.showStatus(result.message, true);
+  }
+
+  // ─── ARENA-04H+: Help overlay ───────────────────────────────
+
+  private createHelpOverlay(): void {
+    if (this.helpOverlay) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'arena-help-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(20, 15, 10, 0.95);
+      border: 1px solid rgba(255, 160, 60, 0.4);
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 12px;
+      color: #ffcc80;
+      z-index: 30;
+      pointer-events: auto;
+      max-width: 380px;
+      max-height: 80vh;
+      overflow-y: auto;
+      display: none;
+      line-height: 1.6;
+    `;
+
+    // Build help content
+    for (const line of ARENA_HELP_LINES) {
+      const lineEl = document.createElement('div');
+      if (line.startsWith('───')) {
+        lineEl.textContent = line;
+        lineEl.style.cssText = 'font-weight: 600; color: #ffab40; margin-top: 8px; margin-bottom: 4px;';
+      } else if (line === '') {
+        lineEl.innerHTML = '&nbsp;';
+        lineEl.style.cssText = 'height: 4px;';
+      } else {
+        lineEl.textContent = line;
+        lineEl.style.cssText = 'padding-left: 8px;';
+      }
+      overlay.appendChild(lineEl);
+    }
+
+    // Close button
+    const closeBtn = document.createElement('div');
+    closeBtn.textContent = '[H] Close';
+    closeBtn.style.cssText = `
+      text-align: center;
+      margin-top: 12px;
+      padding: 6px;
+      background: rgba(255, 160, 60, 0.1);
+      border: 1px solid rgba(255, 160, 60, 0.3);
+      border-radius: 4px;
+      cursor: pointer;
+      color: #ffab40;
+      font-weight: 600;
+    `;
+    closeBtn.addEventListener('click', () => this.toggleHelp());
+    overlay.appendChild(closeBtn);
+
+    document.body.appendChild(overlay);
+    this.helpOverlay = overlay;
+  }
+
+  /** Toggle help overlay. */
+  toggleHelp(): void {
+    this._helpVisible = !this._helpVisible;
+    if (this.helpOverlay) {
+      this.helpOverlay.style.display = this._helpVisible ? 'block' : 'none';
+    }
   }
 
   // ─── Internal helpers ──────────────────────────────────────────

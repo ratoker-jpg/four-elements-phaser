@@ -369,6 +369,8 @@ export class GameScene extends Phaser.Scene {
           }
         },
         onToggleHelp: () => {
+          // ARENA-04H+: Toggle both ArenaMenu help overlay and HUD renderer help
+          this.arenaMenu?.toggleHelp();
           this.blockoutSandboxHudRenderer?.toggleHelp();
         },
         // ARENA-02H+: Placement mode callbacks
@@ -391,6 +393,55 @@ export class GameScene extends Phaser.Scene {
           this.hidePlacementMarker();
         },
         getPlacementState: () => this.arenaPlacementState,
+        // ARENA-04H+: Roster callbacks — select, target, deselect, clear target
+        getSelectedVehicleId: () => this.blockoutVehicleInputController?.selectedVehicleId ?? null,
+        getTargetVehicleId: () => {
+          const selectedId = this.blockoutVehicleInputController?.selectedVehicleId;
+          if (!selectedId) return null;
+          const selected = this.gameState.blockoutVehicles?.find(v => v.id === selectedId);
+          return selected?.targetVehicleId ?? null;
+        },
+        onSelectVehicle: (vehicleId: string) => {
+          // ARENA-04H+: Select a vehicle from roster click.
+          // In Arena mode: only allies can be selected as controllable.
+          const vehicles = this.gameState.blockoutVehicles;
+          if (!vehicles) return;
+          const vehicle = vehicles.find(v => v.id === vehicleId);
+          if (!vehicle) return;
+          if (vehicle.team === 'enemy') return; // Enemies are not controllable
+          // Use the input controller's proper selection method
+          this.blockoutVehicleInputController?.setSelectedVehicleId(vehicleId);
+        },
+        onAssignTarget: (targetVehicleId: string) => {
+          // ARENA-04H+: Assign a target from roster enemy click.
+          const selectedId = this.blockoutVehicleInputController?.selectedVehicleId;
+          if (!selectedId) return;
+          const vehicles = this.gameState.blockoutVehicles;
+          if (!vehicles) return;
+          const selected = vehicles.find(v => v.id === selectedId);
+          if (!selected || selected.team !== 'ally') return;
+          // Validate target exists and is enemy
+          const target = vehicles.find(v => v.id === targetVehicleId);
+          if (!target || target.team !== 'enemy') return;
+          selected.targetVehicleId = targetVehicleId;
+        },
+        onDeselectVehicle: () => {
+          // ARENA-04H+: Deselect current vehicle and clear its target.
+          this.blockoutVehicleInputController?.setSelectedVehicleId(null);
+        },
+        onClearTarget: () => {
+          // ARENA-04H+: Clear target on selected vehicle.
+          const selectedId = this.blockoutVehicleInputController?.selectedVehicleId;
+          if (!selectedId) return;
+          const vehicles = this.gameState.blockoutVehicles;
+          if (vehicles) {
+            const selected = vehicles.find(v => v.id === selectedId);
+            if (selected) {
+              selected.targetVehicleId = null;
+              if (selected.fireHeld || selected.isFiring) stopFiring(selected);
+            }
+          }
+        },
       });
       console.log('[GameScene] ArenaMenu created (primary Arena UX).');
     }
@@ -510,6 +561,8 @@ export class GameScene extends Phaser.Scene {
     // BLOCKOUT-10H+: Wire R/T/H hotkeys and sandbox HUD
     if (this.devtoolsActive) {
       this.blockoutSandboxHudRenderer = new BlockoutSandboxHudRenderer(this);
+      // ARENA-04H+: Set Arena mode for context-specific help
+      this.blockoutSandboxHudRenderer.setArenaMode(this.arenaMode);
       this.cameraProjectionDebugRenderer = new CameraProjectionDebugRenderer(this, this._offset as IsoPoint);
       this.cameraProjectionDebugRenderer.render();
       this.blockoutVehicleInputController = new BlockoutVehicleInputController({
@@ -764,11 +817,24 @@ export class GameScene extends Phaser.Scene {
     }
     // BLOCKOUT-10H+: Sync sandbox HUD renderer
     if (this.blockoutSandboxHudRenderer && this.devtoolsActive) {
-      this.blockoutSandboxHudRenderer.syncFromState(
-        this.gameState.blockoutVehicles,
-        this.blockoutVehicleInputController?.selectedVehicleId ?? null,
-        this.time.now,
-      );
+      if (this.arenaMode) {
+        // ARENA-04H+: Arena-specific HUD with target info
+        const selectedId = this.blockoutVehicleInputController?.selectedVehicleId ?? null;
+        const selected = selectedId ? this.gameState.blockoutVehicles?.find(v => v.id === selectedId) : null;
+        const targetId = selected?.targetVehicleId ?? null;
+        this.blockoutSandboxHudRenderer.syncFromStateArena(
+          this.gameState.blockoutVehicles,
+          selectedId,
+          targetId,
+          this.time.now,
+        );
+      } else {
+        this.blockoutSandboxHudRenderer.syncFromState(
+          this.gameState.blockoutVehicles,
+          this.blockoutVehicleInputController?.selectedVehicleId ?? null,
+          this.time.now,
+        );
+      }
     }
 
     // 10. Debug log on unload completion (ARENA-01H+: only in Normal Game)

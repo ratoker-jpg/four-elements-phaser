@@ -166,6 +166,32 @@ export class BlockoutVehicleInputController {
     return this._hoveredVehicleId;
   }
 
+  // ─── ARENA-04H+: Roster-driven selection ────────────────────────
+
+  /**
+   * Set the selected vehicle ID from external UI (e.g., roster click).
+   * ARENA-04H+: Used by ArenaMenu roster to select a vehicle by ID.
+   * Handles cleanup: stops firing on previously selected vehicle,
+   * clears target references.
+   *
+   * @param vehicleId - Vehicle ID to select, or null to deselect
+   */
+  setSelectedVehicleId(vehicleId: string | null): void {
+    // Clean up previous selection
+    if (this._selectedVehicleId && this._selectedVehicleId !== vehicleId) {
+      this.stopFiringOnVehicle(this._selectedVehicleId);
+      const vehicles = this.getGameState().blockoutVehicles;
+      if (vehicles) {
+        const prev = vehicles.find(v => v.id === this._selectedVehicleId);
+        if (prev) {
+          prev.targetVehicleId = null;
+        }
+      }
+    }
+    this._selectedVehicleId = vehicleId;
+    this.onSelectionChanged?.(vehicleId);
+  }
+
   /** Mouse world X position. BLOCKOUT-06H+. */
   get mouseWorldX(): number { return this._mouseWorldX; }
 

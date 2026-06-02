@@ -39,6 +39,24 @@ const HELP_LINES = [
   'T: Cycle selected vehicle',
 ];
 
+/** ARENA-04H+: Arena-specific help overlay lines. */
+const ARENA_HELP_LINES = [
+  '─── Arena Controls ───',
+  'LMB click Ally: select',
+  'LMB click Enemy: assign target',
+  'RMB: move selected Ally',
+  'Space/F: fire at target',
+  'T: cycle selected ally',
+  'H: toggle this help',
+  'C: camera calibration overlay',
+  '',
+  '─── Arena Rules ───',
+  'Allies are controllable',
+  'Enemies are targets only',
+  'Turret aims at target, not mouse',
+  'No fire without target',
+];
+
 // ─── Renderer ──────────────────────────────────────────────────────
 
 export class BlockoutSandboxHudRenderer {
@@ -53,8 +71,25 @@ export class BlockoutSandboxHudRenderer {
   /** Whether help overlay is visible. */
   private helpVisible = true;
 
+  /** ARENA-04H+: Whether Arena-specific help should be shown. */
+  private _isArenaMode = false;
+
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+  }
+
+  /** ARENA-04H+: Set Arena mode for context-specific help. */
+  setArenaMode(isArena: boolean): void {
+    this._isArenaMode = isArena;
+    // Re-create help text if it already exists so it picks up Arena lines
+    if (this.helpText) {
+      this.helpText.destroy();
+      this.helpText = null;
+    }
+    // In Arena mode, default help overlay to hidden (ArenaMenu has its own help)
+    if (isArena) {
+      this.helpVisible = false;
+    }
   }
 
   // ─── Public API ──────────────────────────────────────────────────
@@ -93,11 +128,27 @@ export class BlockoutSandboxHudRenderer {
     this.updateStatusPanel(selected, nowMs);
   }
 
+  /**
+   * ARENA-04H+: Update with Arena context.
+   * Same as syncFromState but also shows Arena-specific status.
+   */
+  syncFromStateArena(
+    vehicles: BlockoutVehicleState[] | undefined,
+    selectedVehicleId: string | null,
+    targetVehicleId: string | null,
+    nowMs: number,
+  ): void {
+    this.ensureHelpText();
+    const selected = vehicles?.find(v => v.id === selectedVehicleId) ?? null;
+    this.updateStatusPanelArena(selected, targetVehicleId, vehicles, nowMs);
+  }
+
   // ─── Help overlay ────────────────────────────────────────────────
 
   private ensureHelpText(): void {
     if (!this.helpText) {
-      this.helpText = this.scene.add.text(8, 8, HELP_LINES.join('\n'), {
+      const lines = this._isArenaMode ? ARENA_HELP_LINES : HELP_LINES;
+      this.helpText = this.scene.add.text(8, 8, lines.join('\n'), {
         fontSize: '10px',
         color: '#cccccc',
         backgroundColor: '#000000aa',
@@ -111,6 +162,70 @@ export class BlockoutSandboxHudRenderer {
   }
 
   // ─── Status panel ────────────────────────────────────────────────
+
+  /**
+   * ARENA-04H+: Update status panel with Arena context (target info).
+   */
+  private updateStatusPanelArena(
+    vehicle: BlockoutVehicleState | null,
+    targetVehicleId: string | null,
+    vehicles: BlockoutVehicleState[] | undefined,
+    nowMs: number,
+  ): void {
+    if (!vehicle) {
+      if (this.statusText) this.statusText.setVisible(false);
+      return;
+    }
+
+    if (!this.statusText) {
+      this.statusText = this.scene.add.text(0, 8, '', {
+        fontSize: '10px',
+        color: '#ffffff',
+        backgroundColor: '#000000aa',
+        padding: { x: 6, y: 4 },
+        lineSpacing: 2,
+        align: 'left',
+      });
+      this.statusText.setDepth(HUD_DEPTH);
+      this.statusText.setScrollFactor(0);
+      this.statusText.setOrigin(1, 0);
+    }
+
+    const lines: string[] = [];
+    const teamLabel = vehicle.team === 'ally' ? 'ALLY' : 'ENEMY';
+    lines.push(`[${teamLabel}] ${vehicle.bodyId} + ${vehicle.weaponId}`);
+
+    if (vehicle.isDestroyed) {
+      lines.push('DESTROYED');
+    } else {
+      lines.push(`HP: ${Math.round(vehicle.hp)} / ${vehicle.maxHp}`);
+    }
+
+    // Target info
+    if (targetVehicleId && vehicles) {
+      const target = vehicles.find(v => v.id === targetVehicleId);
+      if (target) {
+        const tLabel = target.isDestroyed ? 'DESTROYED' : `HP:${Math.round(target.hp)}`;
+        lines.push(`Target: ${target.bodyId} ${tLabel}`);
+      } else {
+        lines.push('Target: lost');
+      }
+    } else {
+      lines.push('No target');
+    }
+
+    // Movement
+    if (!vehicle.isDestroyed) {
+      lines.push(vehicle.hasMoveTarget ? 'moving' : 'stopped');
+      const canFire = canFireBlockoutWeapon(vehicle, nowMs);
+      lines.push(canFire ? 'ready' : 'cooldown');
+    }
+
+    this.statusText.setText(lines.join('\n'));
+    this.statusText.setVisible(true);
+    const camera = this.scene.cameras.main;
+    this.statusText.setPosition(camera.width - 8, 8);
+  }
 
   private updateStatusPanel(vehicle: BlockoutVehicleState | null, nowMs: number): void {
     if (!vehicle) {
