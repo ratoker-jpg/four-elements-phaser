@@ -28,6 +28,8 @@ import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { saveGame, loadGame, setSaveStorage, type SaveStorage } from '../state/saveGame';
 import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
 import type { GameState } from '../state/types';
+import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
+import { applyUpgrade } from '../state/blockoutUpgrades';
 
 /** Create a minimal GameState for testing. */
 function createTestGameState(): GameState {
@@ -426,5 +428,75 @@ describe('velocity consistency with body angle and speed', () => {
     const expectedVy = Math.sin(vehicle.bodyAngle) * vehicle.speed;
     expect(vehicle.vx).toBeCloseTo(expectedVx, 5);
     expect(vehicle.vy).toBeCloseTo(expectedVy, 5);
+  });
+});
+
+// ─── BLOCKOUT-09H fixup: No double application of mobility upgrade ──
+
+describe('BLOCKOUT-09H fixup: mobility upgrade not applied twice', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+  });
+
+  it('mobility_boost level 1 increases max speed by exactly 15%, not squared', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    const baseProfile = MOVEMENT_PROFILES.wasp;
+
+    // Apply mobility_boost level 1
+    applyUpgrade(vehicle, 'mobility_boost', 1000);
+    const effectiveProfile = getEffectiveMovementProfile(vehicle, baseProfile);
+
+    // Expected: base * 1.15 (single application)
+    // Bug would give: base * 1.15^2 = base * 1.3225 (double application)
+    const expectedSingleApp = baseProfile.maxSpeedPxPerSec * 1.15;
+    const expectedDoubleApp = baseProfile.maxSpeedPxPerSec * 1.3225;
+
+    expect(effectiveProfile.maxSpeedPxPerSec).toBeCloseTo(expectedSingleApp, 2);
+    // Verify it's NOT the doubled value
+    expect(effectiveProfile.maxSpeedPxPerSec).toBeLessThan(expectedDoubleApp - 1);
+  });
+
+  it('movement distance over fixed time matches single upgrade application', () => {
+    const vehicleBase = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    const vehicleUpgraded = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    applyUpgrade(vehicleUpgraded, 'mobility_boost', 1000);
+
+    const baseProfile = MOVEMENT_PROFILES.wasp;
+    const effectiveProfile = getEffectiveMovementProfile(vehicleUpgraded, baseProfile);
+
+    // Move both vehicles for the same time
+    setBlockoutVehicleMoveTarget(vehicleBase, vehicleBase.worldX + 2000, vehicleBase.worldY);
+    setBlockoutVehicleMoveTarget(vehicleUpgraded, vehicleUpgraded.worldX + 2000, vehicleUpgraded.worldY);
+
+    for (let i = 0; i < 200; i++) {
+      updateBlockoutVehicleMovement(vehicleBase, baseProfile, 16);
+      updateBlockoutVehicleMovement(vehicleUpgraded, effectiveProfile, 16);
+    }
+
+    // Upgraded vehicle should be further ahead, but not impossibly far
+    expect(vehicleUpgraded.worldX).toBeGreaterThan(vehicleBase.worldX);
+    // The speed ratio should be ~1.15, not ~1.3225
+    if (vehicleBase.speed > 0 && vehicleUpgraded.speed > 0) {
+      const ratio = vehicleUpgraded.speed / vehicleBase.speed;
+      expect(ratio).toBeCloseTo(1.15, 1);
+    }
+  });
+
+  it('base MOVEMENT_PROFILES is not mutated by effective profile computation', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    applyUpgrade(vehicle, 'mobility_boost', 1000);
+
+    const baseProfile = MOVEMENT_PROFILES.wasp;
+    const originalSpeed = baseProfile.maxSpeedPxPerSec;
+    const originalAccel = baseProfile.accelerationPxPerSec2;
+
+    getEffectiveMovementProfile(vehicle, baseProfile);
+    // Also run movement to ensure no mutation through the update path
+    setBlockoutVehicleMoveTarget(vehicle, vehicle.worldX + 500, vehicle.worldY);
+    const effectiveProfile = getEffectiveMovementProfile(vehicle, baseProfile);
+    updateBlockoutVehicleMovement(vehicle, effectiveProfile, 16);
+
+    expect(baseProfile.maxSpeedPxPerSec).toBe(originalSpeed);
+    expect(baseProfile.accelerationPxPerSec2).toBe(originalAccel);
   });
 });

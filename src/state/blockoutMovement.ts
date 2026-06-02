@@ -15,7 +15,6 @@ import type { BlockoutObstacleState } from './blockoutObstacleState';
 import { rotateTowardAngle, degPerSecToRadPerMs } from './angleMath';
 import { resolveVehicleObstacleCollisions } from './blockoutObstacles';
 import { getBodyPixelSize } from '../phaser/render/blockoutVehicleGeometry';
-import { getEffectiveMovementProfile } from './blockoutUpgrades';
 
 // ─── Tile coordinate constants ────────────────────────────────────
 
@@ -55,8 +54,9 @@ export function updateBlockoutVehicleMovement(
   // BLOCKOUT-07H+: Destroyed vehicles don't move
   if (vehicle.isDestroyed) return;
 
-  // BLOCKOUT-09H: Use effective movement profile (with upgrade modifiers)
-  const effectiveProfile = getEffectiveMovementProfile(vehicle, profile);
+  // BLOCKOUT-09H fixup: Caller (GameScene) passes the effective profile
+  // (with upgrade modifiers already applied). Do NOT re-apply here.
+  const effectiveProfile = profile;
 
   const dt = deltaMs / 1000; // seconds
 

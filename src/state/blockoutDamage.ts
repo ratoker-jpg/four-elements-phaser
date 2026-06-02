@@ -21,7 +21,7 @@ import { isLineOfFireBlocked, findNearestObstacleBlockingLine } from './blockout
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
 import { computeBodyWorldCenter, getBodyPixelSize } from '../phaser/render/blockoutVehicleGeometry';
 import type { IsoPoint } from '../phaser/render/isometric';
-import { getEffectiveDamageProfile, getIncomingDamageMultiplier } from './blockoutUpgrades';
+import { getEffectiveDamageProfile, getIncomingDamageMultiplier, getCooldownMultiplier } from './blockoutUpgrades';
 
 // ─── Damage Event ──────────────────────────────────────────────────
 
@@ -703,8 +703,11 @@ export function tickContinuousDamage(
   if (!profile.damageKind || !continuousKinds.includes(profile.damageKind)) return [];
 
   const tickMs = profile.tickMs ?? 50;
+  // BLOCKOUT-09H fixup: Apply cooldown multiplier to damage tick cadence
+  // weapon_tuning (-5% per level) and cooling_system (-10% per level)
+  const effectiveTickMs = tickMs * getCooldownMultiplier(firingVehicle);
   const elapsed = nowMs - firingVehicle.lastDamageTickAt;
-  if (elapsed < tickMs) return [];
+  if (elapsed < effectiveTickMs) return [];
 
   // Apply damage using the main function (it handles the kind-specific logic)
   const events = applyBlockoutWeaponDamage(

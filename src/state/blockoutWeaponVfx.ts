@@ -22,6 +22,7 @@ import type { RecoilProfile, WeaponId } from '../config/blockoutProfiles';
 import { RECOIL_PROFILES } from '../config/blockoutRecoilData';
 import { getWeaponVfxProfile } from '../config/blockoutVfxData';
 import { getWeaponProfile } from '../config/blockoutWeaponData';
+import { getCooldownMultiplier } from './blockoutUpgrades';
 
 // ─── VFX Event ────────────────────────────────────────────────────
 
@@ -191,6 +192,10 @@ export function fireBlockoutWeapon(
 /**
  * Check whether a blockout vehicle can fire (cooldown elapsed).
  *
+ * BLOCKOUT-09H fixup: Uses getCooldownMultiplier to apply weapon_tuning
+ * (-5% cooldown/level) and cooling_system (-10% cadence/level) effects.
+ * Does NOT mutate the base weapon profile.
+ *
  * @param vehicle - The vehicle to check
  * @param nowMs - Current timestamp
  * @returns true if cooldown has elapsed and the vehicle can fire
@@ -204,8 +209,10 @@ export function canFireBlockoutWeapon(
 
   if (vehicle.lastFiredAt === 0) return true; // Never fired
 
+  // BLOCKOUT-09H fixup: Apply cooldown multiplier from upgrades
+  const effectiveCooldownMs = weaponProfile.blockoutCooldownMs * getCooldownMultiplier(vehicle);
   const elapsed = nowMs - vehicle.lastFiredAt;
-  return elapsed >= weaponProfile.blockoutCooldownMs;
+  return elapsed >= effectiveCooldownMs;
 }
 
 // ─── Recoil ──────────────────────────────────────────────────────
@@ -327,9 +334,13 @@ export function tickContinuousFire(
   const vfxProfile = getWeaponVfxProfile(vehicle.weaponId);
   if (!vfxProfile || !vfxProfile.streamCadenceMs) return 0; // Not a continuous weapon
 
+  // BLOCKOUT-09H fixup: Apply cooldown multiplier to stream cadence
+  // weapon_tuning (-5% per level) and cooling_system (-10% per level)
+  const effectiveStreamCadenceMs = vfxProfile.streamCadenceMs * getCooldownMultiplier(vehicle);
+
   // Check if enough time has elapsed since last stream tick
   const elapsed = nowMs - vehicle.lastStreamTickAt;
-  if (elapsed < vfxProfile.streamCadenceMs) return 0;
+  if (elapsed < effectiveStreamCadenceMs) return 0;
 
   // Fire a VFX event (this handles cooldown, recoil, etc.)
   const event = fireBlockoutWeapon(
