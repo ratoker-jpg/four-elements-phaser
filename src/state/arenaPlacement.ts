@@ -16,7 +16,7 @@
 
 import { unprojectScreenToGround } from '../config/cameraProjectionContract';
 import type { BodyId, WeaponId } from '../config/blockoutProfiles';
-import type { ArenaTeam } from './blockoutVehicleState';
+import type { ArenaTeam, AiMode } from './blockoutVehicleState';
 import type { BlockoutVehicleState } from './blockoutVehicleState';
 
 // ─── Placement state ────────────────────────────────────────────────
@@ -34,6 +34,8 @@ export interface ArenaPlacementState {
   selectedWeapon: WeaponId | null;
   /** Selected team for the unit being created. */
   selectedTeam: ArenaTeam;
+  /** ARENA-05H+: Selected AI mode for enemy units. */
+  selectedAiMode: AiMode;
 }
 
 /** Create default placement state (idle, no selections). */
@@ -43,6 +45,7 @@ export function createArenaPlacementState(): ArenaPlacementState {
     selectedBody: null,
     selectedWeapon: null,
     selectedTeam: 'ally',
+    selectedAiMode: 'passive', // ARENA-05H+
   };
 }
 

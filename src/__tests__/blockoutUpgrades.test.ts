@@ -84,6 +84,10 @@ function createTestVehicle(overrides: Partial<BlockoutVehicleState> = {}): Block
     createdAt: 1000,
     upgradeLevels: {},
     lastUpgradedAt: 0,
+    aiMode: 'passive',
+    aiHoldX: 380,
+    aiHoldY: 190,
+    aiHoldRadius: 200,
     ...overrides,
   };
 }

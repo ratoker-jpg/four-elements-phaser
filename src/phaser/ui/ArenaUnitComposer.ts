@@ -15,10 +15,18 @@
 import { BODY_PROFILES, ALL_BODY_IDS } from '../../config/blockoutBodyData';
 import { WEAPON_PROFILES, ALL_WEAPON_IDS } from '../../config/blockoutWeaponData';
 import type { BodyId, WeaponId } from '../../config/blockoutProfiles';
-import type { ArenaTeam } from '../../state/blockoutVehicleState';
+import type { ArenaTeam, AiMode } from '../../state/blockoutVehicleState';
 import type { ArenaPlacementState } from '../../state/arenaPlacement';
 
 // ─── Types ──────────────────────────────────────────────────────────
+
+/** AI mode options for enemy units. ARENA-05H+. */
+const AI_MODE_OPTIONS: { value: AiMode; label: string }[] = [
+  { value: 'passive', label: 'Passive' },
+  { value: 'stationary_shooter', label: 'Shooter' },
+  { value: 'chaser', label: 'Chaser' },
+  { value: 'hold_position', label: 'Hold Pos' },
+];
 
 /** Callbacks provided by ArenaMenu for UnitComposer actions. */
 export interface ArenaUnitComposerCallbacks {
@@ -38,19 +46,22 @@ export class ArenaUnitComposer {
   private selectedBody: BodyId | null = null;
   private selectedWeapon: WeaponId | null = null;
   private selectedTeam: ArenaTeam = 'ally';
+  private selectedAiMode: AiMode = 'passive'; // ARENA-05H+
 
   // DOM references for state feedback
   private bodyButtons: Map<string, HTMLButtonElement> = new Map();
   private weaponButtons: Map<string, HTMLButtonElement> = new Map();
   private allyBtn: HTMLButtonElement | null = null;
   private enemyBtn: HTMLButtonElement | null = null;
+  private aiModeContainer: HTMLDivElement | null = null; // ARENA-05H+
+  private aiModeButtons: Map<string, HTMLButtonElement> = new Map(); // ARENA-05H+
   private placeBtn: HTMLButtonElement | null = null;
   private cancelBtn: HTMLButtonElement | null = null;
   private statusEl: HTMLDivElement | null = null;
 
   /** Get current selections. */
-  getSelections(): { body: BodyId | null; weapon: WeaponId | null; team: ArenaTeam } {
-    return { body: this.selectedBody, weapon: this.selectedWeapon, team: this.selectedTeam };
+  getSelections(): { body: BodyId | null; weapon: WeaponId | null; team: ArenaTeam; aiMode: AiMode } {
+    return { body: this.selectedBody, weapon: this.selectedWeapon, team: this.selectedTeam, aiMode: this.selectedAiMode };
   }
 
   /**
@@ -184,6 +195,45 @@ export class ArenaUnitComposer {
 
     root.appendChild(teamRow);
 
+    // ── ARENA-05H+: AI mode selector (visible when Team = Enemy) ──
+    const aiTitle = document.createElement('div');
+    aiTitle.textContent = 'AI Mode';
+    aiTitle.style.cssText = 'font-weight: 600; font-size: 10px; margin-bottom: 2px; color: #ffab40;';
+    root.appendChild(aiTitle);
+
+    const aiRow = document.createElement('div');
+    aiRow.style.cssText = 'display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 6px;';
+    this.aiModeContainer = aiRow;
+    for (const opt of AI_MODE_OPTIONS) {
+      const btn = document.createElement('button');
+      btn.textContent = opt.label;
+      btn.style.cssText = `
+        padding: 2px 5px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 80, 80, 0.2);
+        border-radius: 2px;
+        color: #ff5050;
+        font-size: 9px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: background 0.1s, border-color 0.1s;
+      `;
+      btn.addEventListener('mouseenter', () => {
+        if (this.selectedAiMode !== opt.value) btn.style.background = 'rgba(255, 80, 80, 0.08)';
+      });
+      btn.addEventListener('mouseleave', () => {
+        if (this.selectedAiMode !== opt.value) btn.style.background = 'rgba(255, 255, 255, 0.04)';
+      });
+      btn.addEventListener('click', () => this.selectAiMode(opt.value));
+      this.aiModeButtons.set(opt.value, btn);
+      aiRow.appendChild(btn);
+    }
+    root.appendChild(aiRow);
+
+    // Initialize AI mode visibility and highlight
+    this.updateAiModeVisibility();
+    this.updateAiModeHighlight();
+
     // ── Action buttons ─────────────────────────────────────────
     const actionRow = document.createElement('div');
     actionRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
@@ -311,6 +361,8 @@ export class ArenaUnitComposer {
     this.weaponButtons.clear();
     this.allyBtn = null;
     this.enemyBtn = null;
+    this.aiModeContainer = null; // ARENA-05H+
+    this.aiModeButtons.clear(); // ARENA-05H+
     this.placeBtn = null;
     this.cancelBtn = null;
     this.statusEl = null;
@@ -370,6 +422,7 @@ export class ArenaUnitComposer {
   private selectTeam(team: ArenaTeam): void {
     this.selectedTeam = team;
     this.updateTeamHighlight();
+    this.updateAiModeVisibility(); // ARENA-05H+: Show/hide AI mode
   }
 
   private updateTeamHighlight(): void {
@@ -400,6 +453,34 @@ export class ArenaUnitComposer {
   private updatePlaceButton(): void {
     if (this.placeBtn) {
       this.placeBtn.style.opacity = this.canPlace() ? '1' : '0.4';
+    }
+  }
+
+  // ARENA-05H+: AI mode selector methods
+
+  private selectAiMode(mode: AiMode): void {
+    this.selectedAiMode = mode;
+    this.updateAiModeHighlight();
+  }
+
+  private updateAiModeVisibility(): void {
+    // AI mode selector only visible when Team = Enemy
+    if (this.aiModeContainer) {
+      this.aiModeContainer.style.display = this.selectedTeam === 'enemy' ? 'flex' : 'none';
+    }
+  }
+
+  private updateAiModeHighlight(): void {
+    for (const [mode, btn] of this.aiModeButtons) {
+      if (mode === this.selectedAiMode) {
+        btn.style.background = 'rgba(255, 80, 80, 0.15)';
+        btn.style.borderColor = 'rgba(255, 80, 80, 0.5)';
+        btn.style.fontWeight = '600';
+      } else {
+        btn.style.background = 'rgba(255, 255, 255, 0.04)';
+        btn.style.borderColor = 'rgba(255, 80, 80, 0.2)';
+        btn.style.fontWeight = 'normal';
+      }
     }
   }
 }
