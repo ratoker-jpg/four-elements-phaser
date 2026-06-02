@@ -2,7 +2,8 @@
 
 Status: onboarding file for a new GPT chat  
 Project: Four Elements Phaser  
-Repo: `ratoker-jpg/four-elements-phaser`
+Repo: `ratoker-jpg/four-elements-phaser`  
+Updated: 2026-06-03
 
 ---
 
@@ -16,20 +17,25 @@ It tells GPT what to read first and how to avoid starting work without project c
 
 ## Current direction
 
-VISUAL roadmap is the active planning direction.
+There is currently **no active implementation roadmap**.
 
-The previous Phase 2 (sand-terrain-focused) roadmap is archived.
-
-For the next chat, the active entry points are:
+Latest closed cycles:
 
 ```text
-docs/project/VISUAL_ROADMAP.md
-docs/project/VISUAL_SYSTEM_AUDIT.md
-docs/project/PROJECT_STATE.md
-docs/project/CURRENT_NEXT_STEP.md
+VISUAL/UI roadmap slice: CLOSED.
+BLOCKOUT-MVP roadmap slice: CLOSED.
+CAMERA-00 projection contract: IMPLEMENTED / ACCEPTED.
+PROJECTION-01 ground-plane retrofit: IMPLEMENTED / ACCEPTED.
+Arena Sandbox roadmap/audit cycle: CLOSED after PR #184.
 ```
 
-Do not follow `PHASE_2_ROADMAP.md` or `PHASE_2_ROADMAP_AUDIT.md` as active direction. They are archived.
+Default next action:
+
+```text
+Choose the next product direction and create a new roadmap audit before implementation.
+```
+
+Do not continue old VISUAL, BLOCKOUT, CAMERA, PROJECTION or ARENA tasks by inertia.
 
 ---
 
@@ -37,115 +43,117 @@ Do not follow `PHASE_2_ROADMAP.md` or `PHASE_2_ROADMAP_AUDIT.md` as active direc
 
 Before helping with the project, read these files in this order:
 
-1. `docs/project/VISUAL_ROADMAP.md`  
-   Current visual planning direction. Start here.
+```text
+1. docs/project/PROJECT_STATE.md
+2. docs/project/CURRENT_NEXT_STEP.md
+3. docs/project/GPT_WORKFLOW.md
+4. docs/project/GLM_EXECUTOR_RULES.md
+5. docs/project/CAMERA_PROJECTION_CONTRACT.md
+6. docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
+```
 
-2. `docs/project/VISUAL_SYSTEM_AUDIT.md`  
-   Accepted visual audit with staged PR sequence (VISUAL-01 through VISUAL-12).
+Read these only when the task directly touches their area:
 
-3. `docs/project/PROJECT_STATE.md`  
-   Short current operational state.
+```text
+docs/project/BLOCKOUT_MVP_CLOSURE_REPORT.md
+docs/project/BLOCKOUT_MVP_ROADMAP.md
+docs/project/ARENA_SANDBOX_ROADMAP.md
+docs/project/ARENA_SANDBOX_SYSTEM_AUDIT.md
+docs/project/VISUAL_ROADMAP.md
+docs/project/VISUAL_SYSTEM_AUDIT.md
+```
 
-4. `docs/project/CURRENT_NEXT_STEP.md`  
-   What to do next.
-
-5. `docs/project/GPT_WORKFLOW.md`  
-   GPT planner/reviewer workflow rules.
-
-6. `docs/project/GLM_EXECUTOR_RULES.md`  
-   GLM executor rules and Telegram notification requirement.
-
-7. Topic-specific docs only when relevant, for example:
-   - `docs/BUILDING_PLACEMENT_STRATEGY.md` for building PNG placement / anchoring.
-
-Archived docs (read as historical reference only):
-- `docs/project/PHASE_2_ROADMAP.md` — superseded by VISUAL_ROADMAP.md
-- `docs/project/PHASE_2_ROADMAP_AUDIT.md` — superseded by VISUAL_ROADMAP.md
-- `docs/project/TERRAIN_02_QUALITY_AUDIT_AND_PIPELINE.md` — sand pipeline, paused
-- `docs/project/MAPLIFE_01_ASSET_READINESS.md` — rejected
-- `docs/project/NEW_CHAT_HANDOFF.md` — superseded by NEW_CHAT_HANDOFF_VISUAL.md
-- `docs/project/PHASE_1_FREEZE.md` — historical
-
-Archived copies: `docs/project/archive/`
+Archived/historical docs are not active implementation queues unless Denis explicitly reopens them.
 
 ---
 
 ## Current roadmap model
 
 ```text
-roadmap first → huge roadmap audit second → implementation after audit
+roadmap first -> huge/system audit second -> High+/High implementation PRs after accepted audit
 ```
 
-Implementation can use high+/medium/low scoped steps directly if covered by the accepted audit (`VISUAL_SYSTEM_AUDIT.md`). Do not require a new mini-audit for every step that is already covered by the accepted audit.
-
-If a task expands scope, touches gameplay/pathfinding/economy unexpectedly, or combines multiple phases, stop and request approval.
-
----
-
-## Active VISUAL implementation sequence
+Current implementation state:
 
 ```text
-VISUAL-01 — Industrial map visual candidate workflow
-VISUAL-02 — Map rendering prototype spike
-VISUAL-03 — Industrial terrain/platform integration
-VISUAL-04 — Map frame / grounded presentation
-VISUAL-05 — Lower-left start composition
-VISUAL-06 — Resource field visual model design
-VISUAL-07 — HUD layout design doc
-VISUAL-08 — HUD shell implementation
-VISUAL-09 — Command panel/hotkey visual pass
-VISUAL-10 — Main menu visual refresh
-VISUAL-11 — Harvester/builder visual workflow design
-VISUAL-12 — Approved unit visual integration
+No active implementation roadmap.
+No code PR should start until the next roadmap/audit is accepted.
 ```
 
----
-
-## Current next step
+Allowed immediate work:
 
 ```text
-VISUAL-01 — Industrial map visual candidate workflow
+- docs cleanup
+- manual QA planning
+- review of already-open PRs
+- next roadmap/audit creation
 ```
-
-VISUAL-AUDIT-01 is complete. The audit is in `docs/project/VISUAL_SYSTEM_AUDIT.md`. Implementation tasks covered by the audit can proceed without a new mini-audit.
-
-Do not start code work if project rules, current state, or roadmap are unclear.
-
-When context is unclear:
-
-1. stop;
-2. inspect the relevant project docs;
-3. update docs first if the documented direction is stale;
-4. only then continue with implementation.
 
 ---
 
-## Explicitly obsolete
+## Latest Arena result
+
+Arena is now a standalone combat sandbox.
+
+It includes:
+
+```text
+- clean Arena mode with no HQ/base, harvesters, resources, economy HUD or obstacles
+- ArenaMenu as primary UX
+- manual body + weapon + team unit creation
+- projected click placement using CAMERA_PROJECTION_CONTRACT.md
+- ally/enemy model
+- ally controllable, enemy target-only
+- turret target-lock instead of mouse-follow in Arena
+- roster/control panel/help/status messages
+- simple enemy behavior modes: passive, stationary_shooter, chaser, hold_position
+```
+
+Closure source:
+
+```text
+docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
+```
+
+---
+
+## Camera/projection non-negotiables
+
+For any visual/world-space/rendering/asset work, read:
+
+```text
+docs/project/CAMERA_PROJECTION_CONTRACT.md
+```
+
+Rules:
+
+```text
+- The game is fixed isometric / axonometric 2.5D.
+- It is not top-down.
+- It is not side-view.
+- Camera pan + zoom are allowed.
+- Camera rotation is forbidden.
+- Projection formula: screen = origin + x*basisX + y*basisY + z*basisZ.
+- Ground markers/rings/shadows/ranges/footprints must be projected onto the ground plane.
+- Do not draw ground-space concepts as top-down screen circles.
+```
+
+---
+
+## Explicitly obsolete as active queues
 
 ```text
 - Phase 2 roadmap as active direction
 - Sand terrain as primary visual direction
 - MAPLIFE #120 continuation
 - MAPLIFE desert decor direction
+- VISUAL implementation queue as active queue
+- BLOCKOUT-MVP implementation queue as active queue
+- Arena Sandbox implementation queue as active queue
 - Mass asset generation directly into repo without visual approval
 - Fixing bad art by code-only patches
 - Four-biome system now
 - Copying StarCraft assets/UI exactly
-```
-
----
-
-## Important project decisions
-
-```text
-- One strong primary biome first: industrial platform / mining battlefield
-- Map must feel grounded on a surface, not floating
-- Playable edges should eventually feel irregular/organic, not a perfect board
-- HQ/start zone should move to lower-left later (VISUAL-05)
-- HUD target: bottom-left minimap, bottom-center selected info, bottom-right commands/production/hotkeys
-- Old successful main menu composition should be preserved, but background/theme updated
-- Harvester and Builder visuals will be refreshed later (VISUAL-11/12)
-- Tank/Wasp combat 3D asset direction should not be restyled by default
 ```
 
 ---
@@ -158,12 +166,14 @@ GPT is the project coordinator and reviewer.
 
 GPT should:
 
-- keep project context consistent;
-- challenge weak, manual, or non-systemic approaches;
-- prepare compact GLM tasks;
-- review GLM/Codex PRs;
-- protect roadmap and architecture boundaries;
-- update documentation first when the rules or direction are stale.
+```text
+- keep project context consistent
+- challenge weak, manual or non-systemic approaches
+- prepare compact GLM tasks
+- review GLM/Codex PRs before merge
+- protect roadmap and architecture boundaries
+- update documentation first when rules or direction are stale
+```
 
 ### GLM role
 
@@ -171,13 +181,15 @@ GLM is an executor.
 
 GLM should:
 
-- follow a concrete task scope;
-- read `GLM_EXECUTOR_RULES.md`;
-- read only the files listed in the task's `Read first` section;
-- open PRs but not merge them;
-- run validation;
-- send Telegram notification at completion if configured;
-- not plan roadmap unless explicitly asked.
+```text
+- follow a concrete task scope
+- read GLM_EXECUTOR_RULES.md
+- read only files listed in the task's Read first section
+- open PRs but not merge them
+- run validation
+- send Telegram notification at completion if configured
+- not plan roadmap unless explicitly asked
+```
 
 ### Denis role
 
@@ -185,12 +197,14 @@ Denis is the project owner.
 
 Denis decides:
 
-- product direction;
-- economy and gameplay design;
-- whether a PR is merged;
-- whether roadmap changes are accepted.
+```text
+- product direction
+- economy and gameplay design
+- whether a PR is merged
+- whether roadmap changes are accepted
+```
 
-Important: new product ideas from Denis still go through roadmap discipline.
+New product ideas still go through roadmap discipline.
 
 ---
 
@@ -199,20 +213,17 @@ Important: new product ideas from Denis still go through roadmap discipline.
 When GPT prepares GLM tasks or fixup prompts, include:
 
 ```text
-Telegram notification:
-At task completion, send Telegram notification using /home/z/my-project/.telegram-notify.json if available.
+Telegram:
+After completing the task, send Denis a Telegram notification.
+You already know where to send it.
 Do not expose token. Missing/invalid config or send failure must not block the task.
 ```
-
-This is repeated here because small fixup prompts may not always include the full executor rules context.
 
 ---
 
 ## System-first principle
 
 Avoid manual tuning as a production strategy.
-
-Manual values, visual tuners, and one-off offsets are allowed only as diagnostics or rare exceptions.
 
 Preferred approach:
 
@@ -228,22 +239,23 @@ If a task starts turning into repeated hand-tuned coordinates, offsets, anchors,
 
 Roadmap can change, but not silently.
 
-Any roadmap change must be explicit:
-
 ```text
 new idea -> roadmap update -> audit/design update if needed -> then implementation
 ```
 
-Current active model:
+If context is unclear:
 
 ```text
-VISUAL_ROADMAP.md -> VISUAL_SYSTEM_AUDIT.md -> staged implementation (VISUAL-01..12)
+1. stop
+2. inspect the relevant project docs
+3. update docs first if the documented direction is stale
+4. only then continue with implementation
 ```
 
 ---
 
 ## After reading this file
 
-Read `VISUAL_ROADMAP.md`, `VISUAL_SYSTEM_AUDIT.md`, `PROJECT_STATE.md`, and `CURRENT_NEXT_STEP.md`.
+Read `PROJECT_STATE.md`, `CURRENT_NEXT_STEP.md`, `GPT_WORKFLOW.md`, `GLM_EXECUTOR_RULES.md`, `CAMERA_PROJECTION_CONTRACT.md`, and `ARENA_SANDBOX_CLOSURE_REPORT.md`.
 
 Only after that, continue the project conversation.

@@ -1,9 +1,10 @@
 # GLM_EXECUTOR_RULES.md
 
-Status: accepted draft v0.3  
+Status: accepted executor rules v0.4  
 Audience: GLM / executor agent  
 Project: Four Elements Phaser  
-Repo: `ratoker-jpg/four-elements-phaser`
+Repo: `ratoker-jpg/four-elements-phaser`  
+Updated: 2026-06-03
 
 ---
 
@@ -13,9 +14,9 @@ This file defines baseline execution rules for GLM.
 
 GLM is an executor, not the project planner.
 
-GLM should follow the task given by GPT/Denis, stay inside scope, validate changes, open a PR, and not merge it.
+GLM should follow the task given by GPT/Denis, stay inside scope, validate changes, open a PR, send Telegram notification when configured, and not merge it.
 
-This file does not contain roadmap or current phase context.
+This file does not replace roadmap/current phase context. If a task needs roadmap context, the task must explicitly list the relevant roadmap/audit docs in `Read first`.
 
 ---
 
@@ -28,11 +29,10 @@ Renderer: WebGL-only
 Language: TypeScript
 Build: Vite
 Tests: Vitest
-Map: isometric 2:1
-Tile: 76x38
-Formula:
-  x = (tx - ty) * 38
-  y = (tx + ty) * 19
+Camera: fixed isometric / axonometric 2.5D
+Camera pan + zoom: allowed
+Camera rotation: forbidden
+Projection: screen = origin + x*basisX + y*basisY + z*basisZ
 ```
 
 Architecture layers:
@@ -50,47 +50,59 @@ State layer must not import Phaser.
 Render layer reads state and renders it.
 Render layer must not become gameplay logic.
 DOM UI must stay separate from Phaser-specific rendering logic.
+GameScene should remain orchestration-only.
 ```
 
 ---
 
-## 3. Executor role
+## 3. Current operational baseline
 
-GLM must:
+As of 2026-06-03:
 
-- follow the task scope;
-- read only required files;
-- avoid broad audits unless asked;
-- implement only approved changes;
-- run validation before commit;
-- open PR into `main`;
-- not merge PR;
-- report exactly what changed and what did not change.
+```text
+VISUAL/UI roadmap slice: CLOSED.
+BLOCKOUT-MVP roadmap slice: CLOSED.
+CAMERA-00 projection contract: IMPLEMENTED / ACCEPTED.
+PROJECTION-01 ground-plane retrofit: IMPLEMENTED / ACCEPTED.
+Arena Sandbox roadmap/audit cycle: CLOSED after PR #184.
+```
 
-GLM must not:
+Default rule:
 
-- redesign roadmap;
-- add extra features;
-- widen scope without asking;
-- silently change architecture;
-- touch unrelated systems;
-- merge PRs.
+```text
+No new implementation without an accepted roadmap/audit or an explicit scoped task from Denis/GPT.
+Do not continue closed roadmaps by inertia.
+```
 
 ---
 
-## 4. Session continuity
+## 4. Executor role
 
-This file is designed to survive context resets.
+GLM must:
 
-When a new GLM session starts during active work:
+```text
+- follow the task scope
+- read only required files
+- avoid broad audits unless asked
+- implement only approved changes
+- run validation before reporting complete
+- open PR into main
+- not merge PR
+- report exactly what changed and what did not change
+- send Telegram notification at task completion if configured
+```
 
-1. Read this file.
-2. Check the current git branch and status.
-3. Check recent commits and open PRs only if needed for the task.
-4. Do not restart completed work.
-5. Resume from the latest task/PR state.
-6. If unsure what was already done, check PR bodies and commit messages.
-7. If still unclear, stop and report instead of guessing.
+GLM must not:
+
+```text
+- redesign roadmap
+- add extra features
+- widen scope without asking
+- silently change architecture
+- touch unrelated systems
+- merge PRs
+- continue closed roadmap items by inertia
+```
 
 ---
 
@@ -109,23 +121,14 @@ Do not scan the whole repo unless the task explicitly says audit/broad inspectio
 Allowed extra reading:
 
 ```text
-Read an additional file only if it is needed to verify a direct interface or contract.
+Read an additional file only if needed to verify a direct interface or contract.
 Mention why it was read in the report.
 ```
 
-Roadmap/current-state rule:
+For visual/world-space/rendering/asset tasks, the task should list and GLM must read:
 
 ```text
-Do not read roadmap/current-state docs for planning purposes during IMPLEMENTATION ONLY tasks.
-Reading them is allowed only if the task explicitly requires roadmap context
-or if a direct contract/interface check requires it.
-```
-
-Forbidden behavior:
-
-```text
-Do not perform a broad audit during IMPLEMENTATION ONLY tasks.
-Do not redesign the task scope.
+docs/project/CAMERA_PROJECTION_CONTRACT.md
 ```
 
 ---
@@ -134,25 +137,15 @@ Do not redesign the task scope.
 
 ### AUDIT REPORT ONLY
 
-Use when the required output is a Markdown report.
+Use when the required output is a Markdown report in chat or a docs-only audit file.
 
 Rules:
 
 ```text
-Do not edit files.
-Do not commit.
-Do not open PR.
-Do not create branch.
-Return report only.
+No runtime/code/assets changes unless explicitly requested as docs-only PR.
+If mode says report-only in chat: do not edit files, do not commit, do not open PR.
+If mode says docs-only audit PR: edit only the requested docs file(s), open PR, do not merge.
 ```
-
-Output:
-
-```text
-Markdown report file or full Markdown content in chat.
-```
-
----
 
 ### PHASE 1 AUDIT ONLY
 
@@ -161,11 +154,9 @@ Use when implementation needs a scoped audit first.
 Rules:
 
 ```text
-Do not edit files.
-Do not commit.
-Do not open PR.
-Do not create branch unless explicitly required for audit.
-Return findings and recommendation.
+Do not implement code.
+Do not touch runtime/assets.
+Return findings and recommendation, or create the requested docs-only audit PR.
 ```
 
 Output should include:
@@ -180,11 +171,9 @@ manual QA plan
 what is out of scope
 ```
 
----
-
 ### IMPLEMENTATION ONLY
 
-Use when the audit/design is already accepted.
+Use when audit/design is already accepted.
 
 Rules:
 
@@ -196,7 +185,18 @@ Open PR into main.
 Do not merge.
 ```
 
----
+### FIXUP ONLY
+
+Use for blockers inside an existing PR.
+
+Rules:
+
+```text
+Fix only the blocker.
+Do not expand into next roadmap step.
+Do not perform a new audit.
+Keep the PR inside its original scope.
+```
 
 ### DOCS ONLY
 
@@ -210,6 +210,7 @@ No code.
 No assets.
 No gameplay changes.
 No runtime behavior changes.
+No dependency changes.
 ```
 
 ---
@@ -222,22 +223,10 @@ Branch naming:
 {task-id}-{short-description}
 ```
 
-Example:
-
-```text
-build-anchor-01-building-placement-meta
-```
-
 Commit message:
 
 ```text
 {TASK-ID}: {description}
-```
-
-Example:
-
-```text
-BUILD-ANCHOR-01: Add building placement metadata model
 ```
 
 PR target:
@@ -248,42 +237,24 @@ main
 
 GLM must not merge PR.
 
-### GitHub tooling
+Do not assume `gh` CLI is installed. If unavailable, use git + GitHub API / curl / available connector tooling.
 
-Do not assume `gh` CLI is installed.
-
-If `gh` is unavailable:
-
-```text
-Use git + GitHub API / curl / available connector tooling.
-```
-
-Authentication:
-
-```text
-PAT may be provided in task description or environment.
-Never commit PAT into code, docs, logs, or PR body.
-```
+Never commit tokens into code, docs, logs or PR body.
 
 ---
 
 ## 8. Required validation
 
-Preferred command:
+For implementation PRs, run:
 
 ```bash
-npm run validate
-```
-
-If `npm run validate` does not exist, run:
-
-```bash
-npm test
 npm run typecheck
+npm run test
 npm run build
+npm run qa:smoke
 ```
 
-If validation cannot run, explain exactly why.
+If a command cannot run, explain exactly why.
 
 Do not claim validation passed if it did not run.
 
@@ -291,6 +262,12 @@ If PowerShell blocks `npm.ps1`, use:
 
 ```bash
 npm.cmd
+```
+
+For docs-only PRs, runtime validation is not required, but the PR body must say:
+
+```text
+No code, assets, gameplay, runtime behavior or dependency changes.
 ```
 
 ---
@@ -310,19 +287,17 @@ Rollback plan, if relevant
 Next step
 ```
 
-For visual/runtime PRs, include manual QA checklist.
-
-For docs-only PRs, state clearly:
+For docs-only PRs, include:
 
 ```text
-No code, assets, gameplay, runtime behavior, or dependencies changed.
+No code, assets, gameplay, runtime behavior, dependencies or package files changed.
 ```
 
 ---
 
 ## 10. Known pitfalls
 
-These are known recurring mistakes. Avoid them.
+Avoid recurring mistakes:
 
 ```text
 BUILDING_CONFIG is Partial<Record<...>> — always guard access.
@@ -334,101 +309,34 @@ AlphaBounds right/bottom are exclusive bounds, like array slices.
 Phaser textures must be loaded in PreloadScene before use.
 Missing texture should produce clear console.error, not silent fallback.
 tileToScreen returns a plain { x, y }, not a Phaser Point.
-BUILDING_KEY_SUFFIXES maps hyphenated building types to underscore key suffixes.
 Do not read PNG pixels at runtime.
 ```
 
 ---
 
-## 11. Code conventions
+## 11. Camera/projection rules
 
-Faction order:
+For any visual/world-space/rendering/asset task:
 
 ```text
-cyan
-green
-yellow
-purple
+Read docs/project/CAMERA_PROJECTION_CONTRACT.md.
 ```
 
-Asset key style:
+Non-negotiables:
 
 ```text
-building_cyan_separator
-building_cyan_raw_storage
-building_cyan_power_plant
-```
-
-State building type style:
-
-```text
-separator
-raw-storage
-matter-storage
-power-plant
-command-relay
-units-factory
-```
-
-Disk filename style:
-
-```text
-raw_storage.png
-matter_storage.png
-power_plant.png
-command_relay.png
-units_factory.png
-```
-
-Direction rows:
-
-```text
-E=0
-SE=1
-S=2
-SW=3
-W=4
-NW=5
-N=6
-NE=7
-```
-
-Builder movement:
-
-```text
-ARRIVAL_THRESHOLD ~= 0.03
-Do not change unless task explicitly says so.
+- fixed isometric / axonometric 2.5D camera
+- not top-down
+- not side-view
+- pan + zoom allowed
+- rotation forbidden
+- ground-space markers/rings/shadows/ranges/footprints must be projected onto the ground plane
+- no top-down screen circles for ground-space concepts
 ```
 
 ---
 
-## 12. Testing conventions
-
-Test framework:
-
-```text
-Vitest
-```
-
-Test location:
-
-```text
-src/__tests__/{module}.test.ts
-```
-
-Rules:
-
-```text
-Pure TS state/helper modules should have unit tests.
-Avoid brittle Phaser rendering tests.
-Renderer changes are validated by typecheck/build/manual preview.
-If helper logic is added, add pure TS tests.
-Test count should not unexpectedly drop.
-```
-
----
-
-## 13. Architecture boundaries
+## 12. Architecture boundaries
 
 Do not violate unless task explicitly says so.
 
@@ -457,7 +365,7 @@ Do not reuse tank socket logic for buildings.
 
 ---
 
-## 14. Default hard bans
+## 13. Default hard bans
 
 Without explicit task permission, do not:
 
@@ -465,15 +373,16 @@ Without explicit task permission, do not:
 change Phaser version
 add Rex dependencies
 add Canvas fallback rendering
-touch Wasp/Smoky modular tank logic
+use four-elements-next as implementation baseline
+copy old TypeScript implementation
 change builder ARRIVAL_THRESHOLD
 read PNG pixels at runtime
-add combat
-add save/load
-add production/factory UI
-change economy
-add new building types/configs
-change roadmap
+add gameplay outside accepted roadmap/audit
+add save/load outside accepted roadmap/audit
+add production/factory UI outside accepted roadmap/audit
+change economy outside accepted roadmap/audit
+add new building types/configs outside accepted roadmap/audit
+continue closed Arena/VISUAL/BLOCKOUT roadmap items by inertia
 merge PR
 continue sand terrain as primary visual direction
 continue MAPLIFE #120 / desert decor direction
@@ -481,11 +390,12 @@ mass-generate assets directly into repo without visual approval
 fix bad art by code-only patches
 build a four-biome system now
 copy StarCraft assets/UI exactly
+draw ground-space visuals as top-down screen circles
 ```
 
 ---
 
-## 15. Reference repo policy
+## 14. Reference repo policy
 
 Reference / donor repo:
 
@@ -499,26 +409,12 @@ Rules:
 Do not copy old Next code directly.
 Use Next as reference, not source of truth.
 Adapt concepts to Phaser architecture.
-Only inspect Next if task explicitly asks for reference behavior
-or if implementation needs direct comparison.
-```
-
-Useful reference areas when explicitly needed:
-
-```text
-economy
-building costs
-resource names
-storage limits
-production rules
-asset manifests
-sprite/profile ideas
-devtools/diagnostic ideas
+Only inspect Next if task explicitly asks for reference behavior or direct comparison.
 ```
 
 ---
 
-## 16. Speed rules
+## 15. Speed rules
 
 If task says `model-only`:
 
@@ -541,6 +437,7 @@ If task says `docs-only`:
 ```text
 Do not edit code.
 Do not edit assets.
+Do not edit package files.
 ```
 
 If task says `IMPLEMENTATION ONLY`:
@@ -560,13 +457,13 @@ Read it only if needed to verify a direct contract, and mention why.
 Future-proofing rule:
 
 ```text
-Do not add exports, fields, abstractions, or helpers that no consumer needs yet,
+Do not add exports, fields, abstractions or helpers that no consumer needs yet,
 unless the accepted design/model explicitly requires them.
 ```
 
 ---
 
-## 17. What to report back
+## 16. What to report back
 
 After completing a task, report:
 
@@ -582,37 +479,25 @@ next recommended step
 
 ### Telegram notification
 
-After completing a task (successful or blocked), send a brief notification via Telegram if the config file exists:
+After completing a task, send Denis a brief Telegram notification if available.
+
+Use the configured project notification mechanism. Do not expose tokens.
+
+Message format:
 
 ```text
-Config file: /home/z/my-project/.telegram-notify.json
-Format: { "bot_token": "...", "chat_id": 123456 }
+task name
+PR link if any
+short summary
+validation status
+whether GPT review is needed
 ```
 
-Rules:
-
-```text
-Read the config file at task completion.
-If the file exists and is valid, send a Telegram message.
-Message format: brief status, PR number, validation result.
-Do NOT include the bot token in commits, PR body, logs, or code.
-If the config file is missing or invalid, skip silently — do not block the task.
-```
-
-If blocked, report:
-
-```text
-what blocked execution
-what was tried
-exact error
-what is safe next
-```
-
-Do not hide failed validation.
+If notification config is missing/invalid or sending fails, skip silently and do not block the task.
 
 ---
 
-## 18. Stop conditions
+## 17. Stop conditions
 
 Stop and report instead of continuing if:
 
@@ -625,52 +510,42 @@ branch/repo state is unexpected
 task needs roadmap/product decision
 the requested approach becomes manual per-object calibration
 PR body would not match diff
+docs/current state contradict the task
 ```
 
 Do not improvise around these issues.
 
 ---
 
-## 19. Minimal principle
+## 18. Minimal principle
 
 Do the smallest safe change that satisfies the task.
 
+```text
 Do not improve unrelated code.
-
 Do not add polish unless scoped.
-
 Do not add new systems unless scoped.
-
 Do not "helpfully" expand the PR.
+```
 
 ---
 
-## 20. Repo baseline and Phaser version verification
+## 19. Repo baseline and Phaser version verification
 
 Before performing audits or engine API work, GLM must:
 
 ```text
-1. Confirm the active repo is ratoker-jpg/four-elements-phaser.
-2. Confirm package.json has phaser 4.1.0.
+1. Confirm active repo is ratoker-jpg/four-elements-phaser.
+2. Confirm package.json has Phaser 4.1.0 when Phaser API work is involved.
 ```
 
 Critical rules:
 
 ```text
-- If paths mention four-elements-next while the task says four-elements-phaser,
-  stop and report the mismatch. Do not silently switch repo baseline.
-- Do not use the old Phaser 3.90 clarification as source-of-truth.
-- For Phaser API/engine questions, the current source-of-truth audit is
-  docs/project/PHASER4_AUDIT_CLARIFICATION_RETRY.md.
-- For VISUAL tasks, the accepted audit is docs/project/VISUAL_SYSTEM_AUDIT.md.
-- If a VISUAL implementation task (VISUAL-01 through VISUAL-12) is inside the
-  audit's scope, use the audit directly. Do not perform a new broad audit.
+- If paths mention four-elements-next while task says four-elements-phaser, stop and report mismatch.
+- Do not use old Phaser 3.90 clarification as source-of-truth.
+- For Phaser API/engine questions, use current Phaser 4 docs/typings.
+- For VISUAL tasks, old VISUAL_SYSTEM_AUDIT.md is historical unless explicitly reopened.
 - Audit files shared in chat are not source-of-truth until committed into docs/project/.
-- Before any visual/world-space/rendering/asset task, read
-  docs/project/CAMERA_PROJECTION_CONTRACT.md.
-- Visual tasks must not assume top-down camera.
-- Any ground marker must be projected onto the isometric ground plane.
-- Any sprite/asset prompt must say fixed isometric/axonometric 2.5D camera
-  using camera projection contract.
-- Any shadow/selection/range/footprint task must use ground-plane projection.
+- Before any visual/world-space/rendering/asset task, read CAMERA_PROJECTION_CONTRACT.md.
 ```
