@@ -767,6 +767,195 @@ describe('computeProjectedBarrelTipScreenAtZ', () => {
   });
 });
 
+// ─── PROJECTION-01 fixup #3: body recoil impulse barrel alignment tests ────
+
+describe('PROJECTION-01 fixup #3: body recoil impulse barrel alignment', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+  });
+
+  /** Helper: manually compute barrel tip screen at Z with body impulse,
+   *  exactly matching the renderer's cx/cy computation. */
+  function manuallyComputeBarrelTipAtZWithImpulse(
+    vehicle: ReturnType<typeof createBlockoutVehicle>,
+    offset: { x: number; y: number },
+  ): { x: number; y: number } {
+    const geom = computeProjectedBlockoutVehicleGeometry(vehicle, offset);
+    // Replicate renderer's impulse-shifted body position
+    const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
+    const bodyAngle = vehicle.bodyAngle;
+    const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
+    const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
+    const cx = vehicle.worldX + offset.x + bodyImpulseX;
+    const cy = vehicle.worldY + offset.y + bodyImpulseY;
+    const tilePos = unprojectScreenToGround(cx, cy, offset);
+    const mountWorldX = tilePos.x + geom.mountTileOffset.dx;
+    const mountWorldY = tilePos.y + geom.mountTileOffset.dy;
+    const turretCosA = Math.cos(geom.effectiveTurretAngle);
+    const turretSinA = Math.sin(geom.effectiveTurretAngle);
+    const barrelTipTileX = mountWorldX + (geom.turretHalfW + geom.effectiveBarrelLength) * turretCosA;
+    const barrelTipTileY = mountWorldY + (geom.turretHalfW + geom.effectiveBarrelLength) * turretSinA;
+    return projectWorldPoint(barrelTipTileX, barrelTipTileY, BLOCKOUT_BARREL_Z, offset);
+  }
+
+  it('rendered barrel tip equals fire/damage barrel tip when recoilBodyOffset > 0 (center mount - Hunter)', () => {
+    const hunter = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5, 0);
+    hunter.recoilBodyOffset = 8; // Simulate active recoil
+    const offset = { x: 100, y: 200 };
+
+    const barrelTipFromHelper = computeProjectedBarrelTipScreenAtZ(hunter, offset);
+    const barrelTipFromGeom = computeProjectedBlockoutVehicleGeometry(hunter, offset).barrelTipScreen;
+    const expectedScreen = manuallyComputeBarrelTipAtZWithImpulse(hunter, offset);
+
+    // Helper and geometry must agree
+    expect(barrelTipFromHelper.x).toBeCloseTo(expectedScreen.x, 8);
+    expect(barrelTipFromHelper.y).toBeCloseTo(expectedScreen.y, 8);
+    // Geometry's barrelTipScreen must match
+    expect(barrelTipFromGeom.x).toBeCloseTo(expectedScreen.x, 8);
+    expect(barrelTipFromGeom.y).toBeCloseTo(expectedScreen.y, 8);
+  });
+
+  it('rendered barrel tip equals fire/damage barrel tip when recoilBodyOffset > 0 (rear mount - Wasp)', () => {
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    wasp.recoilBodyOffset = 10;
+    const offset = { x: 100, y: 200 };
+
+    const barrelTipFromHelper = computeProjectedBarrelTipScreenAtZ(wasp, offset);
+    const barrelTipFromGeom = computeProjectedBlockoutVehicleGeometry(wasp, offset).barrelTipScreen;
+    const expectedScreen = manuallyComputeBarrelTipAtZWithImpulse(wasp, offset);
+
+    expect(barrelTipFromHelper.x).toBeCloseTo(expectedScreen.x, 8);
+    expect(barrelTipFromHelper.y).toBeCloseTo(expectedScreen.y, 8);
+    expect(barrelTipFromGeom.x).toBeCloseTo(expectedScreen.x, 8);
+    expect(barrelTipFromGeom.y).toBeCloseTo(expectedScreen.y, 8);
+  });
+
+  it('rendered barrel tip equals fire/damage barrel tip when recoilBodyOffset > 0 (front_center mount - Mammoth)', () => {
+    const mammoth = createBlockoutVehicle('mammoth', 'thunder', 'cyan', 5, 5, 0);
+    mammoth.recoilBodyOffset = 6;
+    const offset = { x: 100, y: 200 };
+
+    const barrelTipFromHelper = computeProjectedBarrelTipScreenAtZ(mammoth, offset);
+    const barrelTipFromGeom = computeProjectedBlockoutVehicleGeometry(mammoth, offset).barrelTipScreen;
+    const expectedScreen = manuallyComputeBarrelTipAtZWithImpulse(mammoth, offset);
+
+    expect(barrelTipFromHelper.x).toBeCloseTo(expectedScreen.x, 8);
+    expect(barrelTipFromHelper.y).toBeCloseTo(expectedScreen.y, 8);
+    expect(barrelTipFromGeom.x).toBeCloseTo(expectedScreen.x, 8);
+    expect(barrelTipFromGeom.y).toBeCloseTo(expectedScreen.y, 8);
+  });
+
+  it('barrel tip with recoil differs from barrel tip without recoil', () => {
+    // Use non-zero bodyAngle so impulse shifts both screen X and Y
+    // (at bodyAngle=0, screen X-only shifts unproject/reproject as X-only)
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, Math.PI / 4);
+    const offset = { x: 100, y: 200 };
+
+    const tipNoRecoil = computeProjectedBarrelTipScreenAtZ(wasp, offset);
+
+    wasp.recoilBodyOffset = 10;
+    const tipWithRecoil = computeProjectedBarrelTipScreenAtZ(wasp, offset);
+
+    // Body recoil shifts the barrel tip position (at least one coordinate)
+    const dx = Math.abs(tipWithRecoil.x - tipNoRecoil.x);
+    const dy = Math.abs(tipWithRecoil.y - tipNoRecoil.y);
+    expect(dx + dy).toBeGreaterThan(0.01);
+  });
+
+  it('barrelTipScreen equals computeProjectedBarrelTipScreenAtZ (single source of truth)', () => {
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    wasp.recoilBodyOffset = 8;
+    wasp.recoilBarrelOffset = 3;
+    wasp.recoilTurretOffset = 0.05;
+    const offset = { x: 100, y: 200 };
+
+    const fromGeom = computeProjectedBlockoutVehicleGeometry(wasp, offset).barrelTipScreen;
+    const fromHelper = computeProjectedBarrelTipScreenAtZ(wasp, offset);
+
+    expect(fromGeom.x).toBeCloseTo(fromHelper.x, 10);
+    expect(fromGeom.y).toBeCloseTo(fromHelper.y, 10);
+  });
+
+  it('barrelStartScreen is consistent with mount and turret geometry', () => {
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    wasp.recoilBodyOffset = 8;
+    const offset = { x: 100, y: 200 };
+
+    const geom = computeProjectedBlockoutVehicleGeometry(wasp, offset);
+
+    // Manually compute barrel start (turret front edge at barrelZ with impulse)
+    const recoilBodyOffset = wasp.recoilBodyOffset ?? 0;
+    const bodyAngle = wasp.bodyAngle;
+    const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
+    const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
+    const cx = wasp.worldX + offset.x + bodyImpulseX;
+    const cy = wasp.worldY + offset.y + bodyImpulseY;
+    const tilePos = unprojectScreenToGround(cx, cy, offset);
+    const mountWorldX = tilePos.x + geom.mountTileOffset.dx;
+    const mountWorldY = tilePos.y + geom.mountTileOffset.dy;
+    const turretCosA = Math.cos(geom.effectiveTurretAngle);
+    const turretSinA = Math.sin(geom.effectiveTurretAngle);
+    const barrelStartTileX = mountWorldX + geom.turretHalfW * turretCosA;
+    const barrelStartTileY = mountWorldY + geom.turretHalfW * turretSinA;
+    const expected = projectWorldPoint(barrelStartTileX, barrelStartTileY, BLOCKOUT_BARREL_Z, offset);
+
+    expect(geom.barrelStartScreen.x).toBeCloseTo(expected.x, 8);
+    expect(geom.barrelStartScreen.y).toBeCloseTo(expected.y, 8);
+  });
+
+  it('turret mount screen includes body recoil impulse', () => {
+    // Use non-zero bodyAngle so impulse shifts both screen X and Y
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, Math.PI / 4);
+    const offset = { x: 100, y: 200 };
+
+    const mountNoRecoil = computeProjectedTurretMountScreen(wasp, offset);
+
+    wasp.recoilBodyOffset = 10;
+    const mountWithRecoil = computeProjectedTurretMountScreen(wasp, offset);
+
+    // Body recoil shifts the turret mount position (at least one coordinate)
+    const dx = Math.abs(mountWithRecoil.x - mountNoRecoil.x);
+    const dy = Math.abs(mountWithRecoil.y - mountNoRecoil.y);
+    expect(dx + dy).toBeGreaterThan(0.01);
+  });
+
+  it('no mutation of CAMERA_PROJECTION constants when recoilBodyOffset > 0', () => {
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    wasp.recoilBodyOffset = 10;
+    const offset = { x: 100, y: 200 };
+
+    const bxBefore = { x: basisX.x, y: basisX.y };
+    const byBefore = { x: basisY.x, y: basisY.y };
+    const bzBefore = { x: basisZ.x, y: basisZ.y };
+
+    computeProjectedTurretMountScreen(wasp, offset);
+    computeProjectedBarrelTipScreen(wasp, offset);
+    computeProjectedBarrelTipScreenAtZ(wasp, offset);
+    computeProjectedBlockoutVehicleGeometry(wasp, offset);
+
+    expect(basisX.x).toBe(bxBefore.x);
+    expect(basisX.y).toBe(bxBefore.y);
+    expect(basisY.x).toBe(byBefore.x);
+    expect(basisY.y).toBe(byBefore.y);
+    expect(basisZ.x).toBe(bzBefore.x);
+    expect(basisZ.y).toBe(bzBefore.y);
+  });
+
+  it('Z alignment: barrel tip at Z is above ground barrel tip when recoilBodyOffset > 0', () => {
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    wasp.recoilBodyOffset = 8;
+    const offset = { x: 100, y: 200 };
+
+    const barrelTipGround = computeProjectedBarrelTipScreen(wasp, offset);
+    const barrelTipAtZ = computeProjectedBarrelTipScreenAtZ(wasp, offset);
+
+    // Z offset shifts Y upward (negative Y direction on screen)
+    expect(barrelTipAtZ.y).toBeLessThan(barrelTipGround.y);
+    // X should be the same (basisZ.x = 0)
+    expect(barrelTipAtZ.x).toBeCloseTo(barrelTipGround.x, 8);
+  });
+});
+
 // ─── PROJECTION-01 fixup #2: Z constant integrity tests ─────────────────
 
 describe('BLOCKOUT Z constants', () => {

@@ -191,6 +191,32 @@ export const BLOCKOUT_BARREL_Z = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFF
  * Both the renderer and input controller add this offset to the body
  * tile center to get the absolute mount tile position.
  */
+/**
+ * Compute body screen position including recoil body impulse.
+ *
+ * PROJECTION-01 fixup #3: Body recoil impulse shifts the visual/logical
+ * body position, affecting turret mount, barrel tip, and all derived
+ * positions. All projected geometry helpers use this to ensure visual
+ * and logical positions agree when the body recoils.
+ *
+ * The impulse is applied in screen-pixel space (backward along body
+ * angle) BEFORE unprojecting to tile space, exactly matching the
+ * renderer's cx/cy computation.
+ */
+function computeBodyScreenWithImpulse(
+  vehicle: BlockoutVehicleState,
+  offset: IsoPoint,
+): { x: number; y: number } {
+  const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
+  const bodyAngle = vehicle.bodyAngle;
+  const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
+  const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
+  return {
+    x: vehicle.worldX + offset.x + bodyImpulseX,
+    y: vehicle.worldY + offset.y + bodyImpulseY,
+  };
+}
+
 function computeMountTileOffset(vehicle: BlockoutVehicleState): { dx: number; dy: number } {
   const bodyProfile = getBodyProfile(vehicle.bodyId);
   const bodySize = bodyProfile ? SHAPE_SIZE_MAP[bodyProfile.blockoutShape] : DEFAULT_BODY_SIZE;
@@ -233,9 +259,10 @@ export function computeProjectedTurretMountScreen(
   vehicle: BlockoutVehicleState,
   offset: IsoPoint,
 ): { x: number; y: number } {
-  const bodyScreenX = vehicle.worldX + offset.x;
-  const bodyScreenY = vehicle.worldY + offset.y;
-  const tilePos = unprojectScreenToGround(bodyScreenX, bodyScreenY, offset);
+  // PROJECTION-01 fixup #3: Include body recoil impulse so visual
+  // turret mount equals logical turret mount during recoil
+  const bodyScreen = computeBodyScreenWithImpulse(vehicle, offset);
+  const tilePos = unprojectScreenToGround(bodyScreen.x, bodyScreen.y, offset);
   const mountOff = computeMountTileOffset(vehicle);
   return projectGroundPoint(tilePos.x + mountOff.dx, tilePos.y + mountOff.dy, offset);
 }
@@ -267,9 +294,9 @@ export function computeProjectedBarrelTipScreen(
   const weaponProfile = getWeaponProfile(vehicle.weaponId);
   const barrelLength = weaponProfile ? weaponProfile.blockoutBarrelLength : 12;
 
-  const bodyScreenX = vehicle.worldX + offset.x;
-  const bodyScreenY = vehicle.worldY + offset.y;
-  const tilePos = unprojectScreenToGround(bodyScreenX, bodyScreenY, offset);
+  // PROJECTION-01 fixup #3: Include body recoil impulse
+  const bodyScreen = computeBodyScreenWithImpulse(vehicle, offset);
+  const tilePos = unprojectScreenToGround(bodyScreen.x, bodyScreen.y, offset);
   const mountOff = computeMountTileOffset(vehicle);
   const mountTileX = tilePos.x + mountOff.dx;
   const mountTileY = tilePos.y + mountOff.dy;
@@ -320,9 +347,9 @@ export function computeProjectedBarrelTipScreenAtZ(
   const weaponProfile = getWeaponProfile(vehicle.weaponId);
   const barrelLength = weaponProfile ? weaponProfile.blockoutBarrelLength : 12;
 
-  const bodyScreenX = vehicle.worldX + offset.x;
-  const bodyScreenY = vehicle.worldY + offset.y;
-  const tilePos = unprojectScreenToGround(bodyScreenX, bodyScreenY, offset);
+  // PROJECTION-01 fixup #3: Include body recoil impulse
+  const bodyScreen = computeBodyScreenWithImpulse(vehicle, offset);
+  const tilePos = unprojectScreenToGround(bodyScreen.x, bodyScreen.y, offset);
   const mountOff = computeMountTileOffset(vehicle);
   const mountTileX = tilePos.x + mountOff.dx;
   const mountTileY = tilePos.y + mountOff.dy;
@@ -360,7 +387,7 @@ export function computeProjectedBarrelTipScreenAtZ(
 export interface ProjectedBlockoutVehicleGeometry {
   /** Mount offset in tile space, rotated by body angle. */
   mountTileOffset: { dx: number; dy: number };
-  /** Body tile center (unprojected from vehicle.worldX/worldY + offset). */
+  /** Body tile center (unprojected from vehicle.worldX/worldY + offset, without body recoil impulse). */
   bodyTileCenter: { x: number; y: number };
   /** Body half-width in tile units. */
   halfW: number;
@@ -378,6 +405,13 @@ export interface ProjectedBlockoutVehicleGeometry {
   effectiveTurretAngle: number;
   /** Barrel Z level for rendering and fire/damage origin. PROJECTION-01 fixup #2. */
   barrelZ: number;
+  /** Barrel tip screen position at barrelZ with body recoil impulse applied.
+   *  Single source of truth for visual rendering and logical fire/damage.
+   *  PROJECTION-01 fixup #3. */
+  barrelTipScreen: { x: number; y: number };
+  /** Barrel start screen position at barrelZ with body recoil impulse applied.
+   *  PROJECTION-01 fixup #3. */
+  barrelStartScreen: { x: number; y: number };
 }
 
 /**
@@ -404,6 +438,7 @@ export function computeProjectedBlockoutVehicleGeometry(
 
   const mountTileOffset = computeMountTileOffset(vehicle);
 
+  // Body tile center WITHOUT impulse (kept for backward compatibility)
   const bodyScreenX = vehicle.worldX + offset.x;
   const bodyScreenY = vehicle.worldY + offset.y;
   const bodyTileCenter = unprojectScreenToGround(bodyScreenX, bodyScreenY, offset);
@@ -419,6 +454,26 @@ export function computeProjectedBlockoutVehicleGeometry(
   const recoilTurretOffset = vehicle.recoilTurretOffset ?? 0;
   const effectiveTurretAngle = vehicle.turretAngle - recoilTurretOffset;
 
+  // PROJECTION-01 fixup #3: Body recoil impulse shifts barrel screen position.
+  // Compute barrel tip/start using impulse-shifted body center so visual
+  // rendering and logical fire/damage use the exact same screen point.
+  const bodyScreenWithImpulse = computeBodyScreenWithImpulse(vehicle, offset);
+  const tilePosWithImpulse = unprojectScreenToGround(bodyScreenWithImpulse.x, bodyScreenWithImpulse.y, offset);
+  const mountTileCenterWithImpulse = {
+    x: tilePosWithImpulse.x + mountTileOffset.dx,
+    y: tilePosWithImpulse.y + mountTileOffset.dy,
+  };
+
+  const turretCosA = Math.cos(effectiveTurretAngle);
+  const turretSinA = Math.sin(effectiveTurretAngle);
+  const barrelTipTileX = mountTileCenterWithImpulse.x + (turretHalfW + effectiveBarrelLength) * turretCosA;
+  const barrelTipTileY = mountTileCenterWithImpulse.y + (turretHalfW + effectiveBarrelLength) * turretSinA;
+  const barrelStartTileX = mountTileCenterWithImpulse.x + turretHalfW * turretCosA;
+  const barrelStartTileY = mountTileCenterWithImpulse.y + turretHalfW * turretSinA;
+
+  const barrelTipScreen = projectWorldPoint(barrelTipTileX, barrelTipTileY, BLOCKOUT_BARREL_Z, offset);
+  const barrelStartScreen = projectWorldPoint(barrelStartTileX, barrelStartTileY, BLOCKOUT_BARREL_Z, offset);
+
   return {
     mountTileOffset,
     bodyTileCenter,
@@ -430,5 +485,7 @@ export function computeProjectedBlockoutVehicleGeometry(
     effectiveBarrelLength,
     effectiveTurretAngle,
     barrelZ: BLOCKOUT_BARREL_Z,
+    barrelTipScreen,
+    barrelStartScreen,
   };
 }

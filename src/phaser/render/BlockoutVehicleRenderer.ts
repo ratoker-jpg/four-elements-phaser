@@ -291,7 +291,8 @@ export class BlockoutVehicleRenderer {
     // ── Shared projected geometry (single source of truth) ────────
     const geom = computeProjectedBlockoutVehicleGeometry(vehicle, this.offset);
     const { halfW, halfH, mountTileOffset, turretHalfW, turretHalfH,
-            effectiveBarrelLength, effectiveTurretAngle, barrelZ } = geom;
+            effectiveBarrelLength, effectiveTurretAngle, barrelZ,
+            barrelTipScreen, barrelStartScreen } = geom;
 
     const bodyAngle = vehicle.bodyAngle;
 
@@ -552,19 +553,10 @@ export class BlockoutVehicleRenderer {
         return projectWorldPoint(wx, wy, turretZ + turretHeight, this.offset);
       });
 
-      // Barrel start/end in tile space (shared mountWorldX/Y + turret geometry)
-      const barrelStartWorld = {
-        x: mountWorldX + turretHalfW * turretCosA,
-        y: mountWorldY + turretHalfW * turretSinA,
-      };
-      const effectiveBarrelEndWorld = {
-        x: mountWorldX + (turretHalfW + effectiveBarrelLength) * turretCosA,
-        y: mountWorldY + (turretHalfW + effectiveBarrelLength) * turretSinA,
-      };
-
-      // Project barrel at barrelZ (shared source of truth — PROJECTION-01 fixup #2)
-      const barrelStart = projectWorldPoint(barrelStartWorld.x, barrelStartWorld.y, barrelZ, this.offset);
-      const barrelEnd = projectWorldPoint(effectiveBarrelEndWorld.x, effectiveBarrelEndWorld.y, barrelZ, this.offset);
+      // Barrel screen positions from shared geometry (PROJECTION-01 fixup #3).
+      // No local recomputation — barrelTipScreen and barrelStartScreen are the
+      // single source of truth used by both renderer and fire/damage logic,
+      // including body recoil impulse, barrel Z, and all recoil offsets.
 
       // Turret side face (left: base[3]→base[0] → top[3]→top[0])
       g.fillStyle(turretColor, 0.7);
@@ -607,23 +599,23 @@ export class BlockoutVehicleRenderer {
       g.closePath();
       g.strokePath();
 
-      // Barrel line (barrelStart/barrelEnd already computed above with shared barrelZ)
+      // Barrel line (using shared barrelStartScreen/barrelTipScreen — PROJECTION-01 fixup #3)
       g.lineStyle(barrelWidth, BARREL_COLOR, 1);
       g.beginPath();
-      g.moveTo(barrelStart.x, barrelStart.y);
-      g.lineTo(barrelEnd.x, barrelEnd.y);
+      g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
+      g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
       g.strokePath();
 
       // ── Aim line for selected vehicle ─────────────────────────────
       if (isSelected) {
         g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
         const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
-        const aimStartWorld = effectiveBarrelEndWorld;
+        // Aim starts at shared barrel tip (PROJECTION-01 fixup #3)
+        const aimStart = barrelTipScreen;
         const aimEndWorld = {
           x: mountWorldX + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretCosA,
           y: mountWorldY + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretSinA,
         };
-        const aimStart = projectWorldPoint(aimStartWorld.x, aimStartWorld.y, barrelZ, this.offset);
         const aimEnd = projectWorldPoint(aimEndWorld.x, aimEndWorld.y, barrelZ, this.offset);
 
         // Draw dashed aim line
