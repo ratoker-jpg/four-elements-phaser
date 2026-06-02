@@ -27,6 +27,7 @@ import { UPGRADE_PROFILES, ALL_UPGRADE_IDS } from '../../config/blockoutUpgradeD
 import { getBodyPixelSize, computeBodyWorldCenter, computeTurretWorldOrigin } from './blockoutVehicleGeometry';
 import { getRangeMultiplier } from '../../state/blockoutUpgrades';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
+import { drawProjectedGroundRing, drawProjectedGroundFill } from './projectedGroundPrimitives';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -309,7 +310,7 @@ export class BlockoutUpgradeRenderer {
       g.strokeCircle(barrelTipX, barrelTipY, radius);
     }
 
-    // Range extender: purple/green range circle for selected vehicle
+    // Range extender: projected ground-plane range circle for selected vehicle
     const rangeLevel = vehicle.upgradeLevels.range_extender ?? 0;
     if (rangeLevel > 0 && isSelected) {
       const profile = UPGRADE_PROFILES.range_extender;
@@ -322,19 +323,23 @@ export class BlockoutUpgradeRenderer {
       const rangeMultiplier = getRangeMultiplier(vehicle);
       const effectiveRange = baseRange * rangeMultiplier;
 
-      // Draw range circle from turret origin
+      // Convert range from pixels to world/tile units (76 px per tile)
+      const worldRange = effectiveRange / 76;
+
+      // Draw projected range circle from turret origin
       const turretOrigin = computeTurretWorldOrigin(vehicle, this.offset);
 
+      // Range ring (projected ground-plane)
       g.lineStyle(RANGE_CIRCLE_LINE_WIDTH, color, RANGE_CIRCLE_ALPHA);
-      g.strokeCircle(turretOrigin.x, turretOrigin.y, effectiveRange);
+      drawProjectedGroundRing(g, turretOrigin.x, turretOrigin.y, worldRange, this.offset, 32);
 
       // Inner outline
       g.lineStyle(1, outlineColor, RANGE_CIRCLE_ALPHA * 0.6);
-      g.strokeCircle(turretOrigin.x, turretOrigin.y, effectiveRange);
+      drawProjectedGroundRing(g, turretOrigin.x, turretOrigin.y, worldRange, this.offset, 32);
 
       // Subtle fill
       g.fillStyle(color, 0.04);
-      g.fillCircle(turretOrigin.x, turretOrigin.y, effectiveRange);
+      drawProjectedGroundFill(g, turretOrigin.x, turretOrigin.y, worldRange, this.offset, 32);
     }
 
     // Cooling system: teal dots near turret base
