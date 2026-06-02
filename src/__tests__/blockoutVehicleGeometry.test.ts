@@ -20,15 +20,20 @@ import {
   getBodyPixelSize,
   computeProjectedTurretMountScreen,
   computeProjectedBarrelTipScreen,
+  computeProjectedBarrelTipScreenAtZ,
   computeProjectedBlockoutVehicleGeometry,
   BLOCKOUT_TURRET_SIZE_W,
   BLOCKOUT_TURRET_SIZE_H,
+  BLOCKOUT_VEHICLE_BODY_Z,
+  BLOCKOUT_TURRET_Z_OFFSET,
+  BLOCKOUT_TURRET_BOX_HEIGHT,
+  BLOCKOUT_BARREL_Z,
 } from '../phaser/render/blockoutVehicleGeometry';
 import { tileToScreen } from '../phaser/render/isometric';
 import { angleFromTo, rotateTowardAngle, degPerSecToRadPerMs } from '../state/angleMath';
 import { createBlockoutVehicle, resetBlockoutVehicleIdCounter } from '../state/blockoutVehicleState';
 import type { MountCategory } from '../config/blockoutProfiles';
-import { PROJ_TILE_W, basisX, basisY, basisZ, unprojectScreenToGround, projectGroundPoint } from '../config/cameraProjectionContract';
+import { PROJ_TILE_W, basisX, basisY, basisZ, unprojectScreenToGround, projectGroundPoint, projectWorldPoint } from '../config/cameraProjectionContract';
 
 // ─── SHAPE_SIZE_MAP completeness ────────────────────────────────────
 
@@ -586,6 +591,16 @@ describe('computeProjectedBlockoutVehicleGeometry', () => {
     expect(geom.turretHalfW).toBeCloseTo((BLOCKOUT_TURRET_SIZE_W / 2) / PROJ_TILE_W);
     expect(geom.turretHalfH).toBeCloseTo((BLOCKOUT_TURRET_SIZE_H / 2) / PROJ_TILE_W);
   });
+
+  it('barrelZ matches shared BLOCKOUT_BARREL_Z constant', () => {
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    const offset = { x: 0, y: 0 };
+
+    const geom = computeProjectedBlockoutVehicleGeometry(wasp, offset);
+
+    expect(geom.barrelZ).toBe(BLOCKOUT_BARREL_Z);
+    expect(geom.barrelZ).toBeCloseTo(BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + BLOCKOUT_TURRET_BOX_HEIGHT * 0.5);
+  });
 });
 
 // ─── PROJECTION-01 fixup: no mutation of CAMERA_PROJECTION constants ──
@@ -607,6 +622,7 @@ describe('no mutation of CAMERA_PROJECTION constants', () => {
     // Call all helpers
     computeProjectedTurretMountScreen(wasp, offset);
     computeProjectedBarrelTipScreen(wasp, offset);
+    computeProjectedBarrelTipScreenAtZ(wasp, offset);
     computeProjectedBlockoutVehicleGeometry(wasp, offset);
 
     // Verify no mutation
@@ -616,5 +632,161 @@ describe('no mutation of CAMERA_PROJECTION constants', () => {
     expect(basisY.y).toBe(byBefore.y);
     expect(basisZ.x).toBe(bzBefore.x);
     expect(basisZ.y).toBe(bzBefore.y);
+  });
+});
+
+// ─── PROJECTION-01 fixup #2: barrel Z alignment tests ───────────────────
+
+describe('computeProjectedBarrelTipScreenAtZ', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+  });
+
+  it('rendered barrel tip equals fire/damage barrel tip including Z (center mount - Hunter)', () => {
+    // The barrel tip computed by computeProjectedBarrelTipScreenAtZ must match
+    // what the renderer draws as the barrel end at the barrel Z level
+    const hunter = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5, 0);
+    const offset = { x: 100, y: 200 };
+
+    const barrelTipAtZ = computeProjectedBarrelTipScreenAtZ(hunter, offset);
+
+    // Manually compute expected barrel tip position at barrel Z
+    const geom = computeProjectedBlockoutVehicleGeometry(hunter, offset);
+    const bodyCenter = computeBodyWorldCenter(hunter, offset);
+    const tilePos = unprojectScreenToGround(bodyCenter.x, bodyCenter.y, offset);
+    const mountWorldX = tilePos.x + geom.mountTileOffset.dx;
+    const mountWorldY = tilePos.y + geom.mountTileOffset.dy;
+
+    const turretCosA = Math.cos(geom.effectiveTurretAngle);
+    const turretSinA = Math.sin(geom.effectiveTurretAngle);
+    const barrelTipTileX = mountWorldX + (geom.turretHalfW + geom.effectiveBarrelLength) * turretCosA;
+    const barrelTipTileY = mountWorldY + (geom.turretHalfW + geom.effectiveBarrelLength) * turretSinA;
+    const expectedScreen = projectWorldPoint(barrelTipTileX, barrelTipTileY, BLOCKOUT_BARREL_Z, offset);
+
+    expect(barrelTipAtZ.x).toBeCloseTo(expectedScreen.x, 8);
+    expect(barrelTipAtZ.y).toBeCloseTo(expectedScreen.y, 8);
+  });
+
+  it('rendered barrel tip equals fire/damage barrel tip including Z (rear mount - Wasp)', () => {
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    const offset = { x: 100, y: 200 };
+
+    const barrelTipAtZ = computeProjectedBarrelTipScreenAtZ(wasp, offset);
+
+    // Manually compute expected barrel tip position at barrel Z
+    const geom = computeProjectedBlockoutVehicleGeometry(wasp, offset);
+    const bodyCenter = computeBodyWorldCenter(wasp, offset);
+    const tilePos = unprojectScreenToGround(bodyCenter.x, bodyCenter.y, offset);
+    const mountWorldX = tilePos.x + geom.mountTileOffset.dx;
+    const mountWorldY = tilePos.y + geom.mountTileOffset.dy;
+
+    const turretCosA = Math.cos(geom.effectiveTurretAngle);
+    const turretSinA = Math.sin(geom.effectiveTurretAngle);
+    const barrelTipTileX = mountWorldX + (geom.turretHalfW + geom.effectiveBarrelLength) * turretCosA;
+    const barrelTipTileY = mountWorldY + (geom.turretHalfW + geom.effectiveBarrelLength) * turretSinA;
+    const expectedScreen = projectWorldPoint(barrelTipTileX, barrelTipTileY, BLOCKOUT_BARREL_Z, offset);
+
+    expect(barrelTipAtZ.x).toBeCloseTo(expectedScreen.x, 8);
+    expect(barrelTipAtZ.y).toBeCloseTo(expectedScreen.y, 8);
+  });
+
+  it('rendered barrel tip equals fire/damage barrel tip including Z (front_center mount - Mammoth)', () => {
+    const mammoth = createBlockoutVehicle('mammoth', 'thunder', 'cyan', 5, 5, 0);
+    const offset = { x: 100, y: 200 };
+
+    const barrelTipAtZ = computeProjectedBarrelTipScreenAtZ(mammoth, offset);
+
+    // Manually compute expected barrel tip position at barrel Z
+    const geom = computeProjectedBlockoutVehicleGeometry(mammoth, offset);
+    const bodyCenter = computeBodyWorldCenter(mammoth, offset);
+    const tilePos = unprojectScreenToGround(bodyCenter.x, bodyCenter.y, offset);
+    const mountWorldX = tilePos.x + geom.mountTileOffset.dx;
+    const mountWorldY = tilePos.y + geom.mountTileOffset.dy;
+
+    const turretCosA = Math.cos(geom.effectiveTurretAngle);
+    const turretSinA = Math.sin(geom.effectiveTurretAngle);
+    const barrelTipTileX = mountWorldX + (geom.turretHalfW + geom.effectiveBarrelLength) * turretCosA;
+    const barrelTipTileY = mountWorldY + (geom.turretHalfW + geom.effectiveBarrelLength) * turretSinA;
+    const expectedScreen = projectWorldPoint(barrelTipTileX, barrelTipTileY, BLOCKOUT_BARREL_Z, offset);
+
+    expect(barrelTipAtZ.x).toBeCloseTo(expectedScreen.x, 8);
+    expect(barrelTipAtZ.y).toBeCloseTo(expectedScreen.y, 8);
+  });
+
+  it('barrel tip at Z is above ground-plane barrel tip (Z offset shifts screen Y upward)', () => {
+    // The Z offset must cause the barrel tip to appear higher on screen
+    // (lower Y value) compared to the ground-plane projection
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    const offset = { x: 100, y: 200 };
+
+    const barrelTipGround = computeProjectedBarrelTipScreen(wasp, offset);
+    const barrelTipAtZ = computeProjectedBarrelTipScreenAtZ(wasp, offset);
+
+    // Z offset shifts Y upward (negative Y direction on screen)
+    expect(barrelTipAtZ.y).toBeLessThan(barrelTipGround.y);
+    // X should be the same (basisZ.x = 0)
+    expect(barrelTipAtZ.x).toBeCloseTo(barrelTipGround.x, 8);
+  });
+
+  it('barrel tip at Z for rear mount (Wasp) differs from body center', () => {
+    const wasp = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    const offset = { x: 100, y: 200 };
+
+    const barrelTipAtZ = computeProjectedBarrelTipScreenAtZ(wasp, offset);
+    const bodyCenter = computeBodyWorldCenter(wasp, offset);
+
+    const dx = barrelTipAtZ.x - bodyCenter.x;
+    const dy = barrelTipAtZ.y - bodyCenter.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    expect(dist).toBeGreaterThan(1);
+  });
+
+  it('barrel tip at Z for front_center mount (Mammoth) differs from body center', () => {
+    const mammoth = createBlockoutVehicle('mammoth', 'thunder', 'cyan', 5, 5, 0);
+    const offset = { x: 100, y: 200 };
+
+    const barrelTipAtZ = computeProjectedBarrelTipScreenAtZ(mammoth, offset);
+    const bodyCenter = computeBodyWorldCenter(mammoth, offset);
+
+    const dx = barrelTipAtZ.x - bodyCenter.x;
+    const dy = barrelTipAtZ.y - bodyCenter.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    expect(dist).toBeGreaterThan(1);
+  });
+
+  it('bodyAngle rotation consistency: barrel tip at Z rotates with body', () => {
+    const wasp0 = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, 0);
+    const wasp90 = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, Math.PI / 2);
+    const offset = { x: 100, y: 200 };
+
+    const tip0 = computeProjectedBarrelTipScreenAtZ(wasp0, offset);
+    const tip90 = computeProjectedBarrelTipScreenAtZ(wasp90, offset);
+
+    // Different body angles produce different barrel tip positions
+    expect(tip0.x).not.toBeCloseTo(tip90.x);
+  });
+});
+
+// ─── PROJECTION-01 fixup #2: Z constant integrity tests ─────────────────
+
+describe('BLOCKOUT Z constants', () => {
+  it('BLOCKOUT_BARREL_Z equals body + turret offset + half turret box height', () => {
+    expect(BLOCKOUT_BARREL_Z).toBeCloseTo(BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + BLOCKOUT_TURRET_BOX_HEIGHT * 0.5);
+  });
+
+  it('BLOCKOUT_BARREL_Z is positive (above ground)', () => {
+    expect(BLOCKOUT_BARREL_Z).toBeGreaterThan(0);
+  });
+
+  it('BLOCKOUT_VEHICLE_BODY_Z is positive', () => {
+    expect(BLOCKOUT_VEHICLE_BODY_Z).toBeGreaterThan(0);
+  });
+
+  it('BLOCKOUT_TURRET_Z_OFFSET is positive', () => {
+    expect(BLOCKOUT_TURRET_Z_OFFSET).toBeGreaterThan(0);
+  });
+
+  it('BLOCKOUT_TURRET_BOX_HEIGHT is positive', () => {
+    expect(BLOCKOUT_TURRET_BOX_HEIGHT).toBeGreaterThan(0);
   });
 });

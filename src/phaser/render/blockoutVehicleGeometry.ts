@@ -19,7 +19,7 @@ import type { BlockoutShape, MountCategory } from '../../config/blockoutProfiles
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { getBodyProfile } from '../../config/blockoutBodyData';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
-import { unprojectScreenToGround, projectGroundPoint, PROJ_TILE_W } from '../../config/cameraProjectionContract';
+import { unprojectScreenToGround, projectGroundPoint, projectWorldPoint, PROJ_TILE_W } from '../../config/cameraProjectionContract';
 import type { IsoPoint } from './isometric';
 
 // ─── Body pixel size by blockoutShape ──────────────────────────────
@@ -157,6 +157,25 @@ export const BLOCKOUT_TURRET_SIZE_W = 10;
 /** Turret rectangle height in pixels — source of truth for all consumers. */
 export const BLOCKOUT_TURRET_SIZE_H = 6;
 
+// ─── Shared Z-level constants (PROJECTION-01 fixup #2) ────────────────
+
+/** Vehicle body height in world Z units for pseudo-isometric rendering.
+ *  Source of truth — do not duplicate in other files. */
+export const BLOCKOUT_VEHICLE_BODY_Z = 0.25;
+
+/** Turret height offset in world Z units above body top.
+ *  Source of truth — do not duplicate in other files. */
+export const BLOCKOUT_TURRET_Z_OFFSET = 0.05;
+
+/** Turret box height in world Z units.
+ *  Source of truth — do not duplicate in other files. */
+export const BLOCKOUT_TURRET_BOX_HEIGHT = 0.08;
+
+/** Barrel center Z: the Z level at which the barrel line is drawn.
+ *  This is the body top + turret offset + half the turret box height.
+ *  Both visual rendering and logical fire/damage use this Z. */
+export const BLOCKOUT_BARREL_Z = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + BLOCKOUT_TURRET_BOX_HEIGHT * 0.5;
+
 // ─── Internal: mount tile offset (PROJECTION-01 fixup) ──────────────
 
 /**
@@ -274,6 +293,60 @@ export function computeProjectedBarrelTipScreen(
   return projectGroundPoint(barrelTipTileX, barrelTipTileY, offset);
 }
 
+// ─── Projected barrel tip screen position with Z (PROJECTION-01 fixup #2) ──
+
+/**
+ * Compute the screen-space position of the barrel tip at the correct
+ * visual Z level, using the camera projection contract.
+ *
+ * This is the single source of truth for both:
+ * - Visual rendering: where the barrel end is drawn on screen
+ * - Logical fire/damage: where projectiles/damage originate
+ *
+ * The Z level accounts for the turret sitting on top of the body,
+ * so the barrel tip appears at the correct height above ground.
+ * This eliminates the divergence between the visual barrel end
+ * (drawn at turret Z) and the logical fire origin (previously at
+ * ground Z=0).
+ *
+ * @param vehicle - Blockout vehicle state
+ * @param offset - Map offset (from GameScene)
+ * @returns Screen-space position of the barrel tip at BLOCKOUT_BARREL_Z
+ */
+export function computeProjectedBarrelTipScreenAtZ(
+  vehicle: BlockoutVehicleState,
+  offset: IsoPoint,
+): { x: number; y: number } {
+  const weaponProfile = getWeaponProfile(vehicle.weaponId);
+  const barrelLength = weaponProfile ? weaponProfile.blockoutBarrelLength : 12;
+
+  const bodyScreenX = vehicle.worldX + offset.x;
+  const bodyScreenY = vehicle.worldY + offset.y;
+  const tilePos = unprojectScreenToGround(bodyScreenX, bodyScreenY, offset);
+  const mountOff = computeMountTileOffset(vehicle);
+  const mountTileX = tilePos.x + mountOff.dx;
+  const mountTileY = tilePos.y + mountOff.dy;
+
+  // Turret half-width + barrel length in tile units
+  const turretHalfW = (BLOCKOUT_TURRET_SIZE_W / 2) / PROJ_TILE_W;
+  const barrelTileLength = barrelLength / PROJ_TILE_W;
+
+  // Recoil offsets
+  const recoilBarrelOffset = vehicle.recoilBarrelOffset ?? 0;
+  const effectiveBarrelLength = Math.max(0, barrelTileLength - recoilBarrelOffset / PROJ_TILE_W);
+  const recoilTurretOffset = vehicle.recoilTurretOffset ?? 0;
+  const effectiveTurretAngle = vehicle.turretAngle - recoilTurretOffset;
+
+  // Barrel tip in tile space
+  const turretCosA = Math.cos(effectiveTurretAngle);
+  const turretSinA = Math.sin(effectiveTurretAngle);
+  const barrelTipTileX = mountTileX + (turretHalfW + effectiveBarrelLength) * turretCosA;
+  const barrelTipTileY = mountTileY + (turretHalfW + effectiveBarrelLength) * turretSinA;
+
+  // Project at barrel Z level (not ground plane)
+  return projectWorldPoint(barrelTipTileX, barrelTipTileY, BLOCKOUT_BARREL_Z, offset);
+}
+
 // ─── Comprehensive projected geometry (PROJECTION-01 fixup) ─────────
 
 /**
@@ -303,6 +376,8 @@ export interface ProjectedBlockoutVehicleGeometry {
   effectiveBarrelLength: number;
   /** Effective turret angle in radians (after recoil kickback). */
   effectiveTurretAngle: number;
+  /** Barrel Z level for rendering and fire/damage origin. PROJECTION-01 fixup #2. */
+  barrelZ: number;
 }
 
 /**
@@ -354,5 +429,6 @@ export function computeProjectedBlockoutVehicleGeometry(
     barrelTileLength,
     effectiveBarrelLength,
     effectiveTurretAngle,
+    barrelZ: BLOCKOUT_BARREL_Z,
   };
 }

@@ -24,7 +24,7 @@ import Phaser from 'phaser';
 import type { IsoPoint } from './isometric';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { UPGRADE_PROFILES, ALL_UPGRADE_IDS } from '../../config/blockoutUpgradeData';
-import { getBodyPixelSize, computeBodyWorldCenter, computeProjectedTurretMountScreen, computeProjectedBarrelTipScreen } from './blockoutVehicleGeometry';
+import { getBodyPixelSize, computeBodyWorldCenter, computeProjectedTurretMountScreen, computeProjectedBarrelTipScreenAtZ } from './blockoutVehicleGeometry';
 import { getRangeMultiplier } from '../../state/blockoutUpgrades';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import { drawProjectedGroundRing, drawProjectedGroundFill } from './projectedGroundPrimitives';
@@ -287,8 +287,8 @@ export class BlockoutUpgradeRenderer {
       const color = profile.marker.color;
       const outlineColor = profile.marker.outlineColor;
 
-      // Barrel tip position (shared source of truth with renderer — PROJECTION-01 fixup)
-      const barrelTip = computeProjectedBarrelTipScreen(vehicle, this.offset);
+      // Barrel tip position at barrel Z (shared source of truth with renderer — PROJECTION-01 fixup #2)
+      const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this.offset);
       const barrelTipX = barrelTip.x;
       const barrelTipY = barrelTip.y;
 

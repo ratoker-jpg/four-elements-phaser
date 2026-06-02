@@ -44,7 +44,7 @@ import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../st
 import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
-import { computeProjectedBarrelTipScreen } from './render/blockoutVehicleGeometry';
+import { computeProjectedBarrelTipScreenAtZ } from './render/blockoutVehicleGeometry';
 
 
 /**
@@ -586,8 +586,8 @@ export class GameScene extends Phaser.Scene {
       const nowMs = this.time.now;
       for (const vehicle of this.gameState.blockoutVehicles) {
         if (vehicle.fireHeld && vehicle.isFiring && !vehicle.isDestroyed) {
-          // Compute barrel tip using projected geometry (shared source of truth — PROJECTION-01 fixup)
-          const barrelTip = computeProjectedBarrelTipScreen(vehicle, this._offset as IsoPoint);
+          // Compute barrel tip using projected geometry at barrel Z (shared source of truth — PROJECTION-01 fixup #2)
+          const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this._offset as IsoPoint);
           const barrelTipX = barrelTip.x;
           const barrelTipY = barrelTip.y;
           tickContinuousFire(vehicle, barrelTipX, barrelTipY, vehicle.turretAngle,

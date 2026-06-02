@@ -38,7 +38,7 @@
 import Phaser from 'phaser';
 import type { IsoPoint } from '../render/isometric';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
-import { computeBodyWorldCenter, getBodyPixelSize, computeProjectedTurretMountScreen, computeProjectedBarrelTipScreen } from '../render/blockoutVehicleGeometry';
+import { computeBodyWorldCenter, getBodyPixelSize, computeProjectedTurretMountScreen, computeProjectedBarrelTipScreenAtZ } from '../render/blockoutVehicleGeometry';
 import { setBlockoutVehicleMoveTarget } from '../../state/blockoutMovement';
 import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state/angleMath';
 import { canFireBlockoutWeapon, fireBlockoutWeapon, startFiring, stopFiring, isContinuousWeapon } from '../../state/blockoutWeaponVfx';
@@ -431,9 +431,9 @@ export class BlockoutVehicleInputController {
     const nowMs = this.scene.time.now;
     if (!canFireBlockoutWeapon(selected, nowMs)) return;
 
-    // Compute barrel tip position using projected geometry
-    // (shared source of truth with renderer — PROJECTION-01 fixup)
-    const barrelTip = computeProjectedBarrelTipScreen(selected, this.offset);
+    // Compute barrel tip position using projected geometry at barrel Z
+    // (shared source of truth with renderer — PROJECTION-01 fixup #2)
+    const barrelTip = computeProjectedBarrelTipScreenAtZ(selected, this.offset);
     const barrelTipX = barrelTip.x;
     const barrelTipY = barrelTip.y;
 

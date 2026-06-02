@@ -20,6 +20,9 @@ import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import {
   computeBodyWorldCenter,
   computeProjectedBlockoutVehicleGeometry,
+  BLOCKOUT_VEHICLE_BODY_Z,
+  BLOCKOUT_TURRET_Z_OFFSET,
+  BLOCKOUT_TURRET_BOX_HEIGHT,
 } from './blockoutVehicleGeometry';
 import {
   drawProjectedGroundRing,
@@ -70,13 +73,9 @@ const MOUNT_POINT_COLOR = 0xff0000;
 /** Debug label color. */
 const DEBUG_LABEL_COLOR = '#ffffff';
 
-// ─── Isometric box height ───────────────────────────────────────────
-
-/** Vehicle body height in world Z units for pseudo-isometric rendering. */
-const VEHICLE_BODY_HEIGHT = 0.25;
-
-/** Turret height offset in world Z units above body top. */
-const TURRET_Z_OFFSET = 0.05;
+// ─── Z-level constants are now in blockoutVehicleGeometry (PROJECTION-01 fixup #2)
+// BLOCKOUT_VEHICLE_BODY_Z, BLOCKOUT_TURRET_Z_OFFSET, BLOCKOUT_TURRET_BOX_HEIGHT,
+// BLOCKOUT_BARREL_Z — do not duplicate here.
 
 // ─── Selection / hover visual constants ────────────────────────────
 
@@ -261,7 +260,7 @@ export class BlockoutVehicleRenderer {
         label.setText(`${vehicle.bodyId}+${vehicle.weaponId}${selectedMarker}${hpMarker}${speedMarker}`);
 
         // Position label above top face (body center + Z offset)
-        const labelZ = vehicle.isDestroyed ? 0 : VEHICLE_BODY_HEIGHT + TURRET_Z_OFFSET + 0.1;
+        const labelZ = vehicle.isDestroyed ? 0 : BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.1;
         const tilePos = unprojectScreenToGround(bodyCenter.x, bodyCenter.y, this.offset);
         const labelPos = projectWorldPoint(tilePos.x, tilePos.y, labelZ, this.offset);
         label.setPosition(labelPos.x, labelPos.y);
@@ -292,7 +291,7 @@ export class BlockoutVehicleRenderer {
     // ── Shared projected geometry (single source of truth) ────────
     const geom = computeProjectedBlockoutVehicleGeometry(vehicle, this.offset);
     const { halfW, halfH, mountTileOffset, turretHalfW, turretHalfH,
-            effectiveBarrelLength, effectiveTurretAngle } = geom;
+            effectiveBarrelLength, effectiveTurretAngle, barrelZ } = geom;
 
     const bodyAngle = vehicle.bodyAngle;
 
@@ -449,7 +448,7 @@ export class BlockoutVehicleRenderer {
     const topColor = (Math.floor(topR) << 16) | (Math.floor(topG) << 8) | Math.floor(topB);
 
     drawProjectedBox(
-      g, cx, cy, halfW, halfH, VEHICLE_BODY_HEIGHT,
+      g, cx, cy, halfW, halfH, BLOCKOUT_VEHICLE_BODY_Z,
       this.offset, bodyAngle,
       bodyColor, sideColor, topColor, BODY_OUTLINE_COLOR,
       0.3, 0.75, 1.0,
@@ -458,7 +457,7 @@ export class BlockoutVehicleRenderer {
     // ── Mount point circle (debug, on top face) ──────────────────
     if (this.showMountPoints) {
       // Place mount point on top face using shared mountTileOffset
-      const mountScreen = projectWorldPoint(mountWorldX, mountWorldY, VEHICLE_BODY_HEIGHT, this.offset);
+      const mountScreen = projectWorldPoint(mountWorldX, mountWorldY, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
 
       g.fillStyle(MOUNT_POINT_COLOR, 0.7);
       g.fillCircle(mountScreen.x, mountScreen.y, MOUNT_POINT_RADIUS);
@@ -468,7 +467,7 @@ export class BlockoutVehicleRenderer {
 
     // ── BLOCKOUT-07H+: HP bar above vehicle ──────────────────────
     {
-      const hpBarZ = VEHICLE_BODY_HEIGHT + TURRET_Z_OFFSET + 0.15;
+      const hpBarZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.15;
       const hpBarPos = projectWorldPoint(tilePos.x, tilePos.y, hpBarZ, this.offset);
 
       const hpRatio = vehicle.maxHp > 0 ? vehicle.hp / vehicle.maxHp : 0;
@@ -508,7 +507,7 @@ export class BlockoutVehicleRenderer {
         const topPts = localCorners.map(c => {
           const wx = tilePos.x + c.lx * cosA - c.ly * sinA;
           const wy = tilePos.y + c.lx * sinA + c.ly * cosA;
-          return projectWorldPoint(wx, wy, VEHICLE_BODY_HEIGHT, this.offset);
+          return projectWorldPoint(wx, wy, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
         });
         g.fillStyle(0xffffff, 0.4);
         g.beginPath();
@@ -526,10 +525,10 @@ export class BlockoutVehicleRenderer {
     // to ensure visual mount equals logical mount used by input/fire/damage.
     {
       // Turret position on top face (shared mountWorldX/Y from above)
-      const turretZ = VEHICLE_BODY_HEIGHT + TURRET_Z_OFFSET;
+      const turretZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
 
       // Draw turret as small projected box on top face
-      const turretHeight = 0.08;
+      const turretHeight = BLOCKOUT_TURRET_BOX_HEIGHT;
       const turretCosA = Math.cos(effectiveTurretAngle);
       const turretSinA = Math.sin(effectiveTurretAngle);
       const turretLocalCorners = [
@@ -552,6 +551,20 @@ export class BlockoutVehicleRenderer {
         const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
         return projectWorldPoint(wx, wy, turretZ + turretHeight, this.offset);
       });
+
+      // Barrel start/end in tile space (shared mountWorldX/Y + turret geometry)
+      const barrelStartWorld = {
+        x: mountWorldX + turretHalfW * turretCosA,
+        y: mountWorldY + turretHalfW * turretSinA,
+      };
+      const effectiveBarrelEndWorld = {
+        x: mountWorldX + (turretHalfW + effectiveBarrelLength) * turretCosA,
+        y: mountWorldY + (turretHalfW + effectiveBarrelLength) * turretSinA,
+      };
+
+      // Project barrel at barrelZ (shared source of truth — PROJECTION-01 fixup #2)
+      const barrelStart = projectWorldPoint(barrelStartWorld.x, barrelStartWorld.y, barrelZ, this.offset);
+      const barrelEnd = projectWorldPoint(effectiveBarrelEndWorld.x, effectiveBarrelEndWorld.y, barrelZ, this.offset);
 
       // Turret side face (left: base[3]→base[0] → top[3]→top[0])
       g.fillStyle(turretColor, 0.7);
@@ -594,20 +607,7 @@ export class BlockoutVehicleRenderer {
       g.closePath();
       g.strokePath();
 
-      // Barrel line from turret front on top face
-      // Uses shared turretHalfW and effectiveBarrelLength from geometry helper
-      const barrelStartWorld = {
-        x: mountWorldX + turretHalfW * turretCosA,
-        y: mountWorldY + turretHalfW * turretSinA,
-      };
-      const effectiveBarrelEndWorld = {
-        x: mountWorldX + (turretHalfW + effectiveBarrelLength) * turretCosA,
-        y: mountWorldY + (turretHalfW + effectiveBarrelLength) * turretSinA,
-      };
-
-      const barrelStart = projectWorldPoint(barrelStartWorld.x, barrelStartWorld.y, turretZ + turretHeight * 0.5, this.offset);
-      const barrelEnd = projectWorldPoint(effectiveBarrelEndWorld.x, effectiveBarrelEndWorld.y, turretZ + turretHeight * 0.5, this.offset);
-
+      // Barrel line (barrelStart/barrelEnd already computed above with shared barrelZ)
       g.lineStyle(barrelWidth, BARREL_COLOR, 1);
       g.beginPath();
       g.moveTo(barrelStart.x, barrelStart.y);
@@ -623,8 +623,8 @@ export class BlockoutVehicleRenderer {
           x: mountWorldX + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretCosA,
           y: mountWorldY + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretSinA,
         };
-        const aimStart = projectWorldPoint(aimStartWorld.x, aimStartWorld.y, turretZ + turretHeight * 0.5, this.offset);
-        const aimEnd = projectWorldPoint(aimEndWorld.x, aimEndWorld.y, turretZ + turretHeight * 0.5, this.offset);
+        const aimStart = projectWorldPoint(aimStartWorld.x, aimStartWorld.y, barrelZ, this.offset);
+        const aimEnd = projectWorldPoint(aimEndWorld.x, aimEndWorld.y, barrelZ, this.offset);
 
         // Draw dashed aim line
         const dashLen = AIM_LINE_DASH;
