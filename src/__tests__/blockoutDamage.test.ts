@@ -45,6 +45,7 @@ import {
   resetDamageEventIdCounter,
 } from '../state/blockoutDamage';
 import { createBlockoutVehicle, resetBlockoutVehicleIdCounter } from '../state/blockoutVehicleState';
+import { applyUpgrade, getIncomingDamageMultiplier } from '../state/blockoutUpgrades';
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
 import { BLOCKOUT_BODY_MAX_HP, getBlockoutBodyMaxHp } from '../config/blockoutBodyData';
 import { computeBodyWorldCenter } from '../phaser/render/blockoutVehicleGeometry';
@@ -1050,5 +1051,126 @@ describe('normal state without blockout damage fields does not crash', () => {
 
   it('getBlockoutBodyMaxHp for unknown body returns default', () => {
     expect(getBlockoutBodyMaxHp('nonexistent')).toBe(200);
+  });
+});
+
+// ─── BLOCKOUT-09H fixup: armor_plating damage event uses adjusted amount ──
+
+describe('BLOCKOUT-09H fixup: damage event stores adjusted amount (armor_plating)', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetDamageEventIdCounter();
+  });
+
+  it('armor_plating reduces actual HP loss', () => {
+    const vehicleNoArmor = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    const vehicleWithArmor = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    applyUpgrade(vehicleWithArmor, 'armor_plating', 1000);
+    // armor_plating increases maxHp from 180 to 207, and hp proportionally
+
+    const bodyCenter1 = computeBodyWorldCenter(vehicleNoArmor, TEST_OFFSET);
+    const bodyCenter2 = computeBodyWorldCenter(vehicleWithArmor, TEST_OFFSET);
+
+    const baseDamage = 50;
+    applyDamageToVehicle(vehicleNoArmor, 'smoky', baseDamage, bodyCenter1.x, bodyCenter1.y, 1000, 'direct');
+    applyDamageToVehicle(vehicleWithArmor, 'smoky', baseDamage, bodyCenter2.x, bodyCenter2.y, 1000, 'direct');
+
+    // Armored vehicle should have lost less HP from the same base damage
+    const hpLostNoArmor = 180 - vehicleNoArmor.hp;
+    const hpLostWithArmor = vehicleWithArmor.maxHp - vehicleWithArmor.hp;
+    expect(hpLostWithArmor).toBeLessThan(hpLostNoArmor);
+
+    // Verify the HP loss matches the incoming damage multiplier
+    const multiplier = getIncomingDamageMultiplier(vehicleWithArmor);
+    const adjustedDamage = baseDamage * multiplier;
+    expect(hpLostWithArmor).toBeCloseTo(adjustedDamage, 1);
+  });
+
+  it('damage event amount equals adjusted damage amount with armor_plating', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    applyUpgrade(vehicle, 'armor_plating', 1000);
+
+    const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
+    const baseDamage = 50;
+    const event = applyDamageToVehicle(vehicle, 'smoky', baseDamage, bodyCenter.x, bodyCenter.y, 1000, 'direct');
+
+    expect(event).not.toBeNull();
+    const multiplier = getIncomingDamageMultiplier(vehicle);
+    const expectedAdjusted = baseDamage * multiplier;
+    // Event amount should match the adjusted (actual HP lost) amount, not the base amount
+    expect(event!.amount).toBeCloseTo(expectedAdjusted, 2);
+    expect(event!.amount).toBeLessThan(baseDamage); // Armor reduces it
+  });
+
+  it('floating damage number source event uses adjusted amount', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    applyUpgrade(vehicle, 'armor_plating', 1000);
+    applyUpgrade(vehicle, 'armor_plating', 2000); // Level 2
+
+    const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
+    const baseDamage = 40;
+    const event = applyDamageToVehicle(vehicle, 'smoky', baseDamage, bodyCenter.x, bodyCenter.y, 1000, 'direct');
+
+    // The damage events from getDamageEvents() should contain the adjusted amount
+    const events = getDamageEvents();
+    expect(events.length).toBe(1);
+    expect(events[0].amount).toBe(event!.amount);
+    expect(events[0].amount).toBeLessThan(baseDamage);
+
+    // Verify the adjusted amount is what the renderer would display
+    const multiplier = getIncomingDamageMultiplier(vehicle);
+    expect(events[0].amount).toBeCloseTo(baseDamage * multiplier, 2);
+  });
+
+  it('non-armored vehicle event amount remains original amount', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    // No armor_plating — multiplier should be 1
+
+    const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
+    const baseDamage = 30;
+    const event = applyDamageToVehicle(vehicle, 'smoky', baseDamage, bodyCenter.x, bodyCenter.y, 1000, 'direct');
+
+    expect(event).not.toBeNull();
+    // Without armor, adjusted amount equals base amount
+    expect(event!.amount).toBe(baseDamage);
+    expect(vehicle.hp).toBe(180 - baseDamage);
+  });
+
+  it('kill event still works when adjusted damage kills', () => {
+    // Create an armored vehicle with just enough HP to die from adjusted damage
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    applyUpgrade(vehicle, 'armor_plating', 1000); // +15% maxHp = 207 HP
+
+    // Damage it down to low HP
+    vehicle.hp = 10;
+
+    const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
+    // Base damage of 20, but adjusted will be 20 * 0.95 = 19 — enough to kill
+    const event = applyDamageToVehicle(vehicle, 'smoky', 20, bodyCenter.x, bodyCenter.y, 1000, 'direct');
+
+    expect(event).not.toBeNull();
+    expect(event!.isKill).toBe(true);
+    expect(vehicle.isDestroyed).toBe(true);
+    expect(vehicle.hp).toBe(0);
+
+    // Event still stores adjusted amount
+    const multiplier = getIncomingDamageMultiplier(vehicle);
+    expect(event!.amount).toBeCloseTo(20 * multiplier, 2);
+  });
+
+  it('base damage config is not mutated by armor adjustment', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    applyUpgrade(vehicle, 'armor_plating', 1000);
+
+    const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
+    const baseDamage = 25;
+
+    // Record the original damage profile values
+    const originalSmokyDamage = DAMAGE_PROFILES['smoky'].directDamage;
+
+    applyDamageToVehicle(vehicle, 'smoky', baseDamage, bodyCenter.x, bodyCenter.y, 1000, 'direct');
+
+    // Base damage config should not be mutated
+    expect(DAMAGE_PROFILES['smoky'].directDamage).toBe(originalSmokyDamage);
   });
 });

@@ -42,6 +42,7 @@ import {
   stopFiring,
 } from '../state/blockoutWeaponVfx';
 import { createBlockoutVehicle, resetBlockoutVehicleIdCounter } from '../state/blockoutVehicleState';
+import { applyUpgrade } from '../state/blockoutUpgrades';
 import { RECOIL_PROFILES } from '../config/blockoutRecoilData';
 import { getWeaponVfxProfile } from '../config/blockoutVfxData';
 import { WEAPON_PROFILES } from '../config/blockoutWeaponData';
@@ -1418,5 +1419,130 @@ describe('continuous-fire lifecycle fixup', () => {
     const loadResult = loadGame(saveResult.slotId!);
     expect(loadResult.success).toBe(true);
     expect(loadResult.gameState!.blockoutVehicles).toBeUndefined();
+  });
+});
+
+// ─── BLOCKOUT-09H fixup: Cooldown/cadence upgrade effects ─────────────
+
+describe('BLOCKOUT-09H fixup: cooldown upgrade reduces fire cooldown', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+  });
+
+  it('weapon_tuning reduces single-shot fire cooldown', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    applyUpgrade(vehicle, 'weapon_tuning', 1000);
+
+    // Smoky base cooldown = 800ms, weapon_tuning L1 multiplier = 0.95
+    // Effective cooldown = 800 * 0.95 = 760ms
+    const baseCooldown = WEAPON_PROFILES.smoky.blockoutCooldownMs;
+    const effectiveCooldown = baseCooldown * 0.95;
+
+    const now = 1000;
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
+
+    // Before effective cooldown, should NOT be able to fire
+    expect(canFireBlockoutWeapon(vehicle, now + Math.floor(effectiveCooldown) - 1)).toBe(false);
+    // At effective cooldown + 1, should be able to fire
+    expect(canFireBlockoutWeapon(vehicle, now + Math.ceil(effectiveCooldown) + 1)).toBe(true);
+
+    // Without upgrade, would need to wait for full base cooldown
+    const vehicleNoUpgrade = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    fireBlockoutWeapon(vehicleNoUpgrade, 100, 100, 0, 300, 0, now);
+    // At effective cooldown, base vehicle should NOT be able to fire yet
+    expect(canFireBlockoutWeapon(vehicleNoUpgrade, now + Math.ceil(effectiveCooldown) + 1)).toBe(false);
+  });
+
+  it('cooling_system reduces continuous stream cadence', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    applyUpgrade(vehicle, 'cooling_system', 1000);
+    startFiring(vehicle);
+
+    // Flamethrower base streamCadenceMs = 50, cooldown = 50
+    // cooling_system L1 multiplier = 0.90
+    // Effective streamCadenceMs = 50 * 0.90 = 45ms
+    // Effective cooldown = 50 * 0.90 = 45ms
+    const baseCadence = 50;
+    const effectiveCadence = baseCadence * 0.90; // 45ms
+
+    const now = 1000;
+    const result1 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now);
+    expect(result1).toBe(1);
+
+    // Before effective cadence — should NOT fire
+    const result2 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now + 40);
+    expect(result2).toBe(0);
+
+    // After effective cadence — SHOULD fire
+    const result3 = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now + Math.ceil(effectiveCadence) + 5);
+    expect(result3).toBe(1);
+  });
+
+  it('cooldown multiplier stacks cleanly with both weapon_tuning and cooling_system', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    applyUpgrade(vehicle, 'weapon_tuning', 1000);
+    applyUpgrade(vehicle, 'cooling_system', 2000);
+
+    // Combined multiplier: 0.95 * 0.90 = 0.855
+    // Smoky base cooldown = 800ms, effective = 800 * 0.855 = 684ms
+    const baseCooldown = WEAPON_PROFILES.smoky.blockoutCooldownMs;
+    const effectiveCooldown = baseCooldown * 0.95 * 0.90;
+
+    const now = 1000;
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
+
+    // At base cooldown, weapon should already be fireable
+    expect(canFireBlockoutWeapon(vehicle, now + baseCooldown + 1)).toBe(true);
+    // At effective cooldown + 1, should be fireable
+    expect(canFireBlockoutWeapon(vehicle, now + Math.ceil(effectiveCooldown) + 1)).toBe(true);
+    // Before effective cooldown, should NOT be fireable
+    expect(canFireBlockoutWeapon(vehicle, now + Math.floor(effectiveCooldown) - 1)).toBe(false);
+  });
+
+  it('base weapon profiles are not mutated by upgrade', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    applyUpgrade(vehicle, 'weapon_tuning', 1000);
+    applyUpgrade(vehicle, 'cooling_system', 2000);
+
+    const originalCooldown = WEAPON_PROFILES.smoky.blockoutCooldownMs;
+
+    // Fire and check cooldown
+    fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, 1000);
+    canFireBlockoutWeapon(vehicle, 2000);
+
+    // Base profile should be unchanged
+    expect(WEAPON_PROFILES.smoky.blockoutCooldownMs).toBe(originalCooldown);
+  });
+
+  it('single-shot fire still respects cooldown with upgrades', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    applyUpgrade(vehicle, 'weapon_tuning', 1000);
+
+    const now = 1000;
+    const event1 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
+    expect(event1).not.toBeNull();
+
+    // Should NOT be able to fire immediately after
+    expect(canFireBlockoutWeapon(vehicle, now + 1)).toBe(false);
+    const event2 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now + 1);
+    expect(event2).toBeNull();
+  });
+
+  it('continuous fire cadence still stops on stopFiring', () => {
+    const vehicle = createBlockoutVehicle('viking', 'flamethrower', 'cyan', 5, 5);
+    applyUpgrade(vehicle, 'cooling_system', 1000);
+    startFiring(vehicle);
+
+    const now = 1000;
+    tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now);
+
+    // Stop firing
+    stopFiring(vehicle);
+
+    const result = tickContinuousFire(vehicle, 100, 100, 0, 200, 0, now + 100);
+    expect(result).toBe(0);
+    expect(vehicle.fireHeld).toBe(false);
+    expect(vehicle.isFiring).toBe(false);
   });
 });

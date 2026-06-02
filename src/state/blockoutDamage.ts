@@ -21,6 +21,7 @@ import { isLineOfFireBlocked, findNearestObstacleBlockingLine } from './blockout
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
 import { computeBodyWorldCenter, getBodyPixelSize } from '../phaser/render/blockoutVehicleGeometry';
 import type { IsoPoint } from '../phaser/render/isometric';
+import { getEffectiveDamageProfile, getIncomingDamageMultiplier, getCooldownMultiplier } from './blockoutUpgrades';
 
 // ─── Damage Event ──────────────────────────────────────────────────
 
@@ -60,14 +61,15 @@ export function getBlockoutDamageProfile(weaponId: string): DamageProfile | unde
  * Apply damage to a vehicle and return a damage event if damage was dealt.
  *
  * - If vehicle.isDestroyed, return null (no damage to dead vehicles).
- * - Reduces HP by amount, clamped to 0.
+ * - Applies incoming damage multiplier (armor_plating) to compute adjustedAmount.
+ * - Reduces HP by adjustedAmount, clamped to 0.
  * - Sets lastDamagedAt and damageFlashUntil.
  * - If HP <= 0: sets isDestroyed, destroyedAt, clears fire/move state.
- * - Creates a damage event for rendering.
+ * - Creates a damage event with adjustedAmount (matches actual HP loss).
  *
  * @param vehicle - Target vehicle (mutated in place)
  * @param weaponId - Weapon that dealt the damage
- * @param amount - Damage amount
+ * @param amount - Base damage amount (before armor adjustment)
  * @param x - World X of the hit point
  * @param y - World Y of the hit point
  * @param nowMs - Current scene time
@@ -87,8 +89,12 @@ export function applyDamageToVehicle(
 ): BlockoutDamageEvent | null {
   if (vehicle.isDestroyed) return null;
 
+  // BLOCKOUT-09H: Apply incoming damage multiplier (armor plating reduces damage)
+  const incomingMult = getIncomingDamageMultiplier(vehicle);
+  const adjustedAmount = amount * incomingMult;
+
   // Apply damage
-  vehicle.hp = Math.max(0, vehicle.hp - amount);
+  vehicle.hp = Math.max(0, vehicle.hp - adjustedAmount);
   vehicle.lastDamagedAt = nowMs;
   vehicle.damageFlashUntil = nowMs + 200;
 
@@ -110,12 +116,13 @@ export function applyDamageToVehicle(
     vehicle.vy = 0;
   }
 
-  // Create damage event
+  // Create damage event — store adjustedAmount so the floating damage
+  // number matches the actual HP loss (armor_plating reduces damage)
   const event: BlockoutDamageEvent = {
     id: nextDamageEventId++,
     targetVehicleId: vehicle.id,
     weaponId,
-    amount,
+    amount: adjustedAmount,
     x,
     y,
     createdAt: nowMs,
@@ -474,8 +481,10 @@ export function applyBlockoutWeaponDamage(
   nowMs: number,
   obstacles: BlockoutObstacleState[] = [],
 ): BlockoutDamageEvent[] {
-  const profile = DAMAGE_PROFILES[firingVehicle.weaponId];
-  if (!profile) return [];
+  // BLOCKOUT-09H: Use effective damage profile (weapon tuning + range extender)
+  const baseProfile = DAMAGE_PROFILES[firingVehicle.weaponId];
+  if (!baseProfile) return [];
+  const profile = getEffectiveDamageProfile(firingVehicle, baseProfile);
 
   const damageKind = profile.damageKind;
   if (!damageKind) return [];
@@ -686,16 +695,21 @@ export function tickContinuousDamage(
   if (!firingVehicle.fireHeld || !firingVehicle.isFiring) return [];
   if (firingVehicle.isDestroyed) return [];
 
-  const profile = DAMAGE_PROFILES[firingVehicle.weaponId];
-  if (!profile) return [];
+  // BLOCKOUT-09H: Use effective damage profile (weapon tuning + range extender)
+  const baseProfile = DAMAGE_PROFILES[firingVehicle.weaponId];
+  if (!baseProfile) return [];
+  const profile = getEffectiveDamageProfile(firingVehicle, baseProfile);
 
   // Only tick for continuous damage kinds
   const continuousKinds: DamageKind[] = ['cone_tick', 'beam_tick', 'rapid_tick', 'plasma'];
   if (!profile.damageKind || !continuousKinds.includes(profile.damageKind)) return [];
 
   const tickMs = profile.tickMs ?? 50;
+  // BLOCKOUT-09H fixup: Apply cooldown multiplier to damage tick cadence
+  // weapon_tuning (-5% per level) and cooling_system (-10% per level)
+  const effectiveTickMs = tickMs * getCooldownMultiplier(firingVehicle);
   const elapsed = nowMs - firingVehicle.lastDamageTickAt;
-  if (elapsed < tickMs) return [];
+  if (elapsed < effectiveTickMs) return [];
 
   // Apply damage using the main function (it handles the kind-specific logic)
   const events = applyBlockoutWeaponDamage(

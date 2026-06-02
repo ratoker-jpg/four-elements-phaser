@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: BLOCKOUT-08H implemented / BLOCKOUT-09H next
+Status: BLOCKOUT-09H implemented / BLOCKOUT-10H+ next
 Project: Four Elements Phaser
 Date: 2026-06-02
 
@@ -21,9 +21,9 @@ What should GPT/GLM/Codex do next by default?
 Current answer:
 
 ```text
-BLOCKOUT-08H is implemented. Dev/arena blockout obstacles exist.
-Obstacle movement collision and placeholder line-of-fire blocking exist.
-Next step: BLOCKOUT-09H — Upgrade skeleton + visual indicators.
+BLOCKOUT-09H is implemented. Dev/arena upgrade skeleton exists.
+Upgrade visual indicators exist. Simple upgrade effects modify blockout movement/damage/HP/range.
+Next step: BLOCKOUT-10H+ — Combat readability sandbox / closure QA.
 ```
 
 ---
@@ -31,34 +31,32 @@ Next step: BLOCKOUT-09H — Upgrade skeleton + visual indicators.
 ## Current next step
 
 ```text
-BLOCKOUT-08H — Blockout obstacles — IMPLEMENTED
+BLOCKOUT-09H — Upgrade skeleton + visual indicators — IMPLEMENTED
 
-Dev/arena blockout obstacles now exist in the combat sandbox:
-- 4 obstacle types: blocker_wall, cover_crate, low_barrier, dummy_rock
-- Phaser Graphics primitives only (no assets)
-- Deterministic default arena layout (2 walls, 2 crates, 1 barrier, 1 rock)
-- Vehicle movement collision: stops/clamps at obstacle edges
-- Line-of-fire blocking: direct/rapid/plasma/beam blocked by obstacles
-- Penetration: passes pierceable obstacles (low_barrier), blocked by non-pierceable
-- Splash: impact point moves to obstacle intersection when blocked
-- Cone/beam: targets behind obstacles are excluded
-- Shotgun: each pellet ray can be blocked independently
-- Ricochet: direct-line check blocks behind obstacles (placeholder)
-- Obstacle renderer: distinct visual per type, pierceable marker, debug labels
-- Obstacles are dev/arena-only, not persisted in saves
-- saveGame strips blockoutObstacles
-- 51 unit tests for obstacles, collision, line-of-fire blocking, save stripping
-- No production pathfinding/combat/mapgen changes
+Dev/arena blockout upgrade skeleton now exists in the combat sandbox:
+- 5 upgrade types: mobility_boost, armor_plating, weapon_tuning, range_extender, cooling_system
+- Upgrade visual indicators: speed arcs, armor brackets, weapon glow, range circle, cooling dots
+- Upgrade hotkeys: U/1 = mobility, I/2 = armor, O/3 = weapon, P/4 = range, B/5 = cooling
+- Max 3 levels per upgrade, applied to selected vehicle in arena/dev mode
+- mobility_boost: +15% speed, +10% accel, +10% turn per level
+- armor_plating: +15% max HP, -5% incoming damage per level
+- weapon_tuning: +10% damage, -5% cooldown per level
+- range_extender: +10% range per level
+- cooling_system: -10% continuous tick/cadence per level
+- Effective profiles computed without mutating base configs
+- Destroyed vehicles cannot be upgraded
+- Upgrades are dev/arena-only, not persisted in saves
+- Debug labels show upgrade IDs and levels
 - Production/default game remains unchanged when devtools/arena is off
 
-Next step: BLOCKOUT-09H — Upgrade skeleton + visual indicators
+Next step: BLOCKOUT-10H+ — Combat readability sandbox / closure QA
 ```
 
 Mode:
 
 ```text
-BLOCKOUT-08H COMPLETE
-READY FOR BLOCKOUT-09H IMPLEMENTATION
+BLOCKOUT-09H COMPLETE
+READY FOR BLOCKOUT-10H+ IMPLEMENTATION
 No standalone low-risk PRs.
 High/high+ visible progress steps only.
 ```
@@ -70,8 +68,8 @@ High/high+ visible progress steps only.
 ```text
 VISUAL/UI roadmap slice: CLOSED
 Current active planning direction: BLOCKOUT-MVP
-Current implementation task: BLOCKOUT-08H COMPLETE
-Next action: BLOCKOUT-09H — Upgrade skeleton + visual indicators
+Current implementation task: BLOCKOUT-09H COMPLETE
+Next action: BLOCKOUT-10H+ — Combat readability sandbox / closure QA
 ```
 
 Roadmap document:
@@ -119,7 +117,7 @@ The roadmap focuses on Phaser/blockout placeholders for:
 - remaining weapon VFX families ✓ (BLOCKOUT-06H+)
 - direct/splash/penetration/status damage placeholders ✓ (BLOCKOUT-07H+)
 - obstacle blockers ✓ (BLOCKOUT-08H)
-- upgrade skeleton (BLOCKOUT-09H)
+- upgrade skeleton ✓ (BLOCKOUT-09H)
 - combat readability sandbox (BLOCKOUT-10H+)
 ```
 
@@ -141,6 +139,7 @@ BLOCKOUT-05H+ recoil + first weapon VFX set is implemented.
 BLOCKOUT-06H+ remaining weapon VFX families is implemented.
 BLOCKOUT-07H+ damage placeholders is implemented.
 BLOCKOUT-08H blockout obstacles is implemented.
-All 11 blockout weapons apply placeholder damage with obstacle blocking in arena/dev mode.
-Next step: BLOCKOUT-09H — Upgrade skeleton + visual indicators.
+BLOCKOUT-09H upgrade skeleton + visual indicators is implemented.
+All 11 blockout weapons apply placeholder damage with obstacle blocking and upgrade effects in arena/dev mode.
+Next step: BLOCKOUT-10H+ — Combat readability sandbox / closure QA.
 ```

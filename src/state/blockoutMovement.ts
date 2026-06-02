@@ -54,12 +54,16 @@ export function updateBlockoutVehicleMovement(
   // BLOCKOUT-07H+: Destroyed vehicles don't move
   if (vehicle.isDestroyed) return;
 
+  // BLOCKOUT-09H fixup: Caller (GameScene) passes the effective profile
+  // (with upgrade modifiers already applied). Do NOT re-apply here.
+  const effectiveProfile = profile;
+
   const dt = deltaMs / 1000; // seconds
 
   if (!vehicle.hasMoveTarget) {
     // No target — decelerate to zero
     if (vehicle.speed > 0) {
-      const brakeAmount = profile.brakingPxPerSec2 * dt;
+      const brakeAmount = effectiveProfile.brakingPxPerSec2 * dt;
       vehicle.speed = Math.max(0, vehicle.speed - brakeAmount);
     }
     // Update velocity from body angle and speed
@@ -84,11 +88,11 @@ export function updateBlockoutVehicleMovement(
   const desiredAngle = Math.atan2(dy, dx);
 
   // Rotate body toward desired angle (rate-limited by turnSpeedDeg)
-  const maxTurnRad = degPerSecToRadPerMs(profile.turnSpeedDeg) * deltaMs;
+  const maxTurnRad = degPerSecToRadPerMs(effectiveProfile.turnSpeedDeg) * deltaMs;
   vehicle.bodyAngle = rotateTowardAngle(vehicle.bodyAngle, desiredAngle, maxTurnRad);
 
   // Check arrival
-  if (distToTarget <= profile.arrivalRadiusPx) {
+  if (distToTarget <= effectiveProfile.arrivalRadiusPx) {
     // Arrived at target
     vehicle.hasMoveTarget = false;
     vehicle.speed = 0;
@@ -103,17 +107,17 @@ export function updateBlockoutVehicleMovement(
 
   // Compute stopping distance: v² / (2 * braking)
   const stoppingDist = vehicle.speed > 0
-    ? (vehicle.speed * vehicle.speed) / (2 * profile.brakingPxPerSec2)
+    ? (vehicle.speed * vehicle.speed) / (2 * effectiveProfile.brakingPxPerSec2)
     : 0;
 
-  if (distToTarget <= stoppingDist + profile.arrivalRadiusPx) {
+  if (distToTarget <= stoppingDist + effectiveProfile.arrivalRadiusPx) {
     // Need to brake — slow down
-    const brakeAmount = profile.brakingPxPerSec2 * dt;
+    const brakeAmount = effectiveProfile.brakingPxPerSec2 * dt;
     vehicle.speed = Math.max(0, vehicle.speed - brakeAmount);
   } else {
     // Accelerate toward max speed
-    const accelAmount = profile.accelerationPxPerSec2 * dt;
-    vehicle.speed = Math.min(profile.maxSpeedPxPerSec, vehicle.speed + accelAmount);
+    const accelAmount = effectiveProfile.accelerationPxPerSec2 * dt;
+    vehicle.speed = Math.min(effectiveProfile.maxSpeedPxPerSec, vehicle.speed + accelAmount);
   }
 
   // Update velocity from body angle and speed

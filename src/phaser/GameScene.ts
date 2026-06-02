@@ -34,12 +34,14 @@ import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputCont
 import { BlockoutWeaponVfxRenderer } from './render/BlockoutWeaponVfxRenderer';
 import { BlockoutDamageRenderer } from './render/BlockoutDamageRenderer';
 import { BlockoutObstacleRenderer } from './render/BlockoutObstacleRenderer';
+import { BlockoutUpgradeRenderer } from './render/BlockoutUpgradeRenderer';
 import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
 import { createDefaultArenaObstacles } from '../config/blockoutObstacleData';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
 import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../state/blockoutWeaponVfx';
 import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
+import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
 import { computeTurretWorldOrigin } from './render/blockoutVehicleGeometry';
 import { getWeaponProfile } from '../config/blockoutWeaponData';
 
@@ -148,6 +150,9 @@ export class GameScene extends Phaser.Scene {
 
   // BLOCKOUT-08H: Blockout obstacle renderer (only when devtools is active)
   private blockoutObstacleRenderer: BlockoutObstacleRenderer | null = null;
+
+  // BLOCKOUT-09H: Blockout upgrade renderer (only when devtools is active)
+  private blockoutUpgradeRenderer: BlockoutUpgradeRenderer | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -393,6 +398,7 @@ export class GameScene extends Phaser.Scene {
       this.blockoutWeaponVfxRenderer = new BlockoutWeaponVfxRenderer(this, this._offset as IsoPoint);
       this.blockoutDamageRenderer = new BlockoutDamageRenderer(this, this._offset as IsoPoint);
       this.blockoutObstacleRenderer = new BlockoutObstacleRenderer(this, this._offset as IsoPoint);
+      this.blockoutUpgradeRenderer = new BlockoutUpgradeRenderer(this, this._offset as IsoPoint);
       // Spawn the default blockout vehicle set in arena/dev mode
       devSpawnBlockoutVehicleSet(this.gameState);
       // BLOCKOUT-08H: Spawn default obstacle layout in arena/dev mode
@@ -537,11 +543,13 @@ export class GameScene extends Phaser.Scene {
       }
     }
     // BLOCKOUT-04H+: Update blockout vehicle movement
+    // BLOCKOUT-09H: Use effective movement profile (with upgrade modifiers)
     if (this.gameState.blockoutVehicles && this.devtoolsActive) {
       for (const vehicle of this.gameState.blockoutVehicles) {
-        const profile = MOVEMENT_PROFILES[vehicle.bodyId];
-        if (profile) {
-          updateBlockoutVehicleMovement(vehicle, profile, delta, this.gameState.blockoutObstacles);
+        const baseProfile = MOVEMENT_PROFILES[vehicle.bodyId];
+        if (baseProfile) {
+          const effectiveProfile = getEffectiveMovementProfile(vehicle, baseProfile);
+          updateBlockoutVehicleMovement(vehicle, effectiveProfile, delta, this.gameState.blockoutObstacles);
         }
       }
     }
@@ -598,6 +606,10 @@ export class GameScene extends Phaser.Scene {
     // BLOCKOUT-08H: Sync obstacle renderer
     if (this.blockoutObstacleRenderer && this.devtoolsActive && this.gameState.blockoutObstacles) {
       this.blockoutObstacleRenderer.syncFromState(this.gameState.blockoutObstacles);
+    }
+    // BLOCKOUT-09H: Sync upgrade renderer
+    if (this.blockoutUpgradeRenderer && this.devtoolsActive && this.gameState.blockoutVehicles) {
+      this.blockoutUpgradeRenderer.syncFromState(this.gameState.blockoutVehicles, this.blockoutVehicleInputController?.selectedVehicleId ?? null);
     }
 
     // 10. Debug log on unload completion
@@ -680,6 +692,8 @@ export class GameScene extends Phaser.Scene {
     this.blockoutDamageRenderer = null;
     this.blockoutObstacleRenderer?.destroy();
     this.blockoutObstacleRenderer = null;
+    this.blockoutUpgradeRenderer?.destroy();
+    this.blockoutUpgradeRenderer = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
     this.playtestHud?.destroy();
