@@ -393,12 +393,14 @@ export class BlockoutVehicleInputController {
     );
 
     // BLOCKOUT-07H+: Apply damage to targets
+    // BLOCKOUT-08H: Pass obstacles for line-of-fire blocking
     applyBlockoutWeaponDamage(
       selected, vehicles,
       barrelTipX, barrelTipY,
       selected.turretAngle,
       aimTargetX, aimTargetY,
       this.offset, nowMs,
+      gameState.blockoutObstacles ?? [],
     );
 
     // BLOCKOUT-06H+ fixup: Start continuous fire only for stream weapons.

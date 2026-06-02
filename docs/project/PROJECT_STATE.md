@@ -3,16 +3,16 @@
 Status: operational project state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Current phase: BLOCKOUT-MVP — BLOCKOUT-07H+ implemented, BLOCKOUT-08H next
+Current phase: BLOCKOUT-MVP — BLOCKOUT-08H implemented, BLOCKOUT-09H next
 
 ---
 
 ## Current mode
 
 ```text
-BLOCKOUT-07H+ implemented. Blockout vehicles have HP/damage/destroyed placeholders.
-All 11 weapons apply placeholder damage in arena/dev mode.
-Next: BLOCKOUT-08H — Blockout obstacles.
+BLOCKOUT-08H implemented. Dev/arena blockout obstacles exist.
+Obstacle movement collision and placeholder line-of-fire blocking exist.
+Next: BLOCKOUT-09H — Upgrade skeleton + visual indicators.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
@@ -154,9 +154,21 @@ The project currently has:
   - All damage state is transient (not persisted in saves)
   - No production combat, no save schema changes
   - production/default game unchanged when devtools is off
+- BLOCKOUT OBSTACLES in arena/dev mode (BLOCKOUT-08H)
+  - 4 obstacle types: blocker_wall, cover_crate, low_barrier, dummy_rock
+  - Phaser Graphics primitives only (no assets)
+  - Deterministic default arena layout (2 walls, 2 crates, 1 barrier, 1 rock)
+  - Vehicle movement collision: stops/clamps at obstacle edges
+  - Line-of-fire blocking: direct/rapid/plasma/beam blocked by obstacles
+  - Penetration: passes pierceable obstacles (low_barrier), blocked by non-pierceable
+  - Splash: impact point moves to obstacle intersection when blocked
+  - Cone/beam: targets behind obstacles excluded
+  - Shotgun: each pellet ray independently blocked
+  - Obstacles are dev/arena-only, not persisted in saves
+  - production/default game unchanged when devtools is off
 ```
 
-This is the expected baseline for BLOCKOUT-07H+.
+This is the expected baseline for BLOCKOUT-08H.
 
 ---
 
@@ -276,7 +288,7 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-08H — Blockout obstacles
+BLOCKOUT-09H — Upgrade skeleton + visual indicators
 ```
 
 Mode:
@@ -466,6 +478,42 @@ Implemented:
 - 56 unit tests for damage profiles, HP, hit detection, damage application, continuous ticks, VFX/damage cadence independence, save stripping
 ```
 
+### BLOCKOUT-08H — Blockout obstacles
+
+```text
+Type: implementation
+Risk: HIGH+
+Status: DONE
+
+Implemented:
+- BlockoutObstacleState with 4 obstacle types (blocker_wall, cover_crate, low_barrier, dummy_rock)
+- ObstacleTypeConfig with visual properties, blocking flags, pierceable flag
+- Deterministic default arena obstacle layout (2 walls, 2 crates, 1 barrier, 1 rock)
+- BlockoutObstacleRenderer using Phaser Graphics primitives (rect/circle shapes, pierceable markers, debug labels)
+- Pure TypeScript obstacle collision/line-of-fire module (blockoutObstacles.ts)
+  - Line segment vs rectangle intersection
+  - Line segment vs circle intersection
+  - findNearestObstacleBlockingLine with pierceable support
+  - isLineOfFireBlocked for direct/rapid/plasma/beam/shotgun
+  - Circle-rect and circle-circle collision with push resolution
+  - resolveVehicleObstacleCollisions for movement integration
+- Movement collision: vehicle stops/clamps at obstacle edge, velocity adjusted
+- Line-of-fire blocking for all damage kinds:
+  - Direct/rapid/plasma/beam: blocked by first blocking obstacle
+  - Penetration: blocked by non-pierceable, passes pierceable low_barrier
+  - Cone/beam: targets behind obstacle excluded
+  - Splash: impact point moves to obstacle intersection when blocked
+  - Shotgun: each pellet ray independently blocked
+  - Ricochet: direct-line check (placeholder)
+- GameState extended with blockoutObstacles (optional, dev-only)
+- saveGame strips blockoutObstacles in addition to blockoutVehicles
+- GameScene spawns default obstacles, passes to movement/damage
+- BlockoutVehicleInputController passes obstacles to single-shot damage
+- Obstacles are dev/arena-only, not persisted in saves
+- No production pathfinding/combat/mapgen changes
+- 51 unit tests for obstacles, collision, line-of-fire blocking, save stripping
+```
+
 ---
 
 ## Completed roadmap slice
@@ -610,7 +658,8 @@ Use this sequence:
 9. BLOCKOUT-05H+ recoil + first weapon VFX set — DONE
 10. BLOCKOUT-06H+ remaining weapon VFX families — DONE
 11. BLOCKOUT-07H+ damage placeholders — DONE
-12. BLOCKOUT-08H blockout obstacles — NEXT
+12. BLOCKOUT-08H blockout obstacles — DONE
+13. BLOCKOUT-09H upgrade skeleton — NEXT
 ```
 
 ---

@@ -210,12 +210,16 @@ export function getLatestSaveMeta(): SaveSlotMeta | null {
  * Does not bump save version. Does not change save schema.
  */
 function sanitizeForSave(gameState: GameState): GameState {
-  if (!gameState.blockoutVehicles || gameState.blockoutVehicles.length === 0) {
-    // No blockout vehicles to strip — return as-is to avoid unnecessary copy
+  // BLOCKOUT-08H: Strip blockoutObstacles in addition to blockoutVehicles
+  const hasBlockoutVehicles = gameState.blockoutVehicles && gameState.blockoutVehicles.length > 0;
+  const hasBlockoutObstacles = gameState.blockoutObstacles && gameState.blockoutObstacles.length > 0;
+  
+  if (!hasBlockoutVehicles && !hasBlockoutObstacles) {
+    // No blockout data to strip — return as-is to avoid unnecessary copy
     return gameState;
   }
-  // Create a shallow copy with blockoutVehicles omitted
-  const { blockoutVehicles: _bv, ...rest } = gameState;
+  // Create a shallow copy with blockoutVehicles and blockoutObstacles omitted
+  const { blockoutVehicles: _bv, blockoutObstacles: _bo, ...rest } = gameState;
   return rest;
 }
 

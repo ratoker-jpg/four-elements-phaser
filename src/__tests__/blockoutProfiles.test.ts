@@ -18,7 +18,7 @@ import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { RECOIL_PROFILES } from '../config/blockoutRecoilData';
 import { VFX_PROFILES } from '../config/blockoutVfxData';
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
-import { OBSTACLE_PROFILES } from '../config/blockoutObstacleData';
+import { OBSTACLE_TYPE_CONFIGS } from '../config/blockoutObstacleData';
 import { UPGRADE_PROFILES } from '../config/blockoutUpgradeData';
 import type { MountCategory, BlockoutShape, WeaponBehavior } from '../config/blockoutProfiles';
 
@@ -280,10 +280,10 @@ describe('blockout supporting profiles', () => {
     }
   });
 
-  it('should have obstacle profiles for first blockout set', () => {
-    const expectedIds = ['blocker_1x1', 'blocker_2x1', 'blocker_2x2', 'wall_segment', 'wreck_placeholder', 'industrial_crate'];
-    for (const id of expectedIds) {
-      expect(OBSTACLE_PROFILES[id], `Missing obstacle profile: ${id}`).toBeDefined();
+  it('should have obstacle type configs for blockout obstacle types', () => {
+    const expectedTypes = ['blocker_wall', 'cover_crate', 'low_barrier', 'dummy_rock'];
+    for (const type of expectedTypes) {
+      expect(OBSTACLE_TYPE_CONFIGS[type as keyof typeof OBSTACLE_TYPE_CONFIGS], `Missing obstacle type config: ${type}`).toBeDefined();
     }
   });
 
