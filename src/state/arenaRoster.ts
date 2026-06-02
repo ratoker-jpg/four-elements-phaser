@@ -64,6 +64,51 @@ export function deriveRosterRows(
   }));
 }
 
+// ─── Roster click decision ───────────────────────────────────────
+
+/** Result of a roster row click decision. */
+export type RosterClickAction =
+  | { type: 'select'; vehicleId: string }
+  | { type: 'assignTarget'; targetVehicleId: string }
+  | { type: 'noop' };
+
+/**
+ * Decide what action to take when a roster row is clicked.
+ * Pure function — reads state, returns action.
+ *
+ * - Ally row click → select that ally.
+ * - Enemy row click + ally selected → assign enemy as target.
+ * - Enemy row click + no ally selected → no-op.
+ * - Enemy row never triggers controllable selection.
+ *
+ * @param row - The clicked roster row
+ * @param selectedVehicleId - Currently selected vehicle ID (or null)
+ * @param vehicles - Current blockout vehicles (to verify selected is ally)
+ * @returns The action to take
+ */
+export function decideRosterClick(
+  row: ArenaRosterRow,
+  selectedVehicleId: string | null,
+  vehicles: BlockoutVehicleState[] | undefined,
+): RosterClickAction {
+  if (row.team === 'ally') {
+    return { type: 'select', vehicleId: row.id };
+  }
+
+  if (row.team === 'enemy') {
+    if (!selectedVehicleId) {
+      return { type: 'noop' };
+    }
+    const selected = vehicles?.find(v => v.id === selectedVehicleId);
+    if (selected && selected.team === 'ally') {
+      return { type: 'assignTarget', targetVehicleId: row.id };
+    }
+    return { type: 'noop' };
+  }
+
+  return { type: 'noop' };
+}
+
 // ─── Clear operations ────────────────────────────────────────────
 
 /** Result of a clear/delete operation. */

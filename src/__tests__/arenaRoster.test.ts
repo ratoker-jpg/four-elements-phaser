@@ -28,6 +28,7 @@ import {
   clearEnemyVehicles,
   deleteVehicle,
   deriveArenaStatus,
+  decideRosterClick,
   ARENA_HELP_LINES,
 } from '../state/arenaRoster';
 import { startFiring, resetVfxEventIdCounter, clearVfxEvents } from '../state/blockoutWeaponVfx';
@@ -343,6 +344,95 @@ describe('ARENA-04H+ deleteVehicle', () => {
     deleteVehicle(vehicles, ally.id, ally.id);
 
     expect(ally.isFiring).toBe(false);
+  });
+});
+
+// ─── decideRosterClick ────────────────────────────────────────────
+
+describe('ARENA-04H+ decideRosterClick', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+  });
+
+  it('ally row click returns select action', () => {
+    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, undefined, undefined, 'ally');
+    const enemy = createBlockoutVehicle('hornet', 'twins', 'green', 8, 8, undefined, undefined, 'enemy');
+    const vehicles = [ally, enemy];
+    const rows = deriveRosterRows(vehicles, null, null);
+    const allyRow = rows.find(r => r.team === 'ally')!;
+
+    const action = decideRosterClick(allyRow, null, vehicles);
+
+    expect(action.type).toBe('select');
+    if (action.type === 'select') {
+      expect(action.vehicleId).toBe(ally.id);
+    }
+  });
+
+  it('enemy row click with selected ally returns assignTarget action', () => {
+    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, undefined, undefined, 'ally');
+    const enemy = createBlockoutVehicle('hornet', 'twins', 'green', 8, 8, undefined, undefined, 'enemy');
+    const vehicles = [ally, enemy];
+    const rows = deriveRosterRows(vehicles, ally.id, null);
+    const enemyRow = rows.find(r => r.team === 'enemy')!;
+
+    const action = decideRosterClick(enemyRow, ally.id, vehicles);
+
+    expect(action.type).toBe('assignTarget');
+    if (action.type === 'assignTarget') {
+      expect(action.targetVehicleId).toBe(enemy.id);
+    }
+  });
+
+  it('enemy row click with no selected ally returns noop', () => {
+    const enemy = createBlockoutVehicle('hornet', 'twins', 'green', 8, 8, undefined, undefined, 'enemy');
+    const vehicles = [enemy];
+    const rows = deriveRosterRows(vehicles, null, null);
+    const enemyRow = rows.find(r => r.team === 'enemy')!;
+
+    const action = decideRosterClick(enemyRow, null, vehicles);
+
+    expect(action.type).toBe('noop');
+  });
+
+  it('enemy row click never returns select action', () => {
+    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, undefined, undefined, 'ally');
+    const enemy = createBlockoutVehicle('hornet', 'twins', 'green', 8, 8, undefined, undefined, 'enemy');
+    const vehicles = [ally, enemy];
+
+    // With ally selected
+    const rows = deriveRosterRows(vehicles, ally.id, null);
+    const enemyRow = rows.find(r => r.team === 'enemy')!;
+    const actionWithSelection = decideRosterClick(enemyRow, ally.id, vehicles);
+    expect(actionWithSelection.type).not.toBe('select');
+
+    // Without ally selected
+    const actionNoSelection = decideRosterClick(enemyRow, null, vehicles);
+    expect(actionNoSelection.type).not.toBe('select');
+  });
+
+  it('enemy row click with undefined vehicles returns noop', () => {
+    const enemy = createBlockoutVehicle('hornet', 'twins', 'green', 8, 8, undefined, undefined, 'enemy');
+    const vehicles = [enemy];
+    const rows = deriveRosterRows(vehicles, null, null);
+    const enemyRow = rows.find(r => r.team === 'enemy')!;
+
+    const action = decideRosterClick(enemyRow, 'some-id', undefined);
+
+    expect(action.type).toBe('noop');
+  });
+
+  it('enemy row click when selectedId belongs to enemy (not ally) returns noop', () => {
+    const enemy1 = createBlockoutVehicle('hornet', 'twins', 'green', 8, 8, undefined, undefined, 'enemy');
+    const enemy2 = createBlockoutVehicle('wasp', 'smoky', 'green', 10, 10, undefined, undefined, 'enemy');
+    const vehicles = [enemy1, enemy2];
+    const rows = deriveRosterRows(vehicles, enemy1.id, null);
+    const enemy2Row = rows.find(r => r.id === enemy2.id)!;
+
+    // Even if somehow an enemy ID is "selected", clicking another enemy is noop
+    const action = decideRosterClick(enemy2Row, enemy1.id, vehicles);
+
+    expect(action.type).toBe('noop');
   });
 });
 

@@ -29,6 +29,7 @@ import {
   clearAllyVehicles,
   clearEnemyVehicles,
   deriveArenaStatus,
+  decideRosterClick,
   ARENA_HELP_LINES,
   type ArenaRosterRow,
 } from '../../state/arenaRoster';
@@ -516,36 +517,30 @@ export class ArenaMenu {
 
   /**
    * Handle roster row click — select ally or target enemy.
-   * ARENA-04H+: Safe first behavior.
+   * ARENA-04H+: Delegates to pure decideRosterClick for the decision.
    */
   private handleRosterRowClick(row: ArenaRosterRow): void {
     if (!this.callbacks) return;
 
-    if (row.team === 'ally') {
-      // Clicking ally row selects it as controllable
-      this.callbacks.onSelectVehicle(row.id);
-    } else if (row.team === 'enemy') {
-      // Clicking enemy row:
-      // - If an ally is currently selected, assign this enemy as target
-      // - Otherwise, it's inspect/no-op (enemy cannot be controllable)
-      const selectedId = this.callbacks.getSelectedVehicleId();
-      if (selectedId) {
-        const vehicles = this.getVehicles();
-        const selected = vehicles?.find(v => v.id === selectedId);
-        if (selected && selected.team === 'ally') {
-          this.callbacks.onAssignTarget(row.id);
-        }
-      }
-      // No ally selected → clicking enemy is no-op (safe first behavior)
+    const selectedId = this.callbacks.getSelectedVehicleId();
+    const vehicles = this.getVehicles();
+    const action = decideRosterClick(row, selectedId, vehicles);
+
+    switch (action.type) {
+      case 'select':
+        this.callbacks.onSelectVehicle(action.vehicleId);
+        break;
+      case 'assignTarget':
+        this.callbacks.onAssignTarget(action.targetVehicleId);
+        break;
+      case 'noop':
+        break;
     }
   }
 
-  /** Get current vehicles from game state (helper). */
+  /** Get current vehicles from cached game state. */
   private getVehicles(): BlockoutVehicleState[] | undefined {
-    // We need the game state, but ArenaMenu doesn't hold it directly.
-    // Instead, use callbacks — the roster rows already have the data we need.
-    // For delete operations, we'll use the _lastRosterRows and let GameScene handle state.
-    return undefined; // Not used directly — operations go through callbacks
+    return this._gameState?.blockoutVehicles;
   }
 
   /** Delete a unit from a roster row's × button. */
@@ -580,20 +575,8 @@ export class ArenaMenu {
     this.deleteUnitById(selectedId);
   }
 
-  /** Delete a unit by ID — mutates state directly. */
+  /** Delete a unit by ID — mutates state via arenaRoster helper. */
   private deleteUnitById(vehicleId: string): void {
-    // We need access to the actual vehicles array.
-    // The simplest approach: GameScene provides a getGameState callback.
-    // But ArenaMenu doesn't have one currently.
-    // Instead, we'll use a callback-based approach where GameScene handles the mutation.
-    // For now, emit an event that GameScene can handle.
-    // Actually, looking at the existing code, onClearUnits directly mutates
-    // gameState.blockoutVehicles. We need a similar approach for delete.
-
-    // We'll add a new callback for this. But first let's check if we can
-    // access the state through existing callbacks.
-    // The update() method receives GameState, but we don't store it.
-    // Let's store it during update so we can use it for actions.
     if (this._gameState) {
       const vehicles = this._gameState.blockoutVehicles;
       if (vehicles) {
