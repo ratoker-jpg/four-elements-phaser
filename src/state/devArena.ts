@@ -3,6 +3,13 @@
  *
  * ARCH-12A: Provides a minimal fixed arena MapData and URL param
  * activation helper. Pure TS, no Phaser, no DOM.
+ *
+ * ARENA-01H+: Arena is now a clean standalone mode.
+ * - No HQ (dummy placeholder kept for MapData type compatibility)
+ * - No resources
+ * - No builders
+ * - No obstacles
+ * - Empty 20x20 sandbox map
  */
 
 import type { MapData, TerrainType } from './types';
@@ -22,7 +29,18 @@ export function isArenaEnabled(): boolean {
 
 // ─── Arena map preset ────────────────────────────────────────────
 
-/** Create the arena MapData — a small open map with HQ, a few resources, and lots of open space. */
+/**
+ * Create the arena MapData — a clean empty sandbox map.
+ *
+ * ARENA-01H+: Arena is a standalone mode with no Normal Game elements.
+ * - Empty 20x20 sand terrain
+ * - No HQ (dummy at 0,0 kept for MapData type compatibility — not rendered in arena mode)
+ * - No resources
+ * - No builders
+ * - No obstacles
+ * - No buildings
+ * - No construction sites
+ */
 export function createArenaMapData(): MapData {
   const W = 20;
   const H = 20;
@@ -41,33 +59,14 @@ export function createArenaMapData(): MapData {
     width: W,
     height: H,
     terrain,
-    hq: { tx: 3, ty: 3, faction: 'cyan' },
-    resources: [
-      { tx: 8, ty: 3, type: 'medium', footprint: 1 },
-      { tx: 8, ty: 5, type: 'medium', footprint: 1 },
-      { tx: 3, ty: 8, type: 'small', footprint: 1 },
-      { tx: 5, ty: 8, type: 'small', footprint: 1 },
-      { tx: 12, ty: 12, type: 'infinite', footprint: 3 },
-    ],
+    // Dummy HQ for MapData type compatibility — NOT rendered in Arena mode.
+    // ArenaModeContext.runCivilLoop = false ensures no HQ-related subsystems activate.
+    hq: { tx: 0, ty: 0, faction: 'cyan' },
+    resources: [],
     obstacles: [],
     decor: [],
     buildings: [],
-    builders: [
-      {
-        id: 'builder-0',
-        tx: 2,
-        ty: 2,
-        busy: false,
-        phase: 'idle',
-        path: [],
-        pathIndex: 0,
-        ftx: 2.5,
-        fty: 2.5,
-        targetTx: 2,
-        targetTy: 2,
-        assignedSiteId: -1,
-      },
-    ],
+    builders: [],
     constructionSites: [],
   };
 }
@@ -75,6 +74,9 @@ export function createArenaMapData(): MapData {
 /**
  * Dev reset command — resets the arena state by returning a fresh arena MapData.
  * Pure function — GameScene will use this to create a new GameState.
+ *
+ * ARENA-01H+: Reset produces the same clean empty map as initial creation.
+ * No obstacles, no resources, no builders are restored.
  */
 export function devResetArena(): MapData {
   return createArenaMapData();

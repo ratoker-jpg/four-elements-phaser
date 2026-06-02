@@ -27,6 +27,8 @@ import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
 import { FeedbackRenderer } from './render/FeedbackRenderer';
 import { UnitMotionFxRenderer } from './render/UnitMotionFxRenderer';
 import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData } from '../state/devArena';
+import { createArenaModeContext, type ArenaModeContext } from '../state/arenaModeContext';
+import { ArenaMenu } from './ui/ArenaMenu';
 import { AssetPreviewTool } from './dev/AssetPreviewTool';
 import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
 import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
@@ -37,7 +39,7 @@ import { BlockoutObstacleRenderer } from './render/BlockoutObstacleRenderer';
 import { BlockoutUpgradeRenderer } from './render/BlockoutUpgradeRenderer';
 import { BlockoutSandboxHudRenderer } from './render/BlockoutSandboxHudRenderer';
 import { CameraProjectionDebugRenderer } from './render/CameraProjectionDebugRenderer';
-import { DEFAULT_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
+import { DEFAULT_SANDBOX_SCENARIO, ARENA_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
 import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
 import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../state/blockoutWeaponVfx';
@@ -159,6 +161,12 @@ export class GameScene extends Phaser.Scene {
   // CAMERA-00: Camera projection debug renderer (only when devtools is active)
   private cameraProjectionDebugRenderer: CameraProjectionDebugRenderer | null = null;
 
+  // ARENA-01H+: ArenaMenu — primary Arena UX (replaces PlaytestHud for Arena)
+  private arenaMenu: ArenaMenu | null = null;
+
+  // ARENA-01H+: ArenaModeContext — controls which subsystems are active
+  private arenaCtx: ArenaModeContext = createArenaModeContext(false);
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -210,6 +218,9 @@ export class GameScene extends Phaser.Scene {
     this.devtoolsActive = urlDevtools || configDebug || configArena;
     this.arenaMode = urlArena || configArena;
 
+    // ARENA-01H+: Create ArenaModeContext — controls which subsystems are active
+    this.arenaCtx = createArenaModeContext(this.arenaMode);
+
     // Determine the game state source — loaded save takes priority,
     // then arena (dev-only), then normal setup config.
     if (this.loadedGameState) {
@@ -228,10 +239,10 @@ export class GameScene extends Phaser.Scene {
         console.log('[GameScene] Loaded saved game state.');
       }
     } else if (this.arenaMode) {
-      // Arena mode: create arena state (devtools-gated)
+      // ARENA-01H+: Arena mode — clean standalone, no HQ/harvesters/resources/economy
       const arenaMapData = createArenaMapData();
-      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction, 'QA Arena', { includeModularCombat: true });
-      console.log('[GameScene] Arena mode active. Map: QA Arena (20x20)');
+      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction, 'QA Arena', { includeModularCombat: true, arenaMode: true });
+      console.log('[GameScene] Arena mode active. Map: QA Arena (20x20) — clean standalone');
     } else {
       const mapData = getMapDataFromConfig(this.setupConfig);
       const mapNameOverride = getMapDisplayName(this.setupConfig);
@@ -273,14 +284,16 @@ export class GameScene extends Phaser.Scene {
     // If needed for debugging, re-enable drawGridLines() temporarily.
 
     // Render entities — static first, then dynamic
-    // VISUAL-06E: Pass resourceStyle to EntityRenderer for style-aware resource rendering
+    // ARENA-01H+: Arena mode has no Normal Game entities (empty entities, harvesters, resourceNodes)
     const resourceStyle: ResourceStyle = this.setupConfig.resourceStyle ?? 'legacy';
     this.entityRenderer = new EntityRenderer(this, offset, resourceStyle);
     this.entityRenderer.renderStaticEntities(this.gameState.entities);
-    this.entityRenderer.renderDynamicInit(
-      this.gameState.harvesters,
-      this.gameState.resourceNodes,
-    );
+    if (!this.arenaCtx.arenaMode) {
+      this.entityRenderer.renderDynamicInit(
+        this.gameState.harvesters,
+        this.gameState.resourceNodes,
+      );
+    }
 
     // ARCH-11A: Log harvester animation readiness for smoke test verification
     console.log('[GameScene] Harvester animation ready.');
@@ -302,23 +315,52 @@ export class GameScene extends Phaser.Scene {
       : this.terrainRenderer.getBounds();
     this.cameraControls.setBounds(bounds);
 
-    // Center camera on HQ from state (HQ has 3x3 footprint, center on +1,+1)
-    const hq = this.gameState.mapData.hq;
-    const hqCenterTx = hq.tx + 1;
-    const hqCenterTy = hq.ty + 1;
-    const hqScreen = tileToScreen(hqCenterTx, hqCenterTy);
-    this.hqWorldX = hqScreen.x + offset.x;
-    this.hqWorldY = hqScreen.y + offset.y;
+    // ARENA-01H+: Center camera on map center for Arena, HQ for Normal Game
+    if (this.arenaCtx.arenaMode) {
+      const centerTx = Math.floor(this.gameState.mapWidth / 2);
+      const centerTy = Math.floor(this.gameState.mapHeight / 2);
+      const centerScreen = tileToScreen(centerTx, centerTy);
+      this.hqWorldX = centerScreen.x + offset.x;
+      this.hqWorldY = centerScreen.y + offset.y;
+    } else {
+      const hq = this.gameState.mapData.hq;
+      const hqCenterTx = hq.tx + 1;
+      const hqCenterTy = hq.ty + 1;
+      const hqScreen = tileToScreen(hqCenterTx, hqCenterTy);
+      this.hqWorldX = hqScreen.x + offset.x;
+      this.hqWorldY = hqScreen.y + offset.y;
+    }
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
 
-    // ARCH-14A: Create PlaytestHud with build/production callbacks
-    // (wired after input controller is created, see below)
-    this.playtestHud = new PlaytestHud();
+    // ARENA-01H+: Arena mode uses ArenaMenu instead of PlaytestHud
+    if (this.arenaCtx.showPlaytestHud) {
+      this.playtestHud = new PlaytestHud();
+    }
+
+    // ARENA-01H+: Create ArenaMenu if in Arena mode
+    if (this.arenaCtx.showArenaMenu) {
+      this.arenaMenu = new ArenaMenu();
+      this.arenaMenu.create({
+        onResetArena: () => {
+          this.scene.restart({ faction: this.setupConfig.faction, mapId: ARENA_MAP_ID, gameMode: 'arena' });
+        },
+        onClearUnits: () => {
+          // ARENA-01H+: Clear all blockout vehicles
+          if (this.gameState.blockoutVehicles) {
+            this.gameState.blockoutVehicles.length = 0;
+            this.gameState.blockoutObstacles = [];
+          }
+        },
+        onToggleHelp: () => {
+          this.blockoutSandboxHudRenderer?.toggleHelp();
+        },
+      });
+      console.log('[GameScene] ArenaMenu created (primary Arena UX).');
+    }
 
     // ARCH-14B: Create pause menu with callbacks
-    // ARCH-15A: Added onSave callback
-    // UI-04: Added onLoad callback for in-game save slot loading
+    // ARENA-01H+: Pause menu is available in Arena mode too (ESC menu)
     this.pauseMenu = new PauseMenu();
     this.pauseMenu.create(
       {
@@ -363,7 +405,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     // ARCH-11A: Create devtools panel if activated
-    // (devtoolsActive/arenaMode already computed at top of create())
+    // ARENA-01H+: In Arena mode, DevTools starts HIDDEN — ArenaMenu is primary UX.
+    // DevTools remains available via F10/backtick for technical debugging.
     if (this.devtoolsActive) {
       this.devtoolsPanel = new DevtoolsPanel();
       this.devtoolsPanel.create({
@@ -380,12 +423,16 @@ export class GameScene extends Phaser.Scene {
         },
         onResetArena: () => {
           if (this.arenaMode) {
-            this.scene.restart({ faction: this.setupConfig.faction, mapId: ARENA_MAP_ID });
+            this.scene.restart({ faction: this.setupConfig.faction, mapId: ARENA_MAP_ID, gameMode: 'arena' });
           }
         },
         getScene: () => this as Phaser.Scene,
       }, this.arenaMode);
-      console.log('[GameScene] Devtools panel enabled.');
+      // ARENA-01H+: DevTools is NOT the primary Arena UX — start hidden
+      if (this.arenaMode) {
+        this.devtoolsPanel.hide();
+      }
+      console.log('[GameScene] Devtools panel enabled.', this.arenaMode ? '(hidden — ArenaMenu is primary UX)' : '');
     }
 
     // DEV-ASSET-PREVIEW-01: Create asset preview tool and panel if devtools is active
@@ -398,15 +445,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     // BLOCKOUT-02H: Create blockout vehicle renderer and spawn initial set if devtools is active
+    // ARENA-01H+: Arena mode uses ARENA_SANDBOX_SCENARIO (no obstacles)
     if (this.devtoolsActive) {
       this.blockoutVehicleRenderer = new BlockoutVehicleRenderer(this, this._offset as IsoPoint);
       this.blockoutWeaponVfxRenderer = new BlockoutWeaponVfxRenderer(this, this._offset as IsoPoint);
       this.blockoutDamageRenderer = new BlockoutDamageRenderer(this, this._offset as IsoPoint);
       this.blockoutObstacleRenderer = new BlockoutObstacleRenderer(this, this._offset as IsoPoint);
       this.blockoutUpgradeRenderer = new BlockoutUpgradeRenderer(this, this._offset as IsoPoint);
-      // BLOCKOUT-10H+: Use scenario-based spawn instead of devSpawnBlockoutVehicleSet
-      resetBlockoutScenario(this.gameState, DEFAULT_SANDBOX_SCENARIO);
-      console.log('[GameScene] Blockout vehicle renderer enabled. Spawned sandbox scenario.');
+      // ARENA-01H+: Arena uses obstacle-free scenario
+      const scenario = this.arenaMode ? ARENA_SANDBOX_SCENARIO : DEFAULT_SANDBOX_SCENARIO;
+      resetBlockoutScenario(this.gameState, scenario);
+      console.log('[GameScene] Blockout vehicle renderer enabled. Spawned', this.arenaMode ? 'arena' : 'sandbox', 'scenario.');
     }
 
     // BLOCKOUT-03H: Create blockout vehicle input controller for selection/aiming
@@ -424,8 +473,10 @@ export class GameScene extends Phaser.Scene {
           this.blockoutVehicleRenderer?.setSelectedVehicleId(selectedId);
         },
         onResetScenario: () => {
-          resetBlockoutScenario(this.gameState, DEFAULT_SANDBOX_SCENARIO);
-          console.log('[GameScene] Scenario reset to defaults.');
+          // ARENA-01H+: Arena uses obstacle-free scenario on reset
+          const scenario = this.arenaMode ? ARENA_SANDBOX_SCENARIO : DEFAULT_SANDBOX_SCENARIO;
+          resetBlockoutScenario(this.gameState, scenario);
+          console.log('[GameScene] Scenario reset to', this.arenaMode ? 'arena' : 'defaults', '.');
         },
         onToggleHelp: () => {
           this.blockoutSandboxHudRenderer?.toggleHelp();
@@ -457,15 +508,17 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Wire PlaytestHud callbacks to delegate to the input controller
-    // FIX-04: Also wire cancel callback via closure that calls inputController
-    const cancelHandler = (factoryIndex: number, queueIndex: number) => {
-      return this.inputController!.requestCancelQueueItem(factoryIndex, queueIndex);
-    };
-    this.playtestHud.create(
-      (buildingType: BuildingType) => this.inputController!.requestBuild(buildingType),
-      (unitType: ProducibleUnitType) => this.inputController!.requestQueueUnit(unitType),
-      cancelHandler,
-    );
+    // ARENA-01H+: Only wire PlaytestHud in Normal Game (Arena uses ArenaMenu)
+    if (this.playtestHud) {
+      const cancelHandler = (factoryIndex: number, queueIndex: number) => {
+        return this.inputController!.requestCancelQueueItem(factoryIndex, queueIndex);
+      };
+      this.playtestHud.create(
+        (buildingType: BuildingType) => this.inputController!.requestBuild(buildingType),
+        (unitType: ProducibleUnitType) => this.inputController!.requestQueueUnit(unitType),
+        cancelHandler,
+      );
+    }
 
     // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
@@ -505,21 +558,24 @@ export class GameScene extends Phaser.Scene {
     // ARCH-14B: Skip game loop when paused
     if (this.paused) return;
 
-    // 1. Advance game state (harvester civil loop)
-    updateGameState(this.gameState, delta);
+    // ARENA-01H+: Skip civil game loop in Arena mode (no harvesters, economy, construction)
+    if (this.arenaCtx.runCivilLoop) {
+      // 1. Advance game state (harvester civil loop)
+      updateGameState(this.gameState, delta);
 
-    // 2. Auto-assign idle builders to pending construction sites
-    assignIdleBuilders(this.gameState);
+      // 2. Auto-assign idle builders to pending construction sites
+      assignIdleBuilders(this.gameState);
 
-    // 3. Advance builder movement (must come before construction progress)
-    updateBuilders(this.gameState, delta);
+      // 3. Advance builder movement (must come before construction progress)
+      updateBuilders(this.gameState, delta);
 
-    // 4. Advance construction site progress (only for sites with active builder)
-    const siteIds = this.gameState.mapData.constructionSites.map(s => `site-${s.id}`);
-    for (const siteId of siteIds) {
-      const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
-      if (result.completed) {
-        console.log(`[GameScene] Construction completed: ${result.buildingId}`);
+      // 4. Advance construction site progress (only for sites with active builder)
+      const siteIds = this.gameState.mapData.constructionSites.map(s => `site-${s.id}`);
+      for (const siteId of siteIds) {
+        const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
+        if (result.completed) {
+          console.log(`[GameScene] Construction completed: ${result.buildingId}`);
+        }
       }
     }
 
@@ -529,8 +585,15 @@ export class GameScene extends Phaser.Scene {
     // 5b. Sync building status indicators (ARCH-07A)
     this.buildingStatusRenderer?.syncFromState(this.gameState);
 
-    // 6. Update PlaytestHud panel
-    this.playtestHud?.update(this.gameState);
+    // 6. Update PlaytestHud panel (ARENA-01H+: only in Normal Game)
+    if (this.playtestHud) {
+      this.playtestHud.update(this.gameState);
+    }
+
+    // ARENA-01H+: Update ArenaMenu (primary Arena UX)
+    if (this.arenaMenu) {
+      this.arenaMenu.update(this.gameState);
+    }
 
     // 7. Update input controller (selection highlight)
     this.inputController?.update();
@@ -635,8 +698,8 @@ export class GameScene extends Phaser.Scene {
       );
     }
 
-    // 10. Debug log on unload completion
-    if (this.gameState.economy.raw > this.lastLoggedRaw) {
+    // 10. Debug log on unload completion (ARENA-01H+: only in Normal Game)
+    if (this.arenaCtx.runCivilLoop && this.gameState.economy.raw > this.lastLoggedRaw) {
       console.log(
         `[GameScene] Unloaded! Raw: ${this.gameState.economy.raw}`,
       );
@@ -721,6 +784,8 @@ export class GameScene extends Phaser.Scene {
     this.blockoutSandboxHudRenderer = null;
     this.cameraProjectionDebugRenderer?.destroy();
     this.cameraProjectionDebugRenderer = null;
+    this.arenaMenu?.destroy();
+    this.arenaMenu = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
     this.playtestHud?.destroy();
