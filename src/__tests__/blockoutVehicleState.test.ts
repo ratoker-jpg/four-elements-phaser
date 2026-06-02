@@ -102,6 +102,18 @@ describe('BlockoutVehicleState', () => {
     const v = createBlockoutVehicle('wasp', 'smoky', 'cyan', 1, 1);
     expect(v.id).toBe('blockout-vehicle-1');
   });
+
+  // ARENA-02H+: team field defaults to 'ally'
+  it('should default team to ally', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    expect(vehicle.team).toBe('ally');
+  });
+
+  // ARENA-02H+: team field can be set to 'enemy'
+  it('should accept team parameter', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'green', 5, 5, Math.PI / 2, 120, 'enemy');
+    expect(vehicle.team).toBe('enemy');
+  });
 });
 
 // ─── Dev spawn command tests ────────────────────────────────────────

@@ -9,6 +9,7 @@
  * independent turret aiming.
  * BLOCKOUT-04H+: Added movement fields (worldX/worldY, velocity,
  * move target) for semi-physics movement.
+ * ARENA-02H+: Added team field (ally/enemy) for Arena mode.
  */
 
 import type { Faction } from './types';
@@ -16,6 +17,11 @@ import type { BodyId, WeaponId } from '../config/blockoutProfiles';
 import type { BlockoutUpgradeId } from '../config/blockoutUpgradeData';
 import { getBlockoutBodyMaxHp } from '../config/blockoutBodyData';
 import { tileToScreen } from '../phaser/render/isometric';
+
+// ─── Arena Team Type (ARENA-02H+) ──────────────────────────────────
+
+/** Team designation for Arena mode. ARENA-02H+. */
+export type ArenaTeam = 'ally' | 'enemy';
 
 // ─── Blockout Vehicle State ────────────────────────────────────────
 
@@ -29,6 +35,8 @@ export interface BlockoutVehicleState {
   weaponId: WeaponId;
   /** Faction / color group for rendering. */
   faction: Faction;
+  /** Arena team designation (ally/enemy). ARENA-02H+. Defaults to 'ally'. */
+  team: ArenaTeam;
   /** Tile X position (updated approximately from worldX/worldY). */
   tx: number;
   /** Tile Y position (updated approximately from worldX/worldY). */
@@ -153,6 +161,7 @@ export function createBlockoutVehicle(
   ty: number,
   bodyAngle: number = Math.PI / 2, // default: facing south in isometric
   turretTurnSpeedDeg: number = DEFAULT_TURRET_TURN_SPEED_DEG,
+  team: ArenaTeam = 'ally', // ARENA-02H+: default ally for backward compat
 ): BlockoutVehicleState {
   const screenPos = tileToScreen(tx, ty);
 
@@ -161,6 +170,7 @@ export function createBlockoutVehicle(
     bodyId,
     weaponId,
     faction,
+    team,
     tx,
     ty,
     bodyAngle,

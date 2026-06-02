@@ -3,16 +3,19 @@
  *
  * ARCH-12A: Tests for the devArena module.
  * ARENA-01H+: Updated for clean standalone Arena mode.
+ * ARENA-02H+: Added arenaSpawnVehicle tests.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   isArenaEnabled,
   createArenaMapData,
   devResetArena,
   ARENA_MAP_ID,
+  arenaSpawnVehicle,
 } from '../state/devArena';
 import { createInitialState } from '../state/createInitialState';
+import { resetBlockoutVehicleIdCounter } from '../state/blockoutVehicleState';
 
 describe('devArena', () => {
   describe('isArenaEnabled', () => {
@@ -104,5 +107,52 @@ describe('devArena', () => {
       expect(ARENA_MAP_ID).toBeTruthy();
       expect(typeof ARENA_MAP_ID).toBe('string');
     });
+  });
+});
+
+// ─── ARENA-02H+: arenaSpawnVehicle tests ────────────────────────────
+
+describe('arenaSpawnVehicle', () => {
+  let state: ReturnType<typeof createInitialState>;
+
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    const mapData = createArenaMapData();
+    state = createInitialState(mapData, 'cyan', 'QA Arena', { includeModularCombat: true, arenaMode: true });
+  });
+
+  it('should spawn an ally vehicle at specified position', () => {
+    const result = arenaSpawnVehicle(state, 'wasp', 'smoky', 'ally', 5, 5);
+    expect(result.success).toBe(true);
+    expect(state.blockoutVehicles).toBeDefined();
+    expect(state.blockoutVehicles!.length).toBe(1);
+    expect(state.blockoutVehicles![0].bodyId).toBe('wasp');
+    expect(state.blockoutVehicles![0].weaponId).toBe('smoky');
+    expect(state.blockoutVehicles![0].team).toBe('ally');
+    expect(state.blockoutVehicles![0].faction).toBe('cyan');
+    expect(state.blockoutVehicles![0].tx).toBe(5);
+    expect(state.blockoutVehicles![0].ty).toBe(5);
+  });
+
+  it('should spawn an enemy vehicle with green faction', () => {
+    const result = arenaSpawnVehicle(state, 'titan', 'thunder', 'enemy', 10, 10);
+    expect(result.success).toBe(true);
+    expect(state.blockoutVehicles![0].team).toBe('enemy');
+    expect(state.blockoutVehicles![0].faction).toBe('green');
+  });
+
+  it('should spawn multiple vehicles at different positions', () => {
+    arenaSpawnVehicle(state, 'wasp', 'smoky', 'ally', 3, 3);
+    arenaSpawnVehicle(state, 'mammoth', 'railgun', 'enemy', 15, 15);
+    expect(state.blockoutVehicles!.length).toBe(2);
+  });
+
+  it('should return descriptive message', () => {
+    const result = arenaSpawnVehicle(state, 'hunter', 'twins', 'ally', 7, 7);
+    expect(result.success).toBe(true);
+    expect(result.message).toContain('Ally');
+    expect(result.message).toContain('Hunter');
+    expect(result.message).toContain('Twins');
+    expect(result.message).toContain('(7, 7)');
   });
 });
