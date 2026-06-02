@@ -59,6 +59,17 @@ export interface BlockoutVehicleState {
    */
   turretTurnSpeedDeg: number;
 
+  // ── ARENA-03H+: Target-lock fields ───────────────────────────────
+
+  /**
+   * ID of the vehicle this unit is targeting (turret tracks this target).
+   * ARENA-03H+: In Arena mode, the turret aims at this target instead of
+   * following the mouse pointer. Null = no target (turret holds last angle).
+   * Cleared when: ally is deselected, ally changes, target is destroyed/missing.
+   * Transient — not persisted in saves.
+   */
+  targetVehicleId: string | null;
+
   // ── BLOCKOUT-04H+: Movement fields ───────────────────────────────
 
   /** Screen-space pixel X position (continuous). BLOCKOUT-04H+.
@@ -177,6 +188,7 @@ export function createBlockoutVehicle(
     turretAngle: bodyAngle, // Initially turret matches body
     turretTargetAngle: bodyAngle, // Initially target matches body
     turretTurnSpeedDeg,
+    targetVehicleId: null, // ARENA-03H+: No target by default
     worldX: screenPos.x,
     worldY: screenPos.y,
     vx: 0,

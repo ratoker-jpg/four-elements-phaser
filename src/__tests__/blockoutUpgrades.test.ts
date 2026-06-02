@@ -53,6 +53,7 @@ function createTestVehicle(overrides: Partial<BlockoutVehicleState> = {}): Block
     turretAngle: 0,
     turretTargetAngle: 0,
     turretTurnSpeedDeg: 150,
+    targetVehicleId: null, // ARENA-03H+: No target by default
     worldX: 380,
     worldY: 190,
     vx: 0,

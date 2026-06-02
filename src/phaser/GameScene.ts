@@ -51,11 +51,12 @@ import { CameraProjectionDebugRenderer } from './render/CameraProjectionDebugRen
 import { DEFAULT_SANDBOX_SCENARIO, ARENA_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
 import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
-import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../state/blockoutWeaponVfx';
+import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring } from '../state/blockoutWeaponVfx';
 import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
-import { computeProjectedBarrelTipScreenAtZ } from './render/blockoutVehicleGeometry';
+import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter } from './render/blockoutVehicleGeometry';
+import type { BlockoutVehicleState } from '../state/blockoutVehicleState';
 
 
 /**
@@ -534,6 +535,8 @@ export class GameScene extends Phaser.Scene {
         },
         // ARENA-02H+ fixup: Guard placement mode — suppress selection/movement when placing
         isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
+        // ARENA-03H+: Arena mode flag — enforces ally/enemy control and target-lock
+        isArenaMode: () => this.arenaMode,
       });
       console.log('[GameScene] Blockout vehicle input controller enabled.');
     }
@@ -672,6 +675,15 @@ export class GameScene extends Phaser.Scene {
       // Sync hover state to renderer
       if (this.blockoutVehicleRenderer) {
         this.blockoutVehicleRenderer.setHoveredVehicleId(this.blockoutVehicleInputController.hoveredVehicleId);
+        // ARENA-03H+: Sync target indicator to renderer
+        if (this.arenaMode) {
+          const selectedId = this.blockoutVehicleInputController.selectedVehicleId;
+          const vehicles = this.gameState.blockoutVehicles;
+          const selected = selectedId ? vehicles?.find(v => v.id === selectedId) : null;
+          this.blockoutVehicleRenderer.setTargetedVehicleId(selected?.targetVehicleId ?? null);
+        } else {
+          this.blockoutVehicleRenderer.setTargetedVehicleId(null);
+        }
       }
     }
     // BLOCKOUT-04H+: Update blockout vehicle movement
@@ -696,6 +708,7 @@ export class GameScene extends Phaser.Scene {
     }
     // BLOCKOUT-06H+: Tick continuous fire for stream weapons
     // BLOCKOUT-07H+: Also tick continuous damage
+    // ARENA-03H+: Use target-lock aim for Arena vehicles with target
     if (this.gameState.blockoutVehicles && this.devtoolsActive) {
       const nowMs = this.time.now;
       for (const vehicle of this.gameState.blockoutVehicles) {
@@ -704,16 +717,25 @@ export class GameScene extends Phaser.Scene {
           const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this._offset as IsoPoint);
           const barrelTipX = barrelTip.x;
           const barrelTipY = barrelTip.y;
+
+          // ARENA-03H+: In Arena mode, continuous fire uses target-lock direction
+          // ARENA-03H+ fixup: null return means no valid target — stop fire and skip tick
+          const aimTarget = this.getContinuousFireAimTarget(vehicle);
+          if (!aimTarget) {
+            // Arena mode: no valid target — stop continuous fire, do not fall back to turret angle
+            stopFiring(vehicle);
+            continue;
+          }
+          const aimTargetX = aimTarget.x;
+          const aimTargetY = aimTarget.y;
+
           tickContinuousFire(vehicle, barrelTipX, barrelTipY, vehicle.turretAngle,
-            this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
-            this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
-            nowMs);
+            aimTargetX, aimTargetY, nowMs);
           // BLOCKOUT-07H+: Apply continuous damage
           // BLOCKOUT-08H: Pass obstacles for line-of-fire blocking
           tickContinuousDamage(vehicle, this.gameState.blockoutVehicles,
             barrelTipX, barrelTipY, vehicle.turretAngle,
-            this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
-            this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
+            aimTargetX, aimTargetY,
             this._offset as IsoPoint, nowMs,
             this.gameState.blockoutObstacles);
         }
@@ -897,6 +919,43 @@ export class GameScene extends Phaser.Scene {
     this.placementMarker.moveTo(center.x, center.y - 4);
     this.placementMarker.lineTo(center.x, center.y + 4);
     this.placementMarker.strokePath();
+  }
+
+  /**
+   * Get the continuous fire aim target for a vehicle.
+   *
+   * ARENA-03H+ fixup: In Arena mode, returns null when there is no valid target.
+   * This prevents continuous fire from falling back to turret-angle direction
+   * or mouse position when the target is missing/destroyed.
+   *
+   * In non-Arena devtools mode, always returns mouse/fallback position (never null).
+   *
+   * @returns Aim target coordinates, or null if Arena mode has no valid target
+   */
+  private getContinuousFireAimTarget(vehicle: BlockoutVehicleState): { x: number; y: number } | null {
+    // For non-Arena devtools mode, fall back to mouse position (never null)
+    if (!this.arenaMode) {
+      return {
+        x: this.blockoutVehicleInputController?.mouseWorldX ?? vehicle.worldX + this._offset.x,
+        y: this.blockoutVehicleInputController?.mouseWorldY ?? vehicle.worldY + this._offset.y,
+      };
+    }
+
+    // Arena mode: use target-lock
+    if (vehicle.targetVehicleId) {
+      const vehicles = this.gameState.blockoutVehicles;
+      const target = vehicles?.find(v => v.id === vehicle.targetVehicleId);
+      if (target && !target.isDestroyed) {
+        const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
+        return { x: targetCenter.x, y: targetCenter.y };
+      }
+      // Target gone/destroyed — clear it and return null (stop fire)
+      vehicle.targetVehicleId = null;
+      return null;
+    }
+
+    // Arena mode with no target: do not fire, do not fall back to turret angle or mouse
+    return null;
   }
 
   /**

@@ -478,6 +478,8 @@ export interface GameState {
     turretAngle: number;
     turretTargetAngle: number;
     turretTurnSpeedDeg: number;
+    /** ARENA-03H+: Target vehicle ID for turret target-lock. Null = no target. */
+    targetVehicleId: string | null;
     worldX: number;
     worldY: number;
     vx: number;

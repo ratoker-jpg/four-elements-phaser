@@ -81,6 +81,11 @@ export interface BlockoutVehicleInputDeps {
    *  LMB/RMB pointer events are suppressed to prevent selection changes
    *  and movement commands from conflicting with placement input. */
   isPlacementActive?: () => boolean;
+  /** ARENA-03H+: Whether Arena mode is active. When true, ally/enemy control
+   *  rules are enforced: only allies can be selected, clicking an enemy
+   *  while an ally is selected assigns that enemy as target, and turret
+   *  aims at assigned target instead of following mouse. */
+  isArenaMode?: () => boolean;
 }
 
 // ─── Controller ────────────────────────────────────────────────────
@@ -95,6 +100,7 @@ export class BlockoutVehicleInputController {
   private onToggleHelp?: () => void;
   private onToggleCalibration?: () => void;
   private isPlacementActive: () => boolean;
+  private isArenaMode: () => boolean;
 
   /** Currently selected blockout vehicle ID (transient, not persisted). */
   private _selectedVehicleId: string | null = null;
@@ -133,6 +139,7 @@ export class BlockoutVehicleInputController {
     this.onToggleHelp = deps.onToggleHelp;
     this.onToggleCalibration = deps.onToggleCalibration;
     this.isPlacementActive = deps.isPlacementActive ?? (() => false);
+    this.isArenaMode = deps.isArenaMode ?? (() => false);
 
     this.boundPointerdown = this.onPointerdown.bind(this);
     this.boundPointerup = this.onPointerup.bind(this);
@@ -189,23 +196,64 @@ export class BlockoutVehicleInputController {
     if (this._selectedVehicleId) {
       const selected = vehicles.find(v => v.id === this._selectedVehicleId);
       if (selected) {
-        // Compute turret mount screen position using projected geometry
-        // (shared source of truth with renderer — PROJECTION-01 fixup)
-        const turretMountScreen = computeProjectedTurretMountScreen(selected, this.offset);
+        // ARENA-03H+: Target-lock turret behavior in Arena mode
+        if (this.isArenaMode()) {
+          this.updateTurretAimArena(selected, vehicles, delta);
+        } else {
+          // Non-Arena devtools: original mouse-follow behavior
+          const turretMountScreen = computeProjectedTurretMountScreen(selected, this.offset);
+          const targetAngle = angleFromTo(turretMountScreen.x, turretMountScreen.y, this._mouseWorldX, this._mouseWorldY);
+          selected.turretTargetAngle = targetAngle;
 
-        // Target angle from turret mount position to mouse
-        const targetAngle = angleFromTo(turretMountScreen.x, turretMountScreen.y, this._mouseWorldX, this._mouseWorldY);
-        selected.turretTargetAngle = targetAngle;
-
-        // Rate-limited rotation
-        const maxDelta = degPerSecToRadPerMs(selected.turretTurnSpeedDeg) * delta;
-        selected.turretAngle = rotateTowardAngle(selected.turretAngle, targetAngle, maxDelta);
+          const maxDelta = degPerSecToRadPerMs(selected.turretTurnSpeedDeg) * delta;
+          selected.turretAngle = rotateTowardAngle(selected.turretAngle, targetAngle, maxDelta);
+        }
       } else {
         // Selected vehicle no longer exists
         this._selectedVehicleId = null;
         this.onSelectionChanged?.(null);
       }
     }
+  }
+
+  /**
+   * ARENA-03H+: Update turret aiming in Arena mode using target-lock.
+   *
+   * If the selected ally has a targetVehicleId, compute the turret aim angle
+   * toward that target enemy's position. The turret continues tracking the
+   * target while the ally moves around.
+   *
+   * If the target is destroyed or missing, clear it and hold last angle.
+   * If no target is assigned, hold the last turret angle (do NOT chase mouse).
+   */
+  private updateTurretAimArena(selected: BlockoutVehicleState, vehicles: BlockoutVehicleState[], delta: number): void {
+    // Check if target is still valid
+    if (selected.targetVehicleId) {
+      const target = vehicles.find(v => v.id === selected.targetVehicleId);
+      if (!target || target.isDestroyed) {
+        // Target destroyed or missing — clear target, hold last angle
+        selected.targetVehicleId = null;
+      }
+    }
+
+    if (selected.targetVehicleId) {
+      const target = vehicles.find(v => v.id === selected.targetVehicleId);
+      if (target) {
+        // Compute turret mount screen position (shared source of truth — PROJECTION-01)
+        const turretMountScreen = computeProjectedTurretMountScreen(selected, this.offset);
+        // Compute target body center (world position)
+        const targetCenter = computeBodyWorldCenter(target, this.offset);
+
+        // Turret aims from mount position toward target body center
+        const targetAngle = angleFromTo(turretMountScreen.x, turretMountScreen.y, targetCenter.x, targetCenter.y);
+        selected.turretTargetAngle = targetAngle;
+
+        // Rate-limited rotation
+        const maxDelta = degPerSecToRadPerMs(selected.turretTurnSpeedDeg) * delta;
+        selected.turretAngle = rotateTowardAngle(selected.turretAngle, targetAngle, maxDelta);
+      }
+    }
+    // No target: hold last turret angle (do nothing — turret stays where it was)
   }
 
   // ─── Pointer input ───────────────────────────────────────────
@@ -287,8 +335,15 @@ export class BlockoutVehicleInputController {
     const hitVehicleId = this.findVehicleNearPoint(worldPoint.x, worldPoint.y, vehicles);
 
     if (hitVehicleId) {
-      // Click on a blockout vehicle → select it
-      // BLOCKOUT-06H+ fixup: stop firing on previous vehicle before selecting a different one
+      const hitVehicle = vehicles.find(v => v.id === hitVehicleId)!;
+
+      // ARENA-03H+: Arena mode — enforce ally/enemy control rules
+      if (this.isArenaMode()) {
+        this.handleLeftClickArena(hitVehicle, vehicles);
+        return;
+      }
+
+      // Non-Arena devtools: original behavior — select any vehicle
       if (this._selectedVehicleId && this._selectedVehicleId !== hitVehicleId) {
         this.stopFiringOnVehicle(this._selectedVehicleId);
       }
@@ -296,12 +351,72 @@ export class BlockoutVehicleInputController {
       this.onSelectionChanged?.(hitVehicleId);
     } else {
       // Click on empty ground → deselect
-      // BLOCKOUT-06H+ fixup: stop firing on previously selected vehicle before deselecting
       if (this._selectedVehicleId) {
         this.stopFiringOnVehicle(this._selectedVehicleId);
+        // ARENA-03H+: Clear target on deselect
+        this.clearTargetOnSelected(vehicles);
         this._selectedVehicleId = null;
         this.onSelectionChanged?.(null);
       }
+    }
+  }
+
+  /**
+   * ARENA-03H+: Handle left click in Arena mode with ally/enemy control rules.
+   *
+   * - Enemy vehicles cannot be selected as controllable units.
+   * - If an ally is selected and user clicks an enemy → assign target.
+   * - If user clicks another ally → select that ally, clear target.
+   * - If user clicks an enemy with no ally selected → no-op (do not select enemy).
+   */
+  private handleLeftClickArena(hitVehicle: BlockoutVehicleState, vehicles: BlockoutVehicleState[]): void {
+    const hitIsEnemy = hitVehicle.team === 'enemy';
+
+    if (this._selectedVehicleId) {
+      // An ally is currently selected
+      const selected = vehicles.find(v => v.id === this._selectedVehicleId);
+      if (!selected) {
+        this._selectedVehicleId = null;
+        this.onSelectionChanged?.(null);
+        return;
+      }
+
+      if (hitIsEnemy) {
+        // Click on enemy while ally is selected → assign target
+        // Don't switch control to enemy
+        selected.targetVehicleId = hitVehicle.id;
+        return;
+      }
+
+      // Click on another ally → select it, clear target
+      if (hitVehicle.id !== this._selectedVehicleId) {
+        this.stopFiringOnVehicle(this._selectedVehicleId);
+        this.clearTargetOnSelected(vehicles);
+        this._selectedVehicleId = hitVehicle.id;
+        this.onSelectionChanged?.(hitVehicle.id);
+      }
+      // Click on already-selected ally → no-op
+    } else {
+      // No ally selected
+      if (hitIsEnemy) {
+        // Cannot select enemy as controllable unit → no-op
+        return;
+      }
+      // Click on ally with nothing selected → select it
+      this._selectedVehicleId = hitVehicle.id;
+      this.onSelectionChanged?.(hitVehicle.id);
+    }
+  }
+
+  /**
+   * ARENA-03H+: Clear targetVehicleId on the currently selected vehicle.
+   * Also stops firing since the target is being cleared.
+   */
+  private clearTargetOnSelected(vehicles: BlockoutVehicleState[]): void {
+    if (!this._selectedVehicleId) return;
+    const selected = vehicles.find(v => v.id === this._selectedVehicleId);
+    if (selected) {
+      selected.targetVehicleId = null;
     }
   }
 
@@ -323,6 +438,9 @@ export class BlockoutVehicleInputController {
 
     // BLOCKOUT-07H+: Don't move destroyed vehicles
     if (selected.isDestroyed) return;
+
+    // ARENA-03H+: In Arena mode, enemies cannot receive movement commands
+    if (this.isArenaMode() && selected.team === 'enemy') return;
 
     // Convert world click position to screen-space (subtract offset)
     const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
@@ -455,9 +573,33 @@ export class BlockoutVehicleInputController {
     const barrelTipX = barrelTip.x;
     const barrelTipY = barrelTip.y;
 
-    // Aim target = mouse world position
-    const aimTargetX = this._mouseWorldX;
-    const aimTargetY = this._mouseWorldY;
+    // Aim target: ARENA-03H+ — in Arena mode, if ally has a target, aim at target;
+    // otherwise no-op (don't fire at mouse). Non-Arena: aim at mouse as before.
+    let aimTargetX: number;
+    let aimTargetY: number;
+
+    if (this.isArenaMode()) {
+      // Arena mode: use target-lock direction, or no-op if no target
+      if (selected.targetVehicleId) {
+        const target = vehicles.find(v => v.id === selected.targetVehicleId);
+        if (target && !target.isDestroyed) {
+          const targetCenter = computeBodyWorldCenter(target, this.offset);
+          aimTargetX = targetCenter.x;
+          aimTargetY = targetCenter.y;
+        } else {
+          // Target destroyed/missing — clear and don't fire
+          selected.targetVehicleId = null;
+          return;
+        }
+      } else {
+        // No target assigned in Arena mode — don't fire blindly at mouse
+        return;
+      }
+    } else {
+      // Non-Arena devtools: original mouse-aim behavior
+      aimTargetX = this._mouseWorldX;
+      aimTargetY = this._mouseWorldY;
+    }
 
     fireBlockoutWeapon(
       selected,
@@ -538,11 +680,20 @@ export class BlockoutVehicleInputController {
     // Stop firing on currently selected vehicle before switching
     if (this._selectedVehicleId) {
       this.stopFiringOnVehicle(this._selectedVehicleId);
+      // ARENA-03H+: Clear target on switch
+      this.clearTargetOnSelected(vehicles);
     }
 
-    const currentIndex = vehicles.findIndex(v => v.id === this._selectedVehicleId);
-    const nextIndex = (currentIndex + 1) % vehicles.length;
-    const nextVehicle = vehicles[nextIndex];
+    // ARENA-03H+: In Arena mode, only cycle through ally vehicles
+    const candidates = this.isArenaMode()
+      ? vehicles.filter(v => v.team === 'ally')
+      : vehicles;
+
+    if (candidates.length === 0) return;
+
+    const currentIndex = candidates.findIndex(v => v.id === this._selectedVehicleId);
+    const nextIndex = (currentIndex + 1) % candidates.length;
+    const nextVehicle = candidates[nextIndex];
 
     this._selectedVehicleId = nextVehicle.id;
     this.onSelectionChanged?.(nextVehicle.id);
