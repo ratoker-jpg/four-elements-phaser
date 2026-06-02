@@ -1,69 +1,137 @@
 /**
- * Blockout obstacle data — obstacle profiles for the first blockout set.
+ * Blockout obstacle data — obstacle type configurations.
  *
- * Blockout placeholder — NOT used in BLOCKOUT-02H.
- * No obstacle behavior in this PR.
- * Data exists so profiles are complete for future steps.
+ * BLOCKOUT-08H: Dev/arena-only blockout obstacles for combat sandbox.
  *
- * BLOCKOUT-02H: First visible blockout vehicles.
+ * Defines obstacle type properties and the default arena obstacle layout.
+ * All data is dev/arena-only and not persisted in saves.
  */
 
-import type { ObstacleProfile } from './blockoutProfiles';
+import type { BlockoutObstacleType, BlockoutObstacleState, ObstacleShape } from '../state/blockoutObstacleState';
+import { createBlockoutObstacle } from '../state/blockoutObstacleState';
+import { tileToScreen } from '../phaser/render/isometric';
 
-/** Obstacle profiles keyed by ID. */
-export const OBSTACLE_PROFILES: Record<string, ObstacleProfile> = {
-  blocker_1x1: {
-    id: 'blocker_1x1',
-    footprint: [1, 1],
+// ─── Obstacle Type Config ───────────────────────────────────────────
+
+/** Configuration for each obstacle type. */
+export interface ObstacleTypeConfig {
+  type: BlockoutObstacleType;
+  displayName: string;
+  shape: ObstacleShape;
+  blocksMovement: boolean;
+  blocksLineOfFire: boolean;
+  blocksSplash: boolean;
+  pierceable: boolean;
+  fillColor: number;
+  outlineColor: number;
+}
+
+/** Obstacle type configurations keyed by type ID. */
+export const OBSTACLE_TYPE_CONFIGS: Record<BlockoutObstacleType, ObstacleTypeConfig> = {
+  blocker_wall: {
+    type: 'blocker_wall',
+    displayName: 'Wall',
+    shape: { kind: 'rect', width: 80, height: 16 },
     blocksMovement: true,
-    blocksProjectiles: true,
-    blocksBeam: true,
-    blocksCone: true,
-    blocksVision: false,
+    blocksLineOfFire: true,
+    blocksSplash: false,
+    pierceable: false,
+    fillColor: 0x555555,
+    outlineColor: 0x333333,
   },
-  blocker_2x1: {
-    id: 'blocker_2x1',
-    footprint: [2, 1],
+  cover_crate: {
+    type: 'cover_crate',
+    displayName: 'Crate',
+    shape: { kind: 'rect', width: 24, height: 24 },
     blocksMovement: true,
-    blocksProjectiles: true,
-    blocksBeam: true,
-    blocksCone: true,
-    blocksVision: false,
+    blocksLineOfFire: true,
+    blocksSplash: false,
+    pierceable: false,
+    fillColor: 0x8B6914,
+    outlineColor: 0x5a4410,
   },
-  blocker_2x2: {
-    id: 'blocker_2x2',
-    footprint: [2, 2],
+  low_barrier: {
+    type: 'low_barrier',
+    displayName: 'Barrier',
+    shape: { kind: 'rect', width: 40, height: 10 },
     blocksMovement: true,
-    blocksProjectiles: true,
-    blocksBeam: true,
-    blocksCone: true,
-    blocksVision: false,
+    blocksLineOfFire: true,
+    blocksSplash: false,
+    pierceable: true,
+    fillColor: 0x777777,
+    outlineColor: 0x555555,
   },
-  wall_segment: {
-    id: 'wall_segment',
-    footprint: [3, 1],
+  dummy_rock: {
+    type: 'dummy_rock',
+    displayName: 'Rock',
+    shape: { kind: 'circle', radius: 18 },
     blocksMovement: true,
-    blocksProjectiles: true,
-    blocksBeam: true,
-    blocksCone: true,
-    blocksVision: false,
-  },
-  wreck_placeholder: {
-    id: 'wreck_placeholder',
-    footprint: [1, 1],
-    blocksMovement: true,
-    blocksProjectiles: false,
-    blocksBeam: false,
-    blocksCone: false,
-    blocksVision: false,
-  },
-  industrial_crate: {
-    id: 'industrial_crate',
-    footprint: [1, 1],
-    blocksMovement: true,
-    blocksProjectiles: true,
-    blocksBeam: false,
-    blocksCone: false,
-    blocksVision: false,
+    blocksLineOfFire: true,
+    blocksSplash: false,
+    pierceable: false,
+    fillColor: 0x6b5b3a,
+    outlineColor: 0x4a3d28,
   },
 };
+
+/** Get obstacle type config by type ID. Returns undefined if not found. */
+export function getObstacleTypeConfig(type: string): ObstacleTypeConfig | undefined {
+  return OBSTACLE_TYPE_CONFIGS[type as BlockoutObstacleType];
+}
+
+// ─── Default Arena Obstacle Layout ──────────────────────────────────
+
+/**
+ * Create the deterministic default obstacle layout for the arena.
+ * BLOCKOUT-08H: Dev/arena-only.
+ *
+ * Layout design:
+ * - 2 wall segments near center-left/right
+ * - 2 cover crates near midline
+ * - 1 low barrier near center
+ * - 1 rock offset from vehicle spawn path
+ * - Does not trap vehicles at spawn positions
+ * - Leaves enough open space for movement/firing
+ * - Obstacles are placed so line-of-fire blocking is clearly visible
+ *
+ * No random placement. No mapgen changes.
+ */
+export function createDefaultArenaObstacles(): BlockoutObstacleState[] {
+  const obstacles: BlockoutObstacleState[] = [];
+
+  // Helper: place obstacle at tile coordinates, convert to screen space
+  const placeAt = (
+    type: BlockoutObstacleType,
+    tx: number, ty: number,
+  ): void => {
+    const config = OBSTACLE_TYPE_CONFIGS[type];
+    const screenPos = tileToScreen(tx, ty);
+    const obstacle = createBlockoutObstacle(
+      type,
+      screenPos.x,
+      screenPos.y,
+      { ...config.shape }, // clone shape
+      config.blocksMovement,
+      config.blocksLineOfFire,
+      config.blocksSplash,
+      config.pierceable,
+    );
+    obstacles.push(obstacle);
+  };
+
+  // 2 wall segments near center-left and center-right
+  placeAt('blocker_wall', 7, 8);   // center-left wall
+  placeAt('blocker_wall', 12, 12);  // center-right wall
+
+  // 2 cover crates near midline
+  placeAt('cover_crate', 9, 10);   // midline left crate
+  placeAt('cover_crate', 11, 10);  // midline right crate
+
+  // 1 low barrier near center
+  placeAt('low_barrier', 10, 8);   // center barrier
+
+  // 1 rock offset from vehicle spawn path
+  placeAt('dummy_rock', 14, 7);    // upper-right rock
+
+  return obstacles;
+}

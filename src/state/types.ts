@@ -9,6 +9,7 @@
  */
 
 import type { BodyId, WeaponId } from '../config/blockoutProfiles';
+import type { BlockoutObstacleState } from './blockoutObstacleState';
 
 // ─── Terrain ────────────────────────────────────────────────────────
 
@@ -503,4 +504,11 @@ export interface GameState {
     lastDamageTickAt: number;
     createdAt: number;
   }>
+
+  // ── BLOCKOUT-08H: Blockout obstacle state (dev-only, not persisted) ──
+  /** Blockout obstacles — only populated in dev/arena mode.
+   *  Optional: old saves and standard mode games have this as undefined/empty.
+   *  Blockout obstacles are stripped from saves and never serialized.
+   *  BLOCKOUT-08H: Dev/arena-only blockout obstacles for combat sandbox. */
+  blockoutObstacles?: BlockoutObstacleState[]
 }

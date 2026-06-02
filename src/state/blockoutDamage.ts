@@ -16,6 +16,8 @@
 
 import type { BlockoutVehicleState } from './blockoutVehicleState';
 import type { DamageProfile, DamageKind, WeaponId } from '../config/blockoutProfiles';
+import type { BlockoutObstacleState } from './blockoutObstacleState';
+import { isLineOfFireBlocked, findNearestObstacleBlockingLine } from './blockoutObstacles';
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
 import { computeBodyWorldCenter, getBodyPixelSize } from '../phaser/render/blockoutVehicleGeometry';
 import type { IsoPoint } from '../phaser/render/isometric';
@@ -470,6 +472,7 @@ export function applyBlockoutWeaponDamage(
   aimTargetX: number, aimTargetY: number,
   offset: IsoPoint,
   nowMs: number,
+  obstacles: BlockoutObstacleState[] = [],
 ): BlockoutDamageEvent[] {
   const profile = DAMAGE_PROFILES[firingVehicle.weaponId];
   if (!profile) return [];
@@ -485,6 +488,10 @@ export function applyBlockoutWeaponDamage(
       const target = findDirectHitTarget(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
       if (target) {
         const bodyCenter = computeBodyWorldCenter(target, offset);
+        // BLOCKOUT-08H: Direct shots blocked by obstacles between barrel and target
+        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+          break; // Blocked by obstacle
+        }
         const amount = profile.directDamage ?? 20;
         const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'direct');
         if (event) events.push(event);
@@ -502,6 +509,15 @@ export function applyBlockoutWeaponDamage(
       } else {
         impactX = barrelTipX + Math.cos(aimAngle) * rangePx;
         impactY = barrelTipY + Math.sin(aimAngle) * rangePx;
+      }
+
+      // BLOCKOUT-08H: If line to impact is blocked, impact point becomes obstacle intersection
+      if (obstacles.length > 0) {
+        const blocker = findNearestObstacleBlockingLine(obstacles, barrelTipX, barrelTipY, impactX, impactY);
+        if (blocker) {
+          impactX = blocker.x;
+          impactY = blocker.y;
+        }
       }
 
       const targets = findSplashTargets(firingVehicle, vehicles, impactX, impactY, profile.radiusPx ?? 60, offset);
@@ -527,6 +543,10 @@ export function applyBlockoutWeaponDamage(
       const amount = profile.directDamage ?? 40;
       for (const target of targets) {
         const bodyCenter = computeBodyWorldCenter(target, offset);
+        // BLOCKOUT-08H: Penetration blocked by non-pierceable obstacles; pierceable obstacles ignored
+        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y, true)) {
+          continue; // Blocked by non-pierceable obstacle
+        }
         const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'penetration');
         if (event) events.push(event);
       }
@@ -540,6 +560,10 @@ export function applyBlockoutWeaponDamage(
       const amount = dps * tickMs / 1000;
       for (const target of targets) {
         const bodyCenter = computeBodyWorldCenter(target, offset);
+        // BLOCKOUT-08H: Cone targets blocked if line from origin to target hits obstacle
+        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+          continue;
+        }
         const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'cone_tick', profile.statusTag);
         if (event) events.push(event);
       }
@@ -553,6 +577,10 @@ export function applyBlockoutWeaponDamage(
       const amount = dps * tickMs / 1000;
       for (const target of targets) {
         const bodyCenter = computeBodyWorldCenter(target, offset);
+        // BLOCKOUT-08H: Beam targets blocked if line from origin to target hits obstacle
+        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+          continue;
+        }
         const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'beam_tick', profile.statusTag);
         if (event) events.push(event);
       }
@@ -563,6 +591,10 @@ export function applyBlockoutWeaponDamage(
       const target = findDirectHitTarget(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
       if (target) {
         const bodyCenter = computeBodyWorldCenter(target, offset);
+        // BLOCKOUT-08H: Rapid fire blocked by obstacles
+        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+          break;
+        }
         const amount = profile.directDamage ?? 5;
         const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'rapid_tick', profile.statusTag);
         if (event) events.push(event);
@@ -574,6 +606,10 @@ export function applyBlockoutWeaponDamage(
       const target = findDirectHitTarget(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
       if (target) {
         const bodyCenter = computeBodyWorldCenter(target, offset);
+        // BLOCKOUT-08H: Plasma blocked by obstacles
+        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+          break;
+        }
         const amount = profile.directDamage ?? 12;
         const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'plasma', profile.statusTag);
         if (event) events.push(event);
@@ -587,6 +623,11 @@ export function applyBlockoutWeaponDamage(
       const amount = profile.directDamage ?? 18;
       for (const target of targets) {
         const bodyCenter = computeBodyWorldCenter(target, offset);
+        // BLOCKOUT-08H: Ricochet targets blocked if line from origin to target hits obstacle
+        // Placeholder: checks direct line only, not segment-by-segment
+        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+          continue;
+        }
         const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'ricochet', profile.statusTag);
         if (event) events.push(event);
       }
@@ -601,6 +642,18 @@ export function applyBlockoutWeaponDamage(
       const damagePerPellet = totalDamage / pelletCount;
       for (const hit of pelletHits) {
         const bodyCenter = computeBodyWorldCenter(hit.vehicle, offset);
+        // BLOCKOUT-08H: Each pellet ray can be blocked by obstacle
+        if (obstacles.length > 0) {
+          // Compute pellet angle for this pellet
+          const halfAngleRad = ((profile.coneAngleDeg ?? 30) * Math.PI) / 180;
+          const fraction = pelletCount > 1 ? hit.pelletIndex / (pelletCount - 1) : 0.5;
+          const pelletAngle = aimAngle - halfAngleRad + fraction * 2 * halfAngleRad;
+          const pelletEndX = barrelTipX + Math.cos(pelletAngle) * rangePx;
+          const pelletEndY = barrelTipY + Math.sin(pelletAngle) * rangePx;
+          if (isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, pelletEndX, pelletEndY)) {
+            continue;
+          }
+        }
         const event = applyDamageToVehicle(hit.vehicle, firingVehicle.weaponId, damagePerPellet, bodyCenter.x, bodyCenter.y, nowMs, 'shotgun');
         if (event) events.push(event);
       }
@@ -628,6 +681,7 @@ export function tickContinuousDamage(
   aimTargetX: number, aimTargetY: number,
   offset: IsoPoint,
   nowMs: number,
+  obstacles: BlockoutObstacleState[] = [],
 ): BlockoutDamageEvent[] {
   if (!firingVehicle.fireHeld || !firingVehicle.isFiring) return [];
   if (firingVehicle.isDestroyed) return [];
@@ -649,6 +703,7 @@ export function tickContinuousDamage(
     barrelTipX, barrelTipY, aimAngle,
     aimTargetX, aimTargetY,
     offset, nowMs,
+    obstacles,
   );
 
   // Update damage cadence timestamp only if damage was applied

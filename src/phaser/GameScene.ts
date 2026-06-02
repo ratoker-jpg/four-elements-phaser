@@ -33,7 +33,9 @@ import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
 import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputController';
 import { BlockoutWeaponVfxRenderer } from './render/BlockoutWeaponVfxRenderer';
 import { BlockoutDamageRenderer } from './render/BlockoutDamageRenderer';
+import { BlockoutObstacleRenderer } from './render/BlockoutObstacleRenderer';
 import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
+import { createDefaultArenaObstacles } from '../config/blockoutObstacleData';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
 import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../state/blockoutWeaponVfx';
 import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
@@ -143,6 +145,9 @@ export class GameScene extends Phaser.Scene {
 
   // BLOCKOUT-07H+: Blockout damage renderer (only when devtools is active)
   private blockoutDamageRenderer: BlockoutDamageRenderer | null = null;
+
+  // BLOCKOUT-08H: Blockout obstacle renderer (only when devtools is active)
+  private blockoutObstacleRenderer: BlockoutObstacleRenderer | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -387,8 +392,11 @@ export class GameScene extends Phaser.Scene {
       this.blockoutVehicleRenderer = new BlockoutVehicleRenderer(this, this._offset as IsoPoint);
       this.blockoutWeaponVfxRenderer = new BlockoutWeaponVfxRenderer(this, this._offset as IsoPoint);
       this.blockoutDamageRenderer = new BlockoutDamageRenderer(this, this._offset as IsoPoint);
+      this.blockoutObstacleRenderer = new BlockoutObstacleRenderer(this, this._offset as IsoPoint);
       // Spawn the default blockout vehicle set in arena/dev mode
       devSpawnBlockoutVehicleSet(this.gameState);
+      // BLOCKOUT-08H: Spawn default obstacle layout in arena/dev mode
+      this.gameState.blockoutObstacles = createDefaultArenaObstacles();
       console.log('[GameScene] Blockout vehicle renderer enabled. Spawned default vehicle set.');
     }
 
@@ -533,7 +541,7 @@ export class GameScene extends Phaser.Scene {
       for (const vehicle of this.gameState.blockoutVehicles) {
         const profile = MOVEMENT_PROFILES[vehicle.bodyId];
         if (profile) {
-          updateBlockoutVehicleMovement(vehicle, profile, delta);
+          updateBlockoutVehicleMovement(vehicle, profile, delta, this.gameState.blockoutObstacles);
         }
       }
     }
@@ -563,11 +571,13 @@ export class GameScene extends Phaser.Scene {
               this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
               nowMs);
             // BLOCKOUT-07H+: Apply continuous damage
+            // BLOCKOUT-08H: Pass obstacles for line-of-fire blocking
             tickContinuousDamage(vehicle, this.gameState.blockoutVehicles,
               barrelTipX, barrelTipY, vehicle.turretAngle,
               this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
               this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
-              this._offset as IsoPoint, nowMs);
+              this._offset as IsoPoint, nowMs,
+              this.gameState.blockoutObstacles);
           }
         }
       }
@@ -584,6 +594,10 @@ export class GameScene extends Phaser.Scene {
     // BLOCKOUT-07H+: Sync damage renderer
     if (this.blockoutDamageRenderer && this.devtoolsActive && this.gameState.blockoutVehicles) {
       this.blockoutDamageRenderer.syncFromState(this.time.now, this.gameState.blockoutVehicles);
+    }
+    // BLOCKOUT-08H: Sync obstacle renderer
+    if (this.blockoutObstacleRenderer && this.devtoolsActive && this.gameState.blockoutObstacles) {
+      this.blockoutObstacleRenderer.syncFromState(this.gameState.blockoutObstacles);
     }
 
     // 10. Debug log on unload completion
@@ -664,6 +678,8 @@ export class GameScene extends Phaser.Scene {
     this.blockoutWeaponVfxRenderer = null;
     this.blockoutDamageRenderer?.destroy();
     this.blockoutDamageRenderer = null;
+    this.blockoutObstacleRenderer?.destroy();
+    this.blockoutObstacleRenderer = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
     this.playtestHud?.destroy();

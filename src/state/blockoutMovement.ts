@@ -11,7 +11,10 @@
 
 import type { BlockoutVehicleState } from './blockoutVehicleState';
 import type { MovementProfile } from '../config/blockoutProfiles';
+import type { BlockoutObstacleState } from './blockoutObstacleState';
 import { rotateTowardAngle, degPerSecToRadPerMs } from './angleMath';
+import { resolveVehicleObstacleCollisions } from './blockoutObstacles';
+import { getBodyPixelSize } from '../phaser/render/blockoutVehicleGeometry';
 
 // ─── Tile coordinate constants ────────────────────────────────────
 
@@ -46,6 +49,7 @@ export function updateBlockoutVehicleMovement(
   vehicle: BlockoutVehicleState,
   profile: MovementProfile,
   deltaMs: number,
+  obstacles: BlockoutObstacleState[] = [],
 ): void {
   // BLOCKOUT-07H+: Destroyed vehicles don't move
   if (vehicle.isDestroyed) return;
@@ -64,6 +68,8 @@ export function updateBlockoutVehicleMovement(
     // Update position
     vehicle.worldX += vehicle.vx * dt;
     vehicle.worldY += vehicle.vy * dt;
+    // BLOCKOUT-08H: Resolve obstacle collisions
+    resolveObstacleCollisions(vehicle, obstacles);
     // Update tile position
     updateTileFromScreen(vehicle);
     return;
@@ -118,6 +124,9 @@ export function updateBlockoutVehicleMovement(
   vehicle.worldX += vehicle.vx * dt;
   vehicle.worldY += vehicle.vy * dt;
 
+  // BLOCKOUT-08H: Resolve obstacle collisions
+  resolveObstacleCollisions(vehicle, obstacles);
+
   // Update tile position
   updateTileFromScreen(vehicle);
 }
@@ -168,4 +177,45 @@ export function setBlockoutVehicleMoveTarget(
  */
 export function clearBlockoutVehicleMoveTarget(vehicle: BlockoutVehicleState): void {
   vehicle.hasMoveTarget = false;
+}
+
+// ─── Obstacle collision helper ──────────────────────────────────────
+
+/**
+ * Resolve obstacle collisions for a blockout vehicle.
+ * BLOCKOUT-08H: Clamps vehicle position outside obstacles and adjusts velocity.
+ *
+ * @param vehicle - Vehicle state (mutated in place)
+ * @param obstacles - List of obstacles to check
+ */
+function resolveObstacleCollisions(
+  vehicle: BlockoutVehicleState,
+  obstacles: BlockoutObstacleState[],
+): void {
+  if (obstacles.length === 0) return;
+
+  const bodySize = getBodyPixelSize(vehicle.bodyId);
+  const vehicleRadius = Math.max(bodySize.w, bodySize.h) / 2 + 4; // 4px padding
+
+  const result = resolveVehicleObstacleCollisions(
+    vehicle.worldX, vehicle.worldY,
+    vehicleRadius,
+    vehicle.vx, vehicle.vy,
+    obstacles,
+  );
+
+  vehicle.worldX = result.worldX;
+  vehicle.worldY = result.worldY;
+  vehicle.vx = result.vx;
+  vehicle.vy = result.vy;
+
+  // Recalculate speed from updated velocity
+  vehicle.speed = Math.sqrt(result.vx * result.vx + result.vy * result.vy);
+
+  // If collision happened and vehicle is nearly stopped, clear move target
+  if (result.collided && vehicle.speed < 2) {
+    vehicle.speed = 0;
+    vehicle.vx = 0;
+    vehicle.vy = 0;
+  }
 }
