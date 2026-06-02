@@ -136,7 +136,8 @@ export class BlockoutDamageRenderer {
   private renderDamageNumber(event: BlockoutDamageEvent, t: number, alpha: number): void {
     // Float upward over duration
     const floatOffset = t * 20; // 20px upward float
-    const x = event.x;
+    // BLOCKOUT-10H+: Offset slightly to the right to avoid covering HP bars directly
+    const x = event.x + 8;
     const y = event.y - 10 - floatOffset;
 
     // Color based on amount

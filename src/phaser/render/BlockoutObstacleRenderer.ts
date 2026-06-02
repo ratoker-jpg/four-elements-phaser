@@ -93,7 +93,7 @@ export class BlockoutObstacleRenderer {
         label = this.scene.add.text(0, 0, '', {
           fontSize: '8px',
           color: DEBUG_LABEL_COLOR,
-          backgroundColor: '#00000066',
+          backgroundColor: '#00000033',
           padding: { x: 2, y: 1 },
         });
         label.setDepth(OBSTACLE_DEPTH + 1);

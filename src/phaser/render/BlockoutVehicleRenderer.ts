@@ -74,6 +74,15 @@ const SELECTION_RING_COLOR = 0xffd700;
 /** Selection highlight ring line width. */
 const SELECTION_RING_WIDTH = 2.5;
 
+/** BLOCKOUT-10H+: Extra padding for selection ring (larger for readability). */
+const SELECTION_RING_EXTRA_PAD = 8;
+
+/** BLOCKOUT-10H+: Direction arrow length in pixels (extends from selection ring edge). */
+const DIRECTION_ARROW_LENGTH = 12;
+
+/** BLOCKOUT-10H+: Direction arrow head size in pixels. */
+const DIRECTION_ARROW_HEAD = 5;
+
 /** Hover marker ring color (subtle white). */
 const HOVER_RING_COLOR = 0xffffff;
 
@@ -313,10 +322,36 @@ export class BlockoutVehicleRenderer {
     if (isSelected) {
       const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 800) / 800 * Math.PI * 2);
       const alpha = 0.6 + 0.4 * pulse;
-      const ringRadius = Math.max(bodySize.w, bodySize.h) / 2 + 6;
+      // BLOCKOUT-10H+: Slightly larger ring for better readability
+      const ringRadius = Math.max(bodySize.w, bodySize.h) / 2 + SELECTION_RING_EXTRA_PAD;
 
       g.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
       g.strokeCircle(cx, cy, ringRadius);
+
+      // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity
+      const arrowBaseX = cx + Math.cos(bodyAngle) * ringRadius;
+      const arrowBaseY = cy + Math.sin(bodyAngle) * ringRadius;
+      const arrowTipX = cx + Math.cos(bodyAngle) * (ringRadius + DIRECTION_ARROW_LENGTH);
+      const arrowTipY = cy + Math.sin(bodyAngle) * (ringRadius + DIRECTION_ARROW_LENGTH);
+
+      // Arrow shaft
+      g.lineStyle(2, SELECTION_RING_COLOR, alpha);
+      g.beginPath();
+      g.moveTo(arrowBaseX, arrowBaseY);
+      g.lineTo(arrowTipX, arrowTipY);
+      g.strokePath();
+
+      // Arrow head (two short lines at ~30° from shaft direction)
+      const headAngle1 = bodyAngle + Math.PI * 0.8;
+      const headAngle2 = bodyAngle - Math.PI * 0.8;
+      g.beginPath();
+      g.moveTo(arrowTipX, arrowTipY);
+      g.lineTo(arrowTipX + Math.cos(headAngle1) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle1) * DIRECTION_ARROW_HEAD);
+      g.strokePath();
+      g.beginPath();
+      g.moveTo(arrowTipX, arrowTipY);
+      g.lineTo(arrowTipX + Math.cos(headAngle2) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle2) * DIRECTION_ARROW_HEAD);
+      g.strokePath();
     }
 
     // ── Hover marker ─────────────────────────────────────────────
