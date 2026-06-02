@@ -167,6 +167,9 @@ export class BlockoutVehicleRenderer {
   /** Currently hovered vehicle ID (set from BlockoutVehicleInputController). */
   private _hoveredVehicleId: string | null = null;
 
+  /** ARENA-03H+: Currently targeted vehicle ID (for target indicator rendering). */
+  private _targetedVehicleId: string | null = null;
+
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
     this.offset = offset;
@@ -182,6 +185,11 @@ export class BlockoutVehicleRenderer {
   /** Set the currently hovered blockout vehicle ID. */
   setHoveredVehicleId(id: string | null): void {
     this._hoveredVehicleId = id;
+  }
+
+  /** ARENA-03H+: Set the currently targeted vehicle ID (enemy target indicator). */
+  setTargetedVehicleId(id: string | null): void {
+    this._targetedVehicleId = id;
   }
 
   // ─── Toggle methods ──────────────────────────────────────────────
@@ -379,6 +387,29 @@ export class BlockoutVehicleRenderer {
     if (isHovered && !isSelected) {
       g.lineStyle(1.5, HOVER_RING_COLOR, HOVER_RING_ALPHA);
       drawProjectedGroundRing(g, cx, cy, HOVER_RING_WORLD_RADIUS, this.offset, 20);
+    }
+
+    // ── ARENA-03H+: Target indicator (enemy being targeted by selected ally) ──
+    const isTargeted = vehicle.id === this._targetedVehicleId;
+    if (isTargeted && !isSelected) {
+      const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 600) / 600 * Math.PI * 2);
+      const alpha = 0.5 + 0.5 * pulse;
+      g.lineStyle(2, 0xff4444, alpha); // Red targeting ring
+      drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
+
+      // Small crosshair in center
+      const crossSize = 0.12;
+      g.lineStyle(1.5, 0xff4444, alpha);
+      drawProjectedCrosshair(g, cx, cy, crossSize, this.offset);
+    }
+
+    // ── ARENA-03H+: Enemy team indicator (small red diamond above HP bar) ──
+    if (vehicle.team === 'enemy' && !vehicle.isDestroyed) {
+      const indicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.2;
+      const indicatorPos = projectWorldPoint(tilePos.x, tilePos.y, indicatorZ, this.offset);
+      const indicatorSize = 0.08;
+      g.lineStyle(1, 0xff4444, 0.7);
+      drawProjectedGroundDiamond(g, indicatorPos.x, indicatorPos.y, indicatorSize, this.offset);
     }
 
     // ── BLOCKOUT-07H+: Destroyed vehicle rendering ────────────────

@@ -55,7 +55,8 @@ import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../st
 import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
-import { computeProjectedBarrelTipScreenAtZ } from './render/blockoutVehicleGeometry';
+import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter, computeProjectedTurretMountScreen } from './render/blockoutVehicleGeometry';
+import type { BlockoutVehicleState } from '../state/blockoutVehicleState';
 
 
 /**
@@ -534,6 +535,8 @@ export class GameScene extends Phaser.Scene {
         },
         // ARENA-02H+ fixup: Guard placement mode — suppress selection/movement when placing
         isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
+        // ARENA-03H+: Arena mode flag — enforces ally/enemy control and target-lock
+        isArenaMode: () => this.arenaMode,
       });
       console.log('[GameScene] Blockout vehicle input controller enabled.');
     }
@@ -672,6 +675,15 @@ export class GameScene extends Phaser.Scene {
       // Sync hover state to renderer
       if (this.blockoutVehicleRenderer) {
         this.blockoutVehicleRenderer.setHoveredVehicleId(this.blockoutVehicleInputController.hoveredVehicleId);
+        // ARENA-03H+: Sync target indicator to renderer
+        if (this.arenaMode) {
+          const selectedId = this.blockoutVehicleInputController.selectedVehicleId;
+          const vehicles = this.gameState.blockoutVehicles;
+          const selected = selectedId ? vehicles?.find(v => v.id === selectedId) : null;
+          this.blockoutVehicleRenderer.setTargetedVehicleId(selected?.targetVehicleId ?? null);
+        } else {
+          this.blockoutVehicleRenderer.setTargetedVehicleId(null);
+        }
       }
     }
     // BLOCKOUT-04H+: Update blockout vehicle movement
@@ -696,6 +708,7 @@ export class GameScene extends Phaser.Scene {
     }
     // BLOCKOUT-06H+: Tick continuous fire for stream weapons
     // BLOCKOUT-07H+: Also tick continuous damage
+    // ARENA-03H+: Use target-lock aim for Arena vehicles with target
     if (this.gameState.blockoutVehicles && this.devtoolsActive) {
       const nowMs = this.time.now;
       for (const vehicle of this.gameState.blockoutVehicles) {
@@ -704,16 +717,19 @@ export class GameScene extends Phaser.Scene {
           const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this._offset as IsoPoint);
           const barrelTipX = barrelTip.x;
           const barrelTipY = barrelTip.y;
+
+          // ARENA-03H+: In Arena mode, continuous fire uses target-lock direction
+          const aimTarget = this.getContinuousFireAimTarget(vehicle);
+          const aimTargetX = aimTarget.x;
+          const aimTargetY = aimTarget.y;
+
           tickContinuousFire(vehicle, barrelTipX, barrelTipY, vehicle.turretAngle,
-            this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
-            this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
-            nowMs);
+            aimTargetX, aimTargetY, nowMs);
           // BLOCKOUT-07H+: Apply continuous damage
           // BLOCKOUT-08H: Pass obstacles for line-of-fire blocking
           tickContinuousDamage(vehicle, this.gameState.blockoutVehicles,
             barrelTipX, barrelTipY, vehicle.turretAngle,
-            this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
-            this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
+            aimTargetX, aimTargetY,
             this._offset as IsoPoint, nowMs,
             this.gameState.blockoutObstacles);
         }
@@ -897,6 +913,44 @@ export class GameScene extends Phaser.Scene {
     this.placementMarker.moveTo(center.x, center.y - 4);
     this.placementMarker.lineTo(center.x, center.y + 4);
     this.placementMarker.strokePath();
+  }
+
+  /**
+   * ARENA-03H+: Compute the aim target for continuous fire/damage.
+   *
+   * In Arena mode, if the vehicle has a targetVehicleId, aim at that target's
+   * body center. Otherwise, use the current turret angle direction at weapon range.
+   * In non-Arena devtools mode, use mouse position as before.
+   */
+  private getContinuousFireAimTarget(vehicle: BlockoutVehicleState): { x: number; y: number } {
+    // For non-Arena devtools mode, fall back to mouse position
+    if (!this.arenaMode) {
+      return {
+        x: this.blockoutVehicleInputController?.mouseWorldX ?? vehicle.worldX + this._offset.x,
+        y: this.blockoutVehicleInputController?.mouseWorldY ?? vehicle.worldY + this._offset.y,
+      };
+    }
+
+    // Arena mode: use target-lock
+    if (vehicle.targetVehicleId) {
+      const vehicles = this.gameState.blockoutVehicles;
+      const target = vehicles?.find(v => v.id === vehicle.targetVehicleId);
+      if (target && !target.isDestroyed) {
+        const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
+        return { x: targetCenter.x, y: targetCenter.y };
+      }
+      // Target gone — clear it
+      vehicle.targetVehicleId = null;
+    }
+
+    // No target: aim along current turret angle at weapon range (use turret direction)
+    // This keeps continuous fire going in the direction the turret is already pointing
+    const turretMountScreen = computeProjectedTurretMountScreen(vehicle, this._offset as IsoPoint);
+    const rangePx = 200; // fallback range
+    return {
+      x: turretMountScreen.x + Math.cos(vehicle.turretAngle) * rangePx,
+      y: turretMountScreen.y + Math.sin(vehicle.turretAngle) * rangePx,
+    };
   }
 
   /**
