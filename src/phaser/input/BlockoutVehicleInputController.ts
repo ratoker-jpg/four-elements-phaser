@@ -38,20 +38,17 @@
 import Phaser from 'phaser';
 import type { IsoPoint } from '../render/isometric';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
-import { computeTurretWorldOrigin, computeBodyWorldCenter, getBodyPixelSize } from '../render/blockoutVehicleGeometry';
+import { computeBodyWorldCenter, getBodyPixelSize, computeProjectedTurretMountScreen, computeProjectedBarrelTipScreen } from '../render/blockoutVehicleGeometry';
 import { setBlockoutVehicleMoveTarget } from '../../state/blockoutMovement';
 import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state/angleMath';
 import { canFireBlockoutWeapon, fireBlockoutWeapon, startFiring, stopFiring, isContinuousWeapon } from '../../state/blockoutWeaponVfx';
 import { applyBlockoutWeaponDamage } from '../../state/blockoutDamage';
-import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import type { GameState } from '../../state/types';
 import { applyUpgrade } from '../../state/blockoutUpgrades';
 import type { BlockoutUpgradeId } from '../../config/blockoutUpgradeData';
 
-// ─── Turret size constant (matches BlockoutVehicleRenderer) ──────
-
-/** Turret rectangle size — must match BlockoutVehicleRenderer. */
-const TURRET_SIZE = { w: 10, h: 6 };
+// Turret size constants are now in blockoutVehicleGeometry (BLOCKOUT_TURRET_SIZE_W/H).
+// No local duplicate needed — computeProjectedBarrelTipScreen uses the shared source.
 
 // ─── Hit-test constants ────────────────────────────────────────────
 
@@ -186,12 +183,12 @@ export class BlockoutVehicleInputController {
     if (this._selectedVehicleId) {
       const selected = vehicles.find(v => v.id === this._selectedVehicleId);
       if (selected) {
-        // Compute turret mount position in world coordinates
-        // (not body/tile center — uses actual mount offset)
-        const turretOrigin = computeTurretWorldOrigin(selected, this.offset);
+        // Compute turret mount screen position using projected geometry
+        // (shared source of truth with renderer — PROJECTION-01 fixup)
+        const turretMountScreen = computeProjectedTurretMountScreen(selected, this.offset);
 
         // Target angle from turret mount position to mouse
-        const targetAngle = angleFromTo(turretOrigin.x, turretOrigin.y, this._mouseWorldX, this._mouseWorldY);
+        const targetAngle = angleFromTo(turretMountScreen.x, turretMountScreen.y, this._mouseWorldX, this._mouseWorldY);
         selected.turretTargetAngle = targetAngle;
 
         // Rate-limited rotation
@@ -434,15 +431,11 @@ export class BlockoutVehicleInputController {
     const nowMs = this.scene.time.now;
     if (!canFireBlockoutWeapon(selected, nowMs)) return;
 
-    // Compute barrel tip position in world coordinates (screen-space + offset)
-    const turretOrigin = computeTurretWorldOrigin(selected, this.offset);
-    const weaponProfile = getWeaponProfile(selected.weaponId);
-    if (!weaponProfile) return;
-
-    // Barrel tip = turret origin + barrel length along turret angle
-    const totalBarrelLength = TURRET_SIZE.w / 2 + weaponProfile.blockoutBarrelLength;
-    const barrelTipX = turretOrigin.x + Math.cos(selected.turretAngle) * totalBarrelLength;
-    const barrelTipY = turretOrigin.y + Math.sin(selected.turretAngle) * totalBarrelLength;
+    // Compute barrel tip position using projected geometry
+    // (shared source of truth with renderer — PROJECTION-01 fixup)
+    const barrelTip = computeProjectedBarrelTipScreen(selected, this.offset);
+    const barrelTipX = barrelTip.x;
+    const barrelTipY = barrelTip.y;
 
     // Aim target = mouse world position
     const aimTargetX = this._mouseWorldX;

@@ -16,10 +16,11 @@
 
 import Phaser from 'phaser';
 import type { IsoPoint } from './isometric';
-import { getBodyProfile } from '../../config/blockoutBodyData';
-import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
-import { SHAPE_SIZE_MAP, computeMountPixelOffset, computeBodyWorldCenter } from './blockoutVehicleGeometry';
+import {
+  computeBodyWorldCenter,
+  computeProjectedBlockoutVehicleGeometry,
+} from './blockoutVehicleGeometry';
 import {
   drawProjectedGroundRing,
   drawProjectedGroundDiamond,
@@ -27,15 +28,13 @@ import {
   drawProjectedBox,
   drawProjectedCrosshair,
 } from './projectedGroundPrimitives';
-import { projectWorldPoint, unprojectScreenToGround } from '../../config/cameraProjectionContract';
+import { projectWorldPoint, unprojectScreenToGround, PROJ_TILE_W } from '../../config/cameraProjectionContract';
+import { getWeaponProfile } from '../../config/blockoutWeaponData';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
 /** Depth for blockout vehicles (above terrain, coexisting with entities). */
 const BLOCKOUT_DEPTH = 120;
-
-/** Turret rectangle size (consistent across bodies, weapon barrel varies). */
-const TURRET_SIZE = { w: 10, h: 6 };
 
 /** Mount point circle radius. */
 const MOUNT_POINT_RADIUS = 3;
@@ -290,17 +289,12 @@ export class BlockoutVehicleRenderer {
   private renderVehicle(g: Phaser.GameObjects.Graphics, vehicle: BlockoutVehicleState, isSelected: boolean, isHovered: boolean): void {
     g.clear();
 
-    const bodyProfile = getBodyProfile(vehicle.bodyId);
-    if (!bodyProfile) return;
-    const weaponProfile = getWeaponProfile(vehicle.weaponId);
-    if (!weaponProfile) return;
-
-    const bodySize = SHAPE_SIZE_MAP[bodyProfile.blockoutShape];
-    const barrelLength = weaponProfile.blockoutBarrelLength;
-    const barrelWidth = weaponProfile.blockoutBarrelWidth;
+    // ── Shared projected geometry (single source of truth) ────────
+    const geom = computeProjectedBlockoutVehicleGeometry(vehicle, this.offset);
+    const { halfW, halfH, mountTileOffset, turretHalfW, turretHalfH,
+            effectiveBarrelLength, effectiveTurretAngle } = geom;
 
     const bodyAngle = vehicle.bodyAngle;
-    const turretAngle = vehicle.turretAngle;
 
     // BLOCKOUT-04H+: Use continuous worldX/worldY + offset for position
     // BLOCKOUT-05H+: Include recoil body impulse offset (shifts body backward)
@@ -310,16 +304,19 @@ export class BlockoutVehicleRenderer {
     const cx = vehicle.worldX + this.offset.x + bodyImpulseX;
     const cy = vehicle.worldY + this.offset.y + bodyImpulseY;
 
+    // Tile-space body center (with impulse for visual rendering)
+    const tilePos = unprojectScreenToGround(cx, cy, this.offset);
+    // Tile-space mount position (shared offset + impulse-shifted body center)
+    const mountWorldX = tilePos.x + mountTileOffset.dx;
+    const mountWorldY = tilePos.y + mountTileOffset.dy;
+
     // Faction colors
     const bodyColor = FACTION_BODY_COLORS[vehicle.faction] ?? FACTION_BODY_COLORS.cyan;
     const turretColor = FACTION_TURRET_COLORS[vehicle.faction] ?? FACTION_TURRET_COLORS.cyan;
 
-    // Convert body pixel dimensions to world/tile units for projected box
-    // Approximate: bodySize is in pixels, we need tile units
-    // Tile = 76x38 pixels. We use a simplified conversion:
-    // halfW and halfH in tile units based on the pixel body size relative to tile
-    const halfW = bodySize.w / 76; // body pixel width / tile width
-    const halfH = bodySize.h / 76; // body pixel height / tile width (not tile height)
+    // Barrel width from weapon profile
+    const wpProfile = getWeaponProfile(vehicle.weaponId);
+    const barrelWidth = wpProfile ? wpProfile.blockoutBarrelWidth : 2;
 
     // ── Movement target marker (selected vehicle only) ──────────
     if (isSelected && vehicle.hasMoveTarget) {
@@ -387,7 +384,6 @@ export class BlockoutVehicleRenderer {
     // ── BLOCKOUT-07H+: Destroyed vehicle rendering ────────────────
     if (vehicle.isDestroyed) {
       // Dimmed flat body on ground (no height)
-      const tilePos = unprojectScreenToGround(cx, cy, this.offset);
       const cosA = Math.cos(bodyAngle);
       const sinA = Math.sin(bodyAngle);
       const localCorners = [
@@ -420,9 +416,9 @@ export class BlockoutVehicleRenderer {
       g.closePath();
       g.strokePath();
 
-      // X marker over body
+      // X marker over body (use tile-unit size for consistency)
       g.lineStyle(2, 0xff0000, 0.8);
-      const xSize = Math.min(bodySize.w, bodySize.h) / 2 - 2;
+      const xSize = Math.min(halfW, halfH) * PROJ_TILE_W / 2 - 2;
       g.beginPath();
       g.moveTo(cx - xSize, cy - xSize);
       g.lineTo(cx + xSize, cy + xSize);
@@ -461,20 +457,7 @@ export class BlockoutVehicleRenderer {
 
     // ── Mount point circle (debug, on top face) ──────────────────
     if (this.showMountPoints) {
-      const mountOffset = computeMountPixelOffset(
-        bodyProfile.mountCategory,
-        bodySize.w,
-        bodySize.h,
-      );
-      // Place mount point on top face at mount offset
-      const tilePos = unprojectScreenToGround(cx, cy, this.offset);
-      const cosA = Math.cos(bodyAngle);
-      const sinA = Math.sin(bodyAngle);
-      // Convert pixel offset to approximate tile offset
-      const mountTileX = mountOffset.dx / 76;
-      const mountTileY = mountOffset.dy / 76;
-      const mountWorldX = tilePos.x + mountTileX * cosA - mountTileY * sinA;
-      const mountWorldY = tilePos.y + mountTileX * sinA + mountTileY * cosA;
+      // Place mount point on top face using shared mountTileOffset
       const mountScreen = projectWorldPoint(mountWorldX, mountWorldY, VEHICLE_BODY_HEIGHT, this.offset);
 
       g.fillStyle(MOUNT_POINT_COLOR, 0.7);
@@ -485,12 +468,11 @@ export class BlockoutVehicleRenderer {
 
     // ── BLOCKOUT-07H+: HP bar above vehicle ──────────────────────
     {
-      const tilePos = unprojectScreenToGround(cx, cy, this.offset);
       const hpBarZ = VEHICLE_BODY_HEIGHT + TURRET_Z_OFFSET + 0.15;
       const hpBarPos = projectWorldPoint(tilePos.x, tilePos.y, hpBarZ, this.offset);
 
       const hpRatio = vehicle.maxHp > 0 ? vehicle.hp / vehicle.maxHp : 0;
-      const barWidth = bodySize.w + 4;
+      const barWidth = halfW * PROJ_TILE_W + 4;
       const barHeight = 3;
       const barY = hpBarPos.y - 4;
 
@@ -515,7 +497,6 @@ export class BlockoutVehicleRenderer {
       const nowMs = this.scene.time.now;
       if (nowMs < vehicle.damageFlashUntil) {
         // White overlay on top face
-        const tilePos = unprojectScreenToGround(cx, cy, this.offset);
         const cosA = Math.cos(bodyAngle);
         const sinA = Math.sin(bodyAngle);
         const localCorners = [
@@ -541,32 +522,13 @@ export class BlockoutVehicleRenderer {
     }
 
     // ── Turret + Barrel (on top face, using basisZ) ──────────────
+    // Uses shared mountTileOffset from computeProjectedBlockoutVehicleGeometry
+    // to ensure visual mount equals logical mount used by input/fire/damage.
     {
-      const mountOffset = computeMountPixelOffset(
-        bodyProfile.mountCategory,
-        bodySize.w,
-        bodySize.h,
-      );
-      // Convert pixel offset to approximate tile offset
-      const mountTileX = mountOffset.dx / 76;
-      const mountTileY = mountOffset.dy / 76;
-
-      const tilePos = unprojectScreenToGround(cx, cy, this.offset);
-      const cosA = Math.cos(bodyAngle);
-      const sinA = Math.sin(bodyAngle);
-      const mountWorldX = tilePos.x + mountTileX * cosA - mountTileY * sinA;
-      const mountWorldY = tilePos.y + mountTileX * sinA + mountTileY * cosA;
-
-      // Turret position on top face
+      // Turret position on top face (shared mountWorldX/Y from above)
       const turretZ = VEHICLE_BODY_HEIGHT + TURRET_Z_OFFSET;
 
-      // BLOCKOUT-05H+: Include recoil turret kickback offset
-      const recoilTurretOffset = vehicle.recoilTurretOffset ?? 0;
-      const effectiveTurretAngle = turretAngle - recoilTurretOffset;
-
       // Draw turret as small projected box on top face
-      const turretHalfW = (TURRET_SIZE.w / 2) / 76;
-      const turretHalfH = (TURRET_SIZE.h / 2) / 76;
       const turretHeight = 0.08;
       const turretCosA = Math.cos(effectiveTurretAngle);
       const turretSinA = Math.sin(effectiveTurretAngle);
@@ -633,18 +595,11 @@ export class BlockoutVehicleRenderer {
       g.strokePath();
 
       // Barrel line from turret front on top face
-      const barrelTileLength = barrelLength / 76;
+      // Uses shared turretHalfW and effectiveBarrelLength from geometry helper
       const barrelStartWorld = {
         x: mountWorldX + turretHalfW * turretCosA,
         y: mountWorldY + turretHalfW * turretSinA,
       };
-      const barrelEndWorld = {
-        x: mountWorldX + (turretHalfW + barrelTileLength) * turretCosA,
-        y: mountWorldY + (turretHalfW + barrelTileLength) * turretSinA,
-      };
-
-      const recoilBarrelOffset = vehicle.recoilBarrelOffset ?? 0;
-      const effectiveBarrelLength = Math.max(0, barrelTileLength - recoilBarrelOffset / 76);
       const effectiveBarrelEndWorld = {
         x: mountWorldX + (turretHalfW + effectiveBarrelLength) * turretCosA,
         y: mountWorldY + (turretHalfW + effectiveBarrelLength) * turretSinA,
@@ -662,8 +617,8 @@ export class BlockoutVehicleRenderer {
       // ── Aim line for selected vehicle ─────────────────────────────
       if (isSelected) {
         g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
-        const aimTileLength = AIM_LINE_LENGTH / 76;
-        const aimStartWorld = barrelEndWorld;
+        const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
+        const aimStartWorld = effectiveBarrelEndWorld;
         const aimEndWorld = {
           x: mountWorldX + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretCosA,
           y: mountWorldY + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretSinA,

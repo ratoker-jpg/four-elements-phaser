@@ -44,11 +44,8 @@ import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../st
 import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
-import { computeTurretWorldOrigin } from './render/blockoutVehicleGeometry';
-import { getWeaponProfile } from '../config/blockoutWeaponData';
+import { computeProjectedBarrelTipScreen } from './render/blockoutVehicleGeometry';
 
-/** Turret size width constant (matches BlockoutVehicleRenderer). BLOCKOUT-06H+. */
-const TURRET_SIZE_W = 10;
 
 /**
  * GameScene — orchestration-only scene.
@@ -589,25 +586,22 @@ export class GameScene extends Phaser.Scene {
       const nowMs = this.time.now;
       for (const vehicle of this.gameState.blockoutVehicles) {
         if (vehicle.fireHeld && vehicle.isFiring && !vehicle.isDestroyed) {
-          const turretOrigin = computeTurretWorldOrigin(vehicle, this._offset as IsoPoint);
-          const weaponProfile = getWeaponProfile(vehicle.weaponId);
-          if (weaponProfile) {
-            const totalBarrelLength = TURRET_SIZE_W / 2 + weaponProfile.blockoutBarrelLength;
-            const barrelTipX = turretOrigin.x + Math.cos(vehicle.turretAngle) * totalBarrelLength;
-            const barrelTipY = turretOrigin.y + Math.sin(vehicle.turretAngle) * totalBarrelLength;
-            tickContinuousFire(vehicle, barrelTipX, barrelTipY, vehicle.turretAngle,
-              this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
-              this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
-              nowMs);
-            // BLOCKOUT-07H+: Apply continuous damage
-            // BLOCKOUT-08H: Pass obstacles for line-of-fire blocking
-            tickContinuousDamage(vehicle, this.gameState.blockoutVehicles,
-              barrelTipX, barrelTipY, vehicle.turretAngle,
-              this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
-              this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
-              this._offset as IsoPoint, nowMs,
-              this.gameState.blockoutObstacles);
-          }
+          // Compute barrel tip using projected geometry (shared source of truth — PROJECTION-01 fixup)
+          const barrelTip = computeProjectedBarrelTipScreen(vehicle, this._offset as IsoPoint);
+          const barrelTipX = barrelTip.x;
+          const barrelTipY = barrelTip.y;
+          tickContinuousFire(vehicle, barrelTipX, barrelTipY, vehicle.turretAngle,
+            this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
+            this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
+            nowMs);
+          // BLOCKOUT-07H+: Apply continuous damage
+          // BLOCKOUT-08H: Pass obstacles for line-of-fire blocking
+          tickContinuousDamage(vehicle, this.gameState.blockoutVehicles,
+            barrelTipX, barrelTipY, vehicle.turretAngle,
+            this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
+            this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
+            this._offset as IsoPoint, nowMs,
+            this.gameState.blockoutObstacles);
         }
       }
       // BLOCKOUT-07H+: Expire damage events
