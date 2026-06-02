@@ -404,7 +404,7 @@ ArenaMenu
 │   ├── TeamSelector (ally / enemy)
 │   ├── PlaceButton
 │   └── CancelButton
-├── ArenaRoster (Step 5)
+├── ArenaRoster + Usability (Step 4)
 ├── ArenaActions (Reset, Clear, Help)
 └── ArenaStatus (placement mode, target status)
 ```
@@ -450,23 +450,34 @@ import { WEAPON_PROFILES } from '../config/blockoutWeaponData';
 
 ### 6.2 Реализация Click Placement
 
-Использовать камерную проекцию для конвертации screen → tile → world:
+Использовать камерную проекцию для конвертации screen → world → tile:
 
 ```text
 1. Пользователь кликает на экран.
-2. camera.getWorldPoint(screenX, screenY) → world position.
-3. unprojectScreenToGround(worldX, worldY, mapOrigin) → tile (tx, ty).
-4. Округлить tx/ty до ближайшего тайла.
+2. camera.getWorldPoint(screenX, screenY) → screen-world position.
+3. unprojectScreenToGround(worldX, worldY, mapOrigin) → { x, y } —
+   мировые/тайловые координаты на ground plane (z=0).
+4. x и y — это дробные тайловые координаты. Округлить Math.round(x),
+   Math.round(y) до ближайшего целого тайла.
 5. Проверить passability через occupancy map.
-6. Если проходимо — создать юнита в (tx, ty).
+6. Если проходимо — создать юнита в (tx=Math.round(x), ty=Math.round(y)).
 7. Если нет — показать feedback (красная вспышка / сообщение).
 ```
 
-Ключевые функции из `cameraProjectionContract.ts`:
-- `unprojectScreenToGround(screenX, screenY, origin)` → `{ tx, ty }`
+Ключевая функция из `cameraProjectionContract.ts`:
 
-Из `isometric.ts`:
-- `screenToTile(sx, sy)` → `{ tx, ty }`
+```typescript
+unprojectScreenToGround(screenX, screenY, origin): { x: number; y: number }
+```
+
+Возвращает `{ x, y }` — мировые/тайловые координаты на ground plane.
+Значения дробные, поэтому для размещения юнита нужно округлить
+до целого тайла: `tx = Math.round(result.x)`, `ty = Math.round(result.y)`.
+
+Не путать с `screenToTile()` из `isometric.ts`, которая использует
+другую формулу. Для click placement следует использовать
+`unprojectScreenToGround()` — это единый источник правды
+согласно CAMERA_PROJECTION_CONTRACT.
 
 ### 6.3 Placement Mode State Machine
 
@@ -807,15 +818,18 @@ function updateBlockoutAi(vehicles: BlockoutVehicleState[], delta: number): void
 
 ---
 
-### ARENA-04H+ — Список юнитов и управление ареной
+### ARENA-04H+ — Arena Control Panel: Roster + Usability + Help
 
-**Цель**: Список всех юнитов на арене с управлением.
+**Цель**: Полная панель управления ареной — список юнитов, статусы, помощь, сообщения. Арена удобна без DevTools и без запоминания горячих клавиш.
+
+Этот шаг объединяет roster и usability в один High+ PR, потому что по отдельности они — medium-scope шаги, а roadmap требует только High+/High gameplay шагов. Вместе они составляют полноценный контрольный центр арены.
 
 **Файлы, которые нужно тронуть**:
 
 | Файл | Изменение |
 |------|----------|
-| `src/phaser/ui/ArenaMenu.ts` | Добавить ArenaRoster секцию |
+| `src/phaser/ui/ArenaMenu.ts` | Добавить ArenaRoster секцию, help, статусы, сообщения |
+| `src/phaser/render/BlockoutSandboxHudRenderer.ts` | Обновить help overlay для arena |
 
 Новые файлы:
 
@@ -829,9 +843,11 @@ function updateBlockoutAi(vehicles: BlockoutVehicleState[], delta: number): void
 |------|----------|----------|
 | Производительность при большом числе юнитов | DOM обновление на каждый кадр | Обновлять roster по событию, не каждый кадр |
 | Синхронизация roster ↔ state | Удаление из roster должно удалить из state | Единственный источник правды — state |
+| Help overlay устареет | При изменении горячих клавиш | Читать горячие клавиши из конфига/реестра |
 
 **Критерии приёмки**:
 
+Roster:
 - [ ] Roster показывает всех юнитов
 - [ ] Видно: body, weapon, team, HP, alive/destroyed
 - [ ] Клик по юниту в roster → выбрать на карте
@@ -841,35 +857,7 @@ function updateBlockoutAi(vehicles: BlockoutVehicleState[], delta: number): void
 - [ ] Кнопка Reset Arena → полная очистка
 - [ ] Кнопка Repeat Placement → создать похожего юнита
 
-**Ручное QA**:
-
-1. Создать 3 ally + 2 enemy
-2. Проверить roster: все 5 юнитов видны
-3. Удалить одного из roster → юнит исчез с карты
-4. Clear Enemies → enemy нет, ally остались
-5. Reset Arena → арена пустая
-
----
-
-### ARENA-05H+ — Удобство арены
-
-**Цель**: Арена удобна без DevTools и без запоминания горячих клавиш.
-
-**Файлы, которые нужно тронуть**:
-
-| Файл | Изменение |
-|------|----------|
-| `src/phaser/ui/ArenaMenu.ts` | Добавить help, статусы, сообщения |
-| `src/phaser/render/BlockoutSandboxHudRenderer.ts` | Обновить help overlay для arena |
-
-**Риски**:
-
-| Риск | Описание | Смягчение |
-|------|----------|----------|
-| Help overlay устареет | При изменении горячих клавиш | Читать горячие клавиши из конфига/реестра |
-
-**Критерии приёмки**:
-
+Usability:
 - [ ] Help overlay показывает все горячие клавиши
 - [ ] Статус placement mode виден
 - [ ] Статус выбранной цели виден
@@ -879,15 +867,23 @@ function updateBlockoutAi(vehicles: BlockoutVehicleState[], delta: number): void
 
 **Ручное QA**:
 
-1. Открыть Help → все горячие клавиши описаны
-2. Войти в placement mode → статус виден
-3. Выбрать цель → статус виден
-4. Очистить арену → сообщение «Арена очищена»
-5. Сбросить арену → сообщение «Арена сброшена»
+Roster:
+1. Создать 3 ally + 2 enemy
+2. Проверить roster: все 5 юнитов видны
+3. Удалить одного из roster → юнит исчез с карты
+4. Clear Enemies → enemy нет, ally остались
+5. Reset Arena → арена пустая
+
+Usability:
+6. Открыть Help → все горячие клавиши описаны
+7. Войти в placement mode → статус виден
+8. Выбрать цель → статус виден
+9. Очистить арену → сообщение «Арена очищена»
+10. Сбросить арену → сообщение «Арена сброшена»
 
 ---
 
-### ARENA-06H+ — Режимы поведения врагов
+### ARENA-05H+ — Режимы поведения врагов
 
 **Цель**: Простые AI-режимы для enemy юнитов.
 
@@ -936,21 +932,22 @@ function updateBlockoutAi(vehicles: BlockoutVehicleState[], delta: number): void
 
 ## 10. Сводка рисков
 
-| Шаг | Главный риск | Уровень |
-|-----|-------------|---------|
+Все gameplay-шаги классифицированы как High+ или High согласно roadmap-дисциплине владельца: gameplay implementation steps must be High+ or High only.
+
+| Шаг | Главный риск | Классификация |
+|-----|-------------|---------------|
 | ARENA-01H+ | GameScene усложняется, может сломаться Normal Game | High |
-| ARENA-02H+ | Camera projection неточность при click placement | Medium |
-| ARENA-03H+ | Удаление mouse-follow может сломать Debug-режим | High |
-| ARENA-04H+ | Производительность DOM roster при большом числе юнитов | Low |
-| ARENA-05H+ | Help overlay может устареть | Low |
-| ARENA-06H+ | AI jitter, performance при большом числе юнитов | Medium |
+| ARENA-02H+ | Camera projection + placement + ally/enemy model — новый gameplay-слой | High+ |
+| ARENA-03H+ | Удаление mouse-follow, замена на target-lock, friendly fire — критический gameplay-шаг | High+ |
+| ARENA-04H+ | Roster + usability — объединённый шаг для соответствия High+ дисциплине | High |
+| ARENA-05H+ | AI режимы — новый gameplay-слой с движением и стрельбой врагов | High+ |
 
 ---
 
 ## 11. Итоговая последовательность PR
 
 ```text
-ARENA-01H+ — Standalone Clean Arena
+ARENA-01H+ [High]  — Standalone Clean Arena
   ├── arenaModeContext.ts (новый)
   ├── ArenaMenu.ts (новый, shell)
   ├── devArena.ts (переписать createArenaMapData)
@@ -958,28 +955,25 @@ ARENA-01H+ — Standalone Clean Arena
   ├── createInitialState.ts (arenaMode: skip HQ/harvesters/economy)
   └── blockoutScenario.ts (arenaMode: skip obstacles)
 
-ARENA-02H+ — Unit Creation + Click Placement
+ARENA-02H+ [High+] — Unit Creation + Click Placement
   ├── ArenaUnitComposer.ts (новый)
   ├── arenaPlacement.ts (новый)
   ├── blockoutVehicleState.ts (добавить team)
   ├── devArena.ts (arenaSpawnVehicle)
   └── ArenaMenu.ts (интеграция UnitComposer)
 
-ARENA-03H+ — Control, Targeting, and Turret Rules
+ARENA-03H+ [High+] — Control, Targeting, and Turret Rules
   ├── BlockoutVehicleInputController.ts (target-lock вместо mouse-follow)
   ├── blockoutVehicleState.ts (добавить targetVehicleId)
   ├── blockoutDamage.ts (ally/enemy проверки)
   └── GameScene.ts (обработка клика по enemy)
 
-ARENA-04H+ — Arena Unit List / Roster
+ARENA-04H+ [High]  — Arena Control Panel: Roster + Usability + Help
   ├── ArenaRoster.ts (новый)
-  └── ArenaMenu.ts (интеграция Roster)
-
-ARENA-05H+ — Arena Usability
-  ├── ArenaMenu.ts (help, статусы, сообщения)
+  ├── ArenaMenu.ts (интеграция Roster + help + статусы + сообщения)
   └── BlockoutSandboxHudRenderer.ts (обновить help overlay)
 
-ARENA-06H+ — Enemy Behavior Modes
+ARENA-05H+ [High+] — Enemy Behavior Modes
   ├── blockoutAi.ts (новый)
   ├── blockoutAi.test.ts (новый)
   ├── blockoutVehicleState.ts (aiMode, aiHoldRadius)
@@ -993,7 +987,7 @@ ARENA-06H+ — Enemy Behavior Modes
 
 Все шаги, связанные с click placement и turret наведением, должны использовать `cameraProjectionContract.ts` как источник правды для проекции:
 
-- `unprojectScreenToGround()` для click-to-tile конверсии
+- `unprojectScreenToGround()` для click-to-tile конверсии (возвращает `{ x, y }`, округлять до целого тайла)
 - `projectGroundPoint()` / `projectWorldPoint()` для отрисовки
 - `blockoutVehicleGeometry.ts` для turret mount и barrel tip позиций
 
@@ -1045,7 +1039,7 @@ ARENA-06H+ — Enemy Behavior Modes
 
 ## 15. Полный первый цикл
 
-После шагов ARENA-01H+ через ARENA-06H+ добавляется:
+После шагов ARENA-01H+ через ARENA-05H+ добавляется:
 
 ```text
 8. Список юнитов (roster) с управлением
@@ -1063,5 +1057,11 @@ ARENA-06H+ — Enemy Behavior Modes
 2. Убедиться, что Normal Game не сломан.
 3. Прочитать этот аудит и roadmap перед началом.
 4. Не расширять scope без одобрения владельца.
-5. Запустить `npm run validate` перед commit.
+5. Запустить полную валидацию перед commit:
+   ```text
+   npm run typecheck
+   npm run test
+   npm run build
+   npm run qa:smoke
+   ```
 6. Не мерджить PR без одобрения владельца.
