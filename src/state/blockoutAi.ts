@@ -18,7 +18,7 @@
  */
 
 import type { BlockoutVehicleState } from './blockoutVehicleState';
-import { startFiring, stopFiring, canFireBlockoutWeapon } from './blockoutWeaponVfx';
+import { startFiring, stopFiring, canFireBlockoutWeapon, isContinuousWeapon } from './blockoutWeaponVfx';
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
 import { getEffectiveDamageProfile } from './blockoutUpgrades';
 import { angleFromTo } from './angleMath';
@@ -40,6 +40,15 @@ export interface BlockoutAiOptions {
   /** Map origin offset for world-to-screen conversions. */
   offsetX: number;
   offsetY: number;
+  /**
+   * ARENA-05H+ fixup: Callback to fire a single-shot weapon with real VFX/damage.
+   * Called when an AI-controlled enemy decides to fire a non-continuous weapon.
+   * The callback should use fireBlockoutWeapon() + applyBlockoutWeaponDamage()
+   * with the same geometry source of truth as the player fire path.
+   * If not provided, single-shot AI weapons will only set fireHeld/isFiring
+   * (which produces no VFX or damage).
+   */
+  fireWeapon?: (enemy: BlockoutVehicleState, target: BlockoutVehicleState, nowMs: number) => void;
 }
 
 // ─── Module-local tick timer ────────────────────────────────────────
@@ -161,6 +170,40 @@ function handlePassive(enemy: BlockoutVehicleState): void {
 }
 
 /**
+ * ARENA-05H+ fixup: Attempt to fire weapon for an AI enemy.
+ *
+ * For continuous weapons: sets fireHeld/isFiring so the existing
+ * continuous fire loop in GameScene ticks VFX/damage.
+ * For single-shot weapons: calls the fireWeapon callback (provided
+ * by GameScene) which uses fireBlockoutWeapon() + applyBlockoutWeaponDamage()
+ * with the same geometry source of truth as the player fire path.
+ */
+function tryAiFire(
+  enemy: BlockoutVehicleState,
+  target: BlockoutVehicleState,
+  nowMs: number,
+  options: BlockoutAiOptions,
+): void {
+  if (!canFireBlockoutWeapon(enemy, nowMs)) return;
+
+  if (isContinuousWeapon(enemy.weaponId)) {
+    // Continuous weapons: startFiring() sets fireHeld/isFiring so the
+    // existing continuous fire loop in GameScene handles VFX/damage ticks.
+    if (!enemy.fireHeld) {
+      startFiring(enemy);
+    }
+  } else {
+    // Single-shot weapons: call the fireWeapon callback for real VFX/damage.
+    // If no callback is provided, fall back to startFiring (VFX-only, no damage).
+    if (options.fireWeapon) {
+      options.fireWeapon(enemy, target, nowMs);
+    } else if (!enemy.fireHeld) {
+      startFiring(enemy);
+    }
+  }
+}
+
+/**
  * Handle stationary_shooter mode: enemy stands still, targets nearest ally, fires.
  */
 function handleStationaryShooter(
@@ -169,6 +212,7 @@ function handleStationaryShooter(
   offsetX: number,
   offsetY: number,
   nowMs: number,
+  options: BlockoutAiOptions,
 ): void {
   const range = getWeaponRangePx(enemy);
   const nearestAlly = findNearestAlly(vehicles, enemy, offsetX, offsetY, range + AI_RANGE_TOLERANCE_PX);
@@ -186,12 +230,8 @@ function handleStationaryShooter(
   enemy.targetVehicleId = nearestAlly.id;
   aimTurretAtTarget(enemy, nearestAlly, offsetX, offsetY);
 
-  // Start firing if weapon is ready
-  if (canFireBlockoutWeapon(enemy, nowMs)) {
-    if (!enemy.fireHeld) {
-      startFiring(enemy);
-    }
-  }
+  // Fire weapon
+  tryAiFire(enemy, nearestAlly, nowMs, options);
 }
 
 /**
@@ -203,6 +243,7 @@ function handleChaser(
   offsetX: number,
   offsetY: number,
   nowMs: number,
+  options: BlockoutAiOptions,
 ): void {
   const range = getWeaponRangePx(enemy);
   const nearestAlly = findNearestAlly(vehicles, enemy, offsetX, offsetY);
@@ -234,15 +275,9 @@ function handleChaser(
       // Keep fire state for continuous weapons that can still tick
     }
   } else {
-    // In range — stop moving
+    // In range — stop moving and fire
     enemy.hasMoveTarget = false;
-  }
-
-  // Start firing if weapon is ready
-  if (canFireBlockoutWeapon(enemy, nowMs)) {
-    if (!enemy.fireHeld) {
-      startFiring(enemy);
-    }
+    tryAiFire(enemy, nearestAlly, nowMs, options);
   }
 }
 
@@ -257,6 +292,7 @@ function handleHoldPosition(
   offsetX: number,
   offsetY: number,
   nowMs: number,
+  options: BlockoutAiOptions,
 ): void {
   const holdRadius = enemy.aiHoldRadius;
 
@@ -295,12 +331,8 @@ function handleHoldPosition(
   // Don't move — hold position just shoots from where it stands
   enemy.hasMoveTarget = false;
 
-  // Start firing if weapon is ready
-  if (canFireBlockoutWeapon(enemy, nowMs)) {
-    if (!enemy.fireHeld) {
-      startFiring(enemy);
-    }
-  }
+  // Fire weapon
+  tryAiFire(enemy, nearestAlly, nowMs, options);
 }
 
 // ─── Main AI update ─────────────────────────────────────────────────
@@ -353,13 +385,13 @@ export function updateBlockoutAi(
         handlePassive(vehicle);
         break;
       case 'stationary_shooter':
-        handleStationaryShooter(vehicle, vehicles, offsetX, offsetY, nowMs);
+        handleStationaryShooter(vehicle, vehicles, offsetX, offsetY, nowMs, options);
         break;
       case 'chaser':
-        handleChaser(vehicle, vehicles, offsetX, offsetY, nowMs);
+        handleChaser(vehicle, vehicles, offsetX, offsetY, nowMs, options);
         break;
       case 'hold_position':
-        handleHoldPosition(vehicle, vehicles, offsetX, offsetY, nowMs);
+        handleHoldPosition(vehicle, vehicles, offsetX, offsetY, nowMs, options);
         break;
     }
   }

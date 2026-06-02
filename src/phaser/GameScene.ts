@@ -51,8 +51,8 @@ import { CameraProjectionDebugRenderer } from './render/CameraProjectionDebugRen
 import { DEFAULT_SANDBOX_SCENARIO, ARENA_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
 import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
-import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring } from '../state/blockoutWeaponVfx';
-import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
+import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring, fireBlockoutWeapon } from '../state/blockoutWeaponVfx';
+import { tickContinuousDamage, expireDamageEvents, applyBlockoutWeaponDamage } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
 import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter } from './render/blockoutVehicleGeometry';
@@ -768,6 +768,39 @@ export class GameScene extends Phaser.Scene {
         nowMs,
         offsetX: this._offset.x,
         offsetY: this._offset.y,
+        // ARENA-05H+ fixup: fireWeapon callback for single-shot AI weapons.
+        // Uses the same geometry and damage path as player fire.
+        fireWeapon: (enemy, target, fireNowMs) => {
+          // Compute barrel tip using projected geometry at barrel Z
+          // (shared source of truth with renderer — PROJECTION-01)
+          const barrelTip = computeProjectedBarrelTipScreenAtZ(enemy, this._offset as IsoPoint);
+          const barrelTipX = barrelTip.x;
+          const barrelTipY = barrelTip.y;
+          // Target center as aim point
+          const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
+          const aimTargetX = targetCenter.x;
+          const aimTargetY = targetCenter.y;
+
+          fireBlockoutWeapon(
+            enemy,
+            barrelTipX,
+            barrelTipY,
+            enemy.turretAngle,
+            aimTargetX,
+            aimTargetY,
+            fireNowMs,
+          );
+
+          // Apply damage using the same path as player fire
+          applyBlockoutWeaponDamage(
+            enemy, this.gameState.blockoutVehicles!,
+            barrelTipX, barrelTipY,
+            enemy.turretAngle,
+            aimTargetX, aimTargetY,
+            this._offset as IsoPoint, fireNowMs,
+            this.gameState.blockoutObstacles ?? [],
+          );
+        },
       });
       // ARENA-05H+: Rotate enemy turrets toward their AI-set target angle
       for (const vehicle of this.gameState.blockoutVehicles) {
@@ -908,6 +941,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Spawn the vehicle
+      // ARENA-05H+ fixup: Pass selected AI mode for enemy units
       const spawnResult = arenaSpawnVehicle(
         this.gameState,
         this.arenaPlacementState.selectedBody!,
@@ -915,6 +949,7 @@ export class GameScene extends Phaser.Scene {
         this.arenaPlacementState.selectedTeam,
         result.tx,
         result.ty,
+        this.arenaPlacementState.selectedTeam === 'enemy' ? this.arenaPlacementState.selectedAiMode : undefined,
       );
 
       if (spawnResult.success) {

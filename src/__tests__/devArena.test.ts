@@ -155,4 +155,38 @@ describe('arenaSpawnVehicle', () => {
     expect(result.message).toContain('Twins');
     expect(result.message).toContain('(7, 7)');
   });
+
+  // ARENA-05H+ fixup: aiMode passed to arenaSpawnVehicle
+  it('should set aiMode on enemy vehicle when aiMode is provided', () => {
+    const result = arenaSpawnVehicle(state, 'titan', 'thunder', 'enemy', 10, 10, 'chaser');
+    expect(result.success).toBe(true);
+    const vehicle = state.blockoutVehicles![0];
+    expect(vehicle.team).toBe('enemy');
+    expect(vehicle.aiMode).toBe('chaser');
+  });
+
+  it('should not set aiMode on ally vehicle even when aiMode is provided', () => {
+    const result = arenaSpawnVehicle(state, 'viking', 'smoky', 'ally', 5, 5, 'chaser');
+    expect(result.success).toBe(true);
+    const vehicle = state.blockoutVehicles![0];
+    expect(vehicle.team).toBe('ally');
+    // Ally should remain passive regardless of aiMode param
+    expect(vehicle.aiMode).toBe('passive');
+  });
+
+  it('enemy without aiMode defaults to passive', () => {
+    const result = arenaSpawnVehicle(state, 'titan', 'thunder', 'enemy', 10, 10);
+    expect(result.success).toBe(true);
+    expect(state.blockoutVehicles![0].aiMode).toBe('passive');
+  });
+
+  it('should set aiMode for stationary_shooter', () => {
+    arenaSpawnVehicle(state, 'wasp', 'smoky', 'enemy', 5, 5, 'stationary_shooter');
+    expect(state.blockoutVehicles![0].aiMode).toBe('stationary_shooter');
+  });
+
+  it('should set aiMode for hold_position', () => {
+    arenaSpawnVehicle(state, 'wasp', 'smoky', 'enemy', 5, 5, 'hold_position');
+    expect(state.blockoutVehicles![0].aiMode).toBe('hold_position');
+  });
 });

@@ -480,3 +480,163 @@ describe('ARENA-05H+ AI tick interval', () => {
     expect(enemy.targetVehicleId).toBeNull();
   });
 });
+
+// ─── ARENA-05H+ fixup: fireWeapon callback for single-shot weapons ──────
+
+describe('ARENA-05H+ fixup: fireWeapon callback for single-shot AI weapons', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+    clearVfxEvents();
+    resetAiTickTimer();
+  });
+
+  it('stationary_shooter with single-shot weapon calls fireWeapon callback', () => {
+    const ally = createAlly(5, 5);
+    const enemy = createEnemy(8, 8, 'stationary_shooter'); // smoky = single-shot
+    const vehicles = [ally, enemy];
+    const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
+
+    updateBlockoutAi(vehicles, {
+      ...makeOptions(),
+      fireWeapon: (e, t, now) => { fireCalls.push({ enemy: e, target: t, nowMs: now }); },
+    });
+
+    // Should have called fireWeapon once (smoky is single-shot, canFire is true)
+    expect(fireCalls.length).toBe(1);
+    expect(fireCalls[0]!.enemy.id).toBe(enemy.id);
+    expect(fireCalls[0]!.target.id).toBe(ally.id);
+    // fireHeld/isFiring should NOT be set when fireWeapon callback is used
+    expect(enemy.fireHeld).toBe(false);
+    expect(enemy.isFiring).toBe(false);
+  });
+
+  it('chaser in range with single-shot weapon calls fireWeapon callback', () => {
+    const ally = createAlly(5, 5);
+    const enemy = createEnemy(5, 5, 'chaser'); // Same position = in range
+    const vehicles = [ally, enemy];
+    const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
+
+    updateBlockoutAi(vehicles, {
+      ...makeOptions(),
+      fireWeapon: (e, t, now) => { fireCalls.push({ enemy: e, target: t, nowMs: now }); },
+    });
+
+    expect(fireCalls.length).toBe(1);
+    expect(fireCalls[0]!.enemy.id).toBe(enemy.id);
+    expect(fireCalls[0]!.target.id).toBe(ally.id);
+  });
+
+  it('hold_position in range with single-shot weapon calls fireWeapon callback', () => {
+    const ally = createAlly(5, 5);
+    const enemy = createEnemy(6, 6, 'hold_position');
+    enemy.aiHoldRadius = 500;
+    const vehicles = [ally, enemy];
+    const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
+
+    updateBlockoutAi(vehicles, {
+      ...makeOptions(),
+      fireWeapon: (e, t, now) => { fireCalls.push({ enemy: e, target: t, nowMs: now }); },
+    });
+
+    expect(fireCalls.length).toBe(1);
+    expect(fireCalls[0]!.enemy.id).toBe(enemy.id);
+    expect(fireCalls[0]!.target.id).toBe(ally.id);
+  });
+
+  it('continuous weapon uses startFiring path even when fireWeapon is provided', () => {
+    // Use a continuous weapon (flamethrower)
+    const ally = createAlly(5, 5);
+    const enemy = createBlockoutVehicle('wasp', 'flamethrower', 'green', 8, 8, Math.PI / 2, 120, 'enemy');
+    enemy.aiMode = 'stationary_shooter';
+    const vehicles = [ally, enemy];
+    const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
+
+    updateBlockoutAi(vehicles, {
+      ...makeOptions(),
+      fireWeapon: (e, t, now) => { fireCalls.push({ enemy: e, target: t, nowMs: now }); },
+    });
+
+    // Continuous weapon should NOT call fireWeapon — it uses startFiring instead
+    expect(fireCalls.length).toBe(0);
+    // fireHeld/isFiring should be set for continuous weapons
+    expect(enemy.fireHeld).toBe(true);
+    expect(enemy.isFiring).toBe(true);
+  });
+
+  it('no fire callback when target is missing/destroyed', () => {
+    const ally = createAlly(5, 5);
+    ally.isDestroyed = true;
+    ally.hp = 0;
+    const enemy = createEnemy(8, 8, 'stationary_shooter');
+    const vehicles = [ally, enemy];
+    const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
+
+    updateBlockoutAi(vehicles, {
+      ...makeOptions(),
+      fireWeapon: (e, t, now) => { fireCalls.push({ enemy: e, target: t, nowMs: now }); },
+    });
+
+    // No target in range — fireWeapon should NOT be called
+    expect(fireCalls.length).toBe(0);
+  });
+
+  it('no fire callback when target is out of range', () => {
+    const ally = createAlly(50, 50); // Very far
+    const enemy = createEnemy(8, 8, 'stationary_shooter');
+    const vehicles = [ally, enemy];
+    const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
+
+    updateBlockoutAi(vehicles, {
+      ...makeOptions(),
+      fireWeapon: (e, t, now) => { fireCalls.push({ enemy: e, target: t, nowMs: now }); },
+    });
+
+    expect(fireCalls.length).toBe(0);
+  });
+
+  it('no fire callback when weapon is on cooldown', () => {
+    const ally = createAlly(5, 5);
+    const enemy = createEnemy(8, 8, 'stationary_shooter');
+    enemy.lastFiredAt = 999; // Just fired — smoky cooldown ~1200ms
+    const vehicles = [ally, enemy];
+    const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
+
+    updateBlockoutAi(vehicles, {
+      ...makeOptions(1000), // nowMs=1000, only 1ms since lastFiredAt=999
+      fireWeapon: (e, t, now) => { fireCalls.push({ enemy: e, target: t, nowMs: now }); },
+    });
+
+    // Weapon on cooldown — fireWeapon should NOT be called
+    expect(fireCalls.length).toBe(0);
+  });
+
+  it('without fireWeapon callback, single-shot falls back to startFiring', () => {
+    const ally = createAlly(5, 5);
+    const enemy = createEnemy(8, 8, 'stationary_shooter'); // smoky = single-shot
+    const vehicles = [ally, enemy];
+
+    // No fireWeapon callback — backward compatible behavior
+    updateBlockoutAi(vehicles, makeOptions());
+
+    // Falls back to startFiring for single-shot weapons
+    expect(enemy.fireHeld).toBe(true);
+    expect(enemy.isFiring).toBe(true);
+  });
+
+  it('chaser out of range does not call fireWeapon', () => {
+    const ally = createAlly(5, 5);
+    const enemy = createEnemy(15, 15, 'chaser'); // Far away = out of range
+    const vehicles = [ally, enemy];
+    const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
+
+    updateBlockoutAi(vehicles, {
+      ...makeOptions(),
+      fireWeapon: (e, t, now) => { fireCalls.push({ enemy: e, target: t, nowMs: now }); },
+    });
+
+    // Out of range — fireWeapon should NOT be called, but movement should be set
+    expect(fireCalls.length).toBe(0);
+    expect(enemy.hasMoveTarget).toBe(true);
+  });
+});
