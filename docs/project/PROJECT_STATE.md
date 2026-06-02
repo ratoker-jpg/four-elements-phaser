@@ -3,7 +3,7 @@
 Status: operational project state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Current phase: BLOCKOUT-MVP — CLOSED / next step is new roadmap audit
+Current phase: BLOCKOUT-MVP — CLOSED / CAMERA-00 — Projection calibration contract
 
 ---
 
@@ -11,7 +11,8 @@ Current phase: BLOCKOUT-MVP — CLOSED / next step is new roadmap audit
 
 ```text
 BLOCKOUT-MVP is closed. All 9 implementation steps are complete.
-Next: create a new roadmap audit for the next direction.
+CAMERA-00: Projection calibration contract — implemented / accepted.
+Next: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md as visual source of truth.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
@@ -25,7 +26,8 @@ BLOCKOUT-MVP — Vehicle / Combat / Upgrade Skeleton — CLOSED
 Next action:
 
 ```text
-New roadmap audit for the next direction
+CAMERA-00: Projection calibration contract — implemented / accepted.
+After: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md as visual source of truth.
 ```
 
 ---
@@ -51,6 +53,7 @@ docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
 docs/project/ROADMAP_CLOSURE_2026_06_01_VISUAL_UI.md
+docs/project/CAMERA_PROJECTION_CONTRACT.md
 ```
 
 Historical VISUAL docs remain valid background, but they are not an active implementation queue:
@@ -300,14 +303,15 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-MVP is closed. Next: create a new roadmap audit for the next direction.
+BLOCKOUT-MVP is closed. CAMERA-00 implemented / accepted. Next: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md as visual source of truth.
 ```
 
 Mode:
 
 ```text
 NO NEW IMPLEMENTATION WITHOUT NEW ROADMAP AUDIT
-Start a new roadmap audit before any implementation.
+CAMERA-00 projection calibration contract is done.
+Start a new roadmap audit before any implementation beyond CAMERA-00.
 ```
 
 ---

@@ -36,6 +36,7 @@ import { BlockoutDamageRenderer } from './render/BlockoutDamageRenderer';
 import { BlockoutObstacleRenderer } from './render/BlockoutObstacleRenderer';
 import { BlockoutUpgradeRenderer } from './render/BlockoutUpgradeRenderer';
 import { BlockoutSandboxHudRenderer } from './render/BlockoutSandboxHudRenderer';
+import { CameraProjectionDebugRenderer } from './render/CameraProjectionDebugRenderer';
 import { DEFAULT_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
 import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
@@ -157,6 +158,9 @@ export class GameScene extends Phaser.Scene {
 
   // BLOCKOUT-10H+: Blockout sandbox HUD renderer (only when devtools is active)
   private blockoutSandboxHudRenderer: BlockoutSandboxHudRenderer | null = null;
+
+  // CAMERA-00: Camera projection debug renderer (only when devtools is active)
+  private cameraProjectionDebugRenderer: CameraProjectionDebugRenderer | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -412,6 +416,8 @@ export class GameScene extends Phaser.Scene {
     // BLOCKOUT-10H+: Wire R/T/H hotkeys and sandbox HUD
     if (this.devtoolsActive) {
       this.blockoutSandboxHudRenderer = new BlockoutSandboxHudRenderer(this);
+      this.cameraProjectionDebugRenderer = new CameraProjectionDebugRenderer(this, this._offset as IsoPoint);
+      this.cameraProjectionDebugRenderer.render();
       this.blockoutVehicleInputController = new BlockoutVehicleInputController({
         scene: this,
         offset: this._offset as IsoPoint,
@@ -426,6 +432,10 @@ export class GameScene extends Phaser.Scene {
         },
         onToggleHelp: () => {
           this.blockoutSandboxHudRenderer?.toggleHelp();
+        },
+        onToggleCalibration: () => {
+          const visible = this.cameraProjectionDebugRenderer?.toggle() ?? false;
+          console.log(`[GameScene] Camera projection calibration overlay: ${visible ? 'ON' : 'OFF'}`);
         },
       });
       console.log('[GameScene] Blockout vehicle input controller enabled.');
@@ -715,6 +725,8 @@ export class GameScene extends Phaser.Scene {
     this.blockoutUpgradeRenderer = null;
     this.blockoutSandboxHudRenderer?.destroy();
     this.blockoutSandboxHudRenderer = null;
+    this.cameraProjectionDebugRenderer?.destroy();
+    this.cameraProjectionDebugRenderer = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
     this.playtestHud?.destroy();

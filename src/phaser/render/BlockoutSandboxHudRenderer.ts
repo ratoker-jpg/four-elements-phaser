@@ -34,6 +34,7 @@ const HELP_LINES = [
   'P/4: Range upgrade',
   'B/5: Cooling upgrade',
   'H: Toggle this help',
+  'C: Camera calibration overlay',
   'R: Reset scenario',
   'T: Cycle selected vehicle',
 ];

@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: BLOCKOUT-MVP closed / next step is new roadmap audit
+Status: CAMERA-00 — Projection calibration contract
 Project: Four Elements Phaser
 Date: 2026-06-02
 
@@ -21,7 +21,9 @@ What should GPT/GLM/Codex do next by default?
 Current answer:
 
 ```text
-BLOCKOUT-MVP is closed. Next: create a new roadmap audit for the next direction.
+CAMERA-00: Projection calibration contract — implemented / accepted.
+Next: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md
+as required visual source of truth.
 ```
 
 ---
@@ -29,28 +31,30 @@ BLOCKOUT-MVP is closed. Next: create a new roadmap audit for the next direction.
 ## Current next step
 
 ```text
-BLOCKOUT-10H+ — Combat readability sandbox / closure QA — IMPLEMENTED
+CAMERA-00 — Projection calibration contract — IMPLEMENTED / ACCEPTED
 
-BLOCKOUT-MVP is now closed. The full dev/arena combat sandbox exists:
-- 9 vehicles in curated deterministic scenario layout
-- 11 weapons with distinct VFX and damage behaviors
-- 4 obstacle types with movement collision and line-of-fire blocking
-- 5 upgrade types with visual indicators and effective profiles
-- Help/legend overlay (H toggles)
-- Selected vehicle status overlay (HP, upgrades, speed, fire readiness)
-- Scenario reset (R key) restoring deterministic defaults
-- Vehicle cycling (T key) for quick multi-vehicle testing
-- Readability polish (selection ring, direction arrow, damage number offset, obstacle labels)
+Created a precise mathematical camera/projection contract for the fixed
+isometric/axonometric game view:
+- Projection formula: screen = origin + x*basisX + y*basisY + z*basisZ
+- basisX = { x: 38, y: 19 } — one tile step along X
+- basisY = { x: -38, y: 19 } — one tile step along Y
+- basisZ = { x: 0, y: -60 } — one vertical height unit
+- Camera flags: fixedCamera=true, canPan=true, canZoom=true, canRotate=false
+- Object anchor rule: ground-contact-bottom-center
+- Projection helpers: projectGroundPoint, projectWorldPoint, projectGroundCircleToPolyline, projectGroundRect, getGroundEllipseBounds
+- Dev/arena calibration overlay (C key): basis arrows, ground diamonds, projected circles, test pillar, wrong-top-down comparison
+- CAMERA_PROJECTION_CONTRACT.md: full contract document with rules and forbidden assumptions
+- Tests for pure projection helpers
 
-BLOCKOUT-MVP is closed. Next: create a new roadmap audit for the next direction.
+After CAMERA-00: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md
+as required visual source of truth for all rendering/asset tasks.
 ```
 
 Mode:
 
 ```text
-BLOCKOUT-MVP COMPLETE
-NO NEW IMPLEMENTATION WITHOUT NEW ROADMAP AUDIT
-Start a new roadmap audit before any implementation.
+CAMERA-00 IMPLEMENTED / ACCEPTED
+Next: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md
 ```
 
 ---
@@ -60,7 +64,8 @@ Start a new roadmap audit before any implementation.
 ```text
 VISUAL/UI roadmap slice: CLOSED
 BLOCKOUT-MVP roadmap slice: CLOSED
-Next action: New roadmap audit for next direction
+CAMERA-00: IMPLEMENTED / ACCEPTED
+Next action: New roadmap audit using CAMERA_PROJECTION_CONTRACT.md
 ```
 
 ---

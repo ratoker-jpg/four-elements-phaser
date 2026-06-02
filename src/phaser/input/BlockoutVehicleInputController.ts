@@ -78,6 +78,8 @@ export interface BlockoutVehicleInputDeps {
   onResetScenario?: () => void;
   /** BLOCKOUT-10H+: Callback to toggle help overlay (H key). Dev/arena-only. */
   onToggleHelp?: () => void;
+  /** CAMERA-00: Callback to toggle camera projection calibration overlay (C key). Dev/arena-only. */
+  onToggleCalibration?: () => void;
 }
 
 // ─── Controller ────────────────────────────────────────────────────
@@ -90,6 +92,7 @@ export class BlockoutVehicleInputController {
   private onSelectionChanged?: (selectedId: string | null) => void;
   private onResetScenario?: () => void;
   private onToggleHelp?: () => void;
+  private onToggleCalibration?: () => void;
 
   /** Currently selected blockout vehicle ID (transient, not persisted). */
   private _selectedVehicleId: string | null = null;
@@ -126,6 +129,7 @@ export class BlockoutVehicleInputController {
     this.onSelectionChanged = deps.onSelectionChanged;
     this.onResetScenario = deps.onResetScenario;
     this.onToggleHelp = deps.onToggleHelp;
+    this.onToggleCalibration = deps.onToggleCalibration;
 
     this.boundPointerdown = this.onPointerdown.bind(this);
     this.boundPointerup = this.onPointerup.bind(this);
@@ -400,6 +404,12 @@ export class BlockoutVehicleInputController {
     // BLOCKOUT-10H+: H key — toggle help overlay (dev/arena-only)
     if (event.code === 'KeyH') {
       this.onToggleHelp?.();
+      return;
+    }
+
+    // CAMERA-00: C key — toggle camera projection calibration overlay (dev/arena-only)
+    if (event.code === 'KeyC') {
+      this.onToggleCalibration?.();
       return;
     }
 

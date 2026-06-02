@@ -666,4 +666,11 @@ Critical rules:
 - If a VISUAL implementation task (VISUAL-01 through VISUAL-12) is inside the
   audit's scope, use the audit directly. Do not perform a new broad audit.
 - Audit files shared in chat are not source-of-truth until committed into docs/project/.
+- Before any visual/world-space/rendering/asset task, read
+  docs/project/CAMERA_PROJECTION_CONTRACT.md.
+- Visual tasks must not assume top-down camera.
+- Any ground marker must be projected onto the isometric ground plane.
+- Any sprite/asset prompt must say fixed isometric/axonometric 2.5D camera
+  using camera projection contract.
+- Any shadow/selection/range/footprint task must use ground-plane projection.
 ```
