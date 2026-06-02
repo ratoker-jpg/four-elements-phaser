@@ -34,6 +34,24 @@ export interface CreateInitialStateOptions {
    * Set to true when devtools/arena mode is active.
    */
   includeModularCombat?: boolean;
+
+  /**
+   * ARENA-01H+: Whether to create Arena-specific initial state.
+   *
+   * When true:
+   * - No HQ entity in flattened entities (HQ data stays in MapData for type compat)
+   * - No builder entities
+   * - No resource entities
+   * - No extra harvesters
+   * - No extra modular combat units
+   * - Empty harvester/runtime arrays
+   * - Minimal economy (all zeros, no separators)
+   * - Empty production state
+   * - hqPosition set to map center instead of HQ tile
+   *
+   * Default false — Normal Game creates full state.
+   */
+  arenaMode?: boolean;
 }
 
 /**
@@ -54,21 +72,27 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
   // Resolve player faction: explicit override > map data default
   const faction = playerFaction ?? (mapData.hq.faction as Faction);
 
+  // ARENA-01H+: Arena mode skips Normal Game entities
+  const arenaMode = options?.arenaMode ?? false;
+
   // BUILDER-ID: Migrate any builders that lack an 'id' field (old saves / map data)
   // BEFORE flattening entities. This ensures builder IDs are available when
   // renderable entities are created, so entity IDs match builder IDs.
   ensureBuilderIds(mapData);
 
   // Flatten all map entities into a unified renderable entity list
-  const entities = flattenMapEntities(mapData, faction);
+  // ARENA-01H+: Arena mode flattens to empty (no HQ, no builders, no resources)
+  const entities = flattenMapEntities(mapData, faction, arenaMode);
 
   // Add extra starter units not present in the original saved map
-  const extraHarvesters = createExtraHarvesters(mapData, faction);
+  // ARENA-01H+: Arena mode has no extra harvesters
+  const extraHarvesters = arenaMode ? [] : createExtraHarvesters(mapData, faction);
 
   // PHASER4-LOAD-02: Only create modular-combat starter entity in devtools/arena mode.
   // Standard mode skips it because modularUnits textures are not loaded.
   const includeModularCombat = options?.includeModularCombat ?? false;
-  const extraModularCombat = includeModularCombat
+  // ARENA-01H+: Arena mode has no modular combat starter (blockout vehicles handle that)
+  const extraModularCombat = (includeModularCombat && !arenaMode)
     ? createExtraModularCombat(mapData, extraHarvesters, faction)
     : [];
 
@@ -97,9 +121,12 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
   }
 
   // ── PR3: Build runtime state ────────────────────────────────────
-  const harvesters = buildHarvesterStates(extraHarvesters, mapData);
-  const resourceNodes = buildResourceNodeStates(mapData);
-  const hqPosition = { tx: mapData.hq.tx + 1, ty: mapData.hq.ty + 1 }; // HQ center (3×3 footprint)
+  const harvesters = arenaMode ? [] : buildHarvesterStates(extraHarvesters, mapData);
+  const resourceNodes = arenaMode ? [] : buildResourceNodeStates(mapData);
+  // ARENA-01H+: Arena uses map center instead of HQ position
+  const hqPosition = arenaMode
+    ? { tx: Math.floor(mapData.width / 2), ty: Math.floor(mapData.height / 2) }
+    : { tx: mapData.hq.tx + 1, ty: mapData.hq.ty + 1 }; // HQ center (3×3 footprint)
 
   // ARCH-16B: Derive mapName from mapData or use override
   const mapName = mapNameOverride ?? `Map ${mapData.width}x${mapData.height}`;
@@ -118,10 +145,10 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     // PR3 runtime state
     harvesters,
     resourceNodes,
-    economy: createInitialEconomy(faction, mapData),
+    economy: arenaMode ? createArenaEconomy() : createInitialEconomy(faction, mapData),
     hqPosition,
     nextConstructionId: 0,
-    production: createInitialProduction(mapData),
+    production: arenaMode ? { factories: [] } : createInitialProduction(mapData),
   };
 }
 
@@ -192,6 +219,24 @@ export function ensureBuilderIds(mapData: MapData): void {
 }
 
 // ─── PR3: Runtime state builders ────────────────────────────────────
+
+/**
+ * ARENA-01H+: Create minimal Arena economy (all zeros, no separators).
+ * Arena mode does not run the civil loop, so economy is dormant.
+ */
+function createArenaEconomy(): EconomyState {
+  return {
+    raw: 0,
+    matter: 0,
+    elements: { cyan: 0, green: 0, yellow: 0, purple: 0 },
+    powerGenerated: 0,
+    powerConsumed: 0,
+    separators: [],
+    rawCap: 0,
+    matterCap: 0,
+    elementCap: 0,
+  };
+}
 
 /** Create initial EconomyState with ROADMAP starting values. */
 function createInitialEconomy(_playerFaction: Faction, mapData: MapData): EconomyState {
@@ -283,7 +328,18 @@ function createInitialProduction(mapData: MapData): ProductionState {
 
 // ─── Flatten helpers (PR2 unchanged) ────────────────────────────────
 
-function flattenMapEntities(mapData: MapData, faction: Faction): RenderableEntity[] {
+/**
+ * Flatten all map entities into a unified renderable entity list.
+ *
+ * ARENA-01H+: When arenaMode is true, no HQ/builder/resource/obstacle/decor/building
+ * entities are created — the arena is a clean sandbox.
+ */
+function flattenMapEntities(mapData: MapData, faction: Faction, arenaMode: boolean): RenderableEntity[] {
+  // ARENA-01H+: Arena mode has no Normal Game entities
+  if (arenaMode) {
+    return [];
+  }
+
   const entities: RenderableEntity[] = [];
   let nextId = 1;
   const id = (prefix: string) => `${prefix}-${nextId++}`;

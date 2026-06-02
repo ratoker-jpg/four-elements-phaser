@@ -72,6 +72,8 @@ const SMOKE_RUNS = [
     ],
     screenshotFile: 'qa-smoke-devtools.png',
     reportFile: 'qa-smoke-devtools-report',
+    // ARENA-01H+: Arena mode has ArenaMenu, not PlaytestHud (#hud-economy)
+    isArenaMode: true,
   },
 ];
 
@@ -169,24 +171,39 @@ async function runSmokeCheck(runConfig, previewProcess) {
     // Check for canvas element
     hasCanvas = await page.locator('canvas').count() > 0;
 
-    // DOM assertion: verify #hud-economy contains "Raw:" and "Units:"
-    console.log(`[qa_smoke:${runConfig.name}] Asserting HUD economy DOM...`);
-    try {
-      const hudEconomyLocator = page.locator('#hud-economy');
-      // Wait for the element to have non-empty text content (retry/poll)
-      await hudEconomyLocator.waitFor({ state: 'attached', timeout: DOM_ASSERT_TIMEOUT_MS });
-      // Poll until text content is populated (Phaser HUD updates each frame)
-      const pollStart = Date.now();
-      while (Date.now() - pollStart < DOM_ASSERT_TIMEOUT_MS) {
-        hudEconomyText = await hudEconomyLocator.textContent();
-        if (hudEconomyText && hudEconomyText.includes('Raw:') && hudEconomyText.includes('Units:')) {
-          break;
-        }
-        await page.waitForTimeout(250);
+    // ARENA-01H+: Arena mode uses ArenaMenu, not PlaytestHud
+    // In Arena mode, assert ArenaMenu exists instead of #hud-economy
+    const isArena = runConfig.isArenaMode ?? false;
+    if (isArena) {
+      console.log(`[qa_smoke:${runConfig.name}] Asserting ArenaMenu DOM...`);
+      try {
+        const arenaMenuLocator = page.locator('#arena-menu');
+        await arenaMenuLocator.waitFor({ state: 'attached', timeout: DOM_ASSERT_TIMEOUT_MS });
+        // ArenaMenu exists — mark HUD checks as satisfied (they don't apply)
+        hudEconomyText = 'Raw: N/A (Arena mode) Units: N/A (Arena mode)';
+      } catch (err) {
+        smokeErrors.push(`ArenaMenu #arena-menu assertion failed: ${err.message}`);
       }
-    } catch (err) {
-      // HUD element may not exist or not be populated in time
-      smokeErrors.push(`HUD #hud-economy assertion failed: ${err.message}`);
+    } else {
+      // Normal Game: verify #hud-economy contains "Raw:" and "Units:"
+      console.log(`[qa_smoke:${runConfig.name}] Asserting HUD economy DOM...`);
+      try {
+        const hudEconomyLocator = page.locator('#hud-economy');
+        // Wait for the element to have non-empty text content (retry/poll)
+        await hudEconomyLocator.waitFor({ state: 'attached', timeout: DOM_ASSERT_TIMEOUT_MS });
+        // Poll until text content is populated (Phaser HUD updates each frame)
+        const pollStart = Date.now();
+        while (Date.now() - pollStart < DOM_ASSERT_TIMEOUT_MS) {
+          hudEconomyText = await hudEconomyLocator.textContent();
+          if (hudEconomyText && hudEconomyText.includes('Raw:') && hudEconomyText.includes('Units:')) {
+            break;
+          }
+          await page.waitForTimeout(250);
+        }
+      } catch (err) {
+        // HUD element may not exist or not be populated in time
+        smokeErrors.push(`HUD #hud-economy assertion failed: ${err.message}`);
+      }
     }
 
     // Take screenshot (ensure _reports exists)

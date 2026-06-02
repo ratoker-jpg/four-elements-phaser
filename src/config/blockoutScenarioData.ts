@@ -186,3 +186,22 @@ export const DEFAULT_SANDBOX_SCENARIO: BlockoutScenario = {
     },
   ],
 };
+
+// ─── Arena Sandbox Scenario (ARENA-01H+) ──────────────────────────
+
+/**
+ * Arena sandbox scenario — same vehicles as DEFAULT_SANDBOX_SCENARIO
+ * but WITHOUT obstacles.
+ *
+ * ARENA-01H+: Arena is a clean standalone mode with no gameplay obstacles.
+ * Obstacle systems remain in code for Normal Game — they are simply
+ * not instantiated in Arena runtime.
+ */
+export const ARENA_SANDBOX_SCENARIO: BlockoutScenario = {
+  id: 'arena-sandbox',
+  name: 'Arena Sandbox (9 vehicles, no obstacles)',
+
+  vehicles: DEFAULT_SANDBOX_SCENARIO.vehicles,
+
+  obstacles: [],
+};

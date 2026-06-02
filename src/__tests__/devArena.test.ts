@@ -2,6 +2,7 @@
  * Tests for dev arena — pure TypeScript, no Phaser.
  *
  * ARCH-12A: Tests for the devArena module.
+ * ARENA-01H+: Updated for clean standalone Arena mode.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -30,50 +31,52 @@ describe('devArena', () => {
       expect(mapData.terrain[0].length).toBe(20);
     });
 
-    it('has HQ placed', () => {
+    // ARENA-01H+: Arena has a dummy HQ for MapData type compatibility
+    it('has a dummy HQ for type compatibility', () => {
       const mapData = createArenaMapData();
-      expect(mapData.hq.tx).toBe(3);
-      expect(mapData.hq.ty).toBe(3);
+      expect(mapData.hq).toBeDefined();
       expect(mapData.hq.faction).toBe('cyan');
     });
 
-    it('has resource nodes', () => {
+    // ARENA-01H+: Arena has NO resource nodes (clean sandbox)
+    it('has no resource nodes (clean arena)', () => {
       const mapData = createArenaMapData();
-      expect(mapData.resources.length).toBeGreaterThan(0);
+      expect(mapData.resources.length).toBe(0);
     });
 
-    it('has at least one builder', () => {
+    // ARENA-01H+: Arena has NO builders (clean sandbox)
+    it('has no builders (clean arena)', () => {
       const mapData = createArenaMapData();
-      expect(mapData.builders.length).toBeGreaterThanOrEqual(1);
+      expect(mapData.builders.length).toBe(0);
     });
 
-    it('can create a valid GameState from arena map', () => {
+    // ARENA-01H+: Arena has NO obstacles (clean sandbox)
+    it('has no obstacles (clean arena)', () => {
+      const mapData = createArenaMapData();
+      expect(mapData.obstacles.length).toBe(0);
+    });
+
+    // ARENA-01H+: Arena creates empty GameState in arenaMode
+    it('creates a valid GameState from arena map in arenaMode', () => {
+      const mapData = createArenaMapData();
+      const state = createInitialState(mapData, 'cyan', 'QA Arena', { includeModularCombat: true, arenaMode: true });
+      expect(state.mapWidth).toBe(20);
+      expect(state.mapHeight).toBe(20);
+      // Arena mode: no harvesters, no resources
+      expect(state.harvesters.length).toBe(0);
+      expect(state.resourceNodes.length).toBe(0);
+      // Arena mode: no Normal Game entities
+      expect(state.entities.length).toBe(0);
+    });
+
+    // ARENA-01H+: Normal Game mode still creates full state from arena map data
+    it('creates a full GameState from arena map without arenaMode', () => {
       const mapData = createArenaMapData();
       const state = createInitialState(mapData, 'cyan');
       expect(state.mapWidth).toBe(20);
       expect(state.mapHeight).toBe(20);
-      expect(state.harvesters.length).toBeGreaterThan(0);
-      expect(state.resourceNodes.length).toBeGreaterThan(0);
-    });
-
-    it('has open space around HQ for spawn testing', () => {
-      const mapData = createArenaMapData();
-      // HQ is at (3,3), 3x3 footprint covers (3-5, 3-5)
-      // Check tiles just outside HQ are not occupied by resources
-      const hqTiles = new Set<string>();
-      for (let dy = 0; dy < 3; dy++) {
-        for (let dx = 0; dx < 3; dx++) {
-          hqTiles.add(`${mapData.hq.tx + dx},${mapData.hq.ty + dy}`);
-        }
-      }
-      // Resources should not overlap HQ
-      for (const r of mapData.resources) {
-        for (let dy = 0; dy < r.footprint; dy++) {
-          for (let dx = 0; dx < r.footprint; dx++) {
-            expect(hqTiles.has(`${r.tx + dx},${r.ty + dy}`)).toBe(false);
-          }
-        }
-      }
+      // Normal Game mode: HQ entity exists (dummy HQ in map data still gets flattened)
+      expect(state.entities.some(e => e.kind === 'hq')).toBe(true);
     });
   });
 
@@ -90,6 +93,9 @@ describe('devArena', () => {
       expect(a.width).toBe(b.width);
       expect(a.hq.tx).toBe(b.hq.tx);
       expect(a.resources.length).toBe(b.resources.length);
+      // ARENA-01H+: Both returns clean empty data
+      expect(a.resources.length).toBe(0);
+      expect(a.builders.length).toBe(0);
     });
   });
 
