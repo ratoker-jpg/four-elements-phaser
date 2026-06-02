@@ -28,7 +28,7 @@ Owner decision: no standalone low-risk implementation PRs. Only high/high+ steps
 Next action:
 
 ```text
-BLOCKOUT-08H — Blockout obstacles
+BLOCKOUT-09H — Upgrade skeleton + visual indicators
 ```
 
 ---
