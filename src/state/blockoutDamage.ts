@@ -636,7 +636,7 @@ export function tickContinuousDamage(
   if (!profile) return [];
 
   // Only tick for continuous damage kinds
-  const continuousKinds: DamageKind[] = ['cone_tick', 'beam_tick', 'rapid_tick'];
+  const continuousKinds: DamageKind[] = ['cone_tick', 'beam_tick', 'rapid_tick', 'plasma'];
   if (!profile.damageKind || !continuousKinds.includes(profile.damageKind)) return [];
 
   const tickMs = profile.tickMs ?? 50;

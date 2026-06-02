@@ -155,6 +155,7 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     // BLOCKOUT-07H+
     damageKind: 'plasma',
     rangePx: 220,
+    tickMs: 600,
   },
   ricochet: {
     weaponId: 'ricochet',

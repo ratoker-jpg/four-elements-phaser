@@ -859,6 +859,188 @@ describe('BLOCKOUT-07H+ fixup: VFX and damage cadence independence', () => {
   });
 });
 
+// ─── BLOCKOUT-07H+ fixup: Twins continuous plasma damage ──────────────
+
+describe('BLOCKOUT-07H+ fixup: Twins continuous plasma damage', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+    resetDamageEventIdCounter();
+    resetVfxEventIdCounter();
+  });
+
+  it('Twins fireHeld/isFiring + tickContinuousDamage applies repeated plasma damage over scene time', () => {
+    const attacker = createBlockoutVehicle('wasp', 'twins', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0; // ensure cooldown is not a factor
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    // First tick at t=1000 — no prior damage tick, so cadence check passes
+    const events1 = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1000);
+    expect(events1.length).toBeGreaterThan(0);
+    expect(events1[0].kind).toBe('plasma');
+    expect(attacker.lastDamageTickAt).toBe(1000);
+    expect(target.hp).toBeLessThan(target.maxHp);
+
+    const hpAfterFirst = target.hp;
+
+    // Second tick too early at t=1300 — should not tick (tickMs=600)
+    const events2 = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1300);
+    expect(events2.length).toBe(0);
+    expect(target.hp).toBe(hpAfterFirst);
+
+    // Third tick at t=1700 — past tickMs (600ms), should tick again
+    const events3 = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1700);
+    expect(events3.length).toBeGreaterThan(0);
+    expect(events3[0].kind).toBe('plasma');
+    expect(attacker.lastDamageTickAt).toBe(1700);
+    expect(target.hp).toBeLessThan(hpAfterFirst);
+  });
+
+  it('Twins VFX cadence and damage cadence do not block each other', () => {
+    const attacker = createBlockoutVehicle('wasp', 'twins', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+    attacker.lastStreamTickAt = 1000;
+    attacker.lastDamageTickAt = 1000;
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    const nowMs = 1700; // 700ms since last tick — past both streamCadenceMs (600) and tickMs (600)
+
+    // VFX tick — this will update lastStreamTickAt to nowMs
+    const vfxCount = tickContinuousFire(attacker, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, nowMs);
+    expect(vfxCount).toBe(1);
+    expect(attacker.lastStreamTickAt).toBe(1700);
+
+    // Damage tick in the same frame — should NOT be blocked by VFX tick
+    const damageEvents = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, nowMs);
+    expect(damageEvents.length).toBeGreaterThan(0);
+    expect(damageEvents[0].kind).toBe('plasma');
+    expect(attacker.lastDamageTickAt).toBe(1700);
+
+    // Verify lastStreamTickAt was NOT changed by damage tick
+    expect(attacker.lastStreamTickAt).toBe(1700);
+  });
+
+  it('Twins continuous damage stops after stopFiring', () => {
+    const attacker = createBlockoutVehicle('wasp', 'twins', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    // First tick works
+    tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1000);
+
+    // Stop firing
+    stopFiring(attacker);
+
+    // Should not tick anymore
+    const events = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 2000);
+    expect(events.length).toBe(0);
+  });
+
+  it('flamethrower continuous damage still works after plasma fix', () => {
+    const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    const events1 = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1000);
+    expect(events1.length).toBeGreaterThan(0);
+    expect(events1[0].kind).toBe('cone_tick');
+  });
+
+  it('vulcan continuous damage still works after plasma fix', () => {
+    const attacker = createBlockoutVehicle('hunter', 'vulcan', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('wasp', 'smoky', 'green', 7, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    const events1 = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1000);
+    expect(events1.length).toBeGreaterThan(0);
+    expect(events1[0].kind).toBe('rapid_tick');
+  });
+
+  it('single-shot weapons do not enter continuous damage (smoky)', () => {
+    const attacker = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    const events = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1000);
+    expect(events.length).toBe(0);
+  });
+
+  it('single-shot weapons do not enter continuous damage (railgun)', () => {
+    const attacker = createBlockoutVehicle('dictator', 'railgun', 'cyan', 5, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const vehicles = [attacker, target];
+    startFiring(attacker);
+    attacker.lastFiredAt = 0;
+
+    const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
+    const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
+    const aimAngle = Math.atan2(targetCenter.y - bodyCenter.y, targetCenter.x - bodyCenter.x);
+
+    const events = tickContinuousDamage(attacker, vehicles, bodyCenter.x, bodyCenter.y, aimAngle, targetCenter.x, targetCenter.y, TEST_OFFSET, 1000);
+    expect(events.length).toBe(0);
+  });
+
+  it('saveGame strips blockoutVehicles with lastDamageTickAt', () => {
+    const store: Record<string, string> = {};
+    const mockStorage: SaveStorage = {
+      getItem(key: string): string | null { return store[key] ?? null; },
+      setItem(key: string, value: string): boolean { store[key] = value; return true; },
+      removeItem(key: string): void { delete store[key]; },
+    };
+    setSaveStorage(mockStorage);
+
+    const state = createTestGameState();
+    devSpawnBlockoutVehicleSet(state);
+    expect(state.blockoutVehicles!.length).toBeGreaterThan(0);
+
+    // Verify lastDamageTickAt exists
+    const vehicle = state.blockoutVehicles![0];
+    expect(vehicle.lastDamageTickAt).toBeDefined();
+
+    const saveResult = saveGame(state, 'test-map');
+    expect(saveResult.success).toBe(true);
+
+    const loadResult = loadGame(saveResult.slotId!);
+    expect(loadResult.success).toBe(true);
+    expect(loadResult.gameState!.blockoutVehicles).toBeUndefined();
+  });
+});
+
 // ─── Normal state without blockout damage fields does not crash ──────
 
 describe('normal state without blockout damage fields does not crash', () => {

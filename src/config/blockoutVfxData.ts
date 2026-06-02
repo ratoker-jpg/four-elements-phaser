@@ -95,6 +95,7 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     durationMs: 200,
     effectLengthPx: 220,
     muzzleFlashRadiusPx: 3,
+    streamCadenceMs: 600,
   },
   ricochet_projectile: {
     behavior: 'ricochet_projectile',
