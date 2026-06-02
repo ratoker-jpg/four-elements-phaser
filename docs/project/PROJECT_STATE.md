@@ -3,16 +3,16 @@
 Status: operational project state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Current phase: BLOCKOUT-MVP — BLOCKOUT-08H implemented, BLOCKOUT-09H next
+Current phase: BLOCKOUT-MVP — BLOCKOUT-09H implemented, BLOCKOUT-10H+ next
 
 ---
 
 ## Current mode
 
 ```text
-BLOCKOUT-08H implemented. Dev/arena blockout obstacles exist.
-Obstacle movement collision and placeholder line-of-fire blocking exist.
-Next: BLOCKOUT-09H — Upgrade skeleton + visual indicators.
+BLOCKOUT-09H implemented. Dev/arena upgrade skeleton exists.
+Upgrade visual indicators and upgrade effect helpers exist.
+Next: BLOCKOUT-10H+ — Combat readability sandbox / closure QA.
 ```
 
 The completed VISUAL/UI roadmap slice ended after PR #162.
@@ -28,7 +28,7 @@ Owner decision: no standalone low-risk implementation PRs. Only high/high+ steps
 Next action:
 
 ```text
-BLOCKOUT-09H — Upgrade skeleton + visual indicators
+BLOCKOUT-10H+ — Combat readability sandbox / closure QA
 ```
 
 ---
@@ -166,9 +166,24 @@ The project currently has:
   - Shotgun: each pellet ray independently blocked
   - Obstacles are dev/arena-only, not persisted in saves
   - production/default game unchanged when devtools is off
+- UPGRADE SKELETON in arena/dev mode (BLOCKOUT-09H)
+  - 5 upgrade types: mobility_boost, armor_plating, weapon_tuning, range_extender, cooling_system
+  - Max 3 levels per upgrade, applied to selected vehicle via hotkeys
+  - Upgrade hotkeys: U/1 = mobility, I/2 = armor, O/3 = weapon, P/4 = range, B/5 = cooling
+  - mobility_boost: +15% speed, +10% accel, +10% turn per level
+  - armor_plating: +15% max HP, -5% incoming damage per level
+  - weapon_tuning: +10% damage, -5% cooldown per level
+  - range_extender: +10% range per level
+  - cooling_system: -10% continuous tick/cadence per level
+  - Upgrade visual indicators: cyan speed arcs, gray armor brackets, orange weapon glow, purple range circle, teal cooling dots
+  - Effective profiles computed without mutating base configs (getEffectiveMovementProfile, getEffectiveDamageProfile, getIncomingDamageMultiplier)
+  - Destroyed vehicles cannot be upgraded
+  - Upgrades are dev/arena-only, not persisted in saves
+  - Debug labels show upgrade IDs and levels
+  - production/default game unchanged when devtools is off
 ```
 
-This is the expected baseline for BLOCKOUT-08H.
+This is the expected baseline for BLOCKOUT-09H.
 
 ---
 
@@ -288,7 +303,7 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-09H — Upgrade skeleton + visual indicators
+BLOCKOUT-10H+ — Combat readability sandbox / closure QA
 ```
 
 Mode:
@@ -514,6 +529,43 @@ Implemented:
 - 51 unit tests for obstacles, collision, line-of-fire blocking, save stripping
 ```
 
+### BLOCKOUT-09H — Upgrade skeleton + visual indicators
+
+```text
+Type: implementation
+Risk: HIGH+
+Status: DONE
+
+Implemented:
+- 5 upgrade types: mobility_boost, armor_plating, weapon_tuning, range_extender, cooling_system
+- Upgrade profiles with maxLevel=3, affectedStats, and visual marker config
+- BlockoutUpgradeId type and UPGRADE_PROFILES data
+- BlockoutVehicleState extended with upgradeLevels and lastUpgradedAt fields
+- applyUpgrade: increments level, enforces maxLevel, blocks destroyed vehicles, updates HP on armor
+- getUpgradeLevel, hasAnyUpgrades helpers
+- getEffectiveMovementProfile: mobility_boost increases maxSpeed/accel/turnSpeed without mutating base
+- getEffectiveDamageProfile: weapon_tuning increases damage/DPS, range_extender increases rangePx
+- getIncomingDamageMultiplier: armor_plating reduces incoming damage (0.95 per level)
+- getEffectiveMaxHp: armor_plating increases maxHp (1.15 per level)
+- getCooldownMultiplier: weapon_tuning + cooling_system stack multiplicatively
+- getRangeMultiplier: range_extender increases range (1.10 per level)
+- Upgrade hotkeys: U/1=mobility, I/2=armor, O/3=weapon, P/4=range, B/5=cooling
+- BlockoutVehicleInputController processes upgrade keys on selected vehicle
+- BlockoutUpgradeRenderer: distinct visual markers per upgrade type
+  - mobility_boost: cyan speed arcs around body edges
+  - armor_plating: gray L-brackets on body corners
+  - weapon_tuning: orange glow dot near barrel tip
+  - range_extender: purple range circle for selected vehicle
+  - cooling_system: teal dots near turret base
+- Debug labels show upgrade IDs and levels (e.g., "SPD:2 ARM:1")
+- blockoutMovement uses getEffectiveMovementProfile
+- blockoutDamage uses getEffectiveDamageProfile and getIncomingDamageMultiplier
+- saveGame strips entire blockoutVehicles (upgrade fields implicitly stripped)
+- All upgrade state is dev/arena-only, not persisted in saves
+- No production changes when devtools/arena is off
+- 53 unit tests for profiles, apply, effective profiles, damage multiplier, cooldown, range, integration
+```
+
 ---
 
 ## Completed roadmap slice
@@ -659,7 +711,8 @@ Use this sequence:
 10. BLOCKOUT-06H+ remaining weapon VFX families — DONE
 11. BLOCKOUT-07H+ damage placeholders — DONE
 12. BLOCKOUT-08H blockout obstacles — DONE
-13. BLOCKOUT-09H upgrade skeleton — NEXT
+13. BLOCKOUT-09H upgrade skeleton — DONE
+14. BLOCKOUT-10H+ combat readability sandbox — NEXT
 ```
 
 ---

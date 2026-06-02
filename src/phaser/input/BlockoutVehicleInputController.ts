@@ -45,6 +45,8 @@ import { canFireBlockoutWeapon, fireBlockoutWeapon, startFiring, stopFiring, isC
 import { applyBlockoutWeaponDamage } from '../../state/blockoutDamage';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import type { GameState } from '../../state/types';
+import { applyUpgrade } from '../../state/blockoutUpgrades';
+import type { BlockoutUpgradeId } from '../../config/blockoutUpgradeData';
 
 // ─── Turret size constant (matches BlockoutVehicleRenderer) ──────
 
@@ -347,6 +349,34 @@ export class BlockoutVehicleInputController {
    */
   private onKeydown(event: KeyboardEvent): void {
     if (!this.isDevtoolsActive()) return;
+
+    // BLOCKOUT-09H: Upgrade hotkeys (processed before fire keys)
+    const upgradeKeys: Array<{ code: string; id: BlockoutUpgradeId }> = [
+      { code: 'KeyU', id: 'mobility_boost' },
+      { code: 'Digit1', id: 'mobility_boost' },
+      { code: 'KeyI', id: 'armor_plating' },
+      { code: 'Digit2', id: 'armor_plating' },
+      { code: 'KeyO', id: 'weapon_tuning' },
+      { code: 'Digit3', id: 'weapon_tuning' },
+      { code: 'KeyP', id: 'range_extender' },
+      { code: 'Digit4', id: 'range_extender' },
+      { code: 'KeyB', id: 'cooling_system' },
+      { code: 'Digit5', id: 'cooling_system' },
+    ];
+    for (const { code, id } of upgradeKeys) {
+      if (event.code === code) {
+        if (!this._selectedVehicleId) return;
+        const gameState = this.getGameState();
+        const vehicles = gameState.blockoutVehicles;
+        if (!vehicles) return;
+        const selected = vehicles.find(v => v.id === this._selectedVehicleId);
+        if (!selected || selected.isDestroyed) return;
+        const nowMs = this.scene.time.now;
+        applyUpgrade(selected, id, nowMs);
+        return; // Don't process other keys
+      }
+    }
+
     if (event.code !== 'Space' && event.code !== 'KeyF') return;
 
     // Don't fire if no vehicle selected

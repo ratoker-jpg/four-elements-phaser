@@ -287,12 +287,27 @@ describe('blockout supporting profiles', () => {
     }
   });
 
-  it('should have upgrade profiles in all categories', () => {
-    const categories = new Set(Object.values(UPGRADE_PROFILES).map(u => u.category));
-    expect(categories.has('body')).toBe(true);
-    expect(categories.has('turret')).toBe(true);
-    expect(categories.has('weapon')).toBe(true);
-    expect(categories.has('utility')).toBe(true);
+  it('should have upgrade profiles for all required upgrade IDs', () => {
+    const requiredIds = ['mobility_boost', 'armor_plating', 'weapon_tuning', 'range_extender', 'cooling_system'];
+    for (const id of requiredIds) {
+      expect(UPGRADE_PROFILES[id as keyof typeof UPGRADE_PROFILES], `Missing upgrade profile: ${id}`).toBeDefined();
+    }
+  });
+
+  it('should have upgrade profiles with maxLevel > 0', () => {
+    for (const id of Object.keys(UPGRADE_PROFILES)) {
+      const profile = UPGRADE_PROFILES[id as keyof typeof UPGRADE_PROFILES];
+      expect(profile.maxLevel, `Upgrade ${id} should have maxLevel > 0`).toBeGreaterThan(0);
+    }
+  });
+
+  it('should have upgrade profiles with marker config', () => {
+    for (const id of Object.keys(UPGRADE_PROFILES)) {
+      const profile = UPGRADE_PROFILES[id as keyof typeof UPGRADE_PROFILES];
+      expect(profile.marker, `Upgrade ${id} should have marker config`).toBeDefined();
+      expect(profile.marker.color, `Upgrade ${id} marker should have color`).toBeGreaterThan(0);
+      expect(profile.marker.label, `Upgrade ${id} marker should have label`).toBeTruthy();
+    }
   });
 
   it('should have all recoil profiles with cameraShake=false', () => {

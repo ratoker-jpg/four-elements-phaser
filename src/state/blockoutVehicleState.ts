@@ -13,6 +13,7 @@
 
 import type { Faction } from './types';
 import type { BodyId, WeaponId } from '../config/blockoutProfiles';
+import type { BlockoutUpgradeId } from '../config/blockoutUpgradeData';
 import { getBlockoutBodyMaxHp } from '../config/blockoutBodyData';
 import { tileToScreen } from '../phaser/render/isometric';
 
@@ -123,6 +124,13 @@ export interface BlockoutVehicleState {
 
   /** Creation timestamp (ms since epoch). Useful for debug labels. */
   createdAt: number;
+
+  // ── BLOCKOUT-09H: Upgrade fields ─────────────────────────────────
+
+  /** Upgrade levels for this vehicle. Keyed by upgrade ID. BLOCKOUT-09H. Transient. */
+  upgradeLevels: Partial<Record<BlockoutUpgradeId, number>>;
+  /** Timestamp of last upgrade application. 0 if never upgraded. BLOCKOUT-09H. Transient. */
+  lastUpgradedAt: number;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────
@@ -187,6 +195,8 @@ export function createBlockoutVehicle(
     activeStatusTags: [],
     lastDamageTickAt: 0,
     createdAt: Date.now(),
+    upgradeLevels: {},
+    lastUpgradedAt: 0,
   };
 }
 

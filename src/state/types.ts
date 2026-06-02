@@ -10,6 +10,7 @@
 
 import type { BodyId, WeaponId } from '../config/blockoutProfiles';
 import type { BlockoutObstacleState } from './blockoutObstacleState';
+import type { BlockoutUpgradeId } from '../config/blockoutUpgradeData';
 
 // ─── Terrain ────────────────────────────────────────────────────────
 
@@ -503,6 +504,8 @@ export interface GameState {
     activeStatusTags: string[];
     lastDamageTickAt: number;
     createdAt: number;
+    upgradeLevels: Partial<Record<BlockoutUpgradeId, number>>;
+    lastUpgradedAt: number;
   }>
 
   // ── BLOCKOUT-08H: Blockout obstacle state (dev-only, not persisted) ──

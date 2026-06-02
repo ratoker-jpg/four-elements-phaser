@@ -21,6 +21,7 @@ import { isLineOfFireBlocked, findNearestObstacleBlockingLine } from './blockout
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
 import { computeBodyWorldCenter, getBodyPixelSize } from '../phaser/render/blockoutVehicleGeometry';
 import type { IsoPoint } from '../phaser/render/isometric';
+import { getEffectiveDamageProfile, getIncomingDamageMultiplier } from './blockoutUpgrades';
 
 // ─── Damage Event ──────────────────────────────────────────────────
 
@@ -87,8 +88,12 @@ export function applyDamageToVehicle(
 ): BlockoutDamageEvent | null {
   if (vehicle.isDestroyed) return null;
 
+  // BLOCKOUT-09H: Apply incoming damage multiplier (armor plating reduces damage)
+  const incomingMult = getIncomingDamageMultiplier(vehicle);
+  const adjustedAmount = amount * incomingMult;
+
   // Apply damage
-  vehicle.hp = Math.max(0, vehicle.hp - amount);
+  vehicle.hp = Math.max(0, vehicle.hp - adjustedAmount);
   vehicle.lastDamagedAt = nowMs;
   vehicle.damageFlashUntil = nowMs + 200;
 
@@ -474,8 +479,10 @@ export function applyBlockoutWeaponDamage(
   nowMs: number,
   obstacles: BlockoutObstacleState[] = [],
 ): BlockoutDamageEvent[] {
-  const profile = DAMAGE_PROFILES[firingVehicle.weaponId];
-  if (!profile) return [];
+  // BLOCKOUT-09H: Use effective damage profile (weapon tuning + range extender)
+  const baseProfile = DAMAGE_PROFILES[firingVehicle.weaponId];
+  if (!baseProfile) return [];
+  const profile = getEffectiveDamageProfile(firingVehicle, baseProfile);
 
   const damageKind = profile.damageKind;
   if (!damageKind) return [];
@@ -686,8 +693,10 @@ export function tickContinuousDamage(
   if (!firingVehicle.fireHeld || !firingVehicle.isFiring) return [];
   if (firingVehicle.isDestroyed) return [];
 
-  const profile = DAMAGE_PROFILES[firingVehicle.weaponId];
-  if (!profile) return [];
+  // BLOCKOUT-09H: Use effective damage profile (weapon tuning + range extender)
+  const baseProfile = DAMAGE_PROFILES[firingVehicle.weaponId];
+  if (!baseProfile) return [];
+  const profile = getEffectiveDamageProfile(firingVehicle, baseProfile);
 
   // Only tick for continuous damage kinds
   const continuousKinds: DamageKind[] = ['cone_tick', 'beam_tick', 'rapid_tick', 'plasma'];
