@@ -13,6 +13,7 @@
 
 import type { Faction } from './types';
 import type { BodyId, WeaponId } from '../config/blockoutProfiles';
+import { getBlockoutBodyMaxHp } from '../config/blockoutBodyData';
 import { tileToScreen } from '../phaser/render/isometric';
 
 // ─── Blockout Vehicle State ────────────────────────────────────────
@@ -98,6 +99,23 @@ export interface BlockoutVehicleState {
   /** Visual overheat indicator (0-1). BLOCKOUT-06H+. Transient. */
   visualOverheat: number;
 
+  // ── BLOCKOUT-07H+: HP/damage fields ────────────────────────────────
+
+  /** Current HP. BLOCKOUT-07H+. Transient. */
+  hp: number;
+  /** Maximum HP. BLOCKOUT-07H+. Transient. */
+  maxHp: number;
+  /** Whether vehicle is destroyed (HP <= 0). BLOCKOUT-07H+. Transient. */
+  isDestroyed: boolean;
+  /** Timestamp when vehicle was destroyed. 0 if not destroyed. BLOCKOUT-07H+. Transient. */
+  destroyedAt: number;
+  /** Timestamp of last damage received. 0 if never damaged. BLOCKOUT-07H+. Transient. */
+  lastDamagedAt: number;
+  /** Damage flash active until this timestamp. 0 if no flash. BLOCKOUT-07H+. Transient. */
+  damageFlashUntil: number;
+  /** Active status tags (visual-only). BLOCKOUT-07H+. Transient. */
+  activeStatusTags: string[];
+
   /** Creation timestamp (ms since epoch). Useful for debug labels. */
   createdAt: number;
 }
@@ -155,6 +173,13 @@ export function createBlockoutVehicle(
     isFiring: false,
     lastStreamTickAt: 0,
     visualOverheat: 0,
+    hp: getBlockoutBodyMaxHp(bodyId),
+    maxHp: getBlockoutBodyMaxHp(bodyId),
+    isDestroyed: false,
+    destroyedAt: 0,
+    lastDamagedAt: 0,
+    damageFlashUntil: 0,
+    activeStatusTags: [],
     createdAt: Date.now(),
   };
 }

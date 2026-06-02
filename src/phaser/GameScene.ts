@@ -32,9 +32,11 @@ import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
 import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
 import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputController';
 import { BlockoutWeaponVfxRenderer } from './render/BlockoutWeaponVfxRenderer';
+import { BlockoutDamageRenderer } from './render/BlockoutDamageRenderer';
 import { devSpawnBlockoutVehicleSet } from '../state/devCommands';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
 import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire } from '../state/blockoutWeaponVfx';
+import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { computeTurretWorldOrigin } from './render/blockoutVehicleGeometry';
 import { getWeaponProfile } from '../config/blockoutWeaponData';
@@ -138,6 +140,9 @@ export class GameScene extends Phaser.Scene {
 
   // BLOCKOUT-05H+: Blockout weapon VFX renderer (only when devtools is active)
   private blockoutWeaponVfxRenderer: BlockoutWeaponVfxRenderer | null = null;
+
+  // BLOCKOUT-07H+: Blockout damage renderer (only when devtools is active)
+  private blockoutDamageRenderer: BlockoutDamageRenderer | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -381,6 +386,7 @@ export class GameScene extends Phaser.Scene {
     if (this.devtoolsActive) {
       this.blockoutVehicleRenderer = new BlockoutVehicleRenderer(this, this._offset as IsoPoint);
       this.blockoutWeaponVfxRenderer = new BlockoutWeaponVfxRenderer(this, this._offset as IsoPoint);
+      this.blockoutDamageRenderer = new BlockoutDamageRenderer(this, this._offset as IsoPoint);
       // Spawn the default blockout vehicle set in arena/dev mode
       devSpawnBlockoutVehicleSet(this.gameState);
       console.log('[GameScene] Blockout vehicle renderer enabled. Spawned default vehicle set.');
@@ -541,10 +547,11 @@ export class GameScene extends Phaser.Scene {
       expireVfxEvents(nowMs);
     }
     // BLOCKOUT-06H+: Tick continuous fire for stream weapons
+    // BLOCKOUT-07H+: Also tick continuous damage
     if (this.gameState.blockoutVehicles && this.devtoolsActive) {
       const nowMs = this.time.now;
       for (const vehicle of this.gameState.blockoutVehicles) {
-        if (vehicle.fireHeld && vehicle.isFiring) {
+        if (vehicle.fireHeld && vehicle.isFiring && !vehicle.isDestroyed) {
           const turretOrigin = computeTurretWorldOrigin(vehicle, this._offset as IsoPoint);
           const weaponProfile = getWeaponProfile(vehicle.weaponId);
           if (weaponProfile) {
@@ -555,9 +562,17 @@ export class GameScene extends Phaser.Scene {
               this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
               this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
               nowMs);
+            // BLOCKOUT-07H+: Apply continuous damage
+            tickContinuousDamage(vehicle, this.gameState.blockoutVehicles,
+              barrelTipX, barrelTipY, vehicle.turretAngle,
+              this.blockoutVehicleInputController?.mouseWorldX ?? barrelTipX,
+              this.blockoutVehicleInputController?.mouseWorldY ?? barrelTipY,
+              this._offset as IsoPoint, nowMs);
           }
         }
       }
+      // BLOCKOUT-07H+: Expire damage events
+      expireDamageEvents(nowMs);
     }
     if (this.blockoutVehicleRenderer && this.gameState.blockoutVehicles) {
       this.blockoutVehicleRenderer.syncFromState(this.gameState.blockoutVehicles);
@@ -565,6 +580,10 @@ export class GameScene extends Phaser.Scene {
     // BLOCKOUT-05H+: Sync weapon VFX renderer
     if (this.blockoutWeaponVfxRenderer && this.devtoolsActive) {
       this.blockoutWeaponVfxRenderer.syncFromState(this.time.now);
+    }
+    // BLOCKOUT-07H+: Sync damage renderer
+    if (this.blockoutDamageRenderer && this.devtoolsActive && this.gameState.blockoutVehicles) {
+      this.blockoutDamageRenderer.syncFromState(this.time.now, this.gameState.blockoutVehicles);
     }
 
     // 10. Debug log on unload completion
@@ -643,6 +662,8 @@ export class GameScene extends Phaser.Scene {
     this.blockoutVehicleRenderer = null;
     this.blockoutWeaponVfxRenderer?.destroy();
     this.blockoutWeaponVfxRenderer = null;
+    this.blockoutDamageRenderer?.destroy();
+    this.blockoutDamageRenderer = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
     this.playtestHud?.destroy();

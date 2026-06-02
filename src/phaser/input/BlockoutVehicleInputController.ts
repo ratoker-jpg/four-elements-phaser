@@ -42,6 +42,7 @@ import { computeTurretWorldOrigin, computeBodyWorldCenter, getBodyPixelSize } fr
 import { setBlockoutVehicleMoveTarget } from '../../state/blockoutMovement';
 import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state/angleMath';
 import { canFireBlockoutWeapon, fireBlockoutWeapon, startFiring, stopFiring, isContinuousWeapon } from '../../state/blockoutWeaponVfx';
+import { applyBlockoutWeaponDamage } from '../../state/blockoutDamage';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import type { GameState } from '../../state/types';
 
@@ -291,6 +292,9 @@ export class BlockoutVehicleInputController {
     const selected = vehicles.find(v => v.id === this._selectedVehicleId);
     if (!selected) return;
 
+    // BLOCKOUT-07H+: Don't move destroyed vehicles
+    if (selected.isDestroyed) return;
+
     // Convert world click position to screen-space (subtract offset)
     const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const screenX = worldPoint.x - this.offset.x;
@@ -355,6 +359,9 @@ export class BlockoutVehicleInputController {
     const selected = vehicles.find(v => v.id === this._selectedVehicleId);
     if (!selected) return;
 
+    // BLOCKOUT-07H+: Don't fire if vehicle is destroyed
+    if (selected.isDestroyed) return;
+
     // Use Phaser scene time consistently (never Date.now()) for weapon timing.
     // Mixing Date.now() (epoch ms ~1.7e12) with this.time.now (scene ms ~16ms)
     // causes negative elapsed times, broken recoil recovery, and VFX that never expire.
@@ -383,6 +390,15 @@ export class BlockoutVehicleInputController {
       aimTargetX,
       aimTargetY,
       nowMs,
+    );
+
+    // BLOCKOUT-07H+: Apply damage to targets
+    applyBlockoutWeaponDamage(
+      selected, vehicles,
+      barrelTipX, barrelTipY,
+      selected.turretAngle,
+      aimTargetX, aimTargetY,
+      this.offset, nowMs,
     );
 
     // BLOCKOUT-06H+ fixup: Start continuous fire only for stream weapons.

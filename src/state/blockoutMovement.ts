@@ -47,6 +47,9 @@ export function updateBlockoutVehicleMovement(
   profile: MovementProfile,
   deltaMs: number,
 ): void {
+  // BLOCKOUT-07H+: Destroyed vehicles don't move
+  if (vehicle.isDestroyed) return;
+
   const dt = deltaMs / 1000; // seconds
 
   if (!vehicle.hasMoveTarget) {

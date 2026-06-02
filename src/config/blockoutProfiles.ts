@@ -220,6 +220,18 @@ export interface VfxProfile {
 
 // ─── Damage Profile ────────────────────────────────────────────────
 
+/** Damage behavior kind — determines hit detection model. BLOCKOUT-07H+. */
+export type DamageKind =
+  | 'direct'
+  | 'splash'
+  | 'penetration'
+  | 'cone_tick'
+  | 'beam_tick'
+  | 'rapid_tick'
+  | 'plasma'
+  | 'ricochet'
+  | 'shotgun';
+
 /** Damage profile per weapon. Blockout placeholder — not used in this PR. */
 export interface DamageProfile {
   weaponId: WeaponId;
@@ -234,6 +246,24 @@ export interface DamageProfile {
   statusEffect?: 'burn' | 'freeze' | 'heal' | 'overheat';
   statusDurationMs?: number;
   selfDamageScale?: number;
+
+  // ── BLOCKOUT-07H+: Damage behavior fields ─────────────────────────
+  /** Damage behavior kind — determines hit detection model. BLOCKOUT-07H+. */
+  damageKind?: DamageKind;
+  /** Range in pixels for damage reach. BLOCKOUT-07H+. */
+  rangePx?: number;
+  /** Splash radius in pixels (for splash weapons). BLOCKOUT-07H+. */
+  radiusPx?: number;
+  /** Cone half-angle in degrees (for cone_tick weapons). BLOCKOUT-07H+. */
+  coneAngleDeg?: number;
+  /** Tick interval in ms (for continuous weapons). BLOCKOUT-07H+. */
+  tickMs?: number;
+  /** Max penetration targets (for penetration weapons). BLOCKOUT-07H+. */
+  pierceCount?: number;
+  /** Number of pellets (for shotgun weapons). BLOCKOUT-07H+. */
+  pelletCount?: number;
+  /** Visual status tag applied on hit. BLOCKOUT-07H+. */
+  statusTag?: 'burn' | 'freeze' | 'beam' | 'overheat' | 'plasma' | 'ricochet' | 'stunned';
 }
 
 // ─── Obstacle Profile ──────────────────────────────────────────────

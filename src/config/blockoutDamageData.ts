@@ -1,11 +1,9 @@
 /**
  * Blockout damage data — damage profiles per weapon.
  *
- * Blockout placeholder — NOT used in BLOCKOUT-02H.
- * No damage behavior in this PR.
- * Data exists so profiles are complete for future steps.
- *
  * BLOCKOUT-02H: First visible blockout vehicles.
+ * BLOCKOUT-07H+: Added damageKind, rangePx, and hit detection fields
+ * for all 11 weapon families. Dev/arena-only damage placeholders.
  */
 
 import type { DamageProfile } from './blockoutProfiles';
@@ -22,6 +20,9 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     penetration: false,
     maxPenetrationTargets: 0,
     selfDamageScale: 0,
+    // BLOCKOUT-07H+
+    damageKind: 'direct',
+    rangePx: 250,
   },
   thunder: {
     weaponId: 'thunder',
@@ -33,6 +34,10 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     penetration: false,
     maxPenetrationTargets: 0,
     selfDamageScale: 0.3,
+    // BLOCKOUT-07H+
+    damageKind: 'splash',
+    rangePx: 200,
+    radiusPx: 60,
   },
   railgun: {
     weaponId: 'railgun',
@@ -44,6 +49,10 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     penetration: true,
     maxPenetrationTargets: 3,
     selfDamageScale: 0,
+    // BLOCKOUT-07H+
+    damageKind: 'penetration',
+    rangePx: 400,
+    pierceCount: 3,
   },
   shaft: {
     weaponId: 'shaft',
@@ -55,6 +64,9 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     penetration: false,
     maxPenetrationTargets: 0,
     selfDamageScale: 0,
+    // BLOCKOUT-07H+
+    damageKind: 'direct',
+    rangePx: 450,
   },
   flamethrower: {
     weaponId: 'flamethrower',
@@ -68,6 +80,12 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     statusEffect: 'burn',
     statusDurationMs: 3000,
     selfDamageScale: 0,
+    // BLOCKOUT-07H+
+    damageKind: 'cone_tick',
+    rangePx: 120,
+    coneAngleDeg: 25,
+    tickMs: 50,
+    statusTag: 'burn',
   },
   freeze: {
     weaponId: 'freeze',
@@ -81,6 +99,12 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     statusEffect: 'freeze',
     statusDurationMs: 2000,
     selfDamageScale: 0,
+    // BLOCKOUT-07H+
+    damageKind: 'cone_tick',
+    rangePx: 120,
+    coneAngleDeg: 25,
+    tickMs: 50,
+    statusTag: 'freeze',
   },
   isida: {
     weaponId: 'isida',
@@ -94,6 +118,11 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     statusEffect: 'heal',
     statusDurationMs: 0,
     selfDamageScale: 0,
+    // BLOCKOUT-07H+
+    damageKind: 'beam_tick',
+    rangePx: 150,
+    tickMs: 50,
+    statusTag: 'beam',
   },
   vulcan: {
     weaponId: 'vulcan',
@@ -107,6 +136,11 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     statusEffect: 'overheat',
     statusDurationMs: 5000,
     selfDamageScale: 0,
+    // BLOCKOUT-07H+
+    damageKind: 'rapid_tick',
+    rangePx: 200,
+    tickMs: 100,
+    statusTag: 'overheat',
   },
   twins: {
     weaponId: 'twins',
@@ -118,6 +152,9 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     penetration: false,
     maxPenetrationTargets: 0,
     selfDamageScale: 0,
+    // BLOCKOUT-07H+
+    damageKind: 'plasma',
+    rangePx: 220,
   },
   ricochet: {
     weaponId: 'ricochet',
@@ -129,6 +166,9 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     penetration: false,
     maxPenetrationTargets: 0,
     selfDamageScale: 0,
+    // BLOCKOUT-07H+
+    damageKind: 'ricochet',
+    rangePx: 200,
   },
   hammer: {
     weaponId: 'hammer',
@@ -140,5 +180,10 @@ export const DAMAGE_PROFILES: Record<string, DamageProfile> = {
     penetration: false,
     maxPenetrationTargets: 0,
     selfDamageScale: 0,
+    // BLOCKOUT-07H+
+    damageKind: 'shotgun',
+    rangePx: 150,
+    pelletCount: 5,
+    coneAngleDeg: 30,
   },
 };
