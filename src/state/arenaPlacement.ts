@@ -126,13 +126,18 @@ export function convertClickToPlacementTile(
  * Get the hover tile position for placement marker rendering.
  *
  * Returns the fractional ground-plane coordinates AND the rounded tile
- * position for the placement marker.
+ * position for the placement marker. Also checks occupancy so the
+ * marker can render red when hovering an occupied tile.
+ *
+ * ARENA-02H+ fixup: Added existingVehicles param for occupancy check
+ * in the hover marker (red = occupied, cyan = valid).
  *
  * @param screenX - Screen-space X (after camera.getWorldPoint)
  * @param screenY - Screen-space Y (after camera.getWorldPoint)
  * @param origin - Map origin offset
  * @param mapWidth - Map width in tiles
  * @param mapHeight - Map height in tiles
+ * @param existingVehicles - Existing vehicles for occupancy check (default: empty)
  * @returns Rounded tile position and validity, or null if off-map
  */
 export function getPlacementHoverTile(
@@ -141,6 +146,7 @@ export function getPlacementHoverTile(
   origin: { x: number; y: number },
   mapWidth: number,
   mapHeight: number,
+  existingVehicles: BlockoutVehicleState[] = [],
 ): { tx: number; ty: number; valid: boolean } | null {
   const ground = unprojectScreenToGround(screenX, screenY, origin);
   const tx = Math.round(ground.x);
@@ -150,5 +156,8 @@ export function getPlacementHoverTile(
     return null;
   }
 
-  return { tx, ty, valid: true };
+  // Check occupancy — marker shows red when hovering occupied tile
+  const occupied = existingVehicles.some(v => v.tx === tx && v.ty === ty && !v.isDestroyed);
+
+  return { tx, ty, valid: !occupied };
 }

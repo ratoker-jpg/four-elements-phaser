@@ -126,4 +126,25 @@ describe('getPlacementHoverTile', () => {
     const result = getPlacementHoverTile(screenX, screenY, origin, 20, 20);
     expect(result).toBeNull();
   });
+
+  it('should return valid=false for occupied tile', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 8, 8);
+    const screenX = origin.x + 8 * 38 + 8 * (-38);
+    const screenY = origin.y + 8 * 19 + 8 * 19;
+    const result = getPlacementHoverTile(screenX, screenY, origin, 20, 20, [vehicle]);
+    expect(result).not.toBeNull();
+    expect(result!.tx).toBe(8);
+    expect(result!.ty).toBe(8);
+    expect(result!.valid).toBe(false);
+  });
+
+  it('should return valid=true for tile with destroyed vehicle', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 8, 8);
+    vehicle.isDestroyed = true;
+    const screenX = origin.x + 8 * 38 + 8 * (-38);
+    const screenY = origin.y + 8 * 19 + 8 * 19;
+    const result = getPlacementHoverTile(screenX, screenY, origin, 20, 20, [vehicle]);
+    expect(result).not.toBeNull();
+    expect(result!.valid).toBe(true);
+  });
 });

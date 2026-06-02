@@ -66,6 +66,9 @@ export interface GameInputDeps {
   assetPreviewPanel: AssetPreviewPanel | null;
   /** Callback to change paused state in GameScene. */
   setPaused: (paused: boolean) => void;
+  /** ARENA-02H+ fixup: Whether arena placement mode is active. When true,
+   *  ESC does not toggle the pause menu (ESC is owned by placement cancel). */
+  isPlacementActive?: () => boolean;
 }
 
 // ─── Selection highlight constants ─────────────────────────────────
@@ -98,6 +101,7 @@ export class GameInputController {
   private assetPreviewTool: AssetPreviewTool | null;
   private assetPreviewPanel: AssetPreviewPanel | null;
   private setPausedCb: (paused: boolean) => void;
+  private isPlacementActive: () => boolean;
 
   // ARCH-05X: Unit selection state
   private selectedUnit: UnitSelection = null;
@@ -130,6 +134,7 @@ export class GameInputController {
     this.assetPreviewTool = deps.assetPreviewTool;
     this.assetPreviewPanel = deps.assetPreviewPanel;
     this.setPausedCb = deps.setPaused;
+    this.isPlacementActive = deps.isPlacementActive ?? (() => false);
 
     // Create selection highlight graphics
     this.selectionHighlight = this.scene.add.graphics();
@@ -438,7 +443,11 @@ export class GameInputController {
     });
 
     // ── ESC: toggle pause menu ───────────────────────────────
+    // ARENA-02H+ fixup: When placement mode is active, ESC is owned by
+    // placement cancel — do not toggle pause menu.
     kb.on('keydown-ESC', () => {
+      if (this.isPlacementActive()) return;
+
       if (this.pauseMenu.visible) {
         // Menu is open → close it (resume)
         this.pauseMenu.hide();

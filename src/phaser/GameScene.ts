@@ -532,6 +532,8 @@ export class GameScene extends Phaser.Scene {
           const visible = this.cameraProjectionDebugRenderer?.toggle() ?? false;
           console.log(`[GameScene] Camera projection calibration overlay: ${visible ? 'ON' : 'OFF'}`);
         },
+        // ARENA-02H+ fixup: Guard placement mode — suppress selection/movement when placing
+        isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
       });
       console.log('[GameScene] Blockout vehicle input controller enabled.');
     }
@@ -552,6 +554,8 @@ export class GameScene extends Phaser.Scene {
       assetPreviewTool: this.assetPreviewTool,
       assetPreviewPanel: this.assetPreviewPanel,
       setPaused: (paused: boolean) => { this.paused = paused; },
+      // ARENA-02H+ fixup: Guard placement mode — suppress ESC pause toggle when placing
+      isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
     });
 
     // Wire PlaytestHud callbacks to delegate to the input controller
@@ -825,6 +829,7 @@ export class GameScene extends Phaser.Scene {
       this._offset,
       this.gameState.mapWidth,
       this.gameState.mapHeight,
+      this.gameState.blockoutVehicles ?? [],
     );
 
     if (!hoverTile) {
