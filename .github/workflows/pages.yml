@@ -65,6 +65,45 @@ jobs:
           cp art/generated/manifest.generated.json dist/art/generated/manifest.generated.json
           cp art/generated/audit-report.json dist/art/generated/audit-report.json
 
+      # ─── Diagnostics: ensure artifact is clean ───────────────────────
+      - name: Diagnose dist
+        run: |
+          echo "=== dist size ==="
+          du -sh dist
+          echo "=== symlinks in dist ==="
+          found_symlinks=$(find dist -type l -ls 2>/dev/null || true)
+          if [ -n "$found_symlinks" ]; then
+            echo "WARNING: symlinks found in dist:"
+            echo "$found_symlinks"
+          else
+            echo "No symlinks found."
+          fi
+          echo "=== hardlinks in dist ==="
+          found_hardlinks=$(find dist -type f -links +1 -ls 2>/dev/null || true)
+          if [ -n "$found_hardlinks" ]; then
+            echo "WARNING: hardlinks found in dist:"
+            echo "$found_hardlinks"
+          else
+            echo "No hardlinks found."
+          fi
+          echo "=== done ==="
+
+      - name: Remove symlinks and hardlinks from dist
+        run: |
+          # Remove any symlinks
+          find dist -type l -delete 2>/dev/null || true
+          # Replace hardlinked files with unique copies
+          find dist -type f -links +1 -print0 2>/dev/null | while IFS= read -r -d '' f; do
+            tmp=$(mktemp)
+            cp --remove-destination "$f" "$tmp"
+            mv "$tmp" "$f"
+          done || true
+
+      # ─── Deploy ───────────────────────────────────────────────────────
+      # NOTE: keep_files is intentionally false to prevent gh-pages branch
+      # bloat. Previous keep_files:true caused the branch to grow to 7.1 GB
+      # across many PR previews, exceeding the 1 GB Pages artifact limit.
+
       - name: Deploy main site
         if: steps.pr.outputs.number == ''
         uses: peaceiris/actions-gh-pages@v4
@@ -73,7 +112,7 @@ jobs:
           publish_branch: gh-pages
           publish_dir: ./dist
           destination_dir: .
-          keep_files: true
+          keep_files: false
 
       - name: Deploy PR preview
         if: steps.pr.outputs.number != ''
