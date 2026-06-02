@@ -470,6 +470,8 @@ export interface GameState {
     bodyId: BodyId;
     weaponId: WeaponId;
     faction: Faction;
+    /** ARENA-02H+: Arena team (ally/enemy). Defaults to 'ally'. */
+    team: import('./blockoutVehicleState').ArenaTeam;
     tx: number;
     ty: number;
     bodyAngle: number;

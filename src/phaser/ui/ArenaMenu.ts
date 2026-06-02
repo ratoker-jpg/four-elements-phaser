@@ -5,11 +5,9 @@
  * DevTools panel is still available via F10/backtick for technical
  * debugging, but ArenaMenu is the main interface.
  *
- * Shell features (this PR):
- * - Reset Arena: restarts the arena with fresh state
- * - Clear Units: removes all blockout vehicles
- * - Help: toggles the help overlay
- * - Add Unit: placeholder/disabled (ARENA-02H+)
+ * ARENA-02H+: Extended with ArenaUnitComposer for manual unit creation
+ * and click placement. Body/weapon/team selectors replace the
+ * placeholder "Add Unit" button.
  *
  * Lifecycle:
  * - Created by GameScene in create() when arenaMode is active.
@@ -18,6 +16,8 @@
  */
 
 import type { GameState } from '../../state/types';
+import type { ArenaPlacementState } from '../../state/arenaPlacement';
+import { ArenaUnitComposer } from './ArenaUnitComposer';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -29,6 +29,12 @@ export interface ArenaMenuCallbacks {
   onClearUnits: () => void;
   /** Toggle the help overlay. */
   onToggleHelp: () => void;
+  /** ARENA-02H+: Enter placement mode with current body/weapon/team selection. */
+  onPlaceUnit: () => void;
+  /** ARENA-02H+: Cancel placement mode. */
+  onCancelPlacement: () => void;
+  /** ARENA-02H+: Get the current placement state. */
+  getPlacementState: () => ArenaPlacementState;
 }
 
 // ─── ArenaMenu class ────────────────────────────────────────────────
@@ -43,6 +49,9 @@ export class ArenaMenu {
   private content: HTMLDivElement | null = null;
   private _collapseLabel: HTMLSpanElement | null = null;
   private vehicleCountEl: HTMLDivElement | null = null;
+
+  // ARENA-02H+: Unit composer sub-component
+  private unitComposer: ArenaUnitComposer | null = null;
 
   /** Whether the ArenaMenu is currently shown. */
   get visible(): boolean {
@@ -63,7 +72,7 @@ export class ArenaMenu {
       position: fixed;
       top: 48px;
       right: 8px;
-      width: 200px;
+      width: 220px;
       background: rgba(20, 15, 10, 0.92);
       border: 1px solid rgba(255, 160, 60, 0.3);
       border-radius: 6px;
@@ -108,10 +117,27 @@ export class ArenaMenu {
     const content = document.createElement('div');
     content.style.cssText = 'padding: 8px 10px;';
 
+    // ── Unit Composer section (ARENA-02H+) ──────────────────────
+    const unitTitle = document.createElement('div');
+    unitTitle.textContent = 'Units';
+    unitTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #ffab40;';
+    content.appendChild(unitTitle);
+
+    // Create the unit composer and attach it to our content div
+    this.unitComposer = new ArenaUnitComposer();
+    this.unitComposer.create(content, {
+      onPlaceUnit: () => {
+        this.callbacks?.onPlaceUnit();
+      },
+      onCancelPlacement: () => {
+        this.callbacks?.onCancelPlacement();
+      },
+    });
+
     // ── Actions section ──────────────────────────────────────
     const actionsTitle = document.createElement('div');
     actionsTitle.textContent = 'Actions';
-    actionsTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #ffab40;';
+    actionsTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; margin-top: 6px; color: #ffab40;';
     content.appendChild(actionsTitle);
 
     const actionRow1 = document.createElement('div');
@@ -132,22 +158,6 @@ export class ArenaMenu {
       this.callbacks?.onToggleHelp();
     }));
     content.appendChild(actionRow2);
-
-    // ── Add Unit section (placeholder/disabled) ────────────────
-    const addTitle = document.createElement('div');
-    addTitle.textContent = 'Units';
-    addTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #ffab40;';
-    content.appendChild(addTitle);
-
-    const addRow = document.createElement('div');
-    addRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 6px;';
-    const addUnitBtn = this.createArenaButton('Add Unit', '#666', () => {
-      this.showStatus('Coming in ARENA-02H+', false);
-    });
-    addUnitBtn.style.opacity = '0.4';
-    addUnitBtn.style.cursor = 'not-allowed';
-    addRow.appendChild(addUnitBtn);
-    content.appendChild(addRow);
 
     // ── Vehicle count ────────────────────────────────────────
     this.vehicleCountEl = document.createElement('div');
@@ -189,7 +199,31 @@ export class ArenaMenu {
 
     const vehicleCount = state.blockoutVehicles?.length ?? 0;
     const aliveCount = state.blockoutVehicles?.filter(v => !v.isDestroyed).length ?? 0;
-    this.vehicleCountEl.textContent = `Vehicles: ${vehicleCount} (alive: ${aliveCount})`;
+    const allyCount = state.blockoutVehicles?.filter(v => v.team === 'ally' && !v.isDestroyed).length ?? 0;
+    const enemyCount = state.blockoutVehicles?.filter(v => v.team === 'enemy' && !v.isDestroyed).length ?? 0;
+    this.vehicleCountEl.textContent = `Vehicles: ${vehicleCount} (alive: ${aliveCount}, ally: ${allyCount}, enemy: ${enemyCount})`;
+
+    // ARENA-02H+: Sync unit composer with placement state
+    if (this.unitComposer) {
+      const placementState = this.callbacks?.getPlacementState();
+      if (placementState) {
+        this.unitComposer.syncFromPlacementState(placementState);
+      }
+    }
+  }
+
+  /**
+   * ARENA-02H+: Get the unit composer for reading selections.
+   */
+  getUnitComposer(): ArenaUnitComposer | null {
+    return this.unitComposer;
+  }
+
+  /**
+   * ARENA-02H+: Show placement feedback from GameScene.
+   */
+  showPlacementFeedback(message: string, success: boolean): void {
+    this.unitComposer?.showFeedback(message, success);
   }
 
   /** Show the ArenaMenu. */
@@ -250,6 +284,8 @@ export class ArenaMenu {
       clearTimeout(this.statusTimer);
       this.statusTimer = null;
     }
+    this.unitComposer?.destroy();
+    this.unitComposer = null;
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }

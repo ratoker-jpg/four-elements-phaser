@@ -46,6 +46,7 @@ function createTestVehicle(overrides: Partial<BlockoutVehicleState> = {}): Block
     bodyId: 'wasp',
     weaponId: 'smoky',
     faction: 'cyan',
+    team: 'ally',
     tx: 10,
     ty: 10,
     bodyAngle: 0,

@@ -77,6 +77,10 @@ export interface BlockoutVehicleInputDeps {
   onToggleHelp?: () => void;
   /** CAMERA-00: Callback to toggle camera projection calibration overlay (C key). Dev/arena-only. */
   onToggleCalibration?: () => void;
+  /** ARENA-02H+ fixup: Whether arena placement mode is active. When true,
+   *  LMB/RMB pointer events are suppressed to prevent selection changes
+   *  and movement commands from conflicting with placement input. */
+  isPlacementActive?: () => boolean;
 }
 
 // ─── Controller ────────────────────────────────────────────────────
@@ -90,6 +94,7 @@ export class BlockoutVehicleInputController {
   private onResetScenario?: () => void;
   private onToggleHelp?: () => void;
   private onToggleCalibration?: () => void;
+  private isPlacementActive: () => boolean;
 
   /** Currently selected blockout vehicle ID (transient, not persisted). */
   private _selectedVehicleId: string | null = null;
@@ -127,6 +132,7 @@ export class BlockoutVehicleInputController {
     this.onResetScenario = deps.onResetScenario;
     this.onToggleHelp = deps.onToggleHelp;
     this.onToggleCalibration = deps.onToggleCalibration;
+    this.isPlacementActive = deps.isPlacementActive ?? (() => false);
 
     this.boundPointerdown = this.onPointerdown.bind(this);
     this.boundPointerup = this.onPointerup.bind(this);
@@ -207,6 +213,12 @@ export class BlockoutVehicleInputController {
   private onPointerdown(pointer: Phaser.Input.Pointer): void {
     if (!this.isDevtoolsActive()) return;
 
+    // ARENA-02H+ fixup: Suppress pointer tracking when placement mode is active.
+    // LMB is owned by placement (place unit), RMB is owned by placement (cancel).
+    // Without this guard, the pointerup handler would still fire selection
+    // changes and movement commands from the same click events.
+    if (this.isPlacementActive()) return;
+
     if (pointer.leftButtonDown()) {
       this._lmbClickStartX = pointer.x;
       this._lmbClickStartY = pointer.y;
@@ -222,11 +234,17 @@ export class BlockoutVehicleInputController {
   }
 
   private onPointerup(pointer: Phaser.Input.Pointer): void {
+    // ARENA-02H+ fixup: Suppress click handling when placement mode is active.
+    // Even though pointerdown is also guarded, we must guard here too because
+    // a pointerdown that started before placement mode was entered could have
+    // its pointerup fire during placement mode.
+    const placementActive = this.isPlacementActive();
+
     // Handle LMB click
     if (this._lmbButtonDown) {
       this._lmbButtonDown = false;
 
-      if (this.isDevtoolsActive()) {
+      if (this.isDevtoolsActive() && !placementActive) {
         const dx = pointer.x - this._lmbClickStartX;
         const dy = pointer.y - this._lmbClickStartY;
         const moved = Math.sqrt(dx * dx + dy * dy);
@@ -240,7 +258,7 @@ export class BlockoutVehicleInputController {
     if (this._rmbButtonDown) {
       this._rmbButtonDown = false;
 
-      if (this.isDevtoolsActive()) {
+      if (this.isDevtoolsActive() && !placementActive) {
         const dx = pointer.x - this._rmbClickStartX;
         const dy = pointer.y - this._rmbClickStartY;
         const moved = Math.sqrt(dx * dx + dy * dy);

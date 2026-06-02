@@ -26,9 +26,18 @@ import { isDevtoolsEnabled, type DevCommandResult } from '../state/devCommands';
 import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
 import { FeedbackRenderer } from './render/FeedbackRenderer';
 import { UnitMotionFxRenderer } from './render/UnitMotionFxRenderer';
-import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData } from '../state/devArena';
+import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData, arenaSpawnVehicle } from '../state/devArena';
 import { createArenaModeContext, type ArenaModeContext } from '../state/arenaModeContext';
 import { ArenaMenu } from './ui/ArenaMenu';
+import {
+  createArenaPlacementState,
+  enterPlacementMode,
+  cancelPlacementMode,
+  convertClickToPlacementTile,
+  getPlacementHoverTile,
+  type ArenaPlacementState,
+} from '../state/arenaPlacement';
+import { projectGroundPoint } from '../config/cameraProjectionContract';
 import { AssetPreviewTool } from './dev/AssetPreviewTool';
 import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
 import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
@@ -166,6 +175,12 @@ export class GameScene extends Phaser.Scene {
 
   // ARENA-01H+: ArenaModeContext — controls which subsystems are active
   private arenaCtx: ArenaModeContext = createArenaModeContext(false);
+
+  // ARENA-02H+: Placement state for Arena unit creation
+  private arenaPlacementState: ArenaPlacementState = createArenaPlacementState();
+
+  // ARENA-02H+: Placement marker graphics (projected ground plane diamond)
+  private placementMarker: Phaser.GameObjects.Graphics | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -355,6 +370,26 @@ export class GameScene extends Phaser.Scene {
         onToggleHelp: () => {
           this.blockoutSandboxHudRenderer?.toggleHelp();
         },
+        // ARENA-02H+: Placement mode callbacks
+        onPlaceUnit: () => {
+          const composer = this.arenaMenu?.getUnitComposer();
+          if (!composer) return;
+          const selections = composer.getSelections();
+          if (!selections.body || !selections.weapon) return;
+          // Sync selections to placement state
+          this.arenaPlacementState.selectedBody = selections.body;
+          this.arenaPlacementState.selectedWeapon = selections.weapon;
+          this.arenaPlacementState.selectedTeam = selections.team;
+          const entered = enterPlacementMode(this.arenaPlacementState);
+          if (!entered) {
+            this.arenaMenu?.showPlacementFeedback('Select body and weapon first', false);
+          }
+        },
+        onCancelPlacement: () => {
+          cancelPlacementMode(this.arenaPlacementState);
+          this.hidePlacementMarker();
+        },
+        getPlacementState: () => this.arenaPlacementState,
       });
       console.log('[GameScene] ArenaMenu created (primary Arena UX).');
     }
@@ -458,6 +493,18 @@ export class GameScene extends Phaser.Scene {
       console.log('[GameScene] Blockout vehicle renderer enabled. Spawned', this.arenaMode ? 'arena' : 'sandbox', 'scenario.');
     }
 
+    // ARENA-02H+: Create placement marker graphics (projected ground plane diamond)
+    if (this.arenaMode) {
+      this.placementMarker = this.add.graphics();
+      this.placementMarker.setDepth(60); // Above terrain but below vehicles
+      this.placementMarker.setVisible(false);
+
+      // ARENA-02H+: Register placement click handler
+      this.input.on('pointerdown', this.handlePlacementPointerdown, this);
+      this.input.on('pointermove', this.handlePlacementPointermove, this);
+      this.input.keyboard?.on('keydown', this.handlePlacementKeydown, this);
+    }
+
     // BLOCKOUT-03H: Create blockout vehicle input controller for selection/aiming
     // BLOCKOUT-10H+: Wire R/T/H hotkeys and sandbox HUD
     if (this.devtoolsActive) {
@@ -485,6 +532,8 @@ export class GameScene extends Phaser.Scene {
           const visible = this.cameraProjectionDebugRenderer?.toggle() ?? false;
           console.log(`[GameScene] Camera projection calibration overlay: ${visible ? 'ON' : 'OFF'}`);
         },
+        // ARENA-02H+ fixup: Guard placement mode — suppress selection/movement when placing
+        isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
       });
       console.log('[GameScene] Blockout vehicle input controller enabled.');
     }
@@ -505,6 +554,8 @@ export class GameScene extends Phaser.Scene {
       assetPreviewTool: this.assetPreviewTool,
       assetPreviewPanel: this.assetPreviewPanel,
       setPaused: (paused: boolean) => { this.paused = paused; },
+      // ARENA-02H+ fixup: Guard placement mode — suppress ESC pause toggle when placing
+      isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
     });
 
     // Wire PlaytestHud callbacks to delegate to the input controller
@@ -709,6 +760,155 @@ export class GameScene extends Phaser.Scene {
 
   // ─── Helpers ────────────────────────────────────────────────────
 
+  // ─── ARENA-02H+: Placement mode handlers ─────────────────────────
+
+  /**
+   * Handle pointer down in placement mode.
+   * LMB: attempt placement. RMB: cancel placement mode.
+   */
+  private handlePlacementPointerdown(pointer: Phaser.Input.Pointer): void {
+    if (!this.arenaMode) return;
+    if (this.arenaPlacementState.mode !== 'placing') return;
+
+    // RMB cancels placement
+    if (pointer.rightButtonDown()) {
+      cancelPlacementMode(this.arenaPlacementState);
+      this.hidePlacementMarker();
+      return;
+    }
+
+    // LMB: attempt placement at click position
+    if (pointer.leftButtonDown()) {
+      const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+
+      const result = convertClickToPlacementTile(
+        worldPoint.x, worldPoint.y,
+        this._offset,
+        this.gameState.mapWidth,
+        this.gameState.mapHeight,
+        this.gameState.blockoutVehicles ?? [],
+      );
+
+      if (!result.valid) {
+        this.arenaMenu?.showPlacementFeedback(result.reason ?? 'Invalid placement', false);
+        return;
+      }
+
+      // Spawn the vehicle
+      const spawnResult = arenaSpawnVehicle(
+        this.gameState,
+        this.arenaPlacementState.selectedBody!,
+        this.arenaPlacementState.selectedWeapon!,
+        this.arenaPlacementState.selectedTeam,
+        result.tx,
+        result.ty,
+      );
+
+      if (spawnResult.success) {
+        this.arenaMenu?.showPlacementFeedback(spawnResult.message, true);
+        // Stay in placement mode for rapid placement — user can Esc/RMB to cancel
+      } else {
+        this.arenaMenu?.showPlacementFeedback(spawnResult.message, false);
+      }
+    }
+  }
+
+  /**
+   * Handle pointer move in placement mode — update placement marker position.
+   * ARENA-02H+: Marker is projected onto the ground plane using camera projection contract.
+   */
+  private handlePlacementPointermove(pointer: Phaser.Input.Pointer): void {
+    if (!this.arenaMode) return;
+    if (this.arenaPlacementState.mode !== 'placing') return;
+    if (!this.placementMarker) return;
+
+    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+
+    const hoverTile = getPlacementHoverTile(
+      worldPoint.x, worldPoint.y,
+      this._offset,
+      this.gameState.mapWidth,
+      this.gameState.mapHeight,
+      this.gameState.blockoutVehicles ?? [],
+    );
+
+    if (!hoverTile) {
+      this.placementMarker.setVisible(false);
+      return;
+    }
+
+    // Draw projected ground plane diamond at hover tile
+    this.drawPlacementMarker(hoverTile.tx, hoverTile.ty, hoverTile.valid);
+  }
+
+  /**
+   * Handle keydown in placement mode — Esc cancels placement.
+   */
+  private handlePlacementKeydown(event: KeyboardEvent): void {
+    if (!this.arenaMode) return;
+    if (this.arenaPlacementState.mode !== 'placing') return;
+
+    if (event.code === 'Escape') {
+      cancelPlacementMode(this.arenaPlacementState);
+      this.hidePlacementMarker();
+    }
+  }
+
+  /**
+   * Draw a placement marker on the ground plane at the given tile position.
+   * ARENA-02H+: Uses projectGroundPoint from camera projection contract
+   * to project a diamond shape onto the ground plane. NOT a screen-space circle.
+   */
+  private drawPlacementMarker(tx: number, ty: number, valid: boolean): void {
+    if (!this.placementMarker) return;
+
+    this.placementMarker.clear();
+    this.placementMarker.setVisible(true);
+
+    // Project the 4 corners of the tile diamond using camera projection contract
+    const topCorner = projectGroundPoint(tx, ty, this._offset);
+    const rightCorner = projectGroundPoint(tx + 1, ty, this._offset);
+    const bottomCorner = projectGroundPoint(tx + 1, ty + 1, this._offset);
+    const leftCorner = projectGroundPoint(tx, ty + 1, this._offset);
+
+    // Draw the projected diamond outline
+    const color = valid ? 0x64c8ff : 0xff5050; // cyan for valid, red for invalid
+    const alpha = 0.6;
+
+    this.placementMarker.lineStyle(2, color, alpha);
+    this.placementMarker.beginPath();
+    this.placementMarker.moveTo(topCorner.x, topCorner.y);
+    this.placementMarker.lineTo(rightCorner.x, rightCorner.y);
+    this.placementMarker.lineTo(bottomCorner.x, bottomCorner.y);
+    this.placementMarker.lineTo(leftCorner.x, leftCorner.y);
+    this.placementMarker.closePath();
+    this.placementMarker.strokePath();
+
+    // Fill with semi-transparent color
+    this.placementMarker.fillStyle(color, 0.12);
+    this.placementMarker.fillPath();
+
+    // Draw crosshair at center
+    const center = projectGroundPoint(tx + 0.5, ty + 0.5, this._offset);
+    this.placementMarker.lineStyle(1, color, alpha * 0.7);
+    this.placementMarker.beginPath();
+    this.placementMarker.moveTo(center.x - 6, center.y);
+    this.placementMarker.lineTo(center.x + 6, center.y);
+    this.placementMarker.moveTo(center.x, center.y - 4);
+    this.placementMarker.lineTo(center.x, center.y + 4);
+    this.placementMarker.strokePath();
+  }
+
+  /**
+   * Hide the placement marker.
+   */
+  private hidePlacementMarker(): void {
+    if (this.placementMarker) {
+      this.placementMarker.clear();
+      this.placementMarker.setVisible(false);
+    }
+  }
+
   private verifyAssets(): void {
     // TERRAIN-02A: Use generated manifest keys for verification instead of
     // the legacy ASSET_KEYS (which includes deprecated terrain keys no longer
@@ -754,6 +954,15 @@ export class GameScene extends Phaser.Scene {
   // }
 
   shutdown(): void {
+    // ARENA-02H+: Clean up placement mode event listeners
+    if (this.arenaMode) {
+      this.input.off('pointerdown', this.handlePlacementPointerdown, this);
+      this.input.off('pointermove', this.handlePlacementPointermove, this);
+      this.input.keyboard?.off('keydown', this.handlePlacementKeydown, this);
+    }
+    this.placementMarker?.destroy();
+    this.placementMarker = null;
+
     this.inputController?.destroy();
     this.inputController = null;
     this.motionFxRenderer?.destroy();

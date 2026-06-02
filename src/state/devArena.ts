@@ -10,9 +10,15 @@
  * - No builders
  * - No obstacles
  * - Empty 20x20 sandbox map
+ *
+ * ARENA-02H+: Added arenaSpawnVehicle() for click placement.
  */
 
-import type { MapData, TerrainType } from './types';
+import type { MapData, TerrainType, GameState, Faction } from './types';
+import type { BodyId, WeaponId } from '../config/blockoutProfiles';
+import type { ArenaTeam } from './blockoutVehicleState';
+import { createBlockoutVehicle } from './blockoutVehicleState';
+import { WEAPON_PROFILES } from '../config/blockoutWeaponData';
 
 /** Arena map ID for getMapDataById. */
 export const ARENA_MAP_ID = 'arena1';
@@ -80,4 +86,68 @@ export function createArenaMapData(): MapData {
  */
 export function devResetArena(): MapData {
   return createArenaMapData();
+}
+
+// ─── Arena Vehicle Spawn (ARENA-02H+) ──────────────────────────────
+
+/**
+ * Spawn a blockout vehicle in Arena mode at a specific tile position.
+ *
+ * ARENA-02H+: Used by the click placement flow.
+ * Creates a vehicle with the given body/weapon/team at the specified
+ * tile position and adds it to the game state.
+ *
+ * Team determines the faction color:
+ * - ally → cyan (player faction)
+ * - enemy → green
+ *
+ * @param state - Current game state (mutated: vehicle added to blockoutVehicles)
+ * @param bodyId - Body profile ID
+ * @param weaponId - Weapon profile ID
+ * @param team - Arena team (ally or enemy)
+ * @param tx - Tile X position
+ * @param ty - Tile Y position
+ * @returns The created vehicle, or null if spawn failed
+ */
+export function arenaSpawnVehicle(
+  state: GameState,
+  bodyId: BodyId,
+  weaponId: WeaponId,
+  team: ArenaTeam,
+  tx: number,
+  ty: number,
+): { success: boolean; message: string } {
+  // Resolve faction from team
+  const faction: Faction = team === 'ally' ? 'cyan' : 'green';
+
+  // Get weapon profile for turret turn speed
+  const weaponProfile = WEAPON_PROFILES[weaponId];
+  const turretTurnSpeedDeg = weaponProfile?.blockoutTurretTurnSpeedDeg ?? 120;
+
+  // Create the vehicle
+  const vehicle = createBlockoutVehicle(
+    bodyId,
+    weaponId,
+    faction,
+    tx,
+    ty,
+    Math.PI / 2, // default facing south
+    turretTurnSpeedDeg,
+    team,
+  );
+
+  // Add to state
+  if (!state.blockoutVehicles) {
+    state.blockoutVehicles = [];
+  }
+  state.blockoutVehicles.push(vehicle);
+
+  const bodyName = bodyId.charAt(0).toUpperCase() + bodyId.slice(1);
+  const weaponName = weaponId.charAt(0).toUpperCase() + weaponId.slice(1);
+  const teamLabel = team === 'ally' ? 'Ally' : 'Enemy';
+
+  return {
+    success: true,
+    message: `${teamLabel} ${bodyName}+${weaponName} placed at (${tx}, ${ty})`,
+  };
 }
