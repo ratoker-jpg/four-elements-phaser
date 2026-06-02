@@ -16,7 +16,7 @@
 
 import type { MapData, TerrainType, GameState, Faction } from './types';
 import type { BodyId, WeaponId } from '../config/blockoutProfiles';
-import type { ArenaTeam } from './blockoutVehicleState';
+import type { ArenaTeam, AiMode } from './blockoutVehicleState';
 import { createBlockoutVehicle } from './blockoutVehicleState';
 import { WEAPON_PROFILES } from '../config/blockoutWeaponData';
 
@@ -116,6 +116,7 @@ export function arenaSpawnVehicle(
   team: ArenaTeam,
   tx: number,
   ty: number,
+  aiMode?: AiMode,
 ): { success: boolean; message: string } {
   // Resolve faction from team
   const faction: Faction = team === 'ally' ? 'cyan' : 'green';
@@ -135,6 +136,11 @@ export function arenaSpawnVehicle(
     turretTurnSpeedDeg,
     team,
   );
+
+  // ARENA-05H+: Set AI mode for enemy vehicles
+  if (team === 'enemy' && aiMode) {
+    vehicle.aiMode = aiMode;
+  }
 
   // Add to state
   if (!state.blockoutVehicles) {

@@ -8,9 +8,7 @@
  * nodes (ResourceNodeState) to support the civil gather/deliver loop.
  */
 
-import type { BodyId, WeaponId } from '../config/blockoutProfiles';
 import type { BlockoutObstacleState } from './blockoutObstacleState';
-import type { BlockoutUpgradeId } from '../config/blockoutUpgradeData';
 
 // ─── Terrain ────────────────────────────────────────────────────────
 
@@ -464,53 +462,9 @@ export interface GameState {
    *  BLOCKOUT-04H+: Added movement fields (worldX/worldY, velocity, move target).
    *  BLOCKOUT-05H+: Added recoil/firing fields.
    *  BLOCKOUT-06H+: Added continuous fire fields (fireHeld, isFiring, lastStreamTickAt, visualOverheat).
-   *  BLOCKOUT-07H+: Added HP/damage fields (hp, maxHp, isDestroyed, destroyedAt, lastDamagedAt, damageFlashUntil, activeStatusTags). */
-  blockoutVehicles?: Array<{
-    id: string;
-    bodyId: BodyId;
-    weaponId: WeaponId;
-    faction: Faction;
-    /** ARENA-02H+: Arena team (ally/enemy). Defaults to 'ally'. */
-    team: import('./blockoutVehicleState').ArenaTeam;
-    tx: number;
-    ty: number;
-    bodyAngle: number;
-    turretAngle: number;
-    turretTargetAngle: number;
-    turretTurnSpeedDeg: number;
-    /** ARENA-03H+: Target vehicle ID for turret target-lock. Null = no target. */
-    targetVehicleId: string | null;
-    worldX: number;
-    worldY: number;
-    vx: number;
-    vy: number;
-    speed: number;
-    targetWorldX: number;
-    targetWorldY: number;
-    hasMoveTarget: boolean;
-    lastFiredAt: number;
-    recoilActive: boolean;
-    recoilStartedAt: number;
-    recoilDurationMs: number;
-    recoilBarrelOffset: number;
-    recoilTurretOffset: number;
-    recoilBodyOffset: number;
-    fireHeld: boolean;
-    isFiring: boolean;
-    lastStreamTickAt: number;
-    visualOverheat: number;
-    hp: number;
-    maxHp: number;
-    isDestroyed: boolean;
-    destroyedAt: number;
-    lastDamagedAt: number;
-    damageFlashUntil: number;
-    activeStatusTags: string[];
-    lastDamageTickAt: number;
-    createdAt: number;
-    upgradeLevels: Partial<Record<BlockoutUpgradeId, number>>;
-    lastUpgradedAt: number;
-  }>
+   *  BLOCKOUT-07H+: Added HP/damage fields (hp, maxHp, isDestroyed, destroyedAt, lastDamagedAt, damageFlashUntil, activeStatusTags).
+   *  ARENA-05H+: Added AI mode fields (aiMode, aiHoldX, aiHoldY, aiHoldRadius). */
+  blockoutVehicles?: import('./blockoutVehicleState').BlockoutVehicleState[]
 
   // ── BLOCKOUT-08H: Blockout obstacle state (dev-only, not persisted) ──
   /** Blockout obstacles — only populated in dev/arena mode.

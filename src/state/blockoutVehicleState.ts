@@ -10,6 +10,7 @@
  * BLOCKOUT-04H+: Added movement fields (worldX/worldY, velocity,
  * move target) for semi-physics movement.
  * ARENA-02H+: Added team field (ally/enemy) for Arena mode.
+ * ARENA-05H+: Added AI mode fields for enemy behavior.
  */
 
 import type { Faction } from './types';
@@ -22,6 +23,17 @@ import { tileToScreen } from '../phaser/render/isometric';
 
 /** Team designation for Arena mode. ARENA-02H+. */
 export type ArenaTeam = 'ally' | 'enemy';
+
+// ─── AI Mode Type (ARENA-05H+) ─────────────────────────────────────
+
+/** AI behavior mode for enemy units in Arena. ARENA-05H+. */
+export type AiMode = 'passive' | 'stationary_shooter' | 'chaser' | 'hold_position';
+
+/** Default AI mode for newly created enemies. ARENA-05H+. */
+export const DEFAULT_AI_MODE: AiMode = 'passive';
+
+/** Default hold position radius (in screen-space pixels). ARENA-05H+. */
+export const DEFAULT_AI_HOLD_RADIUS_PX = 200;
 
 // ─── Blockout Vehicle State ────────────────────────────────────────
 
@@ -150,6 +162,37 @@ export interface BlockoutVehicleState {
   upgradeLevels: Partial<Record<BlockoutUpgradeId, number>>;
   /** Timestamp of last upgrade application. 0 if never upgraded. BLOCKOUT-09H. Transient. */
   lastUpgradedAt: number;
+
+  // ── ARENA-05H+: AI mode fields ─────────────────────────────────────
+
+  /**
+   * AI behavior mode for enemy units. ARENA-05H+.
+   * Only meaningful for team='enemy' vehicles in Arena mode.
+   * Allies should always have 'passive' (no AI behavior).
+   * Transient — not persisted in saves.
+   */
+  aiMode: AiMode;
+  /**
+   * Hold position center X in screen-space pixels. ARENA-05H+.
+   * Set when the vehicle is created (from worldX). Used by hold_position mode
+   * to determine if the enemy has strayed too far from its post.
+   * Transient — not persisted in saves.
+   */
+  aiHoldX: number;
+  /**
+   * Hold position center Y in screen-space pixels. ARENA-05H+.
+   * Set when the vehicle is created (from worldY). Used by hold_position mode.
+   * Transient — not persisted in saves.
+   */
+  aiHoldY: number;
+  /**
+   * Hold position radius in screen-space pixels. ARENA-05H+.
+   * Enemy will only engage allies within this radius from (aiHoldX, aiHoldY).
+   * If the enemy chases outside this radius, it will return.
+   * Default: DEFAULT_AI_HOLD_RADIUS_PX (200).
+   * Transient — not persisted in saves.
+   */
+  aiHoldRadius: number;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────
@@ -219,6 +262,10 @@ export function createBlockoutVehicle(
     createdAt: Date.now(),
     upgradeLevels: {},
     lastUpgradedAt: 0,
+    aiMode: 'passive', // ARENA-05H+: Default AI mode
+    aiHoldX: screenPos.x, // ARENA-05H+: Hold position = spawn position
+    aiHoldY: screenPos.y,
+    aiHoldRadius: DEFAULT_AI_HOLD_RADIUS_PX,
   };
 }
 

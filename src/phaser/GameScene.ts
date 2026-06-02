@@ -57,6 +57,7 @@ import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
 import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter } from './render/blockoutVehicleGeometry';
 import type { BlockoutVehicleState } from '../state/blockoutVehicleState';
+import { updateBlockoutAi } from '../state/blockoutAi';
 
 
 /**
@@ -383,6 +384,7 @@ export class GameScene extends Phaser.Scene {
           this.arenaPlacementState.selectedBody = selections.body;
           this.arenaPlacementState.selectedWeapon = selections.weapon;
           this.arenaPlacementState.selectedTeam = selections.team;
+          this.arenaPlacementState.selectedAiMode = selections.aiMode; // ARENA-05H+
           const entered = enterPlacementMode(this.arenaPlacementState);
           if (!entered) {
             this.arenaMenu?.showPlacementFeedback('Select body and weapon first', false);
@@ -758,6 +760,29 @@ export class GameScene extends Phaser.Scene {
       }
       // Expire old VFX events
       expireVfxEvents(nowMs);
+    }
+    // ARENA-05H+: Update enemy AI (Arena mode only)
+    if (this.arenaMode && this.gameState.blockoutVehicles) {
+      const nowMs = this.time.now;
+      updateBlockoutAi(this.gameState.blockoutVehicles, {
+        nowMs,
+        offsetX: this._offset.x,
+        offsetY: this._offset.y,
+      });
+      // ARENA-05H+: Rotate enemy turrets toward their AI-set target angle
+      for (const vehicle of this.gameState.blockoutVehicles) {
+        if (vehicle.team === 'enemy' && !vehicle.isDestroyed) {
+          const maxDelta = (vehicle.turretTurnSpeedDeg * Math.PI / 180) * (delta / 1000);
+          const angleDelta = vehicle.turretTargetAngle - vehicle.turretAngle;
+          // Normalize to [-PI, PI]
+          const normalizedDelta = Math.atan2(Math.sin(angleDelta), Math.cos(angleDelta));
+          if (Math.abs(normalizedDelta) <= maxDelta) {
+            vehicle.turretAngle = vehicle.turretTargetAngle;
+          } else {
+            vehicle.turretAngle += Math.sign(normalizedDelta) * maxDelta;
+          }
+        }
+      }
     }
     // BLOCKOUT-06H+: Tick continuous fire for stream weapons
     // BLOCKOUT-07H+: Also tick continuous damage
