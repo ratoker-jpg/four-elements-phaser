@@ -193,6 +193,48 @@ describe('cameraProjectionContract', () => {
     expect(width).toBeGreaterThan(height);
   });
 
+  it('getGroundEllipseBounds halfWidth = r * hypot(basisX.x, basisY.x)', () => {
+    const r = 2.5;
+    const bounds = getGroundEllipseBounds(0, 0, r);
+    const expectedHalfWidth = r * Math.hypot(basisX.x, basisY.x);
+    const actualHalfWidth = (bounds.maxX - bounds.minX) / 2;
+    expect(actualHalfWidth).toBeCloseTo(expectedHalfWidth, 10);
+  });
+
+  it('getGroundEllipseBounds halfHeight = r * hypot(basisX.y, basisY.y)', () => {
+    const r = 2.5;
+    const bounds = getGroundEllipseBounds(0, 0, r);
+    const expectedHalfHeight = r * Math.hypot(basisX.y, basisY.y);
+    const actualHalfHeight = (bounds.maxY - bounds.minY) / 2;
+    expect(actualHalfHeight).toBeCloseTo(expectedHalfHeight, 10);
+  });
+
+  it('getGroundEllipseBounds center equals projectGroundPoint', () => {
+    const cx = 3;
+    const cy = -2;
+    const r = 1.5;
+    const bounds = getGroundEllipseBounds(cx, cy, r);
+    const center = projectGroundPoint(cx, cy);
+    expect((bounds.minX + bounds.maxX) / 2).toBeCloseTo(center.x, 10);
+    expect((bounds.minY + bounds.maxY) / 2).toBeCloseTo(center.y, 10);
+  });
+
+  it('all projectGroundCircleToPolyline points lie within getGroundEllipseBounds', () => {
+    const cx = 2;
+    const cy = -1;
+    const r = 3;
+    const segments = 64;
+    const bounds = getGroundEllipseBounds(cx, cy, r);
+    const points = projectGroundCircleToPolyline(cx, cy, r, segments);
+
+    for (const p of points) {
+      expect(p.x).toBeGreaterThanOrEqual(bounds.minX - 1e-9);
+      expect(p.x).toBeLessThanOrEqual(bounds.maxX + 1e-9);
+      expect(p.y).toBeGreaterThanOrEqual(bounds.minY - 1e-9);
+      expect(p.y).toBeLessThanOrEqual(bounds.maxY + 1e-9);
+    }
+  });
+
   // ─── Camera model flags ──────────────────────────────────────────
 
   it('canRotate is false', () => {

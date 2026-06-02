@@ -226,22 +226,23 @@ export function getGroundEllipseBounds(
   radius: number,
   origin?: { x: number; y: number },
 ): { minX: number; minY: number; maxX: number; maxY: number } {
-  // The projected ellipse has 4 extreme points along the basis directions
+  // A ground-plane circle projected through the isometric basis becomes an
+  // ellipse.  Parametrically:
+  //   x(t) = cx + r * (basisX.x * cos(t) + basisY.x * sin(t))
+  //   y(t) = cy + r * (basisX.y * cos(t) + basisY.y * sin(t))
+  //
+  // The axis-aligned bounding box half-widths are the maximum absolute
+  // values of each parametric coordinate, which for an ellipse of the form
+  //   a*cos(t) + b*sin(t)  is  sqrt(a² + b²)  =  hypot(a, b).
   const c = projectGroundPoint(centerX, centerY, origin);
-  const rx = radius; // radius along world X
-  const ry = radius; // radius along world Y
-
-  // The extreme screen offsets from center are ±rx*basisX and ±ry*basisY
-  const extXx = rx * Math.abs(basisX.x);
-  const extXy = rx * Math.abs(basisX.y);
-  const extYx = ry * Math.abs(basisY.x);
-  const extYy = ry * Math.abs(basisY.y);
+  const halfWidth = radius * Math.hypot(basisX.x, basisY.x);
+  const halfHeight = radius * Math.hypot(basisX.y, basisY.y);
 
   return {
-    minX: c.x - extXx - extYx,
-    minY: c.y - extXy - extYy,
-    maxX: c.x + extXx + extYx,
-    maxY: c.y + extXy + extYy,
+    minX: c.x - halfWidth,
+    minY: c.y - halfHeight,
+    maxX: c.x + halfWidth,
+    maxY: c.y + halfHeight,
   };
 }
 

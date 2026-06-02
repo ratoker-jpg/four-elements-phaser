@@ -21,11 +21,9 @@ What should GPT/GLM/Codex do next by default?
 Current answer:
 
 ```text
-CAMERA-00: Projection calibration contract — in progress.
-Define and expose the actual projection basis (basisX, basisY, basisZ),
-add dev/arena calibration overlay (C key), and create the projection
-contract document. After: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md
-as visual source of truth.
+CAMERA-00: Projection calibration contract — implemented / accepted.
+Next: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md
+as required visual source of truth.
 ```
 
 ---
@@ -33,7 +31,7 @@ as visual source of truth.
 ## Current next step
 
 ```text
-CAMERA-00 — Projection calibration contract — IN PROGRESS
+CAMERA-00 — Projection calibration contract — IMPLEMENTED / ACCEPTED
 
 Created a precise mathematical camera/projection contract for the fixed
 isometric/axonometric game view:
@@ -55,8 +53,8 @@ as required visual source of truth for all rendering/asset tasks.
 Mode:
 
 ```text
-CAMERA-00 IN PROGRESS
-After CAMERA-00: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md
+CAMERA-00 IMPLEMENTED / ACCEPTED
+Next: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md
 ```
 
 ---
@@ -66,7 +64,7 @@ After CAMERA-00: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md
 ```text
 VISUAL/UI roadmap slice: CLOSED
 BLOCKOUT-MVP roadmap slice: CLOSED
-CAMERA-00: IN PROGRESS
+CAMERA-00: IMPLEMENTED / ACCEPTED
 Next action: New roadmap audit using CAMERA_PROJECTION_CONTRACT.md
 ```
 

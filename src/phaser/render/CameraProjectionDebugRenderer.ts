@@ -297,8 +297,7 @@ export class CameraProjectionDebugRenderer {
       padding: { x: 2, y: 1 },
     });
     label.setDepth(CALIBRATION_DEPTH + 1);
-    label.setScrollFactor(0, 0); // Labels move with camera
-    // Actually, labels should be in world space — they need to move with the world
+    // Labels are world-space overlay labels — they move with the world
     label.setScrollFactor(1, 1);
     label.setVisible(this._visible);
     this.labels.push(label);

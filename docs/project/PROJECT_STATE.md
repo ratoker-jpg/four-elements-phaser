@@ -11,7 +11,7 @@ Current phase: BLOCKOUT-MVP — CLOSED / CAMERA-00 — Projection calibration co
 
 ```text
 BLOCKOUT-MVP is closed. All 9 implementation steps are complete.
-CAMERA-00: Projection calibration contract — in progress.
+CAMERA-00: Projection calibration contract — implemented / accepted.
 Next: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md as visual source of truth.
 ```
 
@@ -26,7 +26,7 @@ BLOCKOUT-MVP — Vehicle / Combat / Upgrade Skeleton — CLOSED
 Next action:
 
 ```text
-CAMERA-00: Projection calibration contract — in progress.
+CAMERA-00: Projection calibration contract — implemented / accepted.
 After: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md as visual source of truth.
 ```
 
@@ -303,14 +303,14 @@ Weapon contract covers:
 ## Active next work
 
 ```text
-BLOCKOUT-MVP is closed. Next: CAMERA-00 projection calibration, then new roadmap audit using CAMERA_PROJECTION_CONTRACT.md as visual source of truth.
+BLOCKOUT-MVP is closed. CAMERA-00 implemented / accepted. Next: new roadmap audit using CAMERA_PROJECTION_CONTRACT.md as visual source of truth.
 ```
 
 Mode:
 
 ```text
 NO NEW IMPLEMENTATION WITHOUT NEW ROADMAP AUDIT
-(Exception: CAMERA-00 projection calibration contract is approved)
+CAMERA-00 projection calibration contract is done.
 Start a new roadmap audit before any implementation beyond CAMERA-00.
 ```
 
