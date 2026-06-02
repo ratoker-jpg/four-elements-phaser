@@ -9,11 +9,17 @@
  * origin, not body/tile center. This module is the single source of truth.
  * BLOCKOUT-04H+: Updated to use vehicle.worldX/worldY for continuous
  * position instead of tileToScreen(tx,ty).
+ * PROJECTION-01 fixup: Added projected geometry helpers that follow the
+ * camera projection contract (tile-space rotation + projection) instead
+ * of screen-pixel rotation. The projected helpers are the single source
+ * of truth for both visual and logical turret/barrel positions.
  */
 
 import type { BlockoutShape, MountCategory } from '../../config/blockoutProfiles';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { getBodyProfile } from '../../config/blockoutBodyData';
+import { getWeaponProfile } from '../../config/blockoutWeaponData';
+import { unprojectScreenToGround, projectGroundPoint, projectWorldPoint, PROJ_TILE_W } from '../../config/cameraProjectionContract';
 import type { IsoPoint } from './isometric';
 
 // ─── Body pixel size by blockoutShape ──────────────────────────────
@@ -141,4 +147,345 @@ export function computeBodyWorldCenter(
 export function getBodyPixelSize(bodyId: string): { w: number; h: number } {
   const bodyProfile = getBodyProfile(bodyId);
   return bodyProfile ? SHAPE_SIZE_MAP[bodyProfile.blockoutShape] : DEFAULT_BODY_SIZE;
+}
+
+// ─── Shared turret constants (PROJECTION-01 fixup) ──────────────────
+
+/** Turret rectangle width in pixels — source of truth for all consumers. */
+export const BLOCKOUT_TURRET_SIZE_W = 10;
+
+/** Turret rectangle height in pixels — source of truth for all consumers. */
+export const BLOCKOUT_TURRET_SIZE_H = 6;
+
+// ─── Shared Z-level constants (PROJECTION-01 fixup #2) ────────────────
+
+/** Vehicle body height in world Z units for pseudo-isometric rendering.
+ *  Source of truth — do not duplicate in other files. */
+export const BLOCKOUT_VEHICLE_BODY_Z = 0.25;
+
+/** Turret height offset in world Z units above body top.
+ *  Source of truth — do not duplicate in other files. */
+export const BLOCKOUT_TURRET_Z_OFFSET = 0.05;
+
+/** Turret box height in world Z units.
+ *  Source of truth — do not duplicate in other files. */
+export const BLOCKOUT_TURRET_BOX_HEIGHT = 0.08;
+
+/** Barrel center Z: the Z level at which the barrel line is drawn.
+ *  This is the body top + turret offset + half the turret box height.
+ *  Both visual rendering and logical fire/damage use this Z. */
+export const BLOCKOUT_BARREL_Z = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + BLOCKOUT_TURRET_BOX_HEIGHT * 0.5;
+
+// ─── Internal: mount tile offset (PROJECTION-01 fixup) ──────────────
+
+/**
+ * Compute the mount offset in tile space, rotated by body angle.
+ *
+ * This is the single source of truth for mount position relative to
+ * the body tile center. It converts the pixel-space mount offset to
+ * tile units using PROJ_TILE_W, then rotates in tile space (not
+ * screen-pixel space). This is the correct approach per the camera
+ * projection contract, because rotations in the isometric projection
+ * must happen in tile space to match the projected geometry.
+ *
+ * Both the renderer and input controller add this offset to the body
+ * tile center to get the absolute mount tile position.
+ */
+/**
+ * Compute body screen position including recoil body impulse.
+ *
+ * PROJECTION-01 fixup #3: Body recoil impulse shifts the visual/logical
+ * body position, affecting turret mount, barrel tip, and all derived
+ * positions. All projected geometry helpers use this to ensure visual
+ * and logical positions agree when the body recoils.
+ *
+ * The impulse is applied in screen-pixel space (backward along body
+ * angle) BEFORE unprojecting to tile space, exactly matching the
+ * renderer's cx/cy computation.
+ */
+function computeBodyScreenWithImpulse(
+  vehicle: BlockoutVehicleState,
+  offset: IsoPoint,
+): { x: number; y: number } {
+  const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
+  const bodyAngle = vehicle.bodyAngle;
+  const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
+  const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
+  return {
+    x: vehicle.worldX + offset.x + bodyImpulseX,
+    y: vehicle.worldY + offset.y + bodyImpulseY,
+  };
+}
+
+function computeMountTileOffset(vehicle: BlockoutVehicleState): { dx: number; dy: number } {
+  const bodyProfile = getBodyProfile(vehicle.bodyId);
+  const bodySize = bodyProfile ? SHAPE_SIZE_MAP[bodyProfile.blockoutShape] : DEFAULT_BODY_SIZE;
+  const mountCategory = bodyProfile?.mountCategory ?? 'center';
+  const mountOffset = computeMountPixelOffset(mountCategory, bodySize.w, bodySize.h);
+
+  // Convert pixel offset to tile units using projection source of truth
+  const mountTileX = mountOffset.dx / PROJ_TILE_W;
+  const mountTileY = mountOffset.dy / PROJ_TILE_W;
+
+  // Rotate by body angle in tile space (not screen-pixel space)
+  const cosA = Math.cos(vehicle.bodyAngle);
+  const sinA = Math.sin(vehicle.bodyAngle);
+  return {
+    dx: mountTileX * cosA - mountTileY * sinA,
+    dy: mountTileX * sinA + mountTileY * cosA,
+  };
+}
+
+// ─── Projected turret mount screen position (PROJECTION-01 fixup) ───
+
+/**
+ * Compute the screen-space position of the turret mount on the ground
+ * plane (z=0), using the camera projection contract.
+ *
+ * This is the correct mount position for aim angle computation in the
+ * input controller and for ground-plane visual markers. It follows the
+ * projection contract: pixel offsets are converted to tile units via
+ * PROJ_TILE_W, rotated in tile space, and projected to screen space.
+ *
+ * This replaces the old computeTurretWorldOrigin for all projected
+ * geometry consumers. The old function rotates in screen-pixel space,
+ * which diverges from the renderer's tile-space rotation.
+ *
+ * @param vehicle - Blockout vehicle state
+ * @param offset - Map offset (from GameScene)
+ * @returns Screen-space position of the turret mount at z=0
+ */
+export function computeProjectedTurretMountScreen(
+  vehicle: BlockoutVehicleState,
+  offset: IsoPoint,
+): { x: number; y: number } {
+  // PROJECTION-01 fixup #3: Include body recoil impulse so visual
+  // turret mount equals logical turret mount during recoil
+  const bodyScreen = computeBodyScreenWithImpulse(vehicle, offset);
+  const tilePos = unprojectScreenToGround(bodyScreen.x, bodyScreen.y, offset);
+  const mountOff = computeMountTileOffset(vehicle);
+  return projectGroundPoint(tilePos.x + mountOff.dx, tilePos.y + mountOff.dy, offset);
+}
+
+// ─── Projected barrel tip screen position (PROJECTION-01 fixup) ─────
+
+/**
+ * Compute the screen-space position of the barrel tip on the ground
+ * plane (z=0), using the camera projection contract.
+ *
+ * This is the correct barrel tip position for fire/damage origin
+ * computation in the input controller and GameScene. It follows the
+ * projection contract: the barrel extends along the turret angle in
+ * tile space from the mount position, then projects to screen.
+ *
+ * Includes recoil barrel offset (shorter barrel during recoil) and
+ * turret kickback angle (turret angle offset during recoil). When
+ * recoil offsets are 0 (at the instant of firing), the barrel tip
+ * is at the pre-recoil position.
+ *
+ * @param vehicle - Blockout vehicle state
+ * @param offset - Map offset (from GameScene)
+ * @returns Screen-space position of the barrel tip at z=0
+ */
+export function computeProjectedBarrelTipScreen(
+  vehicle: BlockoutVehicleState,
+  offset: IsoPoint,
+): { x: number; y: number } {
+  const weaponProfile = getWeaponProfile(vehicle.weaponId);
+  const barrelLength = weaponProfile ? weaponProfile.blockoutBarrelLength : 12;
+
+  // PROJECTION-01 fixup #3: Include body recoil impulse
+  const bodyScreen = computeBodyScreenWithImpulse(vehicle, offset);
+  const tilePos = unprojectScreenToGround(bodyScreen.x, bodyScreen.y, offset);
+  const mountOff = computeMountTileOffset(vehicle);
+  const mountTileX = tilePos.x + mountOff.dx;
+  const mountTileY = tilePos.y + mountOff.dy;
+
+  // Turret half-width + barrel length in tile units
+  const turretHalfW = (BLOCKOUT_TURRET_SIZE_W / 2) / PROJ_TILE_W;
+  const barrelTileLength = barrelLength / PROJ_TILE_W;
+
+  // Recoil offsets
+  const recoilBarrelOffset = vehicle.recoilBarrelOffset ?? 0;
+  const effectiveBarrelLength = Math.max(0, barrelTileLength - recoilBarrelOffset / PROJ_TILE_W);
+  const recoilTurretOffset = vehicle.recoilTurretOffset ?? 0;
+  const effectiveTurretAngle = vehicle.turretAngle - recoilTurretOffset;
+
+  // Barrel tip in tile space
+  const turretCosA = Math.cos(effectiveTurretAngle);
+  const turretSinA = Math.sin(effectiveTurretAngle);
+  const barrelTipTileX = mountTileX + (turretHalfW + effectiveBarrelLength) * turretCosA;
+  const barrelTipTileY = mountTileY + (turretHalfW + effectiveBarrelLength) * turretSinA;
+
+  return projectGroundPoint(barrelTipTileX, barrelTipTileY, offset);
+}
+
+// ─── Projected barrel tip screen position with Z (PROJECTION-01 fixup #2) ──
+
+/**
+ * Compute the screen-space position of the barrel tip at the correct
+ * visual Z level, using the camera projection contract.
+ *
+ * This is the single source of truth for both:
+ * - Visual rendering: where the barrel end is drawn on screen
+ * - Logical fire/damage: where projectiles/damage originate
+ *
+ * The Z level accounts for the turret sitting on top of the body,
+ * so the barrel tip appears at the correct height above ground.
+ * This eliminates the divergence between the visual barrel end
+ * (drawn at turret Z) and the logical fire origin (previously at
+ * ground Z=0).
+ *
+ * @param vehicle - Blockout vehicle state
+ * @param offset - Map offset (from GameScene)
+ * @returns Screen-space position of the barrel tip at BLOCKOUT_BARREL_Z
+ */
+export function computeProjectedBarrelTipScreenAtZ(
+  vehicle: BlockoutVehicleState,
+  offset: IsoPoint,
+): { x: number; y: number } {
+  const weaponProfile = getWeaponProfile(vehicle.weaponId);
+  const barrelLength = weaponProfile ? weaponProfile.blockoutBarrelLength : 12;
+
+  // PROJECTION-01 fixup #3: Include body recoil impulse
+  const bodyScreen = computeBodyScreenWithImpulse(vehicle, offset);
+  const tilePos = unprojectScreenToGround(bodyScreen.x, bodyScreen.y, offset);
+  const mountOff = computeMountTileOffset(vehicle);
+  const mountTileX = tilePos.x + mountOff.dx;
+  const mountTileY = tilePos.y + mountOff.dy;
+
+  // Turret half-width + barrel length in tile units
+  const turretHalfW = (BLOCKOUT_TURRET_SIZE_W / 2) / PROJ_TILE_W;
+  const barrelTileLength = barrelLength / PROJ_TILE_W;
+
+  // Recoil offsets
+  const recoilBarrelOffset = vehicle.recoilBarrelOffset ?? 0;
+  const effectiveBarrelLength = Math.max(0, barrelTileLength - recoilBarrelOffset / PROJ_TILE_W);
+  const recoilTurretOffset = vehicle.recoilTurretOffset ?? 0;
+  const effectiveTurretAngle = vehicle.turretAngle - recoilTurretOffset;
+
+  // Barrel tip in tile space
+  const turretCosA = Math.cos(effectiveTurretAngle);
+  const turretSinA = Math.sin(effectiveTurretAngle);
+  const barrelTipTileX = mountTileX + (turretHalfW + effectiveBarrelLength) * turretCosA;
+  const barrelTipTileY = mountTileY + (turretHalfW + effectiveBarrelLength) * turretSinA;
+
+  // Project at barrel Z level (not ground plane)
+  return projectWorldPoint(barrelTipTileX, barrelTipTileY, BLOCKOUT_BARREL_Z, offset);
+}
+
+// ─── Comprehensive projected geometry (PROJECTION-01 fixup) ─────────
+
+/**
+ * Comprehensive projected geometry for a blockout vehicle.
+ *
+ * Used by BlockoutVehicleRenderer for all visual computation. The
+ * mountTileOffset is relative to the body tile center — the renderer
+ * adds this to its body tile center (which may include visual recoil
+ * impulse) to get the absolute mount tile position.
+ */
+export interface ProjectedBlockoutVehicleGeometry {
+  /** Mount offset in tile space, rotated by body angle. */
+  mountTileOffset: { dx: number; dy: number };
+  /** Body tile center (unprojected from vehicle.worldX/worldY + offset, without body recoil impulse). */
+  bodyTileCenter: { x: number; y: number };
+  /** Body half-width in tile units. */
+  halfW: number;
+  /** Body half-height in tile units. */
+  halfH: number;
+  /** Turret half-width in tile units. */
+  turretHalfW: number;
+  /** Turret half-height in tile units. */
+  turretHalfH: number;
+  /** Barrel length in tile units (before recoil). */
+  barrelTileLength: number;
+  /** Effective barrel length in tile units (after recoil). */
+  effectiveBarrelLength: number;
+  /** Effective turret angle in radians (after recoil kickback). */
+  effectiveTurretAngle: number;
+  /** Barrel Z level for rendering and fire/damage origin. PROJECTION-01 fixup #2. */
+  barrelZ: number;
+  /** Barrel tip screen position at barrelZ with body recoil impulse applied.
+   *  Single source of truth for visual rendering and logical fire/damage.
+   *  PROJECTION-01 fixup #3. */
+  barrelTipScreen: { x: number; y: number };
+  /** Barrel start screen position at barrelZ with body recoil impulse applied.
+   *  PROJECTION-01 fixup #3. */
+  barrelStartScreen: { x: number; y: number };
+}
+
+/**
+ * Compute comprehensive projected geometry for a blockout vehicle.
+ *
+ * Returns tile-space geometry data that the renderer uses for drawing
+ * pseudo-isometric body, turret, and barrel. The mountTileOffset is
+ * the same offset used by computeProjectedTurretMountScreen and
+ * computeProjectedBarrelTipScreen, ensuring visual and logical
+ * positions always agree on the mount location.
+ *
+ * @param vehicle - Blockout vehicle state
+ * @param offset - Map offset (from GameScene)
+ * @returns Projected geometry data for rendering
+ */
+export function computeProjectedBlockoutVehicleGeometry(
+  vehicle: BlockoutVehicleState,
+  offset: IsoPoint,
+): ProjectedBlockoutVehicleGeometry {
+  const bodyProfile = getBodyProfile(vehicle.bodyId);
+  const bodySize = bodyProfile ? SHAPE_SIZE_MAP[bodyProfile.blockoutShape] : DEFAULT_BODY_SIZE;
+  const weaponProfile = getWeaponProfile(vehicle.weaponId);
+  const barrelLength = weaponProfile ? weaponProfile.blockoutBarrelLength : 12;
+
+  const mountTileOffset = computeMountTileOffset(vehicle);
+
+  // Body tile center WITHOUT impulse (kept for backward compatibility)
+  const bodyScreenX = vehicle.worldX + offset.x;
+  const bodyScreenY = vehicle.worldY + offset.y;
+  const bodyTileCenter = unprojectScreenToGround(bodyScreenX, bodyScreenY, offset);
+
+  const halfW = bodySize.w / PROJ_TILE_W;
+  const halfH = bodySize.h / PROJ_TILE_W;
+  const turretHalfW = (BLOCKOUT_TURRET_SIZE_W / 2) / PROJ_TILE_W;
+  const turretHalfH = (BLOCKOUT_TURRET_SIZE_H / 2) / PROJ_TILE_W;
+  const barrelTileLength = barrelLength / PROJ_TILE_W;
+
+  const recoilBarrelOffset = vehicle.recoilBarrelOffset ?? 0;
+  const effectiveBarrelLength = Math.max(0, barrelTileLength - recoilBarrelOffset / PROJ_TILE_W);
+  const recoilTurretOffset = vehicle.recoilTurretOffset ?? 0;
+  const effectiveTurretAngle = vehicle.turretAngle - recoilTurretOffset;
+
+  // PROJECTION-01 fixup #3: Body recoil impulse shifts barrel screen position.
+  // Compute barrel tip/start using impulse-shifted body center so visual
+  // rendering and logical fire/damage use the exact same screen point.
+  const bodyScreenWithImpulse = computeBodyScreenWithImpulse(vehicle, offset);
+  const tilePosWithImpulse = unprojectScreenToGround(bodyScreenWithImpulse.x, bodyScreenWithImpulse.y, offset);
+  const mountTileCenterWithImpulse = {
+    x: tilePosWithImpulse.x + mountTileOffset.dx,
+    y: tilePosWithImpulse.y + mountTileOffset.dy,
+  };
+
+  const turretCosA = Math.cos(effectiveTurretAngle);
+  const turretSinA = Math.sin(effectiveTurretAngle);
+  const barrelTipTileX = mountTileCenterWithImpulse.x + (turretHalfW + effectiveBarrelLength) * turretCosA;
+  const barrelTipTileY = mountTileCenterWithImpulse.y + (turretHalfW + effectiveBarrelLength) * turretSinA;
+  const barrelStartTileX = mountTileCenterWithImpulse.x + turretHalfW * turretCosA;
+  const barrelStartTileY = mountTileCenterWithImpulse.y + turretHalfW * turretSinA;
+
+  const barrelTipScreen = projectWorldPoint(barrelTipTileX, barrelTipTileY, BLOCKOUT_BARREL_Z, offset);
+  const barrelStartScreen = projectWorldPoint(barrelStartTileX, barrelStartTileY, BLOCKOUT_BARREL_Z, offset);
+
+  return {
+    mountTileOffset,
+    bodyTileCenter,
+    halfW,
+    halfH,
+    turretHalfW,
+    turretHalfH,
+    barrelTileLength,
+    effectiveBarrelLength,
+    effectiveTurretAngle,
+    barrelZ: BLOCKOUT_BARREL_Z,
+    barrelTipScreen,
+    barrelStartScreen,
+  };
 }

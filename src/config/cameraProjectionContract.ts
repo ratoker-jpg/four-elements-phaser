@@ -253,3 +253,36 @@ export const PROJ_TILE_W = TILE_W;
 
 /** Tile height in pixels — source of truth from worldConfig. */
 export const PROJ_TILE_H = TILE_H;
+
+// ─── Inverse projection ────────────────────────────────────────────
+
+/**
+ * Inverse of projectGroundPoint: convert screen-space position
+ * back to world/tile coordinates on the ground plane (z=0).
+ *
+ * Given: screen = origin + worldX * basisX + worldY * basisY
+ * Solve for worldX, worldY using the 2×2 inverse of the basis matrix.
+ *
+ * @param screenX - Screen-space X
+ * @param screenY - Screen-space Y
+ * @param origin - Optional origin offset { x, y } (defaults to 0,0)
+ * @returns World/tile coordinates { x, y }
+ */
+export function unprojectScreenToGround(
+  screenX: number,
+  screenY: number,
+  origin?: { x: number; y: number },
+): { x: number; y: number } {
+  const ox = origin?.x ?? 0;
+  const oy = origin?.y ?? 0;
+  const dx = screenX - ox;
+  const dy = screenY - oy;
+  // det = basisX.x * basisY.y - basisX.y * basisY.x
+  //     = (TILE_W/2)*(TILE_H/2) - (TILE_H/2)*(-TILE_W/2)
+  //     = TILE_W * TILE_H / 2
+  const det = basisX.x * basisY.y - basisX.y * basisY.x;
+  return {
+    x: (dx * basisY.y - dy * basisY.x) / det,
+    y: (dy * basisX.x - dx * basisX.y) / det,
+  };
+}

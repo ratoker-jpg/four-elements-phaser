@@ -1,36 +1,43 @@
 /**
- * BlockoutVehicleRenderer — renders blockout vehicles as Phaser Graphics primitives.
+ * BlockoutVehicleRenderer — renders blockout vehicles as pseudo-isometric
+ * Phaser Graphics primitives following the camera projection contract.
+ *
+ * PROJECTION-01: Ground-plane retrofit.
+ * - Bodies rendered as pseudo-isometric boxes (base + side + top face)
+ * - Selection/hover rings are projected ground-plane ellipses
+ * - Move target markers use projected ground-plane diamonds
+ * - Vehicle shadows rendered as projected ground-plane ellipses
+ * - Range indicators use projected ground-plane circles
+ * - Turret sits visually on top plane using basisZ
  *
  * Uses no PNG assets, no asset manifest, no texture loading.
- * Renders body rectangle, turret rectangle, barrel line, and mount point circle.
  * Only active when devtools/arena mode is on.
- *
- * BLOCKOUT-02H: First visible blockout vehicles.
- * BLOCKOUT-03H: Added selection highlight, hover marker, turret aiming
- * with independent rotation, and debug aim line for selected vehicles.
- * BLOCKOUT-03H fixup: Uses shared blockoutVehicleGeometry for body sizes
- * and mount offsets to ensure renderer and input controller agree.
- * BLOCKOUT-04H+: Uses vehicle.worldX/worldY for smooth continuous position.
- * Added movement target marker and move line for selected vehicles.
  */
 
 import Phaser from 'phaser';
 import type { IsoPoint } from './isometric';
-import { getBodyProfile } from '../../config/blockoutBodyData';
-import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
-import { SHAPE_SIZE_MAP, computeMountPixelOffset, computeBodyWorldCenter, getBodyPixelSize } from './blockoutVehicleGeometry';
+import {
+  computeBodyWorldCenter,
+  computeProjectedBlockoutVehicleGeometry,
+  BLOCKOUT_VEHICLE_BODY_Z,
+  BLOCKOUT_TURRET_Z_OFFSET,
+  BLOCKOUT_TURRET_BOX_HEIGHT,
+} from './blockoutVehicleGeometry';
+import {
+  drawProjectedGroundRing,
+  drawProjectedGroundDiamond,
+  drawProjectedShadow,
+  drawProjectedBox,
+  drawProjectedCrosshair,
+} from './projectedGroundPrimitives';
+import { projectWorldPoint, unprojectScreenToGround, PROJ_TILE_W } from '../../config/cameraProjectionContract';
+import { getWeaponProfile } from '../../config/blockoutWeaponData';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
 /** Depth for blockout vehicles (above terrain, coexisting with entities). */
 const BLOCKOUT_DEPTH = 120;
-
-// SHAPE_SIZE_MAP is imported from shared blockoutVehicleGeometry.
-// Do not duplicate it here.
-
-/** Turret rectangle size (consistent across bodies, weapon barrel varies). */
-const TURRET_SIZE = { w: 10, h: 6 };
 
 /** Mount point circle radius. */
 const MOUNT_POINT_RADIUS = 3;
@@ -66,6 +73,10 @@ const MOUNT_POINT_COLOR = 0xff0000;
 /** Debug label color. */
 const DEBUG_LABEL_COLOR = '#ffffff';
 
+// ─── Z-level constants are now in blockoutVehicleGeometry (PROJECTION-01 fixup #2)
+// BLOCKOUT_VEHICLE_BODY_Z, BLOCKOUT_TURRET_Z_OFFSET, BLOCKOUT_TURRET_BOX_HEIGHT,
+// BLOCKOUT_BARREL_Z — do not duplicate here.
+
 // ─── Selection / hover visual constants ────────────────────────────
 
 /** Selection highlight ring color (bright gold). */
@@ -74,8 +85,8 @@ const SELECTION_RING_COLOR = 0xffd700;
 /** Selection highlight ring line width. */
 const SELECTION_RING_WIDTH = 2.5;
 
-/** BLOCKOUT-10H+: Extra padding for selection ring (larger for readability). */
-const SELECTION_RING_EXTRA_PAD = 8;
+/** Selection ring radius in world/tile units. PROJECTION-01. */
+const SELECTION_RING_WORLD_RADIUS = 0.65;
 
 /** BLOCKOUT-10H+: Direction arrow length in pixels (extends from selection ring edge). */
 const DIRECTION_ARROW_LENGTH = 12;
@@ -88,6 +99,9 @@ const HOVER_RING_COLOR = 0xffffff;
 
 /** Hover marker ring alpha. */
 const HOVER_RING_ALPHA = 0.3;
+
+/** Hover ring radius in world/tile units. PROJECTION-01. */
+const HOVER_RING_WORLD_RADIUS = 0.5;
 
 /** Aim line color for selected vehicle. */
 const AIM_LINE_COLOR = 0xff4444;
@@ -112,8 +126,11 @@ const MOVE_TARGET_COLOR = 0x44ff44;
 /** Move target marker alpha. */
 const MOVE_TARGET_ALPHA = 0.7;
 
-/** Move target crosshair arm length in pixels. */
-const MOVE_TARGET_CROSSHAIR_LEN = 8;
+/** Move target diamond half-size in world/tile units. PROJECTION-01. */
+const MOVE_TARGET_DIAMOND_HALF_SIZE = 0.2;
+
+/** Move target crosshair arm length in world/tile units. PROJECTION-01. */
+const MOVE_TARGET_CROSSHAIR_ARM = 0.15;
 
 /** Move line color from vehicle to target. BLOCKOUT-04H+. */
 const MOVE_LINE_COLOR = 0x44ff44;
@@ -121,8 +138,10 @@ const MOVE_LINE_COLOR = 0x44ff44;
 /** Move line alpha. */
 const MOVE_LINE_ALPHA = 0.3;
 
-/** Move target ring radius. */
-const MOVE_TARGET_RING_RADIUS = 6;
+// ─── Shadow constants ──────────────────────────────────────────────
+
+/** Shadow world radius as fraction of vehicle half-size. */
+const SHADOW_RADIUS_FRACTION = 0.7;
 
 // ─── Renderer ──────────────────────────────────────────────────────
 
@@ -233,14 +252,18 @@ export class BlockoutVehicleRenderer {
       }
 
       if (label) {
-        const bodySize = getBodyPixelSize(vehicle.bodyId);
         const bodyCenter = computeBodyWorldCenter(vehicle, this.offset);
 
         const selectedMarker = isSelected ? ' [SEL]' : '';
         const speedMarker = vehicle.speed > 1 ? ` v=${Math.round(vehicle.speed)}` : '';
         const hpMarker = vehicle.isDestroyed ? ' [DEAD]' : ` hp=${vehicle.hp}/${vehicle.maxHp}`;
         label.setText(`${vehicle.bodyId}+${vehicle.weaponId}${selectedMarker}${hpMarker}${speedMarker}`);
-        label.setPosition(bodyCenter.x, bodyCenter.y - bodySize.h / 2 - 6);
+
+        // Position label above top face (body center + Z offset)
+        const labelZ = vehicle.isDestroyed ? 0 : BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.1;
+        const tilePos = unprojectScreenToGround(bodyCenter.x, bodyCenter.y, this.offset);
+        const labelPos = projectWorldPoint(tilePos.x, tilePos.y, labelZ, this.offset);
+        label.setPosition(labelPos.x, labelPos.y);
         label.setVisible(this.showDebugLabels);
       }
     }
@@ -265,18 +288,13 @@ export class BlockoutVehicleRenderer {
   private renderVehicle(g: Phaser.GameObjects.Graphics, vehicle: BlockoutVehicleState, isSelected: boolean, isHovered: boolean): void {
     g.clear();
 
-    const bodyProfile = getBodyProfile(vehicle.bodyId);
-    if (!bodyProfile) return;
-    const weaponProfile = getWeaponProfile(vehicle.weaponId);
-    if (!weaponProfile) return;
-
-    const bodySize = SHAPE_SIZE_MAP[bodyProfile.blockoutShape];
-    const turretSize = TURRET_SIZE;
-    const barrelLength = weaponProfile.blockoutBarrelLength;
-    const barrelWidth = weaponProfile.blockoutBarrelWidth;
+    // ── Shared projected geometry (single source of truth) ────────
+    const geom = computeProjectedBlockoutVehicleGeometry(vehicle, this.offset);
+    const { halfW, halfH, mountTileOffset, turretHalfW, turretHalfH,
+            effectiveBarrelLength, effectiveTurretAngle, barrelZ,
+            barrelTipScreen, barrelStartScreen } = geom;
 
     const bodyAngle = vehicle.bodyAngle;
-    const turretAngle = vehicle.turretAngle;
 
     // BLOCKOUT-04H+: Use continuous worldX/worldY + offset for position
     // BLOCKOUT-05H+: Include recoil body impulse offset (shifts body backward)
@@ -286,9 +304,19 @@ export class BlockoutVehicleRenderer {
     const cx = vehicle.worldX + this.offset.x + bodyImpulseX;
     const cy = vehicle.worldY + this.offset.y + bodyImpulseY;
 
+    // Tile-space body center (with impulse for visual rendering)
+    const tilePos = unprojectScreenToGround(cx, cy, this.offset);
+    // Tile-space mount position (shared offset + impulse-shifted body center)
+    const mountWorldX = tilePos.x + mountTileOffset.dx;
+    const mountWorldY = tilePos.y + mountTileOffset.dy;
+
     // Faction colors
     const bodyColor = FACTION_BODY_COLORS[vehicle.faction] ?? FACTION_BODY_COLORS.cyan;
     const turretColor = FACTION_TURRET_COLORS[vehicle.faction] ?? FACTION_TURRET_COLORS.cyan;
+
+    // Barrel width from weapon profile
+    const wpProfile = getWeaponProfile(vehicle.weaponId);
+    const barrelWidth = wpProfile ? wpProfile.blockoutBarrelWidth : 2;
 
     // ── Movement target marker (selected vehicle only) ──────────
     if (isSelected && vehicle.hasMoveTarget) {
@@ -302,37 +330,30 @@ export class BlockoutVehicleRenderer {
       g.lineTo(targetScreenX, targetScreenY);
       g.strokePath();
 
-      // Target crosshair
+      // Projected ground diamond at target
       g.lineStyle(1.5, MOVE_TARGET_COLOR, MOVE_TARGET_ALPHA);
-      // Horizontal arm
-      g.beginPath();
-      g.moveTo(targetScreenX - MOVE_TARGET_CROSSHAIR_LEN, targetScreenY);
-      g.lineTo(targetScreenX + MOVE_TARGET_CROSSHAIR_LEN, targetScreenY);
-      g.strokePath();
-      // Vertical arm
-      g.beginPath();
-      g.moveTo(targetScreenX, targetScreenY - MOVE_TARGET_CROSSHAIR_LEN);
-      g.lineTo(targetScreenX, targetScreenY + MOVE_TARGET_CROSSHAIR_LEN);
-      g.strokePath();
-      // Target ring
-      g.strokeCircle(targetScreenX, targetScreenY, MOVE_TARGET_RING_RADIUS);
+      drawProjectedGroundDiamond(g, targetScreenX, targetScreenY, MOVE_TARGET_DIAMOND_HALF_SIZE, this.offset);
+
+      // Projected crosshair
+      drawProjectedCrosshair(g, targetScreenX, targetScreenY, MOVE_TARGET_CROSSHAIR_ARM, this.offset);
     }
 
-    // ── Selection highlight ring ──────────────────────────────────
+    // ── Selection highlight ring (projected ground-plane) ────────
     if (isSelected) {
       const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 800) / 800 * Math.PI * 2);
       const alpha = 0.6 + 0.4 * pulse;
-      // BLOCKOUT-10H+: Slightly larger ring for better readability
-      const ringRadius = Math.max(bodySize.w, bodySize.h) / 2 + SELECTION_RING_EXTRA_PAD;
 
       g.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
-      g.strokeCircle(cx, cy, ringRadius);
+      drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
 
       // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity
-      const arrowBaseX = cx + Math.cos(bodyAngle) * ringRadius;
-      const arrowBaseY = cy + Math.sin(bodyAngle) * ringRadius;
-      const arrowTipX = cx + Math.cos(bodyAngle) * (ringRadius + DIRECTION_ARROW_LENGTH);
-      const arrowTipY = cy + Math.sin(bodyAngle) * (ringRadius + DIRECTION_ARROW_LENGTH);
+      // Use screen-space arrow from body center along body angle
+      // Approximate ring edge in screen space for arrow placement
+      const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38; // approximate pixel distance
+      const arrowBaseX = cx + Math.cos(bodyAngle) * ringEdgeDist;
+      const arrowBaseY = cy + Math.sin(bodyAngle) * ringEdgeDist;
+      const arrowTipX = cx + Math.cos(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
+      const arrowTipY = cy + Math.sin(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
 
       // Arrow shaft
       g.lineStyle(2, SELECTION_RING_COLOR, alpha);
@@ -341,7 +362,7 @@ export class BlockoutVehicleRenderer {
       g.lineTo(arrowTipX, arrowTipY);
       g.strokePath();
 
-      // Arrow head (two short lines at ~30° from shaft direction)
+      // Arrow head
       const headAngle1 = bodyAngle + Math.PI * 0.8;
       const headAngle2 = bodyAngle - Math.PI * 0.8;
       g.beginPath();
@@ -354,171 +375,269 @@ export class BlockoutVehicleRenderer {
       g.strokePath();
     }
 
-    // ── Hover marker ─────────────────────────────────────────────
+    // ── Hover marker (projected ground-plane) ────────────────────
     if (isHovered && !isSelected) {
-      const hoverRadius = Math.max(bodySize.w, bodySize.h) / 2 + 4;
       g.lineStyle(1.5, HOVER_RING_COLOR, HOVER_RING_ALPHA);
-      g.strokeCircle(cx, cy, hoverRadius);
+      drawProjectedGroundRing(g, cx, cy, HOVER_RING_WORLD_RADIUS, this.offset, 20);
     }
 
     // ── BLOCKOUT-07H+: Destroyed vehicle rendering ────────────────
     if (vehicle.isDestroyed) {
-      g.save();
-      g.translateCanvas(cx, cy);
-      g.rotateCanvas(bodyAngle);
+      // Dimmed flat body on ground (no height)
+      const cosA = Math.cos(bodyAngle);
+      const sinA = Math.sin(bodyAngle);
+      const localCorners = [
+        { lx: -halfW, ly: -halfH },
+        { lx: halfW, ly: -halfH },
+        { lx: halfW, ly: halfH },
+        { lx: -halfW, ly: halfH },
+      ];
+      const basePts = localCorners.map(c => {
+        const wx = tilePos.x + c.lx * cosA - c.ly * sinA;
+        const wy = tilePos.y + c.lx * sinA + c.ly * cosA;
+        return projectWorldPoint(wx, wy, 0, this.offset);
+      });
 
-      // Dimmed body
       g.fillStyle(bodyColor, 0.3);
-      g.fillRect(-bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
+      g.beginPath();
+      g.moveTo(basePts[0].x, basePts[0].y);
+      for (let i = 1; i < basePts.length; i++) {
+        g.lineTo(basePts[i].x, basePts[i].y);
+      }
+      g.closePath();
+      g.fillPath();
 
-      // Outline
       g.lineStyle(1, BODY_OUTLINE_COLOR, 0.5);
-      g.strokeRect(-bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
+      g.beginPath();
+      g.moveTo(basePts[0].x, basePts[0].y);
+      for (let i = 1; i < basePts.length; i++) {
+        g.lineTo(basePts[i].x, basePts[i].y);
+      }
+      g.closePath();
+      g.strokePath();
 
-      // X marker over body
+      // X marker over body (use tile-unit size for consistency)
       g.lineStyle(2, 0xff0000, 0.8);
-      const xSize = Math.min(bodySize.w, bodySize.h) / 2 - 2;
+      const xSize = Math.min(halfW, halfH) * PROJ_TILE_W / 2 - 2;
       g.beginPath();
-      g.moveTo(-xSize, -xSize);
-      g.lineTo(xSize, xSize);
+      g.moveTo(cx - xSize, cy - xSize);
+      g.lineTo(cx + xSize, cy + xSize);
       g.strokePath();
       g.beginPath();
-      g.moveTo(xSize, -xSize);
-      g.lineTo(-xSize, xSize);
+      g.moveTo(cx + xSize, cy - xSize);
+      g.lineTo(cx - xSize, cy + xSize);
       g.strokePath();
-
-      g.restore();
 
       // No turret/barrel or HP bar for destroyed vehicles
       return;
     }
 
-    // ── Body rectangle ────────────────────────────────────────────
-    g.save();
-    g.translateCanvas(cx, cy);
-    g.rotateCanvas(bodyAngle);
+    // ── Vehicle shadow (projected ground-plane) ──────────────────
+    const shadowRadius = Math.max(halfW, halfH) * SHADOW_RADIUS_FRACTION;
+    drawProjectedShadow(g, cx, cy, shadowRadius, this.offset);
 
-    // Filled body
-    g.fillStyle(bodyColor, 1);
-    g.fillRect(-bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
+    // ── Pseudo-isometric body (base + side + top) ────────────────
+    // Derive side color (darker than body) and top color (brighter)
+    const sideR = ((bodyColor >> 16) & 0xff) * 0.6;
+    const sideG = ((bodyColor >> 8) & 0xff) * 0.6;
+    const sideB = (bodyColor & 0xff) * 0.6;
+    const sideColor = (Math.floor(sideR) << 16) | (Math.floor(sideG) << 8) | Math.floor(sideB);
 
-    // Body outline (thicker when selected)
-    const outlineWidth = isSelected ? 2.5 : 1.5;
-    g.lineStyle(outlineWidth, BODY_OUTLINE_COLOR, 1);
-    g.strokeRect(-bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
+    const topR = Math.min(255, ((bodyColor >> 16) & 0xff) * 1.2);
+    const topG = Math.min(255, ((bodyColor >> 8) & 0xff) * 1.2);
+    const topB = Math.min(255, (bodyColor & 0xff) * 1.2);
+    const topColor = (Math.floor(topR) << 16) | (Math.floor(topG) << 8) | Math.floor(topB);
 
-    // Forward direction indicator (small line from center toward front)
-    g.lineStyle(1, 0xffffff, 0.5);
-    g.beginPath();
-    g.moveTo(0, 0);
-    g.lineTo(bodySize.w / 2 - 2, 0);
-    g.strokePath();
-
-    // ── Turret mount offset ───────────────────────────────────────
-    const mountOffset = computeMountPixelOffset(
-      bodyProfile.mountCategory,
-      bodySize.w,
-      bodySize.h,
+    drawProjectedBox(
+      g, cx, cy, halfW, halfH, BLOCKOUT_VEHICLE_BODY_Z,
+      this.offset, bodyAngle,
+      bodyColor, sideColor, topColor, BODY_OUTLINE_COLOR,
+      0.3, 0.75, 1.0,
     );
 
-    // ── Mount point circle (debug) ────────────────────────────────
+    // ── Mount point circle (debug, on top face) ──────────────────
     if (this.showMountPoints) {
-      g.fillStyle(MOUNT_POINT_COLOR, 0.7);
-      g.fillCircle(mountOffset.dx, mountOffset.dy, MOUNT_POINT_RADIUS);
-      g.lineStyle(1, 0xff0000, 1);
-      g.strokeCircle(mountOffset.dx, mountOffset.dy, MOUNT_POINT_RADIUS);
-    }
+      // Place mount point on top face using shared mountTileOffset
+      const mountScreen = projectWorldPoint(mountWorldX, mountWorldY, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
 
-    g.restore();
+      g.fillStyle(MOUNT_POINT_COLOR, 0.7);
+      g.fillCircle(mountScreen.x, mountScreen.y, MOUNT_POINT_RADIUS);
+      g.lineStyle(1, 0xff0000, 1);
+      g.strokeCircle(mountScreen.x, mountScreen.y, MOUNT_POINT_RADIUS);
+    }
 
     // ── BLOCKOUT-07H+: HP bar above vehicle ──────────────────────
     {
+      const hpBarZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.15;
+      const hpBarPos = projectWorldPoint(tilePos.x, tilePos.y, hpBarZ, this.offset);
+
       const hpRatio = vehicle.maxHp > 0 ? vehicle.hp / vehicle.maxHp : 0;
-      const barWidth = bodySize.w + 4;
+      const barWidth = halfW * PROJ_TILE_W + 4;
       const barHeight = 3;
-      const barY = cy - bodySize.h / 2 - 8;
+      const barY = hpBarPos.y - 4;
 
       // Background (dark)
       g.fillStyle(0x333333, 0.7);
-      g.fillRect(cx - barWidth / 2, barY, barWidth, barHeight);
+      g.fillRect(hpBarPos.x - barWidth / 2, barY, barWidth, barHeight);
 
       // HP fill (green > 60%, yellow 30-60%, red < 30%)
-      let hpColor = 0x44ff44; // green
+      let hpColor = 0x44ff44;
       if (hpRatio < 0.3) {
-        hpColor = 0xff4444; // red
+        hpColor = 0xff4444;
       } else if (hpRatio < 0.6) {
-        hpColor = 0xffcc00; // yellow
+        hpColor = 0xffcc00;
       }
       const fillWidth = barWidth * Math.max(0, hpRatio);
       g.fillStyle(hpColor, 0.9);
-      g.fillRect(cx - barWidth / 2, barY, fillWidth, barHeight);
+      g.fillRect(hpBarPos.x - barWidth / 2, barY, fillWidth, barHeight);
     }
 
     // ── BLOCKOUT-07H+: Damage flash ──────────────────────────────
     {
       const nowMs = this.scene.time.now;
       if (nowMs < vehicle.damageFlashUntil) {
-        // White overlay on body
-        g.save();
-        g.translateCanvas(cx, cy);
-        g.rotateCanvas(bodyAngle);
+        // White overlay on top face
+        const cosA = Math.cos(bodyAngle);
+        const sinA = Math.sin(bodyAngle);
+        const localCorners = [
+          { lx: -halfW, ly: -halfH },
+          { lx: halfW, ly: -halfH },
+          { lx: halfW, ly: halfH },
+          { lx: -halfW, ly: halfH },
+        ];
+        const topPts = localCorners.map(c => {
+          const wx = tilePos.x + c.lx * cosA - c.ly * sinA;
+          const wy = tilePos.y + c.lx * sinA + c.ly * cosA;
+          return projectWorldPoint(wx, wy, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
+        });
         g.fillStyle(0xffffff, 0.4);
-        g.fillRect(-bodySize.w / 2, -bodySize.h / 2, bodySize.w, bodySize.h);
-        g.restore();
-      }
-    }
-
-    // ── Turret + Barrel (rotated independently) ──────────────────
-    g.save();
-    g.translateCanvas(cx, cy);
-
-    // Rotate to body angle, then translate to mount point
-    g.rotateCanvas(bodyAngle);
-    g.translateCanvas(mountOffset.dx, mountOffset.dy);
-
-    // Now rotate to turret angle (relative to body)
-    // BLOCKOUT-05H+: Include recoil turret kickback offset
-    const recoilTurretOffset = vehicle.recoilTurretOffset ?? 0;
-    g.rotateCanvas(turretAngle - bodyAngle - recoilTurretOffset);
-
-    // Turret rectangle
-    g.fillStyle(turretColor, 1);
-    g.fillRect(-turretSize.w / 2, -turretSize.h / 2, turretSize.w, turretSize.h);
-
-    // Turret outline (brighter when selected)
-    const turretOutlineWidth = isSelected ? 2 : 1;
-    g.lineStyle(turretOutlineWidth, TURRET_OUTLINE_COLOR, 1);
-    g.strokeRect(-turretSize.w / 2, -turretSize.h / 2, turretSize.w, turretSize.h);
-
-    // Barrel line (extends from turret center forward)
-    // BLOCKOUT-05H+: Barrel kickback — shorten barrel when recoil is active
-    const recoilBarrelOffset = vehicle.recoilBarrelOffset ?? 0;
-    const effectiveBarrelLength = Math.max(0, barrelLength - recoilBarrelOffset);
-    g.lineStyle(barrelWidth, BARREL_COLOR, 1);
-    g.beginPath();
-    g.moveTo(turretSize.w / 2, 0);
-    g.lineTo(turretSize.w / 2 + effectiveBarrelLength, 0);
-    g.strokePath();
-
-    // ── Aim line for selected vehicle ─────────────────────────────
-    if (isSelected) {
-      g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
-      const aimStart = turretSize.w / 2 + barrelLength;
-      const aimEnd = aimStart + AIM_LINE_LENGTH;
-
-      // Draw dashed aim line
-      let pos = aimStart;
-      while (pos < aimEnd) {
-        const segEnd = Math.min(pos + AIM_LINE_DASH, aimEnd);
         g.beginPath();
-        g.moveTo(pos, 0);
-        g.lineTo(segEnd, 0);
-        g.strokePath();
-        pos = segEnd + AIM_LINE_GAP;
+        g.moveTo(topPts[0].x, topPts[0].y);
+        for (let i = 1; i < topPts.length; i++) {
+          g.lineTo(topPts[i].x, topPts[i].y);
+        }
+        g.closePath();
+        g.fillPath();
       }
     }
 
-    g.restore();
+    // ── Turret + Barrel (on top face, using basisZ) ──────────────
+    // Uses shared mountTileOffset from computeProjectedBlockoutVehicleGeometry
+    // to ensure visual mount equals logical mount used by input/fire/damage.
+    {
+      // Turret position on top face (shared mountWorldX/Y from above)
+      const turretZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
+
+      // Draw turret as small projected box on top face
+      const turretHeight = BLOCKOUT_TURRET_BOX_HEIGHT;
+      const turretCosA = Math.cos(effectiveTurretAngle);
+      const turretSinA = Math.sin(effectiveTurretAngle);
+      const turretLocalCorners = [
+        { lx: -turretHalfW, ly: -turretHalfH },
+        { lx: turretHalfW, ly: -turretHalfH },
+        { lx: turretHalfW, ly: turretHalfH },
+        { lx: -turretHalfW, ly: turretHalfH },
+      ];
+
+      // Turret base (on body top)
+      const turretBasePts = turretLocalCorners.map(c => {
+        const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
+        const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
+        return projectWorldPoint(wx, wy, turretZ, this.offset);
+      });
+
+      // Turret top
+      const turretTopPts = turretLocalCorners.map(c => {
+        const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
+        const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
+        return projectWorldPoint(wx, wy, turretZ + turretHeight, this.offset);
+      });
+
+      // Barrel screen positions from shared geometry (PROJECTION-01 fixup #3).
+      // No local recomputation — barrelTipScreen and barrelStartScreen are the
+      // single source of truth used by both renderer and fire/damage logic,
+      // including body recoil impulse, barrel Z, and all recoil offsets.
+
+      // Turret side face (left: base[3]→base[0] → top[3]→top[0])
+      g.fillStyle(turretColor, 0.7);
+      g.beginPath();
+      g.moveTo(turretBasePts[3].x, turretBasePts[3].y);
+      g.lineTo(turretBasePts[0].x, turretBasePts[0].y);
+      g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
+      g.lineTo(turretTopPts[3].x, turretTopPts[3].y);
+      g.closePath();
+      g.fillPath();
+
+      // Turret side face (right: base[0]→base[1] → top[0]→top[1])
+      g.fillStyle(turretColor, 0.6);
+      g.beginPath();
+      g.moveTo(turretBasePts[0].x, turretBasePts[0].y);
+      g.lineTo(turretBasePts[1].x, turretBasePts[1].y);
+      g.lineTo(turretTopPts[1].x, turretTopPts[1].y);
+      g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
+      g.closePath();
+      g.fillPath();
+
+      // Turret top face
+      g.fillStyle(turretColor, 1);
+      g.beginPath();
+      g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
+      for (let i = 1; i < turretTopPts.length; i++) {
+        g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+      }
+      g.closePath();
+      g.fillPath();
+
+      // Turret outline
+      const turretOutlineWidth = isSelected ? 2 : 1;
+      g.lineStyle(turretOutlineWidth, TURRET_OUTLINE_COLOR, 1);
+      g.beginPath();
+      g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
+      for (let i = 1; i < turretTopPts.length; i++) {
+        g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+      }
+      g.closePath();
+      g.strokePath();
+
+      // Barrel line (using shared barrelStartScreen/barrelTipScreen — PROJECTION-01 fixup #3)
+      g.lineStyle(barrelWidth, BARREL_COLOR, 1);
+      g.beginPath();
+      g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
+      g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
+      g.strokePath();
+
+      // ── Aim line for selected vehicle ─────────────────────────────
+      if (isSelected) {
+        g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
+        const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
+        // Aim starts at shared barrel tip (PROJECTION-01 fixup #3)
+        const aimStart = barrelTipScreen;
+        const aimEndWorld = {
+          x: mountWorldX + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretCosA,
+          y: mountWorldY + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretSinA,
+        };
+        const aimEnd = projectWorldPoint(aimEndWorld.x, aimEndWorld.y, barrelZ, this.offset);
+
+        // Draw dashed aim line
+        const dashLen = AIM_LINE_DASH;
+        const gapLen = AIM_LINE_GAP;
+        const dx = aimEnd.x - aimStart.x;
+        const dy = aimEnd.y - aimStart.y;
+        const totalLen = Math.sqrt(dx * dx + dy * dy);
+        const ux = dx / totalLen;
+        const uy = dy / totalLen;
+
+        let pos = 0;
+        while (pos < totalLen) {
+          const segEnd = Math.min(pos + dashLen, totalLen);
+          g.beginPath();
+          g.moveTo(aimStart.x + ux * pos, aimStart.y + uy * pos);
+          g.lineTo(aimStart.x + ux * segEnd, aimStart.y + uy * segEnd);
+          g.strokePath();
+          pos = segEnd + gapLen;
+        }
+      }
+    }
   }
 
   // ─── Cleanup ─────────────────────────────────────────────────────

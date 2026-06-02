@@ -20,6 +20,7 @@ import {
   getGroundEllipseBounds,
   PROJ_TILE_W,
   PROJ_TILE_H,
+  unprojectScreenToGround,
 } from '../config/cameraProjectionContract';
 import { TILE_W, TILE_H } from '../config/worldConfig';
 
@@ -302,5 +303,57 @@ describe('cameraProjectionContract docs consistency', () => {
     // basis vectors pointing partially downward, confirming it's not top-down.
     expect(basisX.y).not.toBe(0);
     expect(basisY.y).not.toBe(0);
+  });
+});
+
+// ─── Inverse projection (PROJECTION-01) ──────────────────────────────
+
+describe('unprojectScreenToGround', () => {
+  it('round-trips with projectGroundPoint at origin', () => {
+    const worldX = 3;
+    const worldY = -2;
+    const screen = projectGroundPoint(worldX, worldY);
+    const unproj = unprojectScreenToGround(screen.x, screen.y);
+    expect(unproj.x).toBeCloseTo(worldX, 10);
+    expect(unproj.y).toBeCloseTo(worldY, 10);
+  });
+
+  it('round-trips with projectGroundPoint with origin offset', () => {
+    const origin = { x: 500, y: 300 };
+    const worldX = 7;
+    const worldY = 4;
+    const screen = projectGroundPoint(worldX, worldY, origin);
+    const unproj = unprojectScreenToGround(screen.x, screen.y, origin);
+    expect(unproj.x).toBeCloseTo(worldX, 10);
+    expect(unproj.y).toBeCloseTo(worldY, 10);
+  });
+
+  it('unproject(0,0) returns (0,0) without origin', () => {
+    const result = unprojectScreenToGround(0, 0);
+    expect(result.x).toBeCloseTo(0, 10);
+    expect(result.y).toBeCloseTo(0, 10);
+  });
+
+  it('unproject(origin.x, origin.y) returns (0,0) with origin', () => {
+    const origin = { x: 500, y: 300 };
+    const result = unprojectScreenToGround(origin.x, origin.y, origin);
+    expect(result.x).toBeCloseTo(0, 10);
+    expect(result.y).toBeCloseTo(0, 10);
+  });
+
+  it('round-trips with projectGroundCircleToPolyline center', () => {
+    const cx = 5;
+    const cy = -3;
+    const center = projectGroundPoint(cx, cy);
+    const unproj = unprojectScreenToGround(center.x, center.y);
+    expect(unproj.x).toBeCloseTo(cx, 10);
+    expect(unproj.y).toBeCloseTo(cy, 10);
+  });
+
+  it('does not use Date.now', () => {
+    const r1 = unprojectScreenToGround(100, 200);
+    const r2 = unprojectScreenToGround(100, 200);
+    expect(r1.x).toBe(r2.x);
+    expect(r1.y).toBe(r2.y);
   });
 });

@@ -24,9 +24,11 @@ import Phaser from 'phaser';
 import type { IsoPoint } from './isometric';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { UPGRADE_PROFILES, ALL_UPGRADE_IDS } from '../../config/blockoutUpgradeData';
-import { getBodyPixelSize, computeBodyWorldCenter, computeTurretWorldOrigin } from './blockoutVehicleGeometry';
+import { getBodyPixelSize, computeBodyWorldCenter, computeProjectedTurretMountScreen, computeProjectedBarrelTipScreenAtZ } from './blockoutVehicleGeometry';
 import { getRangeMultiplier } from '../../state/blockoutUpgrades';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
+import { drawProjectedGroundRing, drawProjectedGroundFill } from './projectedGroundPrimitives';
+import { PROJ_TILE_W } from '../../config/cameraProjectionContract';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -285,15 +287,10 @@ export class BlockoutUpgradeRenderer {
       const color = profile.marker.color;
       const outlineColor = profile.marker.outlineColor;
 
-      const turretOrigin = computeTurretWorldOrigin(vehicle, this.offset);
-      const weaponProfile = getWeaponProfile(vehicle.weaponId);
-      const barrelLength = weaponProfile ? weaponProfile.blockoutBarrelLength : 12;
-      const turretSizeW = 10; // matches BlockoutVehicleRenderer
-      const totalBarrelLength = turretSizeW / 2 + barrelLength;
-
-      // Barrel tip position
-      const barrelTipX = turretOrigin.x + Math.cos(vehicle.turretAngle) * totalBarrelLength;
-      const barrelTipY = turretOrigin.y + Math.sin(vehicle.turretAngle) * totalBarrelLength;
+      // Barrel tip position at barrel Z (shared source of truth with renderer — PROJECTION-01 fixup #2)
+      const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this.offset);
+      const barrelTipX = barrelTip.x;
+      const barrelTipY = barrelTip.y;
 
       // Glow dot: filled circle with alpha based on level
       const radius = GLOW_DOT_RADIUS + weaponLevel;
@@ -309,7 +306,7 @@ export class BlockoutUpgradeRenderer {
       g.strokeCircle(barrelTipX, barrelTipY, radius);
     }
 
-    // Range extender: purple/green range circle for selected vehicle
+    // Range extender: projected ground-plane range circle for selected vehicle
     const rangeLevel = vehicle.upgradeLevels.range_extender ?? 0;
     if (rangeLevel > 0 && isSelected) {
       const profile = UPGRADE_PROFILES.range_extender;
@@ -322,19 +319,23 @@ export class BlockoutUpgradeRenderer {
       const rangeMultiplier = getRangeMultiplier(vehicle);
       const effectiveRange = baseRange * rangeMultiplier;
 
-      // Draw range circle from turret origin
-      const turretOrigin = computeTurretWorldOrigin(vehicle, this.offset);
+      // Convert range from pixels to world/tile units (using projection source of truth)
+      const worldRange = effectiveRange / PROJ_TILE_W;
 
+      // Draw projected range circle from turret mount (shared source of truth — PROJECTION-01 fixup)
+      const turretMountScreen = computeProjectedTurretMountScreen(vehicle, this.offset);
+
+      // Range ring (projected ground-plane)
       g.lineStyle(RANGE_CIRCLE_LINE_WIDTH, color, RANGE_CIRCLE_ALPHA);
-      g.strokeCircle(turretOrigin.x, turretOrigin.y, effectiveRange);
+      drawProjectedGroundRing(g, turretMountScreen.x, turretMountScreen.y, worldRange, this.offset, 32);
 
       // Inner outline
       g.lineStyle(1, outlineColor, RANGE_CIRCLE_ALPHA * 0.6);
-      g.strokeCircle(turretOrigin.x, turretOrigin.y, effectiveRange);
+      drawProjectedGroundRing(g, turretMountScreen.x, turretMountScreen.y, worldRange, this.offset, 32);
 
       // Subtle fill
       g.fillStyle(color, 0.04);
-      g.fillCircle(turretOrigin.x, turretOrigin.y, effectiveRange);
+      drawProjectedGroundFill(g, turretMountScreen.x, turretMountScreen.y, worldRange, this.offset, 32);
     }
 
     // Cooling system: teal dots near turret base
@@ -344,16 +345,17 @@ export class BlockoutUpgradeRenderer {
       const color = profile.marker.color;
       const outlineColor = profile.marker.outlineColor;
 
-      const turretOrigin = computeTurretWorldOrigin(vehicle, this.offset);
+      // Turret mount screen position (shared source of truth — PROJECTION-01 fixup)
+      const turretMountScreen = computeProjectedTurretMountScreen(vehicle, this.offset);
       const dotCount = COOL_DOTS_PER_LEVEL * coolingLevel;
 
-      // Place dots in a small arc behind the turret origin
+      // Place dots in a small arc behind the turret mount
       for (let i = 0; i < dotCount; i++) {
         const fraction = dotCount > 1 ? i / (dotCount - 1) : 0.5;
         const arcAngle = vehicle.turretAngle + Math.PI - 0.5 + fraction * 1.0;
         const dist = 5 + (i % 2) * 2;
-        const dotX = turretOrigin.x + Math.cos(arcAngle) * dist;
-        const dotY = turretOrigin.y + Math.sin(arcAngle) * dist;
+        const dotX = turretMountScreen.x + Math.cos(arcAngle) * dist;
+        const dotY = turretMountScreen.y + Math.sin(arcAngle) * dist;
 
         g.fillStyle(color, 0.8);
         g.fillCircle(dotX, dotY, COOL_DOT_RADIUS);
