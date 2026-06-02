@@ -61,14 +61,15 @@ export function getBlockoutDamageProfile(weaponId: string): DamageProfile | unde
  * Apply damage to a vehicle and return a damage event if damage was dealt.
  *
  * - If vehicle.isDestroyed, return null (no damage to dead vehicles).
- * - Reduces HP by amount, clamped to 0.
+ * - Applies incoming damage multiplier (armor_plating) to compute adjustedAmount.
+ * - Reduces HP by adjustedAmount, clamped to 0.
  * - Sets lastDamagedAt and damageFlashUntil.
  * - If HP <= 0: sets isDestroyed, destroyedAt, clears fire/move state.
- * - Creates a damage event for rendering.
+ * - Creates a damage event with adjustedAmount (matches actual HP loss).
  *
  * @param vehicle - Target vehicle (mutated in place)
  * @param weaponId - Weapon that dealt the damage
- * @param amount - Damage amount
+ * @param amount - Base damage amount (before armor adjustment)
  * @param x - World X of the hit point
  * @param y - World Y of the hit point
  * @param nowMs - Current scene time
@@ -115,12 +116,13 @@ export function applyDamageToVehicle(
     vehicle.vy = 0;
   }
 
-  // Create damage event
+  // Create damage event — store adjustedAmount so the floating damage
+  // number matches the actual HP loss (armor_plating reduces damage)
   const event: BlockoutDamageEvent = {
     id: nextDamageEventId++,
     targetVehicleId: vehicle.id,
     weaponId,
-    amount,
+    amount: adjustedAmount,
     x,
     y,
     createdAt: nowMs,
