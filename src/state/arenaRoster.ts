@@ -293,7 +293,7 @@ export function deleteVehicle(
       removedCount: 0,
       selectedCleared: false,
       targetCleared: false,
-      message: 'Unit not found',
+      message: t('arena_unitNotFound'),
     };
   }
 

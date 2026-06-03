@@ -446,8 +446,8 @@ describe('CORE-STEP-01B: Pause menu Russian labels', () => {
 describe('CORE-STEP-01B: HUD Russian labels', () => {
   it('economy labels are Russian', () => {
     expect(t('hud_raw')).toBe('Сырьё');
-    expect(t('hud_matter')).toBe('Материя');
-    expect(t('hud_power')).toBe('Энергия');
+    expect(t('hud_matter')).toBe('Энергия');
+    expect(t('hud_power')).toBe('Питание');
     expect(t('hud_units')).toBe('Юниты');
   });
 
@@ -510,8 +510,8 @@ describe('CORE-STEP-01B: Status labels Russian', () => {
     expect(t('status_idle')).toBe('Ожидание');
     expect(t('status_processing')).toBe('Обработка');
     expect(t('status_noRaw')).toBe('Нет сырья');
-    expect(t('status_matterFull')).toBe('Материя — полный');
-    expect(t('status_noPower')).toBe('Нет энергии');
+    expect(t('status_matterFull')).toBe('Лимит энергии');
+    expect(t('status_noPower')).toBe('Нет питания');
   });
 
   it('factory status labels are Russian', () => {
@@ -524,7 +524,7 @@ describe('CORE-STEP-01B: Status labels Russian', () => {
 
   it('build/production block labels are Russian', () => {
     expect(t('status_noBuilder')).toBe('Нет строителя');
-    expect(t('status_insufficientMatter')).toBe('Мало материи');
+    expect(t('status_insufficientMatter')).toBe('Мало энергии');
   });
 
   it('harvester status labels are Russian', () => {
