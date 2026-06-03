@@ -3,6 +3,7 @@ import { screenToTile, tileToScreen, type IsoPoint } from '../render/isometric';
 import type { GameState, BuildingType, ProducibleUnitType } from '../../state/types';
 import { placeConstructionSite } from '../../state/construction';
 import { findBuildSiteNearPlayerBuildings } from '../../state/buildSiteSelection';
+import { isVisualReadyBuilding } from '../../config/buildingRuntimeMapping';
 import { startUnitProduction, cancelFactoryQueueItem } from '../../state/production';
 import type { UnitSelection } from '../../state/unitSelection';
 import { selectBuilder, selectHarvester, clearSelection, isUnitSelected } from '../../state/unitSelection';
@@ -192,6 +193,30 @@ export class GameInputController {
       };
     }
 
+    const buildRawStorage = commandRegistry.get('build-raw-storage');
+    if (buildRawStorage) {
+      buildRawStorage.execute = () => {
+        const result = this.requestBuild('raw-storage');
+        this.showStatusCb(result.message, result.success);
+      };
+    }
+
+    const buildMatterStorage = commandRegistry.get('build-matter-storage');
+    if (buildMatterStorage) {
+      buildMatterStorage.execute = () => {
+        const result = this.requestBuild('matter-storage');
+        this.showStatusCb(result.message, result.success);
+      };
+    }
+
+    const buildElementStorage = commandRegistry.get('build-element-storage');
+    if (buildElementStorage) {
+      buildElementStorage.execute = () => {
+        const result = this.requestBuild('element-storage');
+        this.showStatusCb(result.message, result.success);
+      };
+    }
+
     const buildPowerPlant = commandRegistry.get('build-power-plant');
     if (buildPowerPlant) {
       buildPowerPlant.execute = () => {
@@ -199,6 +224,10 @@ export class GameInputController {
         this.showStatusCb(result.message, result.success);
       };
     }
+
+    // NOTE: build-energy-plant is intentionally NOT wired because
+    // energy-plant is visual-ready only — no gameplay mechanic yet.
+    // Players must not accidentally build a non-functional building.
 
     const produceBuilder = commandRegistry.get('produce-builder');
     if (produceBuilder) {
@@ -229,6 +258,11 @@ export class GameInputController {
    */
   requestBuild(buildingType: BuildingType): BuildRequestResult {
     const gameState = this.getGameState();
+
+    // Guard: visual-ready buildings are not buildable in live gameplay.
+    if (isVisualReadyBuilding(buildingType)) {
+      return { success: false, message: `${buildingType} is not buildable yet` };
+    }
 
     // ARCH-13F1: Guard — do not create a site if no idle builder is available.
     const hasIdleBuilder = gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);

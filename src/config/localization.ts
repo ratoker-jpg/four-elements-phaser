@@ -274,6 +274,7 @@ const STATUS_STRINGS = {
   status_queueFull: 'Очередь полна',
   status_unitCap: 'Лимит юнитов',
   status_noBuilder: 'Нет строителя',
+  status_notBuildable: 'Не строится',
   status_noFactory: 'Нет фабрики',
   status_moving: 'Идёт',
   status_gathering: 'Сбор',

@@ -90,7 +90,8 @@ const BUILD_BUTTONS: Array<{ buildingType: BuildingType; label: string; commandI
   { buildingType: 'matter-storage', label: getBuildingDisplayName('matter-storage'), commandId: 'build-matter-storage' },
   { buildingType: 'element-storage', label: getBuildingDisplayName('element-storage'), commandId: 'build-element-storage' },
   { buildingType: 'power-plant', label: getBuildingDisplayName('power-plant'), commandId: 'build-power-plant' },
-  { buildingType: 'energy-plant', label: getBuildingDisplayName('energy-plant'), commandId: 'build-energy-plant' },
+  // energy-plant removed from live build buttons — visual-ready only, no mechanic yet.
+  // Players must not spend matter on a non-functional building.
   { buildingType: 'units-factory', label: getBuildingDisplayName('units-factory'), commandId: 'build-units-factory' },
 ];
 
@@ -371,7 +372,6 @@ export class PlaytestHud {
         'matter-storage': 'tooltip_buildEnergyStorage',
         'element-storage': 'tooltip_buildElementsStorage',
         'power-plant': 'tooltip_buildPowerPlant',
-        'energy-plant': 'tooltip_buildEnergyReactor',
         'units-factory': 'tooltip_buildFactory',
       };
       const tooltipKey = buildTooltipKey[def.buildingType];

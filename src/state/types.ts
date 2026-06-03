@@ -364,8 +364,6 @@ export const HQ_ELEMENT_CAP = 200;
 export const RAW_STORAGE_RAW_BONUS = 200;
 /** Matter storage bonus per matter-storage building. */
 export const MATTER_STORAGE_MATTER_BONUS = 200;
-/** Element cap bonus per matter-storage building (in elementUnits). */
-export const MATTER_STORAGE_ELEMENT_BONUS = 200;
 /** Element cap bonus per element-storage building (in elementUnits). */
 export const ELEMENT_STORAGE_ELEMENT_BONUS = 200;
 

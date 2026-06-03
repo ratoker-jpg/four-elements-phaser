@@ -21,8 +21,9 @@
  */
 
 import type { GameState, BuildingType } from './types';
-import { RAW_STORAGE_RAW_BONUS, MATTER_STORAGE_MATTER_BONUS, MATTER_STORAGE_ELEMENT_BONUS, ELEMENT_STORAGE_ELEMENT_BONUS } from './types';
+import { RAW_STORAGE_RAW_BONUS, MATTER_STORAGE_MATTER_BONUS, ELEMENT_STORAGE_ELEMENT_BONUS } from './types';
 import { buildOccupancyMap, isBuildable } from './occupancy';
+import { isVisualReadyBuilding } from '../config/buildingRuntimeMapping';
 
 // ─── Building Configuration ─────────────────────────────────────────
 
@@ -103,7 +104,7 @@ export const BUILDING_CONFIG: Partial<Record<BuildingType, BuildingConfig>> = {
 // ─── Placement Result ───────────────────────────────────────────────
 
 /** Rejection reasons for building placement. */
-export type PlacementRejectionReason = 'out-of-bounds' | 'occupied' | 'insufficient-resources' | 'unknown-building-type';
+export type PlacementRejectionReason = 'out-of-bounds' | 'occupied' | 'insufficient-resources' | 'unknown-building-type' | 'not-buildable';
 
 /** Result of a placement validation check. */
 export type PlacementResult =
@@ -132,6 +133,12 @@ export function canPlaceBuilding(
   // 1. Unknown building type
   const config = BUILDING_CONFIG[buildingType];
   if (!config) return { valid: false, reason: 'unknown-building-type' };
+
+  // 1b. Visual-ready buildings are not buildable through the live build flow.
+  //     Source-of-truth: production config readiness + isBuildable fields.
+  if (isVisualReadyBuilding(buildingType)) {
+    return { valid: false, reason: 'not-buildable' };
+  }
 
   // 2. Out of bounds — check that the entire footprint fits within the map
   if (tx < 0 || ty < 0 || tx + config.footprintW > state.mapWidth || ty + config.footprintH > state.mapHeight) {
@@ -279,7 +286,6 @@ export function updateConstructionSiteProgress(
     state.economy.rawCap += RAW_STORAGE_RAW_BONUS;
   } else if (site.type === 'matter-storage') {
     state.economy.matterCap += MATTER_STORAGE_MATTER_BONUS;
-    state.economy.elementCap += MATTER_STORAGE_ELEMENT_BONUS;
   } else if (site.type === 'element-storage') {
     state.economy.elementCap += ELEMENT_STORAGE_ELEMENT_BONUS;
   }

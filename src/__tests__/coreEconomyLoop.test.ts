@@ -19,7 +19,6 @@ import type { BuildingType } from '../state/types';
 import {
   RAW_STORAGE_RAW_BONUS,
   MATTER_STORAGE_MATTER_BONUS,
-  MATTER_STORAGE_ELEMENT_BONUS,
   ELEMENT_STORAGE_ELEMENT_BONUS,
   SEP_RAW_COST,
   SEP_MATTER_YIELD,
@@ -42,6 +41,9 @@ import {
   BUILDING_TYPE_TO_PRODUCTION_ID,
 } from '../config/buildingRuntimeMapping';
 import { BUILDING_CONFIGS } from '../config/buildingData';
+import { canPlaceBuilding, placeConstructionSite } from '../state/construction';
+import { getBuildBlockReason, buildBlockLabel } from '../state/statusHelpers';
+import { commandRegistry, registerMvpCommands } from '../state/commandRegistry';
 
 // ─── A. Building config completeness ────────────────────────────────
 
@@ -80,9 +82,8 @@ describe('CORE-STEP-04H+: storage caps', () => {
     expect(RAW_STORAGE_RAW_BONUS).toBe(200);
   });
 
-  it('matter-storage increases matterCap by MATTER_STORAGE_MATTER_BONUS and elementCap by MATTER_STORAGE_ELEMENT_BONUS', () => {
+  it('matter-storage increases matterCap by MATTER_STORAGE_MATTER_BONUS (energy only)', () => {
     expect(MATTER_STORAGE_MATTER_BONUS).toBe(200);
-    expect(MATTER_STORAGE_ELEMENT_BONUS).toBe(200);
   });
 
   it('element-storage increases elementCap by ELEMENT_STORAGE_ELEMENT_BONUS', () => {
@@ -248,17 +249,30 @@ describe('CORE-STEP-04H+: visual-ready Energy Plant', () => {
     expect(isGameplayReadyBuilding('energy-plant')).toBe(false);
   });
 
-  it('energy-plant has a BUILDING_CONFIG entry with reasonable cost', () => {
+  it('energy-plant has a BUILDING_CONFIG entry (for future visual-ready support)', () => {
     const config = BUILDING_CONFIG['energy-plant'];
     expect(config).toBeDefined();
-    expect(config!.costMatter).toBe(80);
-    expect(config!.buildTimeMs).toBe(20000);
+    // Cost/build time still defined for future use when mechanics are added
   });
 
-  it('energy_reactor production config has visual_ready readiness', () => {
+  it('energy-plant cannot be placed via canPlaceBuilding (not-buildable guard)', () => {
+    const state = {
+      mapWidth: 20, mapHeight: 20,
+      economy: { matter: 1000 },
+      mapData: { buildings: [], constructionSites: [], resources: [], hq: { tx: 0, ty: 0 } },
+    };
+    const result = canPlaceBuilding(state as any, 'energy-plant', 10, 10);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toBe('not-buildable');
+    }
+  });
+
+  it('energy_reactor production config has visual_ready readiness and isBuildable=false', () => {
     const config = BUILDING_CONFIGS['energy_reactor'];
     expect(config).toBeDefined();
     expect(config!.readiness).toBe('visual_ready');
+    expect(config!.isBuildable).toBe(false);
   });
 });
 
@@ -375,5 +389,115 @@ describe('CORE-STEP-04H+: building role descriptions', () => {
   it('energy-plant role description mentions not yet implemented', () => {
     const role = getBuildingRoleDescription('energy-plant');
     expect(role).toContain('не реализовано');
+  });
+});
+
+// ─── J. FIXUP: Storage build commands have execute callbacks ─────────
+
+describe('CORE-STEP-04H-FIXUP: build hotkeys and visual-ready guard', () => {
+  // ── Fix 1: Storage build commands wired ──
+
+  it('storage build commands (raw/matter/element) are registered in command registry', () => {
+    commandRegistry.clear();
+    registerMvpCommands();
+    expect(commandRegistry.get('build-raw-storage')).toBeDefined();
+    expect(commandRegistry.get('build-matter-storage')).toBeDefined();
+    expect(commandRegistry.get('build-element-storage')).toBeDefined();
+  });
+
+  it('storage build commands have correct hotkeys (ONE, TWO, THREE)', () => {
+    commandRegistry.clear();
+    registerMvpCommands();
+    expect(commandRegistry.get('build-raw-storage')!.key).toBe('ONE');
+    expect(commandRegistry.get('build-matter-storage')!.key).toBe('TWO');
+    expect(commandRegistry.get('build-element-storage')!.key).toBe('THREE');
+  });
+
+  it('build-energy-plant command is NOT registered (visual-ready guard)', () => {
+    commandRegistry.clear();
+    registerMvpCommands();
+    expect(commandRegistry.get('build-energy-plant')).toBeUndefined();
+  });
+
+  // ── Fix 2: Visual-ready buildings not buildable ──
+
+  it('canPlaceBuilding rejects energy-plant with "not-buildable" reason', () => {
+    const state = {
+      mapWidth: 20, mapHeight: 20,
+      economy: { matter: 1000 },
+      mapData: { buildings: [], constructionSites: [], resources: [], hq: { tx: 0, ty: 0 } },
+    };
+    const result = canPlaceBuilding(state as any, 'energy-plant', 10, 10);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toBe('not-buildable');
+    }
+  });
+
+  it('placeConstructionSite rejects energy-plant', () => {
+    const state = {
+      mapWidth: 20, mapHeight: 20,
+      economy: { matter: 1000 },
+      mapData: { buildings: [], constructionSites: [], resources: [], hq: { tx: 0, ty: 0 } },
+      nextConstructionId: 0,
+    };
+    const result = placeConstructionSite(state as any, 'energy-plant', 10, 10);
+    expect(result.ok).toBe(false);
+  });
+
+  it('getBuildBlockReason returns "not-buildable" for energy-plant', () => {
+    const state = {
+      economy: { matter: 1000 },
+      mapData: { builders: [{ phase: 'idle', busy: false }] },
+    };
+    const reason = getBuildBlockReason(state as any, 'energy-plant');
+    expect(reason).toBe('not-buildable');
+  });
+
+  it('buildBlockLabel for "not-buildable" returns Russian text', () => {
+    const label = buildBlockLabel('not-buildable');
+    expect(label).toBe('Не строится');
+  });
+
+  it('gameplay-ready buildings are NOT blocked by visual-ready guard', () => {
+    const state = {
+      economy: { matter: 1000 },
+      mapData: { builders: [{ phase: 'idle', busy: false }] },
+    };
+    const gameplayBuildings: BuildingType[] = [
+      'separator', 'raw-storage', 'matter-storage',
+      'element-storage', 'power-plant', 'units-factory',
+    ];
+    for (const bt of gameplayBuildings) {
+      const reason = getBuildBlockReason(state as any, bt);
+      // Should not be 'not-buildable' — could be null (enabled) or other reason
+      expect(reason).not.toBe('not-buildable');
+    }
+  });
+
+  // ── Fix 3: Storage cap alignment ──
+
+  it('production config: energy_storage has storageDelta with energy only', () => {
+    const config = BUILDING_CONFIGS['energy_storage'];
+    expect(config.storageDelta).toBeDefined();
+    expect(config.storageDelta!.energy).toBe(200);
+    expect(config.storageDelta!.raw).toBeUndefined();
+    expect(config.storageDelta!.elements).toBeUndefined();
+  });
+
+  it('production config: raw_storage has storageDelta with raw only', () => {
+    const config = BUILDING_CONFIGS['raw_storage'];
+    expect(config.storageDelta).toBeDefined();
+    expect(config.storageDelta!.raw).toBe(200);
+    expect(config.storageDelta!.energy).toBeUndefined();
+    expect(config.storageDelta!.elements).toBeUndefined();
+  });
+
+  it('production config: elements_storage has storageDelta with elements only', () => {
+    const config = BUILDING_CONFIGS['elements_storage'];
+    expect(config.storageDelta).toBeDefined();
+    expect(config.storageDelta!.elements).toBe(200);
+    expect(config.storageDelta!.raw).toBeUndefined();
+    expect(config.storageDelta!.energy).toBeUndefined();
   });
 });

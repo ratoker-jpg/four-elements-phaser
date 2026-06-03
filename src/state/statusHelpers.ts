@@ -47,6 +47,7 @@ import {
 import { BUILDING_CONFIG } from './construction';
 import { buildOccupancyMap, isPassable } from './occupancy';
 import { t } from '../config/localization';
+import { isVisualReadyBuilding } from '../config/buildingRuntimeMapping';
 
 // ─── Separator status ──────────────────────────────────────────────
 
@@ -314,18 +315,27 @@ function getRingCandidates(
 /** Reason a build button is disabled. */
 export type BuildBlockReason =
   | 'no-idle-builder'
-  | 'insufficient-matter';
+  | 'insufficient-matter'
+  | 'not-buildable';
 
 /**
  * Derive the reason a build button is disabled.
  *
  * Returns null if the button should be enabled (has idle builder AND
- * sufficient matter for the building type).
+ * sufficient matter for the building type AND building is gameplay-ready).
+ *
+ * Visual-ready buildings always return 'not-buildable' regardless of
+ * resources, preventing accidental construction of non-functional buildings.
  */
 export function getBuildBlockReason(
   state: GameState,
   buildingType: BuildingType,
 ): BuildBlockReason | null {
+  // Visual-ready buildings are never buildable in live gameplay
+  if (isVisualReadyBuilding(buildingType)) {
+    return 'not-buildable';
+  }
+
   // Check for idle builder
   const hasIdleBuilder = state.mapData.builders.some(
     b => b.phase === 'idle' && !b.busy,
@@ -584,6 +594,7 @@ export function buildBlockLabel(reason: BuildBlockReason): string {
   switch (reason) {
     case 'no-idle-builder': return t('status_noBuilder');
     case 'insufficient-matter': return t('status_insufficientMatter');
+    case 'not-buildable': return t('status_notBuildable');
   }
 }
 

@@ -14,7 +14,7 @@ import {
   HQ_ELEMENT_CAP,
   RAW_STORAGE_RAW_BONUS,
   MATTER_STORAGE_MATTER_BONUS,
-  MATTER_STORAGE_ELEMENT_BONUS,
+  ELEMENT_STORAGE_ELEMENT_BONUS,
   HQ_BASE_POWER,
   POWER_PLANT_GENERATION,
   SEPARATOR_ACTIVE_POWER_CONSUMPTION,
@@ -402,8 +402,8 @@ describe('ARCH-01D: storage cap constants', () => {
     expect(MATTER_STORAGE_MATTER_BONUS).toBe(200);
   });
 
-  it('MATTER_STORAGE_ELEMENT_BONUS is 200', () => {
-    expect(MATTER_STORAGE_ELEMENT_BONUS).toBe(200);
+  it('ELEMENT_STORAGE_ELEMENT_BONUS is 200', () => {
+    expect(ELEMENT_STORAGE_ELEMENT_BONUS).toBe(200);
   });
 });
 
@@ -439,7 +439,7 @@ describe('ARCH-01D: initial economy caps', () => {
     expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP);
   });
 
-  it('matter-storage in initial mapData increases matterCap and elementCap', () => {
+  it('matter-storage in initial mapData increases matterCap only (not elementCap)', () => {
     const mapData: MapData = {
       width: 20,
       height: 20,
@@ -458,7 +458,29 @@ describe('ARCH-01D: initial economy caps', () => {
     const state = createInitialState(mapData);
     expect(state.economy.rawCap).toBe(HQ_RAW_CAP);
     expect(state.economy.matterCap).toBe(HQ_MATTER_CAP + MATTER_STORAGE_MATTER_BONUS);
-    expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP + MATTER_STORAGE_ELEMENT_BONUS);
+    expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP); // NOT increased by matter-storage
+  });
+
+  it('element-storage in initial mapData increases elementCap only', () => {
+    const mapData: MapData = {
+      width: 20,
+      height: 20,
+      terrain: Array.from({ length: 20 }, () => Array(20).fill('sand')),
+      hq: { tx: 4, ty: 4, faction: 'cyan' },
+      resources: [],
+      obstacles: [],
+      decor: [],
+      buildings: [
+        { tx: 20, ty: 20, type: 'element-storage' },
+      ],
+      builders: [{ id: 'builder-0', tx: 5, ty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, ftx: 5, fty: 5, targetTx: 5, targetTy: 5, assignedSiteId: -1 }],
+      constructionSites: [],
+    };
+
+    const state = createInitialState(mapData);
+    expect(state.economy.rawCap).toBe(HQ_RAW_CAP);
+    expect(state.economy.matterCap).toBe(HQ_MATTER_CAP);
+    expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP + ELEMENT_STORAGE_ELEMENT_BONUS);
   });
 
   it('multiple storage buildings stack their bonuses', () => {
@@ -482,7 +504,7 @@ describe('ARCH-01D: initial economy caps', () => {
     const state = createInitialState(mapData);
     expect(state.economy.rawCap).toBe(HQ_RAW_CAP + 2 * RAW_STORAGE_RAW_BONUS);
     expect(state.economy.matterCap).toBe(HQ_MATTER_CAP + MATTER_STORAGE_MATTER_BONUS);
-    expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP + MATTER_STORAGE_ELEMENT_BONUS);
+    expect(state.economy.elementCap).toBe(HQ_ELEMENT_CAP); // matter-storage no longer adds elementCap
   });
 });
 
