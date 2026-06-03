@@ -30,6 +30,7 @@ import {
   RESOURCE_CLASS_CONFIGS,
   getResourceClassConfig,
 } from './resourceClassData';
+import { ASSET_KEYS } from '../assets/assetManifest';
 
 // ─── Asset key resolution ───────────────────────────────────────────
 
@@ -156,12 +157,12 @@ export function getLegacyResourceTypeAssetKey(legacyType: ResourceType): string 
 
 /** Set of all valid industrial resource asset keys from ASSET_KEYS. */
 const INDUSTRIAL_ASSET_KEYS: ReadonlySet<string> = new Set([
-  'resource_industrial_very_poor_01',
-  'resource_industrial_poor_01',
-  'resource_industrial_medium_01',
-  'resource_industrial_rich_01',
-  'resource_industrial_very_rich_01',
-  'resource_industrial_infinite_center_2x2_01',
+  ASSET_KEYS.RESOURCE_INDUSTRIAL_VERY_POOR_01,
+  ASSET_KEYS.RESOURCE_INDUSTRIAL_POOR_01,
+  ASSET_KEYS.RESOURCE_INDUSTRIAL_MEDIUM_01,
+  ASSET_KEYS.RESOURCE_INDUSTRIAL_RICH_01,
+  ASSET_KEYS.RESOURCE_INDUSTRIAL_VERY_RICH_01,
+  ASSET_KEYS.RESOURCE_INDUSTRIAL_INFINITE_CENTER_2X2_01,
 ]);
 
 /**
