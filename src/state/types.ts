@@ -9,6 +9,7 @@
  */
 
 import type { BlockoutObstacleState } from './blockoutObstacleState';
+import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
 
 // ─── Terrain ────────────────────────────────────────────────────────
 
@@ -35,6 +36,14 @@ export interface ResourcePlacement {
   type: ResourceType;
   /** Footprint size (footprint x footprint tiles occupied). Default 1; infinite = 3. */
   footprint: number;
+  /**
+   * Optional accepted resource class ID from the 6-class production model.
+   * CORE-STEP-03A: Added for backward-compatible runtime support.
+   * When present, this overrides the legacy `type` for asset key, amount range,
+   * and display name resolution. When absent, legacy `type` is used.
+   * Map generation does NOT populate this yet (Step 03B will).
+   */
+  resourceClass?: AcceptedResourceClassId;
 }
 
 // ─── Obstacles ──────────────────────────────────────────────────────
@@ -258,6 +267,14 @@ export interface ResourceNodeState {
   remainingRaw: number;
   /** True when remainingRaw reaches 0. Infinite resources are never depleted. */
   depleted: boolean;
+  /**
+   * Optional accepted resource class ID from the 6-class production model.
+   * CORE-STEP-03A: Added for backward-compatible runtime support.
+   * When present, runtime helpers can resolve asset key and amount range
+   * from the production config. When absent, legacy resourceType is used.
+   * This field is NOT populated by current map generation (Step 03B will).
+   */
+  resourceClass?: AcceptedResourceClassId;
 }
 
 // ─── Separator Processing (ARCH-01C) ───────────────────────────────
