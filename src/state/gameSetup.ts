@@ -39,6 +39,12 @@ export const MAP_STYLE_OPTIONS: MapStyle[] = ['sand', 'industrial'];
 
 /** Display labels for map styles. */
 export const MAP_STYLE_LABELS: Record<MapStyle, string> = {
+  sand: 'Песок / Классика',
+  industrial: 'Промышленная платформа',
+};
+
+/** English labels for map styles (dev reference / fallback). */
+export const MAP_STYLE_LABELS_EN: Record<MapStyle, string> = {
   sand: 'Sand / Classic',
   industrial: 'Industrial Platform',
 };
@@ -105,8 +111,19 @@ export const MAP_SIZE_OPTIONS: MapSizeOption[] = ['small', 'standard', 'large'];
 /** All game modes in display order. MENU-01. */
 export const GAME_MODE_LIST: GameMode[] = ['standard', 'debug', 'arena'];
 
-/** Display labels for game modes. MENU-01. */
+/**
+ * Display labels for game modes. MENU-01.
+ * CORE-STEP-01A: Now uses Russian display names.
+ * English labels remain as GAME_MODE_LABELS_EN for dev reference.
+ */
 export const GAME_MODE_LABELS: Record<GameMode, string> = {
+  standard: 'Стандартный',
+  debug: 'Отладка',
+  arena: 'Арена',
+};
+
+/** English labels for game modes (dev reference / fallback). */
+export const GAME_MODE_LABELS_EN: Record<GameMode, string> = {
   standard: 'Standard',
   debug: 'Debug',
   arena: 'Arena',

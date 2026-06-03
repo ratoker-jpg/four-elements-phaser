@@ -1,5 +1,9 @@
 /**
- * NewGameSetupScene — faction, map mode, size, and seed selection.
+ * NewGameSetupScene — game mode, map size, faction, and debug map/seed selection.
+ *
+ * Accepted Standard flow: mode → map size → faction → start.
+ * Debug mode shows extra sections (map, mapStyle, seed) after faction.
+ * Arena mode hides map/size/seed and uses a fixed arena map.
  *
  * ARCH-14B: Allows the player to choose their faction and (when more
  * maps exist) select a map before starting the game.
@@ -14,6 +18,9 @@
  * dark slate background. Pointer cursor on all interactive elements.
  * Focus-visible outlines for keyboard accessibility. Clear selected,
  * hover, focus, and active states on all option selectors.
+ *
+ * CORE-STEP-01A: All player-facing strings use localization (../config/localization).
+ * Internal ids remain English (cyan, green, standard, debug, etc.).
  */
 
 import Phaser from 'phaser';
@@ -23,10 +30,8 @@ import {
   MAP_LIST,
   MAP_SIZE_OPTIONS,
   MAP_STYLE_OPTIONS,
-  MAP_STYLE_LABELS,
   DEFAULT_SETUP,
   GAME_MODE_LIST,
-  GAME_MODE_LABELS,
   buildGameLaunchUrl,
   saveSetupToSession,
   resolveResourceStyleForMapStyle,
@@ -36,6 +41,17 @@ import type { Faction } from '../state/types';
 import type { MapSizeOption } from '../state/generatedMap';
 import { createRandomSeed, generatedMapId, mapSizeToDimensions } from '../state/generatedMap';
 import { loadGeneratedModularUnitAssets, isModularUnitsLoaded } from '../assets/runtimeGeneratedAssets';
+import {
+  t,
+  FACTION_DISPLAY,
+  FACTION_COLOR_SUBTITLE,
+  FACTION_BONUS,
+  MAP_SIZE_DISPLAY,
+  GAME_MODE_DISPLAY,
+  GAME_MODE_DESCRIPTION,
+  MAP_STYLE_DISPLAY,
+  buildMapSummary,
+} from '../config/localization';
 
 /** UI-02: Shared CSS custom properties matching UI-01 industrial menu theme. */
 const MENU_THEME = {
@@ -136,7 +152,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     `;
 
     const title = document.createElement('div');
-    title.textContent = 'New Game';
+    title.textContent = t('setup_title');
     title.style.cssText = `
       font-size: 36px;
       font-weight: 700;
@@ -157,7 +173,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     titleArea.appendChild(titleLine);
 
     const subtitle = document.createElement('div');
-    subtitle.textContent = 'Configure your game';
+    subtitle.textContent = t('setup_subtitle');
     subtitle.style.cssText = `
       font-size: 11px;
       color: ${MENU_THEME.subtitleColor};
@@ -174,12 +190,139 @@ export class NewGameSetupScene extends Phaser.Scene {
       display: flex;
       flex-direction: column;
       gap: 18px;
-      width: 420px;
+      width: 460px;
     `;
 
+    // ── Game Mode selection (MENU-01) ────────────────────────────
+    const gameModeSection = document.createElement('div');
+    const gameModeLabel = this.createSectionLabel(t('setup_gameMode'));
+    gameModeSection.appendChild(gameModeLabel);
+
+    const gameModeGrid = document.createElement('div');
+    gameModeGrid.style.cssText = `
+      display: flex;
+      gap: 6px;
+    `;
+
+    // Colors per mode matching UI-01 industrial theme
+    const gameModeColors: Record<GameMode, string> = {
+      standard: MENU_THEME.secondaryAccent,
+      debug: '#ffa726',
+      arena: '#ef5350',
+    };
+
+    for (const mode of GAME_MODE_LIST) {
+      const btn = document.createElement('button');
+      btn.textContent = GAME_MODE_DISPLAY[mode];
+      btn.dataset.gameMode = mode;
+      const color = gameModeColors[mode];
+      btn.style.cssText = this.optionButtonStyle(color, mode === this.selectedGameMode);
+
+      btn.addEventListener('mouseenter', () => {
+        if (mode !== this.selectedGameMode) {
+          btn.style.borderColor = `${color}44`;
+          btn.style.background = `${color}0d`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.cssText = this.optionButtonStyle(color, mode === this.selectedGameMode);
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
+      btn.addEventListener('click', () => {
+        this.selectedGameMode = mode;
+
+        // CORE-STEP-01A: Standard mode forces generated/industrial
+        if (mode === 'standard') {
+          this.selectedMapMode = 'generated';
+          this.selectedMapStyle = 'industrial';
+        }
+
+        const buttons = gameModeGrid.querySelectorAll('button');
+        buttons.forEach(b => {
+          const m = (b as HTMLButtonElement).dataset.gameMode as GameMode;
+          b.style.cssText = this.optionButtonStyle(gameModeColors[m], m === this.selectedGameMode);
+        });
+        this.updateConditionalSections();
+        this.updateMapSummary();
+      });
+
+      gameModeGrid.appendChild(btn);
+    }
+    gameModeSection.appendChild(gameModeGrid);
+    setupBox.appendChild(gameModeSection);
+
+    // ── Game mode note (MENU-01) ─────────────────────────────────
+    this.gameModeNote = document.createElement('div');
+    this.gameModeNote.style.cssText = `
+      font-size: 11px;
+      color: ${MENU_THEME.subtitleColor};
+      min-height: 14px;
+      font-style: italic;
+      margin-top: -10px;
+    `;
+    setupBox.appendChild(this.gameModeNote);
+
+    // ── Size selection (only for generated maps) ──────────────────
+    // CORE-STEP-01A fixup: Size comes before Faction in the accepted flow
+    // (mode → map size → faction → start).
+    this.sizeSection = document.createElement('div');
+    const sizeLabel = this.createSectionLabel(t('setup_mapSize'));
+    this.sizeSection.appendChild(sizeLabel);
+
+    this.sizeContainer = document.createElement('div');
+    this.sizeContainer.style.cssText = `
+      display: flex;
+      gap: 6px;
+    `;
+
+    for (const size of MAP_SIZE_OPTIONS) {
+      const btn = document.createElement('button');
+      btn.textContent = MAP_SIZE_DISPLAY[size];
+      btn.dataset.mapSize = size;
+      btn.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, size === this.selectedMapSize, '13px');
+
+      btn.addEventListener('mouseenter', () => {
+        if (size !== this.selectedMapSize) {
+          btn.style.borderColor = `${MENU_THEME.primaryAccent}44`;
+          btn.style.background = `${MENU_THEME.primaryAccent}0d`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, size === this.selectedMapSize, '13px');
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
+      btn.addEventListener('click', () => {
+        this.selectedMapSize = size;
+        const buttons = this.sizeContainer!.querySelectorAll('button');
+        buttons.forEach(b => {
+          const s = (b as HTMLButtonElement).dataset.mapSize as MapSizeOption;
+          b.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, s === this.selectedMapSize, '13px');
+        });
+        this.updateMapSummary();
+      });
+
+      this.sizeContainer.appendChild(btn);
+    }
+    this.sizeSection.appendChild(this.sizeContainer);
+    setupBox.appendChild(this.sizeSection);
+
     // ── Faction selection ────────────────────────────────────────
+    // CORE-STEP-01A fixup: Faction comes after Size in the accepted flow
+    // (mode → map size → faction → start).
     const factionSection = document.createElement('div');
-    const factionLabel = this.createSectionLabel('Faction');
+    const factionLabel = this.createSectionLabel(t('setup_faction'));
     factionSection.appendChild(factionLabel);
 
     const factionGrid = document.createElement('div');
@@ -190,8 +333,19 @@ export class NewGameSetupScene extends Phaser.Scene {
 
     for (const faction of FACTION_LIST) {
       const btn = document.createElement('button');
-      btn.textContent = faction.charAt(0).toUpperCase() + faction.slice(1);
       btn.dataset.faction = faction;
+
+      // CORE-STEP-01A: Show Russian name + color subtitle + bonus
+      const displayName = FACTION_DISPLAY[faction];
+      const colorSubtitle = FACTION_COLOR_SUBTITLE[faction];
+      const bonus = FACTION_BONUS[faction];
+
+      btn.innerHTML = `
+        <div style="font-weight:700;font-size:14px;line-height:1.2;">${displayName}</div>
+        <div style="font-size:10px;opacity:0.6;margin-top:2px;">${colorSubtitle}</div>
+        <div style="font-size:10px;opacity:0.5;margin-top:1px;">${bonus}</div>
+      `;
+
       btn.style.cssText = this.factionButtonStyle(faction, faction === this.selectedFaction);
 
       btn.addEventListener('mouseenter', () => {
@@ -224,77 +378,9 @@ export class NewGameSetupScene extends Phaser.Scene {
     factionSection.appendChild(factionGrid);
     setupBox.appendChild(factionSection);
 
-    // ── Game Mode selection (MENU-01) ────────────────────────────
-    const gameModeSection = document.createElement('div');
-    const gameModeLabel = this.createSectionLabel('Game Mode');
-    gameModeSection.appendChild(gameModeLabel);
-
-    const gameModeGrid = document.createElement('div');
-    gameModeGrid.style.cssText = `
-      display: flex;
-      gap: 6px;
-    `;
-
-    // Colors per mode matching UI-01 industrial theme
-    const gameModeColors: Record<GameMode, string> = {
-      standard: MENU_THEME.secondaryAccent,
-      debug: '#ffa726',
-      arena: '#ef5350',
-    };
-
-    for (const mode of GAME_MODE_LIST) {
-      const btn = document.createElement('button');
-      btn.textContent = GAME_MODE_LABELS[mode];
-      btn.dataset.gameMode = mode;
-      const color = gameModeColors[mode];
-      btn.style.cssText = this.optionButtonStyle(color, mode === this.selectedGameMode);
-
-      btn.addEventListener('mouseenter', () => {
-        if (mode !== this.selectedGameMode) {
-          btn.style.borderColor = `${color}44`;
-          btn.style.background = `${color}0d`;
-        }
-      });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.cssText = this.optionButtonStyle(color, mode === this.selectedGameMode);
-      });
-      btn.addEventListener('focus', () => {
-        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
-        btn.style.outlineOffset = '2px';
-      });
-      btn.addEventListener('blur', () => {
-        btn.style.outline = 'none';
-      });
-      btn.addEventListener('click', () => {
-        this.selectedGameMode = mode;
-        const buttons = gameModeGrid.querySelectorAll('button');
-        buttons.forEach(b => {
-          const m = (b as HTMLButtonElement).dataset.gameMode as GameMode;
-          b.style.cssText = this.optionButtonStyle(gameModeColors[m], m === this.selectedGameMode);
-        });
-        this.updateConditionalSections();
-        this.updateMapSummary();
-      });
-
-      gameModeGrid.appendChild(btn);
-    }
-    gameModeSection.appendChild(gameModeGrid);
-    setupBox.appendChild(gameModeSection);
-
-    // ── Game mode note (MENU-01) ─────────────────────────────────
-    this.gameModeNote = document.createElement('div');
-    this.gameModeNote.style.cssText = `
-      font-size: 11px;
-      color: ${MENU_THEME.subtitleColor};
-      min-height: 14px;
-      font-style: italic;
-      margin-top: -10px;
-    `;
-    setupBox.appendChild(this.gameModeNote);
-
-    // ── Map mode selection ────────────────────────────────────────
+    // ── Map mode selection (Debug only) ──────────────────────────
     this.mapSection = document.createElement('div');
-    const mapLabel = this.createSectionLabel('Map');
+    const mapLabel = this.createSectionLabel(t('setup_map'));
     this.mapSection.appendChild(mapLabel);
 
     const mapGrid = document.createElement('div');
@@ -347,9 +433,9 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.mapSection.appendChild(mapGrid);
     setupBox.appendChild(this.mapSection);
 
-    // ── Map Style selection (VISUAL-05A-PR2) ──────────────────────
+    // ── Map Style selection (Debug only, VISUAL-05A-PR2) ─────────
     this.mapStyleSection = document.createElement('div');
-    const mapStyleLabel = this.createSectionLabel('Map Style');
+    const mapStyleLabel = this.createSectionLabel(t('setup_mapStyle'));
     this.mapStyleSection.appendChild(mapStyleLabel);
 
     const mapStyleGrid = document.createElement('div');
@@ -365,7 +451,7 @@ export class NewGameSetupScene extends Phaser.Scene {
 
     for (const style of MAP_STYLE_OPTIONS) {
       const btn = document.createElement('button');
-      btn.textContent = MAP_STYLE_LABELS[style];
+      btn.textContent = MAP_STYLE_DISPLAY[style];
       btn.dataset.mapStyle = style;
       const color = mapStyleColors[style];
       btn.style.cssText = this.optionButtonStyle(color, style === this.selectedMapStyle);
@@ -401,57 +487,9 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.mapStyleSection.appendChild(mapStyleGrid);
     setupBox.appendChild(this.mapStyleSection);
 
-    // ── Size selection (only for generated maps) ──────────────────
-    this.sizeSection = document.createElement('div');
-    const sizeLabel = this.createSectionLabel('Map Size');
-    this.sizeSection.appendChild(sizeLabel);
-
-    this.sizeContainer = document.createElement('div');
-    this.sizeContainer.style.cssText = `
-      display: flex;
-      gap: 6px;
-    `;
-
-    for (const size of MAP_SIZE_OPTIONS) {
-      const btn = document.createElement('button');
-      btn.textContent = size.charAt(0).toUpperCase() + size.slice(1);
-      btn.dataset.mapSize = size;
-      btn.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, size === this.selectedMapSize, '13px');
-
-      btn.addEventListener('mouseenter', () => {
-        if (size !== this.selectedMapSize) {
-          btn.style.borderColor = `${MENU_THEME.primaryAccent}44`;
-          btn.style.background = `${MENU_THEME.primaryAccent}0d`;
-        }
-      });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, size === this.selectedMapSize, '13px');
-      });
-      btn.addEventListener('focus', () => {
-        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
-        btn.style.outlineOffset = '2px';
-      });
-      btn.addEventListener('blur', () => {
-        btn.style.outline = 'none';
-      });
-      btn.addEventListener('click', () => {
-        this.selectedMapSize = size;
-        const buttons = this.sizeContainer!.querySelectorAll('button');
-        buttons.forEach(b => {
-          const s = (b as HTMLButtonElement).dataset.mapSize as MapSizeOption;
-          b.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, s === this.selectedMapSize, '13px');
-        });
-        this.updateMapSummary();
-      });
-
-      this.sizeContainer.appendChild(btn);
-    }
-    this.sizeSection.appendChild(this.sizeContainer);
-    setupBox.appendChild(this.sizeSection);
-
     // ── Seed input (only for generated maps) ─────────────────────
     this.seedSection = document.createElement('div');
-    const seedLabel = this.createSectionLabel('Seed');
+    const seedLabel = this.createSectionLabel(t('setup_seed'));
     this.seedSection.appendChild(seedLabel);
 
     this.seedContainer = document.createElement('div');
@@ -463,7 +501,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.seedInput = document.createElement('input');
     this.seedInput.type = 'text';
     this.seedInput.value = DEFAULT_SETUP.seed;
-    this.seedInput.placeholder = 'Enter seed...';
+    this.seedInput.placeholder = t('setup_seedPlaceholder');
     this.seedInput.style.cssText = `
       flex: 1;
       padding: 9px 12px;
@@ -489,7 +527,7 @@ export class NewGameSetupScene extends Phaser.Scene {
 
     // Random seed button — secondary accent style
     const randomSeedBtn = document.createElement('button');
-    randomSeedBtn.textContent = 'Random';
+    randomSeedBtn.textContent = t('setup_random');
     const randomSeedAccent = MENU_THEME.secondaryAccent;
     const randomSeedBaseBg = `${randomSeedAccent}0d`;
     const randomSeedBaseBorder = `${randomSeedAccent}33`;
@@ -558,13 +596,13 @@ export class NewGameSetupScene extends Phaser.Scene {
     `;
 
     // Back button — secondary (teal) style
-    const backBtn = this.createMenuButton('Back', 'secondary', () => {
+    const backBtn = this.createMenuButton(t('setup_back'), 'secondary', () => {
       this.scene.start('MainMenuScene');
     });
     buttonRow.appendChild(backBtn);
 
     // Start Game button — primary (warm bronze/gold) style
-    const startBtn = this.createMenuButton('Start', 'primary', () => {
+    const startBtn = this.createMenuButton(t('setup_start'), 'primary', () => {
       this.startGameWithMode();
     });
     buttonRow.appendChild(startBtn);
@@ -696,12 +734,15 @@ export class NewGameSetupScene extends Phaser.Scene {
     `;
   }
 
-  /** Faction button style — uses per-faction colors. */
+  /**
+   * Faction button style — uses per-faction colors.
+   * CORE-STEP-01A: Updated for 3-line card layout (name + subtitle + bonus).
+   */
   private factionButtonStyle(faction: Faction, selected: boolean): string {
     const color = FACTION_CSS_COLORS[faction];
     return `
       flex: 1;
-      padding: 9px 10px;
+      padding: 10px 8px;
       background: ${selected ? `${color}1a` : MENU_THEME.unselectedBg};
       border: 1px solid ${selected ? `${color}55` : MENU_THEME.unselectedBorder};
       border-radius: 4px;
@@ -713,66 +754,69 @@ export class NewGameSetupScene extends Phaser.Scene {
       text-align: center;
       transition: background 0.15s, border-color 0.15s;
       outline: none;
+      line-height: 1.3;
     `;
   }
 
-  /** Show/hide size, seed, and map sections based on map mode and game mode. MENU-01. */
+  /**
+   * Show/hide map, mapStyle, size, and seed sections based on game mode.
+   * MENU-01 + CORE-STEP-01A:
+   *   - Standard: hide map, mapStyle, seed (always generated/industrial)
+   *   - Debug: show all sections
+   *   - Arena: hide map, mapStyle, size, seed
+   */
   private updateConditionalSections(): void {
-    const isGenerated = this.selectedMapMode === 'generated';
+    const isStandard = this.selectedGameMode === 'standard';
     const isArena = this.selectedGameMode === 'arena';
 
-    // Hide map, size, and seed sections when Arena mode is selected
-    if (this.mapSection) {
-      this.mapSection.style.display = isArena ? 'none' : '';
-    }
-    if (this.sizeSection) {
-      this.sizeSection.style.display = (isGenerated && !isArena) ? '' : 'none';
-    }
-    if (this.seedSection) {
-      this.seedSection.style.display = (isGenerated && !isArena) ? '' : 'none';
-    }
+    // Standard: hide map/mapStyle/seed (always generated/industrial)
+    if (this.mapSection) this.mapSection.style.display = isStandard || isArena ? 'none' : '';
+    if (this.mapStyleSection) this.mapStyleSection.style.display = isStandard || isArena ? 'none' : '';
+    if (this.sizeSection) this.sizeSection.style.display = isArena ? 'none' : '';
+    if (this.seedSection) this.seedSection.style.display = isStandard || isArena ? 'none' : '';
 
     // Update game mode note
     this.updateGameModeNote();
   }
 
-  /** Update the text-only map summary. */
+  /** Update the text-only map summary. CORE-STEP-01A: uses buildMapSummary helper. */
   private updateMapSummary(): void {
     if (!this.mapSummary) return;
 
-    // Arena mode overrides map display
+    const seed = this.seedInput?.value.trim() || DEFAULT_SETUP.seed;
+
     if (this.selectedGameMode === 'arena') {
-      this.mapSummary.textContent = '20x20 tiles — combat sandbox';
+      this.mapSummary.textContent = buildMapSummary('arena', 'fixed', this.selectedMapStyle, 20, 20, seed);
       return;
     }
 
     if (this.selectedMapMode === 'generated') {
       const dims = mapSizeToDimensions(this.selectedMapSize);
-      const seed = this.seedInput?.value.trim() || DEFAULT_SETUP.seed;
-      const styleLabel = this.selectedMapStyle === 'industrial' ? 'Industrial' : 'Sand';
-      this.mapSummary.textContent = `${dims.width}x${dims.height} tiles \u00B7 ${styleLabel} \u00B7 seed: ${seed}`;
+      this.mapSummary.textContent = buildMapSummary(
+        this.selectedGameMode,
+        'generated',
+        this.selectedMapStyle,
+        dims.width,
+        dims.height,
+        seed,
+      );
     } else {
-      const styleLabel = this.selectedMapStyle === 'industrial' ? 'Industrial' : 'Sand';
-      this.mapSummary.textContent = `48x48 tiles \u00B7 ${styleLabel} \u00B7 predefined map`;
+      this.mapSummary.textContent = buildMapSummary(
+        this.selectedGameMode,
+        'fixed',
+        this.selectedMapStyle,
+        48,
+        48,
+        seed,
+      );
     }
   }
 
-  /** Update game mode note text. MENU-01. */
+  /** Update game mode note text. MENU-01 + CORE-STEP-01A: uses GAME_MODE_DESCRIPTION. */
   private updateGameModeNote(): void {
     if (!this.gameModeNote) return;
 
-    switch (this.selectedGameMode) {
-      case 'debug':
-        this.gameModeNote.textContent = 'Developer tools and combat test assets enabled.';
-        break;
-      case 'arena':
-        this.gameModeNote.textContent = 'Combat Sandbox \u2014 small test arena with combat units.';
-        break;
-      case 'standard':
-      default:
-        this.gameModeNote.textContent = '';
-        break;
-    }
+    this.gameModeNote.textContent = GAME_MODE_DESCRIPTION[this.selectedGameMode] ?? '';
   }
 
   /**
@@ -865,6 +909,7 @@ export class NewGameSetupScene extends Phaser.Scene {
   /**
    * Show a minimal loading overlay while late-loading modularUnits.
    * MENU-02: Simple DOM overlay styled with UI-02 industrial theme.
+   * CORE-STEP-01A: Uses localized strings.
    */
   private showLateLoadingOverlay(): void {
     this.hideLateLoadingOverlay();
@@ -887,7 +932,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     content.style.cssText = 'text-align: center;';
 
     const text = document.createElement('div');
-    text.textContent = 'Loading combat assets...';
+    text.textContent = t('loading_combatAssets');
     text.style.cssText = `
       font-size: 16px;
       font-weight: 600;
@@ -897,7 +942,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     content.appendChild(text);
 
     const hint = document.createElement('div');
-    hint.textContent = 'Preparing debug/arena mode';
+    hint.textContent = t('loading_debugArena');
     hint.style.cssText = `
       font-size: 12px;
       color: ${MENU_THEME.subtitleColor};
