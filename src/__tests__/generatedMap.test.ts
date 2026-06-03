@@ -421,7 +421,8 @@ describe('ARCH-08B/09A: generatedMap helpers', () => {
       const map = createGeneratedMapData('infinite-test', 'standard');
       const infinite = map.resources.find(r => r.type === 'infinite');
       expect(infinite).toBeDefined();
-      expect(infinite!.footprint).toBe(3);
+      // CORE-STEP-03B: infinite footprint is 2 (2x2 deposit) matching accepted config
+      expect(infinite!.footprint).toBe(2);
     });
 
     it('has no buildings (MVP)', () => {

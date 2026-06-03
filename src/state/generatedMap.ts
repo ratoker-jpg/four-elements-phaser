@@ -18,6 +18,12 @@
  * near HQ, distance-based resource tiers (small/medium near, large farther),
  * more clusters for larger maps, resources never overlap.
  *
+ * CORE-STEP-03B: Anchor-based resource placement — deterministic
+ * anchor positions using the accepted 6-class resource model.
+ * Starter zone: very_poor/poor/medium. Side: medium/rich.
+ * Contested: rich/very_rich. Center: infinite 2x2 deposit.
+ * Each generated resource includes both resourceClass and legacy type.
+ *
  * ARCH-08B/09A: Generated map validation/fallback — retry with
  * deterministic seed offset up to MAX_VALIDATION_ATTEMPTS if
  * generated map fails validation.
@@ -30,7 +36,7 @@
  * Design decisions:
  * - PRNG: simple mulberry32 — fast, deterministic, well-distributed
  * - Terrain: patch-based using PRNG cluster centers, not per-cell noise
- * - Resources: fixed starter cluster + PRNG scattered clusters + center infinite
+ * - Resources: anchor-based placement using 6-class model (CORE-STEP-03B)
  * - Obstacles: deferred (empty) — no visual assets yet, invisible blocking is worse than none
  * - Decor: deferred (empty) — non-blocking but invisible without rendering support
  * - Validation: uses mapValidation helpers for starter reachability
@@ -38,6 +44,8 @@
 
 import type { MapData, TerrainType, ResourceType, Faction } from './types';
 import type { MapStyle } from './gameSetup';
+import { resolveResourceAnchors } from '../config/resourceAnchors';
+import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -168,9 +176,11 @@ function hqOffsetTy(mapHeight: number): number {
  * - Patch-based terrain with sand-dominant base and soft sand-light/sand-dark patches
  * - HQ at (4, mapHeight-7) with a 3×3 footprint (lower-left start zone)
  * - One idle builder NE of HQ at (hq.tx+1, hq.ty-1)
- * - Starter resource cluster near HQ (reliable small + medium resources)
- * - Central infinite resource deposit
- * - Distance-based resource clusters (more medium/large farther from HQ)
+ * - Anchor-based resource placement using 6-class model (CORE-STEP-03B)
+ * - Starter zone: very_poor/poor/medium near HQ
+ * - Side zone: medium/rich at intermediate distance
+ * - Contested zone: rich/very_rich farther from HQ
+ * - Center: infinite 2x2 deposit
  * - Obstacles and decor are deferred (empty arrays) — no visual assets yet
  * - No buildings (MVP)
  */
@@ -220,7 +230,7 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
     }
   }
 
-  // ── Resources ──
+  // ── Resources: anchor-based placement using 6-class model (CORE-STEP-03B) ──
   const resources = generateResources(rng, W, H, hq, occupied);
 
   // ── Obstacles ──
@@ -406,19 +416,27 @@ function generateIndustrialTerrain(W: number, H: number): TerrainType[][] {
   return terrain;
 }
 
-// ─── Resource generation ────────────────────────────────────────────
+// ─── Resource generation (CORE-STEP-03B: anchor-based) ──────────────
 
 /**
- * Generate resource placements for a map.
+ * Generate resource placements for a map using anchor-based placement.
+ *
+ * CORE-STEP-03B: Replaces random scatter with deterministic anchor-based
+ * resource layout using the accepted 6-class resource model.
+ *
+ * Each generated resource includes:
+ * - tx, ty: position
+ * - type: legacy ResourceType (for harvester/render compatibility)
+ * - footprint: tile footprint size
+ * - resourceClass: AcceptedResourceClassId (source of truth for new model)
  *
  * Strategy:
- * 1. Starter cluster: guaranteed small + medium resources near HQ (SE direction)
- * 2. Near-HQ ring: medium resources at moderate distance from HQ
- * 3. Central infinite deposit at map center
- * 4. Mid/far clusters: larger resources appear more often at distance
- * 5. Cluster count scales with map size
+ * 1. Compute anchor positions from map dimensions and HQ position
+ * 2. Apply controlled variation around anchors using PRNG
+ * 3. Resolve each anchor to a concrete placement with resourceClass + legacyType
  *
  * Resources never overlap each other or the HQ area.
+ * Same seed + size always produces identical placements.
  */
 function generateResources(
   rng: () => number,
@@ -427,121 +445,17 @@ function generateResources(
   hq: { tx: number; ty: number },
   occupied: Set<string>,
 ): MapData['resources'] {
-  const resources: MapData['resources'] = [];
+  // Resolve all anchors to concrete placements
+  const resolvedPlacements = resolveResourceAnchors(W, H, hq, rng, occupied);
 
-  /** Try to place a resource at (tx, ty) with given footprint. Returns true if placed. */
-  function tryPlace(tx: number, ty: number, type: ResourceType, footprint: number): boolean {
-    // Bounds check
-    if (tx < 0 || ty < 0 || tx + footprint > W || ty + footprint > H) return false;
-
-    // Overlap check against occupied set
-    for (let dy = 0; dy < footprint; dy++) {
-      for (let dx = 0; dx < footprint; dx++) {
-        if (occupied.has(`${tx + dx},${ty + dy}`)) return false;
-      }
-    }
-
-    // Place and mark occupied
-    resources.push({ tx, ty, type, footprint });
-    for (let dy = 0; dy < footprint; dy++) {
-      for (let dx = 0; dx < footprint; dx++) {
-        occupied.add(`${tx + dx},${ty + dy}`);
-      }
-    }
-    return true;
-  }
-
-  // 1. Starter cluster: guaranteed medium resources NE of HQ for reliable early harvesting
-  // VISUAL-05A-PR4: Resources placed toward map center (north/east) from lower-left HQ,
-  // not toward the corner. Negative Y offsets go north (toward center).
-  const starterMediums = [
-    { tx: hq.tx + 5, ty: hq.ty - 4 },
-    { tx: hq.tx + 6, ty: hq.ty - 4 },
-    { tx: hq.tx + 5, ty: hq.ty - 5 },
-    { tx: hq.tx + 7, ty: hq.ty - 5 },
-    { tx: hq.tx + 6, ty: hq.ty - 6 },
-    { tx: hq.tx + 4, ty: hq.ty - 5 },
-  ];
-  for (const pos of starterMediums) {
-    tryPlace(pos.tx, pos.ty, 'medium', 1);
-  }
-
-  // Small starter resources nearby (NE of HQ, toward center)
-  const starterSmalls = [
-    { tx: hq.tx + 4, ty: hq.ty - 4 },
-    { tx: hq.tx + 7, ty: hq.ty - 4 },
-    { tx: hq.tx + 8, ty: hq.ty - 5 },
-    { tx: hq.tx + 7, ty: hq.ty - 6 },
-    { tx: hq.tx + 4, ty: hq.ty - 7 },
-    { tx: hq.tx + 5, ty: hq.ty - 7 },
-  ];
-  for (const pos of starterSmalls) {
-    tryPlace(pos.tx, pos.ty, 'small', 1);
-  }
-
-  // 2. Near-HQ ring: medium resources at moderate distance (tiles 10-18 from HQ center)
-  // VISUAL-05A-PR4: Bias toward north/east (center direction) from lower-left HQ.
-  const hqCenterX = hq.tx + 1;
-  const hqCenterY = hq.ty + 1;
-  const nearRingCount = 3 + Math.floor(rng() * 3); // 3-5
-  for (let i = 0; i < nearRingCount; i++) {
-    // Bias angle toward NE (center direction): use -PI/2 to PI range
-    // instead of full circle, with some randomness
-    const angle = -Math.PI / 2 + rng() * Math.PI * 1.5;
-    const dist = 10 + Math.floor(rng() * 8);
-    const rtx = Math.round(hqCenterX + Math.cos(angle) * dist);
-    const rty = Math.round(hqCenterY + Math.sin(angle) * dist);
-    tryPlace(rtx, rty, 'medium', 1);
-  }
-
-  // 3. Central infinite deposit
-  const centerTx = Math.floor(W / 2) - 1;
-  const centerTy = Math.floor(H / 2) - 1;
-  tryPlace(centerTx, centerTy, 'infinite', 3);
-
-  // 4. Mid/far resource clusters — distance-based tiers
-  // Number of clusters scales with map size
-  const clusterCount = Math.floor((W * H) / 350); // ~2 for small, ~6 for standard, ~11 for large
-  for (let c = 0; c < clusterCount; c++) {
-    // Pick a random position, avoiding the very edges
-    const clusterTx = 3 + Math.floor(rng() * (W - 8));
-    const clusterTy = 3 + Math.floor(rng() * (H - 8));
-
-    // Distance from HQ center
-    const distFromHQ = Math.sqrt(
-      (clusterTx - hqCenterX) ** 2 + (clusterTy - hqCenterY) ** 2
-    );
-
-    // Each cluster has 2-5 resources
-    const clusterSize = 2 + Math.floor(rng() * 4);
-    for (let i = 0; i < clusterSize; i++) {
-      const dx = Math.floor(rng() * 5) - 2;
-      const dy = Math.floor(rng() * 5) - 2;
-      const rtx = clusterTx + dx;
-      const rty = clusterTy + dy;
-
-      // Distance-based resource type distribution:
-      // Near HQ: mostly small/medium
-      // Mid-range: mix
-      // Far from HQ: more large
-      let type: ResourceType;
-      if (distFromHQ < 12) {
-        // Near: small/medium only
-        type = rng() < 0.5 ? 'small' : 'medium';
-      } else if (distFromHQ < 22) {
-        // Mid: mix of all types
-        const roll = rng();
-        type = roll < 0.3 ? 'small' : roll < 0.7 ? 'medium' : 'large';
-      } else {
-        // Far: more large/medium
-        const roll = rng();
-        type = roll < 0.15 ? 'small' : roll < 0.5 ? 'medium' : 'large';
-      }
-      tryPlace(rtx, rty, type, 1);
-    }
-  }
-
-  return resources;
+  // Convert resolved placements to ResourcePlacement format
+  return resolvedPlacements.map(placement => ({
+    tx: placement.tx,
+    ty: placement.ty,
+    type: placement.legacyType,
+    footprint: placement.footprint,
+    resourceClass: placement.resourceClass as AcceptedResourceClassId,
+  }));
 }
 
 // ─── Obstacle/Decor generation (DEFERRED) ──────────────────────────
@@ -713,8 +627,8 @@ function validateGeneratedMap(mapData: MapData): GeneratedMapValidation {
     issues.push('Resources overlap each other');
   }
 
-  // Check 4: Central infinite deposit
-  const hasInfinite = mapData.resources.some(r => r.type === 'infinite');
+  // Check 4: Central infinite deposit (CORE-STEP-03B: also check resourceClass)
+  const hasInfinite = mapData.resources.some(r => r.type === 'infinite' || r.resourceClass === 'infinite');
   if (hasInfinite) {
     score += 10;
   } else {
@@ -742,8 +656,10 @@ export interface GeneratedMapQualitySummary {
   height: number;
   /** Total resource count. */
   resourceCount: number;
-  /** Resource count by type. */
+  /** Resource count by legacy type. */
   resourcesByType: Record<ResourceType, number>;
+  /** Resource count by resourceClass (CORE-STEP-03B). */
+  resourcesByClass: Partial<Record<AcceptedResourceClassId, number>>;
   /** Resources near HQ (within 10 tiles of HQ center). */
   starterResourceCount: number;
   /** Whether central infinite deposit exists. */
@@ -774,8 +690,12 @@ export function summarizeGeneratedMapQuality(mapData: MapData): GeneratedMapQual
     large: 0,
     infinite: 0,
   };
+  const resourcesByClass: Partial<Record<AcceptedResourceClassId, number>> = {};
   for (const r of mapData.resources) {
     resourcesByType[r.type]++;
+    if (r.resourceClass) {
+      resourcesByClass[r.resourceClass] = (resourcesByClass[r.resourceClass] ?? 0) + 1;
+    }
   }
 
   const starterResourceCount = mapData.resources.filter(r => {
@@ -783,7 +703,7 @@ export function summarizeGeneratedMapQuality(mapData: MapData): GeneratedMapQual
     return dist <= 10;
   }).length;
 
-  const hasInfiniteDeposit = mapData.resources.some(r => r.type === 'infinite');
+  const hasInfiniteDeposit = mapData.resources.some(r => r.type === 'infinite' || r.resourceClass === 'infinite');
 
   const validation = validateGeneratedMap(mapData);
 
@@ -792,6 +712,7 @@ export function summarizeGeneratedMapQuality(mapData: MapData): GeneratedMapQual
     height: mapData.height,
     resourceCount: mapData.resources.length,
     resourcesByType,
+    resourcesByClass,
     starterResourceCount,
     hasInfiniteDeposit,
     obstacleCount: mapData.obstacles.length,
