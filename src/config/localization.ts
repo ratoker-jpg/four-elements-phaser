@@ -5,6 +5,7 @@
  * CORE-STEP-01B: Adds Pause, HUD, Status, Arena, Composer, Devtools sections.
  * CORE-STEP-01C: Adds FACTION_ROLE, tooltip strings, and getFactionTooltipText helper.
  * CORE-STEP-02A: Adds WEAPON_STRINGS, BODY_STRINGS, and BODY_ROLE_STRINGS for production config displayNames.
+ * CORE-STEP-02B: Adds FACTION_STRINGS, RESOURCE_CLASS_STRINGS, BUILDING_STRINGS, and BUILDING_ROLE_STRINGS
  * Russian is the primary language. English keys are internal ids and
  * never displayed to players. English fallback values exist for dev
  * reference only.
@@ -436,6 +437,92 @@ const BODY_ROLE_STRINGS = {
   role_mammoth: 'Сверхтяжёлая крепость',
 } as const;
 
+// ─── Faction config display names (CORE-STEP-02B) ──────────────────
+
+/** Russian display names for 4 accepted factions. Keys match factionData.ts displayNameKey. */
+const FACTION_STRINGS = {
+  faction_cyan: 'Поток',
+  faction_green: 'Росток',
+  faction_yellow: 'Искра',
+  faction_purple: 'Око',
+} as const;
+
+/** Russian color subtitles for 4 factions. Keys match factionData.ts colorSubtitleKey. */
+const FACTION_COLOR_STRINGS = {
+  faction_color_cyan: 'Циановая фракция',
+  faction_color_green: 'Зелёная фракция',
+  faction_color_yellow: 'Жёлтая фракция',
+  faction_color_purple: 'Фиолетовая фракция',
+} as const;
+
+/** Russian bonus descriptions for 4 factions. Keys match factionData.ts bonusDescriptionKey. */
+const FACTION_BONUS_STRINGS = {
+  faction_bonus_cyan: 'Бонус: мобильность и быстрый темп',
+  faction_bonus_green: 'Бонус: строительство и экономика',
+  faction_bonus_yellow: 'Бонус: боевое производство',
+  faction_bonus_purple: 'Бонус: обзор и контроль территории',
+} as const;
+
+/** Russian role descriptions for 4 factions. Keys match factionData.ts roleKey. */
+const FACTION_ROLE_STRINGS = {
+  faction_role_cyan: 'Роль: быстрый старт, темп, мобильные действия',
+  faction_role_green: 'Роль: развитие базы и стабильная экономика',
+  faction_role_yellow: 'Роль: быстрее выводит боевые силы',
+  faction_role_purple: 'Роль: информация, контроль карты, безопасное расширение',
+} as const;
+
+// ─── Resource class display names (CORE-STEP-02B) ──────────────────
+
+/** Russian display names for 6 accepted resource classes. Keys match resourceClassData.ts displayNameKey. */
+const RESOURCE_CLASS_STRINGS = {
+  resource_very_poor: 'Очень бедная залежь',
+  resource_poor: 'Бедная залежь',
+  resource_medium: 'Средняя залежь',
+  resource_rich: 'Богатая залежь',
+  resource_very_rich: 'Очень богатая залежь',
+  resource_infinite: 'Бесконечная залежь',
+} as const;
+
+/** Russian descriptions for 6 resource classes. Keys match resourceClassData.ts descriptionKey. */
+const RESOURCE_CLASS_DESC_STRINGS = {
+  resource_very_poor_desc: 'Минимальная залежь в стартовой зоне. Быстро иссякает.',
+  resource_poor_desc: 'Небольшая залежь в стартовой зоне. Для начального сбора.',
+  resource_medium_desc: 'Стандартная залежь в промежуточной зоне. Стабильный доход.',
+  resource_rich_desc: 'Богатая залежь в спорной зоне. Стоит борьбы.',
+  resource_very_rich_desc: 'Очень богатая залежь в спорной зоне. Ценный стратегический ресурс.',
+  resource_infinite_desc: 'Бесконечная залежь в центре карты. Никогда не иссякает.',
+} as const;
+
+// ─── Building display names (CORE-STEP-02B) ─────────────────────────
+
+/** Russian display names for accepted buildings. Keys match buildingData.ts displayNameKey. */
+const BUILDING_STRINGS = {
+  building_hq: 'Главное здание',
+  building_separator: 'Сепаратор',
+  building_raw_storage: 'Хранилище сырья',
+  building_energy_storage: 'Хранилище энергии',
+  building_elements_storage: 'Хранилище элементов',
+  building_units_factory: 'Фабрика юнитов',
+  building_power_plant: 'Электростанция',
+  building_energy_reactor: 'Энергореактор',
+  building_repair_center: 'Ремонтный центр',
+  building_defense_tower: 'Оборонная башня',
+} as const;
+
+/** Russian role/descriptions for buildings. Keys match buildingData.ts roleKey. */
+const BUILDING_ROLE_STRINGS = {
+  building_role_hq: 'Стартовая база, точка приёма ресурсов, базовое питание и хранилище',
+  building_role_separator: 'Перерабатывает сырьё в энергию и элементы фракции',
+  building_role_raw_storage: 'Увеличивает лимит хранения сырья',
+  building_role_energy_storage: 'Увеличивает лимит хранения энергии',
+  building_role_elements_storage: 'Увеличивает лимит хранения элементов фракции',
+  building_role_units_factory: 'Производит строителей и сборщиков',
+  building_role_power_plant: 'Вырабатывает питание для зданий',
+  building_role_energy_reactor: 'Улучшает энергетическую инфраструктуру (ещё не реализовано)',
+  building_role_repair_center: 'Стационарный ремонт за энергию (ещё не реализовано)',
+  building_role_defense_tower: 'Оборона базы (ещё не реализовано)',
+} as const;
+
 // ─── Combined string map ─────────────────────────────────────────────
 
 /**
@@ -457,6 +544,14 @@ export const LOCALIZED_STRINGS = {
   ...WEAPON_STRINGS,
   ...BODY_STRINGS,
   ...BODY_ROLE_STRINGS,
+  ...FACTION_STRINGS,
+  ...FACTION_COLOR_STRINGS,
+  ...FACTION_BONUS_STRINGS,
+  ...FACTION_ROLE_STRINGS,
+  ...RESOURCE_CLASS_STRINGS,
+  ...RESOURCE_CLASS_DESC_STRINGS,
+  ...BUILDING_STRINGS,
+  ...BUILDING_ROLE_STRINGS,
 } as const;
 
 // ─── Lookup function ─────────────────────────────────────────────────
