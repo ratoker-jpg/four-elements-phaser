@@ -307,6 +307,8 @@ function buildResourceNodeStates(mapData: MapData): ResourceNodeState[] {
       footprint: r.footprint,
       remainingRaw: RESOURCE_RAW_AMOUNTS[r.type],
       depleted: false,
+      // CORE-STEP-03B: Propagate resourceClass from map data if present
+      ...(r.resourceClass ? { resourceClass: r.resourceClass } : {}),
     });
   }
   return nodes;
