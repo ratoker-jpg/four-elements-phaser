@@ -216,6 +216,53 @@ export function isResourceInfinite(resourceClass: AcceptedResourceClassId | unde
   return legacyType === 'infinite';
 }
 
+// ─── HUD short label resolution (CORE-STEP-03C fixup) ────────────────
+
+/**
+ * Explicit short labels for HUD compact display.
+ *
+ * These avoid the ambiguity of split(' ')[0] where both
+ * "Очень бедная залежь" and "Очень богатая залежь" would
+ * collapse to "Очень". Instead, each class gets a unique,
+ * meaningful abbreviated Russian adjective.
+ *
+ * Labels are pure static data — no localization key needed
+ * because these are abbreviated forms, not full dictionary entries.
+ */
+const RESOURCE_CLASS_SHORT_LABELS: Record<AcceptedResourceClassId, string> = {
+  very_poor:  'Оч. бедная',
+  poor:       'Бедная',
+  medium:     'Средняя',
+  rich:       'Богатая',
+  very_rich:  'Оч. богатая',
+  infinite:   'Бесконечная',
+};
+
+/**
+ * Get the short HUD label for a resource class.
+ *
+ * Returns a unique compact Russian label suitable for HUD display,
+ * e.g. "Оч. бедная" instead of "Очень" (ambiguous from split).
+ *
+ * Falls back to the raw class ID string if the class is not recognized,
+ * and to the legacy type string if resourceClass is missing.
+ *
+ * @param resourceClass Optional resource class ID from the 6-class model
+ * @param legacyType Legacy ResourceType for fallback
+ * @returns Compact non-ambiguous display string
+ */
+export function getResourceClassShortLabel(
+  resourceClass: AcceptedResourceClassId | undefined,
+  legacyType: string,
+): string {
+  if (resourceClass) {
+    const label = RESOURCE_CLASS_SHORT_LABELS[resourceClass];
+    if (label) return label;
+  }
+  // Fallback for legacy resources without resourceClass
+  return legacyType;
+}
+
 // ─── Asset key validation ───────────────────────────────────────────
 
 /** Set of all valid industrial resource asset keys from ASSET_KEYS. */

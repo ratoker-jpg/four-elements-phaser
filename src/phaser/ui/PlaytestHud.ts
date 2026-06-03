@@ -24,7 +24,7 @@ import { ELEMENT_UNITS_PER_ELEMENT } from '../../state/types';
 import { BUILDING_CONFIG } from '../../state/construction';
 import { getMvpCommandHotkey } from '../../state/commandRegistry';
 import { t, FACTION_DISPLAY } from '../../config/localization';
-import { getResourceClassDisplayNameKey } from '../../config/resourceClassRuntime';
+import { getResourceClassShortLabel } from '../../config/resourceClassRuntime';
 import { TooltipManager } from './TooltipManager';
 import {
   getSeparatorStatus,
@@ -724,12 +724,10 @@ export class PlaytestHud {
       if (h.targetResourceId && (h.phase === 'gathering' || h.phase === 'moving-to-resource')) {
         const targetNode = state.resourceNodes.find(r => r.id === h.targetResourceId);
         if (targetNode) {
-          const cls = targetNode.resourceClass ?? targetNode.resourceType;
-          const nameKey = getResourceClassDisplayNameKey(cls);
-          const className = nameKey ? t(nameKey) : cls;
-          // Show only the adjective (first word) for compact display
-          const shortClassName = className.split(' ')[0];
-          depositClassStr = ` <span style="color:${HUD_THEME.dimColor}; font-size:9px;">${shortClassName}</span>`;
+          // CORE-STEP-03C fixup: use explicit short labels instead of split(' ')[0]
+          // which was ambiguous (very_poor and very_rich both showed "Очень")
+          const shortLabel = getResourceClassShortLabel(targetNode.resourceClass, targetNode.resourceType);
+          depositClassStr = ` <span style="color:${HUD_THEME.dimColor}; font-size:9px;">${shortLabel}</span>`;
         }
       }
 
@@ -918,12 +916,12 @@ export class PlaytestHud {
     if (classCounts.size > 0) {
       const classParts: string[] = [];
       for (const [cls, count] of classCounts) {
-        // Try to get Russian display name from resourceClass config
-        const nameKey = getResourceClassDisplayNameKey(cls);
-        const displayName = nameKey ? t(nameKey) : cls;
-        // Shorten: take just the class adjective (first word) for compact display
-        const shortName = displayName.split(' ')[0];
-        classParts.push(`${shortName}:${count}`);
+        // CORE-STEP-03C fixup: use explicit short labels instead of split(' ')[0]
+        // which was ambiguous (very_poor and very_rich both showed "Очень")
+        const resourceClass = state.resourceNodes.find(r => (r.resourceClass ?? r.resourceType) === cls)?.resourceClass;
+        const legacyType = state.resourceNodes.find(r => (r.resourceClass ?? r.resourceType) === cls)?.resourceType ?? cls;
+        const shortLabel = getResourceClassShortLabel(resourceClass, legacyType);
+        classParts.push(`${shortLabel}:${count}`);
       }
       parts.push(
         `<div style="color:${HUD_THEME.dimColor};">${classParts.join(' ')}</div>`,

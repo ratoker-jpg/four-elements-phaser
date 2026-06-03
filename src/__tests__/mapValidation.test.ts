@@ -19,7 +19,7 @@ import {
 } from '../state/mapValidation';
 import { buildOccupancyMap } from '../state/occupancy';
 import { createInitialState } from '../state/createInitialState';
-import type { GameState, MapData, EconomyState } from '../state/types';
+import type { GameState, MapData, EconomyState, ResourceNodeState } from '../state/types';
 
 // ─── Test helpers ──────────────────────────────────────────────────
 
@@ -377,5 +377,155 @@ describe('ARCH-08/09/10: validateMap — integration with createInitialState', (
     const occupancy = buildOccupancyMap(state);
     const tiles = getHqAdjacentPassableTiles(state, occupancy);
     expect(tiles.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── CORE-STEP-03C fixup: generated resourceClass validation ──────────
+
+describe('CORE-STEP-03C: validateMap — generated resourceClass validation', () => {
+  /** Build a generated-map GameState (mapName starts with "Generated"). */
+  function makeGeneratedState(resourceNodes: Partial<ResourceNodeState>[]): GameState {
+    const w = 30, h = 30, hqTx = 4, hqTy = 4;
+    const mapData: MapData = {
+      width: w, height: h,
+      terrain: Array.from({ length: h }, () => Array(w).fill('sand')),
+      hq: { tx: hqTx, ty: hqTy, faction: 'cyan' },
+      resources: resourceNodes.map((r, i) => ({
+        tx: r.tx ?? 8 + i,
+        ty: r.ty ?? 8,
+        type: r.resourceType ?? 'small',
+        footprint: r.footprint ?? 1,
+        ...(r.resourceClass ? { resourceClass: r.resourceClass } : {}),
+      })),
+      obstacles: [],
+      decor: [],
+      buildings: [],
+      builders: [{
+        id: 'builder-0',
+        tx: hqTx - 1, ty: hqTy - 1,
+        busy: false, phase: 'idle', path: [], pathIndex: 0,
+        ftx: hqTx - 1, fty: hqTy - 1,
+        targetTx: hqTx - 1, targetTy: hqTy - 1, assignedSiteId: -1,
+      }],
+      constructionSites: [],
+    };
+
+    const nodes: ResourceNodeState[] = resourceNodes.map((r, i) => ({
+      id: r.id ?? `r-${i}`,
+      tx: r.tx ?? 8 + i,
+      ty: r.ty ?? 8,
+      resourceType: r.resourceType ?? 'small' as const,
+      footprint: r.footprint ?? 1,
+      remainingRaw: r.remainingRaw ?? 200,
+      depleted: r.depleted ?? false,
+      ...(r.resourceClass ? { resourceClass: r.resourceClass } : {}),
+    }));
+
+    return {
+      mapId: 'test-gen',
+      mapName: 'Generated 30x30', // Triggers isGeneratedRuntimeState
+      mapWidth: w,
+      mapHeight: h,
+      mapData,
+      entities: [],
+      playerFaction: 'cyan',
+      extraHarvesters: [],
+      extraModularCombat: [],
+      harvesters: [],
+      resourceNodes: nodes,
+      economy: { raw: 30, matter: 120, elements: { cyan: 0, green: 0, yellow: 0, purple: 0 }, powerGenerated: 10, powerConsumed: 0, separators: [], rawCap: 200, matterCap: 200, elementCap: 200 } as EconomyState,
+      hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
+      nextConstructionId: 0,
+      production: { factories: [] },
+    };
+  }
+
+  it('generated map with valid resourceClass on all resources passes the check', () => {
+    const state = makeGeneratedState([
+      { resourceClass: 'very_poor', resourceType: 'small' },
+      { resourceClass: 'medium', resourceType: 'medium' },
+      { resourceClass: 'infinite', resourceType: 'infinite', footprint: 2 },
+    ]);
+    const result = validateMap(state);
+    const classCheck = result.checks.find(c => c.id === 'generated-resource-class-valid');
+    expect(classCheck).toBeDefined();
+    expect(classCheck!.passed).toBe(true);
+  });
+
+  it('generated map fails when resourceClass is missing on a resource', () => {
+    const state = makeGeneratedState([
+      { resourceClass: 'very_poor', resourceType: 'small' },
+      { resourceType: 'medium' }, // missing resourceClass
+      { resourceClass: 'infinite', resourceType: 'infinite', footprint: 2 },
+    ]);
+    const result = validateMap(state);
+    const classCheck = result.checks.find(c => c.id === 'generated-resource-class-valid');
+    expect(classCheck).toBeDefined();
+    expect(classCheck!.passed).toBe(false);
+    expect(classCheck!.message).toContain('missing resourceClass');
+  });
+
+  it('generated map fails when resourceClass is invalid', () => {
+    const state = makeGeneratedState([
+      { resourceClass: 'very_poor', resourceType: 'small' },
+      { resourceClass: 'nonexistent' as any, resourceType: 'small' }, // invalid class
+      { resourceClass: 'infinite', resourceType: 'infinite', footprint: 2 },
+    ]);
+    const result = validateMap(state);
+    const classCheck = result.checks.find(c => c.id === 'generated-resource-class-valid');
+    expect(classCheck).toBeDefined();
+    expect(classCheck!.passed).toBe(false);
+    expect(classCheck!.message).toContain('invalid resourceClass');
+  });
+
+  it('non-generated (legacy/custom) map without resourceClass does NOT fail', () => {
+    // Same as generated but with a non-"Generated" mapName
+    const w = 30, h = 30, hqTx = 4, hqTy = 4;
+    const mapData: MapData = {
+      width: w, height: h,
+      terrain: Array.from({ length: h }, () => Array(w).fill('sand')),
+      hq: { tx: hqTx, ty: hqTy, faction: 'cyan' },
+      resources: [
+        { tx: 8, ty: 8, type: 'small', footprint: 1 },
+        { tx: 10, ty: 10, type: 'medium', footprint: 1 },
+      ],
+      obstacles: [],
+      decor: [],
+      buildings: [],
+      builders: [{
+        id: 'builder-0',
+        tx: hqTx - 1, ty: hqTy - 1,
+        busy: false, phase: 'idle', path: [], pathIndex: 0,
+        ftx: hqTx - 1, fty: hqTy - 1,
+        targetTx: hqTx - 1, targetTy: hqTy - 1, assignedSiteId: -1,
+      }],
+      constructionSites: [],
+    };
+
+    const state: GameState = {
+      mapId: 'test-custom',
+      mapName: 'Custom Map', // NOT "Generated..." — check should not run
+      mapWidth: w,
+      mapHeight: h,
+      mapData,
+      entities: [],
+      playerFaction: 'cyan',
+      extraHarvesters: [],
+      extraModularCombat: [],
+      harvesters: [],
+      resourceNodes: [
+        { id: 'r-0', tx: 8, ty: 8, resourceType: 'small', footprint: 1, remainingRaw: 20, depleted: false },
+        { id: 'r-1', tx: 10, ty: 10, resourceType: 'medium', footprint: 1, remainingRaw: 60, depleted: false },
+      ],
+      economy: { raw: 30, matter: 120, elements: { cyan: 0, green: 0, yellow: 0, purple: 0 }, powerGenerated: 10, powerConsumed: 0, separators: [], rawCap: 200, matterCap: 200, elementCap: 200 } as EconomyState,
+      hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
+      nextConstructionId: 0,
+      production: { factories: [] },
+    };
+
+    const result = validateMap(state);
+    // The generated-resource-class-valid check should NOT appear for non-generated maps
+    const classCheck = result.checks.find(c => c.id === 'generated-resource-class-valid');
+    expect(classCheck).toBeUndefined();
   });
 });

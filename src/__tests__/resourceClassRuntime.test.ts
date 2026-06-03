@@ -19,6 +19,7 @@ import {
   LEGACY_RESOURCE_TYPE_MAPPING,
   resolveResourceRawAmount,
   isResourceInfinite,
+  getResourceClassShortLabel,
 } from '../config/resourceClassRuntime';
 import {
   ACCEPTED_RESOURCE_CLASS_IDS,
@@ -667,6 +668,63 @@ describe('resource class display names via localization', () => {
       expect(shortName.length).toBeGreaterThan(0);
       // Short name should be a meaningful adjective
       expect(shortName).toMatch(/[а-яА-ЯёЁ]/);
+    }
+  });
+});
+
+// ─── CORE-STEP-03C fixup: getResourceClassShortLabel ──────────────────
+
+describe('getResourceClassShortLabel', () => {
+  it('returns explicit short labels for all 6 resource classes', () => {
+    expect(getResourceClassShortLabel('very_poor', 'small')).toBe('Оч. бедная');
+    expect(getResourceClassShortLabel('poor', 'small')).toBe('Бедная');
+    expect(getResourceClassShortLabel('medium', 'medium')).toBe('Средняя');
+    expect(getResourceClassShortLabel('rich', 'large')).toBe('Богатая');
+    expect(getResourceClassShortLabel('very_rich', 'large')).toBe('Оч. богатая');
+    expect(getResourceClassShortLabel('infinite', 'infinite')).toBe('Бесконечная');
+  });
+
+  it('all 6 short labels are unique (no ambiguity)', () => {
+    const labels = new Set<string>();
+    for (const classId of ACCEPTED_RESOURCE_CLASS_IDS) {
+      const label = getResourceClassShortLabel(classId, 'small');
+      labels.add(label);
+    }
+    expect(labels.size).toBe(6);
+  });
+
+  it('very_poor and very_rich do NOT collapse to the same label', () => {
+    // The original bug: split(' ')[0] on "Очень бедная залежь" and
+    // "Очень богатая залежь" both produce "Очень". Short labels must differ.
+    const veryPoorLabel = getResourceClassShortLabel('very_poor', 'small');
+    const veryRichLabel = getResourceClassShortLabel('very_rich', 'large');
+    expect(veryPoorLabel).not.toBe(veryRichLabel);
+    expect(veryPoorLabel).toBe('Оч. бедная');
+    expect(veryRichLabel).toBe('Оч. богатая');
+  });
+
+  it('all short labels contain Russian text (Cyrillic)', () => {
+    for (const classId of ACCEPTED_RESOURCE_CLASS_IDS) {
+      const label = getResourceClassShortLabel(classId, 'small');
+      expect(label).toMatch(/[а-яА-ЯёЁ]/);
+    }
+  });
+
+  it('falls back to legacy type when resourceClass is undefined', () => {
+    expect(getResourceClassShortLabel(undefined, 'small')).toBe('small');
+    expect(getResourceClassShortLabel(undefined, 'medium')).toBe('medium');
+    expect(getResourceClassShortLabel(undefined, 'large')).toBe('large');
+    expect(getResourceClassShortLabel(undefined, 'infinite')).toBe('infinite');
+  });
+
+  it('falls back to legacy type when resourceClass is invalid', () => {
+    expect(getResourceClassShortLabel('nonexistent' as AcceptedResourceClassId, 'small')).toBe('small');
+  });
+
+  it('no short label equals just "Очень" (the ambiguous word)', () => {
+    for (const classId of ACCEPTED_RESOURCE_CLASS_IDS) {
+      const label = getResourceClassShortLabel(classId, 'small');
+      expect(label).not.toBe('Очень');
     }
   });
 });
