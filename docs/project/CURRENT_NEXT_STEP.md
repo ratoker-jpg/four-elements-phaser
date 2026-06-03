@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: Core Mechanics Roadmap and System Audit accepted / implementation pending  
+Status: Core Mechanics implementation active — STEP 03C next  
 Project: Four Elements Phaser  
 Date: 2026-06-03
 
@@ -20,60 +20,39 @@ What should GPT/GLM/Codex do next by default?
 
 ```text
 Core Mechanics Roadmap: ACCEPTED.
-  docs/project/CORE_MECHANICS_ROADMAP_2026_06_03.md
-
 Core Mechanics System Audit: ACCEPTED.
-  docs/project/CORE_MECHANICS_SYSTEM_AUDIT_2026_06_03.md
 
-Next action: STEP 01H+ implementation after Denis/GPT approval.
-  Recommended first PR: 01a — Localization infrastructure + MainMenuScene + NewGameSetupScene.
+Completed:
+- STEP 01H+ — UI / Localization / Start Flow / Faction Display
+- STEP 02H+ — Config and Data Model Foundation
+- CORE-STEP-03A — Resource class runtime type and asset mapping
+- CORE-STEP-03B — Anchor-based generated resource placement
+
+Next action after Denis/GPT approval:
+- CORE-STEP-03C — Harvester 6-class gathering + UI display + map validation update
 
 Do not start implementation without explicit Denis/GPT task assignment.
 ```
 
 ---
 
-## Accepted direction
+## Completed implementation checkpoints
 
 ```text
-Polish and deepen the current playable core mechanics baseline:
-- Russian player-facing UX
-- Industrial Platform only normal game flow
-- Factions with identity
-- Resources and map anchors
-- Buildings / core economy loop
-- Unified RTS controls
-- Grid movement with physical feel
-- Occupancy / collision / depth sorting
-- Target-lock combat core
-- Weapon mechanics (10 weapons, no Shaft)
-- Body mechanics (7 bodies, armor, M0-M3)
-- Animation / physical feel layer
-```
+STEP 01H+ — COMPLETE
+  PR #193 — CORE-STEP-01A: Localization infrastructure and setup flow
+  PR #194 — CORE-STEP-01B: Russian UI labels and theme pass
+  PR #195 — CORE-STEP-01C: Tooltips and DevTools separation
 
----
+STEP 02H+ — COMPLETE
+  PR #196 — CORE-STEP-02A: Weapon and body config data models
+  PR #197 — CORE-STEP-02B: Faction resource and building config data models
+  PR #198 — CORE-STEP-02C: Scaling helpers armor formula and config integration tests
 
-## Completed planning cycle
-
-```text
-MECHANICS_INTAKE_2026_06_03.md — owner input captured
-MECHANICS_EXPLORATORY_AUDIT_2026_06_03.md — exploratory reference only, not accepted scope
-MECHANICS_DECISIONS_2026_06_03.md — accepted mechanics decisions
-CORE_MECHANICS_ROADMAP_2026_06_03.md — accepted 8-step roadmap
-CORE_MECHANICS_SYSTEM_AUDIT_2026_06_03.md — accepted implementation/system audit
-ASSET_USAGE_PERMISSION_STATUS_2026_06_03.md — TankViewer permission status / pipeline boundary
-```
-
----
-
-## Previously closed cycles
-
-```text
-VISUAL/UI roadmap slice: CLOSED.
-BLOCKOUT-MVP roadmap slice: CLOSED.
-CAMERA-00 projection contract: IMPLEMENTED / ACCEPTED.
-PROJECTION-01 ground-plane retrofit: IMPLEMENTED / ACCEPTED.
-Arena Sandbox roadmap/audit cycle: CLOSED after PR #184.
+STEP 03H+ — IN PROGRESS
+  PR #199 — CORE-STEP-03A: Resource class runtime type and asset mapping
+  PR #200 — CORE-STEP-03B: Anchor-based generated resource placement
+  Next: CORE-STEP-03C
 ```
 
 ---
@@ -82,28 +61,26 @@ Arena Sandbox roadmap/audit cycle: CLOSED after PR #184.
 
 ```text
 CORE MECHANICS IMPLEMENTATION CYCLE.
-Start STEP 01H+ only after Denis/GPT explicitly approves first implementation task.
+Current focus: finish STEP 03H+.
+Next implementation slice: CORE-STEP-03C only after Denis/GPT approval.
 ```
 
 Allowed immediate work:
 
 ```text
-- assign STEP 01H+ first implementation PR
-- review open PRs
+- review docs PR updating handoff/current-next-step
+- prepare or assign CORE-STEP-03C
+- review open implementation PRs
 - docs cleanup directly supporting Core Mechanics implementation
 ```
 
-Forbidden by default:
+Do not start by default:
 
 ```text
-- starting implementation without Denis/GPT task assignment
-- continuing Arena features by inertia
-- adding unaccepted mechanics from exploratory audit
-- starting bot/strategic AI/waves/enemy economy without separate roadmap/audit
-- visual/world-space work without CAMERA_PROJECTION_CONTRACT.md
-- drawing ground markers/range/selection/shadows as top-down screen circles
-- starting TankViewer asset pipeline without separate pipeline audit
-- committing raw TankViewer source assets without explicit separate task
+- STEP 04 before STEP 03C is complete
+- Arena features by inertia
+- bot/strategic AI/waves/enemy economy without separate roadmap/audit
+- TankViewer asset pipeline without separate pipeline audit
 ```
 
 ---
@@ -111,9 +88,9 @@ Forbidden by default:
 ## Roadmap steps
 
 ```text
-STEP 01H+ — UI / Localization / Start Flow / Faction Display
-STEP 02H+ — Config and Data Model Foundation
-STEP 03H+ — Industrial Map and Resource Layout
+STEP 01H+ — UI / Localization / Start Flow / Faction Display — COMPLETE
+STEP 02H+ — Config and Data Model Foundation — COMPLETE
+STEP 03H+ — Industrial Map and Resource Layout — IN PROGRESS
 STEP 04H+ — Buildings and Core Economy Loop
 STEP 05H+ — Unified RTS Controls and Command Routing
 STEP 06H+ — Movement / Occupancy / Depth Sorting
@@ -123,21 +100,21 @@ STEP 08H+ — Weapons / Bodies / M0-M3 / Animation Feel
 
 ---
 
-## Recommended first implementation PR
+## Recommended next implementation PR
 
 ```text
-STEP 01H+ / PR 01a — Localization infrastructure + MainMenuScene + NewGameSetupScene
+CORE-STEP-03C — Harvester 6-class gathering + UI display + map validation update
 ```
 
 Expected scope:
 
 ```text
-- create localization infrastructure
-- Russian labels for MainMenuScene
-- Russian labels for NewGameSetupScene
-- restructure NewGameSetupScene flow: mode -> map size -> faction -> start
-- hide Sand Classic / Map 1 / mapStyle from Standard mode UX
-- keep Debug/Arena access where explicitly allowed
+- move generated resource runtime amounts from legacy type to resourceClass where resourceClass exists
+- keep legacy fallback for old/saved resources without resourceClass
+- update map validation for missing/invalid generated resourceClass
+- update player-facing resource display where in scope to use Russian resource class names
+- keep anchor placement from PR #200 intact
+- keep legacy type populated for compatibility
 ```
 
 Implementation must follow:
@@ -147,6 +124,7 @@ Implementation must follow:
 - docs/project/CORE_MECHANICS_ROADMAP_2026_06_03.md
 - docs/project/CORE_MECHANICS_SYSTEM_AUDIT_2026_06_03.md
 - docs/project/CAMERA_PROJECTION_CONTRACT.md when visual/world-space rules are relevant
+- docs/project/NEW_CHAT_HANDOFF_CORE_STEP_03C_2026_06_03.md
 ```
 
 Validation for implementation PRs:
