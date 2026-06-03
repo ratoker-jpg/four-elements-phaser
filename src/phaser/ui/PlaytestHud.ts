@@ -24,6 +24,7 @@ import { ELEMENT_UNITS_PER_ELEMENT } from '../../state/types';
 import { BUILDING_CONFIG } from '../../state/construction';
 import { getMvpCommandHotkey } from '../../state/commandRegistry';
 import { t, FACTION_DISPLAY } from '../../config/localization';
+import { getResourceClassDisplayNameKey } from '../../config/resourceClassRuntime';
 import { TooltipManager } from './TooltipManager';
 import {
   getSeparatorStatus,
@@ -717,8 +718,23 @@ export class PlaytestHud {
       const blocked = isHarvesterBlocked(status);
       const color = blocked ? HUD_THEME.dangerColor : this.harvesterPhaseColor(status);
       const cargoStr = h.cargoRaw > 0 ? ` [${h.cargoRaw}/${h.cargoCapacity}]` : '';
+
+      // CORE-STEP-03C: Show target deposit class when gathering or moving to resource
+      let depositClassStr = '';
+      if (h.targetResourceId && (h.phase === 'gathering' || h.phase === 'moving-to-resource')) {
+        const targetNode = state.resourceNodes.find(r => r.id === h.targetResourceId);
+        if (targetNode) {
+          const cls = targetNode.resourceClass ?? targetNode.resourceType;
+          const nameKey = getResourceClassDisplayNameKey(cls);
+          const className = nameKey ? t(nameKey) : cls;
+          // Show only the adjective (first word) for compact display
+          const shortClassName = className.split(' ')[0];
+          depositClassStr = ` <span style="color:${HUD_THEME.dimColor}; font-size:9px;">${shortClassName}</span>`;
+        }
+      }
+
       parts.push(
-        `<div><span style="color:${color}; font-weight:600;">${t('hud_harvesterAbbr')}${i + 1}:</span> ${label}${cargoStr}</div>`,
+        `<div><span style="color:${color}; font-weight:600;">${t('hud_harvesterAbbr')}${i + 1}:</span> ${label}${cargoStr}${depositClassStr}</div>`,
       );
     }
     this.harvesterEl.innerHTML = parts.join('');
@@ -890,6 +906,29 @@ export class PlaytestHud {
     parts.push(
       `<div>${t('hud_reachable')}: <span style="color:${v.reachableResourceCount >= 2 ? HUD_THEME.successColor : HUD_THEME.dangerColor};">${v.reachableResourceCount}</span>/${v.totalResourceCount}</div>`,
     );
+
+    // CORE-STEP-03C: Resource class count by class (compact diagnostics)
+    // Count resources by resourceClass and show Russian names
+    const classCounts = new Map<string, number>();
+    for (const r of state.resourceNodes) {
+      if (r.depleted) continue;
+      const cls = r.resourceClass ?? r.resourceType;
+      classCounts.set(cls, (classCounts.get(cls) ?? 0) + 1);
+    }
+    if (classCounts.size > 0) {
+      const classParts: string[] = [];
+      for (const [cls, count] of classCounts) {
+        // Try to get Russian display name from resourceClass config
+        const nameKey = getResourceClassDisplayNameKey(cls);
+        const displayName = nameKey ? t(nameKey) : cls;
+        // Shorten: take just the class adjective (first word) for compact display
+        const shortName = displayName.split(' ')[0];
+        classParts.push(`${shortName}:${count}`);
+      }
+      parts.push(
+        `<div style="color:${HUD_THEME.dimColor};">${classParts.join(' ')}</div>`,
+      );
+    }
 
     // Show warnings for failed checks
     // Critical checks (red warning): hq-adjacent-passable, reachable-resources, harvester-not-trapped

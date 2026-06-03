@@ -5,17 +5,18 @@
  * 6-class resource model (resourceClassData.ts) to asset keys, amount ranges,
  * display names, and legacy ResourceType compatibility.
  *
+ * CORE-STEP-03C: Adds resolveResourceRawAmount — the single helper for
+ * initializing a ResourceNodeState's remainingRaw from either resourceClass
+ * (preferred, when present and valid) or legacy ResourceType (fallback).
+ *
  * This module is the single source of truth for:
  * - Resolving a resource class ID to its industrial asset key
  * - Resolving a resource class ID to its amount range
+ * - Resolving a resource placement's initial raw amount (03C)
  * - Checking whether a resource class is infinite
  * - Getting the localization key for a resource class display name
  * - Mapping from the legacy ResourceType (small/medium/large/infinite)
  *   to the accepted AcceptedResourceClassId (very_poor..infinite)
- *
- * The legacy mapping is compatibility only — it does NOT change runtime
- * generation output. Map generation still uses old ResourceType internally.
- * Step 03B will rewrite map generation to use the 6-class model directly.
  *
  * Design rules:
  * - All helpers are pure functions with no side effects
@@ -25,7 +26,8 @@
  */
 
 import type { AcceptedResourceClassId } from './coreMechanicsTypes';
-import type { ResourceType } from '../state/types';
+import type { ResourceType, ResourcePlacement } from '../state/types';
+import { RESOURCE_RAW_AMOUNTS } from '../state/types';
 import {
   RESOURCE_CLASS_CONFIGS,
   getResourceClassConfig,
@@ -151,6 +153,67 @@ export function legacyResourceTypeToResourceClass(legacyType: ResourceType): Acc
 export function getLegacyResourceTypeAssetKey(legacyType: ResourceType): string | undefined {
   const resourceClass = legacyResourceTypeToResourceClass(legacyType);
   return getResourceClassAssetKey(resourceClass);
+}
+
+// ─── Runtime raw amount resolution (CORE-STEP-03C) ───────────────────
+
+/**
+ * Resolve the initial raw amount for a resource placement.
+ *
+ * This is the single helper for initializing a ResourceNodeState's
+ * remainingRaw from either resourceClass (preferred, when present and
+ * valid) or legacy ResourceType (fallback for old/saved resources).
+ *
+ * Resolution strategy:
+ * 1. If resourceClass is present and resolves to a valid config:
+ *    - Infinite class → RESOURCE_RAW_AMOUNTS.infinite (999_999)
+ *    - Finite class → midpoint of [amountMin, amountMax], rounded
+ * 2. If resourceClass is missing or invalid:
+ *    - Fall back to RESOURCE_RAW_AMOUNTS[legacyType]
+ *
+ * Midpoint rounding is deterministic: same input always yields same output.
+ * No Math.random() or seed-dependent runtime randomness is used.
+ *
+ * @param placement The resource placement (has optional resourceClass + legacy type)
+ * @returns Deterministic initial raw amount
+ */
+export function resolveResourceRawAmount(placement: ResourcePlacement): number {
+  // Prefer resourceClass when present and valid
+  if (placement.resourceClass) {
+    const config = getResourceClassConfig(placement.resourceClass);
+    if (config) {
+      if (config.isInfinite) {
+        return RESOURCE_RAW_AMOUNTS.infinite;
+      }
+      // Deterministic midpoint rounded — no randomness
+      return Math.round((config.amountMin + config.amountMax) / 2);
+    }
+    // Invalid resourceClass — fall through to legacy
+  }
+
+  // Legacy fallback for old/saved resources without resourceClass
+  return RESOURCE_RAW_AMOUNTS[placement.type];
+}
+
+/**
+ * Check whether a resource node should be treated as infinite at runtime.
+ *
+ * Uses resourceClass when present and valid; falls back to legacy
+ * resourceType === 'infinite' for old/saved resources.
+ *
+ * @param resourceClass Optional resource class ID from the 6-class model
+ * @param legacyType Legacy ResourceType for fallback
+ * @returns true if the resource is infinite (never depletes)
+ */
+export function isResourceInfinite(resourceClass: AcceptedResourceClassId | undefined, legacyType: ResourceType): boolean {
+  if (resourceClass) {
+    const config = getResourceClassConfig(resourceClass);
+    if (config) {
+      return config.isInfinite;
+    }
+    // Invalid resourceClass — fall through to legacy
+  }
+  return legacyType === 'infinite';
 }
 
 // ─── Asset key validation ───────────────────────────────────────────

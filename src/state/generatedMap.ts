@@ -46,6 +46,7 @@ import type { MapData, TerrainType, ResourceType, Faction } from './types';
 import type { MapStyle } from './gameSetup';
 import { resolveResourceAnchors } from '../config/resourceAnchors';
 import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
+import { ACCEPTED_RESOURCE_CLASS_IDS } from '../config/coreMechanicsTypes';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -633,6 +634,37 @@ function validateGeneratedMap(mapData: MapData): GeneratedMapValidation {
     score += 10;
   } else {
     issues.push('No infinite resource deposit');
+  }
+
+  // Check 5: CORE-STEP-03C — Generated resourceClass validity
+  // Every generated resource must have a resourceClass that is a valid accepted ID.
+  // This validation is strict for generated maps; old/saved maps without
+  // resourceClass are handled separately in mapValidation.ts.
+  const acceptedSet = new Set<string>(ACCEPTED_RESOURCE_CLASS_IDS);
+  let missingClassCount = 0;
+  let invalidClassCount = 0;
+  let infiniteCount = 0;
+
+  for (const r of mapData.resources) {
+    if (!r.resourceClass) {
+      missingClassCount++;
+    } else if (!acceptedSet.has(r.resourceClass)) {
+      invalidClassCount++;
+    }
+    if (r.resourceClass === 'infinite') {
+      infiniteCount++;
+    }
+  }
+
+  if (missingClassCount > 0) {
+    issues.push(`${missingClassCount} generated resource(s) missing resourceClass`);
+  }
+  if (invalidClassCount > 0) {
+    issues.push(`${invalidClassCount} generated resource(s) have invalid resourceClass`);
+  }
+  // There should be exactly one infinite resourceClass deposit (the center 2x2)
+  if (infiniteCount !== 1) {
+    issues.push(`Expected exactly 1 infinite resourceClass deposit, found ${infiniteCount}`);
   }
 
   return {

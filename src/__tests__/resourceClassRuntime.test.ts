@@ -17,6 +17,8 @@ import {
   isValidIndustrialResourceAssetKey,
   validateResourceClassAssetKeys,
   LEGACY_RESOURCE_TYPE_MAPPING,
+  resolveResourceRawAmount,
+  isResourceInfinite,
 } from '../config/resourceClassRuntime';
 import {
   ACCEPTED_RESOURCE_CLASS_IDS,
@@ -466,6 +468,205 @@ describe('optional resourceClass field is backward compatible', () => {
         resourceClass: classId,
       };
       expect(placement.resourceClass).toBe(classId);
+    }
+  });
+});
+
+// ─── CORE-STEP-03C: resolveResourceRawAmount ──────────────────────────
+
+describe('resolveResourceRawAmount', () => {
+  it('uses resourceClass config midpoint for very_poor', () => {
+    const placement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'small', footprint: 1, resourceClass: 'very_poor',
+    };
+    // midpoint of 150-250 = 200
+    expect(resolveResourceRawAmount(placement)).toBe(200);
+  });
+
+  it('uses resourceClass config midpoint for poor', () => {
+    const placement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'small', footprint: 1, resourceClass: 'poor',
+    };
+    // midpoint of 300-500 = 400
+    expect(resolveResourceRawAmount(placement)).toBe(400);
+  });
+
+  it('uses resourceClass config midpoint for medium', () => {
+    const placement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'medium', footprint: 1, resourceClass: 'medium',
+    };
+    // midpoint of 800-1200 = 1000
+    expect(resolveResourceRawAmount(placement)).toBe(1000);
+  });
+
+  it('uses resourceClass config midpoint for rich', () => {
+    const placement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'large', footprint: 1, resourceClass: 'rich',
+    };
+    // midpoint of 1800-2500 = 2150
+    expect(resolveResourceRawAmount(placement)).toBe(2150);
+  });
+
+  it('uses resourceClass config midpoint for very_rich', () => {
+    const placement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'large', footprint: 1, resourceClass: 'very_rich',
+    };
+    // midpoint of 3500-5000 = 4250
+    expect(resolveResourceRawAmount(placement)).toBe(4250);
+  });
+
+  it('uses legacy infinite amount for infinite resourceClass', () => {
+    const placement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'infinite', footprint: 2, resourceClass: 'infinite',
+    };
+    expect(resolveResourceRawAmount(placement)).toBe(999_999);
+  });
+
+  it('falls back to RESOURCE_RAW_AMOUNTS when resourceClass is missing', () => {
+    const placement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'small', footprint: 1,
+    };
+    expect(resolveResourceRawAmount(placement)).toBe(20);
+  });
+
+  it('falls back to RESOURCE_RAW_AMOUNTS for legacy medium type without resourceClass', () => {
+    const placement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'medium', footprint: 1,
+    };
+    expect(resolveResourceRawAmount(placement)).toBe(60);
+  });
+
+  it('falls back to RESOURCE_RAW_AMOUNTS for legacy large type without resourceClass', () => {
+    const placement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'large', footprint: 1,
+    };
+    expect(resolveResourceRawAmount(placement)).toBe(120);
+  });
+
+  it('falls back to RESOURCE_RAW_AMOUNTS for legacy infinite type without resourceClass', () => {
+    const placement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'infinite', footprint: 2,
+    };
+    expect(resolveResourceRawAmount(placement)).toBe(999_999);
+  });
+
+  it('falls back to legacy when resourceClass is invalid string', () => {
+    const placement = {
+      tx: 0, ty: 0, type: 'small' as import('../state/types').ResourceType,
+      footprint: 1, resourceClass: 'nonexistent_class' as import('../config/coreMechanicsTypes').AcceptedResourceClassId,
+    };
+    // Invalid resourceClass falls back to RESOURCE_RAW_AMOUNTS['small'] = 20
+    expect(resolveResourceRawAmount(placement)).toBe(20);
+  });
+
+  it('very_poor amount (200) differs from legacy small amount (20)', () => {
+    const classPlacement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'small', footprint: 1, resourceClass: 'very_poor',
+    };
+    const legacyPlacement: import('../state/types').ResourcePlacement = {
+      tx: 0, ty: 0, type: 'small', footprint: 1,
+    };
+    expect(resolveResourceRawAmount(classPlacement)).not.toBe(resolveResourceRawAmount(legacyPlacement));
+  });
+
+  it('all 6 accepted resourceClass IDs produce deterministic amounts', () => {
+    for (const classId of ACCEPTED_RESOURCE_CLASS_IDS) {
+      const legacyType = classId === 'infinite' ? 'infinite' as const
+        : classId === 'very_poor' || classId === 'poor' ? 'small' as const
+        : classId === 'medium' ? 'medium' as const
+        : 'large' as const;
+      const placement: import('../state/types').ResourcePlacement = {
+        tx: 0, ty: 0, type: legacyType,
+        footprint: classId === 'infinite' ? 2 : 1,
+        resourceClass: classId,
+      };
+      // Calling twice with same input gives same result
+      const first = resolveResourceRawAmount(placement);
+      const second = resolveResourceRawAmount(placement);
+      expect(first).toBe(second);
+      // Amounts are positive
+      expect(first).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ─── CORE-STEP-03C: isResourceInfinite ────────────────────────────────
+
+describe('isResourceInfinite', () => {
+  it('returns true for infinite resourceClass', () => {
+    expect(isResourceInfinite('infinite', 'large')).toBe(true);
+  });
+
+  it('returns false for finite resourceClass even when legacy type is infinite', () => {
+    // Edge case: resourceClass takes priority if valid
+    expect(isResourceInfinite('rich', 'infinite')).toBe(false);
+  });
+
+  it('returns false for very_poor resourceClass', () => {
+    expect(isResourceInfinite('very_poor', 'small')).toBe(false);
+  });
+
+  it('returns false for poor resourceClass', () => {
+    expect(isResourceInfinite('poor', 'small')).toBe(false);
+  });
+
+  it('returns false for medium resourceClass', () => {
+    expect(isResourceInfinite('medium', 'medium')).toBe(false);
+  });
+
+  it('returns false for rich resourceClass', () => {
+    expect(isResourceInfinite('rich', 'large')).toBe(false);
+  });
+
+  it('returns false for very_rich resourceClass', () => {
+    expect(isResourceInfinite('very_rich', 'large')).toBe(false);
+  });
+
+  it('falls back to legacy type when resourceClass is undefined', () => {
+    expect(isResourceInfinite(undefined, 'infinite')).toBe(true);
+    expect(isResourceInfinite(undefined, 'small')).toBe(false);
+    expect(isResourceInfinite(undefined, 'medium')).toBe(false);
+    expect(isResourceInfinite(undefined, 'large')).toBe(false);
+  });
+
+  it('falls back to legacy type when resourceClass is invalid', () => {
+    expect(isResourceInfinite('invalid_class' as import('../config/coreMechanicsTypes').AcceptedResourceClassId, 'infinite')).toBe(true);
+    expect(isResourceInfinite('invalid_class' as import('../config/coreMechanicsTypes').AcceptedResourceClassId, 'small')).toBe(false);
+  });
+});
+
+// ─── CORE-STEP-03C: Resource class display names via localization ───
+
+describe('resource class display names via localization', () => {
+  it('getResourceClassDisplayNameKey returns keys that resolve to Russian strings', () => {
+    for (const classId of ACCEPTED_RESOURCE_CLASS_IDS) {
+      const key = getResourceClassDisplayNameKey(classId);
+      expect(key).toBeDefined();
+      const displayName = t(key!);
+      // Russian Cyrillic characters present
+      expect(displayName).toMatch(/[а-яА-ЯёЁ]/);
+      // All contain "залежь" (deposit)
+      expect(displayName).toContain('залежь');
+    }
+  });
+
+  it('specific Russian class names match accepted values', () => {
+    expect(t(getResourceClassDisplayNameKey('very_poor')!)).toBe('Очень бедная залежь');
+    expect(t(getResourceClassDisplayNameKey('poor')!)).toBe('Бедная залежь');
+    expect(t(getResourceClassDisplayNameKey('medium')!)).toBe('Средняя залежь');
+    expect(t(getResourceClassDisplayNameKey('rich')!)).toBe('Богатая залежь');
+    expect(t(getResourceClassDisplayNameKey('very_rich')!)).toBe('Очень богатая залежь');
+    expect(t(getResourceClassDisplayNameKey('infinite')!)).toBe('Бесконечная залежь');
+  });
+
+  it('first word extraction for HUD compact display', () => {
+    for (const classId of ACCEPTED_RESOURCE_CLASS_IDS) {
+      const key = getResourceClassDisplayNameKey(classId)!;
+      const displayName = t(key);
+      const shortName = displayName.split(' ')[0];
+      expect(shortName.length).toBeGreaterThan(0);
+      // Short name should be a meaningful adjective
+      expect(shortName).toMatch(/[а-яА-ЯёЁ]/);
     }
   });
 });

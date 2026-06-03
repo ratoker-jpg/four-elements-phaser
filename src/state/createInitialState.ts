@@ -10,7 +10,6 @@ import type {
   ProductionState,
 } from './types';
 import {
-  RESOURCE_RAW_AMOUNTS,
   START_RAW,
   START_MATTER,
   HQ_RAW_CAP,
@@ -22,6 +21,7 @@ import {
   HQ_BASE_POWER,
   POWER_PLANT_GENERATION,
 } from './types';
+import { resolveResourceRawAmount } from '../config/resourceClassRuntime';
 import { createHarvester } from './updateGameState';
 import { customMap1 } from '../data/maps/customMap1';
 
@@ -299,13 +299,19 @@ function buildResourceNodeStates(mapData: MapData): ResourceNodeState[] {
   const nodes: ResourceNodeState[] = [];
   let nextId = 0;
   for (const r of mapData.resources) {
+    // CORE-STEP-03C: Use resourceClass-aware amount resolution.
+    // When resourceClass is present and valid, amounts come from the
+    // 6-class config (midpoint of [amountMin, amountMax] for finite,
+    // legacy infinite amount for infinite). When missing/invalid,
+    // falls back to RESOURCE_RAW_AMOUNTS[legacyType].
+    const rawAmount = resolveResourceRawAmount(r);
     nodes.push({
       id: `resource-${nextId++}`,
       tx: r.tx,
       ty: r.ty,
       resourceType: r.type,
       footprint: r.footprint,
-      remainingRaw: RESOURCE_RAW_AMOUNTS[r.type],
+      remainingRaw: rawAmount,
       depleted: false,
       // CORE-STEP-03B: Propagate resourceClass from map data if present
       ...(r.resourceClass ? { resourceClass: r.resourceClass } : {}),
