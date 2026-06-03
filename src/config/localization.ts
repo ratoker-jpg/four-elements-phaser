@@ -4,6 +4,7 @@
  * CORE-STEP-01A: Provides a stable English-key → localized-string map.
  * CORE-STEP-01B: Adds Pause, HUD, Status, Arena, Composer, Devtools sections.
  * CORE-STEP-01C: Adds FACTION_ROLE, tooltip strings, and getFactionTooltipText helper.
+ * CORE-STEP-02A: Adds WEAPON_STRINGS, BODY_STRINGS, and BODY_ROLE_STRINGS for production config displayNames.
  * Russian is the primary language. English keys are internal ids and
  * never displayed to players. English fallback values exist for dev
  * reference only.
@@ -393,6 +394,48 @@ const MAP_SUMMARY_STRINGS = {
   mapSummary_predefined: 'предопределённая карта',
 } as const;
 
+// ─── Weapon display names (CORE-STEP-02A) ──────────────────────────
+
+/** Russian display names for 10 accepted weapons. Keys match weaponData.ts displayNameKey. */
+const WEAPON_STRINGS = {
+  weapon_smoky: 'Смоки',
+  weapon_thunder: 'Гром',
+  weapon_railgun: 'Рельса',
+  weapon_flamethrower: 'Огнемёт',
+  weapon_freeze: 'Фриз',
+  weapon_isida: 'Изида',
+  weapon_vulcan: 'Вулкан',
+  weapon_twins: 'Твинс',
+  weapon_ricochet: 'Рикошет',
+  weapon_hammer: 'Молот',
+} as const;
+
+// ─── Body display names (CORE-STEP-02A) ─────────────────────────────
+
+/** Russian display names for 7 accepted bodies. Keys match bodyData.ts displayNameKey. */
+const BODY_STRINGS = {
+  body_wasp: 'Васп',
+  body_hornet: 'Хорнет',
+  body_hunter: 'Хантер',
+  body_viking: 'Викинг',
+  body_dictator: 'Диктатор',
+  body_titan: 'Титан',
+  body_mammoth: 'Мамонт',
+} as const;
+
+// ─── Body role descriptions (CORE-STEP-02A) ─────────────────────────
+
+/** Russian role descriptions for 7 accepted bodies. Keys match bodyData.ts roleKey. */
+const BODY_ROLE_STRINGS = {
+  role_wasp: 'Быстрый разведчик / удар и отступление',
+  role_hornet: 'Лёгкий рейдер / мобильный боец',
+  role_hunter: 'Универсальный средний корпус',
+  role_viking: 'Среднетяжёлый боец',
+  role_dictator: 'Тяжёлая платформа поддержки',
+  role_titan: 'Тяжёлый авангард / стабильная платформа',
+  role_mammoth: 'Сверхтяжёлая крепость',
+} as const;
+
 // ─── Combined string map ─────────────────────────────────────────────
 
 /**
@@ -411,6 +454,9 @@ export const LOCALIZED_STRINGS = {
   ...LOADING_STRINGS,
   ...MAP_SUMMARY_STRINGS,
   ...TOOLTIP_STRINGS,
+  ...WEAPON_STRINGS,
+  ...BODY_STRINGS,
+  ...BODY_ROLE_STRINGS,
 } as const;
 
 // ─── Lookup function ─────────────────────────────────────────────────
