@@ -118,7 +118,6 @@ export class ArenaUnitComposer {
       if (!profile) continue;
       const btn = document.createElement('button');
       btn.textContent = profile.displayName;
-      btn.title = profile.roleLabel;
       btn.style.cssText = `
         padding: 2px 5px;
         background: ${COMPOSER_THEME.buttonBg};
