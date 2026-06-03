@@ -17,15 +17,39 @@ import { WEAPON_PROFILES, ALL_WEAPON_IDS } from '../../config/blockoutWeaponData
 import type { BodyId, WeaponId } from '../../config/blockoutProfiles';
 import type { ArenaTeam, AiMode } from '../../state/blockoutVehicleState';
 import type { ArenaPlacementState } from '../../state/arenaPlacement';
+import { t, AI_MODE_DISPLAY } from '../../config/localization';
+
+// ─── Theme ──────────────────────────────────────────────────────────
+
+const COMPOSER_THEME = {
+  sectionTitleColor: '#d4a574',     // bronze primary
+  buttonBg: 'rgba(255, 255, 255, 0.04)',
+  buttonBorder: 'rgba(212, 165, 116, 0.2)',
+  buttonColor: '#d4a574',            // bronze
+  selectedBg: 'rgba(128, 203, 196, 0.15)',   // teal selected
+  selectedBorder: 'rgba(128, 203, 196, 0.5)', // teal selected
+  allyColor: '#64c8ff',
+  allyBg: 'rgba(100, 200, 255, 0.12)',
+  allyBorder: 'rgba(100, 200, 255, 0.4)',
+  enemyColor: '#ff5050',
+  enemyBg: 'rgba(255, 80, 80, 0.08)',
+  enemyBorder: 'rgba(255, 80, 80, 0.2)',
+  enemySelectedBg: 'rgba(255, 80, 80, 0.15)',
+  enemySelectedBorder: 'rgba(255, 80, 80, 0.5)',
+  placeBtnColor: '#80cbc4',          // teal secondary accent
+  cancelBtnColor: '#d4a574',          // bronze
+  statusColor: '#64748b',
+  focusOutline: '#d4a574',
+} as const;
 
 // ─── Types ──────────────────────────────────────────────────────────
 
 /** AI mode options for enemy units. ARENA-05H+. */
 const AI_MODE_OPTIONS: { value: AiMode; label: string }[] = [
-  { value: 'passive', label: 'Passive' },
-  { value: 'stationary_shooter', label: 'Shooter' },
-  { value: 'chaser', label: 'Chaser' },
-  { value: 'hold_position', label: 'Hold Pos' },
+  { value: 'passive', label: AI_MODE_DISPLAY['passive'] },
+  { value: 'stationary_shooter', label: AI_MODE_DISPLAY['stationary_shooter'] },
+  { value: 'chaser', label: AI_MODE_DISPLAY['chaser'] },
+  { value: 'hold_position', label: AI_MODE_DISPLAY['hold_position'] },
 ];
 
 /** Callbacks provided by ArenaMenu for UnitComposer actions. */
@@ -76,8 +100,8 @@ export class ArenaUnitComposer {
 
     // ── Body selector ──────────────────────────────────────────
     const bodyTitle = document.createElement('div');
-    bodyTitle.textContent = 'Body';
-    bodyTitle.style.cssText = 'font-weight: 600; font-size: 10px; margin-bottom: 2px; color: #ffab40;';
+    bodyTitle.textContent = t('composer_body');
+    bodyTitle.style.cssText = `font-weight: 600; font-size: 10px; margin-bottom: 2px; color: ${COMPOSER_THEME.sectionTitleColor};`;
     root.appendChild(bodyTitle);
 
     const bodyGrid = document.createElement('div');
@@ -91,20 +115,20 @@ export class ArenaUnitComposer {
       btn.title = profile.roleLabel;
       btn.style.cssText = `
         padding: 2px 5px;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 160, 60, 0.2);
+        background: ${COMPOSER_THEME.buttonBg};
+        border: 1px solid ${COMPOSER_THEME.buttonBorder};
         border-radius: 2px;
-        color: #cc8833;
+        color: ${COMPOSER_THEME.buttonColor};
         font-size: 9px;
         font-family: inherit;
         cursor: pointer;
         transition: background 0.1s, border-color 0.1s;
       `;
       btn.addEventListener('mouseenter', () => {
-        if (this.selectedBody !== bodyId) btn.style.background = 'rgba(255, 160, 60, 0.08)';
+        if (this.selectedBody !== bodyId) btn.style.background = 'rgba(212, 165, 116, 0.08)';
       });
       btn.addEventListener('mouseleave', () => {
-        if (this.selectedBody !== bodyId) btn.style.background = 'rgba(255, 255, 255, 0.04)';
+        if (this.selectedBody !== bodyId) btn.style.background = COMPOSER_THEME.buttonBg;
       });
       btn.addEventListener('click', () => this.selectBody(bodyId));
       this.bodyButtons.set(bodyId, btn);
@@ -114,8 +138,8 @@ export class ArenaUnitComposer {
 
     // ── Weapon selector ────────────────────────────────────────
     const weaponTitle = document.createElement('div');
-    weaponTitle.textContent = 'Weapon';
-    weaponTitle.style.cssText = 'font-weight: 600; font-size: 10px; margin-bottom: 2px; color: #ffab40;';
+    weaponTitle.textContent = t('composer_weapon');
+    weaponTitle.style.cssText = `font-weight: 600; font-size: 10px; margin-bottom: 2px; color: ${COMPOSER_THEME.sectionTitleColor};`;
     root.appendChild(weaponTitle);
 
     const weaponGrid = document.createElement('div');
@@ -128,20 +152,20 @@ export class ArenaUnitComposer {
       btn.textContent = profile.displayName;
       btn.style.cssText = `
         padding: 2px 5px;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 160, 60, 0.2);
+        background: ${COMPOSER_THEME.buttonBg};
+        border: 1px solid ${COMPOSER_THEME.buttonBorder};
         border-radius: 2px;
-        color: #cc8833;
+        color: ${COMPOSER_THEME.buttonColor};
         font-size: 9px;
         font-family: inherit;
         cursor: pointer;
         transition: background 0.1s, border-color 0.1s;
       `;
       btn.addEventListener('mouseenter', () => {
-        if (this.selectedWeapon !== weaponId) btn.style.background = 'rgba(255, 160, 60, 0.08)';
+        if (this.selectedWeapon !== weaponId) btn.style.background = 'rgba(212, 165, 116, 0.08)';
       });
       btn.addEventListener('mouseleave', () => {
-        if (this.selectedWeapon !== weaponId) btn.style.background = 'rgba(255, 255, 255, 0.04)';
+        if (this.selectedWeapon !== weaponId) btn.style.background = COMPOSER_THEME.buttonBg;
       });
       btn.addEventListener('click', () => this.selectWeapon(weaponId));
       this.weaponButtons.set(weaponId, btn);
@@ -151,22 +175,22 @@ export class ArenaUnitComposer {
 
     // ── Team selector ──────────────────────────────────────────
     const teamTitle = document.createElement('div');
-    teamTitle.textContent = 'Team';
-    teamTitle.style.cssText = 'font-weight: 600; font-size: 10px; margin-bottom: 2px; color: #ffab40;';
+    teamTitle.textContent = t('composer_team');
+    teamTitle.style.cssText = `font-weight: 600; font-size: 10px; margin-bottom: 2px; color: ${COMPOSER_THEME.sectionTitleColor};`;
     root.appendChild(teamTitle);
 
     const teamRow = document.createElement('div');
     teamRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 6px;';
 
     const allyBtn = document.createElement('button');
-    allyBtn.textContent = 'Ally';
+    allyBtn.textContent = t('composer_ally');
     allyBtn.style.cssText = `
       flex: 1;
       padding: 3px 6px;
-      background: rgba(100, 200, 255, 0.12);
-      border: 1px solid rgba(100, 200, 255, 0.4);
+      background: ${COMPOSER_THEME.allyBg};
+      border: 1px solid ${COMPOSER_THEME.allyBorder};
       border-radius: 3px;
-      color: #64c8ff;
+      color: ${COMPOSER_THEME.allyColor};
       font-size: 10px;
       font-family: inherit;
       cursor: pointer;
@@ -177,14 +201,14 @@ export class ArenaUnitComposer {
     teamRow.appendChild(allyBtn);
 
     const enemyBtn = document.createElement('button');
-    enemyBtn.textContent = 'Enemy';
+    enemyBtn.textContent = t('composer_enemy');
     enemyBtn.style.cssText = `
       flex: 1;
       padding: 3px 6px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 80, 80, 0.2);
+      background: ${COMPOSER_THEME.enemyBg};
+      border: 1px solid ${COMPOSER_THEME.enemyBorder};
       border-radius: 3px;
-      color: #ff5050;
+      color: ${COMPOSER_THEME.enemyColor};
       font-size: 10px;
       font-family: inherit;
       cursor: pointer;
@@ -197,8 +221,8 @@ export class ArenaUnitComposer {
 
     // ── ARENA-05H+: AI mode selector (visible when Team = Enemy) ──
     const aiTitle = document.createElement('div');
-    aiTitle.textContent = 'AI Mode';
-    aiTitle.style.cssText = 'font-weight: 600; font-size: 10px; margin-bottom: 2px; color: #ffab40;';
+    aiTitle.textContent = t('composer_aiMode');
+    aiTitle.style.cssText = `font-weight: 600; font-size: 10px; margin-bottom: 2px; color: ${COMPOSER_THEME.sectionTitleColor};`;
     root.appendChild(aiTitle);
 
     const aiRow = document.createElement('div');
@@ -209,20 +233,20 @@ export class ArenaUnitComposer {
       btn.textContent = opt.label;
       btn.style.cssText = `
         padding: 2px 5px;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 80, 80, 0.2);
+        background: ${COMPOSER_THEME.enemyBg};
+        border: 1px solid ${COMPOSER_THEME.enemyBorder};
         border-radius: 2px;
-        color: #ff5050;
+        color: ${COMPOSER_THEME.enemyColor};
         font-size: 9px;
         font-family: inherit;
         cursor: pointer;
         transition: background 0.1s, border-color 0.1s;
       `;
       btn.addEventListener('mouseenter', () => {
-        if (this.selectedAiMode !== opt.value) btn.style.background = 'rgba(255, 80, 80, 0.08)';
+        if (this.selectedAiMode !== opt.value) btn.style.background = 'rgba(255, 80, 80, 0.12)';
       });
       btn.addEventListener('mouseleave', () => {
-        if (this.selectedAiMode !== opt.value) btn.style.background = 'rgba(255, 255, 255, 0.04)';
+        if (this.selectedAiMode !== opt.value) btn.style.background = COMPOSER_THEME.enemyBg;
       });
       btn.addEventListener('click', () => this.selectAiMode(opt.value));
       this.aiModeButtons.set(opt.value, btn);
@@ -239,14 +263,14 @@ export class ArenaUnitComposer {
     actionRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
 
     const placeBtn = document.createElement('button');
-    placeBtn.textContent = 'Place Unit';
+    placeBtn.textContent = t('composer_placeUnit');
     placeBtn.style.cssText = `
       flex: 1;
       padding: 4px 6px;
-      background: rgba(100, 200, 255, 0.08);
-      border: 1px solid rgba(100, 200, 255, 0.3);
+      background: rgba(128, 203, 196, 0.08);
+      border: 1px solid rgba(128, 203, 196, 0.3);
       border-radius: 3px;
-      color: #64c8ff;
+      color: ${COMPOSER_THEME.placeBtnColor};
       font-size: 10px;
       font-family: inherit;
       cursor: pointer;
@@ -262,14 +286,14 @@ export class ArenaUnitComposer {
     actionRow.appendChild(placeBtn);
 
     const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = 'Cancel';
+    cancelBtn.textContent = t('composer_cancel');
     cancelBtn.style.cssText = `
       flex: 1;
       padding: 4px 6px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 160, 60, 0.2);
+      background: ${COMPOSER_THEME.buttonBg};
+      border: 1px solid ${COMPOSER_THEME.buttonBorder};
       border-radius: 3px;
-      color: #cc8833;
+      color: ${COMPOSER_THEME.cancelBtnColor};
       font-size: 10px;
       font-family: inherit;
       cursor: pointer;
@@ -289,7 +313,7 @@ export class ArenaUnitComposer {
       min-height: 12px;
       font-size: 9px;
       text-align: center;
-      color: #a08060;
+      color: ${COMPOSER_THEME.statusColor};
     `;
     this.statusEl = statusEl;
     root.appendChild(statusEl);
@@ -317,9 +341,9 @@ export class ArenaUnitComposer {
       if (this.statusEl) {
         const bodyName = BODY_PROFILES[placementState.selectedBody ?? '']?.displayName ?? '?';
         const weaponName = WEAPON_PROFILES[placementState.selectedWeapon ?? '']?.displayName ?? '?';
-        const teamLabel = placementState.selectedTeam === 'ally' ? 'Ally' : 'Enemy';
-        this.statusEl.textContent = `Placing: ${bodyName} + ${weaponName} (${teamLabel}) — click ground | Esc/RMB cancel`;
-        this.statusEl.style.color = '#64c8ff';
+        const teamLabel = placementState.selectedTeam === 'ally' ? t('composer_ally') : t('composer_enemy');
+        this.statusEl.textContent = `${t('composer_placing')}: ${bodyName} + ${weaponName} (${teamLabel}) — ${t('composer_placingClickHint')}`;
+        this.statusEl.style.color = '#80cbc4';
       }
     } else {
       // Show place button, hide cancel button
@@ -332,7 +356,7 @@ export class ArenaUnitComposer {
       }
       if (this.statusEl) {
         this.statusEl.textContent = '';
-        this.statusEl.style.color = '#a08060';
+        this.statusEl.style.color = COMPOSER_THEME.statusColor;
       }
     }
   }
@@ -341,11 +365,11 @@ export class ArenaUnitComposer {
   showFeedback(message: string, success: boolean): void {
     if (!this.statusEl) return;
     this.statusEl.textContent = message;
-    this.statusEl.style.color = success ? '#81c784' : '#ef9a9a';
+    this.statusEl.style.color = success ? '#80cbc4' : '#ef9a9a';
     setTimeout(() => {
       if (this.statusEl && this.statusEl.textContent === message) {
         this.statusEl.textContent = '';
-        this.statusEl.style.color = '#a08060';
+        this.statusEl.style.color = COMPOSER_THEME.statusColor;
       }
     }, 2500);
   }
@@ -382,8 +406,8 @@ export class ArenaUnitComposer {
     if (this.selectedBody) {
       const prevBtn = this.bodyButtons.get(this.selectedBody);
       if (prevBtn) {
-        prevBtn.style.background = 'rgba(255, 255, 255, 0.04)';
-        prevBtn.style.borderColor = 'rgba(255, 160, 60, 0.2)';
+        prevBtn.style.background = COMPOSER_THEME.buttonBg;
+        prevBtn.style.borderColor = COMPOSER_THEME.buttonBorder;
         prevBtn.style.fontWeight = 'normal';
       }
     }
@@ -391,8 +415,8 @@ export class ArenaUnitComposer {
     this.selectedBody = bodyId;
     const btn = this.bodyButtons.get(bodyId);
     if (btn) {
-      btn.style.background = 'rgba(100, 200, 255, 0.15)';
-      btn.style.borderColor = 'rgba(100, 200, 255, 0.5)';
+      btn.style.background = COMPOSER_THEME.selectedBg;
+      btn.style.borderColor = COMPOSER_THEME.selectedBorder;
       btn.style.fontWeight = '600';
     }
     this.updatePlaceButton();
@@ -403,8 +427,8 @@ export class ArenaUnitComposer {
     if (this.selectedWeapon) {
       const prevBtn = this.weaponButtons.get(this.selectedWeapon);
       if (prevBtn) {
-        prevBtn.style.background = 'rgba(255, 255, 255, 0.04)';
-        prevBtn.style.borderColor = 'rgba(255, 160, 60, 0.2)';
+        prevBtn.style.background = COMPOSER_THEME.buttonBg;
+        prevBtn.style.borderColor = COMPOSER_THEME.buttonBorder;
         prevBtn.style.fontWeight = 'normal';
       }
     }
@@ -412,8 +436,8 @@ export class ArenaUnitComposer {
     this.selectedWeapon = weaponId;
     const btn = this.weaponButtons.get(weaponId);
     if (btn) {
-      btn.style.background = 'rgba(100, 200, 255, 0.15)';
-      btn.style.borderColor = 'rgba(100, 200, 255, 0.5)';
+      btn.style.background = COMPOSER_THEME.selectedBg;
+      btn.style.borderColor = COMPOSER_THEME.selectedBorder;
       btn.style.fontWeight = '600';
     }
     this.updatePlaceButton();
@@ -432,19 +456,19 @@ export class ArenaUnitComposer {
         this.allyBtn.style.borderColor = 'rgba(100, 200, 255, 0.5)';
         this.allyBtn.style.fontWeight = '600';
       } else {
-        this.allyBtn.style.background = 'rgba(255, 255, 255, 0.04)';
+        this.allyBtn.style.background = COMPOSER_THEME.buttonBg;
         this.allyBtn.style.borderColor = 'rgba(100, 200, 255, 0.2)';
         this.allyBtn.style.fontWeight = 'normal';
       }
     }
     if (this.enemyBtn) {
       if (this.selectedTeam === 'enemy') {
-        this.enemyBtn.style.background = 'rgba(255, 80, 80, 0.15)';
-        this.enemyBtn.style.borderColor = 'rgba(255, 80, 80, 0.5)';
+        this.enemyBtn.style.background = COMPOSER_THEME.enemySelectedBg;
+        this.enemyBtn.style.borderColor = COMPOSER_THEME.enemySelectedBorder;
         this.enemyBtn.style.fontWeight = '600';
       } else {
-        this.enemyBtn.style.background = 'rgba(255, 255, 255, 0.04)';
-        this.enemyBtn.style.borderColor = 'rgba(255, 80, 80, 0.2)';
+        this.enemyBtn.style.background = COMPOSER_THEME.enemyBg;
+        this.enemyBtn.style.borderColor = COMPOSER_THEME.enemyBorder;
         this.enemyBtn.style.fontWeight = 'normal';
       }
     }
@@ -473,12 +497,12 @@ export class ArenaUnitComposer {
   private updateAiModeHighlight(): void {
     for (const [mode, btn] of this.aiModeButtons) {
       if (mode === this.selectedAiMode) {
-        btn.style.background = 'rgba(255, 80, 80, 0.15)';
-        btn.style.borderColor = 'rgba(255, 80, 80, 0.5)';
+        btn.style.background = COMPOSER_THEME.enemySelectedBg;
+        btn.style.borderColor = COMPOSER_THEME.enemySelectedBorder;
         btn.style.fontWeight = '600';
       } else {
-        btn.style.background = 'rgba(255, 255, 255, 0.04)';
-        btn.style.borderColor = 'rgba(255, 80, 80, 0.2)';
+        btn.style.background = COMPOSER_THEME.enemyBg;
+        btn.style.borderColor = COMPOSER_THEME.enemyBorder;
         btn.style.fontWeight = 'normal';
       }
     }

@@ -28,6 +28,7 @@
 import type { GameSetupConfig } from '../../state/gameSetup';
 import type { Faction } from '../../state/types';
 import { FACTION_CSS_COLORS } from '../../state/gameSetup';
+import { t, FACTION_DISPLAY } from '../../config/localization';
 import {
   hasSaves,
   getSaveSlotMetas,
@@ -147,7 +148,7 @@ export class PauseMenu {
     `;
 
     const title = document.createElement('div');
-    title.textContent = 'Game Paused';
+    title.textContent = t('pause_title');
     title.style.cssText = `
       font-size: 24px;
       font-weight: 700;
@@ -178,23 +179,23 @@ export class PauseMenu {
     `;
 
     // Resume button — primary (warm bronze/gold)
-    btnContainer.appendChild(this.createMenuButton('Resume', 'primary', () => {
+    btnContainer.appendChild(this.createMenuButton(t('pause_resume'), 'primary', () => {
       this.hide();
       this.callbacks?.onResume();
     }));
 
     // Save button — secondary (teal), functional
-    btnContainer.appendChild(this.createMenuButton('Save', 'secondary', () => {
+    btnContainer.appendChild(this.createMenuButton(t('pause_save'), 'secondary', () => {
       const result = this.callbacks?.onSave();
       if (result) {
         if (result.success) {
           // ARCH-15B: Show timestamp with success message
           const now = new Date().toISOString();
-          this.showStatus(`Saved — ${formatSaveTimestamp(now)}`, true);
+          this.showStatus(`${t('pause_saved')} — ${formatSaveTimestamp(now)}`, true);
           // UI-04-fixup: After successful save, refresh Load button state
           this.refreshLoadButtonState();
         } else {
-          this.showStatus('Save failed', false);
+          this.showStatus(t('pause_saveFailed'), false);
         }
       }
     }));
@@ -202,7 +203,7 @@ export class PauseMenu {
     // UI-04: Load button — secondary (teal), opens save slot list
     // Enabled only when saves exist; disabled with clear label when no saves
     const savesExist = hasSaves();
-    const loadBtn = this.createMenuButton('Load', 'secondary', savesExist ? () => {
+    const loadBtn = this.createMenuButton(t('pause_load'), 'secondary', savesExist ? () => {
       this.showLoadList();
     } : null, !savesExist);
     this.loadButton = loadBtn;
@@ -211,10 +212,10 @@ export class PauseMenu {
     this.refreshLoadButtonState();
 
     // Settings button — secondary, disabled placeholder
-    btnContainer.appendChild(this.createMenuButton('Settings', 'secondary', null, true));
+    btnContainer.appendChild(this.createMenuButton(t('pause_settings'), 'secondary', null, true));
 
     // Restart button — secondary (teal)
-    btnContainer.appendChild(this.createMenuButton('Restart', 'secondary', () => {
+    btnContainer.appendChild(this.createMenuButton(t('pause_restart'), 'secondary', () => {
       this.clearStatus();
       this.hide();
       if (this.config) {
@@ -223,7 +224,7 @@ export class PauseMenu {
     }));
 
     // Main Menu button — danger style (returns to menu, losing unsaved progress)
-    btnContainer.appendChild(this.createMenuButton('Main Menu', 'danger', () => {
+    btnContainer.appendChild(this.createMenuButton(t('pause_mainMenu'), 'danger', () => {
       this.clearStatus();
       this.hide();
       this.callbacks?.onMainMenu();
@@ -245,7 +246,7 @@ export class PauseMenu {
 
     // ── Esc hint ────────────────────────────────────────────────
     const escHint = document.createElement('div');
-    escHint.textContent = 'Esc to resume';
+    escHint.textContent = t('pause_escHint');
     escHint.style.cssText = `
       margin-top: 12px;
       font-size: 11px;
@@ -265,7 +266,7 @@ export class PauseMenu {
 
     // ── Hotkey help section ─────────────────────────────────────
     const helpTitle = document.createElement('div');
-    helpTitle.textContent = 'Controls';
+    helpTitle.textContent = t('pause_controls');
     helpTitle.style.cssText = `
       font-size: 11px;
       font-weight: 600;
@@ -277,14 +278,14 @@ export class PauseMenu {
     panel.appendChild(helpTitle);
 
     const hotkeys = [
-      ['B / P / F', 'Build Separator / Power Plant / Factory'],
-      ['N / G', 'Produce Builder / Harvester'],
-      ['LMB', 'Select unit / Move command'],
-      ['Wheel', 'Zoom in/out'],
-      ['Drag', 'Pan camera'],
-      ['R', 'Reset camera to HQ'],
-      ['T', 'Toggle debug overlay'],
-      ['Esc', 'Pause / Resume'],
+      ['B / P / F', t('pause_hotkeyBuild')],
+      ['N / G', t('pause_hotkeyProduce')],
+      ['LMB', t('pause_hotkeySelect')],
+      ['Wheel', t('pause_hotkeyZoom')],
+      ['Drag', t('pause_hotkeyPan')],
+      ['R', t('pause_hotkeyResetCam')],
+      ['T', t('pause_hotkeyDebug')],
+      ['Esc', t('pause_hotkeyEsc')],
     ];
 
     const helpList = document.createElement('div');
@@ -452,7 +453,7 @@ export class PauseMenu {
 
     // Title
     const title = document.createElement('div');
-    title.textContent = 'Load Game';
+    title.textContent = t('pause_loadGame');
     title.style.cssText = `
       font-size: 20px;
       font-weight: 600;
@@ -465,7 +466,7 @@ export class PauseMenu {
 
     if (metas.length === 0) {
       const emptyMsg = document.createElement('div');
-      emptyMsg.textContent = 'No saves available';
+      emptyMsg.textContent = t('pause_noSaves');
       emptyMsg.style.cssText = `
         text-align: center;
         color: ${MENU_THEME.subtitleColor};
@@ -476,7 +477,7 @@ export class PauseMenu {
     } else {
       // Warning about unsaved progress
       const warning = document.createElement('div');
-      warning.textContent = 'Loading will replace your current game. Unsaved progress is lost.';
+      warning.textContent = t('pause_loadWarning');
       warning.style.cssText = `
         text-align: center;
         color: ${MENU_THEME.dangerColor};
@@ -502,7 +503,7 @@ export class PauseMenu {
 
     if (metas.length > 0) {
       const clearAllBtn = document.createElement('button');
-      clearAllBtn.textContent = 'Clear All';
+      clearAllBtn.textContent = t('pause_clearAll');
       clearAllBtn.style.cssText = `
         flex: 1;
         padding: 10px 12px;
@@ -532,7 +533,7 @@ export class PauseMenu {
         clearAllBtn.style.background = MENU_THEME.dangerBg;
       });
       clearAllBtn.addEventListener('click', () => {
-        if (confirm('Delete all save data? This cannot be undone.')) {
+        if (confirm(t('menu_clearAllConfirm'))) {
           clearAllSaves();
           // UI-04-fixup: Refresh Load button after clearing all saves
           this.refreshLoadButtonState();
@@ -544,7 +545,7 @@ export class PauseMenu {
     }
 
     const backBtn = document.createElement('button');
-    backBtn.textContent = 'Back';
+    backBtn.textContent = t('pause_back');
     backBtn.style.cssText = `
       flex: 1;
       padding: 10px 12px;
@@ -608,7 +609,7 @@ export class PauseMenu {
 
     const nameLine = document.createElement('div');
     nameLine.style.cssText = `font-size: 13px; font-weight: 600; color: ${factionColor};`;
-    nameLine.textContent = `${meta.faction.charAt(0).toUpperCase() + meta.faction.slice(1)} — ${meta.mapName}`;
+    nameLine.textContent = `${FACTION_DISPLAY[meta.faction as Faction] ?? meta.faction} — ${meta.mapName}`;
     info.appendChild(nameLine);
 
     const detailLine = document.createElement('div');
@@ -646,7 +647,7 @@ export class PauseMenu {
 
     // Right: delete button
     const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = 'Delete';
+    deleteBtn.textContent = t('pause_delete');
     deleteBtn.style.cssText = `
       padding: 4px 8px;
       background: ${MENU_THEME.dangerBg};
@@ -676,7 +677,7 @@ export class PauseMenu {
     });
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (confirm(`Delete this save (${meta.faction} — ${meta.mapName})?`)) {
+      if (confirm(`${t('menu_deleteConfirm')} (${FACTION_DISPLAY[meta.faction as Faction] ?? meta.faction} — ${meta.mapName})?`)) {
         deleteSave(meta.id);
         // UI-04-fixup: Refresh Load button after deleting a save
         this.refreshLoadButtonState();
@@ -713,7 +714,7 @@ export class PauseMenu {
     if (savesExist) {
       btn.disabled = false;
       // Clear any disabled-state suffix and set normal text
-      btn.textContent = 'Load';
+      btn.textContent = t('pause_load');
       btn.style.cursor = 'pointer';
       btn.style.background = `${MENU_THEME.secondaryAccent}0d`;
       btn.style.borderColor = `${MENU_THEME.secondaryAccent}33`;
@@ -754,9 +755,9 @@ export class PauseMenu {
       this.loadButton = newBtn;
     } else {
       btn.disabled = true;
-      btn.textContent = 'Load';
+      btn.textContent = t('pause_load');
       const suffix = document.createElement('span');
-      suffix.textContent = ' — no saves';
+      suffix.textContent = ` — ${t('pause_noSavesSuffix')}`;
       suffix.style.cssText = `
         font-size: 10px;
         color: ${MENU_THEME.disabledText};
@@ -826,7 +827,7 @@ export class PauseMenu {
       btn.textContent = `${text}`;
       const suffix = document.createElement('span');
       // UI-04: Load with no saves shows "No saves" instead of generic "coming soon"
-      const suffixText = text === 'Load' ? ' — no saves' : ' — coming soon';
+      const suffixText = text === t('pause_load') ? ` — ${t('pause_noSavesSuffix')}` : ` — ${t('pause_comingSoon')}`;
       suffix.textContent = suffixText;
       suffix.style.cssText = `
         font-size: 10px;

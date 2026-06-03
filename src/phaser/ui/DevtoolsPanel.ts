@@ -38,6 +38,7 @@ import { AssetViewerPanel } from './AssetViewerPanel';
 import {
   buildRuntimeAssetDiagnostics,
 } from '../../assets/runtimeAssetDiagnostics';
+import { t } from '../../config/localization';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -121,7 +122,7 @@ export class DevtoolsPanel {
     header.addEventListener('click', () => this.toggleCollapse());
 
     const title = document.createElement('span');
-    title.textContent = 'Devtools';
+    title.textContent = t('devtools_title');
     title.style.cssText = 'font-weight: 700; font-size: 12px; color: #c090ff;';
 
     const collapseLabel = document.createElement('span');
@@ -139,42 +140,42 @@ export class DevtoolsPanel {
 
     // ── Resources section ──────────────────────────────────────
     const resTitle = document.createElement('div');
-    resTitle.textContent = 'Resources';
+    resTitle.textContent = t('devtools_resources');
     resTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #81c784;';
     content.appendChild(resTitle);
 
     const resBtnRow1 = document.createElement('div');
     resBtnRow1.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
-    resBtnRow1.appendChild(this.createDevButton('+Raw', '#81c784', () => this.execCommand(devAddRaw)));
-    resBtnRow1.appendChild(this.createDevButton('+Matter', '#81c784', () => this.execCommand(devAddMatter)));
+    resBtnRow1.appendChild(this.createDevButton(t('devtools_addRaw'), '#81c784', () => this.execCommand(devAddRaw)));
+    resBtnRow1.appendChild(this.createDevButton(t('devtools_addMatter'), '#81c784', () => this.execCommand(devAddMatter)));
     content.appendChild(resBtnRow1);
 
     const resBtnRow2 = document.createElement('div');
     resBtnRow2.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
-    resBtnRow2.appendChild(this.createDevButton('+Element', '#81c784', () => this.execCommand(devAddFactionElement)));
+    resBtnRow2.appendChild(this.createDevButton(t('devtools_addElement'), '#81c784', () => this.execCommand(devAddFactionElement)));
     content.appendChild(resBtnRow2);
 
     const resBtnRow3 = document.createElement('div');
     resBtnRow3.style.cssText = 'display: flex; gap: 4px; margin-bottom: 6px;';
-    resBtnRow3.appendChild(this.createDevButton('Max [DEV]', '#ffcc44', () => this.execCommand(devMaxResources)));
-    resBtnRow3.appendChild(this.createDevButton('Zero', '#ef9a9a', () => this.execCommand(devZeroResources)));
+    resBtnRow3.appendChild(this.createDevButton(t('devtools_max'), '#ffcc44', () => this.execCommand(devMaxResources)));
+    resBtnRow3.appendChild(this.createDevButton(t('devtools_zero'), '#ef9a9a', () => this.execCommand(devZeroResources)));
     content.appendChild(resBtnRow3);
 
     // ── Spawn section ──────────────────────────────────────────
     const spawnTitle = document.createElement('div');
-    spawnTitle.textContent = 'Spawn';
+    spawnTitle.textContent = t('devtools_spawn');
     spawnTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #4fc3f7;';
     content.appendChild(spawnTitle);
 
     const spawnRow = document.createElement('div');
     spawnRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 6px;';
-    spawnRow.appendChild(this.createDevButton('Builder', '#4fc3f7', () => this.execCommand(devSpawnBuilder)));
-    spawnRow.appendChild(this.createDevButton('Harvester', '#4fc3f7', () => this.execCommand(devSpawnHarvester)));
+    spawnRow.appendChild(this.createDevButton(t('devtools_spawnBuilder'), '#4fc3f7', () => this.execCommand(devSpawnBuilder)));
+    spawnRow.appendChild(this.createDevButton(t('devtools_spawnHarvester'), '#4fc3f7', () => this.execCommand(devSpawnHarvester)));
     content.appendChild(spawnRow);
 
     // ── Diagnostics section ────────────────────────────────────
     const diagTitle = document.createElement('div');
-    diagTitle.textContent = 'Diagnostics';
+    diagTitle.textContent = t('devtools_diagnostics');
     diagTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #b0b0b0;';
     content.appendChild(diagTitle);
 
@@ -192,7 +193,7 @@ export class DevtoolsPanel {
 
     // ── Asset diagnostics section (ARCH-17A) ───────────────────
     const assetDiagTitle = document.createElement('div');
-    assetDiagTitle.textContent = 'Assets';
+    assetDiagTitle.textContent = t('devtools_assets');
     assetDiagTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #80c0ff;';
     content.appendChild(assetDiagTitle);
 
@@ -210,20 +211,20 @@ export class DevtoolsPanel {
 
     const assetBtnRow = document.createElement('div');
     assetBtnRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 6px;';
-    assetBtnRow.appendChild(this.createDevButton('Asset Viewer', '#80c0ff', () => this.toggleAssetViewer()));
+    assetBtnRow.appendChild(this.createDevButton(t('devtools_assetViewer'), '#80c0ff', () => this.toggleAssetViewer()));
     content.appendChild(assetBtnRow);
 
     // ── Overlays section ──────────────────────────────────────
     const overlayTitle = document.createElement('div');
-    overlayTitle.textContent = 'Overlays';
+    overlayTitle.textContent = t('devtools_overlays');
     overlayTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #ce93d8;';
     content.appendChild(overlayTitle);
 
     const overlayRow = document.createElement('div');
     overlayRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 2px; flex-wrap: wrap;';
-    this._passabilityBtn = this.createToggleButton('Pass', '#ce93d8', () => this.toggleOverlay('passability'));
-    this._footprintBtn = this.createToggleButton('Foot', '#ce93d8', () => this.toggleOverlay('footprint'));
-    this._resourceBtn = this.createToggleButton('Res', '#ce93d8', () => this.toggleOverlay('resource'));
+    this._passabilityBtn = this.createToggleButton(t('devtools_passOverlay'), '#ce93d8', () => this.toggleOverlay('passability'));
+    this._footprintBtn = this.createToggleButton(t('devtools_footOverlay'), '#ce93d8', () => this.toggleOverlay('footprint'));
+    this._resourceBtn = this.createToggleButton(t('devtools_resOverlay'), '#ce93d8', () => this.toggleOverlay('resource'));
     overlayRow.appendChild(this._passabilityBtn);
     overlayRow.appendChild(this._footprintBtn);
     overlayRow.appendChild(this._resourceBtn);
@@ -233,13 +234,13 @@ export class DevtoolsPanel {
     this._isArena = isArena ?? false;
     if (this._isArena) {
       const arenaTitle = document.createElement('div');
-      arenaTitle.textContent = 'Arena';
+      arenaTitle.textContent = t('devtools_arena');
       arenaTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; margin-top: 4px; color: #ffab40;';
       content.appendChild(arenaTitle);
 
       const arenaRow = document.createElement('div');
       arenaRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 6px;';
-      arenaRow.appendChild(this.createDevButton('Reset Arena', '#ffab40', () => {
+      arenaRow.appendChild(this.createDevButton(t('devtools_resetArena'), '#ffab40', () => {
         if (this.callbacks?.onResetArena) {
           this.callbacks.onResetArena();
         }

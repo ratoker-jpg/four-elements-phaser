@@ -34,6 +34,34 @@ import {
   type ArenaRosterRow,
 } from '../../state/arenaRoster';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
+import { t } from '../../config/localization';
+import { BODY_PROFILES } from '../../config/blockoutBodyData';
+import { WEAPON_PROFILES } from '../../config/blockoutWeaponData';
+
+// ─── Industrial Arena Theme ─────────────────────────────────────────
+
+const ARENA_THEME = {
+  bg: 'rgba(17, 24, 39, 0.92)',
+  border: 'rgba(212, 165, 116, 0.15)',
+  titleColor: '#d4a574',        // bronze primary accent
+  bodyColor: '#c0c0c0',
+  sectionTitleColor: '#d4a574',  // bronze
+  mutedColor: '#64748b',
+  dimColor: '#4b5563',
+  primaryAccent: '#d4a574',      // warm bronze/gold
+  secondaryAccent: '#80cbc4',    // teal
+  dangerColor: '#ef9a9a',
+  dangerBg: 'rgba(239, 154, 154, 0.08)',
+  dangerBorder: 'rgba(239, 154, 154, 0.2)',
+  headerBg: 'rgba(212, 165, 116, 0.08)',
+  headerBorder: 'rgba(212, 165, 116, 0.15)',
+  allyColor: '#64c8ff',          // Keep faction ally color
+  enemyColor: '#ff5050',         // Keep faction enemy color
+  rowBg: 'rgba(255, 255, 255, 0.02)',
+  rowBorder: 'rgba(255, 255, 255, 0.05)',
+  dividerColor: 'rgba(212, 165, 116, 0.12)',
+  focusOutline: '#d4a574',
+} as const;
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -110,13 +138,13 @@ export class ArenaMenu {
       top: 48px;
       right: 8px;
       width: 220px;
-      background: rgba(20, 15, 10, 0.92);
-      border: 1px solid rgba(255, 160, 60, 0.3);
+      background: ${ARENA_THEME.bg};
+      border: 1px solid ${ARENA_THEME.border};
       border-radius: 6px;
       padding: 0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       font-size: 11px;
-      color: #ffcc80;
+      color: ${ARENA_THEME.bodyColor};
       z-index: 26;
       pointer-events: auto;
       user-select: none;
@@ -132,18 +160,18 @@ export class ArenaMenu {
       align-items: center;
       padding: 8px 10px;
       cursor: pointer;
-      border-bottom: 1px solid rgba(255, 160, 60, 0.15);
-      background: rgba(255, 160, 60, 0.08);
+      border-bottom: 1px solid ${ARENA_THEME.headerBorder};
+      background: ${ARENA_THEME.headerBg};
     `;
     header.addEventListener('click', () => this.toggleCollapse());
 
     const title = document.createElement('span');
-    title.textContent = 'Arena';
-    title.style.cssText = 'font-weight: 700; font-size: 13px; color: #ffab40;';
+    title.textContent = t('arena_title');
+    title.style.cssText = `font-weight: 700; font-size: 13px; color: ${ARENA_THEME.titleColor};`;
 
     const collapseLabel = document.createElement('span');
     collapseLabel.textContent = '\u2500';
-    collapseLabel.style.cssText = 'font-size: 14px; color: #a07030;';
+    collapseLabel.style.cssText = `font-size: 14px; color: ${ARENA_THEME.mutedColor};`;
     this._collapseLabel = collapseLabel;
 
     header.appendChild(title);
@@ -156,8 +184,8 @@ export class ArenaMenu {
 
     // ── Unit Composer section (ARENA-02H+) ──────────────────────
     const unitTitle = document.createElement('div');
-    unitTitle.textContent = 'Units';
-    unitTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #ffab40;';
+    unitTitle.textContent = t('arena_units');
+    unitTitle.style.cssText = `font-weight: 600; font-size: 11px; margin-bottom: 4px; color: ${ARENA_THEME.sectionTitleColor};`;
     content.appendChild(unitTitle);
 
     // Create the unit composer and attach it to our content div
@@ -173,8 +201,8 @@ export class ArenaMenu {
 
     // ── ARENA-04H+: Roster section ─────────────────────────────
     const rosterTitle = document.createElement('div');
-    rosterTitle.textContent = 'Roster';
-    rosterTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; margin-top: 6px; color: #ffab40;';
+    rosterTitle.textContent = t('arena_roster');
+    rosterTitle.style.cssText = `font-weight: 600; font-size: 11px; margin-bottom: 4px; margin-top: 6px; color: ${ARENA_THEME.sectionTitleColor};`;
     content.appendChild(rosterTitle);
 
     this.rosterRowsContainer = document.createElement('div');
@@ -187,37 +215,37 @@ export class ArenaMenu {
 
     // ── ARENA-04H+: Roster actions ─────────────────────────────
     const actionsTitle = document.createElement('div');
-    actionsTitle.textContent = 'Actions';
-    actionsTitle.style.cssText = 'font-weight: 600; font-size: 11px; margin-bottom: 4px; margin-top: 6px; color: #ffab40;';
+    actionsTitle.textContent = t('arena_actions');
+    actionsTitle.style.cssText = `font-weight: 600; font-size: 11px; margin-bottom: 4px; margin-top: 6px; color: ${ARENA_THEME.sectionTitleColor};`;
     content.appendChild(actionsTitle);
 
     const actionRow1 = document.createElement('div');
     actionRow1.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
-    actionRow1.appendChild(this.createArenaButton('Reset', '#ff8a65', () => {
+    actionRow1.appendChild(this.createArenaButton(t('arena_reset'), ARENA_THEME.primaryAccent, () => {
       this.callbacks?.onResetArena();
-      this.showStatus('Arena reset', true);
+      this.showStatus(t('arena_arenaReset'), true);
     }));
-    actionRow1.appendChild(this.createArenaButton('Delete Sel', '#ef9a9a', () => {
+    actionRow1.appendChild(this.createArenaButton(t('arena_deleteSel'), ARENA_THEME.dangerColor, () => {
       this.deleteSelectedUnit();
     }));
     content.appendChild(actionRow1);
 
     const actionRow2 = document.createElement('div');
     actionRow2.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
-    actionRow2.appendChild(this.createArenaButton('Clear All', '#ffab40', () => {
+    actionRow2.appendChild(this.createArenaButton(t('arena_clearAll'), ARENA_THEME.primaryAccent, () => {
       this.clearAllFromMenu();
     }));
-    actionRow2.appendChild(this.createArenaButton('Clear Allies', '#64c8ff', () => {
+    actionRow2.appendChild(this.createArenaButton(t('arena_clearAllies'), ARENA_THEME.allyColor, () => {
       this.clearAlliesFromMenu();
     }));
     content.appendChild(actionRow2);
 
     const actionRow3 = document.createElement('div');
     actionRow3.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
-    actionRow3.appendChild(this.createArenaButton('Clear Enemies', '#ff5050', () => {
+    actionRow3.appendChild(this.createArenaButton(t('arena_clearEnemies'), ARENA_THEME.enemyColor, () => {
       this.clearEnemiesFromMenu();
     }));
-    actionRow3.appendChild(this.createArenaButton('Help [H]', '#ce93d8', () => {
+    actionRow3.appendChild(this.createArenaButton(t('arena_help'), ARENA_THEME.secondaryAccent, () => {
       this.toggleHelp();
     }));
     content.appendChild(actionRow3);
@@ -227,13 +255,13 @@ export class ArenaMenu {
     this.vehicleCountEl.style.cssText = `
       font-size: 10px;
       line-height: 1.5;
-      color: #a08060;
+      color: ${ARENA_THEME.mutedColor};
       background: rgba(0, 0, 0, 0.2);
       border-radius: 3px;
       padding: 4px 6px;
       margin-bottom: 6px;
     `;
-    this.vehicleCountEl.textContent = 'Vehicles: 0';
+    this.vehicleCountEl.textContent = `${t('arena_vehicles')}: 0`;
     content.appendChild(this.vehicleCountEl);
 
     // ── ARENA-04H+: Arena status ──────────────────────────────
@@ -241,14 +269,14 @@ export class ArenaMenu {
     this.arenaStatusEl.style.cssText = `
       font-size: 10px;
       line-height: 1.4;
-      color: #b0a080;
+      color: ${ARENA_THEME.mutedColor};
       background: rgba(0, 0, 0, 0.2);
       border-radius: 3px;
       padding: 4px 6px;
       margin-bottom: 6px;
       min-height: 14px;
     `;
-    this.arenaStatusEl.textContent = 'Arena empty';
+    this.arenaStatusEl.textContent = t('arena_empty');
     content.appendChild(this.arenaStatusEl);
 
     // ── Status feedback ──────────────────────────────────────
@@ -286,7 +314,7 @@ export class ArenaMenu {
     const aliveCount = vehicles.filter(v => !v.isDestroyed).length;
     const allyCount = vehicles.filter(v => v.team === 'ally' && !v.isDestroyed).length;
     const enemyCount = vehicles.filter(v => v.team === 'enemy' && !v.isDestroyed).length;
-    this.vehicleCountEl.textContent = `Vehicles: ${vehicleCount} (alive: ${aliveCount}, ally: ${allyCount}, enemy: ${enemyCount})`;
+    this.vehicleCountEl.textContent = `${t('arena_vehicles')}: ${vehicleCount} (${t('arena_alive')}: ${aliveCount}, ${t('arena_ally')}: ${allyCount}, ${t('arena_enemy')}: ${enemyCount})`;
 
     // ARENA-02H+: Sync unit composer with placement state
     if (this.unitComposer) {
@@ -367,7 +395,7 @@ export class ArenaMenu {
     }
 
     this.statusEl.textContent = message;
-    this.statusEl.style.color = success ? '#81c784' : '#ef9a9a';
+    this.statusEl.style.color = success ? ARENA_THEME.secondaryAccent : ARENA_THEME.dangerColor;
     this.statusEl.style.opacity = '1';
 
     this.statusTimer = setTimeout(() => {
@@ -416,8 +444,8 @@ export class ArenaMenu {
 
     if (rows.length === 0) {
       const emptyEl = document.createElement('div');
-      emptyEl.textContent = 'No units placed';
-      emptyEl.style.cssText = 'font-size: 9px; color: #706050; padding: 4px 0; text-align: center;';
+      emptyEl.textContent = t('arena_noUnits');
+      emptyEl.style.cssText = `font-size: 9px; color: ${ARENA_THEME.dimColor}; padding: 4px 0; text-align: center;`;
       this.rosterRowsContainer.appendChild(emptyEl);
       return;
     }
@@ -447,14 +475,14 @@ export class ArenaMenu {
         height: 6px;
         border-radius: 50%;
         flex-shrink: 0;
-        background: ${row.team === 'ally' ? '#64c8ff' : '#ff5050'};
+        background: ${row.team === 'ally' ? ARENA_THEME.allyColor : ARENA_THEME.enemyColor};
       `;
       rowEl.appendChild(teamDot);
 
       // Body + Weapon
       const nameEl = document.createElement('span');
-      const bodyLabel = row.bodyId.charAt(0).toUpperCase() + row.bodyId.slice(1);
-      const weaponLabel = row.weaponId.charAt(0).toUpperCase() + row.weaponId.slice(1);
+      const bodyLabel = BODY_PROFILES[row.bodyId]?.displayName ?? row.bodyId;
+      const weaponLabel = WEAPON_PROFILES[row.weaponId]?.displayName ?? row.weaponId;
       nameEl.textContent = `${bodyLabel}+${weaponLabel}`;
       nameEl.style.cssText = `flex: 1; color: ${row.team === 'ally' ? '#90caf9' : '#ef9a9a'};`;
       rowEl.appendChild(nameEl);
@@ -463,11 +491,11 @@ export class ArenaMenu {
       const hpEl = document.createElement('span');
       if (row.isDestroyed) {
         hpEl.textContent = 'X';
-        hpEl.style.cssText = 'color: #ff5050; font-weight: 600;';
+        hpEl.style.cssText = `color: ${ARENA_THEME.dangerColor}; font-weight: 600;`;
       } else {
         hpEl.textContent = `${Math.round(row.hp)}`;
         const hpPct = row.hp / row.maxHp;
-        hpEl.style.cssText = `color: ${hpPct > 0.6 ? '#81c784' : hpPct > 0.3 ? '#ffb74d' : '#ef9a9a'};`;
+        hpEl.style.cssText = `color: ${hpPct > 0.6 ? ARENA_THEME.secondaryAccent : hpPct > 0.3 ? ARENA_THEME.primaryAccent : ARENA_THEME.dangerColor};`;
       }
       rowEl.appendChild(hpEl);
 
@@ -475,7 +503,7 @@ export class ArenaMenu {
       if (row.isSelected) {
         const selMarker = document.createElement('span');
         selMarker.textContent = '\u25B6'; // ▶
-        selMarker.style.cssText = 'color: #64c8ff; font-size: 8px;';
+        selMarker.style.cssText = `color: ${ARENA_THEME.allyColor}; font-size: 8px;`;
         rowEl.appendChild(selMarker);
       }
 
@@ -483,7 +511,7 @@ export class ArenaMenu {
       if (row.isTargeted && !row.isSelected) {
         const tgtMarker = document.createElement('span');
         tgtMarker.textContent = '\u2316'; // ⌖
-        tgtMarker.style.cssText = 'color: #ff5050; font-size: 9px;';
+        tgtMarker.style.cssText = `color: ${ARENA_THEME.enemyColor}; font-size: 9px;`;
         rowEl.appendChild(tgtMarker);
       }
 
@@ -491,15 +519,15 @@ export class ArenaMenu {
       const delBtn = document.createElement('span');
       delBtn.textContent = '\u00D7'; // ×
       delBtn.style.cssText = `
-        color: #a07030;
+        color: ${ARENA_THEME.mutedColor};
         cursor: pointer;
         font-size: 12px;
         line-height: 1;
         padding: 0 2px;
         opacity: 0.6;
       `;
-      delBtn.addEventListener('mouseenter', () => { delBtn.style.opacity = '1'; delBtn.style.color = '#ef9a9a'; });
-      delBtn.addEventListener('mouseleave', () => { delBtn.style.opacity = '0.6'; delBtn.style.color = '#a07030'; });
+      delBtn.addEventListener('mouseenter', () => { delBtn.style.opacity = '1'; delBtn.style.color = ARENA_THEME.dangerColor; });
+      delBtn.addEventListener('mouseleave', () => { delBtn.style.opacity = '0.6'; delBtn.style.color = ARENA_THEME.mutedColor; });
       delBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.deleteRowUnit(row.id);
@@ -568,7 +596,7 @@ export class ArenaMenu {
     if (!this.callbacks) return;
     const selectedId = this.callbacks.getSelectedVehicleId();
     if (!selectedId) {
-      this.showStatus('No unit selected', false);
+      this.showStatus(t('arena_noUnitSelected'), false);
       return;
     }
     this.callbacks.onDeselectVehicle();
@@ -638,13 +666,13 @@ export class ArenaMenu {
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(20, 15, 10, 0.95);
-      border: 1px solid rgba(255, 160, 60, 0.4);
+      background: ${ARENA_THEME.bg};
+      border: 1px solid ${ARENA_THEME.border};
       border-radius: 8px;
       padding: 16px 20px;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       font-size: 12px;
-      color: #ffcc80;
+      color: ${ARENA_THEME.bodyColor};
       z-index: 30;
       pointer-events: auto;
       max-width: 380px;
@@ -659,7 +687,7 @@ export class ArenaMenu {
       const lineEl = document.createElement('div');
       if (line.startsWith('───')) {
         lineEl.textContent = line;
-        lineEl.style.cssText = 'font-weight: 600; color: #ffab40; margin-top: 8px; margin-bottom: 4px;';
+        lineEl.style.cssText = `font-weight: 600; color: ${ARENA_THEME.sectionTitleColor}; margin-top: 8px; margin-bottom: 4px;`;
       } else if (line === '') {
         lineEl.innerHTML = '&nbsp;';
         lineEl.style.cssText = 'height: 4px;';
@@ -672,16 +700,16 @@ export class ArenaMenu {
 
     // Close button
     const closeBtn = document.createElement('div');
-    closeBtn.textContent = '[H] Close';
+    closeBtn.textContent = t('arena_helpClose');
     closeBtn.style.cssText = `
       text-align: center;
       margin-top: 12px;
       padding: 6px;
-      background: rgba(255, 160, 60, 0.1);
-      border: 1px solid rgba(255, 160, 60, 0.3);
+      background: ${ARENA_THEME.headerBg};
+      border: 1px solid ${ARENA_THEME.headerBorder};
       border-radius: 4px;
       cursor: pointer;
-      color: #ffab40;
+      color: ${ARENA_THEME.primaryAccent};
       font-weight: 600;
     `;
     closeBtn.addEventListener('click', () => this.toggleHelp());
@@ -707,7 +735,7 @@ export class ArenaMenu {
     btn.style.cssText = `
       flex: 1;
       padding: 4px 6px;
-      background: rgba(255, 255, 255, 0.04);
+      background: ${ARENA_THEME.rowBg};
       border: 1px solid ${color}33;
       border-radius: 3px;
       color: ${color};
@@ -721,7 +749,7 @@ export class ArenaMenu {
       btn.style.background = `${color}15`;
     });
     btn.addEventListener('mouseleave', () => {
-      btn.style.background = 'rgba(255, 255, 255, 0.04)';
+      btn.style.background = ARENA_THEME.rowBg;
     });
     btn.addEventListener('click', onClick);
     return btn;

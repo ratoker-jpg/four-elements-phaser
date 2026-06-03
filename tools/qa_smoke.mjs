@@ -180,12 +180,13 @@ async function runSmokeCheck(runConfig, previewProcess) {
         const arenaMenuLocator = page.locator('#arena-menu');
         await arenaMenuLocator.waitFor({ state: 'attached', timeout: DOM_ASSERT_TIMEOUT_MS });
         // ArenaMenu exists — mark HUD checks as satisfied (they don't apply)
-        hudEconomyText = 'Raw: N/A (Arena mode) Units: N/A (Arena mode)';
+        hudEconomyText = 'Сырьё: N/A (Arena mode) Юниты: N/A (Arena mode)';
       } catch (err) {
         smokeErrors.push(`ArenaMenu #arena-menu assertion failed: ${err.message}`);
       }
     } else {
-      // Normal Game: verify #hud-economy contains "Raw:" and "Units:"
+      // Normal Game: verify #hud-economy contains Russian "Сырьё:" and "Юниты:"
+      // CORE-STEP-01B: HUD labels are now Russian
       console.log(`[qa_smoke:${runConfig.name}] Asserting HUD economy DOM...`);
       try {
         const hudEconomyLocator = page.locator('#hud-economy');
@@ -195,7 +196,7 @@ async function runSmokeCheck(runConfig, previewProcess) {
         const pollStart = Date.now();
         while (Date.now() - pollStart < DOM_ASSERT_TIMEOUT_MS) {
           hudEconomyText = await hudEconomyLocator.textContent();
-          if (hudEconomyText && hudEconomyText.includes('Raw:') && hudEconomyText.includes('Units:')) {
+          if (hudEconomyText && hudEconomyText.includes('Сырьё:') && hudEconomyText.includes('Юниты:')) {
             break;
           }
           await page.waitForTimeout(250);
@@ -223,8 +224,8 @@ async function runSmokeCheck(runConfig, previewProcess) {
 
   // Build run report
   const missingMarkers = runConfig.requiredMarkers.filter(m => !foundMarkers.has(m));
-  const hudHasRaw = hudEconomyText ? hudEconomyText.includes('Raw:') : false;
-  const hudHasUnits = hudEconomyText ? hudEconomyText.includes('Units:') : false;
+  const hudHasRaw = hudEconomyText ? hudEconomyText.includes('Сырьё:') : false;
+  const hudHasUnits = hudEconomyText ? hudEconomyText.includes('Юниты:') : false;
 
   const pass =
     smokeErrors.length === 0 &&
@@ -329,8 +330,8 @@ async function main() {
       if (runReport.failed_requests.length > 0) console.log(`[qa_smoke:${runConfig.name}] Failed requests: ${runReport.failed_requests.length}`);
       if (runReport.readiness.missing_markers.length > 0) console.log(`[qa_smoke:${runConfig.name}] Missing markers: ${runReport.readiness.missing_markers.join(', ')}`);
       if (!runReport.has_canvas) console.log(`[qa_smoke:${runConfig.name}] No canvas element found`);
-      if (!runReport.hud_economy.contains_raw) console.log(`[qa_smoke:${runConfig.name}] HUD #hud-economy missing "Raw:"`);
-      if (!runReport.hud_economy.contains_units) console.log(`[qa_smoke:${runConfig.name}] HUD #hud-economy missing "Units:"`);
+      if (!runReport.hud_economy.contains_raw) console.log(`[qa_smoke:${runConfig.name}] HUD #hud-economy missing "Сырьё:"`);
+      if (!runReport.hud_economy.contains_units) console.log(`[qa_smoke:${runConfig.name}] HUD #hud-economy missing "Юниты:"`);
     }
   }
 
@@ -447,8 +448,8 @@ function generateCombinedMarkdown(r) {
       lines.push(`### HUD Economy (#hud-economy)`);
       lines.push('');
       lines.push(`- Element exists: ${run.hud_economy.element_exists ? '✅ Yes' : '❌ No'}`);
-      lines.push(`- Contains "Raw:": ${run.hud_economy.contains_raw ? '✅ Yes' : '❌ No'}`);
-      lines.push(`- Contains "Units:": ${run.hud_economy.contains_units ? '✅ Yes' : '❌ No'}`);
+      lines.push(`- Contains "Сырьё:": ${run.hud_economy.contains_raw ? '✅ Yes' : '❌ No'}`);
+      lines.push(`- Contains "Юниты:": ${run.hud_economy.contains_units ? '✅ Yes' : '❌ No'}`);
       if (run.hud_economy.text_preview) {
         lines.push(`- Text preview: \`${run.hud_economy.text_preview}\``);
       }

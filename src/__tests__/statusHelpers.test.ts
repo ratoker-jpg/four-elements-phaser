@@ -785,10 +785,12 @@ describe('FIX-04: spawnBlockLabel', () => {
   });
 
   it('returns "Unit Cap" for unit-cap-reached', () => {
-    expect(spawnBlockLabel('unit-cap-reached')).toBe('Unit Cap');
+    // CORE-STEP-01B: Russian label
+    expect(spawnBlockLabel('unit-cap-reached')).toBe('Лимит юнитов');
   });
 
   it('returns "No Spawn Tile" for no-spawn-tile', () => {
-    expect(spawnBlockLabel('no-spawn-tile')).toBe('No Spawn Tile');
+    // CORE-STEP-01B: Russian label
+    expect(spawnBlockLabel('no-spawn-tile')).toBe('Нет места для выхода');
   });
 });

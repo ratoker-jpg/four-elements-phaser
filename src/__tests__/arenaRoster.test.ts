@@ -153,7 +153,8 @@ describe('ARENA-04H+ clearAllVehicles', () => {
     const result = clearAllVehicles(vehicles, null);
 
     expect(result.removedCount).toBe(0);
-    expect(result.message).toContain('empty');
+    // CORE-STEP-01B: Russian message for empty arena
+    expect(result.message).toContain('пуста');
   });
 });
 
@@ -466,20 +467,23 @@ describe('ARENA-04H+ deriveArenaStatus', () => {
 
   it('shows arena empty for no vehicles', () => {
     const status = deriveArenaStatus([], null, null, 'idle');
-    expect(status).toContain('empty');
+    // CORE-STEP-01B: Russian status
+    expect(status).toContain('пуста');
   });
 
   it('shows placement mode active', () => {
     const status = deriveArenaStatus([], null, null, 'placing');
-    expect(status).toContain('Placement');
+    // CORE-STEP-01B: Russian status
+    expect(status).toContain('Размещение');
   });
 
   it('shows selected unit summary', () => {
     const ally = createBlockoutVehicle('viking', 'thunder', 'cyan', 5, 5, undefined, undefined, 'ally');
     const status = deriveArenaStatus([ally], ally.id, null, 'idle');
+    // CORE-STEP-01B: Uses displayName from profiles + Russian labels
     expect(status).toContain('Viking');
     expect(status).toContain('Thunder');
-    expect(status).toContain('Ally');
+    expect(status).toContain('Союзник');
   });
 
   it('shows target summary when target is set', () => {
@@ -488,19 +492,22 @@ describe('ARENA-04H+ deriveArenaStatus', () => {
     ally.targetVehicleId = enemy.id;
     const status = deriveArenaStatus([ally, enemy], ally.id, enemy.id, 'idle');
     expect(status).toContain('Wasp');
-    expect(status).toContain('Target');
+    // CORE-STEP-01B: Russian 'Цель' label
+    expect(status).toContain('Цель');
   });
 
   it('shows no target when ally selected without target', () => {
     const ally = createBlockoutVehicle('viking', 'thunder', 'cyan', 5, 5, undefined, undefined, 'ally');
     const status = deriveArenaStatus([ally], ally.id, null, 'idle');
-    expect(status).toContain('no target');
+    // CORE-STEP-01B: Russian 'нет цели'
+    expect(status).toContain('нет цели');
   });
 
   it('shows click to select when vehicles exist but none selected', () => {
     const ally = createBlockoutVehicle('viking', 'thunder', 'cyan', 5, 5, undefined, undefined, 'ally');
     const status = deriveArenaStatus([ally], null, null, 'idle');
-    expect(status).toContain('select');
+    // CORE-STEP-01B: Russian 'кликните'
+    expect(status).toContain('кликните');
   });
 
   it('shows destroyed for destroyed selected unit', () => {
@@ -508,7 +515,8 @@ describe('ARENA-04H+ deriveArenaStatus', () => {
     ally.isDestroyed = true;
     ally.hp = 0;
     const status = deriveArenaStatus([ally], ally.id, null, 'idle');
-    expect(status).toContain('DESTROYED');
+    // CORE-STEP-01B: Russian 'УНИЧТОЖЕН'
+    expect(status).toContain('УНИЧТОЖЕН');
   });
 });
 
@@ -521,13 +529,15 @@ describe('ARENA-04H+ help text', () => {
 
   it('ARENA_HELP_LINES contains placement instructions', () => {
     const text = ARENA_HELP_LINES.join('\n');
-    expect(text).toContain('Place');
+    // CORE-STEP-01B: Russian help text
+    expect(text).toContain('Разместить');
   });
 
   it('ARENA_HELP_LINES contains ally/enemy rules', () => {
     const text = ARENA_HELP_LINES.join('\n');
-    expect(text).toContain('Ally');
-    expect(text).toContain('Enemy');
+    // CORE-STEP-01B: Russian help text
+    expect(text).toContain('Союзники');
+    expect(text).toContain('Враги');
   });
 });
 

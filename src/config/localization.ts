@@ -2,6 +2,7 @@
  * Localization infrastructure — Russian player-facing UI strings.
  *
  * CORE-STEP-01A: Provides a stable English-key → localized-string map.
+ * CORE-STEP-01B: Adds Pause, HUD, Status, Arena, Composer, Devtools sections.
  * Russian is the primary language. English keys are internal ids and
  * never displayed to players. English fallback values exist for dev
  * reference only.
@@ -147,6 +148,194 @@ export const MAP_STYLE_DISPLAY: Record<string, string> = {
   industrial: 'Промышленная платформа',
 };
 
+// ─── Pause menu strings ─────────────────────────────────────────────
+
+const PAUSE_STRINGS = {
+  pause_title: 'Пауза',
+  pause_resume: 'Продолжить',
+  pause_save: 'Сохранить',
+  pause_load: 'Загрузить',
+  pause_settings: 'Настройки',
+  pause_restart: 'Перезапустить',
+  pause_mainMenu: 'В главное меню',
+  pause_escHint: 'Esc — продолжить',
+  pause_controls: 'Управление',
+  pause_loadGame: 'Загрузить игру',
+  pause_noSaves: 'Сохранений нет',
+  pause_clearAll: 'Очистить всё',
+  pause_back: 'Назад',
+  pause_delete: 'Удалить',
+  pause_saveFailed: 'Ошибка сохранения',
+  pause_loadWarning: 'Загрузка заменит текущую игру. Несохранённый прогресс будет потерян.',
+  pause_comingSoon: 'скоро',
+  pause_noSavesSuffix: 'нет сохранений',
+  pause_saved: 'Сохранено',
+  pause_hotkeyBuild: 'Строить Сепаратор / Энергостанция / Фабрика',
+  pause_hotkeyProduce: 'Производить Строитель / Сборщик',
+  pause_hotkeySelect: 'Выбрать юнит / Команда движения',
+  pause_hotkeyZoom: 'Приблизить / Отдалить',
+  pause_hotkeyPan: 'Перемещение камеры',
+  pause_hotkeyResetCam: 'Сброс камеры на базу',
+  pause_hotkeyDebug: 'Отладочный оверлей',
+  pause_hotkeyEsc: 'Пауза / Продолжить',
+} as const;
+
+// ─── HUD strings ─────────────────────────────────────────────────────
+
+const HUD_STRINGS = {
+  hud_economy: 'Экономика',
+  hud_raw: 'Сырьё',
+  hud_matter: 'Материя',
+  hud_power: 'Энергия',
+  hud_units: 'Юниты',
+  hud_harvesters: 'Сборщики',
+  hud_separators: 'Сепараторы',
+  hud_factory: 'Фабрика',
+  hud_build: 'Строительство',
+  hud_produce: 'Производство',
+  hud_separator: 'Сепаратор',
+  hud_powerPlant: 'Электростанция',
+  hud_unitsFactory: 'Фабрика юнитов',
+  hud_builder: 'Строитель',
+  hud_harvesterUnit: 'Сборщик',
+  hud_noneBuilt: 'Не построено',
+  hud_noneSpawned: 'Не создано',
+  hud_queueEmpty: 'Очередь: пусто',
+  hud_escPause: 'Esc = Пауза и управление',
+  hud_queue: 'Очередь',
+  hud_blocked: 'Блокировка',
+  hud_harvesterAbbr: 'С',
+  hud_separatorAbbr: 'Сеп',
+  hud_factoryAbbr: 'Фабр',
+  hud_builderAbbr: 'Ст',
+  hud_harvesterQAbbr: 'Сб',
+  hud_done: 'готово',
+  hud_reachable: 'Доступно',
+  hud_info: 'i',
+  hud_warning: '!',
+} as const;
+
+// ─── Status label strings ───────────────────────────────────────────
+
+const STATUS_STRINGS = {
+  status_idle: 'Ожидание',
+  status_processing: 'Обработка',
+  status_noRaw: 'Нет сырья',
+  status_matterFull: 'Материя — полный',
+  status_elementFull: 'Элемент — полный',
+  status_noPower: 'Нет энергии',
+  status_builder: 'Строитель',
+  status_harvester: 'Сборщик',
+  status_noMatter: 'Нет материи',
+  status_noElement: 'Нет элемента',
+  status_queueFull: 'Очередь полна',
+  status_unitCap: 'Лимит юнитов',
+  status_noBuilder: 'Нет строителя',
+  status_noFactory: 'Нет фабрики',
+  status_moving: 'Идёт',
+  status_gathering: 'Сбор',
+  status_returning: 'Возврат',
+  status_unloading: 'Разгрузка',
+  status_manual: 'Ручной',
+  status_noResources: 'Нет ресурсов',
+  status_noPathToResource: 'Нет пути к ресурсу',
+  status_noPathToHQ: 'Нет пути к базе',
+  status_storageFull: 'Хранилище полно',
+  status_noSpawnTile: 'Нет места для выхода',
+  status_insufficientMatter: 'Мало материи',
+} as const;
+
+// ─── Arena menu strings ──────────────────────────────────────────────
+
+const ARENA_STRINGS = {
+  arena_title: 'Арена',
+  arena_units: 'Юниты',
+  arena_roster: 'Список',
+  arena_actions: 'Действия',
+  arena_reset: 'Сбросить',
+  arena_deleteSel: 'Удалить выбор',
+  arena_clearAll: 'Очистить всех',
+  arena_clearAllies: 'Очистить союзников',
+  arena_clearEnemies: 'Очистить врагов',
+  arena_help: 'Помощь [H]',
+  arena_helpClose: '[H] Закрыть',
+  arena_vehicles: 'Юниты',
+  arena_alive: 'живых',
+  arena_ally: 'союзников',
+  arena_enemy: 'врагов',
+  arena_noUnits: 'Юниты не размещены',
+  arena_empty: 'Арена пуста — разместите юнит',
+  arena_placing: 'Размещение — клик на поле | Esc/ПКМ отмена',
+  arena_clickToSelect: 'юнит(ов) — кликните на союзника для выбора',
+  arena_noTarget: 'нет цели',
+  arena_targetLost: 'цель потеряна',
+  arena_selected: 'Выбран',
+  arena_target: 'Цель',
+  arena_hp: 'ЗД',
+  arena_destroyed: 'УНИЧТОЖЕН',
+  arena_noUnitSelected: 'Юнит не выбран',
+  arena_arenaReset: 'Арена сброшена',
+  arena_unitNotFound: 'Юнит не найден',
+  arena_allyLabel: 'Союзник',
+  arena_enemyLabel: 'Враг',
+  arena_deleted: 'удалён',
+  arena_allCleared: 'Юниты удалены',
+  arena_alliesCleared: 'Союзники удалены',
+  arena_noAllies: 'Нет союзников',
+  arena_enemiesCleared: 'Враги удалены',
+  arena_noEnemies: 'Нет врагов',
+  arena_arenaEmptyStatus: 'Арена пуста',
+} as const;
+
+// ─── Arena unit composer strings ─────────────────────────────────────
+
+const COMPOSER_STRINGS = {
+  composer_body: 'Корпус',
+  composer_weapon: 'Пушка',
+  composer_team: 'Команда',
+  composer_ally: 'Союзник',
+  composer_enemy: 'Враг',
+  composer_aiMode: 'Режим ИИ',
+  composer_placeUnit: 'Разместить',
+  composer_cancel: 'Отмена',
+  composer_placing: 'Размещение',
+  composer_placingClickHint: 'клик на поле | Esc/ПКМ отмена',
+} as const;
+
+// ─── AI mode display ─────────────────────────────────────────────────
+
+/** Russian display labels for Arena AI modes. Internal ids remain English. */
+export const AI_MODE_DISPLAY: Record<string, string> = {
+  passive: 'Пассивный',
+  stationary_shooter: 'Стрелок на месте',
+  chaser: 'Преследователь',
+  hold_position: 'Удерживать позицию',
+};
+
+// ─── Devtools label strings (minimal — full separation is 01C) ──────
+
+const DEVTOOLS_STRINGS = {
+  devtools_title: 'Инструменты',
+  devtools_resources: 'Ресурсы',
+  devtools_addRaw: '+Сырьё',
+  devtools_addMatter: '+Материя',
+  devtools_addElement: '+Элемент',
+  devtools_max: 'Макс [DEV]',
+  devtools_zero: 'Обнулить',
+  devtools_spawn: 'Создание',
+  devtools_spawnBuilder: 'Строитель',
+  devtools_spawnHarvester: 'Сборщик',
+  devtools_diagnostics: 'Диагностика',
+  devtools_assets: 'Активы',
+  devtools_assetViewer: 'Просмотр активов',
+  devtools_overlays: 'Слои',
+  devtools_passOverlay: 'Проход',
+  devtools_footOverlay: 'Площадь',
+  devtools_resOverlay: 'Рес',
+  devtools_arena: 'Арена',
+  devtools_resetArena: 'Сбросить арену',
+} as const;
+
 // ─── Late-loading overlay ────────────────────────────────────────────
 
 const LOADING_STRINGS = {
@@ -176,6 +365,12 @@ const MAP_SUMMARY_STRINGS = {
 export const LOCALIZED_STRINGS = {
   ...MENU_STRINGS,
   ...SETUP_STRINGS,
+  ...PAUSE_STRINGS,
+  ...HUD_STRINGS,
+  ...STATUS_STRINGS,
+  ...ARENA_STRINGS,
+  ...COMPOSER_STRINGS,
+  ...DEVTOOLS_STRINGS,
   ...LOADING_STRINGS,
   ...MAP_SUMMARY_STRINGS,
 } as const;

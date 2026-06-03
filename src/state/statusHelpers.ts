@@ -46,6 +46,7 @@ import {
 } from './types';
 import { BUILDING_CONFIG } from './construction';
 import { buildOccupancyMap, isPassable } from './occupancy';
+import { t } from '../config/localization';
 
 // ─── Separator status ──────────────────────────────────────────────
 
@@ -236,8 +237,8 @@ export function getFactorySpawnBlockReason(
 /** Format a FactorySpawnBlockReason into a short display string. */
 export function spawnBlockLabel(reason: FactorySpawnBlockReason): string {
   switch (reason) {
-    case 'unit-cap-reached': return 'Unit Cap';
-    case 'no-spawn-tile': return 'No Spawn Tile';
+    case 'unit-cap-reached': return t('status_unitCap');
+    case 'no-spawn-tile': return t('status_noSpawnTile');
   }
 }
 
@@ -534,65 +535,65 @@ export function isHarvesterBlocked(status: HarvesterStatus): boolean {
   return status.startsWith('blocked-');
 }
 
-/** Format a HarvesterStatus into a short display string. */
+/** Format a HarvesterStatus into a short display string. CORE-STEP-01B: Russian labels. */
 export function harvesterStatusLabel(status: HarvesterStatus): string {
   switch (status) {
-    case 'idle': return 'Idle';
-    case 'moving-to-resource': return 'Moving';
-    case 'gathering': return 'Gathering';
-    case 'returning-to-hq': return 'Returning';
-    case 'unloading': return 'Unloading';
-    case 'manual-move': return 'Manual';
-    case 'blocked-no-resources': return 'No Resources';
-    case 'blocked-no-approach-path': return 'No Path to Resource';
-    case 'blocked-no-path-to-hq': return 'No Path to HQ';
-    case 'blocked-raw-storage-full': return 'Storage Full';
+    case 'idle': return t('status_idle');
+    case 'moving-to-resource': return t('status_moving');
+    case 'gathering': return t('status_gathering');
+    case 'returning-to-hq': return t('status_returning');
+    case 'unloading': return t('status_unloading');
+    case 'manual-move': return t('status_manual');
+    case 'blocked-no-resources': return t('status_noResources');
+    case 'blocked-no-approach-path': return t('status_noPathToResource');
+    case 'blocked-no-path-to-hq': return t('status_noPathToHQ');
+    case 'blocked-raw-storage-full': return t('status_storageFull');
   }
 }
 
 // ─── Label formatting ──────────────────────────────────────────────
 
-/** Format a SeparatorStatus into a short display string. */
+/** Format a SeparatorStatus into a short display string. CORE-STEP-01B: Russian labels. */
 export function separatorStatusLabel(status: SeparatorStatus): string {
   switch (status) {
-    case 'idle': return 'Idle';
-    case 'processing': return 'Processing';
-    case 'blocked-no-raw': return 'No Raw';
-    case 'blocked-matter-cap': return 'Matter Full';
-    case 'blocked-element-cap': return 'Element Full';
-    case 'blocked-power': return 'No Power';
+    case 'idle': return t('status_idle');
+    case 'processing': return t('status_processing');
+    case 'blocked-no-raw': return t('status_noRaw');
+    case 'blocked-matter-cap': return t('status_matterFull');
+    case 'blocked-element-cap': return t('status_elementFull');
+    case 'blocked-power': return t('status_noPower');
   }
 }
 
-/** Format a FactoryStatus into a short display string. */
+/** Format a FactoryStatus into a short display string. CORE-STEP-01B: Russian labels. */
 export function factoryStatusLabel(status: FactoryStatus): string {
   switch (status) {
-    case 'idle': return 'Idle';
-    case 'producing-builder': return 'Builder';
-    case 'producing-harvester': return 'Harvester';
-    case 'blocked-no-matter': return 'No Matter';
-    case 'blocked-no-element': return 'No Element';
-    case 'blocked-queue-full': return 'Queue Full';
-    case 'blocked-power': return 'No Power';
-    case 'blocked-unit-cap': return 'Unit Cap';
+    case 'idle': return t('status_idle');
+    case 'producing-builder': return t('status_builder');
+    case 'producing-harvester': return t('status_harvester');
+    case 'blocked-no-matter': return t('status_noMatter');
+    case 'blocked-no-element': return t('status_noElement');
+    case 'blocked-queue-full': return t('status_queueFull');
+    case 'blocked-power': return t('status_noPower');
+    case 'blocked-unit-cap': return t('status_unitCap');
   }
 }
 
-/** Format a BuildBlockReason into a short display string. */
+/** Format a BuildBlockReason into a short display string. CORE-STEP-01B: Russian labels. */
 export function buildBlockLabel(reason: BuildBlockReason): string {
   switch (reason) {
-    case 'no-idle-builder': return 'No Builder';
-    case 'insufficient-matter': return 'No Matter';
+    case 'no-idle-builder': return t('status_noBuilder');
+    case 'insufficient-matter': return t('status_insufficientMatter');
   }
 }
 
-/** Format a ProductionBlockReason into a short display string. */
+/** Format a ProductionBlockReason into a short display string. CORE-STEP-01B: Russian labels. */
 export function productionBlockLabel(reason: ProductionBlockReason): string {
   switch (reason) {
-    case 'no-factory': return 'No Factory';
-    case 'queue-full': return 'Queue Full';
-    case 'insufficient-matter': return 'No Matter';
-    case 'insufficient-element': return 'No Element';
-    case 'unit-cap-reached': return 'Unit Cap';
+    case 'no-factory': return t('status_noFactory');
+    case 'queue-full': return t('status_queueFull');
+    case 'insufficient-matter': return t('status_insufficientMatter');
+    case 'insufficient-element': return t('status_noElement');
+    case 'unit-cap-reached': return t('status_unitCap');
   }
 }
