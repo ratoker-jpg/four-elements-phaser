@@ -95,7 +95,7 @@ export class DevtoolsPanel {
       left: 8px;
       width: 220px;
       background: rgba(20, 10, 30, 0.92);
-      border: 1px solid rgba(180, 100, 255, 0.25);
+      border: 1px solid rgba(255, 138, 101, 0.25);
       border-radius: 6px;
       padding: 0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -112,12 +112,13 @@ export class DevtoolsPanel {
     const header = document.createElement('div');
     header.style.cssText = `
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: center;
       padding: 8px 10px;
       cursor: pointer;
-      border-bottom: 1px solid rgba(180, 100, 255, 0.15);
-      background: rgba(180, 100, 255, 0.08);
+      border-bottom: 1px solid rgba(255, 138, 101, 0.15);
+      background: rgba(255, 138, 101, 0.06);
+      gap: 4px;
     `;
     header.addEventListener('click', () => this.toggleCollapse());
 
@@ -131,6 +132,27 @@ export class DevtoolsPanel {
     this._collapseLabel = collapseLabel;
 
     header.appendChild(title);
+
+    // CORE-STEP-01C: Clear DEV/Отладка marker
+    const devBadge = document.createElement('span');
+    devBadge.textContent = t('devtools_badge');
+    devBadge.style.cssText = `
+      font-size: 8px;
+      color: #ff8a65;
+      background: rgba(255, 138, 101, 0.12);
+      border: 1px solid rgba(255, 138, 101, 0.3);
+      border-radius: 2px;
+      padding: 1px 4px;
+      margin-left: 6px;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    `;
+    header.appendChild(devBadge);
+
+    const spacer = document.createElement('span');
+    spacer.style.cssText = 'flex: 1;';
+    header.appendChild(spacer);
+
     header.appendChild(collapseLabel);
     root.appendChild(header);
 

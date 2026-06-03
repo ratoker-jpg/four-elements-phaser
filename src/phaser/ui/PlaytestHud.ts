@@ -24,6 +24,7 @@ import { ELEMENT_UNITS_PER_ELEMENT } from '../../state/types';
 import { BUILDING_CONFIG } from '../../state/construction';
 import { getMvpCommandHotkey } from '../../state/commandRegistry';
 import { t, FACTION_DISPLAY } from '../../config/localization';
+import { TooltipManager } from './TooltipManager';
 import {
   getSeparatorStatus,
   getFactoryStatus,
@@ -167,6 +168,8 @@ export class PlaytestHud {
 
   /** Cached map validation result (computed once, not every frame). */
   private cachedValidation: MapValidationResult | null = null;
+  /** CORE-STEP-01C: Tooltip manager for build/production buttons. */
+  private tooltipManager: TooltipManager = new TooltipManager();
 
   /**
    * Create the HUD DOM overlay and attach it to the document body.
@@ -352,6 +355,18 @@ export class PlaytestHud {
       row.appendChild(reasonSpan);
 
       root.appendChild(row);
+
+      // CORE-STEP-01C: Attach build button tooltip
+      const buildTooltipKey: Record<string, string> = {
+        'separator': 'tooltip_buildSeparator',
+        'power-plant': 'tooltip_buildPowerPlant',
+        'units-factory': 'tooltip_buildFactory',
+      };
+      const tooltipKey = buildTooltipKey[def.buildingType];
+      if (tooltipKey) {
+        this.tooltipManager.attach(btn, t(tooltipKey));
+      }
+
       this.buildButtons.set(def.buildingType, btn);
       this.buildReasonEls.set(def.buildingType, reasonSpan);
     }
@@ -434,6 +449,17 @@ export class PlaytestHud {
       row.appendChild(reasonSpan);
 
       root.appendChild(row);
+
+      // CORE-STEP-01C: Attach production button tooltip
+      const prodTooltipKey: Record<string, string> = {
+        'builder': 'tooltip_produceBuilder',
+        'harvester': 'tooltip_produceHarvester',
+      };
+      const pTooltipKey = prodTooltipKey[def.unitType];
+      if (pTooltipKey) {
+        this.tooltipManager.attach(btn, t(pTooltipKey));
+      }
+
       this.productionButtons.set(def.unitType, btn);
       this.prodReasonEls.set(def.unitType, reasonSpan);
     }
@@ -604,6 +630,7 @@ export class PlaytestHud {
    * Remove the HUD DOM overlay and clean up.
    */
   destroy(): void {
+    this.tooltipManager.destroy();
     if (this.statusTimer) {
       clearTimeout(this.statusTimer);
       this.statusTimer = null;

@@ -46,12 +46,15 @@ import {
   FACTION_DISPLAY,
   FACTION_COLOR_SUBTITLE,
   FACTION_BONUS,
+  FACTION_ROLE,
   MAP_SIZE_DISPLAY,
   GAME_MODE_DISPLAY,
   GAME_MODE_DESCRIPTION,
   MAP_STYLE_DISPLAY,
   buildMapSummary,
+  getFactionTooltipText,
 } from '../config/localization';
+import { TooltipManager } from './ui/TooltipManager';
 
 /** UI-02: Shared CSS custom properties matching UI-01 industrial menu theme. */
 const MENU_THEME = {
@@ -103,6 +106,8 @@ export class NewGameSetupScene extends Phaser.Scene {
   private lateLoadingOverlay: HTMLDivElement | null = null;
   /** MENU-02: Prevents double-click during late-loading. */
   private isLateLoading = false;
+  /** CORE-STEP-01C: Tooltip manager for UI elements. */
+  private tooltipManager: TooltipManager = new TooltipManager();
 
   constructor() {
     super({ key: 'NewGameSetupScene' });
@@ -252,6 +257,9 @@ export class NewGameSetupScene extends Phaser.Scene {
         this.updateMapSummary();
       });
 
+      // CORE-STEP-01C: Attach game mode tooltip
+      this.tooltipManager.attach(btn, t('tooltip_gameMode'));
+
       gameModeGrid.appendChild(btn);
     }
     gameModeSection.appendChild(gameModeGrid);
@@ -313,6 +321,9 @@ export class NewGameSetupScene extends Phaser.Scene {
         this.updateMapSummary();
       });
 
+      // CORE-STEP-01C: Attach map size tooltip
+      this.tooltipManager.attach(btn, t('tooltip_mapSize'));
+
       this.sizeContainer.appendChild(btn);
     }
     this.sizeSection.appendChild(this.sizeContainer);
@@ -344,6 +355,7 @@ export class NewGameSetupScene extends Phaser.Scene {
         <div style="font-weight:700;font-size:14px;line-height:1.2;">${displayName}</div>
         <div style="font-size:10px;opacity:0.6;margin-top:2px;">${colorSubtitle}</div>
         <div style="font-size:10px;opacity:0.5;margin-top:1px;">${bonus}</div>
+        <div style="font-size:9px;opacity:0.4;margin-top:1px;">${FACTION_ROLE[faction]}</div>
       `;
 
       btn.style.cssText = this.factionButtonStyle(faction, faction === this.selectedFaction);
@@ -372,6 +384,9 @@ export class NewGameSetupScene extends Phaser.Scene {
           b.style.cssText = this.factionButtonStyle(f, f === this.selectedFaction);
         });
       });
+
+      // CORE-STEP-01C: Attach faction tooltip
+      this.tooltipManager.attach(btn, getFactionTooltipText(faction));
 
       factionGrid.appendChild(btn);
     }
@@ -606,6 +621,10 @@ export class NewGameSetupScene extends Phaser.Scene {
       this.startGameWithMode();
     });
     buttonRow.appendChild(startBtn);
+
+    // CORE-STEP-01C: Attach start and back button tooltips
+    this.tooltipManager.attach(startBtn, t('tooltip_setupStart'));
+    this.tooltipManager.attach(backBtn, t('tooltip_setupBack'));
 
     setupBox.appendChild(buttonRow);
     root.appendChild(setupBox);
@@ -963,6 +982,7 @@ export class NewGameSetupScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.tooltipManager.destroy();
     this.hideLateLoadingOverlay();
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);

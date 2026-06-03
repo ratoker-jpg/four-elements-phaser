@@ -18,6 +18,7 @@ import type { BodyId, WeaponId } from '../../config/blockoutProfiles';
 import type { ArenaTeam, AiMode } from '../../state/blockoutVehicleState';
 import type { ArenaPlacementState } from '../../state/arenaPlacement';
 import { t, AI_MODE_DISPLAY } from '../../config/localization';
+import { TooltipManager } from './TooltipManager';
 
 // ─── Theme ──────────────────────────────────────────────────────────
 
@@ -72,6 +73,9 @@ export class ArenaUnitComposer {
   private selectedTeam: ArenaTeam = 'ally';
   private selectedAiMode: AiMode = 'passive'; // ARENA-05H+
 
+  /** CORE-STEP-01C: Tooltip manager for composer section titles. */
+  private tooltipManager: TooltipManager = new TooltipManager();
+
   // DOM references for state feedback
   private bodyButtons: Map<string, HTMLButtonElement> = new Map();
   private weaponButtons: Map<string, HTMLButtonElement> = new Map();
@@ -103,6 +107,8 @@ export class ArenaUnitComposer {
     bodyTitle.textContent = t('composer_body');
     bodyTitle.style.cssText = `font-weight: 600; font-size: 10px; margin-bottom: 2px; color: ${COMPOSER_THEME.sectionTitleColor};`;
     root.appendChild(bodyTitle);
+    // CORE-STEP-01C: Attach body tooltip
+    this.tooltipManager.attach(bodyTitle, t('tooltip_composerBody'));
 
     const bodyGrid = document.createElement('div');
     bodyGrid.style.cssText = 'display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 6px;';
@@ -141,6 +147,8 @@ export class ArenaUnitComposer {
     weaponTitle.textContent = t('composer_weapon');
     weaponTitle.style.cssText = `font-weight: 600; font-size: 10px; margin-bottom: 2px; color: ${COMPOSER_THEME.sectionTitleColor};`;
     root.appendChild(weaponTitle);
+    // CORE-STEP-01C: Attach weapon tooltip
+    this.tooltipManager.attach(weaponTitle, t('tooltip_composerWeapon'));
 
     const weaponGrid = document.createElement('div');
     weaponGrid.style.cssText = 'display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 6px;';
@@ -178,6 +186,8 @@ export class ArenaUnitComposer {
     teamTitle.textContent = t('composer_team');
     teamTitle.style.cssText = `font-weight: 600; font-size: 10px; margin-bottom: 2px; color: ${COMPOSER_THEME.sectionTitleColor};`;
     root.appendChild(teamTitle);
+    // CORE-STEP-01C: Attach team tooltip
+    this.tooltipManager.attach(teamTitle, t('tooltip_composerTeam'));
 
     const teamRow = document.createElement('div');
     teamRow.style.cssText = 'display: flex; gap: 4px; margin-bottom: 6px;';
@@ -224,6 +234,8 @@ export class ArenaUnitComposer {
     aiTitle.textContent = t('composer_aiMode');
     aiTitle.style.cssText = `font-weight: 600; font-size: 10px; margin-bottom: 2px; color: ${COMPOSER_THEME.sectionTitleColor};`;
     root.appendChild(aiTitle);
+    // CORE-STEP-01C: Attach AI mode tooltip
+    this.tooltipManager.attach(aiTitle, t('tooltip_composerAiMode'));
 
     const aiRow = document.createElement('div');
     aiRow.style.cssText = 'display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 6px;';
@@ -376,6 +388,7 @@ export class ArenaUnitComposer {
 
   /** Remove the UnitComposer DOM. */
   destroy(): void {
+    this.tooltipManager.destroy();
     if (this.container && this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }

@@ -3,6 +3,7 @@
  *
  * CORE-STEP-01A: Provides a stable English-key → localized-string map.
  * CORE-STEP-01B: Adds Pause, HUD, Status, Arena, Composer, Devtools sections.
+ * CORE-STEP-01C: Adds FACTION_ROLE, tooltip strings, and getFactionTooltipText helper.
  * Russian is the primary language. English keys are internal ids and
  * never displayed to players. English fallback values exist for dev
  * reference only.
@@ -140,6 +141,14 @@ export const FACTION_BONUS: Record<Faction, string> = {
   purple: 'Бонус: обзор и контроль территории',
 };
 
+/** Role description for each faction. CORE-STEP-01C: Used in tooltips/cards. */
+export const FACTION_ROLE: Record<Faction, string> = {
+  cyan: 'Роль: быстрый старт, темп, мобильные действия',
+  green: 'Роль: развитие базы и стабильная экономика',
+  yellow: 'Роль: быстрее выводит боевые силы',
+  purple: 'Роль: информация, контроль карты, безопасное расширение',
+};
+
 // ─── Map style display ───────────────────────────────────────────────
 
 /** Display labels for map styles. */
@@ -147,6 +156,34 @@ export const MAP_STYLE_DISPLAY: Record<string, string> = {
   sand: 'Песок / Классика',
   industrial: 'Промышленная платформа',
 };
+
+// ─── Tooltip strings ────────────────────────────────────────────────
+
+const TOOLTIP_STRINGS = {
+  // Faction tooltips
+  tooltip_faction_cyan: 'Быстрый старт, темп, мобильные действия.',
+  tooltip_faction_green: 'Развитие базы и стабильная экономика.',
+  tooltip_faction_yellow: 'Быстрее выводит боевые силы.',
+  tooltip_faction_purple: 'Информация, контроль карты, безопасное расширение.',
+  // Setup tooltips
+  tooltip_gameMode: 'Определяет правила и доступные инструменты.',
+  tooltip_mapSize: 'Влияет на длительность игры и количество ресурсов.',
+  tooltip_setupStart: 'Начать игру с выбранными настройками.',
+  tooltip_setupBack: 'Вернуться в главное меню.',
+  // HUD tooltips
+  tooltip_buildSeparator: 'Сепаратор перерабатывает сырьё в энергию.',
+  tooltip_buildPowerPlant: 'Электростанция обеспечивает питание зданий.',
+  tooltip_buildFactory: 'Фабрика производит строителей и сборщиков.',
+  tooltip_produceBuilder: 'Строитель возводит здания на подготовленных площадках.',
+  tooltip_produceHarvester: 'Сборщик добывает сырьё и доставляет на базу.',
+  // Arena composer tooltips
+  tooltip_composerBody: 'Корпус определяет запас здоровья и скорость юнита.',
+  tooltip_composerWeapon: 'Пушка определяет тип и урон оружия.',
+  tooltip_composerTeam: 'Союзники управляются игроком, враги — ИИ.',
+  tooltip_composerAiMode: 'Режим поведения ИИ для вражеских юнитов.',
+  // DevTools marker
+  devtools_badge: 'DEV / Отладка',
+} as const;
 
 // ─── Pause menu strings ─────────────────────────────────────────────
 
@@ -373,6 +410,7 @@ export const LOCALIZED_STRINGS = {
   ...DEVTOOLS_STRINGS,
   ...LOADING_STRINGS,
   ...MAP_SUMMARY_STRINGS,
+  ...TOOLTIP_STRINGS,
 } as const;
 
 // ─── Lookup function ─────────────────────────────────────────────────
@@ -411,6 +449,14 @@ export function getFactionDisplayText(faction: Faction): string {
  */
 export function getFactionShortDisplay(faction: Faction): string {
   return `${FACTION_DISPLAY[faction]} — ${FACTION_BONUS[faction]}`;
+}
+
+/**
+ * Get full faction tooltip text: display name + color subtitle + bonus + role.
+ * CORE-STEP-01C: Used for faction card tooltips.
+ */
+export function getFactionTooltipText(faction: Faction): string {
+  return `${FACTION_DISPLAY[faction]}\n${FACTION_COLOR_SUBTITLE[faction]}\n${FACTION_BONUS[faction]}\n${FACTION_ROLE[faction]}`;
 }
 
 // ─── Map summary helper ──────────────────────────────────────────────
