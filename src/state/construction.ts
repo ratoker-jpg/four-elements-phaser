@@ -21,8 +21,9 @@
  */
 
 import type { GameState, BuildingType } from './types';
-import { RAW_STORAGE_RAW_BONUS, MATTER_STORAGE_MATTER_BONUS, MATTER_STORAGE_ELEMENT_BONUS } from './types';
+import { RAW_STORAGE_RAW_BONUS, MATTER_STORAGE_MATTER_BONUS, ELEMENT_STORAGE_ELEMENT_BONUS } from './types';
 import { buildOccupancyMap, isBuildable } from './occupancy';
+import { isVisualReadyBuilding } from '../config/buildingRuntimeMapping';
 
 // ─── Building Configuration ─────────────────────────────────────────
 
@@ -39,10 +40,14 @@ export interface BuildingConfig {
 /**
  * Building configurations keyed by type.
  *
- * Only 'separator' is fully configured for ARCH-13E1.
- * Other types are absent — canPlaceBuilding rejects them with
- * 'unknown-building-type'. As future PRs add building types,
- * their configs are added here.
+ * CORE-STEP-04H+: All core economy buildings now have complete configs.
+ * Costs are in matter (processed resource / "energy" in the production model).
+ *
+ * Building-type to production-config mapping:
+ *   'raw-storage'     → production 'raw_storage'
+ *   'matter-storage'  → production 'energy_storage' (displayed as Хранилище энергии)
+ *   'element-storage' → production 'elements_storage' (displayed as Хранилище элементов)
+ *   'energy-plant'    → production 'energy_reactor' (visual-ready, no mechanic yet)
  */
 export const BUILDING_CONFIG: Partial<Record<BuildingType, BuildingConfig>> = {
   separator: {
@@ -52,12 +57,40 @@ export const BUILDING_CONFIG: Partial<Record<BuildingType, BuildingConfig>> = {
     costMatter: 60,
     buildTimeMs: 20000,
   },
+  'raw-storage': {
+    type: 'raw-storage',
+    footprintW: 2,
+    footprintH: 2,
+    costMatter: 40,
+    buildTimeMs: 15000,
+  },
+  'matter-storage': {
+    type: 'matter-storage',
+    footprintW: 2,
+    footprintH: 2,
+    costMatter: 40,
+    buildTimeMs: 15000,
+  },
+  'element-storage': {
+    type: 'element-storage',
+    footprintW: 2,
+    footprintH: 2,
+    costMatter: 50,
+    buildTimeMs: 18000,
+  },
   'power-plant': {
     type: 'power-plant',
     footprintW: 2,
     footprintH: 2,
     costMatter: 100,
     buildTimeMs: 25000,
+  },
+  'energy-plant': {
+    type: 'energy-plant',
+    footprintW: 2,
+    footprintH: 2,
+    costMatter: 80,
+    buildTimeMs: 20000,
   },
   'units-factory': {
     type: 'units-factory',
@@ -71,7 +104,7 @@ export const BUILDING_CONFIG: Partial<Record<BuildingType, BuildingConfig>> = {
 // ─── Placement Result ───────────────────────────────────────────────
 
 /** Rejection reasons for building placement. */
-export type PlacementRejectionReason = 'out-of-bounds' | 'occupied' | 'insufficient-resources' | 'unknown-building-type';
+export type PlacementRejectionReason = 'out-of-bounds' | 'occupied' | 'insufficient-resources' | 'unknown-building-type' | 'not-buildable';
 
 /** Result of a placement validation check. */
 export type PlacementResult =
@@ -100,6 +133,12 @@ export function canPlaceBuilding(
   // 1. Unknown building type
   const config = BUILDING_CONFIG[buildingType];
   if (!config) return { valid: false, reason: 'unknown-building-type' };
+
+  // 1b. Visual-ready buildings are not buildable through the live build flow.
+  //     Source-of-truth: production config readiness + isBuildable fields.
+  if (isVisualReadyBuilding(buildingType)) {
+    return { valid: false, reason: 'not-buildable' };
+  }
 
   // 2. Out of bounds — check that the entire footprint fits within the map
   if (tx < 0 || ty < 0 || tx + config.footprintW > state.mapWidth || ty + config.footprintH > state.mapHeight) {
@@ -242,13 +281,15 @@ export function updateConstructionSiteProgress(
     });
   }
 
-  // ARCH-01D: Apply storage cap bonuses for completed storage buildings.
+  // ARCH-01D / CORE-STEP-04H+: Apply storage cap bonuses for completed storage buildings.
   if (site.type === 'raw-storage') {
     state.economy.rawCap += RAW_STORAGE_RAW_BONUS;
   } else if (site.type === 'matter-storage') {
     state.economy.matterCap += MATTER_STORAGE_MATTER_BONUS;
-    state.economy.elementCap += MATTER_STORAGE_ELEMENT_BONUS;
+  } else if (site.type === 'element-storage') {
+    state.economy.elementCap += ELEMENT_STORAGE_ELEMENT_BONUS;
   }
+  // energy-plant: visual-ready, no gameplay mechanic yet
 
   // ARCH-01F: Register completed units-factory into production runtime state.
   if (site.type === 'units-factory') {

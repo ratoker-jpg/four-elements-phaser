@@ -17,7 +17,7 @@ import {
   HQ_ELEMENT_CAP,
   RAW_STORAGE_RAW_BONUS,
   MATTER_STORAGE_MATTER_BONUS,
-  MATTER_STORAGE_ELEMENT_BONUS,
+  ELEMENT_STORAGE_ELEMENT_BONUS,
   HQ_BASE_POWER,
   POWER_PLANT_GENERATION,
 } from './types';
@@ -261,7 +261,8 @@ function createInitialEconomy(_playerFaction: Faction, mapData: MapData): Econom
       rawCap += RAW_STORAGE_RAW_BONUS;
     } else if (building.type === 'matter-storage') {
       matterCap += MATTER_STORAGE_MATTER_BONUS;
-      elementCap += MATTER_STORAGE_ELEMENT_BONUS;
+    } else if (building.type === 'element-storage') {
+      elementCap += ELEMENT_STORAGE_ELEMENT_BONUS;
     }
   }
 

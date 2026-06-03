@@ -510,9 +510,9 @@ describe('CORE-STEP-01B: Arena Russian labels', () => {
 describe('CORE-STEP-01B: Status labels Russian', () => {
   it('separator status labels are Russian', () => {
     expect(t('status_idle')).toBe('Ожидание');
-    expect(t('status_processing')).toBe('Обработка');
+    expect(t('status_processing')).toBe('Работает');
     expect(t('status_noRaw')).toBe('Нет сырья');
-    expect(t('status_matterFull')).toBe('Лимит энергии');
+    expect(t('status_matterFull')).toBe('Накопитель полон');
     expect(t('status_noPower')).toBe('Нет питания');
   });
 

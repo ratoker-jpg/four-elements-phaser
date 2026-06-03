@@ -399,7 +399,7 @@ describe('ARCH-07A: label formatting', () => {
   });
 
   it('buildBlockLabel covers all reasons', () => {
-    const reasons: BuildBlockReason[] = ['no-idle-builder', 'insufficient-matter'];
+    const reasons: BuildBlockReason[] = ['no-idle-builder', 'insufficient-matter', 'not-buildable'];
     for (const r of reasons) {
       expect(buildBlockLabel(r).length).toBeGreaterThan(0);
     }

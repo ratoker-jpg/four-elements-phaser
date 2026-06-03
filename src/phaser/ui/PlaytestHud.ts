@@ -25,6 +25,7 @@ import { BUILDING_CONFIG } from '../../state/construction';
 import { getMvpCommandHotkey } from '../../state/commandRegistry';
 import { t, FACTION_DISPLAY } from '../../config/localization';
 import { getResourceClassShortLabel } from '../../config/resourceClassRuntime';
+import { getBuildingDisplayName, getBuildingReadiness } from '../../config/buildingRuntimeMapping';
 import { TooltipManager } from './TooltipManager';
 import {
   getSeparatorStatus,
@@ -84,9 +85,14 @@ const DELTA_DISPLAY_MS = 2000;
 
 /** Build button definitions. HOTKEYS-01: hotkeys sourced from command registry. */
 const BUILD_BUTTONS: Array<{ buildingType: BuildingType; label: string; commandId: string }> = [
-  { buildingType: 'separator', label: t('hud_separator'), commandId: 'build-separator' },
-  { buildingType: 'power-plant', label: t('hud_powerPlant'), commandId: 'build-power-plant' },
-  { buildingType: 'units-factory', label: t('hud_unitsFactory'), commandId: 'build-units-factory' },
+  { buildingType: 'separator', label: getBuildingDisplayName('separator'), commandId: 'build-separator' },
+  { buildingType: 'raw-storage', label: getBuildingDisplayName('raw-storage'), commandId: 'build-raw-storage' },
+  { buildingType: 'matter-storage', label: getBuildingDisplayName('matter-storage'), commandId: 'build-matter-storage' },
+  { buildingType: 'element-storage', label: getBuildingDisplayName('element-storage'), commandId: 'build-element-storage' },
+  { buildingType: 'power-plant', label: getBuildingDisplayName('power-plant'), commandId: 'build-power-plant' },
+  // energy-plant removed from live build buttons — visual-ready only, no mechanic yet.
+  // Players must not spend matter on a non-functional building.
+  { buildingType: 'units-factory', label: getBuildingDisplayName('units-factory'), commandId: 'build-units-factory' },
 ];
 
 /** Production button definitions. HOTKEYS-01: hotkeys sourced from command registry. */
@@ -292,7 +298,9 @@ export class PlaytestHud {
 
       const btn = document.createElement('button');
       const config = BUILDING_CONFIG[def.buildingType];
-      const costStr = config ? ` (${config.costMatter}m)` : '';
+      const readiness = getBuildingReadiness(def.buildingType);
+      const isVisual = readiness === 'visual_ready';
+      const costStr = isVisual ? ' (план)' : (config ? ` (${config.costMatter}m)` : '');
       const hotkey = getHotkeyString(def.commandId);
       btn.textContent = hotkey ? `${hotkey} = ${def.label}${costStr}` : `${def.label}${costStr}`;
       btn.style.cssText = `
@@ -360,6 +368,9 @@ export class PlaytestHud {
       // CORE-STEP-01C: Attach build button tooltip
       const buildTooltipKey: Record<string, string> = {
         'separator': 'tooltip_buildSeparator',
+        'raw-storage': 'tooltip_buildRawStorage',
+        'matter-storage': 'tooltip_buildEnergyStorage',
+        'element-storage': 'tooltip_buildElementsStorage',
         'power-plant': 'tooltip_buildPowerPlant',
         'units-factory': 'tooltip_buildFactory',
       };

@@ -207,8 +207,15 @@ const MVP_COMMAND_DEFS: CommandDef[] = [
   { id: 'camera-reset', label: 'Camera Reset', key: 'R', category: 'camera' },
   { id: 'pause-menu', label: 'Pause / Menu', key: 'ESC', category: 'menu' },
   { id: 'build-separator', label: 'Build Separator', key: 'B', category: 'build' },
-  { id: 'build-units-factory', label: 'Build Units Factory', key: 'F', category: 'build' },
+  { id: 'build-raw-storage', label: 'Build Raw Storage', key: 'ONE', category: 'build' },
+  { id: 'build-matter-storage', label: 'Build Energy Storage', key: 'TWO', category: 'build' },
+  { id: 'build-element-storage', label: 'Build Elements Storage', key: 'THREE', category: 'build' },
   { id: 'build-power-plant', label: 'Build Power Plant', key: 'P', category: 'build' },
+  // build-energy-plant removed from live commands — energy-plant is visual-ready only.
+  // No hotkey, no command definition. The building type still exists in BUILDING_CONFIG
+  // and buildingRuntimeMapping for future visual-ready support, but players cannot
+  // trigger construction via hotkey or command registry.
+  { id: 'build-units-factory', label: 'Build Units Factory', key: 'F', category: 'build' },
   { id: 'produce-builder', label: 'Train Builder', key: 'N', category: 'produce' },
   { id: 'produce-harvester', label: 'Train Harvester', key: 'G', category: 'produce' },
 ];

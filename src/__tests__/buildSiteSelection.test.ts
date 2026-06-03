@@ -250,7 +250,7 @@ describe('findBuildSiteNearPlayerBuildings', () => {
 
   it('returns unknown-building-type for unconfigured building', () => {
     const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 5, hqTy: 5 });
-    const result = findBuildSiteNearPlayerBuildings(state, 'raw-storage');
+    const result = findBuildSiteNearPlayerBuildings(state, 'command-relay');
 
     expect(result.ok).toBe(false);
     if (!result.ok) {

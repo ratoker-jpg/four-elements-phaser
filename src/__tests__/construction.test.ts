@@ -256,8 +256,8 @@ describe('canPlaceBuilding', () => {
 
   it('rejects unknown building type', () => {
     const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0 });
-    // 'raw-storage' is in BuildingType but not configured in BUILDING_CONFIG
-    const result = canPlaceBuilding(state, 'raw-storage', 10, 10);
+    // 'command-relay' is in BuildingType but not configured in BUILDING_CONFIG
+    const result = canPlaceBuilding(state, 'command-relay', 10, 10);
     expect(result).toEqual({ valid: false, reason: 'unknown-building-type' });
   });
 
@@ -619,7 +619,7 @@ describe('ARCH-01D: construction completion cap bonuses', () => {
     expect(state.economy.elementCap).toBe(200); // unchanged
   });
 
-  it('matter-storage completion increases matterCap and elementCap', () => {
+  it('matter-storage completion increases matterCap only (not elementCap)', () => {
     const state = makeTestState({
       mapW: 20, mapH: 20, hqTx: 0, hqTy: 0,
       matter: 500,
@@ -654,7 +654,7 @@ describe('ARCH-01D: construction completion cap bonuses', () => {
 
     expect(state.economy.rawCap).toBe(200); // unchanged
     expect(state.economy.matterCap).toBe(matterCapBefore + 200); // MATTER_STORAGE_MATTER_BONUS
-    expect(state.economy.elementCap).toBe(elementCapBefore + 200); // MATTER_STORAGE_ELEMENT_BONUS
+    expect(state.economy.elementCap).toBe(elementCapBefore); // unchanged — matter-storage only increases matterCap
   });
 });
 

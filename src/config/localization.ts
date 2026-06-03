@@ -174,7 +174,11 @@ const TOOLTIP_STRINGS = {
   tooltip_setupBack: 'Вернуться в главное меню.',
   // HUD tooltips
   tooltip_buildSeparator: 'Сепаратор перерабатывает сырьё в энергию.',
+  tooltip_buildRawStorage: 'Хранилище сырья увеличивает лимит хранения сырья.',
+  tooltip_buildEnergyStorage: 'Хранилище энергии увеличивает лимит хранения энергии.',
+  tooltip_buildElementsStorage: 'Хранилище элементов увеличивает лимит хранения элементов фракции.',
   tooltip_buildPowerPlant: 'Электростанция обеспечивает питание зданий.',
+  tooltip_buildEnergyReactor: 'Энергореактор — улучшенная энергетическая инфраструктура (ещё не реализовано).',
   tooltip_buildFactory: 'Фабрика производит строителей и сборщиков.',
   tooltip_produceBuilder: 'Строитель возводит здания на подготовленных площадках.',
   tooltip_produceHarvester: 'Сборщик добывает сырьё и доставляет на базу.',
@@ -258,10 +262,10 @@ const HUD_STRINGS = {
 
 const STATUS_STRINGS = {
   status_idle: 'Ожидание',
-  status_processing: 'Обработка',
+  status_processing: 'Работает',
   status_noRaw: 'Нет сырья',
-  status_matterFull: 'Лимит энергии',
-  status_elementFull: 'Элемент — полный',
+  status_matterFull: 'Накопитель полон',
+  status_elementFull: 'Выход заполнен',
   status_noPower: 'Нет питания',
   status_builder: 'Строитель',
   status_harvester: 'Сборщик',
@@ -270,6 +274,7 @@ const STATUS_STRINGS = {
   status_queueFull: 'Очередь полна',
   status_unitCap: 'Лимит юнитов',
   status_noBuilder: 'Нет строителя',
+  status_notBuildable: 'Не строится',
   status_noFactory: 'Нет фабрики',
   status_moving: 'Идёт',
   status_gathering: 'Сбор',
