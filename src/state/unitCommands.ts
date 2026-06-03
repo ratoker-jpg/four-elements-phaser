@@ -355,6 +355,87 @@ function moveTowardTile(
   return Math.sqrt(newDx * newDx + newDy * newDy) <= ARRIVAL_THRESHOLD;
 }
 
+// ─── Stop command (CORE-STEP-05H+) ─────────────────────────────────
+
+/** Result of a stop command. */
+export type StopResult =
+  | { ok: true }
+  | { ok: false; reason: 'no-unit-selected' | 'unit-busy' };
+
+/**
+ * Stop the selected unit's current command.
+ *
+ * CORE-STEP-05H+: S key stops the selected unit:
+ * - Harvester: clears manual move, clears auto-gather target, returns to idle
+ * - Builder: clears manual move, returns to idle if not building
+ *
+ * Does NOT change unrelated units. Does NOT rewrite movement/pathfinding.
+ * Only clears the current command intent/state.
+ */
+export function stopUnitCommand(
+  state: GameState,
+  unit: SelectableUnit,
+): StopResult {
+  if (unit.kind === 'harvester') {
+    const h = state.harvesters.find(h => h.id === unit.id);
+    if (!h) return { ok: false, reason: 'no-unit-selected' };
+
+    // Clear manual move
+    h.manualPath = undefined;
+    h.manualPathIndex = undefined;
+    h.manualCooldownMs = undefined;
+
+    // If in manual-move, return to idle (auto-gather will resume)
+    if (h.phase === 'manual-move') {
+      h.phase = 'idle';
+    }
+
+    // Clear harvest target if gathering or moving to resource
+    if (h.phase === 'gathering' || h.phase === 'moving-to-resource') {
+      h.phase = 'idle';
+      h.targetResourceId = null;
+      h.approachPath = undefined;
+      h.approachPathIndex = undefined;
+    }
+
+    // Clear return path if returning to HQ
+    if (h.phase === 'returning-to-hq') {
+      h.phase = 'idle';
+      h.returnPath = undefined;
+      h.returnPathIndex = undefined;
+    }
+
+    // Clear unloading
+    if (h.phase === 'unloading') {
+      h.phase = 'idle';
+    }
+
+    // Clear blocked reason
+    h.blockedReason = undefined;
+
+    return { ok: true };
+  }
+
+  if (unit.kind === 'builder') {
+    const builder = state.mapData.builders.find(b => b.id === unit.id);
+    if (!builder) return { ok: false, reason: 'no-unit-selected' };
+
+    // Only stop if doing a manual move (not building assignment)
+    if (builder.manualMove && builder.phase === 'moving-to-site') {
+      builder.phase = 'idle';
+      builder.path = [];
+      builder.pathIndex = 0;
+      builder.manualMove = false;
+      return { ok: true };
+    }
+
+    // Builder is building or idle — can't stop
+    return { ok: false, reason: 'unit-busy' };
+  }
+
+  return { ok: false, reason: 'no-unit-selected' };
+}
+
 // ─── Path existence check (for debug telemetry) ────────────────────
 
 /**
