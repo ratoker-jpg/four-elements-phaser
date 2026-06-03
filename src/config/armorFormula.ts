@@ -53,18 +53,22 @@ export interface ArmorFormulaResult {
  * Formula: finalDamage = max(rawDamage - armor, rawDamage * minDamagePercent)
  *
  * Invalid inputs are clamped rather than throwing:
- * - negative rawDamage → clamped to 0
- * - negative armor → clamped to 0
+ * - non-finite or negative rawDamage → clamped to 0
+ * - non-finite or negative armor → clamped to 0
+ * - non-finite minDamagePercent → clamped to 0
  * - minDamagePercent < 0 → clamped to 0
  * - minDamagePercent > 1 → clamped to 1
  *
  * This clamping approach ensures the function never throws and always
- * returns a sensible result, which is important for game runtime stability.
+ * returns a sensible (non-NaN) result, which is important for game
+ * runtime stability.
  */
 export function calculateArmorReducedDamage(input: ArmorFormulaInput): ArmorFormulaResult {
-  const rawDamage = Math.max(0, input.rawDamage);
-  const armor = Math.max(0, input.armor);
-  const minDamagePercent = Math.min(1, Math.max(0, input.minDamagePercent));
+  const rawDamage = Number.isFinite(input.rawDamage) && input.rawDamage >= 0 ? input.rawDamage : 0;
+  const armor = Number.isFinite(input.armor) && input.armor >= 0 ? input.armor : 0;
+  const minDamagePercent = Number.isFinite(input.minDamagePercent)
+    ? Math.min(1, Math.max(0, input.minDamagePercent))
+    : 0;
 
   const afterFlatReduction = rawDamage - armor;
   const floor = rawDamage * minDamagePercent;

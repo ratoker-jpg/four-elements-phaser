@@ -229,6 +229,76 @@ describe('armor formula: invalid input clamping', () => {
     });
     expect(result.finalDamage).toBe(0);
   });
+
+  it('NaN rawDamage returns 0 (no NaN in result)', () => {
+    const result = calculateArmorReducedDamage({
+      rawDamage: NaN, armor: 5, minDamagePercent: 0.2,
+    });
+    expect(result.finalDamage).toBe(0);
+    expect(Number.isNaN(result.finalDamage)).toBe(false);
+  });
+
+  it('NaN armor is treated as 0', () => {
+    const result = calculateArmorReducedDamage({
+      rawDamage: 50, armor: NaN, minDamagePercent: 0.2,
+    });
+    expect(result.finalDamage).toBe(50);
+    expect(Number.isNaN(result.finalDamage)).toBe(false);
+  });
+
+  it('NaN minDamagePercent is treated as 0', () => {
+    const result = calculateArmorReducedDamage({
+      rawDamage: 50, armor: 60, minDamagePercent: NaN,
+    });
+    // minDamagePercent = 0, so floor = 0, afterFlatReduction = -10 → finalDamage = 0
+    expect(result.finalDamage).toBe(0);
+    expect(Number.isNaN(result.finalDamage)).toBe(false);
+  });
+
+  it('Infinity rawDamage is treated as 0 (non-finite)', () => {
+    const result = calculateArmorReducedDamage({
+      rawDamage: Infinity, armor: 5, minDamagePercent: 0.2,
+    });
+    expect(result.finalDamage).toBe(0);
+    expect(Number.isNaN(result.finalDamage)).toBe(false);
+  });
+
+  it('-Infinity rawDamage is treated as 0 (non-finite)', () => {
+    const result = calculateArmorReducedDamage({
+      rawDamage: -Infinity, armor: 5, minDamagePercent: 0.2,
+    });
+    expect(result.finalDamage).toBe(0);
+    expect(Number.isNaN(result.finalDamage)).toBe(false);
+  });
+
+  it('Infinity armor is treated as 0 (non-finite)', () => {
+    const result = calculateArmorReducedDamage({
+      rawDamage: 50, armor: Infinity, minDamagePercent: 0.2,
+    });
+    // armor = 0 (non-finite clamped), so finalDamage = rawDamage = 50
+    expect(result.finalDamage).toBe(50);
+    expect(Number.isNaN(result.finalDamage)).toBe(false);
+  });
+
+  it('Infinity minDamagePercent is treated as 0 (non-finite)', () => {
+    const result = calculateArmorReducedDamage({
+      rawDamage: 50, armor: 10, minDamagePercent: Infinity,
+    });
+    // minDamagePercent = 0, so floor = 0, afterFlatReduction = 40
+    expect(result.finalDamage).toBe(40);
+    expect(Number.isNaN(result.finalDamage)).toBe(false);
+  });
+
+  it('all NaN inputs return 0 (no NaN in any result field)', () => {
+    const result = calculateArmorReducedDamage({
+      rawDamage: NaN, armor: NaN, minDamagePercent: NaN,
+    });
+    expect(result.finalDamage).toBe(0);
+    expect(result.hitFloor).toBe(false);
+    expect(result.reduction).toBe(0);
+    expect(Number.isNaN(result.finalDamage)).toBe(false);
+    expect(Number.isNaN(result.reduction)).toBe(false);
+  });
 });
 
 // ─── Reduction tracking ──────────────────────────────────────────────

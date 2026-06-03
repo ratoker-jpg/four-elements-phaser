@@ -37,9 +37,11 @@ export function getMLevelValue<T>(data: MLevelData<T>, level: number): T {
 
 /**
  * Clamp a modification level to the valid range [0, 3].
+ * Non-finite values (NaN, Infinity, -Infinity) are treated as 0 for safety.
  * Returns a valid ModificationLevel.
  */
 export function clampModificationLevel(level: number): ModificationLevel {
+  if (!Number.isFinite(level)) return 0 as ModificationLevel;
   return Math.min(Math.max(0, Math.floor(level)), 3) as ModificationLevel;
 }
 

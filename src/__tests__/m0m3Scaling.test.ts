@@ -62,6 +62,18 @@ describe('getMLevelValue', () => {
     expect(getMLevelValue(data, 2.9)).toBe(30);
   });
 
+  it('returns M0 value for NaN level', () => {
+    expect(getMLevelValue(data, NaN)).toBe(10);
+  });
+
+  it('returns M0 value for Infinity level (non-finite → M0)', () => {
+    expect(getMLevelValue(data, Infinity)).toBe(10);
+  });
+
+  it('returns M0 value for -Infinity level (non-finite → M0)', () => {
+    expect(getMLevelValue(data, -Infinity)).toBe(10);
+  });
+
   it('works with string data', () => {
     const strData = ['a', 'b', 'c', 'd'] as const;
     expect(getMLevelValue(strData, 0)).toBe('a');
@@ -94,6 +106,18 @@ describe('clampModificationLevel', () => {
 
   it('floors 0.9 to 0', () => {
     expect(clampModificationLevel(0.9)).toBe(0);
+  });
+
+  it('returns 0 for NaN', () => {
+    expect(clampModificationLevel(NaN)).toBe(0);
+  });
+
+  it('returns 0 for Infinity', () => {
+    expect(clampModificationLevel(Infinity)).toBe(0);
+  });
+
+  it('returns 0 for -Infinity', () => {
+    expect(clampModificationLevel(-Infinity)).toBe(0);
   });
 });
 
