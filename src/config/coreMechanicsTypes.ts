@@ -70,7 +70,7 @@ export type BodyFootprintClass = 'light' | 'medium' | 'heavy';
  * M0-M3 scaling data — a fixed-length tuple of 4 values indexed by ModificationLevel.
  *
  * Index 0 = M0, Index 1 = M1, Index 2 = M2, Index 3 = M3.
- * Values must be monotonically non-decreasing for damage and turretTurnSpeed
+ * Values must be monotonically non-decreasing for damage (or heal rate for support weapons) and turretTurnSpeed
  * (M0 <= M1 <= M2 <= M3) per accepted mechanics decisions.
  * Mass is excluded from M-level scaling; it is fixed per body.
  */
@@ -96,11 +96,16 @@ export interface WeaponConfig {
   maxRange: number;
   /** Distance in tile units where the attacking unit stops approaching. */
   stopDistance: number;
-  /** Damage model. Structure depends on fireType. */
+  /**
+   * Damage model. Structure depends on fireType.
+   * Not all weapons deal damage — support weapons (e.g., Isida) use the `support`
+   * model instead. Damage weapons must have directDamage or damagePerSecond.
+   * Support weapons must NOT have directDamage or damagePerSecond.
+   */
   damage: {
     /** M0-M3 direct/shot damage. Present for cooldown, wind_up, near_continuous, magazine, drum. */
     directDamage?: MLevelData<number>;
-    /** M0-M3 damage per second. Present for canister_stream and overheat. */
+    /** M0-M3 damage per second. Present for canister_stream (damage) and overheat. */
     damagePerSecond?: MLevelData<number>;
     /** Splash radius in tile units. 0 = no splash. Does NOT increase from M0 to M3 per decisions. */
     splashRadius: number;
@@ -112,6 +117,20 @@ export interface WeaponConfig {
     maxPenetrationTargets: number;
     /** Scale factor for self-damage from splash (0 = no self-damage, 1 = full). */
     selfDamageScale: number;
+  };
+  /**
+   * Support/heal model. Only for weapons that do NOT deal damage.
+   * When present, the weapon must NOT have damage.directDamage or damage.damagePerSecond.
+   * Currently only used by Isida (heal_beam).
+   * Damage mode for Isida is explicitly rejected per MECHANICS_DECISIONS.
+   */
+  support?: {
+    /** Kind of support effect. */
+    kind: 'heal_beam';
+    /** M0-M3 heal per second while beam is active on target. Must not decrease M0→M3. */
+    healPerSecond: MLevelData<number>;
+    /** Target type for auto-targeting. */
+    target: 'ally';
   };
   /** Cooldown between shots in milliseconds. M0-M3. */
   cooldown: MLevelData<number>;

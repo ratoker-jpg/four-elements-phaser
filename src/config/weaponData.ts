@@ -7,7 +7,7 @@
  *
  * All M0-M3 values are reference placeholders, not final game balance.
  * They follow the accepted M0-M3 rules from MECHANICS_DECISIONS:
- * - M0-M3 always increase damage
+ * - M0-M3 always increase damage (or heal rate for support weapons)
  * - M0-M3 increase turret turn speed
  * - M0-M3 improve each weapon's profile-specific parameter
  * - VFX becomes more readable from M0 to M3 (VFX data is in separate config)
@@ -156,7 +156,7 @@ export const WEAPON_CONFIGS: Record<AcceptedWeaponId, WeaponConfig> = {
     vfxProfileKey: 'cone_stream',
   },
 
-  // ── Изида — short range, canister beam + heal ────────────────────
+  // ── Изида — short range, canister beam + heal (heal-only, no damage) ──
   isida: {
     id: 'isida',
     displayNameKey: 'weapon_isida',
@@ -167,12 +167,17 @@ export const WEAPON_CONFIGS: Record<AcceptedWeaponId, WeaponConfig> = {
     maxRange: 4,
     stopDistance: 2,
     damage: {
-      damagePerSecond: [20, 22, 24, 25],
+      // Isida is heal-only — no directDamage, no damagePerSecond
       splashRadius: 0,
       splashFalloff: false,
       penetration: false,
       maxPenetrationTargets: 0,
       selfDamageScale: 0,
+    },
+    support: {
+      kind: 'heal_beam',
+      healPerSecond: [20, 22, 24, 25],
+      target: 'ally',
     },
     cooldown: [50, 50, 50, 50],
     canister: {

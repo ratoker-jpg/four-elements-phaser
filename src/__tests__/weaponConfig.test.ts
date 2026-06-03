@@ -194,6 +194,12 @@ describe('weapon config: M0-M3 data', () => {
           expect(config.damage.damagePerSecond).toHaveLength(MODIFICATION_LEVEL_COUNT);
         }
       });
+
+      it('support.healPerSecond has 4 entries if present', () => {
+        if (config.support) {
+          expect(config.support.healPerSecond).toHaveLength(MODIFICATION_LEVEL_COUNT);
+        }
+      });
     });
   }
 });
@@ -205,11 +211,12 @@ describe('weapon config: M0-M3 scaling rules', () => {
     describe(`weapon: ${weaponId}`, () => {
       const config = WEAPON_CONFIGS[weaponId];
 
-      it('weapon damage does not decrease from M0 to M3', () => {
+      it('weapon damage does not decrease from M0 to M3 (damage weapons only)', () => {
         const dmg = config.damage.directDamage ?? config.damage.damagePerSecond;
-        expect(dmg).toBeDefined();
-        for (let i = 0; i < dmg!.length - 1; i++) {
-          expect(dmg![i]).toBeLessThanOrEqual(dmg![i + 1]);
+        // Support weapons (Isida) have no damage field — skip damage check
+        if (dmg === undefined) return;
+        for (let i = 0; i < dmg.length - 1; i++) {
+          expect(dmg[i]).toBeLessThanOrEqual(dmg[i + 1]);
         }
       });
 
@@ -288,6 +295,83 @@ describe('weapon config: localization keys', () => {
       expect(t(key)).not.toBe(key); // t() returns the Russian string, not the key
     });
   }
+});
+
+// ─── Damage vs support weapon classification ──────────────────────────
+
+describe('weapon config: damage vs support classification', () => {
+  it('every damage weapon has directDamage or damagePerSecond', () => {
+    for (const weaponId of ACCEPTED_WEAPON_IDS) {
+      const config = WEAPON_CONFIGS[weaponId];
+      if (!config.support) {
+        const dmg = config.damage.directDamage ?? config.damage.damagePerSecond;
+        expect(dmg).toBeDefined();
+      }
+    }
+  });
+
+  it('support weapons do NOT have directDamage', () => {
+    for (const weaponId of ACCEPTED_WEAPON_IDS) {
+      const config = WEAPON_CONFIGS[weaponId];
+      if (config.support) {
+        expect(config.damage.directDamage).toBeUndefined();
+      }
+    }
+  });
+
+  it('support weapons do NOT have damagePerSecond', () => {
+    for (const weaponId of ACCEPTED_WEAPON_IDS) {
+      const config = WEAPON_CONFIGS[weaponId];
+      if (config.support) {
+        expect(config.damage.damagePerSecond).toBeUndefined();
+      }
+    }
+  });
+});
+
+// ─── Isida: heal-only support weapon ──────────────────────────────────
+
+describe('weapon config: Isida is heal-only in production config', () => {
+  const isida = WEAPON_CONFIGS.isida;
+
+  it('Isida has support field', () => {
+    expect(isida.support).toBeDefined();
+  });
+
+  it('Isida support.kind is heal_beam', () => {
+    expect(isida.support!.kind).toBe('heal_beam');
+  });
+
+  it('Isida support.target is ally', () => {
+    expect(isida.support!.target).toBe('ally');
+  });
+
+  it('Isida support.healPerSecond has M0-M3 entries', () => {
+    expect(isida.support!.healPerSecond).toHaveLength(MODIFICATION_LEVEL_COUNT);
+  });
+
+  it('Isida support.healPerSecond does not decrease M0→M3', () => {
+    const hps = isida.support!.healPerSecond;
+    for (let i = 0; i < hps.length - 1; i++) {
+      expect(hps[i]).toBeLessThanOrEqual(hps[i + 1]);
+    }
+  });
+
+  it('Isida does NOT have directDamage', () => {
+    expect(isida.damage.directDamage).toBeUndefined();
+  });
+
+  it('Isida does NOT have damagePerSecond', () => {
+    expect(isida.damage.damagePerSecond).toBeUndefined();
+  });
+
+  it('Isida has canister model', () => {
+    expect(isida.canister).toBeDefined();
+  });
+
+  it('Isida has turretTurnSpeed M0-M3', () => {
+    expect(isida.turretTurnSpeed).toHaveLength(MODIFICATION_LEVEL_COUNT);
+  });
 });
 
 // ─── Railgun-specific rules ──────────────────────────────────────────
