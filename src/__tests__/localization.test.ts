@@ -12,6 +12,7 @@ import {
   FACTION_DISPLAY,
   FACTION_COLOR_SUBTITLE,
   FACTION_BONUS,
+  FACTION_ROLE,
   GAME_MODE_DISPLAY,
   GAME_MODE_DESCRIPTION,
   MAP_SIZE_DISPLAY,
@@ -19,6 +20,7 @@ import {
   AI_MODE_DISPLAY,
   getFactionDisplayText,
   getFactionShortDisplay,
+  getFactionTooltipText,
   buildMapSummary,
 } from '../config/localization';
 import type { Faction } from '../state/types';
@@ -575,6 +577,105 @@ describe('CORE-STEP-01A fixup: Setup flow order', () => {
     for (const key of debugExtraKeys) {
       expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
       expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+});
+
+// ─── CORE-STEP-01C: Tooltip keys and faction roles ──────────────────
+
+describe('CORE-STEP-01C: Tooltip keys exist', () => {
+  it('has all faction tooltip keys', () => {
+    const factionTooltipKeys = [
+      'tooltip_faction_cyan', 'tooltip_faction_green',
+      'tooltip_faction_yellow', 'tooltip_faction_purple',
+    ];
+    for (const key of factionTooltipKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+
+  it('has setup tooltip keys', () => {
+    const setupTooltipKeys = [
+      'tooltip_gameMode', 'tooltip_mapSize',
+      'tooltip_setupStart', 'tooltip_setupBack',
+    ];
+    for (const key of setupTooltipKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+
+  it('has HUD tooltip keys', () => {
+    const hudTooltipKeys = [
+      'tooltip_buildSeparator', 'tooltip_buildPowerPlant',
+      'tooltip_buildFactory', 'tooltip_produceBuilder',
+      'tooltip_produceHarvester',
+    ];
+    for (const key of hudTooltipKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+
+  it('has Arena composer tooltip keys', () => {
+    const composerTooltipKeys = [
+      'tooltip_composerBody', 'tooltip_composerWeapon',
+      'tooltip_composerTeam', 'tooltip_composerAiMode',
+    ];
+    for (const key of composerTooltipKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+
+  it('has DevTools badge key', () => {
+    expect(LOCALIZED_STRINGS['devtools_badge' as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+    expect(t('devtools_badge')).toContain('DEV');
+    expect(t('devtools_badge')).toContain('Отладка');
+  });
+
+  it('all tooltip values are non-empty Russian strings', () => {
+    const allTooltipKeys = Object.keys(LOCALIZED_STRINGS).filter(k => k.startsWith('tooltip_'));
+    expect(allTooltipKeys.length, 'Should have tooltip keys').toBeGreaterThan(0);
+    for (const key of allTooltipKeys) {
+      const value = (LOCALIZED_STRINGS as Record<string, string>)[key];
+      expect(value.length, `Tooltip key "${key}" has empty value`).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('CORE-STEP-01C: FACTION_ROLE', () => {
+  it('has role descriptions for all 4 factions', () => {
+    const factions: Faction[] = ['cyan', 'green', 'yellow', 'purple'];
+    for (const faction of factions) {
+      expect(FACTION_ROLE[faction]).toBeDefined();
+      expect(FACTION_ROLE[faction].length).toBeGreaterThan(0);
+    }
+  });
+
+  it('faction roles contain "Роль:" prefix', () => {
+    const factions: Faction[] = ['cyan', 'green', 'yellow', 'purple'];
+    for (const faction of factions) {
+      expect(FACTION_ROLE[faction]).toContain('Роль:');
+    }
+  });
+
+  it('faction roles match expected content', () => {
+    expect(FACTION_ROLE.cyan).toContain('мобильн');
+    expect(FACTION_ROLE.green).toContain('экономик');
+    expect(FACTION_ROLE.yellow).toContain('боев');
+    expect(FACTION_ROLE.purple).toContain('контроль');
+  });
+
+  it('getFactionTooltipText includes all 4 lines', () => {
+    const factions: Faction[] = ['cyan', 'green', 'yellow', 'purple'];
+    for (const faction of factions) {
+      const text = getFactionTooltipText(faction);
+      expect(text).toContain(FACTION_DISPLAY[faction]);
+      expect(text).toContain(FACTION_COLOR_SUBTITLE[faction]);
+      expect(text).toContain(FACTION_BONUS[faction]);
+      expect(text).toContain(FACTION_ROLE[faction]);
     }
   });
 });
