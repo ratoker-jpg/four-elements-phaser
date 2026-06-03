@@ -75,7 +75,12 @@ Key points:
    Do NOT continue Arena features by inertia.
 ```
 
-Any conflict between these documents is resolved by the higher-numbered source taking priority, with MECHANICS_DECISIONS as the final authority on accepted mechanics.
+Conflicts are resolved by priority:
+1. CAMERA_PROJECTION_CONTRACT.md controls projection/rendering/world-space rules.
+2. MECHANICS_DECISIONS_2026_06_03.md controls accepted mechanics scope.
+3. CORE_MECHANICS_ROADMAP_2026_06_03.md controls accepted roadmap sequencing.
+4. ASSET_USAGE_PERMISSION_STATUS_2026_06_03.md controls TankViewer permission/pipeline boundaries.
+5. MECHANICS_EXPLORATORY_AUDIT_2026_06_03.md is reference only and never overrides accepted decisions.
 
 ---
 
@@ -293,7 +298,7 @@ public/
 - ArenaUnitComposer: English weapon/body names.
 - DevtoolsPanel: Mixed into normal gameplay, no visual separation.
 - No localization layer exists.
-- No tooltip system exists.
+- TooltipManager exists, but tooltip content is not consistently wired/populated for factions, weapons, bodies, buildings and resources.
 - No faction display names or bonus descriptions.
 - UI style is mixed colors (green, blue, red buttons with no coherent system).
 
@@ -308,13 +313,13 @@ public/
 - `src/phaser/ui/DevtoolsPanel.ts` — Visual separation, hide in Standard
 - `src/phaser/GameScene.ts` — Debug flag, Standard mode checks
 - `src/phaser/PreloadScene.ts` — If new UI assets needed
+- `src/phaser/ui/TooltipManager.ts` — Wire up consistent tooltip content for factions, weapons, bodies, buildings, resources
 - `src/styles.css` — Industrial/bronze/sand theme
 - All DOM overlay HTML templates referenced in scenes
 
 **Likely new files**:
 
 - `src/config/localization.ts` — String map system, ru/en fallback
-- `src/phaser/ui/TooltipManager.ts` — Tooltip display system (if not exists)
 - `src/phaser/ui/styles/` — CSS theme files for industrial/bronze/sand
 
 **Data/config changes**:
