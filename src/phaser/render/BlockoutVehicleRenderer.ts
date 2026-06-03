@@ -33,6 +33,7 @@ import {
 } from './projectedGroundPrimitives';
 import { projectWorldPoint, unprojectScreenToGround, PROJ_TILE_W } from '../../config/cameraProjectionContract';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
+import { sortByDepth, type DepthSortable } from './depthSorting';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -273,6 +274,46 @@ export class BlockoutVehicleRenderer {
         const labelPos = projectWorldPoint(tilePos.x, tilePos.y, labelZ, this.offset);
         label.setPosition(labelPos.x, labelPos.y);
         label.setVisible(this.showDebugLabels);
+      }
+    }
+
+    // ── CORE-STEP-06H+: Depth sorting ─────────────────────────────
+    // Sort all vehicles by isometric depth for correct occlusion.
+    // Vehicles with lower screen Y (further from camera) are drawn first.
+    const depthSortables: DepthSortable[] = vehicles
+      .filter(v => !v.isDestroyed && activeIds.has(v.id))
+      .map(v => ({
+        id: v.id,
+        type: 'unit' as const,
+        tx: v.tx,
+        ty: v.ty,
+        offset: this.offset,
+      }));
+    const depthOrder = new Map<string, number>();
+    if (depthSortables.length > 0) {
+      const sorted = sortByDepth(depthSortables);
+      for (let i = 0; i < sorted.length; i++) {
+        depthOrder.set(sorted[i].sortable.id, i);
+      }
+    }
+
+    // Apply depth to each vehicle's graphics object
+    for (const vehicle of vehicles) {
+      const g = this.vehicleGraphics.get(vehicle.id);
+      if (g) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          // Use BLOCKOUT_DEPTH as base + sorted order for isometric correctness
+          g.setDepth(BLOCKOUT_DEPTH + orderIdx);
+        }
+      }
+      // Also update debug label depth
+      const label = this.debugLabels.get(vehicle.id);
+      if (label) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          label.setDepth(BLOCKOUT_DEPTH + orderIdx + 1);
+        }
       }
     }
 

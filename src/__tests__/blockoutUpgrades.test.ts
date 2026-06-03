@@ -37,6 +37,7 @@ import {
 import type { BlockoutVehicleState } from '../state/blockoutVehicleState';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
+import { createGridMovementState } from '../state/movementStateMachine';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -88,6 +89,8 @@ function createTestVehicle(overrides: Partial<BlockoutVehicleState> = {}): Block
     aiHoldX: 380,
     aiHoldY: 190,
     aiHoldRadius: 200,
+    gridMovement: createGridMovementState(10, 10, 0),
+    useGridMovement: true,
     ...overrides,
   };
 }

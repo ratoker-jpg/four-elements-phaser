@@ -156,6 +156,15 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
     }
   }
 
+  // ── Soft-occupied: blockout vehicles (CORE-STEP-06H+) ────────────
+  if (state.blockoutVehicles) {
+    for (const v of state.blockoutVehicles) {
+      if (v.isDestroyed) continue;
+      const k = key(v.tx, v.ty, width);
+      getOrMake(flags, k).add('soft-occupied');
+    }
+  }
+
   return { width, height, flags };
 }
 
@@ -265,4 +274,27 @@ export function isTileOccupiedByUnit(
   }
 
   return false;
+}
+
+// ─── Blockout vehicle blockers (CORE-STEP-06H+) ─────────────────────
+
+/**
+ * Add blockout vehicle positions as "impassable" blockers to an existing occupancy map.
+ * CORE-STEP-06H+: Combat vehicles occupy tiles and block pathfinding.
+ *
+ * @param vehicles - Array of vehicles with tile positions and destroyed state
+ * @param map - Occupancy map to mutate
+ * @param excludeVehicleId - Optional vehicle ID to exclude (so it can path from its own tile)
+ */
+export function addVehicleBlockers(
+  vehicles: Array<{ id: string; tx: number; ty: number; isDestroyed: boolean }>,
+  map: OccupancyMap,
+  excludeVehicleId?: string,
+): void {
+  for (const v of vehicles) {
+    if (v.isDestroyed) continue;
+    if (excludeVehicleId && v.id === excludeVehicleId) continue;
+    const k = key(v.tx, v.ty, map.width);
+    getOrMake(map.flags, k).add('impassable');
+  }
 }

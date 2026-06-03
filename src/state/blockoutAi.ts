@@ -4,6 +4,10 @@
  * ARENA-05H+: Provides simple AI behavior for enemy units so
  * Denis can test early combat situations, not just static targets.
  *
+ * CORE-STEP-06H+: AI now uses grid pathing when the enemy vehicle
+ * has useGridMovement=true. This ensures AI units follow the same
+ * tile-based pathing rules as player-controlled vehicles.
+ *
  * Pure TypeScript, no Phaser, no DOM.
  * AI update is gated to Arena mode — Normal Game is unchanged.
  *
@@ -22,6 +26,12 @@ import { startFiring, stopFiring, canFireBlockoutWeapon, isContinuousWeapon } fr
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
 import { getEffectiveDamageProfile } from './blockoutUpgrades';
 import { angleFromTo } from './angleMath';
+import { issueGridMoveCommand, issueGridStopCommand } from './movementStateMachine';
+import { screenToTile } from '../phaser/render/isometric';
+import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from './occupancy';
+import { findPath } from './pathfinding';
+import type { GameState } from './types';
+import type { TileReservationMap } from './tileReservation';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -49,6 +59,10 @@ export interface BlockoutAiOptions {
    * (which produces no VFX or damage).
    */
   fireWeapon?: (enemy: BlockoutVehicleState, target: BlockoutVehicleState, nowMs: number) => void;
+  /** CORE-STEP-06H+: Game state for building occupancy maps (grid pathing). */
+  gameState?: GameState;
+  /** CORE-STEP-06H+: Tile reservation map (grid pathing). */
+  reservationMap?: TileReservationMap;
 }
 
 // ─── Module-local tick timer ────────────────────────────────────────
@@ -91,6 +105,55 @@ function distanceTo(
   const dx = vx - px;
   const dy = vy - py;
   return Math.sqrt(dx * dx + dy * dy);
+}
+
+// ─── Grid pathing helper ──────────────────────────────────────────
+
+/**
+ * CORE-STEP-06H+: Issue a grid move command from an enemy toward a target position.
+ * Converts screen-space coordinates to tile coordinates, builds an occupancy
+ * map with vehicle blockers, finds a path via BFS, and issues the command.
+ */
+function issueGridMoveToward(
+  enemy: BlockoutVehicleState,
+  targetWorldX: number,
+  targetWorldY: number,
+  options: BlockoutAiOptions,
+): void {
+  if (!enemy.useGridMovement || !options.gameState || !options.reservationMap) {
+    // Fallback: set arcade target (targetWorldX/Y are screen-space, no offset)
+    enemy.targetWorldX = targetWorldX;
+    enemy.targetWorldY = targetWorldY;
+    enemy.hasMoveTarget = true;
+    return;
+  }
+
+  // Convert target from world-space (no offset) to tile coordinates
+  // targetWorldX/Y are screen-space (offset already subtracted)
+  const tileTarget = screenToTile(targetWorldX, targetWorldY);
+  const targetTx = Math.round(tileTarget.x);
+  const targetTy = Math.round(tileTarget.y);
+
+  // Build occupancy with vehicle blockers
+  const occupancy = buildOccupancyMap(options.gameState);
+  if (options.gameState.blockoutVehicles) {
+    addVehicleBlockers(options.gameState.blockoutVehicles, occupancy, enemy.id);
+  }
+  addUnitBlockers(options.gameState, occupancy);
+
+  const fromTx = enemy.gridMovement.currentTileTx;
+  const fromTy = enemy.gridMovement.currentTileTy;
+  const path = findPath(occupancy, fromTx, fromTy, targetTx, targetTy);
+
+  if (path && path.length > 0) {
+    issueGridMoveCommand(enemy.gridMovement, path, targetTx, targetTy);
+    enemy.hasMoveTarget = true;
+  } else {
+    // No path — fall back to direct target (screen-space, no offset)
+    enemy.targetWorldX = targetWorldX;
+    enemy.targetWorldY = targetWorldY;
+    enemy.hasMoveTarget = true;
+  }
 }
 
 // ─── Find nearest ally ──────────────────────────────────────────────
@@ -157,8 +220,9 @@ export function aimTurretAtTarget(
 /**
  * Handle passive mode: enemy does nothing.
  * Ensures enemy is not firing and has no target.
+ * CORE-STEP-06H+: Issues grid stop if useGridMovement is active.
  */
-function handlePassive(enemy: BlockoutVehicleState): void {
+function handlePassive(enemy: BlockoutVehicleState, options: BlockoutAiOptions): void {
   // Clear any target the enemy might have
   if (enemy.targetVehicleId !== null) {
     enemy.targetVehicleId = null;
@@ -167,6 +231,11 @@ function handlePassive(enemy: BlockoutVehicleState): void {
   if (enemy.fireHeld || enemy.isFiring) {
     stopFiring(enemy);
   }
+  // CORE-STEP-06H+: Stop grid movement for passive enemies
+  if (enemy.useGridMovement && options.reservationMap) {
+    issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
+  }
+  enemy.hasMoveTarget = false;
 }
 
 /**
@@ -205,6 +274,7 @@ function tryAiFire(
 
 /**
  * Handle stationary_shooter mode: enemy stands still, targets nearest ally, fires.
+ * CORE-STEP-06H+: Issues grid stop if useGridMovement is active.
  */
 function handleStationaryShooter(
   enemy: BlockoutVehicleState,
@@ -223,6 +293,11 @@ function handleStationaryShooter(
     if (enemy.fireHeld || enemy.isFiring) {
       stopFiring(enemy);
     }
+    // CORE-STEP-06H+: Stationary shooters should not move
+    if (enemy.useGridMovement && options.reservationMap) {
+      issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
+    }
+    enemy.hasMoveTarget = false;
     return;
   }
 
@@ -230,12 +305,19 @@ function handleStationaryShooter(
   enemy.targetVehicleId = nearestAlly.id;
   aimTurretAtTarget(enemy, nearestAlly, offsetX, offsetY);
 
+  // CORE-STEP-06H+: Stationary shooters should not move
+  if (enemy.useGridMovement && options.reservationMap) {
+    issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
+  }
+  enemy.hasMoveTarget = false;
+
   // Fire weapon
   tryAiFire(enemy, nearestAlly, nowMs, options);
 }
 
 /**
  * Handle chaser mode: enemy moves toward nearest ally, fires when in range.
+ * CORE-STEP-06H+: Uses grid pathing when useGridMovement is active.
  */
 function handleChaser(
   enemy: BlockoutVehicleState,
@@ -254,6 +336,10 @@ function handleChaser(
     if (enemy.fireHeld || enemy.isFiring) {
       stopFiring(enemy);
     }
+    // CORE-STEP-06H+: Stop grid movement
+    if (enemy.useGridMovement && options.reservationMap) {
+      issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
+    }
     enemy.hasMoveTarget = false;
     return;
   }
@@ -266,16 +352,19 @@ function handleChaser(
 
   // Move toward ally if not in weapon range
   if (dist > range - AI_RANGE_TOLERANCE_PX) {
-    // Set movement target to ally position
-    enemy.targetWorldX = nearestAlly.worldX;
-    enemy.targetWorldY = nearestAlly.worldY;
-    enemy.hasMoveTarget = true;
+    // CORE-STEP-06H+: Use grid pathing toward ally position
+    // ally worldX/Y are screen-space (no offset), matching targetWorldX/Y convention
+    issueGridMoveToward(enemy, nearestAlly.worldX, nearestAlly.worldY, options);
     // Stop firing while closing distance (except continuous weapons)
     if (!canFireBlockoutWeapon(enemy, nowMs) && enemy.isFiring) {
       // Keep fire state for continuous weapons that can still tick
     }
   } else {
     // In range — stop moving and fire
+    // CORE-STEP-06H+: Stop grid movement
+    if (enemy.useGridMovement && options.reservationMap) {
+      issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
+    }
     enemy.hasMoveTarget = false;
     tryAiFire(enemy, nearestAlly, nowMs, options);
   }
@@ -285,6 +374,7 @@ function handleChaser(
  * Handle hold_position mode: enemy engages only within hold radius.
  * If ally is within hold radius, act like stationary_shooter.
  * If enemy has chased outside hold radius, return to hold position.
+ * CORE-STEP-06H+: Uses grid pathing when useGridMovement is active.
  */
 function handleHoldPosition(
   enemy: BlockoutVehicleState,
@@ -308,9 +398,9 @@ function handleHoldPosition(
     if (enemy.fireHeld || enemy.isFiring) {
       stopFiring(enemy);
     }
-    enemy.targetWorldX = enemy.aiHoldX;
-    enemy.targetWorldY = enemy.aiHoldY;
-    enemy.hasMoveTarget = true;
+    // CORE-STEP-06H+: Use grid pathing back to hold position
+    // aiHoldX/Y are screen-space (no offset)
+    issueGridMoveToward(enemy, enemy.aiHoldX, enemy.aiHoldY, options);
     return;
   }
 
@@ -319,6 +409,10 @@ function handleHoldPosition(
     enemy.targetVehicleId = null;
     if (enemy.fireHeld || enemy.isFiring) {
       stopFiring(enemy);
+    }
+    // CORE-STEP-06H+: Stop grid movement
+    if (enemy.useGridMovement && options.reservationMap) {
+      issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
     }
     enemy.hasMoveTarget = false;
     return;
@@ -329,6 +423,10 @@ function handleHoldPosition(
   aimTurretAtTarget(enemy, nearestAlly, offsetX, offsetY);
 
   // Don't move — hold position just shoots from where it stands
+  // CORE-STEP-06H+: Stop grid movement
+  if (enemy.useGridMovement && options.reservationMap) {
+    issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
+  }
   enemy.hasMoveTarget = false;
 
   // Fire weapon
@@ -339,6 +437,7 @@ function handleHoldPosition(
 
 /**
  * Update AI for all enemy vehicles. ARENA-05H+.
+ * CORE-STEP-06H+: Now accepts gameState and reservationMap for grid pathing.
  *
  * Only processes enemies with aiMode !== 'passive'.
  * Allies are skipped entirely (they are player-controlled).
@@ -346,7 +445,7 @@ function handleHoldPosition(
  * Turret aiming (via targetVehicleId) is updated every tick.
  *
  * @param vehicles - All blockout vehicles (mutated: enemy state updated)
- * @param options - AI update options (time, offsets)
+ * @param options - AI update options (time, offsets, gameState, reservationMap)
  */
 export function updateBlockoutAi(
   vehicles: BlockoutVehicleState[],
@@ -382,7 +481,7 @@ export function updateBlockoutAi(
 
     switch (vehicle.aiMode) {
       case 'passive':
-        handlePassive(vehicle);
+        handlePassive(vehicle, options);
         break;
       case 'stationary_shooter':
         handleStationaryShooter(vehicle, vehicles, offsetX, offsetY, nowMs, options);

@@ -5,6 +5,11 @@
  * Vehicles accelerate, brake, and turn gradually.
  * Movement profile determines per-body feel.
  *
+ * CORE-STEP-06H+: Grid-based movement integration.
+ * When vehicle.useGridMovement is true, the grid movement state machine
+ * handles pathing, and this module syncs worldX/worldY from grid state.
+ * When false, the old arcade movement is used for backward compatibility.
+ *
  * All positions are in screen-space pixels (worldX/worldY).
  * Offset is NOT included — caller adds offset for rendering/input.
  */
@@ -15,6 +20,17 @@ import type { BlockoutObstacleState } from './blockoutObstacleState';
 import { rotateTowardAngle, degPerSecToRadPerMs } from './angleMath';
 import { resolveVehicleObstacleCollisions } from './blockoutObstacles';
 import { getBodyPixelSize } from '../phaser/render/blockoutVehicleGeometry';
+import { tileToScreen, screenToTile } from '../phaser/render/isometric';
+import {
+  updateGridMovement,
+  createGridMovementConfig,
+  issueGridMoveCommand,
+  issueGridStopCommand,
+} from './movementStateMachine';
+import type { OccupancyMap } from './occupancy';
+import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from './occupancy';
+import type { TileReservationMap } from './tileReservation';
+import { findPath } from './pathfinding';
 
 // ─── Tile coordinate constants ────────────────────────────────────
 
@@ -28,32 +44,113 @@ const TILE_H = 38;
 /**
  * Update a blockout vehicle's movement for one frame.
  *
- * Mutates vehicle state directly (same pattern as turret rotation).
- * This is a semi-physics arcade update, not a real physics engine.
- *
- * Algorithm:
- * 1. If no move target, decelerate to zero.
- * 2. Compute vector to target and desired body angle.
- * 3. Rotate bodyAngle toward desired angle (rate-limited).
- * 4. Accelerate or brake based on stopping distance.
- * 5. Update velocity from bodyAngle + speed.
- * 6. Update worldX/worldY position.
- * 7. Update tx/ty approximately from screen position.
- * 8. On arrival, clear target and snap to target position.
+ * CORE-STEP-06H+: When vehicle.useGridMovement is true, uses the grid
+ * movement state machine. When false, falls back to arcade movement.
  *
  * @param vehicle - Vehicle state (mutated in place)
  * @param profile - Movement profile for this vehicle's body
  * @param deltaMs - Frame delta in milliseconds
+ * @param obstacles - List of obstacles to check (arcade mode only)
+ * @param occupancy - Occupancy map for pathfinding (grid mode)
+ * @param reservationMap - Tile reservation map (grid mode)
+ * @param getOccupancyForRepath - Function to rebuild occupancy for repathing (grid mode)
  */
 export function updateBlockoutVehicleMovement(
   vehicle: BlockoutVehicleState,
   profile: MovementProfile,
   deltaMs: number,
   obstacles: BlockoutObstacleState[] = [],
+  occupancy?: OccupancyMap,
+  reservationMap?: TileReservationMap,
+  getOccupancyForRepath?: () => OccupancyMap,
 ): void {
   // BLOCKOUT-07H+: Destroyed vehicles don't move
   if (vehicle.isDestroyed) return;
 
+  // CORE-STEP-06H+: Grid movement path
+  if (vehicle.useGridMovement && occupancy && reservationMap) {
+    updateGridMovementPath(vehicle, profile, deltaMs, occupancy, reservationMap, getOccupancyForRepath);
+    return;
+  }
+
+  // ── Arcade movement fallback (useGridMovement=false) ────────────
+  updateArcadeMovement(vehicle, profile, deltaMs, obstacles);
+}
+
+// ─── Grid movement update ────────────────────────────────────────
+
+/**
+ * CORE-STEP-06H+: Update grid movement for a blockout vehicle.
+ *
+ * 1. Build GridMovementConfig from MovementProfile
+ * 2. Call updateGridMovement()
+ * 3. Sync worldX/worldY from ftx/fty via tileToScreen
+ * 4. Sync tx/ty from currentTileTx/currentTileTy
+ */
+function updateGridMovementPath(
+  vehicle: BlockoutVehicleState,
+  profile: MovementProfile,
+  deltaMs: number,
+  occupancy: OccupancyMap,
+  reservationMap: TileReservationMap,
+  getOccupancyForRepath?: () => OccupancyMap,
+): void {
+  const config = createGridMovementConfig(
+    profile.maxSpeedPxPerSec,
+    profile.accelerationPxPerSec2,
+    profile.brakingPxPerSec2,
+    profile.turnSpeedDeg,
+    vehicle.bodyId,
+  );
+
+  const repathFn = getOccupancyForRepath ?? (() => occupancy);
+
+  updateGridMovement(
+    vehicle.gridMovement,
+    config,
+    deltaMs,
+    occupancy,
+    reservationMap,
+    vehicle.id,
+    Date.now(),
+    repathFn,
+  );
+
+  // Sync worldX/worldY from grid movement fractional tile position
+  const screen = tileToScreen(vehicle.gridMovement.ftx, vehicle.gridMovement.fty);
+  vehicle.worldX = screen.x;
+  vehicle.worldY = screen.y;
+
+  // Sync tx/ty from current tile
+  vehicle.tx = vehicle.gridMovement.currentTileTx;
+  vehicle.ty = vehicle.gridMovement.currentTileTy;
+
+  // Sync bodyAngle from grid movement
+  vehicle.bodyAngle = vehicle.gridMovement.bodyAngle;
+
+  // Sync speed (approximate, for debug display / backward compat)
+  vehicle.speed = vehicle.gridMovement.speed * 42; // tiles/sec → approximate px/sec
+  vehicle.vx = Math.cos(vehicle.bodyAngle) * vehicle.speed;
+  vehicle.vy = Math.sin(vehicle.bodyAngle) * vehicle.speed;
+
+  // Sync hasMoveTarget from grid movement phase
+  vehicle.hasMoveTarget = vehicle.gridMovement.phase !== 'idle' &&
+    vehicle.gridMovement.phase !== 'stopping' &&
+    vehicle.gridMovement.phase !== 'blocked';
+}
+
+// ─── Arcade movement (legacy fallback) ───────────────────────────
+
+/**
+ * Legacy arcade movement for blockout vehicles (useGridMovement=false).
+ * BLOCKOUT-04H+: Original semi-physics movement.
+ */
+function updateArcadeMovement(
+  vehicle: BlockoutVehicleState,
+  profile: MovementProfile,
+  deltaMs: number,
+  obstacles: BlockoutObstacleState[],
+): void {
   // BLOCKOUT-09H fixup: Caller (GameScene) passes the effective profile
   // (with upgrade modifiers already applied). Do NOT re-apply here.
   const effectiveProfile = profile;
@@ -160,17 +257,54 @@ function updateTileFromScreen(vehicle: BlockoutVehicleState): void {
 // ─── Movement target helpers ──────────────────────────────────────
 
 /**
- * Set a movement target for a blockout vehicle in screen-space coordinates.
+ * Set a movement target for a blockout vehicle.
+ *
+ * CORE-STEP-06H+: When useGridMovement is true, converts screen
+ * coordinates to tile coordinates, finds a path via BFS, and issues
+ * a grid move command. When false, uses the old arcade target.
  *
  * @param vehicle - Vehicle state
  * @param screenX - Target X in screen-space pixels (world coords minus offset)
  * @param screenY - Target Y in screen-space pixels (world coords minus offset)
+ * @param state - Game state (for building occupancy map with vehicle blockers)
+ * @param reservationMap - Tile reservation map (grid mode)
  */
 export function setBlockoutVehicleMoveTarget(
   vehicle: BlockoutVehicleState,
   screenX: number,
   screenY: number,
+  state?: import('./types').GameState,
+  reservationMap?: TileReservationMap,
 ): void {
+  if (vehicle.useGridMovement && state && reservationMap) {
+    // CORE-STEP-06H+: Grid pathing
+    const tileTarget = screenToTile(screenX, screenY);
+    const targetTx = Math.round(tileTarget.x);
+    const targetTy = Math.round(tileTarget.y);
+
+    // Build occupancy map with vehicle blockers (excluding this vehicle)
+    const occupancy = buildOccupancyMap(state);
+    if (state.blockoutVehicles) {
+      addVehicleBlockers(state.blockoutVehicles, occupancy, vehicle.id);
+    }
+    addUnitBlockers(state, occupancy);
+
+    // Find path from current tile to target
+    const fromTx = vehicle.gridMovement.currentTileTx;
+    const fromTy = vehicle.gridMovement.currentTileTy;
+    const path = findPath(occupancy, fromTx, fromTy, targetTx, targetTy);
+
+    if (path) {
+      issueGridMoveCommand(vehicle.gridMovement, path, targetTx, targetTy);
+      vehicle.hasMoveTarget = true;
+    } else {
+      // No path found — vehicle stays put
+      vehicle.hasMoveTarget = false;
+    }
+    return;
+  }
+
+  // Arcade mode fallback
   vehicle.targetWorldX = screenX;
   vehicle.targetWorldY = screenY;
   vehicle.hasMoveTarget = true;
@@ -178,8 +312,17 @@ export function setBlockoutVehicleMoveTarget(
 
 /**
  * Clear the movement target for a blockout vehicle.
+ *
+ * CORE-STEP-06H+: When useGridMovement is true, issues a grid stop command.
  */
-export function clearBlockoutVehicleMoveTarget(vehicle: BlockoutVehicleState): void {
+export function clearBlockoutVehicleMoveTarget(
+  vehicle: BlockoutVehicleState,
+  reservationMap?: TileReservationMap,
+): void {
+  if (vehicle.useGridMovement && reservationMap) {
+    // CORE-STEP-06H+: Grid stop
+    issueGridStopCommand(vehicle.gridMovement, reservationMap, vehicle.id);
+  }
   vehicle.hasMoveTarget = false;
 }
 

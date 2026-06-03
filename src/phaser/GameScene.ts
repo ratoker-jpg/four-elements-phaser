@@ -51,6 +51,8 @@ import { CameraProjectionDebugRenderer } from './render/CameraProjectionDebugRen
 import { DEFAULT_SANDBOX_SCENARIO, ARENA_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
 import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
+import { TileReservationMap, RESERVATION_MAX_AGE_MS } from '../state/tileReservation';
+import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from '../state/occupancy';
 import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring, fireBlockoutWeapon } from '../state/blockoutWeaponVfx';
 import { tickContinuousDamage, expireDamageEvents, applyBlockoutWeaponDamage } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
@@ -184,6 +186,9 @@ export class GameScene extends Phaser.Scene {
   // ARENA-02H+: Placement marker graphics (projected ground plane diamond)
   private placementMarker: Phaser.GameObjects.Graphics | null = null;
 
+  // CORE-STEP-06H+: Tile reservation map for grid movement
+  private reservationMap: TileReservationMap | null = null;
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -265,6 +270,9 @@ export class GameScene extends Phaser.Scene {
       const mapNameOverride = getMapDisplayName(this.setupConfig);
       this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride, { includeModularCombat: this.devtoolsActive });
     }
+
+    // CORE-STEP-06H+: Initialize tile reservation map for grid movement
+    this.reservationMap = new TileReservationMap(this.gameState.mapWidth);
 
     // ARCH-11A: Log faction for smoke test verification
     console.log(`[GameScene] Faction: ${this.gameState.playerFaction}`);
@@ -579,6 +587,8 @@ export class GameScene extends Phaser.Scene {
           // ARENA-01H+: Arena uses obstacle-free scenario on reset
           const scenario = this.arenaMode ? ARENA_SANDBOX_SCENARIO : DEFAULT_SANDBOX_SCENARIO;
           resetBlockoutScenario(this.gameState, scenario);
+          // CORE-STEP-06H+: Reinitialize reservation map on scenario reset
+          this.reservationMap = new TileReservationMap(this.gameState.mapWidth);
           console.log('[GameScene] Scenario reset to', this.arenaMode ? 'arena' : 'defaults', '.');
         },
         onToggleHelp: () => {
@@ -592,6 +602,8 @@ export class GameScene extends Phaser.Scene {
         isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
         // ARENA-03H+: Arena mode flag — enforces ally/enemy control and target-lock
         isArenaMode: () => this.arenaMode,
+        // CORE-STEP-06H+: Provides tile reservation map for grid movement commands
+        getReservationMap: () => this.reservationMap,
       });
       console.log('[GameScene] Blockout vehicle input controller enabled.');
     }
@@ -746,12 +758,35 @@ export class GameScene extends Phaser.Scene {
     }
     // BLOCKOUT-04H+: Update blockout vehicle movement
     // BLOCKOUT-09H: Use effective movement profile (with upgrade modifiers)
+    // CORE-STEP-06H+: Build occupancy map and pass grid movement params
     if (this.gameState.blockoutVehicles && this.devtoolsActive) {
+      // Build occupancy map once per frame for all vehicles
+      const occupancy = buildOccupancyMap(this.gameState);
+      if (this.gameState.blockoutVehicles) {
+        // Add all vehicle blockers initially; each vehicle excludes itself via getOccupancyForRepath
+        addVehicleBlockers(this.gameState.blockoutVehicles, occupancy);
+      }
+      addUnitBlockers(this.gameState, occupancy);
+
+      // getOccupancyForRepath: rebuilds fresh occupancy excluding the repathing vehicle
+      const getOccupancyForRepath = (excludeVehicleId: string) => {
+        const fresh = buildOccupancyMap(this.gameState);
+        if (this.gameState.blockoutVehicles) {
+          addVehicleBlockers(this.gameState.blockoutVehicles, fresh, excludeVehicleId);
+        }
+        addUnitBlockers(this.gameState, fresh);
+        return fresh;
+      };
+
       for (const vehicle of this.gameState.blockoutVehicles) {
         const baseProfile = MOVEMENT_PROFILES[vehicle.bodyId];
         if (baseProfile) {
           const effectiveProfile = getEffectiveMovementProfile(vehicle, baseProfile);
-          updateBlockoutVehicleMovement(vehicle, effectiveProfile, delta, this.gameState.blockoutObstacles);
+          updateBlockoutVehicleMovement(
+            vehicle, effectiveProfile, delta, this.gameState.blockoutObstacles,
+            occupancy, this.reservationMap ?? undefined,
+            () => getOccupancyForRepath(vehicle.id),
+          );
         }
       }
     }
@@ -771,6 +806,9 @@ export class GameScene extends Phaser.Scene {
         nowMs,
         offsetX: this._offset.x,
         offsetY: this._offset.y,
+        // CORE-STEP-06H+: Pass gameState and reservationMap for grid pathing
+        gameState: this.gameState,
+        reservationMap: this.reservationMap ?? undefined,
         // ARENA-05H+ fixup: fireWeapon callback for single-shot AI weapons.
         // Uses the same geometry and damage path as player fire.
         fireWeapon: (enemy, target, fireNowMs) => {
@@ -819,6 +857,10 @@ export class GameScene extends Phaser.Scene {
           }
         }
       }
+    }
+    // CORE-STEP-06H+: Clean up stale tile reservations periodically
+    if (this.reservationMap) {
+      this.reservationMap.cleanStale(this.time.now, RESERVATION_MAX_AGE_MS);
     }
     // BLOCKOUT-06H+: Tick continuous fire for stream weapons
     // BLOCKOUT-07H+: Also tick continuous damage
