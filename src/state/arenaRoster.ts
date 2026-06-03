@@ -9,6 +9,9 @@
 
 import type { BlockoutVehicleState, ArenaTeam } from './blockoutVehicleState';
 import { stopFiring } from './blockoutWeaponVfx';
+import { t } from '../config/localization';
+import { BODY_PROFILES } from '../config/blockoutBodyData';
+import { WEAPON_PROFILES } from '../config/blockoutWeaponData';
 
 // ─── Roster row type ──────────────────────────────────────────────
 
@@ -154,7 +157,7 @@ export function clearAllVehicles(
     removedCount,
     selectedCleared,
     targetCleared,
-    message: removedCount > 0 ? `All units cleared (${removedCount})` : 'Arena empty',
+    message: removedCount > 0 ? `${t('arena_allCleared')} (${removedCount})` : t('arena_arenaEmptyStatus'),
   };
 }
 
@@ -209,7 +212,7 @@ export function clearAllyVehicles(
     removedCount,
     selectedCleared,
     targetCleared,
-    message: removedCount > 0 ? `Allies cleared (${removedCount})` : 'No allies to clear',
+    message: removedCount > 0 ? `${t('arena_alliesCleared')} (${removedCount})` : t('arena_noAllies'),
   };
 }
 
@@ -265,7 +268,7 @@ export function clearEnemyVehicles(
     removedCount,
     selectedCleared,
     targetCleared,
-    message: removedCount > 0 ? `Enemies cleared (${removedCount})` : 'No enemies to clear',
+    message: removedCount > 0 ? `${t('arena_enemiesCleared')} (${removedCount})` : t('arena_noEnemies'),
   };
 }
 
@@ -290,7 +293,7 @@ export function deleteVehicle(
       removedCount: 0,
       selectedCleared: false,
       targetCleared: false,
-      message: 'Unit not found',
+      message: t('arena_unitNotFound'),
     };
   }
 
@@ -320,52 +323,52 @@ export function deleteVehicle(
     vehicles.splice(index, 1);
   }
 
-  const teamLabel = vehicle.team === 'ally' ? 'Ally' : 'Enemy';
-  const bodyLabel = vehicle.bodyId.charAt(0).toUpperCase() + vehicle.bodyId.slice(1);
+  const teamLabel = vehicle.team === 'ally' ? t('arena_allyLabel') : t('arena_enemyLabel');
+  const bodyLabel = BODY_PROFILES[vehicle.bodyId]?.displayName ?? vehicle.bodyId;
 
   return {
     removedCount: 1,
     selectedCleared,
     targetCleared,
-    message: `${teamLabel} ${bodyLabel} deleted`,
+    message: `${teamLabel} ${bodyLabel} ${t('arena_deleted')}`,
   };
 }
 
 // ─── Help text ────────────────────────────────────────────────────
 
-/** Arena help text lines — explains all Arena controls. */
+/** Arena help text lines — explains all Arena controls. CORE-STEP-01B: Russian. */
 export const ARENA_HELP_LINES: string[] = [
-  '─── Arena Controls ───',
-  'Choose body, weapon, team → Place Unit → click ground',
-  'Esc/RMB cancels placement',
+  '─── Управление ареной ───',
+  'Выберите корпус, пушку, команду → Разместить → клик на поле',
+  'Esc/ПКМ отменяет размещение',
   '',
-  '─── Selection ───',
-  'LMB click Ally: select controllable ally',
-  'LMB click Enemy: assign target (if ally selected)',
-  'RMB: move selected Ally',
-  'Esc: deselect / clear target',
+  '─── Выбор ───',
+  'ЛКМ по союзнику: выбрать управляемого юнита',
+  'ЛКМ по врагу: назначить цель (если выбран союзник)',
+  'ПКМ: двигать выбранного союзника',
+  'Esc: снять выбор / убрать цель',
   '',
-  '─── Combat ───',
-  'Space/F: fire at selected target',
-  'T: cycle selected ally',
-  'H: toggle this help',
-  'C: camera calibration overlay',
+  '─── Бой ───',
+  'Пробел/F: стрелять по выбранной цели',
+  'T: переключить выбранного союзника',
+  'H: показать/скрыть эту справку',
+  'C: оверлей калибровки камеры',
   '',
-  '─── Rules ───',
-  'Allies are controllable',
-  'Enemies are targets only (not controllable)',
-  'Turret aims at target, not mouse',
+  '─── Правила ───',
+  'Союзники управляются игроком',
+  'Враги — только цели (не управляются)',
+  'Башня наводится на цель, а не на курсор',
   '',
-  '─── Panel ───',
-  'Click roster row: select Ally / target Enemy',
-  'Delete: remove selected unit',
-  'Clear: remove all/ally/enemy units',
-  'Reset Arena: restore clean sandbox',
+  '─── Панель ───',
+  'Клик по строке ростера: выбрать союзника / назначить врага целью',
+  'Удалить: убрать выбранного юнита',
+  'Очистить: убрать всех/союзников/врагов',
+  'Сбросить арену: восстановить чистый полигон',
 ];
 
 // ─── Status messages ──────────────────────────────────────────────
 
-/** Derive a status message from current Arena state. */
+/** Derive a status message from current Arena state. CORE-STEP-01B: Russian. */
 export function deriveArenaStatus(
   vehicles: BlockoutVehicleState[] | undefined,
   selectedVehicleId: string | null,
@@ -373,11 +376,11 @@ export function deriveArenaStatus(
   placementMode: 'idle' | 'placing',
 ): string {
   if (placementMode === 'placing') {
-    return 'Placement mode active — click ground to place | Esc/RMB cancel';
+    return t('arena_placing');
   }
 
   if (!vehicles || vehicles.length === 0) {
-    return 'Arena empty — place a unit to start';
+    return t('arena_empty');
   }
 
   const selected = selectedVehicleId
@@ -385,28 +388,28 @@ export function deriveArenaStatus(
     : null;
 
   if (!selected) {
-    return `${vehicles.length} unit(s) — click Ally to select`;
+    return `${vehicles.length} ${t('arena_clickToSelect')}`;
   }
 
-  const bodyLabel = selected.bodyId.charAt(0).toUpperCase() + selected.bodyId.slice(1);
-  const weaponLabel = selected.weaponId.charAt(0).toUpperCase() + selected.weaponId.slice(1);
-  const teamLabel = selected.team === 'ally' ? 'Ally' : 'Enemy';
+  const bodyLabel = BODY_PROFILES[selected.bodyId]?.displayName ?? selected.bodyId;
+  const weaponLabel = WEAPON_PROFILES[selected.weaponId]?.displayName ?? selected.weaponId;
+  const teamLabel = selected.team === 'ally' ? t('arena_allyLabel') : t('arena_enemyLabel');
 
   if (selected.isDestroyed) {
-    return `Selected: ${teamLabel} ${bodyLabel}+${weaponLabel} [DESTROYED]`;
+    return `${t('arena_selected')}: ${teamLabel} ${bodyLabel}+${weaponLabel} [${t('arena_destroyed')}]`;
   }
 
   if (!targetVehicleId) {
-    return `Selected: ${teamLabel} ${bodyLabel}+${weaponLabel} HP:${Math.round(selected.hp)} — no target`;
+    return `${t('arena_selected')}: ${teamLabel} ${bodyLabel}+${weaponLabel} ${t('arena_hp')}:${Math.round(selected.hp)} — ${t('arena_noTarget')}`;
   }
 
   const target = vehicles.find(v => v.id === targetVehicleId);
   if (!target) {
-    return `Selected: ${teamLabel} ${bodyLabel}+${weaponLabel} HP:${Math.round(selected.hp)} — target lost`;
+    return `${t('arena_selected')}: ${teamLabel} ${bodyLabel}+${weaponLabel} ${t('arena_hp')}:${Math.round(selected.hp)} — ${t('arena_targetLost')}`;
   }
 
-  const targetBody = target.bodyId.charAt(0).toUpperCase() + target.bodyId.slice(1);
-  const targetHp = target.isDestroyed ? 'DESTROYED' : `HP:${Math.round(target.hp)}`;
+  const targetBody = BODY_PROFILES[target.bodyId]?.displayName ?? target.bodyId;
+  const targetHp = target.isDestroyed ? t('arena_destroyed') : `${t('arena_hp')}:${Math.round(target.hp)}`;
 
-  return `Selected: ${teamLabel} ${bodyLabel}+${weaponLabel} HP:${Math.round(selected.hp)} → Target: ${targetBody} ${targetHp}`;
+  return `${t('arena_selected')}: ${teamLabel} ${bodyLabel}+${weaponLabel} ${t('arena_hp')}:${Math.round(selected.hp)} → ${t('arena_target')}: ${targetBody} ${targetHp}`;
 }

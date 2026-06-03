@@ -23,6 +23,7 @@ import type { GameState, BuildingType, ProducibleUnitType } from '../../state/ty
 import { ELEMENT_UNITS_PER_ELEMENT } from '../../state/types';
 import { BUILDING_CONFIG } from '../../state/construction';
 import { getMvpCommandHotkey } from '../../state/commandRegistry';
+import { t, FACTION_DISPLAY } from '../../config/localization';
 import {
   getSeparatorStatus,
   getFactoryStatus,
@@ -81,15 +82,15 @@ const DELTA_DISPLAY_MS = 2000;
 
 /** Build button definitions. HOTKEYS-01: hotkeys sourced from command registry. */
 const BUILD_BUTTONS: Array<{ buildingType: BuildingType; label: string; commandId: string }> = [
-  { buildingType: 'separator', label: 'Separator', commandId: 'build-separator' },
-  { buildingType: 'power-plant', label: 'Power Plant', commandId: 'build-power-plant' },
-  { buildingType: 'units-factory', label: 'Units Factory', commandId: 'build-units-factory' },
+  { buildingType: 'separator', label: t('hud_separator'), commandId: 'build-separator' },
+  { buildingType: 'power-plant', label: t('hud_powerPlant'), commandId: 'build-power-plant' },
+  { buildingType: 'units-factory', label: t('hud_unitsFactory'), commandId: 'build-units-factory' },
 ];
 
 /** Production button definitions. HOTKEYS-01: hotkeys sourced from command registry. */
 const PRODUCTION_BUTTONS: Array<{ unitType: ProducibleUnitType; label: string; commandId: string }> = [
-  { unitType: 'builder', label: 'Builder', commandId: 'produce-builder' },
-  { unitType: 'harvester', label: 'Harvester', commandId: 'produce-harvester' },
+  { unitType: 'builder', label: t('hud_builder'), commandId: 'produce-builder' },
+  { unitType: 'harvester', label: t('hud_harvesterUnit'), commandId: 'produce-harvester' },
 ];
 
 /**
@@ -205,7 +206,7 @@ export class PlaytestHud {
     `;
 
     // ── Economy section ──────────────────────────────────────────
-    root.appendChild(this.createSectionTitle('Economy'));
+    root.appendChild(this.createSectionTitle(t('hud_economy')));
 
     this.economyEl = document.createElement('div');
     this.economyEl.id = 'hud-economy'; // HUD-01: preserved for qa:smoke DOM assertion
@@ -220,7 +221,7 @@ export class PlaytestHud {
     root.appendChild(this.createDivider());
 
     // ── Harvester section (FIX-02) ──────────────────────────────────
-    root.appendChild(this.createSectionTitle('Harvesters'));
+    root.appendChild(this.createSectionTitle(t('hud_harvesters')));
 
     this.harvesterEl = document.createElement('div');
     this.harvesterEl.style.cssText = `
@@ -234,7 +235,7 @@ export class PlaytestHud {
     root.appendChild(this.createDivider());
 
     // ── Separator section ────────────────────────────────────────
-    root.appendChild(this.createSectionTitle('Separators'));
+    root.appendChild(this.createSectionTitle(t('hud_separators')));
 
     this.separatorEl = document.createElement('div');
     this.separatorEl.style.cssText = `
@@ -248,7 +249,7 @@ export class PlaytestHud {
     root.appendChild(this.createDivider());
 
     // ── Factory section ──────────────────────────────────────────
-    root.appendChild(this.createSectionTitle('Factory'));
+    root.appendChild(this.createSectionTitle(t('hud_factory')));
 
     this.factoryEl = document.createElement('div');
     this.factoryEl.style.cssText = `
@@ -274,7 +275,7 @@ export class PlaytestHud {
     root.appendChild(this.createDivider());
 
     // ── Build section ────────────────────────────────────────────
-    root.appendChild(this.createSectionTitle('Build'));
+    root.appendChild(this.createSectionTitle(t('hud_build')));
 
     for (const def of BUILD_BUTTONS) {
       const row = document.createElement('div');
@@ -358,7 +359,7 @@ export class PlaytestHud {
     root.appendChild(this.createDivider());
 
     // ── Production section ───────────────────────────────────────
-    root.appendChild(this.createSectionTitle('Produce'));
+    root.appendChild(this.createSectionTitle(t('hud_produce')));
 
     for (const def of PRODUCTION_BUTTONS) {
       const row = document.createElement('div');
@@ -480,7 +481,7 @@ export class PlaytestHud {
     const factionElRaw = s.economy.elements[s.playerFaction];
     const factionElDisplayed = (factionElRaw / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
     const elCapDisplayed = (s.economy.elementCap / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
-    const factionLabel = s.playerFaction.charAt(0).toUpperCase() + s.playerFaction.slice(1);
+    const factionLabel = FACTION_DISPLAY[s.playerFaction] ?? s.playerFaction;
 
     // ── Resource delta tracking ──────────────────────────────────
     this.trackResourceDeltas(s);
@@ -494,11 +495,11 @@ export class PlaytestHud {
     );
 
     this.economyEl.innerHTML =
-      `<div>Raw: <b>${s.economy.raw}</b>/${s.economy.rawCap} ${rawDeltaStr}</div>` +
-      `<div>Matter: <b>${s.economy.matter}</b>/${s.economy.matterCap} ${matterDeltaStr}</div>` +
+      `<div>${t('hud_raw')}: <b>${s.economy.raw}</b>/${s.economy.rawCap} ${rawDeltaStr}</div>` +
+      `<div>${t('hud_matter')}: <b>${s.economy.matter}</b>/${s.economy.matterCap} ${matterDeltaStr}</div>` +
       `<div>${factionLabel}: <b>${factionElDisplayed}</b>/${elCapDisplayed} ${elDeltaStr}</div>` +
-      `<div>Power: <b>${s.economy.powerConsumed}</b>/${s.economy.powerGenerated}</div>` +
-      `<div>Units: <b>${getUnitCount(s)}</b>/${getUnitCap(s)}</div>`;
+      `<div>${t('hud_power')}: <b>${s.economy.powerConsumed}</b>/${s.economy.powerGenerated}</div>` +
+      `<div>${t('hud_units')}: <b>${getUnitCount(s)}</b>/${getUnitCap(s)}</div>`;
 
     // ── Harvester status section (FIX-02) ───────────────────────────
     this.updateHarvesterSection(s);
@@ -677,7 +678,7 @@ export class PlaytestHud {
     if (!this.harvesterEl) return;
 
     if (state.harvesters.length === 0) {
-      this.harvesterEl.innerHTML = `<div style="color:${HUD_THEME.dimColor};">None spawned</div>`;
+      this.harvesterEl.innerHTML = `<div style="color:${HUD_THEME.dimColor};">${t('hud_noneSpawned')}</div>`;
       return;
     }
 
@@ -690,7 +691,7 @@ export class PlaytestHud {
       const color = blocked ? HUD_THEME.dangerColor : this.harvesterPhaseColor(status);
       const cargoStr = h.cargoRaw > 0 ? ` [${h.cargoRaw}/${h.cargoCapacity}]` : '';
       parts.push(
-        `<div><span style="color:${color}; font-weight:600;">H${i + 1}:</span> ${label}${cargoStr}</div>`,
+        `<div><span style="color:${color}; font-weight:600;">${t('hud_harvesterAbbr')}${i + 1}:</span> ${label}${cargoStr}</div>`,
       );
     }
     this.harvesterEl.innerHTML = parts.join('');
@@ -713,7 +714,7 @@ export class PlaytestHud {
     if (!this.separatorEl) return;
 
     if (state.economy.separators.length === 0) {
-      this.separatorEl.innerHTML = `<div style="color:${HUD_THEME.dimColor};">None built</div>`;
+      this.separatorEl.innerHTML = `<div style="color:${HUD_THEME.dimColor};">${t('hud_noneBuilt')}</div>`;
       return;
     }
 
@@ -727,7 +728,7 @@ export class PlaytestHud {
         ? ` ${Math.round(sep.progress * 100)}%`
         : '';
       parts.push(
-        `<div><span style="color:${color}; font-weight:600;">Sep ${i + 1}:</span> ${label}${progressStr}</div>`,
+        `<div><span style="color:${color}; font-weight:600;">${t('hud_separatorAbbr')} ${i + 1}:</span> ${label}${progressStr}</div>`,
       );
     }
     this.separatorEl.innerHTML = parts.join('');
@@ -747,7 +748,7 @@ export class PlaytestHud {
     if (!this.factoryEl) return;
 
     if (state.production.factories.length === 0) {
-      this.factoryEl.innerHTML = `<div style="color:${HUD_THEME.dimColor};">None built</div>`;
+      this.factoryEl.innerHTML = `<div style="color:${HUD_THEME.dimColor};">${t('hud_noneBuilt')}</div>`;
       return;
     }
 
@@ -761,30 +762,30 @@ export class PlaytestHud {
       // Queue display with spawn blockage feedback + cancel buttons (FIX-04)
       let queueStr = '';
       if (factory.queue.length === 0) {
-        queueStr = `<span style="color:${HUD_THEME.dimColor};">Queue: empty</span>`;
+        queueStr = `<span style="color:${HUD_THEME.dimColor};">${t('hud_queueEmpty')}</span>`;
       } else {
         const slots: string[] = [];
         for (let qi = 0; qi < factory.queue.length; qi++) {
           const item = factory.queue[qi];
-          const typeChar = item.unitType === 'builder' ? 'B' : 'H';
-          const pct = item.completed ? 'done' : `${Math.round(item.progress * 100)}%`;
+          const typeChar = item.unitType === 'builder' ? t('hud_builderAbbr') : t('hud_harvesterQAbbr');
+          const pct = item.completed ? t('hud_done') : `${Math.round(item.progress * 100)}%`;
           // Cancel button for each queue item — uses data attributes for delegated handler
           // HUD-01: Styled consistently with the industrial sci-fi theme
           const cancelBtn = `<button data-fe-cancel data-factory-index="${i}" data-queue-index="${qi}" style="background:${HUD_THEME.dangerBg};border:1px solid ${HUD_THEME.dangerBorder};border-radius:2px;color:${HUD_THEME.dangerColor};font-size:8px;padding:1px 4px;cursor:pointer;margin-left:3px;outline:none;font-family:inherit;transition:background 0.15s;">X</button>`;
           slots.push(`${typeChar}${pct}${cancelBtn}`);
         }
-        queueStr = `Queue: ${slots.join(' ')}`;
+        queueStr = `${t('hud_queue')}: ${slots.join(' ')}`;
       }
 
       // Spawn blockage reason (FIX-04)
       const spawnBlock = getFactorySpawnBlockReason(state, factory);
       let blockageStr = '';
       if (spawnBlock) {
-        blockageStr = `<div style="margin-left:8px; font-size:10px; color:${HUD_THEME.dangerColor};">Blocked: ${spawnBlockLabel(spawnBlock)}</div>`;
+        blockageStr = `<div style="margin-left:8px; font-size:10px; color:${HUD_THEME.dangerColor};">${t('hud_blocked')}: ${spawnBlockLabel(spawnBlock)}</div>`;
       }
 
       parts.push(
-        `<div><span style="color:${color}; font-weight:600;">Factory ${i + 1}:</span> ${label}</div>` +
+        `<div><span style="color:${color}; font-weight:600;">${t('hud_factoryAbbr')} ${i + 1}:</span> ${label}</div>` +
         `<div style="margin-left:8px; font-size:10px;">${queueStr}</div>` +
         blockageStr,
       );
@@ -860,7 +861,7 @@ export class PlaytestHud {
 
     // Reachable resources count
     parts.push(
-      `<div>Reachable: <span style="color:${v.reachableResourceCount >= 2 ? HUD_THEME.successColor : HUD_THEME.dangerColor};">${v.reachableResourceCount}</span>/${v.totalResourceCount}</div>`,
+      `<div>${t('hud_reachable')}: <span style="color:${v.reachableResourceCount >= 2 ? HUD_THEME.successColor : HUD_THEME.dangerColor};">${v.reachableResourceCount}</span>/${v.totalResourceCount}</div>`,
     );
 
     // Show warnings for failed checks
@@ -871,12 +872,12 @@ export class PlaytestHud {
         if (check.id === 'resources-not-in-impassable') {
           // Soft informational — show as muted, not a blocking warning
           parts.push(
-            `<div style="color:${HUD_THEME.dimColor};">i ${check.message}</div>`,
+            `<div style="color:${HUD_THEME.dimColor};">${t('hud_info')} ${check.message}</div>`,
           );
         } else {
           // Critical — show as red warning
           parts.push(
-            `<div style="color:${HUD_THEME.dangerColor};">! ${check.message}</div>`,
+            `<div style="color:${HUD_THEME.dangerColor};">${t('hud_warning')} ${check.message}</div>`,
           );
         }
       }
@@ -884,7 +885,7 @@ export class PlaytestHud {
 
     // ARCH-14B: Quick hint about pause menu for controls reference
     parts.push(
-      `<div style="margin-top:4px; color:${HUD_THEME.dimColor};">Esc = Pause & Controls</div>`,
+      `<div style="margin-top:4px; color:${HUD_THEME.dimColor};">${t('hud_escPause')}</div>`,
     );
 
     this.diagnosticsEl.innerHTML = parts.join('');

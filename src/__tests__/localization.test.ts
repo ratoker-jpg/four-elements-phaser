@@ -16,6 +16,7 @@ import {
   GAME_MODE_DESCRIPTION,
   MAP_SIZE_DISPLAY,
   MAP_STYLE_DISPLAY,
+  AI_MODE_DISPLAY,
   getFactionDisplayText,
   getFactionShortDisplay,
   buildMapSummary,
@@ -311,7 +312,230 @@ describe('CORE-STEP-01A: Internal ids vs display names', () => {
   });
 });
 
-// ─── Setup flow order ──────────────────────────────────────────────
+/** CORE-STEP-01B: Tests for Pause, HUD, Status, Arena, Composer, Devtools localization keys. */
+describe('CORE-STEP-01B: LOCALIZED_STRINGS completeness — Pause/HUD/Arena', () => {
+  it('has all required pause menu keys', () => {
+    const requiredPauseKeys = [
+      'pause_title', 'pause_resume', 'pause_save', 'pause_load',
+      'pause_settings', 'pause_restart', 'pause_mainMenu', 'pause_escHint',
+      'pause_controls', 'pause_loadGame', 'pause_noSaves', 'pause_clearAll',
+      'pause_back', 'pause_delete', 'pause_saveFailed', 'pause_loadWarning',
+      'pause_comingSoon', 'pause_noSavesSuffix', 'pause_saved',
+    ];
+    for (const key of requiredPauseKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+
+  it('has all required HUD keys', () => {
+    const requiredHudKeys = [
+      'hud_economy', 'hud_raw', 'hud_matter', 'hud_power', 'hud_units',
+      'hud_harvesters', 'hud_separators', 'hud_factory', 'hud_build',
+      'hud_produce', 'hud_separator', 'hud_powerPlant', 'hud_unitsFactory',
+      'hud_builder', 'hud_harvesterUnit', 'hud_noneBuilt', 'hud_noneSpawned',
+      'hud_queueEmpty', 'hud_escPause', 'hud_queue', 'hud_blocked',
+    ];
+    for (const key of requiredHudKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+
+  it('has all required status keys', () => {
+    const requiredStatusKeys = [
+      'status_idle', 'status_processing', 'status_noRaw', 'status_matterFull',
+      'status_elementFull', 'status_noPower', 'status_builder', 'status_harvester',
+      'status_noMatter', 'status_noElement', 'status_queueFull', 'status_unitCap',
+      'status_noBuilder', 'status_noFactory', 'status_insufficientMatter',
+    ];
+    for (const key of requiredStatusKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+
+  it('has all required arena keys', () => {
+    const requiredArenaKeys = [
+      'arena_title', 'arena_units', 'arena_roster', 'arena_actions',
+      'arena_reset', 'arena_deleteSel', 'arena_clearAll', 'arena_clearAllies',
+      'arena_clearEnemies', 'arena_help', 'arena_helpClose', 'arena_vehicles',
+      'arena_alive', 'arena_ally', 'arena_enemy', 'arena_noUnits', 'arena_empty',
+      'arena_placing', 'arena_clickToSelect', 'arena_noTarget', 'arena_targetLost',
+      'arena_selected', 'arena_target', 'arena_hp', 'arena_destroyed',
+      'arena_noUnitSelected', 'arena_arenaReset', 'arena_unitNotFound',
+      'arena_allyLabel', 'arena_enemyLabel', 'arena_deleted',
+      'arena_allCleared', 'arena_alliesCleared', 'arena_noAllies',
+      'arena_enemiesCleared', 'arena_noEnemies', 'arena_arenaEmptyStatus',
+    ];
+    for (const key of requiredArenaKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+
+  it('has all required composer keys', () => {
+    const requiredComposerKeys = [
+      'composer_body', 'composer_weapon', 'composer_team',
+      'composer_ally', 'composer_enemy', 'composer_aiMode',
+      'composer_placeUnit', 'composer_cancel', 'composer_placing',
+      'composer_placingClickHint',
+    ];
+    for (const key of requiredComposerKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+
+  it('has all required devtools keys', () => {
+    const requiredDevtoolsKeys = [
+      'devtools_title', 'devtools_resources', 'devtools_addRaw',
+      'devtools_addMatter', 'devtools_addElement', 'devtools_max',
+      'devtools_zero', 'devtools_spawn', 'devtools_spawnBuilder',
+      'devtools_spawnHarvester', 'devtools_diagnostics', 'devtools_assets',
+      'devtools_assetViewer', 'devtools_overlays', 'devtools_passOverlay',
+      'devtools_footOverlay', 'devtools_resOverlay', 'devtools_arena',
+      'devtools_resetArena',
+    ];
+    for (const key of requiredDevtoolsKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+  });
+});
+
+// ─── CORE-STEP-01B: AI mode display ──────────────────────────────────
+
+describe('CORE-STEP-01B: AI mode display', () => {
+  it('AI_MODE_DISPLAY has full Russian labels', () => {
+    expect(AI_MODE_DISPLAY.passive).toBe('Пассивный');
+    expect(AI_MODE_DISPLAY.stationary_shooter).toBe('Стрелок на месте');
+    expect(AI_MODE_DISPLAY.chaser).toBe('Преследователь');
+    expect(AI_MODE_DISPLAY.hold_position).toBe('Удерживать позицию');
+  });
+
+  it('AI mode display names differ from internal ids', () => {
+    const modes = ['passive', 'stationary_shooter', 'chaser', 'hold_position'];
+    for (const mode of modes) {
+      expect(AI_MODE_DISPLAY[mode]).not.toBe(mode);
+    }
+  });
+
+  it('stationary_shooter and hold_position use descriptive full forms', () => {
+    // CORE-STEP-01B: These were updated from shortened forms to full descriptive Russian
+    expect(AI_MODE_DISPLAY.stationary_shooter).toContain('Стрелок');
+    expect(AI_MODE_DISPLAY.hold_position).toContain('Удерживать');
+  });
+});
+
+// ─── CORE-STEP-01B: Pause menu Russian labels ──────────────────────
+
+describe('CORE-STEP-01B: Pause menu Russian labels', () => {
+  it('pause labels are Russian', () => {
+    expect(t('pause_resume')).toBe('Продолжить');
+    expect(t('pause_save')).toBe('Сохранить');
+    expect(t('pause_load')).toBe('Загрузить');
+    expect(t('pause_restart')).toBe('Перезапустить');
+    expect(t('pause_mainMenu')).toBe('В главное меню');
+    expect(t('pause_settings')).toBe('Настройки');
+  });
+});
+
+// ─── CORE-STEP-01B: HUD Russian labels ─────────────────────────────
+
+describe('CORE-STEP-01B: HUD Russian labels', () => {
+  it('economy labels are Russian', () => {
+    expect(t('hud_raw')).toBe('Сырьё');
+    expect(t('hud_matter')).toBe('Энергия');
+    expect(t('hud_power')).toBe('Питание');
+    expect(t('hud_units')).toBe('Юниты');
+  });
+
+  it('building labels are Russian', () => {
+    expect(t('hud_separator')).toBe('Сепаратор');
+    expect(t('hud_powerPlant')).toBe('Электростанция');
+    expect(t('hud_unitsFactory')).toBe('Фабрика юнитов');
+  });
+
+  it('unit labels are Russian', () => {
+    expect(t('hud_builder')).toBe('Строитель');
+    expect(t('hud_harvesterUnit')).toBe('Сборщик');
+  });
+
+  it('HUD Esc hint is Russian', () => {
+    expect(t('hud_escPause')).toBe('Esc = Пауза и управление');
+  });
+});
+
+// ─── CORE-STEP-01B: Arena Russian labels ────────────────────────────
+
+describe('CORE-STEP-01B: Arena Russian labels', () => {
+  it('arena menu labels are Russian', () => {
+    expect(t('arena_reset')).toBe('Сбросить');
+    expect(t('arena_clearAll')).toBe('Очистить всех');
+    expect(t('arena_help')).toBe('Помощь [H]');
+  });
+
+  it('arena roster status labels are Russian', () => {
+    expect(t('arena_selected')).toBe('Выбран');
+    expect(t('arena_target')).toBe('Цель');
+    expect(t('arena_hp')).toBe('ЗД');
+    expect(t('arena_destroyed')).toBe('УНИЧТОЖЕН');
+    expect(t('arena_noTarget')).toBe('нет цели');
+    expect(t('arena_targetLost')).toBe('цель потеряна');
+  });
+
+  it('arena roster clear messages are Russian', () => {
+    expect(t('arena_allCleared')).toBe('Юниты удалены');
+    expect(t('arena_alliesCleared')).toBe('Союзники удалены');
+    expect(t('arena_enemiesCleared')).toBe('Враги удалены');
+    expect(t('arena_noAllies')).toBe('Нет союзников');
+    expect(t('arena_noEnemies')).toBe('Нет врагов');
+  });
+
+  it('composer labels are Russian', () => {
+    expect(t('composer_body')).toBe('Корпус');
+    expect(t('composer_weapon')).toBe('Пушка');
+    expect(t('composer_team')).toBe('Команда');
+    expect(t('composer_ally')).toBe('Союзник');
+    expect(t('composer_enemy')).toBe('Враг');
+    expect(t('composer_aiMode')).toBe('Режим ИИ');
+  });
+});
+
+// ─── CORE-STEP-01B: Status labels Russian ───────────────────────────
+
+describe('CORE-STEP-01B: Status labels Russian', () => {
+  it('separator status labels are Russian', () => {
+    expect(t('status_idle')).toBe('Ожидание');
+    expect(t('status_processing')).toBe('Обработка');
+    expect(t('status_noRaw')).toBe('Нет сырья');
+    expect(t('status_matterFull')).toBe('Лимит энергии');
+    expect(t('status_noPower')).toBe('Нет питания');
+  });
+
+  it('factory status labels are Russian', () => {
+    expect(t('status_builder')).toBe('Строитель');
+    expect(t('status_harvester')).toBe('Сборщик');
+    expect(t('status_noFactory')).toBe('Нет фабрики');
+    expect(t('status_queueFull')).toBe('Очередь полна');
+    expect(t('status_unitCap')).toBe('Лимит юнитов');
+  });
+
+  it('build/production block labels are Russian', () => {
+    expect(t('status_noBuilder')).toBe('Нет строителя');
+    expect(t('status_insufficientMatter')).toBe('Мало энергии');
+  });
+
+  it('harvester status labels are Russian', () => {
+    expect(t('status_moving')).toBe('Идёт');
+    expect(t('status_gathering')).toBe('Сбор');
+    expect(t('status_returning')).toBe('Возврат');
+    expect(t('status_noResources')).toBe('Нет ресурсов');
+    expect(t('status_storageFull')).toBe('Хранилище полно');
+  });
+});
+
 
 describe('CORE-STEP-01A fixup: Setup flow order', () => {
   /**
