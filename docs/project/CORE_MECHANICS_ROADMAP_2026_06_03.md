@@ -117,7 +117,7 @@ Turn the current prototype into a readable core gameplay baseline with:
 - All player-facing labels in Russian.
 - NewGameSetupScene flow: mode → map size → faction → start.
 - Sand Classic, Map 1, mapStyle not visible in Standard mode.
-- All buttons follow one visual system (bronze/teal/red for primary/secondary/danger).
+- All buttons follow one visual system (industrial / bronze / sand for primary/secondary; destructive/danger actions may use a reserved warning/destructive color; no random green/yellow/teal button mix).
 - Faction selection shows Russian names and passive bonus descriptions.
 - Tooltips display for weapons, bodies, buildings, resources.
 - DevTools not visible in Standard mode.
@@ -230,7 +230,9 @@ Turn the current prototype into a readable core gameplay baseline with:
 - Create resource amount config with ranges per class (preliminary amounts from decisions: 150-250, 300-500, 800-1200, 1800-2500, 3500-5000, infinite/50000+).
 - Create industrial asset key mapping per resource class.
 - Redesign `generateResources()` to use fixed anchor positions per map size.
-- Define anchor layouts for Small (32×32), Standard (48×48), Large (64×64).
+- Define anchor layouts for accepted/current map size presets.
+- Exact tile counts must be verified in the implementation/system audit and kept in config.
+- Do not treat 32/48/64 as accepted design unless Denis approves later.
 - Start zone anchors NE of HQ. Center infinite anchor at map center. Side/contested anchors at defined positions.
 - Implement controlled variation: slight random offset within anchor zone, slight type variation (medium vs rich in contested zone).
 - Ensure map validation still passes (starter resources near HQ, HQ area clear, central deposit exists).
@@ -305,13 +307,15 @@ Turn the current prototype into a readable core gameplay baseline with:
 **Dependencies**: Step 01 (Russian labels), Step 02 (building config data model), Step 03 (resource classes — storages interact with resource amounts and caps).
 
 **Acceptance criteria**:
-- All 6 core buildings are placeable and functional in Standard mode.
+- HQ / Главное здание exists and functions as the starting base.
+- The other core economy buildings are buildable/placeable:
+  Separator, Raw Storage, Energy Storage, Elements Storage, Units Factory.
 - Raw Storage, Energy Storage, Element Storage have configs and can be built.
 - All buildings have Russian displayNames and descriptions in tooltips.
 - Separator shows clear Russian status messages.
 - Factory shows production queue with Russian names.
 - Storages correctly raise resource caps.
-- Economy loop (HQ → harvester → resource → separator → matter → builder → building) works end-to-end.
+- Economy loop (raw minerals → separator → energy + faction elements → buildings / unit production) works end-to-end.
 - Энергостанция exists as visual-ready building (placeable, visible, no mechanic).
 - Building placement uses projected footprints.
 - `npm run typecheck && npm run test && npm run build && npm run qa:smoke` pass.
