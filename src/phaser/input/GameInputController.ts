@@ -6,8 +6,8 @@ import { findBuildSiteNearPlayerBuildings } from '../../state/buildSiteSelection
 import { isVisualReadyBuilding } from '../../config/buildingRuntimeMapping';
 import { startUnitProduction, cancelFactoryQueueItem } from '../../state/production';
 import type { UnitSelection } from '../../state/unitSelection';
-import { selectBuilder, selectHarvester, clearSelection, isUnitSelected } from '../../state/unitSelection';
-import { issueManualMove } from '../../state/unitCommands';
+import { clearSelection, isUnitSelected, isHarvesterSelected } from '../../state/unitSelection';
+import { issueManualMove, stopUnitCommand } from '../../state/unitCommands';
 import {
   MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
   MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR,
@@ -23,6 +23,15 @@ import type { DebugOverlayRenderer } from '../render/DebugOverlayRenderer';
 import type { DevtoolsPanel } from '../ui/DevtoolsPanel';
 import type { AssetPreviewTool } from '../dev/AssetPreviewTool';
 import type { AssetPreviewPanel } from '../dev/AssetPreviewPanel';
+import {
+  routeLmbClick,
+  routeRmbClick,
+  routeSKey,
+  routeEscKey,
+  determineCursorFeedback,
+  type ClickTarget,
+  type CursorFeedbackState,
+} from '../../state/commandRouter';
 
 /**
  * GameInputController — extracts input handling and command dispatch from GameScene.
@@ -31,14 +40,23 @@ import type { AssetPreviewPanel } from '../dev/AssetPreviewPanel';
  * input wiring, unit selection state, click detection, selection highlight,
  * and command methods (requestBuild, requestQueueUnit) into this controller.
  *
+ * CORE-STEP-05H+: Unified RTS Controls and Command Routing.
+ * - LMB = select / inspect only (NEVER move/attack/harvest)
+ * - RMB = command (move/harvest/attack based on target + selection)
+ * - S = stop selected unit / clear command
+ * - Esc = context priority: cancel mode → deselect → close overlay → pause
+ * - Cursor feedback for command targets
+ * - Command confirmation visual at target location
+ *
  * GameScene creates all subsystems and passes them as dependencies.
  * The controller does not create or import subsystem instances — it only
  * receives references and callbacks.
  *
  * Lifecycle:
  * - Created by GameScene in create() after all subsystems are initialized.
- * - update() called each frame from GameScene.update() for selection highlight.
- * - destroy() called in GameScene shutdown().
+ * - update() called each frame from GameScene.update() for selection highlight
+ *   and cursor feedback.
+ * - destroy() called in GameScene shutdown.
  */
 
 // ─── Dependencies interface ────────────────────────────────────────
@@ -70,6 +88,10 @@ export interface GameInputDeps {
   /** ARENA-02H+ fixup: Whether arena placement mode is active. When true,
    *  ESC does not toggle the pause menu (ESC is owned by placement cancel). */
   isPlacementActive?: () => boolean;
+  /** CORE-STEP-05H+: Whether Arena mode is active. Affects cursor feedback. */
+  isArenaMode?: () => boolean;
+  /** CORE-STEP-05H+: CameraControls reference for wiring arrow key debug overlay predicate. */
+  cameraControls?: { isDebugOverlayActive: () => boolean };
 }
 
 // ─── Selection highlight constants ─────────────────────────────────
@@ -83,7 +105,7 @@ const CLICK_DRAG_THRESHOLD = 4;
 /** Selection radius in tile units for click-to-select. */
 const SELECT_RADIUS = 0.8;
 
-// ─── Arrow key tuning constants ────────────────────────────────────
+// ─── Arrow key tuning constants (debug overlay only) ───────────────
 
 const ARROW_STEP = 1;
 const ARROW_SHIFT_STEP = 5;
@@ -103,6 +125,7 @@ export class GameInputController {
   private assetPreviewPanel: AssetPreviewPanel | null;
   private setPausedCb: (paused: boolean) => void;
   private isPlacementActive: () => boolean;
+  private isArenaMode: () => boolean;
 
   // ARCH-05X: Unit selection state
   private selectedUnit: UnitSelection = null;
@@ -110,14 +133,25 @@ export class GameInputController {
   /** Selection highlight graphics. */
   private selectionHighlight: Phaser.GameObjects.Graphics;
 
+  /** CORE-STEP-05H+: Command confirmation graphics. */
+  private commandConfirmation: Phaser.GameObjects.Graphics;
+
   /** Click detection state (distinguish click from drag). */
   private _clickStartX: number = 0;
   private _clickStartY: number = 0;
-  private _clickButton: 'left' | 'none' = 'none';
+  private _clickButton: 'left' | 'right' | 'none' = 'none';
+
+  /** RMB click detection state. */
+  private _rmbClickStartX: number = 0;
+  private _rmbClickStartY: number = 0;
+
+  /** CORE-STEP-05H+: Current cursor feedback state. */
+  private _cursorState: CursorFeedbackState = 'default';
 
   /** Bound handler references for proper cleanup. */
   private boundPointerdown: (pointer: Phaser.Input.Pointer) => void;
   private boundPointerup: (pointer: Phaser.Input.Pointer) => void;
+  private boundPointermove: (pointer: Phaser.Input.Pointer) => void;
   private boundArrowHandler: (event: KeyboardEvent) => void;
 
   /** DOM contextmenu handler reference for proper cleanup. */
@@ -136,10 +170,15 @@ export class GameInputController {
     this.assetPreviewPanel = deps.assetPreviewPanel;
     this.setPausedCb = deps.setPaused;
     this.isPlacementActive = deps.isPlacementActive ?? (() => false);
+    this.isArenaMode = deps.isArenaMode ?? (() => false);
 
     // Create selection highlight graphics
     this.selectionHighlight = this.scene.add.graphics();
     this.selectionHighlight.setDepth(150);
+
+    // CORE-STEP-05H+: Create command confirmation graphics
+    this.commandConfirmation = this.scene.add.graphics();
+    this.commandConfirmation.setDepth(149);
 
     // Prevent browser context menu on the game canvas only
     this.contextmenuHandler = (e: Event) => e.preventDefault();
@@ -148,6 +187,7 @@ export class GameInputController {
     // Bind handlers for proper cleanup on destroy
     this.boundPointerdown = this.onPointerdown.bind(this);
     this.boundPointerup = this.onPointerup.bind(this);
+    this.boundPointermove = this.onPointermove.bind(this);
     this.boundArrowHandler = this.onArrowKey.bind(this);
 
     // HOTKEYS-01: Initialize command registry and wire MVP command callbacks
@@ -157,14 +197,22 @@ export class GameInputController {
     // Wire all input
     this.setupPointerInput();
     this.setupKeyboardInput();
+
+    // CORE-STEP-05H+: Wire CameraControls debug overlay predicate so
+    // arrow keys pan camera only when debug overlay is NOT active.
+    if (deps.cameraControls) {
+      deps.cameraControls.isDebugOverlayActive = () => this.entityRenderer.isDebugOverlayVisible();
+    }
   }
 
   /**
-   * Update selection highlight each frame.
+   * Update selection highlight and cursor feedback each frame.
    * Called from GameScene.update().
    */
   update(): void {
     this.updateSelectionHighlight();
+    this.updateCommandConfirmation();
+    this.updateCursorFeedback();
   }
 
   // ─── Command registry wiring (HOTKEYS-01) ────────────────────────
@@ -336,31 +384,397 @@ export class GameInputController {
   // ─── Pointer input ─────────────────────────────────────────────
 
   private setupPointerInput(): void {
-    // LMB pointerdown: record click start position
+    // pointerdown: record click start position for both LMB and RMB
     this.scene.input.on('pointerdown', this.boundPointerdown);
 
-    // LMB pointerup: if click (not drag), select unit or issue move
+    // pointerup: process click (LMB = select, RMB = command)
     this.scene.input.on('pointerup', this.boundPointerup);
+
+    // pointermove: update cursor feedback
+    this.scene.input.on('pointermove', this.boundPointermove);
   }
 
   private onPointerdown(pointer: Phaser.Input.Pointer): void {
-    if (!pointer.leftButtonDown()) return;
-
-    this._clickStartX = pointer.x;
-    this._clickStartY = pointer.y;
-    this._clickButton = 'left';
+    if (pointer.leftButtonDown()) {
+      this._clickStartX = pointer.x;
+      this._clickStartY = pointer.y;
+      this._clickButton = 'left';
+    } else if (pointer.rightButtonDown()) {
+      this._rmbClickStartX = pointer.x;
+      this._rmbClickStartY = pointer.y;
+      this._clickButton = 'right';
+    }
   }
 
   private onPointerup(pointer: Phaser.Input.Pointer): void {
-    if (this._clickButton !== 'left') return;
+    const button = this._clickButton;
     this._clickButton = 'none';
 
-    const dx = pointer.x - this._clickStartX;
-    const dy = pointer.y - this._clickStartY;
-    const moved = Math.sqrt(dx * dx + dy * dy);
-    if (moved > CLICK_DRAG_THRESHOLD) return; // was a drag, not a click
+    if (button === 'left') {
+      const dx = pointer.x - this._clickStartX;
+      const dy = pointer.y - this._clickStartY;
+      const moved = Math.sqrt(dx * dx + dy * dy);
+      if (moved > CLICK_DRAG_THRESHOLD) return; // was a drag, not a click
 
-    this.handleLeftClick(pointer);
+      this.handleLeftClick(pointer);
+    } else if (button === 'right') {
+      const dx = pointer.x - this._rmbClickStartX;
+      const dy = pointer.y - this._rmbClickStartY;
+      const moved = Math.sqrt(dx * dx + dy * dy);
+      if (moved > CLICK_DRAG_THRESHOLD) return; // was a drag, not a click
+
+      this.handleRightClick(pointer);
+    }
+  }
+
+  private onPointermove(pointer: Phaser.Input.Pointer): void {
+    // Update cursor feedback based on hover target
+    this._lastPointerX = pointer.x;
+    this._lastPointerY = pointer.y;
+  }
+
+  /** Last pointer position for cursor feedback. */
+  private _lastPointerX: number = 0;
+  private _lastPointerY: number = 0;
+
+  // ─── Click target detection ─────────────────────────────────────
+
+  /**
+   * Determine what's under the cursor at the given pointer position.
+   *
+   * This is the unified target detection used by both LMB and RMB routing.
+   */
+  private detectClickTarget(pointer: Phaser.Input.Pointer): ClickTarget {
+    const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const gameState = this.getGameState();
+    const tilePos = screenToTile(worldPoint.x - this.offset.x, worldPoint.y - this.offset.y);
+    const clickTx = tilePos.x;
+    const clickTy = tilePos.y;
+
+    // Check own harvesters
+    for (const h of gameState.harvesters) {
+      const dx = h.ftx - clickTx;
+      const dy = h.fty - clickTy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < SELECT_RADIUS) {
+        return { kind: 'own-harvester', id: h.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
+      }
+    }
+
+    // Check own builders
+    for (const b of gameState.mapData.builders) {
+      const dx = b.ftx - clickTx;
+      const dy = b.fty - clickTy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < SELECT_RADIUS) {
+        return { kind: 'own-builder', id: b.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
+      }
+    }
+
+    // Check resources (for harvest commands)
+    for (const r of gameState.resourceNodes) {
+      if (r.depleted) continue;
+      const dx = r.tx - clickTx;
+      const dy = r.ty - clickTy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < SELECT_RADIUS + r.footprint * 0.5) {
+        return { kind: 'resource', id: r.id, tx: r.tx, ty: r.ty };
+      }
+    }
+
+    // Default: ground
+    return { kind: 'ground', tx: Math.round(clickTx), ty: Math.round(clickTy) };
+  }
+
+  // ─── LMB click handler ──────────────────────────────────────────
+
+  /**
+   * CORE-STEP-05H+: Handle LMB click — select/inspect ONLY.
+   *
+   * LMB must NEVER: move units, attack, harvest, pan camera, fire weapons.
+   */
+  private handleLeftClick(pointer: Phaser.Input.Pointer): void {
+    const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+
+    // DEV-ASSET-PREVIEW-01 fixup: If the preview tool already consumed the
+    // click via a sprite pointerdown handler (click-to-select), skip all
+    // normal input processing so unit selection/move does not also fire.
+    if (this.assetPreviewTool?.spriteClickConsumed) {
+      this.assetPreviewPanel?.refresh();
+      this.assetPreviewTool.resetSpriteClickConsumed();
+      return;
+    }
+
+    // DEV-ASSET-PREVIEW-01 fixup: If asset preview tool is active and either
+    // a pending asset is set or a placement is selected, consume the click
+    // for place-or-move instead of normal input.
+    if (this.assetPreviewTool?.active) {
+      const currentScale = this.assetPreviewPanel?.getCurrentScale() ?? 1;
+      const currentFootprint = this.assetPreviewPanel?.getCurrentFootprint() ?? 1;
+      const consumed = this.assetPreviewTool.handleMapClick(
+        worldPoint.x,
+        worldPoint.y,
+        currentScale,
+        currentFootprint,
+      );
+      if (consumed) {
+        this.assetPreviewPanel?.refresh();
+        return;
+      }
+    }
+
+    // CORE-STEP-05H+: Use command router for LMB
+    const target = this.detectClickTarget(pointer);
+    const routeResult = routeLmbClick(target, this.selectedUnit);
+
+    switch (routeResult.action) {
+      case 'select':
+        this.selectedUnit = routeResult.selection;
+        if (routeResult.selection) {
+          const selLabel = routeResult.selection.kind === 'builder'
+            ? `Builder ${routeResult.selection.id}`
+            : `Harvester ${routeResult.selection.id}`;
+          this.showStatusCb(`Выбран: ${selLabel}`, true);
+        }
+        break;
+      case 'deselect':
+        this.selectedUnit = clearSelection();
+        break;
+      case 'no-op':
+        // LMB on enemy/resource/empty ground with no selection → no-op
+        break;
+    }
+  }
+
+  // ─── RMB click handler ──────────────────────────────────────────
+
+  /**
+   * CORE-STEP-05H+: Handle RMB click — issue commands.
+   *
+   * RMB with selected unit:
+   * - Ground → move
+   * - Resource + harvester → harvest
+   * - Resource + non-harvester → move
+   * - No selected unit → no-op
+   *
+   * RMB must NOT: pan camera, select units, inspect as primary action.
+   */
+  private handleRightClick(pointer: Phaser.Input.Pointer): void {
+    const target = this.detectClickTarget(pointer);
+    const routeResult = routeRmbClick(target, this.selectedUnit);
+
+    switch (routeResult.action) {
+      case 'move': {
+        this.executeMoveCommand(routeResult.tx, routeResult.ty);
+        break;
+      }
+      case 'harvest': {
+        this.executeHarvestCommand(routeResult.tx, routeResult.ty);
+        break;
+      }
+      case 'attack': {
+        // Attack/target-lock is handled by BlockoutVehicleInputController in Arena mode.
+        // For civil units, there is no attack command yet.
+        this.showStatusCb('Атака: нет боевого юнита', false);
+        break;
+      }
+      case 'context-build': {
+        // Future: builder context action near building site
+        this.executeMoveCommand(routeResult.tx, routeResult.ty);
+        break;
+      }
+      case 'no-op': {
+        // No selected unit or own entity → no-op
+        break;
+      }
+    }
+  }
+
+  // ─── Command execution ──────────────────────────────────────────
+
+  private executeMoveCommand(tx: number, ty: number): void {
+    if (!isUnitSelected(this.selectedUnit)) return;
+
+    const gameState = this.getGameState();
+    const result = issueManualMove(gameState, this.selectedUnit, tx, ty);
+    if (result.ok) {
+      const label = this.selectedUnit!.kind === 'builder' ? 'Строитель' : 'Сборщик';
+      this.showStatusCb(`${label} → (${tx},${ty})`, true);
+      // Command confirmation: green indicator at target
+      this.feedbackRenderer.addCommandOk(tx, ty, this.scene.time.now);
+      this.addCommandConfirmation(tx, ty, 'move');
+    } else {
+      this.showStatusCb(`Ошибка: ${result.reason}`, false);
+      this.feedbackRenderer.addCommandFail(tx, ty, this.scene.time.now);
+    }
+  }
+
+  private executeHarvestCommand(tx: number, ty: number): void {
+    if (!isHarvesterSelected(this.selectedUnit)) return;
+
+    const gameState = this.getGameState();
+    // Issue move to the resource position — harvester auto-gather will take over
+    const result = issueManualMove(gameState, this.selectedUnit, tx, ty);
+    if (result.ok) {
+      this.showStatusCb(`Сборщик → добыча (${tx},${ty})`, true);
+      this.feedbackRenderer.addCommandOk(tx, ty, this.scene.time.now);
+      this.addCommandConfirmation(tx, ty, 'harvest');
+    } else {
+      this.showStatusCb(`Ошибка: ${result.reason}`, false);
+      this.feedbackRenderer.addCommandFail(tx, ty, this.scene.time.now);
+    }
+  }
+
+  // ─── Command confirmation visual ────────────────────────────────
+
+  /** Active command confirmations (transient, fade out over time). */
+  private _confirmations: Array<{
+    tx: number;
+    ty: number;
+    type: 'move' | 'harvest' | 'attack';
+    createdAt: number;
+    duration: number;
+  }> = [];
+
+  private addCommandConfirmation(tx: number, ty: number, type: 'move' | 'harvest' | 'attack'): void {
+    this._confirmations.push({
+      tx,
+      ty,
+      type,
+      createdAt: this.scene.time.now,
+      duration: 600,
+    });
+  }
+
+  private updateCommandConfirmation(): void {
+    this.commandConfirmation.clear();
+    const now = this.scene.time.now;
+
+    // Age and prune
+    this._confirmations = this._confirmations.filter(c => now - c.createdAt < c.duration);
+
+    for (const c of this._confirmations) {
+      const elapsed = now - c.createdAt;
+      const progress = elapsed / c.duration;
+      const alpha = Math.max(0, 1.0 - progress);
+
+      // Use projected ground-plane coordinates
+      const screenPos = tileToScreen(c.tx, c.ty);
+      const cx = screenPos.x + this.offset.x;
+      const cy = screenPos.y + this.offset.y;
+
+      // Choose color based on confirmation type
+      let color: number;
+      switch (c.type) {
+        case 'move': color = 0x4488ff; break;    // blue
+        case 'harvest': color = 0xffcc00; break;  // yellow
+        case 'attack': color = 0xff4444; break;   // red
+      }
+
+      // Draw expanding ring on ground plane
+      const expandProgress = Math.min(1, progress * 2); // expand in first half
+      const ringRadius = 6 + expandProgress * 10;
+      this.commandConfirmation.lineStyle(2, color, alpha * 0.8);
+      this.commandConfirmation.strokeCircle(cx, cy, ringRadius);
+
+      // Inner dot
+      if (progress < 0.5) {
+        this.commandConfirmation.fillStyle(color, alpha * 0.6);
+        this.commandConfirmation.fillCircle(cx, cy, 3);
+      }
+    }
+  }
+
+  // ─── Cursor feedback ─────────────────────────────────────────────
+
+  private updateCursorFeedback(): void {
+    const worldPoint = this.scene.cameras.main.getWorldPoint(this._lastPointerX, this._lastPointerY);
+    const gameState = this.getGameState();
+    const tilePos = screenToTile(worldPoint.x - this.offset.x, worldPoint.y - this.offset.y);
+    const clickTx = tilePos.x;
+    const clickTy = tilePos.y;
+
+    // Detect hover target (simplified — same logic as detectClickTarget but for hover)
+    let hoverTarget: ClickTarget | null = null;
+
+    // Check own harvesters
+    for (const h of gameState.harvesters) {
+      const dx = h.ftx - clickTx;
+      const dy = h.fty - clickTy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < SELECT_RADIUS) {
+        hoverTarget = { kind: 'own-harvester', id: h.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
+        break;
+      }
+    }
+
+    // Check own builders
+    if (!hoverTarget) {
+      for (const b of gameState.mapData.builders) {
+        const dx = b.ftx - clickTx;
+        const dy = b.fty - clickTy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < SELECT_RADIUS) {
+          hoverTarget = { kind: 'own-builder', id: b.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
+          break;
+        }
+      }
+    }
+
+    // Check resources
+    if (!hoverTarget) {
+      for (const r of gameState.resourceNodes) {
+        if (r.depleted) continue;
+        const dx = r.tx - clickTx;
+        const dy = r.ty - clickTy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < SELECT_RADIUS + r.footprint * 0.5) {
+          hoverTarget = { kind: 'resource', id: r.id, tx: r.tx, ty: r.ty };
+          break;
+        }
+      }
+    }
+
+    // Default: ground
+    if (!hoverTarget) {
+      hoverTarget = { kind: 'ground', tx: Math.round(clickTx), ty: Math.round(clickTy) };
+    }
+
+    const newState = determineCursorFeedback(hoverTarget, this.selectedUnit, this.isArenaMode());
+    if (newState !== this._cursorState) {
+      this._cursorState = newState;
+      this.applyCursorStyle(newState);
+    }
+  }
+
+  /** Apply CSS cursor style based on feedback state. */
+  private applyCursorStyle(state: CursorFeedbackState): void {
+    const canvas = this.scene.game.canvas;
+    switch (state) {
+      case 'default':
+        canvas.style.cursor = 'default';
+        break;
+      case 'select':
+        canvas.style.cursor = 'pointer';
+        break;
+      case 'move':
+        canvas.style.cursor = 'crosshair';
+        break;
+      case 'harvest':
+        canvas.style.cursor = 'crosshair';
+        break;
+      case 'attack':
+        canvas.style.cursor = 'crosshair';
+        break;
+      case 'blocked':
+        canvas.style.cursor = 'not-allowed';
+        break;
+    }
+  }
+
+  /** Get current cursor feedback state (for testing). */
+  getCursorFeedbackState(): CursorFeedbackState {
+    return this._cursorState;
   }
 
   // ─── Keyboard input ────────────────────────────────────────────
@@ -451,6 +865,11 @@ export class GameInputController {
       });
     }
 
+    // ── CORE-STEP-05H+: S key — stop selected unit ────────────
+    kb.on('keydown-S', () => {
+      this.handleStopKey();
+    });
+
     // ── Devtools toggle (F10 / backtick) ─────────────────────
     kb.on('keydown-F10', () => {
       if (this.devtoolsPanel) {
@@ -476,23 +895,80 @@ export class GameInputController {
       }
     });
 
-    // ── ESC: toggle pause menu ───────────────────────────────
-    // ARENA-02H+ fixup: When placement mode is active, ESC is owned by
-    // placement cancel — do not toggle pause menu.
+    // ── CORE-STEP-05H+: ESC with priority chain ──────────────
+    // Priority: 1. cancel active mode, 2. deselect, 3. close overlay, 4. pause
     kb.on('keydown-ESC', () => {
-      if (this.isPlacementActive()) return;
-
-      if (this.pauseMenu.visible) {
-        // Menu is open → close it (resume)
-        this.pauseMenu.hide();
-        this.setPausedCb(false);
-      } else {
-        // Menu is closed → open it (pause)
-        this.selectedUnit = clearSelection();
-        this.pauseMenu.show();
-        this.setPausedCb(true);
-      }
+      this.handleEscKey();
     });
+  }
+
+  // ─── S key handler ──────────────────────────────────────────────
+
+  private handleStopKey(): void {
+    const routeResult = routeSKey(this.selectedUnit);
+    const gameState = this.getGameState();
+
+    switch (routeResult.action) {
+      case 'stop': {
+        const result = stopUnitCommand(gameState, this.selectedUnit!);
+        if (result.ok) {
+          const label = routeResult.unitKind === 'harvester' ? 'Сборщик' : 'Строитель';
+          this.showStatusCb(`${label}: стоп`, true);
+        }
+        break;
+      }
+      case 'clear-target-lock': {
+        // Blockout vehicle target-lock clear is handled by BlockoutVehicleInputController
+        break;
+      }
+      case 'no-op':
+        break;
+    }
+  }
+
+  // ─── ESC key handler with priority chain ─────────────────────────
+
+  private handleEscKey(): void {
+    const hasSelection = isUnitSelected(this.selectedUnit);
+    const isOverlayOpen = this.devtoolsPanel?.visible ?? false;
+
+    const routeResult = routeEscKey(
+      this.isPlacementActive(),
+      hasSelection,
+      isOverlayOpen,
+    );
+
+    switch (routeResult.action) {
+      case 'cancel-active-mode':
+        // Active placement mode — ESC is owned by Arena placement cancel
+        // This is handled by GameScene's handlePlacementKeydown
+        // When isPlacementActive() returns true, the placement handler
+        // consumes ESC before this controller's handler fires.
+        // (The placement handler is registered directly on keyboard in GameScene)
+        // This route is a safety fallback — it shouldn't normally be reached.
+        break;
+
+      case 'deselect':
+        this.selectedUnit = clearSelection();
+        this.showStatusCb('Снято выделение', true);
+        break;
+
+      case 'close-overlay':
+        if (this.devtoolsPanel?.visible) {
+          this.devtoolsPanel.hide();
+        }
+        break;
+
+      case 'toggle-pause':
+        if (this.pauseMenu.visible) {
+          this.pauseMenu.hide();
+          this.setPausedCb(false);
+        } else {
+          this.pauseMenu.show();
+          this.setPausedCb(true);
+        }
+        break;
+    }
   }
 
   private onArrowKey(event: KeyboardEvent): void {
@@ -515,106 +991,6 @@ export class GameInputController {
     }
 
     this.entityRenderer.updateModularTankVisuals();
-  }
-
-  // ─── Selection + move input (LMB only) ──────────────────────────
-
-  /**
-   * Handle left-click:
-   * - DEV-ASSET-PREVIEW-01 fixup: If asset preview tool consumed a sprite click,
-   *   skip normal input entirely (click-to-select on preview sprites).
-   * - If preview tool is active (pending asset or selected placement), consume
-   *   click for place-or-move instead of normal unit selection/move.
-   * - If a unit is under cursor → select it
-   * - If no unit under cursor AND a unit is selected → issue move command
-   * - If no unit under cursor AND nothing selected → do nothing
-   */
-  private handleLeftClick(pointer: Phaser.Input.Pointer): void {
-    const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
-
-    // DEV-ASSET-PREVIEW-01 fixup: If the preview tool already consumed the
-    // click via a sprite pointerdown handler (click-to-select), skip all
-    // normal input processing so unit selection/move does not also fire.
-    if (this.assetPreviewTool?.spriteClickConsumed) {
-      this.assetPreviewPanel?.refresh();
-      this.assetPreviewTool.resetSpriteClickConsumed();
-      return;
-    }
-
-    // DEV-ASSET-PREVIEW-01 fixup: If asset preview tool is active and either
-    // a pending asset is set or a placement is selected, consume the click
-    // for place-or-move instead of normal input.
-    if (this.assetPreviewTool?.active) {
-      const currentScale = this.assetPreviewPanel?.getCurrentScale() ?? 1;
-      const currentFootprint = this.assetPreviewPanel?.getCurrentFootprint() ?? 1;
-      const consumed = this.assetPreviewTool.handleMapClick(
-        worldPoint.x,
-        worldPoint.y,
-        currentScale,
-        currentFootprint,
-      );
-      if (consumed) {
-        this.assetPreviewPanel?.refresh();
-        return;
-      }
-    }
-
-    const gameState = this.getGameState();
-    const tilePos = screenToTile(worldPoint.x - this.offset.x, worldPoint.y - this.offset.y);
-    const clickTx = tilePos.x;
-    const clickTy = tilePos.y;
-
-    // Check if there's a unit under the cursor
-    let bestDist = SELECT_RADIUS;
-    let bestSelection: UnitSelection = null;
-
-    for (const b of gameState.mapData.builders) {
-      const dx = b.ftx - clickTx;
-      const dy = b.fty - clickTy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestSelection = selectBuilder(b.id);
-      }
-    }
-
-    for (const h of gameState.harvesters) {
-      const dx = h.ftx - clickTx;
-      const dy = h.fty - clickTy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestSelection = selectHarvester(h.id);
-      }
-    }
-
-    if (bestSelection) {
-      // Unit under cursor → select it
-      this.selectedUnit = bestSelection;
-      const label = bestSelection.kind === 'builder'
-        ? `Builder ${bestSelection.id}`
-        : `Harvester ${(bestSelection as { kind: 'harvester'; id: string }).id}`;
-      this.showStatusCb(`Selected: ${label}`, true);
-      return;
-    }
-
-    // No unit under cursor — if a unit is selected, issue move command
-    if (isUnitSelected(this.selectedUnit)) {
-      const targetTx = Math.round(clickTx);
-      const targetTy = Math.round(clickTy);
-
-      const result = issueManualMove(gameState, this.selectedUnit, targetTx, targetTy);
-      if (result.ok) {
-        const label = this.selectedUnit!.kind === 'builder' ? 'Builder' : 'Harvester';
-        this.showStatusCb(`${label} → (${targetTx},${targetTy})`, true);
-        // ARCH-13A: Green command indicator on accepted move
-        this.feedbackRenderer.addCommandOk(targetTx, targetTy, this.scene.time.now);
-      } else {
-        this.showStatusCb(`Move failed: ${result.reason}`, false);
-        // ARCH-13A: Red command indicator on failed move
-        this.feedbackRenderer.addCommandFail(targetTx, targetTy, this.scene.time.now);
-      }
-    }
   }
 
   // ─── Selection highlight ───────────────────────────────────────
@@ -669,6 +1045,7 @@ export class GameInputController {
     // Remove pointer handlers
     this.scene.input.off('pointerdown', this.boundPointerdown);
     this.scene.input.off('pointerup', this.boundPointerup);
+    this.scene.input.off('pointermove', this.boundPointermove);
 
     // Remove DOM contextmenu handler
     if (this.contextmenuHandler) {
@@ -676,8 +1053,12 @@ export class GameInputController {
       this.contextmenuHandler = null;
     }
 
-    // Destroy selection highlight graphics
+    // Reset cursor
+    this.scene.game.canvas.style.cursor = 'default';
+
+    // Destroy graphics
     this.selectionHighlight.destroy();
+    this.commandConfirmation.destroy();
 
     // Note: Keyboard handlers are cleaned up by Phaser scene shutdown.
     // The scene's KeyboardPlugin is destroyed automatically, removing all

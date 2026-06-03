@@ -1,7 +1,14 @@
 import Phaser from 'phaser';
 
 /**
- * CameraControls — pan (drag), zoom (scroll wheel), and reset for the main camera.
+ * CameraControls — pan (MMB drag), zoom (scroll wheel), and reset for the main camera.
+ *
+ * CORE-STEP-05H+: Classic RTS camera controls:
+ * - MMB drag = camera pan
+ * - Arrow keys = camera movement (when debug overlay is NOT active)
+ * - Mouse wheel zoom remains
+ * - LMB drag must NOT pan camera
+ * - RMB drag must NOT pan camera
  *
  * PR1.1 changes:
  * - Multiplicative zoom (factor ~1.12) instead of additive
@@ -18,6 +25,12 @@ import Phaser from 'phaser';
  */
 
 const ZOOM_FACTOR = 1.12;
+
+/** Arrow key camera pan speed in pixels per frame. */
+const ARROW_PAN_SPEED = 6;
+
+/** Shift-modified arrow key pan speed (faster). */
+const ARROW_PAN_SHIFT_SPEED = 18;
 
 export class CameraControls {
   private scene: Phaser.Scene;
@@ -43,9 +56,18 @@ export class CameraControls {
     dy: number,
     dz: number,
   ) => void;
+  private boundKeydown: (event: KeyboardEvent) => void;
 
   /** FIX-05: Guard flag for idempotent destroy. */
   private _destroyed: boolean = false;
+
+  /**
+   * CORE-STEP-05H+: Arrow key camera panning.
+   * When debug overlay is NOT active, arrow keys pan the camera.
+   * When debug overlay IS active, arrow keys are owned by the debug tuner.
+   * This predicate is set externally by GameInputController.
+   */
+  isDebugOverlayActive: () => boolean = () => false;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -59,9 +81,11 @@ export class CameraControls {
     this.boundPointerup = this.onPointerup.bind(this);
     this.boundPointerupoutside = this.onPointerupoutside.bind(this);
     this.boundWheel = this.onWheel.bind(this);
+    this.boundKeydown = this.onKeydown.bind(this);
 
     this.setupPan();
     this.setupZoom();
+    this.setupArrowKeys();
   }
 
   /** Set camera bounds from the terrain renderer. */
@@ -106,8 +130,14 @@ export class CameraControls {
 
   // ─── Handler methods (FIX-05: named methods for stable references) ──
 
+  /**
+   * CORE-STEP-05H+: MMB drag starts camera pan.
+   * LMB and RMB are explicitly excluded — they are owned by
+   * GameInputController (LMB = select, RMB = command).
+   */
   private onPointerdown(pointer: Phaser.Input.Pointer): void {
-    if (pointer.rightButtonDown()) return; // Ignore right-click
+    // Only MMB (middle button) starts camera drag
+    if (!pointer.middleButtonDown()) return;
     this.isDragging = true;
     this.dragStartX = pointer.x;
     this.dragStartY = pointer.y;
@@ -162,6 +192,39 @@ export class CameraControls {
     this.camera.scrollY += before.y - after.y;
   }
 
+  /**
+   * CORE-STEP-05H+: Arrow key camera panning.
+   * When the debug overlay is NOT active, arrow keys pan the camera.
+   * When the debug overlay IS active, arrow keys are owned by the tuner
+   * and CameraControls does not consume them.
+   */
+  private onKeydown(event: KeyboardEvent): void {
+    // Don't pan camera if debug overlay owns arrow keys
+    if (this.isDebugOverlayActive()) return;
+
+    const isArrow = event.code === 'ArrowLeft' || event.code === 'ArrowRight'
+      || event.code === 'ArrowUp' || event.code === 'ArrowDown';
+    if (!isArrow) return;
+
+    event.preventDefault();
+    const speed = event.shiftKey ? ARROW_PAN_SHIFT_SPEED : ARROW_PAN_SPEED;
+
+    switch (event.code) {
+      case 'ArrowLeft':
+        this.camera.scrollX -= speed / this.camera.zoom;
+        break;
+      case 'ArrowRight':
+        this.camera.scrollX += speed / this.camera.zoom;
+        break;
+      case 'ArrowUp':
+        this.camera.scrollY -= speed / this.camera.zoom;
+        break;
+      case 'ArrowDown':
+        this.camera.scrollY += speed / this.camera.zoom;
+        break;
+    }
+  }
+
   // ─── Setup methods (FIX-05: register bound references, not anonymous arrows) ──
 
   private setupPan(): void {
@@ -173,6 +236,10 @@ export class CameraControls {
 
   private setupZoom(): void {
     this.scene.input.on('wheel', this.boundWheel);
+  }
+
+  private setupArrowKeys(): void {
+    this.scene.input.keyboard?.on('keydown', this.boundKeydown);
   }
 
   /** Get current camera info for HUD display. */
@@ -202,6 +269,7 @@ export class CameraControls {
     this.scene.input.off('pointerup', this.boundPointerup);
     this.scene.input.off('pointerupoutside', this.boundPointerupoutside);
     this.scene.input.off('wheel', this.boundWheel);
+    this.scene.input.keyboard?.off('keydown', this.boundKeydown);
 
     if (this.resetKey) {
       this.resetKey.destroy();

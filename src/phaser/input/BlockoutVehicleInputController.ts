@@ -6,6 +6,8 @@
  * BLOCKOUT-03H fixup: Turret aim angle computed from actual turret mount
  * origin (not body/tile center), using shared blockoutVehicleGeometry.
  * BLOCKOUT-04H+: RMB click sets movement target for selected vehicle.
+ * CORE-STEP-05H+: RMB click also commands attack/target-lock in Arena mode.
+ * LMB click in Arena mode does NOT assign targets — only selects allies.
  *
  * This controller is dev-only. It does NOT interfere with normal
  * game input (builders/harvesters). It only processes input when
@@ -39,7 +41,7 @@ import Phaser from 'phaser';
 import type { IsoPoint } from '../render/isometric';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { computeBodyWorldCenter, getBodyPixelSize, computeProjectedTurretMountScreen, computeProjectedBarrelTipScreenAtZ } from '../render/blockoutVehicleGeometry';
-import { setBlockoutVehicleMoveTarget } from '../../state/blockoutMovement';
+import { setBlockoutVehicleMoveTarget, clearBlockoutVehicleMoveTarget } from '../../state/blockoutMovement';
 import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state/angleMath';
 import { canFireBlockoutWeapon, fireBlockoutWeapon, startFiring, stopFiring, isContinuousWeapon } from '../../state/blockoutWeaponVfx';
 import { applyBlockoutWeaponDamage } from '../../state/blockoutDamage';
@@ -198,6 +200,81 @@ export class BlockoutVehicleInputController {
   /** Mouse world Y position. BLOCKOUT-06H+. */
   get mouseWorldY(): number { return this._mouseWorldY; }
 
+  // ─── CORE-STEP-05H+: Cursor feedback ─────────────────────────────
+
+  /** Current cursor feedback state for Arena mode. */
+  private _arenaCursorState: 'default' | 'select' | 'move' | 'attack' = 'default';
+
+  /** Get current Arena cursor state (for testing). */
+  get arenaCursorState(): string { return this._arenaCursorState; }
+
+  /** Update cursor feedback based on hover target and selection. */
+  private updateArenaCursorFeedback(): void {
+    if (!this.isArenaMode()) return;
+
+    const gameState = this.getGameState();
+    const vehicles = gameState.blockoutVehicles;
+    if (!vehicles || vehicles.length === 0) {
+      this._arenaCursorState = 'default';
+      this.applyArenaCursorStyle('default');
+      return;
+    }
+
+    const hoveredId = this._hoveredVehicleId;
+    const hasSelection = this._selectedVehicleId !== null;
+
+    if (!hasSelection) {
+      if (hoveredId) {
+        const hovered = vehicles.find(v => v.id === hoveredId);
+        if (hovered && hovered.team === 'ally') {
+          this._arenaCursorState = 'select';
+          this.applyArenaCursorStyle('select');
+          return;
+        }
+      }
+      this._arenaCursorState = 'default';
+      this.applyArenaCursorStyle('default');
+      return;
+    }
+
+    // Has selection
+    if (hoveredId) {
+      const hovered = vehicles.find(v => v.id === hoveredId);
+      if (hovered && hovered.team === 'enemy') {
+        this._arenaCursorState = 'attack';
+        this.applyArenaCursorStyle('attack');
+        return;
+      }
+      if (hovered && hovered.team === 'ally') {
+        this._arenaCursorState = 'select';
+        this.applyArenaCursorStyle('select');
+        return;
+      }
+    }
+
+    this._arenaCursorState = 'move';
+    this.applyArenaCursorStyle('move');
+  }
+
+  /** Apply CSS cursor style for Arena mode. */
+  private applyArenaCursorStyle(state: string): void {
+    const canvas = this.scene.game.canvas;
+    switch (state) {
+      case 'select':
+        canvas.style.cursor = 'pointer';
+        break;
+      case 'move':
+        canvas.style.cursor = 'crosshair';
+        break;
+      case 'attack':
+        canvas.style.cursor = 'crosshair';
+        break;
+      default:
+        canvas.style.cursor = 'default';
+        break;
+    }
+  }
+
   // ─── Frame update ─────────────────────────────────────────────
 
   /**
@@ -217,6 +294,9 @@ export class BlockoutVehicleInputController {
 
     // Update hover detection
     this._hoveredVehicleId = this.findVehicleNearPoint(this._mouseWorldX, this._mouseWorldY, vehicles);
+
+    // CORE-STEP-05H+: Update cursor feedback for Arena mode
+    this.updateArenaCursorFeedback();
 
     // Update selected vehicle turret aiming
     if (this._selectedVehicleId) {
@@ -388,12 +468,17 @@ export class BlockoutVehicleInputController {
   }
 
   /**
-   * ARENA-03H+: Handle left click in Arena mode with ally/enemy control rules.
+   * CORE-STEP-05H+: Handle left click in Arena mode with ally/enemy control rules.
    *
+   * LMB = select/inspect only:
    * - Enemy vehicles cannot be selected as controllable units.
-   * - If an ally is selected and user clicks an enemy → assign target.
+   * - LMB on enemy does NOT assign target (that's RMB's job now).
+   * - LMB on enemy with ally selected → no-op (inspect only, no control transfer).
    * - If user clicks another ally → select that ally, clear target.
-   * - If user clicks an enemy with no ally selected → no-op (do not select enemy).
+   * - If user clicks an enemy with no ally selected → no-op.
+   *
+   * ARENA-03H+ backward compat note: Previously LMB on enemy with selected ally
+   * would assign target. This is now moved to RMB to match classic RTS controls.
    */
   private handleLeftClickArena(hitVehicle: BlockoutVehicleState, vehicles: BlockoutVehicleState[]): void {
     const hitIsEnemy = hitVehicle.team === 'enemy';
@@ -408,9 +493,8 @@ export class BlockoutVehicleInputController {
       }
 
       if (hitIsEnemy) {
-        // Click on enemy while ally is selected → assign target
-        // Don't switch control to enemy
-        selected.targetVehicleId = hitVehicle.id;
+        // CORE-STEP-05H+: LMB on enemy → inspect only, no target assignment
+        // Target assignment is now on RMB only
         return;
       }
 
@@ -447,7 +531,12 @@ export class BlockoutVehicleInputController {
   }
 
   /**
-   * BLOCKOUT-04H+: Handle right-click to set movement target for selected vehicle.
+   * CORE-STEP-05H+: Handle right-click for commands.
+   *
+   * RMB = command:
+   * - Ground + selected vehicle → move command
+   * - Enemy + selected ally (Arena) → attack / target-lock
+   * - No selected unit → no-op
    *
    * RMB drag is camera pan (handled by CameraControls). Only short clicks
    * (no drag) set a movement target. This prevents conflict with camera controls.
@@ -470,6 +559,20 @@ export class BlockoutVehicleInputController {
 
     // Convert world click position to screen-space (subtract offset)
     const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+
+    // CORE-STEP-05H+: Check if RMB clicked on an enemy vehicle (Arena target-lock)
+    if (this.isArenaMode()) {
+      const hitVehicleId = this.findVehicleNearPoint(worldPoint.x, worldPoint.y, vehicles);
+      if (hitVehicleId) {
+        const hitVehicle = vehicles.find(v => v.id === hitVehicleId)!;
+        if (hitVehicle.team === 'enemy' && selected.team === 'ally') {
+          // RMB on enemy with selected ally → attack / target-lock
+          selected.targetVehicleId = hitVehicleId;
+          return;
+        }
+      }
+    }
+
     const screenX = worldPoint.x - this.offset.x;
     const screenY = worldPoint.y - this.offset.y;
 
@@ -569,6 +672,35 @@ export class BlockoutVehicleInputController {
     // CAMERA-00: C key — toggle camera projection calibration overlay (dev/arena-only)
     if (event.code === 'KeyC') {
       this.onToggleCalibration?.();
+      return;
+    }
+
+    // CORE-STEP-05H+: S key — stop selected vehicle, clear target-lock
+    if (event.code === 'KeyS') {
+      if (this._selectedVehicleId) {
+        const gameState = this.getGameState();
+        const vehicles = gameState.blockoutVehicles;
+        if (vehicles) {
+          const selected = vehicles.find(v => v.id === this._selectedVehicleId);
+          if (selected) {
+            // Stop movement
+            clearBlockoutVehicleMoveTarget(selected);
+            selected.vx = 0;
+            selected.vy = 0;
+            selected.speed = 0;
+
+            // Clear target-lock
+            if (selected.targetVehicleId) {
+              selected.targetVehicleId = null;
+            }
+
+            // Stop firing
+            if (selected.fireHeld || selected.isFiring) {
+              stopFiring(selected);
+            }
+          }
+        }
+      }
       return;
     }
 

@@ -256,6 +256,17 @@ const HUD_STRINGS = {
   hud_reachable: 'Доступно',
   hud_info: 'i',
   hud_warning: '!',
+  // CORE-STEP-05H+: Command routing status labels
+  hud_cursorMove: 'Движение',
+  hud_cursorHarvest: 'Добыча',
+  hud_cursorAttack: 'Атака',
+  hud_cursorSelect: 'Выбор',
+  hud_cursorBlocked: 'Недоступно',
+  hud_cmdStopped: 'Стоп',
+  hud_cmdDeselected: 'Снято выделение',
+  hud_cmdMove: 'Движение',
+  hud_cmdHarvest: 'Добыча',
+  hud_cmdAttack: 'Атака',
 } as const;
 
 // ─── Status label strings ───────────────────────────────────────────

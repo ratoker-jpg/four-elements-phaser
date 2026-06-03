@@ -614,6 +614,9 @@ export class GameScene extends Phaser.Scene {
       setPaused: (paused: boolean) => { this.paused = paused; },
       // ARENA-02H+ fixup: Guard placement mode — suppress ESC pause toggle when placing
       isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
+      // CORE-STEP-05H+: Arena mode flag and CameraControls reference
+      isArenaMode: () => this.arenaMode,
+      cameraControls: this.cameraControls,
     });
 
     // Wire PlaytestHud callbacks to delegate to the input controller
