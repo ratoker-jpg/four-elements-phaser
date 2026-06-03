@@ -6,6 +6,9 @@
  * the project's UI pattern. Pointer cursor on all interactive elements.
  * Focus-visible outlines for keyboard accessibility.
  *
+ * CORE-STEP-01A: All player-facing strings now come from localization.
+ * Russian is the primary language. Internal ids remain English.
+ *
  * ARCH-14B: Provides New Game / Continue / Settings entry points.
  * ARCH-15A: Continue button is enabled when saves exist.
  * ARCH-14C+15B: Save list with delete per slot, Settings with UI Scale.
@@ -34,6 +37,10 @@ import {
   applyUiScale,
   UI_SCALE_OPTIONS,
 } from '../state/uiSettings';
+import {
+  t,
+  FACTION_DISPLAY,
+} from '../config/localization';
 
 /** UI-01: Shared CSS custom properties for the industrial menu theme. */
 const MENU_THEME = {
@@ -128,7 +135,7 @@ export class MainMenuScene extends Phaser.Scene {
     `;
 
     const title = document.createElement('div');
-    title.textContent = 'Four Elements';
+    title.textContent = 'Four Elements'; // Game title stays in English per MECHANICS_DECISIONS
     title.style.cssText = `
       font-size: 52px;
       font-weight: 700;
@@ -150,7 +157,7 @@ export class MainMenuScene extends Phaser.Scene {
     titleArea.appendChild(titleLine);
 
     const subtitle = document.createElement('div');
-    subtitle.textContent = 'Industrial RTS Prototype';
+    subtitle.textContent = 'Industrial RTS Prototype'; // Technical subtitle, not player-facing label
     subtitle.style.cssText = `
       font-size: 13px;
       color: ${MENU_THEME.subtitleColor};
@@ -170,21 +177,21 @@ export class MainMenuScene extends Phaser.Scene {
       width: 280px;
     `;
 
-    // New Game button — primary (warm bronze/gold)
-    const newGameBtn = this.createMenuButton('New Game', 'primary', () => {
+    // New Game button — primary (warm bronze/gold) — CORE-STEP-01A: Russian label
+    const newGameBtn = this.createMenuButton(t('menu_newGame'), 'primary', () => {
       this.scene.start('NewGameSetupScene');
     });
     btnContainer.appendChild(newGameBtn);
 
-    // Continue button — secondary (teal), enabled only if saves exist
+    // Continue button — secondary (teal), enabled only if saves exist — CORE-STEP-01A: Russian label
     const savesExist = hasSaves();
-    this.continueBtn = this.createMenuButton('Continue', 'secondary', savesExist ? () => {
+    this.continueBtn = this.createMenuButton(t('menu_continue'), 'secondary', savesExist ? () => {
       this.showSaveList();
     } : null, !savesExist);
     btnContainer.appendChild(this.continueBtn);
 
-    // Settings button — secondary (teal)
-    const settingsBtn = this.createMenuButton('Settings', 'secondary', () => {
+    // Settings button — secondary (teal) — CORE-STEP-01A: Russian label
+    const settingsBtn = this.createMenuButton(t('menu_settings'), 'secondary', () => {
       this.showSettings();
     });
     btnContainer.appendChild(settingsBtn);
@@ -307,6 +314,7 @@ export class MainMenuScene extends Phaser.Scene {
    * delete a slot (with confirmation), or clear all saves.
    *
    * UI-01: Styled with industrial panel theme.
+   * CORE-STEP-01A: All labels in Russian.
    */
   private showSaveList(): void {
     this.hideSaveList();
@@ -342,9 +350,9 @@ export class MainMenuScene extends Phaser.Scene {
       overflow-y: auto;
     `;
 
-    // Title
+    // Title — Russian
     const title = document.createElement('div');
-    title.textContent = 'Load Game';
+    title.textContent = t('menu_loadGame');
     title.style.cssText = `
       font-size: 20px;
       font-weight: 600;
@@ -357,7 +365,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     if (metas.length === 0) {
       const emptyMsg = document.createElement('div');
-      emptyMsg.textContent = 'No saves yet';
+      emptyMsg.textContent = t('menu_noSaves');
       emptyMsg.style.cssText = `
         text-align: center;
         color: ${MENU_THEME.subtitleColor};
@@ -366,9 +374,9 @@ export class MainMenuScene extends Phaser.Scene {
       `;
       panel.appendChild(emptyMsg);
 
-      // UI-04: Helpful subtext for empty state
+      // UI-04: Helpful subtext for empty state — Russian
       const emptyHint = document.createElement('div');
-      emptyHint.textContent = 'Start a new game and save to create your first slot.';
+      emptyHint.textContent = t('menu_noSavesHint');
       emptyHint.style.cssText = `
         text-align: center;
         color: #4b5563;
@@ -383,7 +391,7 @@ export class MainMenuScene extends Phaser.Scene {
       }
     }
 
-    // Button row: Clear All + Back
+    // Button row: Clear All + Back — Russian labels
     const btnRow = document.createElement('div');
     btnRow.style.cssText = `
       display: flex;
@@ -393,7 +401,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     if (metas.length > 0) {
       const clearAllBtn = document.createElement('button');
-      clearAllBtn.textContent = 'Clear All';
+      clearAllBtn.textContent = t('menu_clearAll');
       clearAllBtn.style.cssText = `
         flex: 1;
         padding: 10px 12px;
@@ -423,7 +431,7 @@ export class MainMenuScene extends Phaser.Scene {
         clearAllBtn.style.background = MENU_THEME.dangerBg;
       });
       clearAllBtn.addEventListener('click', () => {
-        if (confirm('Delete all save data? This cannot be undone.')) {
+        if (confirm(t('menu_clearAllConfirm'))) {
           clearAllSaves();
           this.hideSaveList();
           this.showSaveList();
@@ -434,7 +442,7 @@ export class MainMenuScene extends Phaser.Scene {
     }
 
     const backBtn = document.createElement('button');
-    backBtn.textContent = 'Back';
+    backBtn.textContent = t('menu_back');
     backBtn.style.cssText = `
       flex: 1;
       padding: 10px 12px;
@@ -498,7 +506,9 @@ export class MainMenuScene extends Phaser.Scene {
 
     const nameLine = document.createElement('div');
     nameLine.style.cssText = `font-size: 13px; font-weight: 600; color: ${factionColor};`;
-    nameLine.textContent = `${meta.faction.charAt(0).toUpperCase() + meta.faction.slice(1)} — ${meta.mapName}`;
+    // CORE-STEP-01A: Use Russian faction display name
+    const factionDisplayName = FACTION_DISPLAY[meta.faction as Faction] ?? meta.faction;
+    nameLine.textContent = `${factionDisplayName} — ${meta.mapName}`;
     info.appendChild(nameLine);
 
     const detailLine = document.createElement('div');
@@ -537,9 +547,9 @@ export class MainMenuScene extends Phaser.Scene {
 
     row.appendChild(info);
 
-    // Right: delete button
+    // Right: delete button — Russian label
     const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = 'Delete';
+    deleteBtn.textContent = t('menu_delete');
     deleteBtn.style.cssText = `
       padding: 4px 8px;
       background: ${MENU_THEME.dangerBg};
@@ -569,7 +579,9 @@ export class MainMenuScene extends Phaser.Scene {
     });
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (confirm(`Delete this save (${meta.faction} — ${meta.mapName})?`)) {
+      // CORE-STEP-01A: Russian confirmation with Russian faction name
+      const factionDisplayName = FACTION_DISPLAY[meta.faction as Faction] ?? meta.faction;
+      if (confirm(`${t('menu_deleteConfirm')} (${factionDisplayName} — ${meta.mapName})?`)) {
         deleteSave(meta.id);
         this.hideSaveList();
         this.showSaveList();
@@ -596,6 +608,7 @@ export class MainMenuScene extends Phaser.Scene {
   /**
    * ARCH-14C: Show settings overlay with UI Scale option.
    * UI-01: Styled with industrial panel theme.
+   * CORE-STEP-01A: Labels in Russian.
    */
   private showSettings(): void {
     this.hideSettings();
@@ -629,9 +642,9 @@ export class MainMenuScene extends Phaser.Scene {
       max-width: 420px;
     `;
 
-    // Title
+    // Title — Russian
     const title = document.createElement('div');
-    title.textContent = 'Settings';
+    title.textContent = t('menu_settingsTitle');
     title.style.cssText = `
       font-size: 20px;
       font-weight: 600;
@@ -642,9 +655,9 @@ export class MainMenuScene extends Phaser.Scene {
     `;
     panel.appendChild(title);
 
-    // UI Scale section
+    // UI Scale section — Russian label
     const scaleLabel = document.createElement('div');
-    scaleLabel.textContent = 'UI Scale';
+    scaleLabel.textContent = t('menu_uiScale');
     scaleLabel.style.cssText = `
       font-size: 11px;
       font-weight: 600;
@@ -689,9 +702,9 @@ export class MainMenuScene extends Phaser.Scene {
     }
     panel.appendChild(scaleRow);
 
-    // Limitation note
+    // Limitation note — Russian
     const note = document.createElement('div');
-    note.textContent = 'Applies to DOM overlays. Game canvas zoom is unchanged.';
+    note.textContent = t('menu_uiScaleNote');
     note.style.cssText = `
       font-size: 10px;
       color: #4b5563;
@@ -699,9 +712,9 @@ export class MainMenuScene extends Phaser.Scene {
     `;
     panel.appendChild(note);
 
-    // Back button
+    // Back button — Russian label
     const backBtn = document.createElement('button');
-    backBtn.textContent = 'Back';
+    backBtn.textContent = t('menu_back');
     backBtn.style.cssText = `
       width: 100%;
       margin-top: 24px;
