@@ -326,10 +326,10 @@ describe('registerMvpCommands', () => {
     commandRegistry.clear();
   });
 
-  it('registers all 7 MVP commands', () => {
+  it('registers all 11 MVP commands', () => {
     registerMvpCommands();
     const cmds = commandRegistry.list();
-    expect(cmds).toHaveLength(7);
+    expect(cmds).toHaveLength(11);
   });
 
   it('registers camera-reset with key R', () => {
@@ -395,10 +395,10 @@ describe('registerMvpCommands', () => {
   // ─── Idempotency tests (PR #111 fixup — Issue 1) ─────────────
 
   describe('idempotency', () => {
-    it('calling registerMvpCommands() twice keeps exactly 7 commands', () => {
+    it('calling registerMvpCommands() twice keeps exactly 11 commands', () => {
       registerMvpCommands();
       registerMvpCommands();
-      expect(commandRegistry.list()).toHaveLength(7);
+      expect(commandRegistry.list()).toHaveLength(11);
     });
 
     it('second call does not create duplicate key conflicts', () => {
@@ -477,14 +477,14 @@ describe('ensureMvpCommandsRegistered', () => {
 
   it('registers MVP commands when registry is empty', () => {
     ensureMvpCommandsRegistered();
-    expect(commandRegistry.list()).toHaveLength(7);
+    expect(commandRegistry.list()).toHaveLength(11);
   });
 
-  it('is idempotent — repeated calls keep exactly 7 commands', () => {
+  it('is idempotent — repeated calls keep exactly 11 commands', () => {
     ensureMvpCommandsRegistered();
     ensureMvpCommandsRegistered();
     ensureMvpCommandsRegistered();
-    expect(commandRegistry.list()).toHaveLength(7);
+    expect(commandRegistry.list()).toHaveLength(11);
   });
 
   it('does not remove existing execute callbacks', () => {
@@ -527,7 +527,7 @@ describe('getMvpCommandHotkey', () => {
     getMvpCommandHotkey('build-separator');
     getMvpCommandHotkey('build-separator');
     getMvpCommandHotkey('produce-builder');
-    expect(commandRegistry.list()).toHaveLength(7);
+    expect(commandRegistry.list()).toHaveLength(11);
   });
 });
 

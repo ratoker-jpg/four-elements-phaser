@@ -256,8 +256,8 @@ describe('canPlaceBuilding', () => {
 
   it('rejects unknown building type', () => {
     const state = makeTestState({ mapW: 20, mapH: 20, hqTx: 0, hqTy: 0 });
-    // 'raw-storage' is in BuildingType but not configured in BUILDING_CONFIG
-    const result = canPlaceBuilding(state, 'raw-storage', 10, 10);
+    // 'command-relay' is in BuildingType but not configured in BUILDING_CONFIG
+    const result = canPlaceBuilding(state, 'command-relay', 10, 10);
     expect(result).toEqual({ valid: false, reason: 'unknown-building-type' });
   });
 
