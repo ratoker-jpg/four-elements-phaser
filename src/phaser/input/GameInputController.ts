@@ -46,7 +46,6 @@ import {
  * - S = stop selected unit / clear command
  * - Esc = context priority: cancel mode → deselect → close overlay → pause
  * - Cursor feedback for command targets
- * - Command confirmation visual at target location
  *
  * GameScene creates all subsystems and passes them as dependencies.
  * The controller does not create or import subsystem instances — it only
@@ -133,9 +132,6 @@ export class GameInputController {
   /** Selection highlight graphics. */
   private selectionHighlight: Phaser.GameObjects.Graphics;
 
-  /** CORE-STEP-05H+: Command confirmation graphics. */
-  private commandConfirmation: Phaser.GameObjects.Graphics;
-
   /** Click detection state (distinguish click from drag). */
   private _clickStartX: number = 0;
   private _clickStartY: number = 0;
@@ -176,10 +172,6 @@ export class GameInputController {
     this.selectionHighlight = this.scene.add.graphics();
     this.selectionHighlight.setDepth(150);
 
-    // CORE-STEP-05H+: Create command confirmation graphics
-    this.commandConfirmation = this.scene.add.graphics();
-    this.commandConfirmation.setDepth(149);
-
     // Prevent browser context menu on the game canvas only
     this.contextmenuHandler = (e: Event) => e.preventDefault();
     this.scene.game.canvas.addEventListener('contextmenu', this.contextmenuHandler);
@@ -211,7 +203,6 @@ export class GameInputController {
    */
   update(): void {
     this.updateSelectionHighlight();
-    this.updateCommandConfirmation();
     this.updateCursorFeedback();
   }
 
@@ -602,7 +593,6 @@ export class GameInputController {
       this.showStatusCb(`${label} → (${tx},${ty})`, true);
       // Command confirmation: green indicator at target
       this.feedbackRenderer.addCommandOk(tx, ty, this.scene.time.now);
-      this.addCommandConfirmation(tx, ty, 'move');
     } else {
       this.showStatusCb(`Ошибка: ${result.reason}`, false);
       this.feedbackRenderer.addCommandFail(tx, ty, this.scene.time.now);
@@ -618,70 +608,9 @@ export class GameInputController {
     if (result.ok) {
       this.showStatusCb(`Сборщик → добыча (${tx},${ty})`, true);
       this.feedbackRenderer.addCommandOk(tx, ty, this.scene.time.now);
-      this.addCommandConfirmation(tx, ty, 'harvest');
     } else {
       this.showStatusCb(`Ошибка: ${result.reason}`, false);
       this.feedbackRenderer.addCommandFail(tx, ty, this.scene.time.now);
-    }
-  }
-
-  // ─── Command confirmation visual ────────────────────────────────
-
-  /** Active command confirmations (transient, fade out over time). */
-  private _confirmations: Array<{
-    tx: number;
-    ty: number;
-    type: 'move' | 'harvest' | 'attack';
-    createdAt: number;
-    duration: number;
-  }> = [];
-
-  private addCommandConfirmation(tx: number, ty: number, type: 'move' | 'harvest' | 'attack'): void {
-    this._confirmations.push({
-      tx,
-      ty,
-      type,
-      createdAt: this.scene.time.now,
-      duration: 600,
-    });
-  }
-
-  private updateCommandConfirmation(): void {
-    this.commandConfirmation.clear();
-    const now = this.scene.time.now;
-
-    // Age and prune
-    this._confirmations = this._confirmations.filter(c => now - c.createdAt < c.duration);
-
-    for (const c of this._confirmations) {
-      const elapsed = now - c.createdAt;
-      const progress = elapsed / c.duration;
-      const alpha = Math.max(0, 1.0 - progress);
-
-      // Use projected ground-plane coordinates
-      const screenPos = tileToScreen(c.tx, c.ty);
-      const cx = screenPos.x + this.offset.x;
-      const cy = screenPos.y + this.offset.y;
-
-      // Choose color based on confirmation type
-      let color: number;
-      switch (c.type) {
-        case 'move': color = 0x4488ff; break;    // blue
-        case 'harvest': color = 0xffcc00; break;  // yellow
-        case 'attack': color = 0xff4444; break;   // red
-      }
-
-      // Draw expanding ring on ground plane
-      const expandProgress = Math.min(1, progress * 2); // expand in first half
-      const ringRadius = 6 + expandProgress * 10;
-      this.commandConfirmation.lineStyle(2, color, alpha * 0.8);
-      this.commandConfirmation.strokeCircle(cx, cy, ringRadius);
-
-      // Inner dot
-      if (progress < 0.5) {
-        this.commandConfirmation.fillStyle(color, alpha * 0.6);
-        this.commandConfirmation.fillCircle(cx, cy, 3);
-      }
     }
   }
 
@@ -1058,7 +987,6 @@ export class GameInputController {
 
     // Destroy graphics
     this.selectionHighlight.destroy();
-    this.commandConfirmation.destroy();
 
     // Note: Keyboard handlers are cleaned up by Phaser scene shutdown.
     // The scene's KeyboardPlugin is destroyed automatically, removing all
