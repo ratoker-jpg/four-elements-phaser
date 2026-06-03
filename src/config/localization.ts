@@ -222,6 +222,11 @@ export function getFactionShortDisplay(faction: Faction): string {
 
 /**
  * Build the map summary text for the setup scene.
+ *
+ * CORE-STEP-01A fixup: Standard mode omits seed from summary.
+ * - Standard generated: "32×32 тайлов · Промышленная платформа"
+ * - Debug generated:   "32×32 тайлов · Промышленная платформа · сид: default"
+ * - Arena:             "20×20 тайлов — боевой полигон"
  */
 export function buildMapSummary(
   gameMode: GameMode,
@@ -238,6 +243,10 @@ export function buildMapSummary(
   const styleLabel = MAP_STYLE_DISPLAY[mapStyle] ?? mapStyle;
 
   if (mapMode === 'generated') {
+    // Standard mode: omit seed from player-facing summary
+    if (gameMode === 'standard') {
+      return `${width}×${height} ${t('mapSummary_tiles')} · ${styleLabel}`;
+    }
     return `${width}×${height} ${t('mapSummary_tiles')} · ${styleLabel} · ${t('mapSummary_seed')}: ${seed}`;
   }
 

@@ -1,5 +1,9 @@
 /**
- * NewGameSetupScene — faction, map mode, size, and seed selection.
+ * NewGameSetupScene — game mode, map size, faction, and debug map/seed selection.
+ *
+ * Accepted Standard flow: mode → map size → faction → start.
+ * Debug mode shows extra sections (map, mapStyle, seed) after faction.
+ * Arena mode hides map/size/seed and uses a fixed arena map.
  *
  * ARCH-14B: Allows the player to choose their faction and (when more
  * maps exist) select a map before starting the game.
@@ -189,64 +193,6 @@ export class NewGameSetupScene extends Phaser.Scene {
       width: 460px;
     `;
 
-    // ── Faction selection ────────────────────────────────────────
-    const factionSection = document.createElement('div');
-    const factionLabel = this.createSectionLabel(t('setup_faction'));
-    factionSection.appendChild(factionLabel);
-
-    const factionGrid = document.createElement('div');
-    factionGrid.style.cssText = `
-      display: flex;
-      gap: 6px;
-    `;
-
-    for (const faction of FACTION_LIST) {
-      const btn = document.createElement('button');
-      btn.dataset.faction = faction;
-
-      // CORE-STEP-01A: Show Russian name + color subtitle + bonus
-      const displayName = FACTION_DISPLAY[faction];
-      const colorSubtitle = FACTION_COLOR_SUBTITLE[faction];
-      const bonus = FACTION_BONUS[faction];
-
-      btn.innerHTML = `
-        <div style="font-weight:700;font-size:14px;line-height:1.2;">${displayName}</div>
-        <div style="font-size:10px;opacity:0.6;margin-top:2px;">${colorSubtitle}</div>
-        <div style="font-size:10px;opacity:0.5;margin-top:1px;">${bonus}</div>
-      `;
-
-      btn.style.cssText = this.factionButtonStyle(faction, faction === this.selectedFaction);
-
-      btn.addEventListener('mouseenter', () => {
-        if (faction !== this.selectedFaction) {
-          btn.style.borderColor = `${FACTION_CSS_COLORS[faction]}44`;
-          btn.style.background = `${FACTION_CSS_COLORS[faction]}0d`;
-        }
-      });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.cssText = this.factionButtonStyle(faction, faction === this.selectedFaction);
-      });
-      btn.addEventListener('focus', () => {
-        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
-        btn.style.outlineOffset = '2px';
-      });
-      btn.addEventListener('blur', () => {
-        btn.style.outline = 'none';
-      });
-      btn.addEventListener('click', () => {
-        this.selectedFaction = faction;
-        const buttons = factionGrid.querySelectorAll('button');
-        buttons.forEach(b => {
-          const f = (b as HTMLButtonElement).dataset.faction as Faction;
-          b.style.cssText = this.factionButtonStyle(f, f === this.selectedFaction);
-        });
-      });
-
-      factionGrid.appendChild(btn);
-    }
-    factionSection.appendChild(factionGrid);
-    setupBox.appendChild(factionSection);
-
     // ── Game Mode selection (MENU-01) ────────────────────────────
     const gameModeSection = document.createElement('div');
     const gameModeLabel = this.createSectionLabel(t('setup_gameMode'));
@@ -322,7 +268,117 @@ export class NewGameSetupScene extends Phaser.Scene {
     `;
     setupBox.appendChild(this.gameModeNote);
 
-    // ── Map mode selection ────────────────────────────────────────
+    // ── Size selection (only for generated maps) ──────────────────
+    // CORE-STEP-01A fixup: Size comes before Faction in the accepted flow
+    // (mode → map size → faction → start).
+    this.sizeSection = document.createElement('div');
+    const sizeLabel = this.createSectionLabel(t('setup_mapSize'));
+    this.sizeSection.appendChild(sizeLabel);
+
+    this.sizeContainer = document.createElement('div');
+    this.sizeContainer.style.cssText = `
+      display: flex;
+      gap: 6px;
+    `;
+
+    for (const size of MAP_SIZE_OPTIONS) {
+      const btn = document.createElement('button');
+      btn.textContent = MAP_SIZE_DISPLAY[size];
+      btn.dataset.mapSize = size;
+      btn.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, size === this.selectedMapSize, '13px');
+
+      btn.addEventListener('mouseenter', () => {
+        if (size !== this.selectedMapSize) {
+          btn.style.borderColor = `${MENU_THEME.primaryAccent}44`;
+          btn.style.background = `${MENU_THEME.primaryAccent}0d`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, size === this.selectedMapSize, '13px');
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
+      btn.addEventListener('click', () => {
+        this.selectedMapSize = size;
+        const buttons = this.sizeContainer!.querySelectorAll('button');
+        buttons.forEach(b => {
+          const s = (b as HTMLButtonElement).dataset.mapSize as MapSizeOption;
+          b.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, s === this.selectedMapSize, '13px');
+        });
+        this.updateMapSummary();
+      });
+
+      this.sizeContainer.appendChild(btn);
+    }
+    this.sizeSection.appendChild(this.sizeContainer);
+    setupBox.appendChild(this.sizeSection);
+
+    // ── Faction selection ────────────────────────────────────────
+    // CORE-STEP-01A fixup: Faction comes after Size in the accepted flow
+    // (mode → map size → faction → start).
+    const factionSection = document.createElement('div');
+    const factionLabel = this.createSectionLabel(t('setup_faction'));
+    factionSection.appendChild(factionLabel);
+
+    const factionGrid = document.createElement('div');
+    factionGrid.style.cssText = `
+      display: flex;
+      gap: 6px;
+    `;
+
+    for (const faction of FACTION_LIST) {
+      const btn = document.createElement('button');
+      btn.dataset.faction = faction;
+
+      // CORE-STEP-01A: Show Russian name + color subtitle + bonus
+      const displayName = FACTION_DISPLAY[faction];
+      const colorSubtitle = FACTION_COLOR_SUBTITLE[faction];
+      const bonus = FACTION_BONUS[faction];
+
+      btn.innerHTML = `
+        <div style="font-weight:700;font-size:14px;line-height:1.2;">${displayName}</div>
+        <div style="font-size:10px;opacity:0.6;margin-top:2px;">${colorSubtitle}</div>
+        <div style="font-size:10px;opacity:0.5;margin-top:1px;">${bonus}</div>
+      `;
+
+      btn.style.cssText = this.factionButtonStyle(faction, faction === this.selectedFaction);
+
+      btn.addEventListener('mouseenter', () => {
+        if (faction !== this.selectedFaction) {
+          btn.style.borderColor = `${FACTION_CSS_COLORS[faction]}44`;
+          btn.style.background = `${FACTION_CSS_COLORS[faction]}0d`;
+        }
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.cssText = this.factionButtonStyle(faction, faction === this.selectedFaction);
+      });
+      btn.addEventListener('focus', () => {
+        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
+        btn.style.outlineOffset = '2px';
+      });
+      btn.addEventListener('blur', () => {
+        btn.style.outline = 'none';
+      });
+      btn.addEventListener('click', () => {
+        this.selectedFaction = faction;
+        const buttons = factionGrid.querySelectorAll('button');
+        buttons.forEach(b => {
+          const f = (b as HTMLButtonElement).dataset.faction as Faction;
+          b.style.cssText = this.factionButtonStyle(f, f === this.selectedFaction);
+        });
+      });
+
+      factionGrid.appendChild(btn);
+    }
+    factionSection.appendChild(factionGrid);
+    setupBox.appendChild(factionSection);
+
+    // ── Map mode selection (Debug only) ──────────────────────────
     this.mapSection = document.createElement('div');
     const mapLabel = this.createSectionLabel(t('setup_map'));
     this.mapSection.appendChild(mapLabel);
@@ -377,7 +433,7 @@ export class NewGameSetupScene extends Phaser.Scene {
     this.mapSection.appendChild(mapGrid);
     setupBox.appendChild(this.mapSection);
 
-    // ── Map Style selection (VISUAL-05A-PR2) ──────────────────────
+    // ── Map Style selection (Debug only, VISUAL-05A-PR2) ─────────
     this.mapStyleSection = document.createElement('div');
     const mapStyleLabel = this.createSectionLabel(t('setup_mapStyle'));
     this.mapStyleSection.appendChild(mapStyleLabel);
@@ -430,54 +486,6 @@ export class NewGameSetupScene extends Phaser.Scene {
     }
     this.mapStyleSection.appendChild(mapStyleGrid);
     setupBox.appendChild(this.mapStyleSection);
-
-    // ── Size selection (only for generated maps) ──────────────────
-    this.sizeSection = document.createElement('div');
-    const sizeLabel = this.createSectionLabel(t('setup_mapSize'));
-    this.sizeSection.appendChild(sizeLabel);
-
-    this.sizeContainer = document.createElement('div');
-    this.sizeContainer.style.cssText = `
-      display: flex;
-      gap: 6px;
-    `;
-
-    for (const size of MAP_SIZE_OPTIONS) {
-      const btn = document.createElement('button');
-      btn.textContent = MAP_SIZE_DISPLAY[size];
-      btn.dataset.mapSize = size;
-      btn.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, size === this.selectedMapSize, '13px');
-
-      btn.addEventListener('mouseenter', () => {
-        if (size !== this.selectedMapSize) {
-          btn.style.borderColor = `${MENU_THEME.primaryAccent}44`;
-          btn.style.background = `${MENU_THEME.primaryAccent}0d`;
-        }
-      });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, size === this.selectedMapSize, '13px');
-      });
-      btn.addEventListener('focus', () => {
-        btn.style.outline = `2px solid ${MENU_THEME.focusOutline}`;
-        btn.style.outlineOffset = '2px';
-      });
-      btn.addEventListener('blur', () => {
-        btn.style.outline = 'none';
-      });
-      btn.addEventListener('click', () => {
-        this.selectedMapSize = size;
-        const buttons = this.sizeContainer!.querySelectorAll('button');
-        buttons.forEach(b => {
-          const s = (b as HTMLButtonElement).dataset.mapSize as MapSizeOption;
-          b.style.cssText = this.optionButtonStyle(MENU_THEME.primaryAccent, s === this.selectedMapSize, '13px');
-        });
-        this.updateMapSummary();
-      });
-
-      this.sizeContainer.appendChild(btn);
-    }
-    this.sizeSection.appendChild(this.sizeContainer);
-    setupBox.appendChild(this.sizeSection);
 
     // ── Seed input (only for generated maps) ─────────────────────
     this.seedSection = document.createElement('div');

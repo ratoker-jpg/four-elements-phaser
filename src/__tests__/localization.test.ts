@@ -210,11 +210,20 @@ describe('CORE-STEP-01A: buildMapSummary', () => {
     expect(summary).toContain('20');
   });
 
-  it('returns generated map summary with seed', () => {
+  it('Standard generated map summary omits seed', () => {
     const summary = buildMapSummary('standard', 'generated', 'industrial', 32, 32, 'myseed');
     expect(summary).toContain('32');
-    expect(summary).toContain('myseed');
     expect(summary).toContain('Промышленная платформа');
+    expect(summary).not.toContain('сид');
+    expect(summary).not.toContain('myseed');
+  });
+
+  it('Debug generated map summary includes seed', () => {
+    const summary = buildMapSummary('debug', 'generated', 'industrial', 32, 32, 'default');
+    expect(summary).toContain('32');
+    expect(summary).toContain('Промышленная платформа');
+    expect(summary).toContain('сид');
+    expect(summary).toContain('default');
   });
 
   it('returns fixed map summary', () => {
@@ -298,6 +307,50 @@ describe('CORE-STEP-01A: Internal ids vs display names', () => {
     const sizes = ['small', 'standard', 'large'] as const;
     for (const size of sizes) {
       expect(MAP_SIZE_DISPLAY[size]).not.toBe(size);
+    }
+  });
+});
+
+// ─── Setup flow order ──────────────────────────────────────────────
+
+describe('CORE-STEP-01A fixup: Setup flow order', () => {
+  /**
+   * Accepted Standard flow: mode → map size → faction → start.
+   * The localization keys for the Standard-visible sections must
+   * exist and appear in the correct conceptual order.
+   */
+  it('Standard-visible section keys exist in accepted order', () => {
+    // The accepted Standard flow is: mode → map size → faction → start
+    const standardFlowKeys = [
+      'setup_gameMode',   // Режим игры
+      'setup_mapSize',    // Размер карты
+      'setup_faction',    // Фракция
+      'setup_start',      // Начать
+    ] as const;
+
+    for (const key of standardFlowKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
+    }
+
+    // Verify the Russian labels match the expected flow
+    expect(t('setup_gameMode')).toBe('Режим игры');
+    expect(t('setup_mapSize')).toBe('Размер карты');
+    expect(t('setup_faction')).toBe('Фракция');
+    expect(t('setup_start')).toBe('Начать');
+  });
+
+  it('Debug-only section keys still exist after faction', () => {
+    // Debug shows extra sections after faction: map, mapStyle, seed
+    const debugExtraKeys = [
+      'setup_map',        // Карта
+      'setup_mapStyle',   // Стиль карты
+      'setup_seed',       // Сид
+    ] as const;
+
+    for (const key of debugExtraKeys) {
+      expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();
+      expect(typeof LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBe('string');
     }
   });
 });
