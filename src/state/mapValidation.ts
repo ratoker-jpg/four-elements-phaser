@@ -19,6 +19,8 @@
 import type { GameState } from './types';
 import { buildOccupancyMap, isPassable, isInBounds } from './occupancy';
 import { findPathToAdjacent } from './pathfinding';
+import { ACCEPTED_RESOURCE_CLASS_IDS } from '../config/coreMechanicsTypes';
+import { isGeneratedRuntimeState } from './generatedMap';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -57,7 +59,8 @@ export type ValidationCheckId =
   | 'hq-adjacent-passable'
   | 'reachable-resources'
   | 'resources-not-in-impassable'
-  | 'harvester-not-trapped';
+  | 'harvester-not-trapped'
+  | 'generated-resource-class-valid';
 
 // ─── Public API ────────────────────────────────────────────────────
 
@@ -84,6 +87,13 @@ export function validateMap(state: GameState): MapValidationResult {
 
   // Check 4: Harvester spawn area not trapped
   checks.push(checkHarvesterNotTrapped(state, occupancy));
+
+  // Check 5: CORE-STEP-03C — Generated resource resourceClass validity
+  // Only applies to generated maps (detected via mapName prefix).
+  // Old/custom/saved maps without resourceClass should NOT fail this check.
+  if (isGeneratedRuntimeState(state)) {
+    checks.push(checkGeneratedResourceClassValid(state));
+  }
 
   const allPassed = checks.every(c => c.passed || c.id === 'resources-not-in-impassable');
 
@@ -334,5 +344,66 @@ function checkHarvesterNotTrapped(
     id: 'harvester-not-trapped',
     passed: false,
     message: 'Harvesters cannot reach any resource from spawn area — trapped',
+  };
+}
+
+// ─── CORE-STEP-03C: Generated resourceClass validation ─────────────────
+
+/**
+ * Check that all resource nodes on a generated map have valid resourceClass.
+ *
+ * This check only runs for generated maps (detected via mapName).
+ * Old/custom/saved maps without resourceClass are explicitly exempt.
+ *
+ * Validation rules:
+ * - Every resource node must have a resourceClass (missing = issue)
+ * - Every resourceClass must be one of the 6 accepted IDs (invalid = issue)
+ * - Exactly one resource should have resourceClass === 'infinite'
+ */
+function checkGeneratedResourceClassValid(state: GameState): ValidationCheck {
+  const acceptedSet = new Set<string>(ACCEPTED_RESOURCE_CLASS_IDS);
+  let missingCount = 0;
+  let invalidCount = 0;
+  let infiniteCount = 0;
+  const invalidExamples: string[] = [];
+
+  for (const node of state.resourceNodes) {
+    if (!node.resourceClass) {
+      missingCount++;
+    } else if (!acceptedSet.has(node.resourceClass)) {
+      invalidCount++;
+      if (invalidExamples.length < 3) {
+        invalidExamples.push(`'${node.resourceClass}' at (${node.tx},${node.ty})`);
+      }
+    }
+    if (node.resourceClass === 'infinite') {
+      infiniteCount++;
+    }
+  }
+
+  const issues: string[] = [];
+  if (missingCount > 0) {
+    issues.push(`${missingCount} resource(s) missing resourceClass`);
+  }
+  if (invalidCount > 0) {
+    const examples = invalidExamples.join('; ');
+    issues.push(`${invalidCount} resource(s) invalid resourceClass: ${examples}`);
+  }
+  if (infiniteCount !== 1) {
+    issues.push(`expected 1 infinite, found ${infiniteCount}`);
+  }
+
+  if (issues.length === 0) {
+    return {
+      id: 'generated-resource-class-valid',
+      passed: true,
+      message: `All ${state.resourceNodes.length} generated resources have valid resourceClass`,
+    };
+  }
+
+  return {
+    id: 'generated-resource-class-valid',
+    passed: false,
+    message: `Generated resourceClass issues: ${issues.join('; ')}`,
   };
 }

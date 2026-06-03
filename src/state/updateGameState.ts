@@ -31,6 +31,7 @@ import {
 import { buildOccupancyMap, isPassable } from './occupancy';
 import { findPath, findPathToAdjacent } from './pathfinding';
 import { updateHarvesterManualMove, findResourceApproachTile } from './unitCommands';
+import { isResourceInfinite } from '../config/resourceClassRuntime';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -267,7 +268,9 @@ function handleGathering(
   // Gather cycle complete — transfer raw into cargo
   const canCarry = h.cargoCapacity - h.cargoRaw;
 
-  if (target.resourceType === 'infinite') {
+  // CORE-STEP-03C: Use isResourceInfinite which checks resourceClass
+  // when present, falling back to legacy resourceType for old/saved resources.
+  if (isResourceInfinite(target.resourceClass, target.resourceType)) {
     h.cargoRaw += canCarry;
   } else {
     const available = Math.min(canCarry, target.remainingRaw);
