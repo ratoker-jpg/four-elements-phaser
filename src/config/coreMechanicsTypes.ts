@@ -3,6 +3,7 @@
  *
  * CORE-STEP-02A: Provides type definitions for production weapon and body
  * configs with M0-M3 scaling, armor model, range bands, and fire types.
+ * CORE-STEP-02B: Adds faction, resource class, and building config types.
  *
  * These types are separate from blockoutProfiles.ts (which remains the
  * Arena/dev type system). Production configs use these types; blockout
@@ -257,3 +258,208 @@ export type AcceptedBodyId = (typeof ACCEPTED_BODY_IDS)[number];
 
 /** Number of accepted bodies. */
 export const ACCEPTED_BODY_COUNT = 7;
+
+// ─── Faction types ───────────────────────────────────────────────────
+
+/** All 4 accepted faction IDs. */
+export const ACCEPTED_FACTION_IDS = [
+  'cyan',
+  'green',
+  'yellow',
+  'purple',
+] as const;
+
+/** Accepted faction ID type. */
+export type AcceptedFactionId = (typeof ACCEPTED_FACTION_IDS)[number];
+
+/** Number of accepted factions. */
+export const ACCEPTED_FACTION_COUNT = 4;
+
+/** Faction passive bonus kind — identifies the faction's strategic direction. */
+export type FactionBonusKind =
+  | 'mobility_tempo'
+  | 'building_economy'
+  | 'combat_production'
+  | 'vision_territory';
+
+/**
+ * Concrete faction passive bonus effects.
+ * Each field is optional; only the fields relevant to a faction's direction are set.
+ * Multipliers > 1.0 = bonus, additive bonuses > 0 = bonus.
+ * These are config placeholders, not final balance.
+ */
+export interface FactionBonusEffects {
+  /** Civil/light unit production speed multiplier. > 1.0 means faster. */
+  civilUnitProductionSpeedMultiplier?: number;
+  /** Building construction speed multiplier. > 1.0 means faster. */
+  buildingSpeedMultiplier?: number;
+  /** Processing (separator) speed multiplier. > 1.0 means faster. */
+  processingSpeedMultiplier?: number;
+  /** Storage capacity multiplier. > 1.0 means larger capacity. */
+  storageCapacityMultiplier?: number;
+  /** Combat unit production speed multiplier. > 1.0 means faster. */
+  combatUnitProductionSpeedMultiplier?: number;
+  /** Territory vision radius bonus in tile units. > 0 means increased vision. */
+  territoryVisionRadiusBonus?: number;
+}
+
+/** Faction config — production data model for one faction. */
+export interface FactionConfig {
+  /** Stable English id (e.g., 'cyan', 'green'). Never displayed to players. */
+  id: AcceptedFactionId;
+  /** Localization key for Russian display name (e.g., 'faction_cyan' -> 'Поток'). */
+  displayNameKey: string;
+  /** Localization key for Russian color subtitle (e.g., 'faction_color_cyan' -> 'Циановая фракция'). */
+  colorSubtitleKey: string;
+  /** Localization key for Russian bonus description (e.g., 'faction_bonus_cyan' -> 'Бонус: мобильность и быстрый темп'). */
+  bonusDescriptionKey: string;
+  /** Localization key for Russian role description (e.g., 'faction_role_cyan' -> 'Роль: быстрый старт, темп, мобильные действия'). */
+  roleKey: string;
+  /** Primary color as CSS hex string (e.g., '#00ffff'). */
+  primaryColor: string;
+  /** Primary color as numeric hex for Phaser (e.g., 0x00ffff). */
+  primaryColorNum: number;
+  /** Passive bonus data model — config-driven, no runtime behavior yet. */
+  passiveBonus: {
+    /** Identifies which bonus category this faction receives. */
+    kind: FactionBonusKind;
+    /**
+     * Concrete effects for this faction's passive bonus.
+     * Only fields relevant to the faction's direction are populated.
+     * At least one effect must be present per faction.
+     * These are reference/placeholder values, not final balance.
+     */
+    effects: FactionBonusEffects;
+  };
+}
+
+// ─── Resource class types ────────────────────────────────────────────
+
+/** All 6 accepted resource class IDs. */
+export const ACCEPTED_RESOURCE_CLASS_IDS = [
+  'very_poor',
+  'poor',
+  'medium',
+  'rich',
+  'very_rich',
+  'infinite',
+] as const;
+
+/** Accepted resource class ID type. */
+export type AcceptedResourceClassId = (typeof ACCEPTED_RESOURCE_CLASS_IDS)[number];
+
+/** Number of accepted resource classes. */
+export const ACCEPTED_RESOURCE_CLASS_COUNT = 6;
+
+/** Placement zone for resource classes — determines where on the map deposits appear. */
+export type ResourcePlacementZone =
+  | 'starter'
+  | 'side'
+  | 'contested'
+  | 'center';
+
+/** Resource class config — production data model for one deposit class. */
+export interface ResourceClassConfig {
+  /** Stable English id (e.g., 'very_poor', 'infinite'). Never displayed to players. */
+  id: AcceptedResourceClassId;
+  /** Localization key for Russian display name (e.g., 'resource_very_poor' -> 'Очень бедная залежь'). */
+  displayNameKey: string;
+  /** Localization key for Russian description. */
+  descriptionKey: string;
+  /** Asset key prefix matching assetManifest entries (e.g., 'resource_industrial_very_poor_01'). */
+  assetKey: string;
+  /** Minimum raw mineral amount for this deposit class. Ignored if isInfinite. */
+  amountMin: number;
+  /** Maximum raw mineral amount for this deposit class. Ignored if isInfinite. */
+  amountMax: number;
+  /** Whether this deposit class is infinite (never depletes). Only 'infinite' is true. */
+  isInfinite: boolean;
+  /** Strategic role description — short English phrase for dev reference. */
+  strategicRole: string;
+  /** Suggested map placement zone per MECHANICS_DECISIONS. */
+  suggestedPlacementZone: ResourcePlacementZone;
+  /** Footprint size in tiles (1 = single tile, 2 = 2x2). Infinite is 2x2. */
+  footprint: number;
+}
+
+// ─── Building types ──────────────────────────────────────────────────
+
+/** Building readiness class — determines implementation status. */
+export type BuildingReadiness = 'gameplay_ready' | 'visual_ready' | 'deferred';
+
+/** Building category — broad grouping for UI and logic. */
+export type BuildingCategory = 'core_economy' | 'storage' | 'production' | 'power' | 'defense' | 'support';
+
+/** All accepted building IDs (English stable ids). */
+export const ACCEPTED_BUILDING_IDS = [
+  'hq',
+  'separator',
+  'raw_storage',
+  'energy_storage',
+  'elements_storage',
+  'units_factory',
+  'power_plant',
+  'energy_reactor',
+  'repair_center',
+  'defense_tower',
+] as const;
+
+/** Accepted building ID type. */
+export type AcceptedBuildingId = (typeof ACCEPTED_BUILDING_IDS)[number];
+
+/** Number of accepted buildings. */
+export const ACCEPTED_BUILDING_COUNT = 10;
+
+/** Building config — production data model for one building type. */
+export interface BuildingConfig {
+  /** Stable English id (e.g., 'hq', 'separator'). Never displayed to players. */
+  id: AcceptedBuildingId;
+  /** Localization key for Russian display name (e.g., 'building_hq' -> 'Главное здание'). */
+  displayNameKey: string;
+  /** Localization key for Russian role/description. */
+  roleKey: string;
+  /** Building category for UI grouping and logic. */
+  category: BuildingCategory;
+  /** Implementation readiness class. */
+  readiness: BuildingReadiness;
+  /** Whether this building is the starting base (placed automatically, not by player). */
+  isStartingBase: boolean;
+  /** Whether this building can be placed by the player. */
+  isBuildable: boolean;
+  /** Construction cost in energy (processed resource). 0 for non-buildable. */
+  costEnergy: number;
+  /** Construction cost in faction elements. 0 for non-buildable. */
+  costElements: number;
+  /** Construction time in milliseconds. 0 for non-buildable. */
+  buildTimeMs: number;
+  /** Building hit points. 0 for deferred/not-yet-gameplay buildings. */
+  hp: number;
+  /** Footprint width in tiles. */
+  footprintW: number;
+  /** Footprint height in tiles. */
+  footprintH: number;
+  /** Vision radius in tile units. 0 for deferred buildings. */
+  visionRadius: number;
+  /**
+   * Storage delta — how much storage capacity this building adds.
+   * Only set for storage buildings. null for non-storage.
+   */
+  storageDelta?: {
+    /** Raw minerals storage cap increase. */
+    raw?: number;
+    /** Energy storage cap increase. */
+    energy?: number;
+    /** Faction elements storage cap increase. */
+    elements?: number;
+  };
+  /**
+   * Production role — what this building produces.
+   * Only set for production/processing buildings. null for others.
+   */
+  productionRole?: {
+    /** What the building produces or converts. */
+    kind: 'separator' | 'unit_production' | 'power_generation' | 'repair' | 'defense';
+    /** Short English description of the conversion/production process. */
+    description: string;
+  };
+}
