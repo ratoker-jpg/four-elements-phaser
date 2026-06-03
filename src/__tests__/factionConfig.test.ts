@@ -115,8 +115,12 @@ describe('faction config: passive bonus model', () => {
         expect(validKinds).toContain(config.passiveBonus.kind);
       });
 
-      it('passiveBonus.multiplier is greater than 1.0', () => {
-        expect(config.passiveBonus.multiplier).toBeGreaterThan(1.0);
+      it('passiveBonus.effects exists and has at least one concrete effect', () => {
+        expect(config.passiveBonus.effects).toBeDefined();
+        const effectValues = Object.values(config.passiveBonus.effects).filter(
+          v => v !== undefined,
+        );
+        expect(effectValues.length).toBeGreaterThanOrEqual(1);
       });
     });
   }
@@ -131,6 +135,48 @@ describe('faction config: passive bonus model', () => {
     for (const factionId of ACCEPTED_FACTION_IDS) {
       const kind = FACTION_CONFIGS[factionId].passiveBonus.kind;
       expect(BONUS_KIND_TO_FACTION[kind]).toBe(factionId);
+    }
+  });
+});
+
+// ─── Concrete passive bonus effects ──────────────────────────────────
+
+describe('faction config: concrete passive bonus effects', () => {
+  it('cyan has civilUnitProductionSpeedMultiplier > 1', () => {
+    const effects = FACTION_CONFIGS.cyan.passiveBonus.effects;
+    expect(effects.civilUnitProductionSpeedMultiplier).toBeDefined();
+    expect(effects.civilUnitProductionSpeedMultiplier!).toBeGreaterThan(1);
+  });
+
+  it('green has buildingSpeedMultiplier > 1', () => {
+    const effects = FACTION_CONFIGS.green.passiveBonus.effects;
+    expect(effects.buildingSpeedMultiplier).toBeDefined();
+    expect(effects.buildingSpeedMultiplier!).toBeGreaterThan(1);
+  });
+
+  it('green has processingSpeedMultiplier > 1', () => {
+    const effects = FACTION_CONFIGS.green.passiveBonus.effects;
+    expect(effects.processingSpeedMultiplier).toBeDefined();
+    expect(effects.processingSpeedMultiplier!).toBeGreaterThan(1);
+  });
+
+  it('yellow has combatUnitProductionSpeedMultiplier > 1', () => {
+    const effects = FACTION_CONFIGS.yellow.passiveBonus.effects;
+    expect(effects.combatUnitProductionSpeedMultiplier).toBeDefined();
+    expect(effects.combatUnitProductionSpeedMultiplier!).toBeGreaterThan(1);
+  });
+
+  it('purple has territoryVisionRadiusBonus > 0', () => {
+    const effects = FACTION_CONFIGS.purple.passiveBonus.effects;
+    expect(effects.territoryVisionRadiusBonus).toBeDefined();
+    expect(effects.territoryVisionRadiusBonus!).toBeGreaterThan(0);
+  });
+
+  it('no faction relies only on a generic multiplier field', () => {
+    for (const factionId of ACCEPTED_FACTION_IDS) {
+      const bonus = FACTION_CONFIGS[factionId].passiveBonus as unknown as Record<string, unknown>;
+      // Ensure there is no bare 'multiplier' field at the passiveBonus level
+      expect(bonus).not.toHaveProperty('multiplier');
     }
   });
 });

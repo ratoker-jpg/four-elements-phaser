@@ -275,12 +275,33 @@ export type AcceptedFactionId = (typeof ACCEPTED_FACTION_IDS)[number];
 /** Number of accepted factions. */
 export const ACCEPTED_FACTION_COUNT = 4;
 
-/** Faction passive bonus kind — determines which multiplier the faction receives. */
+/** Faction passive bonus kind — identifies the faction's strategic direction. */
 export type FactionBonusKind =
   | 'mobility_tempo'
   | 'building_economy'
   | 'combat_production'
   | 'vision_territory';
+
+/**
+ * Concrete faction passive bonus effects.
+ * Each field is optional; only the fields relevant to a faction's direction are set.
+ * Multipliers > 1.0 = bonus, additive bonuses > 0 = bonus.
+ * These are config placeholders, not final balance.
+ */
+export interface FactionBonusEffects {
+  /** Civil/light unit production speed multiplier. > 1.0 means faster. */
+  civilUnitProductionSpeedMultiplier?: number;
+  /** Building construction speed multiplier. > 1.0 means faster. */
+  buildingSpeedMultiplier?: number;
+  /** Processing (separator) speed multiplier. > 1.0 means faster. */
+  processingSpeedMultiplier?: number;
+  /** Storage capacity multiplier. > 1.0 means larger capacity. */
+  storageCapacityMultiplier?: number;
+  /** Combat unit production speed multiplier. > 1.0 means faster. */
+  combatUnitProductionSpeedMultiplier?: number;
+  /** Territory vision radius bonus in tile units. > 0 means increased vision. */
+  territoryVisionRadiusBonus?: number;
+}
 
 /** Faction config — production data model for one faction. */
 export interface FactionConfig {
@@ -303,12 +324,12 @@ export interface FactionConfig {
     /** Identifies which bonus category this faction receives. */
     kind: FactionBonusKind;
     /**
-     * Multiplier placeholder for the faction's primary bonus.
-     * Value > 1.0 means bonus, < 1.0 means penalty (should not occur for accepted factions).
-     * Actual runtime application is NOT implemented in this PR.
+     * Concrete effects for this faction's passive bonus.
+     * Only fields relevant to the faction's direction are populated.
+     * At least one effect must be present per faction.
      * These are reference/placeholder values, not final balance.
      */
-    multiplier: number;
+    effects: FactionBonusEffects;
   };
 }
 

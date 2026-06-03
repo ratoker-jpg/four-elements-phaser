@@ -42,7 +42,9 @@ export const FACTION_CONFIGS: Record<AcceptedFactionId, FactionConfig> = {
     primaryColorNum: 0x00ffff,
     passiveBonus: {
       kind: 'mobility_tempo',
-      multiplier: 1.1,
+      effects: {
+        civilUnitProductionSpeedMultiplier: 1.1,
+      },
     },
   },
 
@@ -57,7 +59,10 @@ export const FACTION_CONFIGS: Record<AcceptedFactionId, FactionConfig> = {
     primaryColorNum: 0x66ff66,
     passiveBonus: {
       kind: 'building_economy',
-      multiplier: 1.1,
+      effects: {
+        buildingSpeedMultiplier: 1.1,
+        processingSpeedMultiplier: 1.05,
+      },
     },
   },
 
@@ -72,7 +77,9 @@ export const FACTION_CONFIGS: Record<AcceptedFactionId, FactionConfig> = {
     primaryColorNum: 0xffcc00,
     passiveBonus: {
       kind: 'combat_production',
-      multiplier: 1.1,
+      effects: {
+        combatUnitProductionSpeedMultiplier: 1.1,
+      },
     },
   },
 
@@ -87,7 +94,9 @@ export const FACTION_CONFIGS: Record<AcceptedFactionId, FactionConfig> = {
     primaryColorNum: 0xcc66ff,
     passiveBonus: {
       kind: 'vision_territory',
-      multiplier: 1.15,
+      effects: {
+        territoryVisionRadiusBonus: 1,
+      },
     },
   },
 
