@@ -3,7 +3,7 @@
 Status: operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Updated: 2026-06-03
+Updated: 2026-06-04
 
 ---
 
@@ -11,6 +11,7 @@ Updated: 2026-06-03
 
 ```text
 NO ACTIVE IMPLEMENTATION ROADMAP.
+CORE MECHANICS ROADMAP: CLOSED / IMPLEMENTED.
 NO NEW CODE WITHOUT A NEW ACCEPTED ROADMAP/AUDIT.
 ```
 
@@ -22,6 +23,7 @@ BLOCKOUT-MVP roadmap slice: CLOSED.
 CAMERA-00 projection contract: IMPLEMENTED / ACCEPTED.
 PROJECTION-01 ground-plane retrofit: IMPLEMENTED / ACCEPTED.
 Arena Sandbox roadmap/audit cycle: CLOSED after PR #184.
+Core Mechanics roadmap/audit cycle: CLOSED after PR #207.
 ```
 
 Current default action:
@@ -53,6 +55,7 @@ docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
+docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
 ```
 
 Closed roadmap/audit references:
@@ -64,6 +67,9 @@ docs/project/BLOCKOUT_MVP_ROADMAP.md
 docs/project/BLOCKOUT_MVP_CLOSURE_REPORT.md
 docs/project/ARENA_SANDBOX_ROADMAP.md
 docs/project/ARENA_SANDBOX_SYSTEM_AUDIT.md
+docs/project/CORE_MECHANICS_ROADMAP_2026_06_03.md
+docs/project/CORE_MECHANICS_SYSTEM_AUDIT_2026_06_03.md
+docs/project/MECHANICS_DECISIONS_2026_06_03.md
 ```
 
 Closed docs are references, not active implementation queues.
@@ -76,7 +82,7 @@ The project currently has:
 
 ```text
 - industrial generated map as default for new games
-- mapStyle industrial/sand preserved
+- mapStyle industrial/sand preserved where needed for fallback/reference
 - sand/fixed/custom map paths preserved as fallback/reference
 - production industrial terrain/frame/background layer
 - lower-left HQ/start/resource composition
@@ -99,13 +105,50 @@ The project currently has:
 - target-lock turret behavior in Arena
 - Arena roster/control panel/help/status messages
 - simple Arena enemy behavior modes: passive, stationary_shooter, chaser, hold_position
+- Russian-facing UX/config baseline for core mechanics
+- 6-class industrial resource model with deterministic generated placement anchors
+- gameplay-ready core buildings and core economy loop
+- unified RTS controls: LMB select/inspect, RMB command, S stop, Esc priority, MMB/arrow camera
+- grid/tile movement with occupancy, reservation, no overlap, physical turns, acceleration/braking
+- runtime isometric depth sorting for units/buildings/construction/HQ
+- target-lock combat core with projected hit model, stopDistance, aim forgiveness, point-blank assist, cone/splash/direct hit logic
+- accepted weapon runtime mechanics for 10 weapons, excluding Shaft
+- body armor/damage reduction, body/weapon M0-M3 runtime scaling, mass-dependent recoil
+- minimal weapon runtime feedback/state display and track-animation hook
 ```
+
+---
+
+## Core Mechanics closure baseline
+
+Core Mechanics implementation is closed after PR #207.
+
+Closed sequence:
+
+```text
+STEP 01H+ — UI / Localization / Start Flow / Faction Display
+STEP 02H+ — Config and Data Model Foundation
+STEP 03H+ — Industrial Map and Resource Layout
+STEP 04H+ — Buildings and Core Economy Loop
+STEP 05H+ — Unified RTS Controls and Command Routing
+STEP 06H+ — Movement / Occupancy / Depth Sorting
+STEP 07H+ — Combat Core / Targeting / Hit Model
+STEP 08H+ — Weapons / Bodies / M0-M3 / Animation Feel
+```
+
+Closure report:
+
+```text
+docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
+```
+
+Important: Core Mechanics is closed as an implementation roadmap, not as a claim that the game is final. Next work should start from a new direction/audit.
 
 ---
 
 ## Arena baseline after closure
 
-Arena is now a standalone combat sandbox.
+Arena is now a standalone combat sandbox and a validation environment for the core combat/movement model.
 
 It has:
 
@@ -115,15 +158,15 @@ It has:
 - no resource nodes
 - no economy HUD
 - no production HUD
-- no gameplay obstacles
+- no gameplay obstacles unless explicitly placed by current mode/tools
 - no DevTools dependency as primary UX
 - unit creation by explicit body + weapon + team selection
 - AI mode selection for newly placed enemies
 - click placement using unprojectScreenToGround()
 - projected ground-plane placement marker
 - target-lock firing rules
-- real VFX/damage path for AI single-shot weapons
-- continuous weapon support through existing continuous fire loop
+- runtime weapon resources and weapon-specific mechanics
+- real VFX/damage path for AI and player target-lock weapons
 ```
 
 Arena intentionally does not have:
@@ -133,10 +176,8 @@ Arena intentionally does not have:
 - JSON import/export
 - attack waves
 - strategic/economy/base-building AI
-- final combat system
+- final combat balance
 - final art
-- pathfinding rewrite
-- obstacle gameplay
 ```
 
 Closure report:
@@ -179,7 +220,7 @@ No active implementation roadmap.
 Allowed next work:
 
 ```text
-- manual QA of the closed Arena cycle
+- manual QA of the closed Core Mechanics cycle
 - docs cleanup
 - next roadmap/audit planning
 - review of existing open PRs, if any
@@ -188,10 +229,11 @@ Allowed next work:
 Recommended next planning options:
 
 ```text
-1. Arena manual QA + polish follow-up audit.
-2. Production visual/world-space roadmap using CAMERA_PROJECTION_CONTRACT.md.
-3. Normal Game civil loop/economy readability roadmap.
+1. Core Mechanics manual QA + polish/fix backlog audit.
+2. Normal Game player loop roadmap: onboarding, goals, victory/loss, progression.
+3. Production visual/world-space roadmap using CAMERA_PROJECTION_CONTRACT.md.
 4. Final asset integration roadmap for units/buildings/tanks.
+5. Arena combat balance/readability roadmap.
 ```
 
 ---
