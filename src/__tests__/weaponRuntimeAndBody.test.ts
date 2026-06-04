@@ -26,6 +26,10 @@
  * 22. Stop/S clears target-lock and cancels wind-up/burst safely
  * 23. AI uses same weapon resource gates
  * 24. No final assets/package/docs changes
+ * 25. FIXUP-2: Canister drains under target-lock auto-fire (isAutoFiring flag)
+ * 26. FIXUP-2: Empty canister blocks target-lock auto-fire
+ * 27. FIXUP-2: Canister regenerates when target-lock stops / S clears target
+ * 28. FIXUP-2: Hammer 3-volley burst emits all volleys before reload
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -1643,5 +1647,349 @@ describe('FIXUP Blocker 5: Animation/feedback state', () => {
     expect(vehicle.weaponRuntime.drum).not.toBeNull();
     expect(vehicle.weaponRuntime.drum!.currentVolley).toBe(0);
     expect(vehicle.weaponRuntime.drum!.isReloading).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// 25. FIXUP-2: Canister drains under target-lock auto-fire (isAutoFiring flag)
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('FIXUP-2: Canister drains under target-lock auto-fire (isAutoFiring flag)', () => {
+  it('weaponRuntime has isAutoFiring field initialized to false', () => {
+    const rt = createWeaponRuntimeState('flamethrower', 0);
+    expect(rt.isAutoFiring).toBe(false);
+  });
+
+  it('isAutoFiring=true causes canister drain via updateAllWeaponResources', () => {
+    // Simulate: vehicle is NOT manually firing (fireHeld=false, isFiring=false)
+    // but isAutoFiring=true from target-lock auto-fire
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    vehicle.fireHeld = false;
+    vehicle.isFiring = false;
+    vehicle.weaponRuntime.isAutoFiring = true;
+
+    // M0 canister starts at 80, drainPerSec = 15
+    const beforeCanister = vehicle.weaponRuntime.canister!.current;
+    updateAllWeaponResources([vehicle], 1100, 1000); // 1 second frame
+    // Should have drained 15 units because isAutoFiring is true
+    expect(vehicle.weaponRuntime.canister!.current).toBeCloseTo(beforeCanister - 15, 1);
+  });
+
+  it('isAutoFiring causes same drain as manual fireHeld', () => {
+    const vAuto = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    const vManual = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+
+    vAuto.fireHeld = false;
+    vAuto.isFiring = false;
+    vAuto.weaponRuntime.isAutoFiring = true;
+
+    vManual.fireHeld = true;
+    vManual.isFiring = true;
+    vManual.weaponRuntime.isAutoFiring = false;
+
+    updateAllWeaponResources([vAuto, vManual], 2000, 1000); // 1 second frame
+
+    // Both should drain the same amount
+    expect(vAuto.weaponRuntime.canister!.current).toBeCloseTo(
+      vManual.weaponRuntime.canister!.current, 5
+    );
+  });
+
+  it('isAutoFiring is cleared after updateAllWeaponResources for canister weapons', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    vehicle.weaponRuntime.isAutoFiring = true;
+
+    updateAllWeaponResources([vehicle], 1100, 16);
+
+    expect(vehicle.weaponRuntime.isAutoFiring).toBe(false);
+  });
+
+  it('isAutoFiring is NOT cleared for non-canister weapons (no canister to drain)', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
+    vehicle.weaponRuntime.isAutoFiring = true;
+
+    updateAllWeaponResources([vehicle], 1100, 16);
+
+    // Smoky has no canister, so isAutoFiring is NOT cleared
+    // (only canister weapons clear it)
+    expect(vehicle.weaponRuntime.isAutoFiring).toBe(true);
+  });
+
+  it('canister drains over multiple frames via target-lock auto-fire path', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    vehicle.fireHeld = false;
+    vehicle.isFiring = false;
+
+    // Simulate 5 frames of auto-fire
+    let nowMs = 1000;
+    const deltaMs = 200; // 200ms per frame
+    for (let i = 0; i < 5; i++) {
+      // Each frame: combat targeting sets isAutoFiring=true
+      vehicle.weaponRuntime.isAutoFiring = true;
+      updateAllWeaponResources([vehicle], nowMs, deltaMs);
+      nowMs += deltaMs;
+    }
+
+    // 5 frames * 200ms = 1 second total, drainPerSec=15 → should have drained ~15
+    expect(vehicle.weaponRuntime.canister!.current).toBeCloseTo(80 - 15, 0);
+  });
+
+  it('freeze canister also drains via isAutoFiring', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'freeze', 'cyan', 5, 5);
+    vehicle.fireHeld = false;
+    vehicle.isFiring = false;
+    vehicle.weaponRuntime.isAutoFiring = true;
+
+    const beforeCanister = vehicle.weaponRuntime.canister!.current;
+    updateAllWeaponResources([vehicle], 1100, 1000);
+    expect(vehicle.weaponRuntime.canister!.current).toBeCloseTo(beforeCanister - 15, 1);
+  });
+
+  it('isida canister also drains via isAutoFiring', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'isida', 'cyan', 5, 5);
+    vehicle.fireHeld = false;
+    vehicle.isFiring = false;
+    vehicle.weaponRuntime.isAutoFiring = true;
+
+    const beforeCanister = vehicle.weaponRuntime.canister!.current;
+    updateAllWeaponResources([vehicle], 1100, 1000);
+    // Isida M0 drainPerSec = 14 (different from flamethrower's 15)
+    expect(vehicle.weaponRuntime.canister!.current).toBeCloseTo(beforeCanister - 14, 1);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// 26. FIXUP-2: Empty canister blocks target-lock auto-fire
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('FIXUP-2: Empty canister blocks target-lock auto-fire', () => {
+  it('tryFireWeaponWithRuntime returns canister_empty when canister is empty', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    vehicle.weaponRuntime.canister!.current = 0;
+    vehicle.weaponRuntime.canister!.isEmpty = true;
+    vehicle.lastFiredAt = 0;
+
+    const result = tryFireWeaponWithRuntime(
+      vehicle, 100, 100, 0, 200, 200, 1000,
+    );
+    expect(result.fired).toBe(false);
+    expect(result.reason).toBe('canister_empty');
+  });
+
+  it('target-lock auto-fire cannot fire with empty canister', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    vehicle.weaponRuntime.canister!.current = 0;
+    vehicle.weaponRuntime.canister!.isEmpty = true;
+    vehicle.lastFiredAt = 0;
+
+    // Even with isAutoFiring=true, the fire coordinator should block
+    expect(canFireByRuntimeState(vehicle.weaponRuntime)).toBe(false);
+    expect(canFireBlockoutWeapon(vehicle, 1000)).toBe(false);
+  });
+
+  it('canister empties after prolonged auto-fire and then blocks further firing', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    vehicle.fireHeld = false;
+    vehicle.isFiring = false;
+
+    // M0: capacity=80, drainPerSec=15 → empties in ~5.33 seconds
+    let nowMs = 1000;
+    const deltaMs = 1000;
+    for (let i = 0; i < 6; i++) {
+      vehicle.weaponRuntime.isAutoFiring = true;
+      updateAllWeaponResources([vehicle], nowMs, deltaMs);
+      nowMs += deltaMs;
+    }
+
+    // Should be empty now
+    expect(vehicle.weaponRuntime.canister!.isEmpty).toBe(true);
+    expect(vehicle.weaponRuntime.canister!.current).toBe(0);
+
+    // Cannot fire anymore
+    expect(canFireByRuntimeState(vehicle.weaponRuntime)).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// 27. FIXUP-2: Canister regenerates when target-lock stops / S clears target
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('FIXUP-2: Canister regenerates when target-lock stops / S clears target', () => {
+  it('canister regenerates when isAutoFiring is false (target-lock stopped)', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    vehicle.fireHeld = false;
+    vehicle.isFiring = false;
+
+    // Drain some canister via auto-fire
+    vehicle.weaponRuntime.isAutoFiring = true;
+    updateAllWeaponResources([vehicle], 2000, 1000); // drain 1 sec
+
+    const afterDrain = vehicle.weaponRuntime.canister!.current;
+    expect(afterDrain).toBeCloseTo(65, 1);
+
+    // Stop auto-fire (isAutoFiring was cleared by updateAllWeaponResources)
+    // Now regen
+    updateAllWeaponResources([vehicle], 3000, 1000);
+
+    // M0 regenPerSec = 6
+    expect(vehicle.weaponRuntime.canister!.current).toBeCloseTo(afterDrain + 6, 1);
+  });
+
+  it('clearTargetAndWeaponState clears isAutoFiring', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    vehicle.weaponRuntime.isAutoFiring = true;
+    vehicle.targetVehicleId = 'some-target';
+
+    clearTargetAndWeaponState(vehicle);
+
+    expect(vehicle.weaponRuntime.isAutoFiring).toBe(false);
+    expect(vehicle.targetVehicleId).toBeNull();
+    expect(vehicle.fireHeld).toBe(false);
+    expect(vehicle.isFiring).toBe(false);
+  });
+
+  it('canister regenerates after S key clears target-lock', () => {
+    const vehicle = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    vehicle.fireHeld = false;
+    vehicle.isFiring = false;
+    vehicle.weaponRuntime.isAutoFiring = true;
+    vehicle.targetVehicleId = 'some-target';
+
+    // Drain some
+    updateAllWeaponResources([vehicle], 2000, 1000);
+    const afterDrain = vehicle.weaponRuntime.canister!.current;
+
+    // S key clears target
+    clearTargetAndWeaponState(vehicle);
+    expect(vehicle.weaponRuntime.isAutoFiring).toBe(false);
+
+    // Now regen
+    updateAllWeaponResources([vehicle], 3000, 1000);
+    expect(vehicle.weaponRuntime.canister!.current).toBeCloseTo(afterDrain + 6, 1);
+  });
+
+  it('no double-drain: manual fire + isAutoFiring drains same as manual only', () => {
+    const vBoth = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+    const vManual = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
+
+    // Vehicle with BOTH fireHeld=true AND isAutoFiring=true
+    vBoth.fireHeld = true;
+    vBoth.isFiring = true;
+    vBoth.weaponRuntime.isAutoFiring = true;
+
+    // Vehicle with only fireHeld=true
+    vManual.fireHeld = true;
+    vManual.isFiring = true;
+    vManual.weaponRuntime.isAutoFiring = false;
+
+    updateAllWeaponResources([vBoth, vManual], 2000, 1000);
+
+    // Both should drain the same — no double-drain from isAutoFiring
+    expect(vBoth.weaponRuntime.canister!.current).toBeCloseTo(
+      vManual.weaponRuntime.canister!.current, 5
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// 28. FIXUP-2: Hammer 3-volley burst emits all volleys before reload
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('FIXUP-2: Hammer 3-volley burst emits all volleys before reload', () => {
+  it('tryFireWeaponWithRuntime fires 3 volleys via drum burst then reloads', () => {
+    const vehicle = createBlockoutVehicle('titan', 'hammer', 'cyan', 5, 5);
+    vehicle.lastFiredAt = 0;
+
+    // Volley 1: first fire starts the burst
+    const result1 = tryFireWeaponWithRuntime(
+      vehicle, 100, 100, 0, 200, 200, 1000,
+    );
+    expect(result1.fired).toBe(true);
+    expect(result1.drumVolley).toBe(true);
+    expect(vehicle.weaponRuntime.drum!.isBursting).toBe(true);
+    expect(vehicle.weaponRuntime.drum!.currentVolley).toBe(1);
+
+    // Volley 2: delay between volleys must elapse
+    // M0 delayBetweenVolleysMs = 250
+    const result2_early = tryFireWeaponWithRuntime(
+      vehicle, 100, 100, 0, 200, 200, 1100, // 100ms < 250ms — should be blocked
+    );
+    expect(result2_early.fired).toBe(false);
+    expect(result2_early.reason).toBe('drum_volley_delay');
+
+    const result2 = tryFireWeaponWithRuntime(
+      vehicle, 100, 100, 0, 200, 200, 1251, // 251ms >= 250ms
+    );
+    expect(result2.fired).toBe(true);
+    expect(result2.drumVolley).toBe(true);
+    expect(vehicle.weaponRuntime.drum!.currentVolley).toBe(2);
+
+    // Volley 3: same delay
+    const result3 = tryFireWeaponWithRuntime(
+      vehicle, 100, 100, 0, 200, 200, 1502, // 251ms after volley 2
+    );
+    expect(result3.fired).toBe(true);
+    expect(result3.drumVolley).toBe(true);
+    expect(vehicle.weaponRuntime.drum!.currentVolley).toBe(3);
+
+    // After volley 3: drum should be reloading
+    expect(vehicle.weaponRuntime.drum!.isReloading).toBe(true);
+    expect(vehicle.weaponRuntime.drum!.isBursting).toBe(false);
+  });
+
+  it('drum volley 2 and 3 bypass global cooldown (skipCooldownCheck)', () => {
+    const vehicle = createBlockoutVehicle('titan', 'hammer', 'cyan', 5, 5);
+    vehicle.lastFiredAt = 0;
+
+    // Fire volley 1 at t=1000
+    const result1 = tryFireWeaponWithRuntime(
+      vehicle, 100, 100, 0, 200, 200, 1000,
+    );
+    expect(result1.fired).toBe(true);
+
+    // Hammer M0 cooldown = 3000ms. Without skipCooldownCheck,
+    // volley 2 at t=1251 would be blocked (only 251ms < 3000ms).
+    // But with skipCooldownCheck, the drum delay replaces weapon cooldown.
+    const result2 = tryFireWeaponWithRuntime(
+      vehicle, 100, 100, 0, 200, 200, 1251,
+    );
+    expect(result2.fired).toBe(true);
+
+    // Volley 3 at t=1502 also bypasses cooldown
+    const result3 = tryFireWeaponWithRuntime(
+      vehicle, 100, 100, 0, 200, 200, 1502,
+    );
+    expect(result3.fired).toBe(true);
+  });
+
+  it('after burst completes and reload finishes, hammer can fire a new burst', () => {
+    const vehicle = createBlockoutVehicle('titan', 'hammer', 'cyan', 5, 5);
+    vehicle.lastFiredAt = 0;
+
+    // Fire 3-volley burst
+    tryFireWeaponWithRuntime(vehicle, 100, 100, 0, 200, 200, 1000);
+    tryFireWeaponWithRuntime(vehicle, 100, 100, 0, 200, 200, 1251);
+    tryFireWeaponWithRuntime(vehicle, 100, 100, 0, 200, 200, 1502);
+
+    expect(vehicle.weaponRuntime.drum!.isReloading).toBe(true);
+
+    // Try to fire during reload — should fail
+    const resultReload = tryFireWeaponWithRuntime(
+      vehicle, 100, 100, 0, 200, 200, 2000,
+    );
+    expect(resultReload.fired).toBe(false);
+    expect(resultReload.reason).toBe('drum_reloading');
+
+    // After reload completes (M0 = 3000ms, started at ~1502)
+    // Tick the reload
+    updateAllWeaponResources([vehicle], 4503, 16);
+    expect(vehicle.weaponRuntime.drum!.isReloading).toBe(false);
+
+    // Can fire a new burst now
+    const resultNew = tryFireWeaponWithRuntime(
+      vehicle, 100, 100, 0, 200, 200, 5000,
+    );
+    expect(resultNew.fired).toBe(true);
+    expect(resultNew.drumVolley).toBe(true);
   });
 });

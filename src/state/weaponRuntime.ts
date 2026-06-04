@@ -95,6 +95,14 @@ export interface WeaponRuntimeState {
   magazine: MagazineRuntimeState | null;
   /** Drum state (null for non-drum weapons). */
   drum: DrumRuntimeState | null;
+  /**
+   * CORE-STEP-08H+ FIXUP-2: Whether this weapon is actively auto-firing via target-lock.
+   * Set by updateAllCombatTargeting when shouldFire && isAimed for canister weapons.
+   * Cleared by updateAllWeaponResources after each frame's drain calculation.
+   * This ensures canister stream weapons drain under target-lock auto-fire,
+   * not just under manual continuous fire (fireHeld/isFiring).
+   */
+  isAutoFiring: boolean;
 }
 
 // ─── Factory ──────────────────────────────────────────────────────────
@@ -170,6 +178,7 @@ export function createWeaponRuntimeState(
     windUp,
     magazine,
     drum,
+    isAutoFiring: false, // CORE-STEP-08H+ FIXUP-2: auto-fire drain flag
   };
 }
 

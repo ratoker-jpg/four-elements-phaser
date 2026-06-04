@@ -796,12 +796,6 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
-    // CORE-STEP-08H+ FIXUP Blocker 1: Update weapon resources each frame
-    // Canisters drain/regen, overheat cools, magazines regen, drums reload
-    if (this.gameState.blockoutVehicles && this.devtoolsActive) {
-      const nowMs = this.time.now;
-      updateAllWeaponResources(this.gameState.blockoutVehicles, nowMs, delta);
-    }
     // BLOCKOUT-05H+: Update blockout vehicle recoil
     if (this.gameState.blockoutVehicles && this.devtoolsActive) {
       const nowMs = this.time.now;
@@ -896,6 +890,13 @@ export class GameScene extends Phaser.Scene {
           },
         },
       );
+    }
+    // CORE-STEP-08H+ FIXUP-2: Update weapon resources AFTER combat targeting and AI.
+    // Canisters drain/regen, overheat cools, magazines regen, drums reload.
+    // Must run after updateAllCombatTargeting so isAutoFiring is set for canister drain.
+    if (this.gameState.blockoutVehicles) {
+      const nowMs = this.time.now;
+      updateAllWeaponResources(this.gameState.blockoutVehicles, nowMs, delta);
     }
     // CORE-STEP-06H+: Clean up stale tile reservations periodically
     if (this.reservationMap) {

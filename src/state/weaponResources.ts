@@ -274,7 +274,7 @@ function createFreshRuntimeForType(weaponId: string, mLevel: number): WeaponRunt
     }
   }
 
-  return { weaponId, mLevel: clampedLevel, canister, overheat, windUp, magazine, drum };
+  return { weaponId, mLevel: clampedLevel, canister, overheat, windUp, magazine, drum, isAutoFiring: false };
 }
 
 /**

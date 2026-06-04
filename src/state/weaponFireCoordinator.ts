@@ -61,7 +61,11 @@ export function updateAllWeaponResources(
   for (const vehicle of vehicles) {
     if (vehicle.isDestroyed) continue;
 
-    const isFiring = vehicle.fireHeld || vehicle.isFiring;
+    // CORE-STEP-08H+ FIXUP-2: Include isAutoFiring for canister drain.
+    // isAutoFiring is set by updateAllCombatTargeting when target-lock
+    // auto-fire is active for canister stream weapons. This ensures
+    // canister drains while auto-firing, not just under manual fireHeld/isFiring.
+    const isFiring = vehicle.fireHeld || vehicle.isFiring || vehicle.weaponRuntime.isAutoFiring;
 
     // Tick wind-up progress (event-driven, but needs time check)
     if (vehicle.weaponRuntime.windUp && vehicle.weaponRuntime.windUp.isCharging) {
@@ -80,6 +84,14 @@ export function updateAllWeaponResources(
     };
 
     updateWeaponResources(vehicle.weaponRuntime, options);
+
+    // CORE-STEP-08H+ FIXUP-2: Clear isAutoFiring after each frame's drain calculation.
+    // It will be re-set next frame by updateAllCombatTargeting if auto-fire is still active.
+    // This prevents stale isAutoFiring=true when auto-fire stops (target out of range,
+    // not aimed, target cleared).
+    if (vehicle.weaponRuntime.canister) {
+      vehicle.weaponRuntime.isAutoFiring = false;
+    }
   }
 }
 
@@ -216,10 +228,15 @@ export function tryFireWeaponWithRuntime(
       return { fired: false, reason: 'drum_volley_delay', windUpCompleted: false, drumVolley: false };
     }
 
-    // Delay elapsed — fire next volley
+    // CORE-STEP-08H+ FIXUP-2: Skip global cooldown check for drum volleys.
+    // The drum's own delay mechanism (canDrumVolleyFire) manages timing between volleys.
+    // The weapon cooldown (e.g., 3000ms for Hammer) would block subsequent volleys
+    // since volley delay (250ms) is much shorter than full weapon cooldown.
+    // The first volley of each burst still checks cooldown (see above).
     const event = fireBlockoutWeapon(
       vehicle, barrelTipX, barrelTipY, aimAngle,
       aimTargetX, aimTargetY, nowMs,
+      true, // skipCooldownCheck — drum delay replaces weapon cooldown for burst volleys
     );
 
     if (event) {
@@ -322,6 +339,9 @@ export function clearTargetAndWeaponState(vehicle: BlockoutVehicleState): void {
     vehicle.isFiring = false;
     vehicle.visualOverheat = 0;
   }
+
+  // CORE-STEP-08H+ FIXUP-2: Clear auto-fire drain flag
+  vehicle.weaponRuntime.isAutoFiring = false;
 
   // Clear weapon pending states (wind-up, drum burst)
   clearWeaponPendingStates(vehicle.weaponRuntime);

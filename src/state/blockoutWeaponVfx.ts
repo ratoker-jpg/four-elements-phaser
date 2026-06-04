@@ -134,6 +134,9 @@ function getVfxEventType(weaponId: WeaponId): VfxEventType {
  * @param aimTargetX - Aim target X in screen-space pixels (with offset)
  * @param aimTargetY - Aim target Y in screen-space pixels (with offset)
  * @param nowMs - Current timestamp
+ * @param skipCooldownCheck - CORE-STEP-08H+ FIXUP-2: If true, skip global cooldown check.
+ *   Used by drum burst volleys where timing is managed by drum delay, not weapon cooldown.
+ *   The drum's own delay mechanism (canDrumVolleyFire) replaces the cooldown timing.
  * @returns The VFX event, or null if on cooldown
  */
 export function fireBlockoutWeapon(
@@ -144,12 +147,13 @@ export function fireBlockoutWeapon(
   aimTargetX: number,
   aimTargetY: number,
   nowMs: number,
+  skipCooldownCheck: boolean = false,
 ): BlockoutWeaponVfxEvent | null {
   const weaponId = vehicle.weaponId;
   const eventType = getVfxEventType(weaponId);
 
-  // Check cooldown
-  if (!canFireBlockoutWeapon(vehicle, nowMs)) return null;
+  // Check cooldown (skip for drum volleys — timing managed by drum delay)
+  if (!skipCooldownCheck && !canFireBlockoutWeapon(vehicle, nowMs)) return null;
 
   const weaponProfile = getWeaponProfile(weaponId);
   if (!weaponProfile) return null;

@@ -342,6 +342,14 @@ export function updateAllCombatTargeting(
     if (result.shouldFire && result.isAimed && options?.fireWeapon && options.nowMs !== undefined) {
       const fireTarget = vehicles.find(v => v.id === vehicle.targetVehicleId);
       if (fireTarget) {
+        // CORE-STEP-08H+ FIXUP-2: Mark canister weapons as auto-firing for resource drain.
+        // When target-lock auto-fire is active for a canister stream weapon,
+        // set isAutoFiring=true so updateAllWeaponResources knows to drain
+        // the canister, not just regen. This flag is cleared by
+        // updateAllWeaponResources after each frame's drain calculation.
+        if (vehicle.weaponRuntime.canister) {
+          vehicle.weaponRuntime.isAutoFiring = true;
+        }
         options.fireWeapon(vehicle, fireTarget, options.nowMs);
       }
     }
