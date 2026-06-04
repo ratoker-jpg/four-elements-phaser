@@ -46,6 +46,7 @@ import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state
 import { canFireBlockoutWeapon, fireBlockoutWeapon, startFiring, stopFiring, isContinuousWeapon } from '../../state/blockoutWeaponVfx';
 import { applyBlockoutWeaponDamage } from '../../state/blockoutDamage';
 import type { GameState } from '../../state/types';
+import type { TileReservationMap } from '../../state/tileReservation';
 import { applyUpgrade } from '../../state/blockoutUpgrades';
 import type { BlockoutUpgradeId } from '../../config/blockoutUpgradeData';
 
@@ -88,6 +89,8 @@ export interface BlockoutVehicleInputDeps {
    *  while an ally is selected assigns that enemy as target, and turret
    *  aims at assigned target instead of following mouse. */
   isArenaMode?: () => boolean;
+  /** CORE-STEP-06H+: Provides the tile reservation map for grid movement commands. */
+  getReservationMap?: () => TileReservationMap | null;
 }
 
 // ─── Controller ────────────────────────────────────────────────────
@@ -103,6 +106,7 @@ export class BlockoutVehicleInputController {
   private onToggleCalibration?: () => void;
   private isPlacementActive: () => boolean;
   private isArenaMode: () => boolean;
+  private getReservationMap: () => TileReservationMap | null;
 
   /** Currently selected blockout vehicle ID (transient, not persisted). */
   private _selectedVehicleId: string | null = null;
@@ -142,6 +146,7 @@ export class BlockoutVehicleInputController {
     this.onToggleCalibration = deps.onToggleCalibration;
     this.isPlacementActive = deps.isPlacementActive ?? (() => false);
     this.isArenaMode = deps.isArenaMode ?? (() => false);
+    this.getReservationMap = deps.getReservationMap ?? (() => null);
 
     this.boundPointerdown = this.onPointerdown.bind(this);
     this.boundPointerup = this.onPointerup.bind(this);
@@ -576,8 +581,13 @@ export class BlockoutVehicleInputController {
     const screenX = worldPoint.x - this.offset.x;
     const screenY = worldPoint.y - this.offset.y;
 
-    // Set movement target
-    setBlockoutVehicleMoveTarget(selected, screenX, screenY);
+    // CORE-STEP-06H+: Use grid pathing when useGridMovement is true
+    if (selected.useGridMovement) {
+      setBlockoutVehicleMoveTarget(selected, screenX, screenY, gameState, this.getReservationMap() ?? undefined);
+    } else {
+      // Set movement target (arcade mode)
+      setBlockoutVehicleMoveTarget(selected, screenX, screenY);
+    }
   }
 
   // ─── Hit testing ─────────────────────────────────────────────
@@ -684,7 +694,13 @@ export class BlockoutVehicleInputController {
           const selected = vehicles.find(v => v.id === this._selectedVehicleId);
           if (selected) {
             // Stop movement
-            clearBlockoutVehicleMoveTarget(selected);
+            clearBlockoutVehicleMoveTarget(selected, this.getReservationMap() ?? undefined);
+            // CORE-STEP-06H+: Also stop grid movement
+            if (selected.useGridMovement) {
+              // Grid stop is handled inside clearBlockoutVehicleMoveTarget
+              // when reservationMap is available; here we just clear the flag
+              selected.hasMoveTarget = false;
+            }
             selected.vx = 0;
             selected.vy = 0;
             selected.speed = 0;

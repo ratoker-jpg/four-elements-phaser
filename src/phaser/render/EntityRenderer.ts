@@ -4,6 +4,7 @@ import {
   type ModularTankDirection,
 } from '../../config/worldConfig';
 import { tileToScreen, footprintSouthVertex, IsoPoint } from './isometric';
+import { computeDepthValue } from './depthSorting';
 import { ModularTankRenderer } from './ModularTankRenderer';
 import { ConstructionRenderer } from './ConstructionRenderer';
 import type {
@@ -267,7 +268,11 @@ export class EntityRenderer {
       const worldY = screenPos.y + this.offset.y;
 
       sprite.setPosition(worldX, worldY);
-      sprite.setDepth(100 + worldY);
+      // CORE-STEP-06H+ fixup: Use unified depth sorting for correct unit/building ordering
+      sprite.setDepth(computeDepthValue({
+        id: h.id, type: 'unit', tx: h.ftx, ty: h.fty,
+        offsetX: this.offset.x, offsetY: this.offset.y,
+      }));
 
       // Animation state: determine facing direction and whether moving
       const prev = this.harvesterPrevTile.get(h.id);
@@ -408,11 +413,12 @@ export class EntityRenderer {
     // Origin: center-X, ground-line ratio (consistent with other buildings ~0.996)
     img.setOrigin(0.5, EntityRenderer.HQ_GROUND_LINE_RATIO);
 
-    // Depth from bottom-right footprint tile (same formula as ConstructionRenderer)
-    const depthTx = tx + EntityRenderer.HQ_FOOTPRINT_W - 1;
-    const depthTy = ty + EntityRenderer.HQ_FOOTPRINT_H - 1;
-    const depthScreenPos = tileToScreen(depthTx, depthTy);
-    img.setDepth(100 + depthScreenPos.y + this.offset.y);
+    // CORE-STEP-06H+ fixup: Use unified depth sorting for correct building/unit ordering
+    img.setDepth(computeDepthValue({
+      id: `hq-${tx}-${ty}`, type: 'building', tx, ty,
+      footprintW: EntityRenderer.HQ_FOOTPRINT_W, footprintH: EntityRenderer.HQ_FOOTPRINT_H,
+      offsetX: this.offset.x, offsetY: this.offset.y,
+    }));
 
     this.staticObjects.push(img);
   }
@@ -511,7 +517,10 @@ export class EntityRenderer {
     const sprite = this.scene.add.sprite(worldX, worldY, harvesterKey, idleFrame);
     sprite.setScale(HARVESTER_RENDER_SCALE);
     sprite.setOrigin(0.5, 0.75);
-    sprite.setDepth(100 + worldY);
+    sprite.setDepth(computeDepthValue({
+      id: h.id, type: 'unit', tx: h.ftx, ty: h.fty,
+      offsetX: this.offset.x, offsetY: this.offset.y,
+    }));
 
     // Play initial idle animation (south-facing)
     const initialAnimKey = `harvester_${effectiveFaction}_idle_s`;
@@ -547,7 +556,11 @@ export class EntityRenderer {
     } else {
       img.setOrigin(0.5, 0.75);
     }
-    img.setDepth(100 + worldY);
+    // CORE-STEP-06H+ fixup: Use unified depth sorting for correct resource/unit ordering
+    img.setDepth(computeDepthValue({
+      id: r.id, type: 'resource', tx: r.tx, ty: r.ty,
+      offsetX: this.offset.x, offsetY: this.offset.y,
+    }));
 
     this.resourceSprites.set(r.id, img);
   }

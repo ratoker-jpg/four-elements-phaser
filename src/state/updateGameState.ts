@@ -28,7 +28,7 @@ import {
   UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION,
   DEFAULT_UNIT_CAP,
 } from './types';
-import { buildOccupancyMap, isPassable } from './occupancy';
+import { buildOccupancyMap, isPassable, addUnitBlockers, addVehicleBlockers } from './occupancy';
 import { findPath, findPathToAdjacent } from './pathfinding';
 import { updateHarvesterManualMove, findResourceApproachTile } from './unitCommands';
 import { isResourceInfinite } from '../config/resourceClassRuntime';
@@ -187,6 +187,11 @@ function handleMovingToResource(
     const startTx = Math.round(h.ftx);
     const startTy = Math.round(h.fty);
     const occupancy = buildOccupancyMap(state);
+    // CORE-STEP-06H+ fixup: Respect other units and vehicles during auto-gather pathfinding
+    addUnitBlockers(state, occupancy, 'harvester', h.id);
+    if (state.blockoutVehicles) {
+      addVehicleBlockers(state.blockoutVehicles, occupancy);
+    }
 
     // If already at approach tile, skip movement
     if (startTx === approachResult.approachTx && startTy === approachResult.approachTy) {
@@ -310,6 +315,11 @@ function handleReturningToHQ(
     const startTx = Math.round(h.ftx);
     const startTy = Math.round(h.fty);
     const occupancy = buildOccupancyMap(state);
+    // CORE-STEP-06H+ fixup: Respect other units and vehicles during return pathfinding
+    addUnitBlockers(state, occupancy, 'harvester', h.id);
+    if (state.blockoutVehicles) {
+      addVehicleBlockers(state.blockoutVehicles, occupancy);
+    }
 
     // Path to a tile adjacent to HQ (HQ is 3x3 impassable)
     const path = findPathToAdjacent(occupancy, startTx, startTy, hqTx - 1, hqTy - 1, 3, 3);

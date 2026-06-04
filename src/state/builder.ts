@@ -18,7 +18,7 @@
  */
 
 import type { GameState, BuilderPlacement, ConstructionSitePlacement } from './types';
-import { buildOccupancyMap } from './occupancy';
+import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from './occupancy';
 import { findPathToAdjacent } from './pathfinding';
 import { BUILDING_CONFIG } from './construction';
 
@@ -68,6 +68,11 @@ export function assignIdleBuilders(state: GameState): void {
     const startTx = Math.round(builder.ftx);
     const startTy = Math.round(builder.fty);
     const occupancyMap = buildOccupancyMap(state);
+    // CORE-STEP-06H+ fixup: Respect other units and vehicles during builder pathfinding
+    addUnitBlockers(state, occupancyMap, 'builder', builder.id);
+    if (state.blockoutVehicles) {
+      addVehicleBlockers(state.blockoutVehicles, occupancyMap);
+    }
     const path = findPathToAdjacent(occupancyMap, startTx, startTy, site.tx, site.ty, fpW, fpH);
 
     if (!path) {

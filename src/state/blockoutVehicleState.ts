@@ -18,6 +18,7 @@ import type { BodyId, WeaponId } from '../config/blockoutProfiles';
 import type { BlockoutUpgradeId } from '../config/blockoutUpgradeData';
 import { getBlockoutBodyMaxHp } from '../config/blockoutBodyData';
 import { tileToScreen } from '../phaser/render/isometric';
+import { createGridMovementState } from './movementStateMachine';
 
 // ─── Arena Team Type (ARENA-02H+) ──────────────────────────────────
 
@@ -193,6 +194,13 @@ export interface BlockoutVehicleState {
    * Transient — not persisted in saves.
    */
   aiHoldRadius: number;
+
+  // ── CORE-STEP-06H+: Grid movement fields ──────────────────────────
+
+  /** Grid movement state (unified grid/tile pathing). CORE-STEP-06H+. */
+  gridMovement: import('./movementStateMachine').GridMovementState;
+  /** Whether this vehicle uses grid movement (true by default for new vehicles). CORE-STEP-06H+. */
+  useGridMovement: boolean;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────
@@ -266,6 +274,8 @@ export function createBlockoutVehicle(
     aiHoldX: screenPos.x, // ARENA-05H+: Hold position = spawn position
     aiHoldY: screenPos.y,
     aiHoldRadius: DEFAULT_AI_HOLD_RADIUS_PX,
+    gridMovement: createGridMovementState(tx, ty, bodyAngle), // CORE-STEP-06H+
+    useGridMovement: true, // CORE-STEP-06H+
   };
 }
 

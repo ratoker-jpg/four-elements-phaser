@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { tileToScreen, IsoPoint, footprintSouthVertex } from './isometric';
+import { computeDepthValue } from './depthSorting';
 import { BUILDING_CONFIG } from '../../state/construction';
 import { getCivilUnitKey } from '../../assets/civilUnitAssets';
 import { DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
@@ -314,7 +315,10 @@ export class ConstructionRenderer {
 
     // Update position each frame
     sprite.setPosition(worldX, worldY);
-    sprite.setDepth(110 + worldY);
+    sprite.setDepth(computeDepthValue({
+      id: builder.id, type: 'unit', tx: builder.ftx, ty: builder.fty,
+      offsetX: this.offset.x, offsetY: this.offset.y,
+    }));
 
     // Update facing direction based on movement delta
     const prev = this.builderPrevTile.get(builder.id);
@@ -447,10 +451,11 @@ export class ConstructionRenderer {
 
   /** Compute depth value for isometric z-ordering from the bottom-right footprint tile. */
   private computeBuildingDepth(tx: number, ty: number, fpW: number, fpH: number): number {
-    const depthTx = tx + fpW - 1;
-    const depthTy = ty + fpH - 1;
-    const screenPos = tileToScreen(depthTx, depthTy);
-    return 100 + screenPos.y + this.offset.y;
+    return computeDepthValue({
+      id: `bldg-${tx}-${ty}`, type: 'building', tx, ty,
+      footprintW: fpW, footprintH: fpH,
+      offsetX: this.offset.x, offsetY: this.offset.y,
+    });
   }
 
   /** Set depth for isometric z-ordering based on the bottom of the footprint. */
@@ -463,7 +468,11 @@ export class ConstructionRenderer {
     const config = BUILDING_CONFIG[buildingType as keyof typeof BUILDING_CONFIG];
     const fpW = config?.footprintW ?? 1;
     const fpH = config?.footprintH ?? 1;
-    g.setDepth(this.computeBuildingDepth(tx, ty, fpW, fpH));
+    g.setDepth(computeDepthValue({
+      id: `site-${tx}-${ty}`, type: 'construction-site', tx, ty,
+      footprintW: fpW, footprintH: fpH,
+      offsetX: this.offset.x, offsetY: this.offset.y,
+    }));
   }
 
   // ─── Cleanup ───────────────────────────────────────────────────
