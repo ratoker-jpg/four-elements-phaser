@@ -6,3 +6,9 @@ node_modules
 playwright-report
 test-results
 worklog.md
+
+# TankViewer source assets (local/uncommitted)
+art/source/tankviewer/
+
+# TankViewer generated sprite output (mass output, not committed)
+art/generated/tankviewer/
