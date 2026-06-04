@@ -637,7 +637,7 @@ describe('TankViewer web exporter config.xml parsing', () => {
   function inferAssetName(filePath: string, _kind: string): string {
     if (!filePath) return '';
     const basename = filePath.split('/').pop()!.replace(/\.[^.]+$/, '');
-    const name = basename.replace(/_\d{4}$/, '');
+    const name = basename.replace(/_\d{1,4}$/, '');
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
@@ -669,7 +669,8 @@ describe('TankViewer web exporter config.xml parsing', () => {
    */
   function parseConfigXmlSimple(xmlText: string) {
     // Extract camera-radius
-    const rootMatch = xmlText.match(/<root[^>]*camera-radius="([^"]*)"[^>]*>/);
+    // Real TankViewer config.xml uses <config>; fallback to <root> for synthetic tests
+    const rootMatch = xmlText.match(/<(?:config|root)[^>]*camera-radius="([^"]*)"[^>]*>/);
     const cameraRadius = rootMatch ? parseFloat(rootMatch[1]) || 750 : 750;
 
     // Extract hull model entries
@@ -734,32 +735,43 @@ describe('TankViewer web exporter config.xml parsing', () => {
     return { cameraRadius, hulls, turrets, colormaps: [] };
   }
 
-  // Sample config.xml matching real TankViewer structure
+  // Sample config.xml matching real TankViewer structure (uses <config> root)
   const SAMPLE_CONFIG_XML = `<?xml version="1.0" encoding="utf-8"?>
-<root camera-radius="750">
+<config camera-radius="750">
   <hulls>
     <model file="hulls/Wasp_0123.3ds" lightmap="hulls/Wasp_0_lightmap.jpg" details="hulls/Wasp_0_details.png"/>
     <model file="hulls/Wasp_1123.3ds" lightmap="hulls/Wasp_1_lightmap.jpg" details="hulls/Wasp_1_details.png"/>
-    <model file="hulls/Hornet_0123.3ds" lightmap="hulls/Hornet_0_lightmap.jpg" details="hulls/Hornet_0_details.png"/>
+    <model file="hulls/Dictator_012.3ds" lightmap="hulls/Dictator_0_lightmap.jpg" details="hulls/Dictator_0_details.png"/>
+    <model file="hulls/Dictator_3.3ds" lightmap="hulls/Dictator_3_lightmap.jpg" details="hulls/Dictator_3_details.png"/>
   </hulls>
   <turrets>
-    <model file="turrets/Smoky_0123.3ds" lightmap="turrets/Smoky_0_lightmap.jpg" details="turrets/Smoky_0_details.png"/>
-    <model file="turrets/Firebird_0123.3ds" lightmap="turrets/Firebird_0_lightmap.jpg" details="turrets/Firebird_0_details.png"/>
+    <model file="turrets/Smoky_01.3ds" lightmap="turrets/Smoky_0_lightmap.jpg" details="turrets/Smoky_0_details.png"/>
+    <model file="turrets/Smoky_23.3ds" lightmap="turrets/Smoky_2_lightmap.jpg" details="turrets/Smoky_2_details.png"/>
+    <model file="turrets/Twins_2.3ds" lightmap="turrets/Twins_0_lightmap.jpg" details="turrets/Twins_0_details.png"/>
+    <model file="turrets/Twins_3.3ds" lightmap="turrets/Twins_3_lightmap.jpg" details="turrets/Twins_3_details.png"/>
+    <model file="turrets/Firebird_012.3ds" lightmap="turrets/Firebird_0_lightmap.jpg" details="turrets/Firebird_0_details.png"/>
+    <model file="turrets/Firebird_3.3ds" lightmap="turrets/Firebird_3_lightmap.jpg" details="turrets/Firebird_3_details.png"/>
   </turrets>
   <colormaps>
     <colormap name="cyan" file="colormaps/cyan.png"/>
   </colormaps>
-</root>`;
+</config>`;
 
   // ─── Camera radius ──────────────────────────────────────────────
 
-  it('parses camera-radius from root element', () => {
+  it('parses camera-radius from <config> root element', () => {
     const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
     expect(config.cameraRadius).toBe(750);
   });
 
+  it('parses camera-radius from <root> element (fallback)', () => {
+    const xml = '<root camera-radius="500"><hulls></hulls><turrets></turrets></root>';
+    const config = parseConfigXmlSimple(xml);
+    expect(config.cameraRadius).toBe(500);
+  });
+
   it('defaults camera-radius to 750 when attribute is missing', () => {
-    const xml = '<root><hulls></hulls><turrets></turrets></root>';
+    const xml = '<config><hulls></hulls><turrets></turrets></config>';
     const config = parseConfigXmlSimple(xml);
     expect(config.cameraRadius).toBe(750);
   });
@@ -768,7 +780,7 @@ describe('TankViewer web exporter config.xml parsing', () => {
 
   it('parses correct number of hull model entries', () => {
     const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
-    expect(config.hulls).toHaveLength(3);
+    expect(config.hulls).toHaveLength(4); // 2 Wasp + 2 Dictator
   });
 
   it('parses hull model file path', () => {
@@ -789,7 +801,7 @@ describe('TankViewer web exporter config.xml parsing', () => {
   it('infers hull asset name from model file', () => {
     const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
     expect(config.hulls[0].assetName).toBe('Wasp');
-    expect(config.hulls[2].assetName).toBe('Hornet');
+    expect(config.hulls[2].assetName).toBe('Dictator');
   });
 
   it('infers hull M-level from details suffix', () => {
@@ -807,18 +819,18 @@ describe('TankViewer web exporter config.xml parsing', () => {
 
   it('parses correct number of turret model entries', () => {
     const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
-    expect(config.turrets).toHaveLength(2);
+    expect(config.turrets).toHaveLength(6); // 2 Smoky + 2 Twins + 2 Firebird
   });
 
   it('parses turret model file path', () => {
     const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
-    expect(config.turrets[0].file).toBe('turrets/Smoky_0123.3ds');
+    expect(config.turrets[0].file).toBe('turrets/Smoky_01.3ds');
   });
 
   it('infers turret asset name from model file', () => {
     const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
     expect(config.turrets[0].assetName).toBe('Smoky');
-    expect(config.turrets[1].assetName).toBe('Firebird');
+    expect(config.turrets[4].assetName).toBe('Firebird');
   });
 
   it('infers turret M-level from details suffix', () => {
@@ -833,9 +845,25 @@ describe('TankViewer web exporter config.xml parsing', () => {
 
   // ─── Inference helpers ──────────────────────────────────────────
 
-  it('inferAssetName: strips trailing _#### (4-digit model index)', () => {
+  it('inferAssetName: strips trailing _#### (4-digit suffix)', () => {
     expect(inferAssetName('hulls/Wasp_0123.3ds', 'hull')).toBe('Wasp');
-    expect(inferAssetName('turrets/Smoky_0123.3ds', 'turret')).toBe('Smoky');
+  });
+
+  it('inferAssetName: strips trailing _### (3-digit suffix)', () => {
+    expect(inferAssetName('turrets/Firebird_012.3ds', 'turret')).toBe('Firebird');
+    expect(inferAssetName('hulls/Dictator_012.3ds', 'hull')).toBe('Dictator');
+  });
+
+  it('inferAssetName: strips trailing _## (2-digit suffix)', () => {
+    expect(inferAssetName('turrets/Smoky_01.3ds', 'turret')).toBe('Smoky');
+    expect(inferAssetName('turrets/Smoky_23.3ds', 'turret')).toBe('Smoky');
+  });
+
+  it('inferAssetName: strips trailing _# (1-digit suffix)', () => {
+    expect(inferAssetName('turrets/Twins_2.3ds', 'turret')).toBe('Twins');
+    expect(inferAssetName('turrets/Twins_3.3ds', 'turret')).toBe('Twins');
+    expect(inferAssetName('hulls/Dictator_3.3ds', 'hull')).toBe('Dictator');
+    expect(inferAssetName('turrets/Firebird_3.3ds', 'turret')).toBe('Firebird');
   });
 
   it('inferAssetName: handles path without directory prefix', () => {
@@ -883,13 +911,13 @@ describe('TankViewer web exporter config.xml parsing', () => {
   it('finds unique hull asset names', () => {
     const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
     const names = [...new Set(config.hulls.map(e => e.assetName))].sort();
-    expect(names).toEqual(['Hornet', 'Wasp']);
+    expect(names).toEqual(['Dictator', 'Wasp']);
   });
 
   it('finds unique turret asset names', () => {
     const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
     const names = [...new Set(config.turrets.map(e => e.assetName))].sort();
-    expect(names).toEqual(['Firebird', 'Smoky']);
+    expect(names).toEqual(['Firebird', 'Smoky', 'Twins']);
   });
 
   it('finds specific entry by kind + asset + mLevel', () => {
