@@ -18,9 +18,9 @@ validates that selected filenames match the config entry.
 
 > **Important**: The web exporter is **experimental**. config.xml is the
 > source-of-truth for file mapping, but this tool is a diagnostic/preview
-> aid, not a production render path. The **Blender factory pipeline remains
-> the production path** and the **Flash viewer (movie.swf) remains the visual
-> reference**.
+> aid, not a production render path. The next step is to verify the
+> config-aware exporter with a real config.xml from TankViewer.zip, then
+> decide whether material/camera reverse-engineering is worth continuing.
 
 ## Quick Start
 
@@ -312,5 +312,6 @@ different coordinate convention (Z-up) and the camera is at azimuth 45.
 8. File validation: warns on filename mismatches against config entry
 
 **This does NOT make the web exporter production-ready.** It remains an
-experimental diagnostic/preview tool. The Blender factory pipeline is the
-production render path. The next step remains Blender factory proof render.
+experimental diagnostic/preview tool. The next step is to verify the
+config-aware exporter with a real config.xml from TankViewer.zip, then
+decide whether material/camera reverse-engineering is worth continuing.

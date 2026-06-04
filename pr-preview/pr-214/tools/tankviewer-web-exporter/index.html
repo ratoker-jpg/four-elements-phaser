@@ -341,9 +341,11 @@ function parseConfigXml(xmlText) {
     throw new Error('XML parse error: ' + parseError.textContent.slice(0, 200));
   }
 
-  const root = doc.querySelector('root');
+  // Real TankViewer config.xml uses <config camera-radius="750">.
+  // Fallback to <root> for synthetic/test XML.
+  const root = doc.querySelector('config') || doc.querySelector('root');
   if (!root) {
-    throw new Error('config.xml missing <root> element');
+    throw new Error('config.xml missing <config> or <root> element');
   }
 
   const cameraRadius = parseFloat(root.getAttribute('camera-radius')) || 750;
@@ -393,7 +395,10 @@ function parseConfigXml(xmlText) {
 
 /**
  * Infer the asset group/name from a model file path.
- * e.g. "hulls/Wasp_0123.3ds" → "Wasp", "turrets/Smoky_0123.3ds" → "Smoky"
+ * e.g. "hulls/Wasp_0123.3ds" → "Wasp", "turrets/Smoky_01.3ds" → "Smoky"
+ * Real TankViewer files use 1–4 digit suffixes after underscore:
+ *   Dictator_012.3ds, Dictator_3.3ds, Smoky_01.3ds, Smoky_23.3ds,
+ *   Twins_2.3ds, Firebird_012.3ds, Wasp_0123.3ds
  *
  * @param {string} filePath - Model file path from config
  * @param {string} kind - 'hull' or 'turret'
@@ -403,8 +408,9 @@ function inferAssetName(filePath, kind) {
   if (!filePath) return '';
   // Extract filename without path and extension
   const basename = filePath.split('/').pop().replace(/\.[^.]+$/, '');
-  // Strip trailing _#### (4-digit suffix like _0123)
-  const name = basename.replace(/_\d{4}$/, '');
+  // Strip trailing model-group suffix: underscore followed by 1–4 digits.
+  // This handles Wasp_0123, Dictator_012, Smoky_01, Twins_2, etc.
+  const name = basename.replace(/_\d{1,4}$/, '');
   // Capitalize first letter
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
