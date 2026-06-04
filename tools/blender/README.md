@@ -15,6 +15,11 @@ compatible with the game's CAMERA_PROJECTION_CONTRACT.
 Imports a .3ds file, applies textures, sets up an orthographic isometric camera,
 and renders the model at multiple rotation angles to transparent PNG files.
 
+**Direction convention:** dir0 = E (screen-right), matching the game's
+`directionFromDelta()` mapping: E=0, SE=1, S=2, SW=3, W=4, NW=5, N=6, NE=7.
+For 16 directions: 0=E, 1=ESE, 2=SE, 3=SSE, 4=S, 5=SSW, 6=SW, 7=WSW,
+8=W, 9=WNW, 10=NW, 11=NNW, 12=N, 13=NNE, 14=NE, 15=ENE.
+
 **Usage:**
 
 ```bash
@@ -53,7 +58,9 @@ blender --background --python tools/blender/render_tank_sprite.py -- \
 ### calibrate_camera.py
 
 Renders calibration markers through the isometric camera and computes expected
-screen positions using the CAMERA_PROJECTION_CONTRACT formula.
+screen positions using the CAMERA_PROJECTION_CONTRACT formula. Generates a
+calibration image for manual comparison — measure marker centers in the rendered
+PNG against expected positions in the report.
 
 **Usage (full render inside Blender):**
 

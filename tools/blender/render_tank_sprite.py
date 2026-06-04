@@ -7,6 +7,11 @@ Imports a .3ds file, applies details + lightmap textures, sets up an
 orthographic camera matching CAMERA_PROJECTION_CONTRACT, and renders
 the model at specified rotation angles to transparent PNG files.
 
+Direction convention (must match game's directionFromDelta):
+    8-dir:  0=E, 1=SE, 2=S, 3=SW, 4=W, 5=NW, 6=N, 7=NE
+    16-dir: 0=E, 1=ESE, 2=SE, 3=SSE, 4=S, 5=SSW, 6=SW, 7=WSW,
+            8=W, 9=WNW, 10=NW, 11=NNW, 12=N, 13=NNE, 14=NE, 15=ENE
+
 Usage (from Blender command line):
     blender --background --python tools/blender/render_tank_sprite.py -- \
         --source art/source/tankviewer/data/hulls/wasp \
@@ -62,6 +67,22 @@ CAMERA_ELEVATION_DEG = 35.264
 # In the game, 1 Z unit maps to 60 screen pixels.
 # So in Blender we need to scale Z by: gameRatio / standardRatio
 VERTICAL_STRETCH_FACTOR = abs(BASIS_Z[1]) / (TILE_H / 2)  # ~3.158
+
+# ─── Direction convention ────────────────────────────────────────────
+# Must match src/state/updateGameState directionFromDelta():
+#   E=0, SE=1, S=2, SW=3, W=4, NW=5, N=6, NE=7
+
+DIRECTION_NAMES_8 = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE']
+DIRECTION_NAMES_16 = [
+    'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW',
+    'W', 'WNW', 'NW', 'NNW', 'N', 'NNE', 'NE', 'ENE',
+]
+
+# Rotation offset so dir0 = E (screen-right) with isometric camera at
+# azimuth 45 degrees. With model default forward = +Y (Blender convention),
+# screen-E requires Z-rotation of 225 degrees. This may need adjustment
+# per model if the 3DS export uses a different default facing.
+ROTATION_OFFSET_DEG = 225.0
 
 
 def clear_scene():
@@ -132,23 +153,43 @@ def setup_camera(orthographic_scale=4.0):
     return cam_obj
 
 
+def resolve_3ds_import_operator():
+    """Resolve the 3DS import operator, handling version-dependent naming.
+
+    Blender's 3DS import addon exposes the operator under different names
+    depending on the Blender version:
+      - Blender 4.x+: bpy.ops.import_scene.autodesk_3ds
+      - Blender 3.x:  bpy.ops.import_scene["3ds"] (via getattr, since
+                       Python attributes cannot start with a digit)
+
+    Returns the operator if found, or None if the addon is not enabled.
+    """
+    # Try modern Blender 4.x+ name first
+    if hasattr(bpy.ops.import_scene, 'autodesk_3ds'):
+        return bpy.ops.import_scene.autodesk_3ds
+
+    # Try legacy Blender 3.x name ("3ds" is not a valid Python identifier,
+    # so we must use getattr to avoid SyntaxError at parse time)
+    op = getattr(bpy.ops.import_scene, '3ds', None)
+    if op is not None:
+        return op
+
+    return None
+
+
 def import_3ds(filepath):
     """Import a .3ds file into the current scene."""
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"3DS file not found: {filepath}")
 
-    # Try the built-in 3DS importer
-    try:
-        bpy.ops.import_scene.autodesk_3ds(filepath=filepath)
-    except AttributeError:
-        # Fallback: try alternative addon name
-        try:
-            bpy.ops.import_scene.3ds(filepath=filepath)
-        except AttributeError:
-            raise RuntimeError(
-                "Blender 3DS import addon not available. "
-                "Enable 'Import-Export: 3DS Format' in Blender Preferences > Add-ons."
-            )
+    op = resolve_3ds_import_operator()
+    if op is None:
+        raise RuntimeError(
+            "Blender 3DS import addon not available. "
+            "Enable 'Import-Export: 3DS Format' in Blender Preferences > Add-ons."
+        )
+
+    op(filepath=filepath)
 
 
 def apply_textures(diffuse_path, lightmap_path):
@@ -232,12 +273,21 @@ def apply_textures(diffuse_path, lightmap_path):
 def rotate_model_to_direction(direction_index, num_directions=16):
     """Rotate the model to face the specified direction index.
 
-    Direction 0 = facing north (positive Y in Blender = "up" on screen for isometric).
-    Each direction step rotates by 360/num_directions degrees around Z.
+    Direction convention (must match game's directionFromDelta):
+        8-dir:  0=E, 1=SE, 2=S, 3=SW, 4=W, 5=NW, 6=N, 7=NE
+        16-dir: 0=E, 1=ESE, 2=SE, 3=SSE, 4=S, 5=SSW, 6=SW, 7=WSW,
+                8=W, 9=WNW, 10=NW, 11=NNW, 12=N, 13=NNE, 14=NE, 15=ENE
+
+    The rotation includes ROTATION_OFFSET_DEG to account for the isometric
+    camera azimuth (45 degrees). With the model's default forward = +Y in
+    Blender, a Z-rotation offset of 225 degrees is needed so that dir0
+    produces a screen-East facing sprite. This offset may need adjustment
+    per model if the 3DS export uses a different default facing.
 
     The model is rotated in-place around its origin.
     """
-    angle_deg = direction_index * (360.0 / num_directions)
+    step = 360.0 / num_directions
+    angle_deg = ROTATION_OFFSET_DEG + direction_index * step
     angle_rad = math.radians(angle_deg)
 
     # Rotate all mesh objects around the Z axis
@@ -380,12 +430,17 @@ def main():
     name = args['name']
     faction = args['faction']
 
+    dir_names = DIRECTION_NAMES_16 if num_dirs == 16 else DIRECTION_NAMES_8 if num_dirs == 8 else None
+
     print(f"[render_tank_sprite] Rendering {num_dirs} directions for {name} ({faction})...")
+    print(f"[render_tank_sprite] Direction convention: dir0=E (screen-right)")
 
     manifest_entries = []
 
     for dir_idx in range(num_dirs):
-        angle_deg = dir_idx * (360.0 / num_dirs)
+        step = 360.0 / num_dirs
+        angle_deg = ROTATION_OFFSET_DEG + dir_idx * step
+        dir_name = dir_names[dir_idx] if dir_names and dir_idx < len(dir_names) else f'dir{dir_idx}'
 
         # Rotate model
         rotate_model_to_direction(dir_idx, num_dirs)
@@ -401,19 +456,22 @@ def main():
         manifest_entries.append({
             'key': f"{name}_{faction}_dir{dir_idx}",
             'direction': dir_idx,
+            'directionName': dir_name,
             'angleDeg': angle_deg,
             'filename': filename,
         })
 
-        print(f"  Rendered dir{dir_idx} ({angle_deg:.1f} deg) -> {output_path}")
+        print(f"  Rendered dir{dir_idx} ({dir_name}, {angle_deg:.1f} deg) -> {output_path}")
 
     # ── Write manifest ────────────────────────────────────────────────
     manifest = {
-        'version': 2,
+        'version': 3,
         'pipeline': 'tankviewer-blender-isometric',
         'name': name,
         'faction': faction,
         'directions': num_dirs,
+        'directionConvention': 'E=0, SE=1, S=2, SW=3, W=4, NW=5, N=6, NE=7',
+        'rotationOffsetDeg': ROTATION_OFFSET_DEG,
         'resolution': args['resolution'],
         'entries': manifest_entries,
     }

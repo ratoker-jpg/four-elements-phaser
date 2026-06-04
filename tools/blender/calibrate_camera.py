@@ -3,9 +3,9 @@ Blender Python script: calibrate_camera.py
 
 UNIT-ASSET-PIPELINE-01: Camera calibration for isometric sprite pipeline.
 
-Renders calibration markers (axis markers, cube, ground grid) through
-the Blender orthographic camera and compares pixel positions against
-the CAMERA_PROJECTION_CONTRACT projection formula.
+Generates expected screen positions using the CAMERA_PROJECTION_CONTRACT
+projection formula and renders a calibration image with colored markers
+at known world positions for manual comparison.
 
 The contract defines:
   screen = origin + worldX * basisX + worldY * basisY + worldZ * basisZ
@@ -18,8 +18,8 @@ This script:
   2. Renders them through the isometric camera.
   3. Computes expected screen positions using the contract formula.
   4. Saves a calibration report with expected positions and tolerance.
-  5. Denis inspects the rendered image and measures actual marker positions
-     to determine pixel error.
+  5. Manual inspection: measure actual marker positions in the rendered
+     image and compare against expected positions.
 
 Usage (from Blender command line):
     blender --background --python tools/blender/calibrate_camera.py -- \
@@ -244,8 +244,9 @@ def run_blender_calibration(output_dir, resolution, orthographic_scale):
         },
         'calibrationPoints': expected,
         'acceptanceTolerancePx': ACCEPTANCE_TOLERANCE_PX,
-        'note': 'Compare Blender-rendered marker positions against these expected positions. '
-                'Use image analysis or manual inspection to measure actual pixel coordinates.',
+        'note': 'This report contains expected positions computed from the CAMERA_PROJECTION_CONTRACT. '
+                'Open calibration_render.png and manually measure marker centers to determine actual pixel error. '
+                'Target: within +/-1 px of expected positions.',
     }
 
     report_path = os.path.join(output_dir, 'calibration_report.json')
@@ -333,7 +334,8 @@ def main():
             'acceptanceTolerancePx': ACCEPTANCE_TOLERANCE_PX,
             'blenderAvailable': False,
             'note': 'Blender was not available. Only expected positions are computed. '
-                    'Run inside Blender to generate the calibration render image.',
+                    'Run inside Blender to generate the calibration render image, then '
+                    'manually measure marker positions to determine pixel error.',
         }
 
         report_path = os.path.join(args['output'], 'calibration_report.json')

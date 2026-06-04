@@ -93,37 +93,41 @@ All tooling and manifest generation must map `firebird` → `flamethrower` at th
 
 ### Current state (8 directions)
 
-The current blockout/modular system uses 8 directions (dir0–dir7) with a 45-degree step. The ModularTankRenderer and modularUnitAssets use:
+The current blockout/modular system uses 8 directions (dir0–dir7) with a 45-degree step. The ModularTankRenderer and modularUnitAssets use the game's canonical `directionFromDelta()` convention:
 
 ```
-dir0 = facing north (up-right in isometric)
-dir1 = facing north-east
-...
-dir7 = facing north-west
+dir0 = facing E  (screen-right)
+dir1 = facing SE
+dir2 = facing S  (screen-down in isometric)
+dir3 = facing SW
+dir4 = facing W  (screen-left)
+dir5 = facing NW
+dir6 = facing N  (screen-up in isometric)
+dir7 = facing NE
 ```
 
 ### Target state (16 directions)
 
 The production pipeline uses 16 directions with a 22.5-degree step for smoother turret rotation. This is especially important for turrets that must aim precisely at targets.
 
-| Direction index | Angle (degrees) | Angle (radians) |
-|----------------|-----------------|-----------------|
-| dir0 | 0.0 | 0.0 |
-| dir1 | 22.5 | π/8 |
-| dir2 | 45.0 | π/4 |
-| dir3 | 67.5 | 3π/8 |
-| dir4 | 90.0 | π/2 |
-| dir5 | 112.5 | 5π/8 |
-| dir6 | 135.0 | 3π/4 |
-| dir7 | 157.5 | 7π/8 |
-| dir8 | 180.0 | π |
-| dir9 | 202.5 | 9π/8 |
-| dir10 | 225.0 | 5π/4 |
-| dir11 | 247.5 | 11π/8 |
-| dir12 | 270.0 | 3π/2 |
-| dir13 | 292.5 | 13π/8 |
-| dir14 | 315.0 | 7π/4 |
-| dir15 | 337.5 | 15π/8 |
+| Direction index | Name  | Angle (degrees) | Angle (radians) |
+|----------------|-------|-----------------|-----------------|
+| dir0           | E     | 0.0             | 0.0             |
+| dir1           | ESE   | 22.5            | π/8             |
+| dir2           | SE    | 45.0            | π/4             |
+| dir3           | SSE   | 67.5            | 3π/8            |
+| dir4           | S     | 90.0            | π/2             |
+| dir5           | SSW   | 112.5           | 5π/8            |
+| dir6           | SW    | 135.0           | 3π/4            |
+| dir7           | WSW   | 157.5           | 7π/8            |
+| dir8           | W     | 180.0           | π               |
+| dir9           | WNW   | 202.5           | 9π/8            |
+| dir10          | NW    | 225.0           | 5π/4            |
+| dir11          | NNW   | 247.5           | 11π/8           |
+| dir12          | N     | 270.0           | 3π/2            |
+| dir13          | NNE   | 292.5           | 13π/8           |
+| dir14          | NE    | 315.0           | 7π/4            |
+| dir15          | ENE   | 337.5           | 15π/8           |
 
 ### Why 16 directions for the first pilot
 
@@ -289,7 +293,7 @@ First pilot (UNIT-ASSET-PIPELINE-02/03):
 ## 12. Acceptance criteria for UNIT-ASSET-PIPELINE-01
 
 1. Blender Python script can import a .3ds file and apply textures.
-2. Camera calibration script renders test markers and reports pixel error vs. CAMERA_PROJECTION_CONTRACT.
+2. Camera calibration script renders test markers and generates expected positions and a calibration image for manual comparison against CAMERA_PROJECTION_CONTRACT (±1 px target).
 3. Pipeline documentation describes the complete workflow.
 4. .gitignore updated for local source/output paths.
 5. Dry-run manifest/path planning test passes.

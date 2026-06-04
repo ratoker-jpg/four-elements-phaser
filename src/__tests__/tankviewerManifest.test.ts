@@ -243,3 +243,79 @@ describe('TankViewer camera projection contract constants', () => {
     expect(angles[15]).toBe(337.5);
   });
 });
+
+// ─── Direction convention consistency tests ──────────────────────────
+
+describe('TankViewer direction convention', () => {
+  /**
+   * Canonical 8-direction naming: E=0, SE=1, S=2, SW=3, W=4, NW=5, N=6, NE=7
+   * Must match src/state/updateGameState directionFromDelta() and Blender
+   * render_tank_sprite.py DIRECTION_NAMES_8 / DIRECTION_NAMES_16.
+   */
+  const DIRECTION_NAMES_8 = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'] as const;
+  const DIRECTION_NAMES_16 = [
+    'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW',
+    'W', 'WNW', 'NW', 'NNW', 'N', 'NNE', 'NE', 'ENE',
+  ] as const;
+
+  it('8-dir: dir0 = E (screen-right), not N', () => {
+    expect(DIRECTION_NAMES_8[0]).toBe('E');
+  });
+
+  it('8-dir: dir6 = N (screen-up in isometric)', () => {
+    expect(DIRECTION_NAMES_8[6]).toBe('N');
+  });
+
+  it('8-dir: dir2 = S (screen-down in isometric)', () => {
+    expect(DIRECTION_NAMES_8[2]).toBe('S');
+  });
+
+  it('8-dir names match directionFromDelta convention', () => {
+    // directionFromDelta(1, -1) = 0 = E
+    // directionFromDelta(1, 0) = 1 = SE
+    // directionFromDelta(1, 1) = 2 = S
+    // directionFromDelta(0, 1) = 3 = SW
+    // directionFromDelta(-1, 1) = 4 = W
+    // directionFromDelta(-1, 0) = 5 = NW
+    // directionFromDelta(-1, -1) = 6 = N
+    // directionFromDelta(0, -1) = 7 = NE
+    expect(DIRECTION_NAMES_8).toHaveLength(8);
+    expect(DIRECTION_NAMES_8[0]).toBe('E');
+    expect(DIRECTION_NAMES_8[1]).toBe('SE');
+    expect(DIRECTION_NAMES_8[2]).toBe('S');
+    expect(DIRECTION_NAMES_8[3]).toBe('SW');
+    expect(DIRECTION_NAMES_8[4]).toBe('W');
+    expect(DIRECTION_NAMES_8[5]).toBe('NW');
+    expect(DIRECTION_NAMES_8[6]).toBe('N');
+    expect(DIRECTION_NAMES_8[7]).toBe('NE');
+  });
+
+  it('16-dir: dir0 = E, dir2 = SE, dir4 = S, dir8 = W, dir12 = N', () => {
+    expect(DIRECTION_NAMES_16[0]).toBe('E');
+    expect(DIRECTION_NAMES_16[2]).toBe('SE');
+    expect(DIRECTION_NAMES_16[4]).toBe('S');
+    expect(DIRECTION_NAMES_16[8]).toBe('W');
+    expect(DIRECTION_NAMES_16[12]).toBe('N');
+  });
+
+  it('16-dir: even indices match 8-dir names', () => {
+    for (let i = 0; i < 8; i++) {
+      expect(DIRECTION_NAMES_16[i * 2]).toBe(DIRECTION_NAMES_8[i]);
+    }
+  });
+
+  it('16-dir: odd indices are intercardinal sub-directions', () => {
+    expect(DIRECTION_NAMES_16[1]).toBe('ESE');
+    expect(DIRECTION_NAMES_16[3]).toBe('SSE');
+    expect(DIRECTION_NAMES_16[5]).toBe('SSW');
+    expect(DIRECTION_NAMES_16[7]).toBe('WSW');
+    expect(DIRECTION_NAMES_16[9]).toBe('WNW');
+    expect(DIRECTION_NAMES_16[11]).toBe('NNW');
+    expect(DIRECTION_NAMES_16[13]).toBe('NNE');
+    expect(DIRECTION_NAMES_16[15]).toBe('ENE');
+  });
+
+  it('16-dir has exactly 16 entries', () => {
+    expect(DIRECTION_NAMES_16).toHaveLength(16);
+  });
+});
