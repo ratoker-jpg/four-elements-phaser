@@ -30,6 +30,7 @@ import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from './occupa
 import { findPath, findPathToAdjacent } from './pathfinding';
 import { issueGridMoveCommand, issueGridStopCommand } from './movementStateMachine';
 import { angleFromTo } from './angleMath';
+import { clearWeaponPendingStates } from './weaponResources';
 
 // ─── Combat state per vehicle ────────────────────────────────────
 
@@ -271,6 +272,7 @@ export function stopChase(
 /**
  * Clear target-lock and stop chase for a vehicle.
  * Called when S key is pressed or when target is lost.
+ * CORE-STEP-08H+: Also cancels pending weapon states (wind-up, drum burst).
  */
 export function clearTargetLock(
   vehicle: BlockoutVehicleState,
@@ -278,6 +280,8 @@ export function clearTargetLock(
 ): void {
   vehicle.targetVehicleId = null;
   stopChase(vehicle, reservationMap);
+  // CORE-STEP-08H+: Cancel pending weapon states when target-lock is cleared
+  clearWeaponPendingStates(vehicle.weaponRuntime);
 }
 
 // ─── Batch combat update ───────────────────────────────────────────

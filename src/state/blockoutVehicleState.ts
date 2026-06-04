@@ -19,6 +19,8 @@ import type { BlockoutUpgradeId } from '../config/blockoutUpgradeData';
 import { getBlockoutBodyMaxHp } from '../config/blockoutBodyData';
 import { tileToScreen } from '../phaser/render/isometric';
 import { createGridMovementState } from './movementStateMachine';
+import type { WeaponRuntimeState } from './weaponRuntime';
+import { createWeaponRuntimeState } from './weaponRuntime';
 
 // ─── Arena Team Type (ARENA-02H+) ──────────────────────────────────
 
@@ -201,6 +203,13 @@ export interface BlockoutVehicleState {
   gridMovement: import('./movementStateMachine').GridMovementState;
   /** Whether this vehicle uses grid movement (true by default for new vehicles). CORE-STEP-06H+. */
   useGridMovement: boolean;
+
+  // ── CORE-STEP-08H+: Weapon runtime state ──────────────────────────
+
+  /** Weapon runtime state — per-vehicle weapon resource tracking. CORE-STEP-08H+. */
+  weaponRuntime: WeaponRuntimeState;
+  /** Vehicle modification level (M0-M3). Default 0. CORE-STEP-08H+. */
+  modificationLevel: number;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────
@@ -276,6 +285,8 @@ export function createBlockoutVehicle(
     aiHoldRadius: DEFAULT_AI_HOLD_RADIUS_PX,
     gridMovement: createGridMovementState(tx, ty, bodyAngle), // CORE-STEP-06H+
     useGridMovement: true, // CORE-STEP-06H+
+    weaponRuntime: createWeaponRuntimeState(weaponId, 0), // CORE-STEP-08H+: M0 default
+    modificationLevel: 0, // CORE-STEP-08H+: Default M0
   };
 }
 

@@ -214,7 +214,9 @@ describe('applying damage to vehicles', () => {
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
     const event = applyDamageToVehicle(vehicle, 'smoky', 20, bodyCenter.x, bodyCenter.y, 1000, 'direct');
     expect(event).not.toBeNull();
-    expect(vehicle.hp).toBe(160);
+    // CORE-STEP-08H+: Armor reduces damage. Wasp M0 armor=2, minDamagePercent=0.25
+    // finalDamage = max(20 - 2, 20 * 0.25) = max(18, 5) = 18
+    expect(vehicle.hp).toBe(180 - 18);
   });
 
   it('HP cannot go below 0', () => {
@@ -227,7 +229,9 @@ describe('applying damage to vehicles', () => {
   it('vehicle becomes destroyed at 0 HP', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
-    applyDamageToVehicle(vehicle, 'smoky', 180, bodyCenter.x, bodyCenter.y, 1000, 'direct');
+    // CORE-STEP-08H+: Need enough damage to overcome armor (armor=2, minDamagePercent=0.25)
+    // 240 damage -> max(240-2, 240*0.25) = max(238, 60) = 238 > 180 HP
+    applyDamageToVehicle(vehicle, 'smoky', 240, bodyCenter.x, bodyCenter.y, 1000, 'direct');
     expect(vehicle.isDestroyed).toBe(true);
     expect(vehicle.destroyedAt).toBe(1000);
   });
@@ -240,7 +244,8 @@ describe('applying damage to vehicles', () => {
     vehicle.targetWorldX = 100;
     vehicle.targetWorldY = 100;
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
-    applyDamageToVehicle(vehicle, 'smoky', 180, bodyCenter.x, bodyCenter.y, 1000, 'direct');
+    // CORE-STEP-08H+: Need enough damage to kill despite armor
+    applyDamageToVehicle(vehicle, 'smoky', 240, bodyCenter.x, bodyCenter.y, 1000, 'direct');
     expect(vehicle.fireHeld).toBe(false);
     expect(vehicle.isFiring).toBe(false);
     expect(vehicle.hasMoveTarget).toBe(false);
@@ -250,8 +255,8 @@ describe('applying damage to vehicles', () => {
   it('destroyed vehicle cannot be damaged again', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
-    // Kill the vehicle
-    applyDamageToVehicle(vehicle, 'smoky', 180, bodyCenter.x, bodyCenter.y, 1000, 'direct');
+    // Kill the vehicle — need enough damage to overcome armor (armor=2)
+    applyDamageToVehicle(vehicle, 'smoky', 240, bodyCenter.x, bodyCenter.y, 1000, 'direct');
     expect(vehicle.isDestroyed).toBe(true);
     // Try to damage again
     const event = applyDamageToVehicle(vehicle, 'smoky', 20, bodyCenter.x, bodyCenter.y, 1100, 'direct');
@@ -277,7 +282,9 @@ describe('applying damage to vehicles', () => {
   it('damage event isKill is true when vehicle dies', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
-    const event = applyDamageToVehicle(vehicle, 'smoky', 180, bodyCenter.x, bodyCenter.y, 1000, 'direct');
+    // CORE-STEP-08H+: Need enough damage to overcome armor (armor=2)
+    // 240 -> max(240-2, 240*0.25) = 238 > 180 HP
+    const event = applyDamageToVehicle(vehicle, 'smoky', 240, bodyCenter.x, bodyCenter.y, 1000, 'direct');
     expect(event!.isKill).toBe(true);
   });
 
@@ -1080,9 +1087,11 @@ describe('BLOCKOUT-09H fixup: damage event stores adjusted amount (armor_plating
     const hpLostWithArmor = vehicleWithArmor.maxHp - vehicleWithArmor.hp;
     expect(hpLostWithArmor).toBeLessThan(hpLostNoArmor);
 
-    // Verify the HP loss matches the incoming damage multiplier
+    // CORE-STEP-08H+: Body armor (2) is applied first, then upgrade multiplier
+    // No upgrade: max(50-2, 50*0.25) = 48; With upgrade: max(50-2, 50*0.25) * 0.95 = 48*0.95 = 45.6
     const multiplier = getIncomingDamageMultiplier(vehicleWithArmor);
-    const adjustedDamage = baseDamage * multiplier;
+    const armorReduced = Math.max(baseDamage - 2, baseDamage * 0.25);
+    const adjustedDamage = armorReduced * multiplier;
     expect(hpLostWithArmor).toBeCloseTo(adjustedDamage, 1);
   });
 
@@ -1095,9 +1104,11 @@ describe('BLOCKOUT-09H fixup: damage event stores adjusted amount (armor_plating
     const event = applyDamageToVehicle(vehicle, 'smoky', baseDamage, bodyCenter.x, bodyCenter.y, 1000, 'direct');
 
     expect(event).not.toBeNull();
+    // CORE-STEP-08H+: Body armor (was M0=2) is applied first, then upgrade multiplier.
+    // finalDamage = max(30-2, 30*0.25) = 28; then 28 * upgradeMultiplier
     const multiplier = getIncomingDamageMultiplier(vehicle);
-    const expectedAdjusted = baseDamage * multiplier;
-    // Event amount should match the adjusted (actual HP lost) amount, not the base amount
+    const expectedArmorReduced = Math.max(baseDamage - 2, baseDamage * 0.25);
+    const expectedAdjusted = expectedArmorReduced * multiplier;
     expect(event!.amount).toBeCloseTo(expectedAdjusted, 2);
     expect(event!.amount).toBeLessThan(baseDamage); // Armor reduces it
   });
@@ -1117,9 +1128,10 @@ describe('BLOCKOUT-09H fixup: damage event stores adjusted amount (armor_plating
     expect(events[0].amount).toBe(event!.amount);
     expect(events[0].amount).toBeLessThan(baseDamage);
 
-    // Verify the adjusted amount is what the renderer would display
+    // CORE-STEP-08H+: Body armor is applied before upgrade multiplier
     const multiplier = getIncomingDamageMultiplier(vehicle);
-    expect(events[0].amount).toBeCloseTo(baseDamage * multiplier, 2);
+    const expectedArmorReduced = Math.max(baseDamage - 2, baseDamage * 0.25); // Wasp M0 armor
+    expect(events[0].amount).toBeCloseTo(expectedArmorReduced * multiplier, 2);
   });
 
   it('non-armored vehicle event amount remains original amount', () => {
@@ -1131,9 +1143,11 @@ describe('BLOCKOUT-09H fixup: damage event stores adjusted amount (armor_plating
     const event = applyDamageToVehicle(vehicle, 'smoky', baseDamage, bodyCenter.x, bodyCenter.y, 1000, 'direct');
 
     expect(event).not.toBeNull();
-    // Without armor, adjusted amount equals base amount
-    expect(event!.amount).toBe(baseDamage);
-    expect(vehicle.hp).toBe(180 - baseDamage);
+    // CORE-STEP-08H+: Wasp M0 still has body armor=2, minDamagePercent=0.25
+    // finalDamage = max(30-2, 30*0.25) = max(28, 7.5) = 28
+    const expectedDamage = Math.max(baseDamage - 2, baseDamage * 0.25);
+    expect(event!.amount).toBeCloseTo(expectedDamage, 2);
+    expect(vehicle.hp).toBeCloseTo(180 - expectedDamage, 2);
   });
 
   it('kill event still works when adjusted damage kills', () => {
@@ -1145,7 +1159,8 @@ describe('BLOCKOUT-09H fixup: damage event stores adjusted amount (armor_plating
     vehicle.hp = 10;
 
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
-    // Base damage of 20, but adjusted will be 20 * 0.95 = 19 — enough to kill
+    // CORE-STEP-08H+: Body armor=2, then upgrade multiplier applied.
+    // 20 damage -> armor: max(20-2, 20*0.25) = 18; then 18 * 0.95 = 17.1 — enough to kill at 10 HP
     const event = applyDamageToVehicle(vehicle, 'smoky', 20, bodyCenter.x, bodyCenter.y, 1000, 'direct');
 
     expect(event).not.toBeNull();
@@ -1153,9 +1168,10 @@ describe('BLOCKOUT-09H fixup: damage event stores adjusted amount (armor_plating
     expect(vehicle.isDestroyed).toBe(true);
     expect(vehicle.hp).toBe(0);
 
-    // Event still stores adjusted amount
+    // Event still stores adjusted amount (body armor + upgrade multiplier)
     const multiplier = getIncomingDamageMultiplier(vehicle);
-    expect(event!.amount).toBeCloseTo(20 * multiplier, 2);
+    const expectedArmorReduced = Math.max(20 - 2, 20 * 0.25);
+    expect(event!.amount).toBeCloseTo(expectedArmorReduced * multiplier, 2);
   });
 
   it('base damage config is not mutated by armor adjustment', () => {

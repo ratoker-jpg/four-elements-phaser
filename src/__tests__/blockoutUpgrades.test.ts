@@ -38,6 +38,7 @@ import type { BlockoutVehicleState } from '../state/blockoutVehicleState';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
 import { createGridMovementState } from '../state/movementStateMachine';
+import { createWeaponRuntimeState } from '../state/weaponRuntime';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -91,6 +92,8 @@ function createTestVehicle(overrides: Partial<BlockoutVehicleState> = {}): Block
     aiHoldRadius: 200,
     gridMovement: createGridMovementState(10, 10, 0),
     useGridMovement: true,
+    weaponRuntime: createWeaponRuntimeState('smoky', 0),
+    modificationLevel: 0,
     ...overrides,
   };
 }
