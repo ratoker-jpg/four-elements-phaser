@@ -384,11 +384,12 @@ dirLight.position.set(5, 10, -5);
 scene.add(dirLight);
 
 // ─── State ───────────────────────────────────────────────────────────
-let loadedModel = null;    // Raw parsed 3DS model (child of wrapper)
-let modelWrapper = null;   // THREE.Group wrapper — holds scale/rotation, child is centered model
+let loadedModel = null;    // Raw parsed 3DS model (child of importRoot)
+let importRoot = null;     // SPIKE-04: Group for Z-up → Y-up import transform + centering
+let modelWrapper = null;   // THREE.Group wrapper — holds direction rotation + scale, child is importRoot
 let renderedImages = []; // { dirIdx, dirName, dataUrl }
-let loadedModelBbox = null; // Original bounding box before centering/scaling
-let loadedModelSize = null; // { x, y, z } original size dimensions
+let loadedModelBbox = null; // Bounding box after import transform (Y-up space)
+let loadedModelSize = null; // { x, y, z } size after import transform (Y-up space)
 
 // ─── Config-aware state ──────────────────────────────────────────────
 let parsedConfig = null;   // { cameraRadius, hulls: [...], turrets: [...], colormaps: [...] }
@@ -1059,7 +1060,7 @@ modelFileInput.addEventListener('change', async (e) => {
 
   const arrayBuffer = await file.arrayBuffer();
   try {
-    // Remove previous model (wrapper and child)
+    // Remove previous model (wrapper, importRoot, and raw model)
     if (modelWrapper) {
       scene.remove(modelWrapper);
       if (loadedModel) {
@@ -1072,36 +1073,52 @@ modelFileInput.addEventListener('change', async (e) => {
         });
       }
       modelWrapper = null;
+      importRoot = null;
       loadedModel = null;
     }
 
     loadedModel = loader.parse(arrayBuffer, '');
 
-    // Compute bounding box from raw model (before any transform)
-    const box = new THREE.Box3().setFromObject(loadedModel);
+    // ─── SPIKE-04: TankViewer Z-up → Three.js Y-up import transform ─────
+    // TankViewer 3DS geometry is Z-up (height = Z axis).
+    // Three.js convention is Y-up (height = Y axis).
+    // Without this transform, the tank length (source Y) becomes vertical
+    // and the real height (source Z) lies sideways.
+    // Fix: rotate importRoot.x = -90° which maps source +Z → Three.js +Y.
+    importRoot = new THREE.Group();
+    importRoot.name = 'tankviewer-z-up-to-three-y-up';
+    importRoot.rotation.x = -Math.PI / 2;
+    importRoot.add(loadedModel);
+
+    // Compute bounding box from importRoot (after Z→Y rotation), not raw model.
+    // This gives correct dimensions in Three.js Y-up space:
+    //   X = width, Y = height (was source Z), Z = depth (was source Y)
+    const box = new THREE.Box3().setFromObject(importRoot);
     const size = new THREE.Vector3();
     box.getSize(size);
     loadedModelBbox = box.clone();
     loadedModelSize = { x: size.x, y: size.y, z: size.z };
 
-    // Center the model using a wrapper group (Option B):
-    //   child.position = -center  → vertices centered at wrapper origin
-    //   wrapper.scale = normalizeScale  → scales the centered result
-    // This produces: normalizeScale * (V - center) instead of
-    // the buggy: normalizeScale * V - center
+    // Center importRoot at the origin so the model pivot is at its center.
+    // importRoot.position = -center shifts the rotated model so its
+    // center aligns with the wrapper origin.
     const center = box.getCenter(new THREE.Vector3());
-    loadedModel.position.set(-center.x, -center.y, -center.z);
+    importRoot.position.set(-center.x, -center.y, -center.z);
 
+    // modelWrapper handles direction rotation (Y-axis) and auto-fit scale.
+    // Reset rotation to 0 before adding to avoid stale direction angles.
     modelWrapper = new THREE.Group();
-    modelWrapper.add(loadedModel);
+    modelWrapper.add(importRoot);
     modelWrapper.scale.set(1, 1, 1); // unit scale until auto-fit applies
+    modelWrapper.rotation.y = 0;      // reset direction rotation
     autoFitInfo = null;
 
     scene.add(modelWrapper);
 
     log(`3DS-модель загружена.`, 'ok');
-    log(`  Исходный bbox: ${box.min.x.toFixed(2)},${box.min.y.toFixed(2)},${box.min.z.toFixed(2)} → ${box.max.x.toFixed(2)},${box.max.y.toFixed(2)},${box.max.z.toFixed(2)}`);
-    log(`  Исходный размер: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+    log(`  Импорт-трансформация: rotation.x = -90° (Z-up → Y-up)`, 'info');
+    log(`  Bbox после трансформации (Y-up): ${box.min.x.toFixed(2)},${box.min.y.toFixed(2)},${box.min.z.toFixed(2)} → ${box.max.x.toFixed(2)},${box.max.y.toFixed(2)},${box.max.z.toFixed(2)}`);
+    log(`  Размер после трансформации: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)} (X=ширина, Y=высота, Z=глубина)`);
 
     // Auto-apply fit if checkbox is on
     if (autoFitCheckbox.checked) {
@@ -1579,15 +1596,16 @@ btnExport.addEventListener('click', () => {
     });
   }
 
-  // Generate manifest (SPIKE-02: added alphaMode, textureFlipY, debugTextureMode)
+  // Generate manifest (SPIKE-04: added importTransform)
   const manifest = {
-    version: 4,
+    version: 5,
     pipeline: 'tankviewer-web-isometric',
     name,
     faction,
     directions: numDirs,
     directionConvention: 'E=0, SE=1, S=2, SW=3, W=4, NW=5, N=6, NE=7',
     rotationOffsetDeg: ROTATION_OFFSET_DEG,
+    importTransform: 'tankviewer-z-up-to-three-y-up-rotateX--90',
     resolution,
     materialMode: currentMaterialMode,
     alphaMode: currentAlphaMode,
@@ -1761,12 +1779,17 @@ function applyAutoFit() {
   const size = loadedModelSize;
   const normalizeScale = computeNormalizeScale(size, targetSize);
 
-  // Apply normalized scale to wrapper (not child), including zScale on Y axis.
-  // The child (loadedModel) has position=-center, so the transform becomes:
-  //   normalizeScale * (V - center)  [correct centering + scaling]
+  // Reset direction rotation before computing auto-fit bounds.
+  // If modelWrapper.rotation.y != 0 from a previous render, the bbox
+  // computation would be distorted.
+  modelWrapper.rotation.y = 0;
+
+  // Apply normalized scale to wrapper, including zScale on Y axis (height).
+  // With SPIKE-04 import transform, Y is now correctly the height axis.
+  // Hierarchy: modelWrapper (scale+direction) → importRoot (Z→Y rotation+centering) → loadedModel
   modelWrapper.scale.set(normalizeScale, normalizeScale * zScale, normalizeScale);
 
-  // Recompute bounding box from wrapper (includes child centering + wrapper scale)
+  // Recompute bounding box from wrapper (includes all transforms)
   const finalBox = new THREE.Box3().setFromObject(modelWrapper);
   const finalSizeVec = new THREE.Vector3();
   finalBox.getSize(finalSizeVec);
@@ -1782,8 +1805,8 @@ function applyAutoFit() {
   };
 
   log(`Автоподгонка применена:`);
-  log(`  Исходный bbox: ${loadedModelBbox.min.x.toFixed(2)},${loadedModelBbox.min.y.toFixed(2)},${loadedModelBbox.min.z.toFixed(2)} → ${loadedModelBbox.max.x.toFixed(2)},${loadedModelBbox.max.y.toFixed(2)},${loadedModelBbox.max.z.toFixed(2)}`);
-  log(`  Исходный размер: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+  log(`  Исходный bbox (Y-up): ${loadedModelBbox.min.x.toFixed(2)},${loadedModelBbox.min.y.toFixed(2)},${loadedModelBbox.min.z.toFixed(2)} → ${loadedModelBbox.max.x.toFixed(2)},${loadedModelBbox.max.y.toFixed(2)},${loadedModelBbox.max.z.toFixed(2)}`);
+  log(`  Исходный размер (Y-up): ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
   log(`  Масштаб нормализации: ${normalizeScale.toFixed(6)}`);
   log(`  Wrapper scale: (${normalizeScale.toFixed(6)}, ${(normalizeScale * zScale).toFixed(6)}, ${normalizeScale.toFixed(6)})`);
   log(`  Итоговый bbox (центрирован+масштаб): ${finalBox.min.x.toFixed(4)},${finalBox.min.y.toFixed(4)},${finalBox.min.z.toFixed(4)} → ${finalBox.max.x.toFixed(4)},${finalBox.max.y.toFixed(4)},${finalBox.max.z.toFixed(4)}`);
@@ -1816,7 +1839,8 @@ fitTargetSizeInput.addEventListener('change', () => {
 });
 
 // ─── Initial log (SPIKE-01) ──────────────────────────────────────────
-log('WEBEXPORTER-SPIKE-02: Диагностика UV / альфа для TankViewer композита.', 'ok');
+log('WEBEXPORTER-SPIKE-04: Z-up → Y-up импорт-трансформация + диагностика UV/альфа.', 'ok');
+log('SPIKE-04: TankViewer 3DS — Z-up, теперь вращение importRoot.x = -90° перед центрированием.', 'ok');
 log('Режим материала: Черновой (по умолчанию). Переключи на Композит TankViewer для диагностики.', 'info');
 log('SPIKE-02: Попробуй 4 комбинации: preserve-alpha/force-opaque × flipY true/false.', 'info');
 log('SPIKE-02: Режим отладки текстуры: композит / details-only / lightmap-only / UV-шахматка.', 'info');
