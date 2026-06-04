@@ -445,6 +445,17 @@ export class BlockoutVehicleRenderer {
       drawProjectedCrosshair(g, cx, cy, crossSize, this.offset);
     }
 
+    // ── CORE-STEP-07H+: Target-lock status indicator on attacker ──
+    // Show a small colored dot above the turret when this vehicle has an active target-lock
+    if (vehicle.targetVehicleId && !vehicle.isDestroyed) {
+      // Target-lock active: show yellow dot above turret
+      const lockIndicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.3;
+      const tilePosLocal = unprojectScreenToGround(cx, cy, this.offset);
+      const lockPos = projectWorldPoint(tilePosLocal.x, tilePosLocal.y, lockIndicatorZ, this.offset);
+      g.fillStyle(0xffcc00, 0.9); // Yellow target-lock indicator
+      g.fillCircle(lockPos.x, lockPos.y, 3);
+    }
+
     // ── ARENA-03H+: Enemy team indicator (small red diamond above HP bar) ──
     if (vehicle.team === 'enemy' && !vehicle.isDestroyed) {
       const indicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.2;

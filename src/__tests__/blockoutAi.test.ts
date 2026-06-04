@@ -182,6 +182,10 @@ describe('ARENA-05H+ stationary_shooter', () => {
     const enemy = createEnemy(8, 8, 'stationary_shooter');
     const vehicles = [ally, enemy];
 
+    // Pre-align turret so isTurretAimed returns true (CORE-STEP-07H+ requirement)
+    aimTurretAtTarget(enemy, ally, OFFSET_X, OFFSET_Y);
+    enemy.turretAngle = enemy.turretTargetAngle;
+
     updateBlockoutAi(vehicles, makeOptions());
 
     expect(enemy.targetVehicleId).toBe(ally.id);
@@ -279,6 +283,10 @@ describe('ARENA-05H+ hold_position', () => {
     const enemy = createEnemy(6, 6, 'hold_position');
     enemy.aiHoldRadius = 500; // Large enough to include ally within weapon range
     const vehicles = [ally, enemy];
+
+    // Pre-align turret so isTurretAimed returns true (CORE-STEP-07H+ requirement)
+    aimTurretAtTarget(enemy, ally, OFFSET_X, OFFSET_Y);
+    enemy.turretAngle = enemy.turretTargetAngle;
 
     updateBlockoutAi(vehicles, makeOptions());
 
@@ -497,6 +505,10 @@ describe('ARENA-05H+ fixup: fireWeapon callback for single-shot AI weapons', () 
     const vehicles = [ally, enemy];
     const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
 
+    // Pre-align turret so isTurretAimed returns true (CORE-STEP-07H+ requirement)
+    aimTurretAtTarget(enemy, ally, OFFSET_X, OFFSET_Y);
+    enemy.turretAngle = enemy.turretTargetAngle;
+
     updateBlockoutAi(vehicles, {
       ...makeOptions(),
       fireWeapon: (e, t, now) => { fireCalls.push({ enemy: e, target: t, nowMs: now }); },
@@ -517,6 +529,10 @@ describe('ARENA-05H+ fixup: fireWeapon callback for single-shot AI weapons', () 
     const vehicles = [ally, enemy];
     const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
 
+    // Pre-align turret so isTurretAimed returns true (CORE-STEP-07H+ requirement)
+    aimTurretAtTarget(enemy, ally, OFFSET_X, OFFSET_Y);
+    enemy.turretAngle = enemy.turretTargetAngle;
+
     updateBlockoutAi(vehicles, {
       ...makeOptions(),
       fireWeapon: (e, t, now) => { fireCalls.push({ enemy: e, target: t, nowMs: now }); },
@@ -533,6 +549,10 @@ describe('ARENA-05H+ fixup: fireWeapon callback for single-shot AI weapons', () 
     enemy.aiHoldRadius = 500;
     const vehicles = [ally, enemy];
     const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
+
+    // Pre-align turret so isTurretAimed returns true (CORE-STEP-07H+ requirement)
+    aimTurretAtTarget(enemy, ally, OFFSET_X, OFFSET_Y);
+    enemy.turretAngle = enemy.turretTargetAngle;
 
     updateBlockoutAi(vehicles, {
       ...makeOptions(),
@@ -551,6 +571,10 @@ describe('ARENA-05H+ fixup: fireWeapon callback for single-shot AI weapons', () 
     enemy.aiMode = 'stationary_shooter';
     const vehicles = [ally, enemy];
     const fireCalls: Array<{ enemy: BlockoutVehicleState; target: BlockoutVehicleState; nowMs: number }> = [];
+
+    // Pre-align turret so isTurretAimed returns true (CORE-STEP-07H+ requirement)
+    aimTurretAtTarget(enemy, ally, OFFSET_X, OFFSET_Y);
+    enemy.turretAngle = enemy.turretTargetAngle;
 
     updateBlockoutAi(vehicles, {
       ...makeOptions(),
@@ -615,6 +639,10 @@ describe('ARENA-05H+ fixup: fireWeapon callback for single-shot AI weapons', () 
     const ally = createAlly(5, 5);
     const enemy = createEnemy(8, 8, 'stationary_shooter'); // smoky = single-shot
     const vehicles = [ally, enemy];
+
+    // Pre-align turret so isTurretAimed returns true (CORE-STEP-07H+ requirement)
+    aimTurretAtTarget(enemy, ally, OFFSET_X, OFFSET_Y);
+    enemy.turretAngle = enemy.turretTargetAngle;
 
     // No fireWeapon callback — backward compatible behavior
     updateBlockoutAi(vehicles, makeOptions());

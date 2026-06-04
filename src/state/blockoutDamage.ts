@@ -22,6 +22,10 @@ import { DAMAGE_PROFILES } from '../config/blockoutDamageData';
 import { computeBodyWorldCenter, getBodyPixelSize } from '../phaser/render/blockoutVehicleGeometry';
 import type { IsoPoint } from '../phaser/render/isometric';
 import { getEffectiveDamageProfile, getIncomingDamageMultiplier, getCooldownMultiplier } from './blockoutUpgrades';
+import { checkDirectHit, checkConeHit, findSplashTargets as findProjectedSplashTargets, getAimForgiveness, screenAngleToGroundAngle } from './combatHitModel';
+import { getWeaponConfig } from '../config/weaponData';
+import { getWeaponRangeInfo, groundDistanceTiles } from './combatRange';
+import { TILE_W, TILE_H } from '../config/worldConfig';
 
 // ─── Damage Event ──────────────────────────────────────────────────
 
@@ -469,6 +473,14 @@ export function findRicochetTargets(
  * Apply weapon damage based on damage profile.
  * Main entry point for single-shot weapons.
  *
+ * CORE-STEP-07H+ FIXUP-2:
+ * - Blocker 1: aimAngle (screen-space turret angle) is converted to ground-plane
+ *   angle before calling hit model functions, so checkDirectHit/checkConeHit
+ *   compare like-for-like with the tile-space atan2 they compute internally.
+ * - Blocker 2: For production-config weapons, the projected hit model is the
+ *   primary candidate selector. Old screen-space findDirectHitTarget is only
+ *   used as fallback for weapons without production config.
+ *
  * @returns Array of damage events created
  */
 export function applyBlockoutWeaponDamage(
@@ -492,18 +504,54 @@ export function applyBlockoutWeaponDamage(
   const rangePx = profile.rangePx ?? 200;
   const events: BlockoutDamageEvent[] = [];
 
+  // CORE-STEP-07H+: When weapon has a production config, use projected hit model
+  const weaponCfg = getWeaponConfig(firingVehicle.weaponId);
+
+  // FIXUP-2 Blocker 1: Convert screen-space aimAngle to ground-plane aimAngle.
+  // aimAngle comes from vehicle.turretAngle which is screen-space (computed from
+  // projected screen coordinates). The hit model functions compare aimAngle with
+  // atan2 of tile deltas, so we must convert to ground-plane first.
+  const groundAimAngle = screenAngleToGroundAngle(aimAngle);
+
   switch (damageKind) {
     case 'direct': {
-      const target = findDirectHitTarget(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
-      if (target) {
-        const bodyCenter = computeBodyWorldCenter(target, offset);
-        // BLOCKOUT-08H: Direct shots blocked by obstacles between barrel and target
-        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
-          break; // Blocked by obstacle
+      if (weaponCfg) {
+        // FIXUP-2 Blocker 2: Iterate all enemy candidates using projected hit model
+        // as source of truth. Choose nearest valid hit by ground-plane distance.
+        let bestTarget: BlockoutVehicleState | null = null;
+        let bestDist = Infinity;
+        for (const vehicle of vehicles) {
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          const hitResult = checkDirectHit(firingVehicle, vehicle, groundAimAngle, firingVehicle.weaponId);
+          if (hitResult.isHit) {
+            const dist = groundDistanceTiles(firingVehicle, vehicle);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestTarget = vehicle;
+            }
+          }
         }
-        const amount = profile.directDamage ?? 20;
-        const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'direct');
-        if (event) events.push(event);
+        if (bestTarget) {
+          const bodyCenter = computeBodyWorldCenter(bestTarget, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+            break;
+          }
+          const amount = profile.directDamage ?? 20;
+          const event = applyDamageToVehicle(bestTarget, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'direct');
+          if (event) events.push(event);
+        }
+      } else {
+        // Old screen-space path (fallback for weapons without production config)
+        const target = findDirectHitTarget(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
+        if (target) {
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+            break;
+          }
+          const amount = profile.directDamage ?? 20;
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'direct');
+          if (event) events.push(event);
+        }
       }
       break;
     }
@@ -529,142 +577,323 @@ export function applyBlockoutWeaponDamage(
         }
       }
 
-      const targets = findSplashTargets(firingVehicle, vehicles, impactX, impactY, profile.radiusPx ?? 60, offset);
-      const baseAmount = profile.directDamage ?? 25;
-      for (const target of targets) {
-        const bodyCenter = computeBodyWorldCenter(target, offset);
-        // Splash falloff: reduce damage based on distance from impact
-        let amount = baseAmount;
-        if (profile.splashFalloff) {
-          const dist = pointDistance(impactX, impactY, bodyCenter.x, bodyCenter.y);
-          const radius = profile.radiusPx ?? 60;
-          const falloff = 1 - (dist / radius) * 0.5; // 50% falloff at edge
-          amount = Math.round(baseAmount * falloff);
+      if (weaponCfg) {
+        // Projected splash hit model path
+        // Convert screen-space impact to tile coordinates using isometric inverse projection
+        const impactNoOffsetX = impactX - offset.x;
+        const impactNoOffsetY = impactY - offset.y;
+        const halfW = TILE_W / 2;
+        const halfH = TILE_H / 2;
+        const impactTileX = (impactNoOffsetX / halfW + impactNoOffsetY / halfH) / 2;
+        const impactTileY = (impactNoOffsetY / halfH - impactNoOffsetX / halfW) / 2;
+        const forgiveness = getAimForgiveness(firingVehicle.weaponId);
+        const splashRadiusTiles = forgiveness.splashRadiusTiles || weaponCfg.damage.splashRadius;
+        const splashTargets = findProjectedSplashTargets(firingVehicle.id, vehicles, impactTileX, impactTileY, splashRadiusTiles, weaponCfg.damage.selfDamageScale ?? 0);
+        const baseAmount = profile.directDamage ?? 25;
+        for (const target of splashTargets) {
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          let amount = baseAmount;
+          if (profile.splashFalloff) {
+            const dist = pointDistance(impactX, impactY, bodyCenter.x, bodyCenter.y);
+            const radius = profile.radiusPx ?? 60;
+            const falloff = 1 - (dist / radius) * 0.5;
+            amount = Math.round(baseAmount * falloff);
+          }
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'splash');
+          if (event) events.push(event);
         }
-        const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'splash');
-        if (event) events.push(event);
+      } else {
+        // Old screen-space path
+        const targets = findSplashTargets(firingVehicle, vehicles, impactX, impactY, profile.radiusPx ?? 60, offset);
+        const baseAmount = profile.directDamage ?? 25;
+        for (const target of targets) {
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          let amount = baseAmount;
+          if (profile.splashFalloff) {
+            const dist = pointDistance(impactX, impactY, bodyCenter.x, bodyCenter.y);
+            const radius = profile.radiusPx ?? 60;
+            const falloff = 1 - (dist / radius) * 0.5;
+            amount = Math.round(baseAmount * falloff);
+          }
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'splash');
+          if (event) events.push(event);
+        }
       }
       break;
     }
 
     case 'penetration': {
-      const targets = findPenetrationTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, profile.pierceCount ?? 3, offset);
-      const amount = profile.directDamage ?? 40;
-      for (const target of targets) {
-        const bodyCenter = computeBodyWorldCenter(target, offset);
-        // BLOCKOUT-08H: Penetration blocked by non-pierceable obstacles; pierceable obstacles ignored
-        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y, true)) {
-          continue; // Blocked by non-pierceable obstacle
+      if (weaponCfg) {
+        // FIXUP-2 Blocker 2: Iterate all candidates, apply projected hit check,
+        // sort by ground-plane distance, apply pierceCount.
+        const candidates: { vehicle: BlockoutVehicleState; dist: number }[] = [];
+        for (const vehicle of vehicles) {
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          const hitResult = checkDirectHit(firingVehicle, vehicle, groundAimAngle, firingVehicle.weaponId);
+          if (hitResult.isHit) {
+            const dist = groundDistanceTiles(firingVehicle, vehicle);
+            candidates.push({ vehicle, dist });
+          }
         }
-        const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'penetration');
-        if (event) events.push(event);
+        candidates.sort((a, b) => a.dist - b.dist);
+        const pierceCount = profile.pierceCount ?? 3;
+        const amount = profile.directDamage ?? 40;
+        for (const candidate of candidates.slice(0, pierceCount)) {
+          const target = candidate.vehicle;
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y, true)) {
+            continue;
+          }
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'penetration');
+          if (event) events.push(event);
+        }
+      } else {
+        // Old screen-space path
+        const targets = findPenetrationTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, profile.pierceCount ?? 3, offset);
+        const amount = profile.directDamage ?? 40;
+        for (const target of targets) {
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y, true)) {
+            continue;
+          }
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'penetration');
+          if (event) events.push(event);
+        }
       }
       break;
     }
 
     case 'cone_tick': {
-      const targets = findConeTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, profile.coneAngleDeg ?? 25, offset);
-      const dps = profile.damagePerSecond ?? 30;
-      const tickMs = profile.tickMs ?? 50;
-      const amount = dps * tickMs / 1000;
-      for (const target of targets) {
-        const bodyCenter = computeBodyWorldCenter(target, offset);
-        // BLOCKOUT-08H: Cone targets blocked if line from origin to target hits obstacle
-        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
-          continue;
+      if (weaponCfg) {
+        // Projected hit model path: use checkConeHit with ground-plane aimAngle
+        const forgiveness = getAimForgiveness(firingVehicle.weaponId);
+        const rangeInfo = getWeaponRangeInfo(firingVehicle.weaponId);
+        const dps = profile.damagePerSecond ?? 30;
+        const tickMs = profile.tickMs ?? 50;
+        const amount = dps * tickMs / 1000;
+        for (const vehicle of vehicles) {
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          if (checkConeHit(firingVehicle, vehicle, groundAimAngle, forgiveness.coneHalfAngleDeg, rangeInfo.maxRange)) {
+            const bodyCenter = computeBodyWorldCenter(vehicle, offset);
+            if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) continue;
+            const event = applyDamageToVehicle(vehicle, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'cone_tick', profile.statusTag);
+            if (event) events.push(event);
+          }
         }
-        const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'cone_tick', profile.statusTag);
-        if (event) events.push(event);
+      } else {
+        // Old screen-space path
+        const targets = findConeTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, profile.coneAngleDeg ?? 25, offset);
+        const dps = profile.damagePerSecond ?? 30;
+        const tickMs = profile.tickMs ?? 50;
+        const amount = dps * tickMs / 1000;
+        for (const target of targets) {
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+            continue;
+          }
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'cone_tick', profile.statusTag);
+          if (event) events.push(event);
+        }
       }
       break;
     }
 
     case 'beam_tick': {
-      const targets = findBeamTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
-      const dps = profile.damagePerSecond ?? 25;
-      const tickMs = profile.tickMs ?? 50;
-      const amount = dps * tickMs / 1000;
-      for (const target of targets) {
-        const bodyCenter = computeBodyWorldCenter(target, offset);
-        // BLOCKOUT-08H: Beam targets blocked if line from origin to target hits obstacle
-        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
-          continue;
+      if (weaponCfg) {
+        // Projected hit model path: use checkDirectHit with ground-plane aimAngle
+        const dps = profile.damagePerSecond ?? 25;
+        const tickMs = profile.tickMs ?? 50;
+        const amount = dps * tickMs / 1000;
+        for (const vehicle of vehicles) {
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          const hitResult = checkDirectHit(firingVehicle, vehicle, groundAimAngle, firingVehicle.weaponId);
+          if (hitResult.isHit) {
+            const bodyCenter = computeBodyWorldCenter(vehicle, offset);
+            if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) continue;
+            const event = applyDamageToVehicle(vehicle, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'beam_tick', profile.statusTag);
+            if (event) events.push(event);
+          }
         }
-        const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'beam_tick', profile.statusTag);
-        if (event) events.push(event);
+      } else {
+        // Old screen-space path
+        const targets = findBeamTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
+        const dps = profile.damagePerSecond ?? 25;
+        const tickMs = profile.tickMs ?? 50;
+        const amount = dps * tickMs / 1000;
+        for (const target of targets) {
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+            continue;
+          }
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'beam_tick', profile.statusTag);
+          if (event) events.push(event);
+        }
       }
       break;
     }
 
     case 'rapid_tick': {
-      const target = findDirectHitTarget(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
-      if (target) {
-        const bodyCenter = computeBodyWorldCenter(target, offset);
-        // BLOCKOUT-08H: Rapid fire blocked by obstacles
-        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
-          break;
+      if (weaponCfg) {
+        // FIXUP-2 Blocker 2: Use projected hit model as primary selector
+        let bestTarget: BlockoutVehicleState | null = null;
+        let bestDist = Infinity;
+        for (const vehicle of vehicles) {
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          const hitResult = checkDirectHit(firingVehicle, vehicle, groundAimAngle, firingVehicle.weaponId);
+          if (hitResult.isHit) {
+            const dist = groundDistanceTiles(firingVehicle, vehicle);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestTarget = vehicle;
+            }
+          }
         }
-        const amount = profile.directDamage ?? 5;
-        const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'rapid_tick', profile.statusTag);
-        if (event) events.push(event);
+        if (bestTarget) {
+          const bodyCenter = computeBodyWorldCenter(bestTarget, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+            break;
+          }
+          const amount = profile.directDamage ?? 5;
+          const event = applyDamageToVehicle(bestTarget, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'rapid_tick', profile.statusTag);
+          if (event) events.push(event);
+        }
+      } else {
+        // Old screen-space path
+        const target = findDirectHitTarget(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
+        if (target) {
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+            break;
+          }
+          const amount = profile.directDamage ?? 5;
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'rapid_tick', profile.statusTag);
+          if (event) events.push(event);
+        }
       }
       break;
     }
 
     case 'plasma': {
-      const target = findDirectHitTarget(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
-      if (target) {
-        const bodyCenter = computeBodyWorldCenter(target, offset);
-        // BLOCKOUT-08H: Plasma blocked by obstacles
-        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
-          break;
+      if (weaponCfg) {
+        // FIXUP-2 Blocker 2: Use projected hit model as primary selector
+        let bestTarget: BlockoutVehicleState | null = null;
+        let bestDist = Infinity;
+        for (const vehicle of vehicles) {
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          const hitResult = checkDirectHit(firingVehicle, vehicle, groundAimAngle, firingVehicle.weaponId);
+          if (hitResult.isHit) {
+            const dist = groundDistanceTiles(firingVehicle, vehicle);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestTarget = vehicle;
+            }
+          }
         }
-        const amount = profile.directDamage ?? 12;
-        const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'plasma', profile.statusTag);
-        if (event) events.push(event);
+        if (bestTarget) {
+          const bodyCenter = computeBodyWorldCenter(bestTarget, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+            break;
+          }
+          const amount = profile.directDamage ?? 12;
+          const event = applyDamageToVehicle(bestTarget, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'plasma', profile.statusTag);
+          if (event) events.push(event);
+        }
+      } else {
+        // Old screen-space path
+        const target = findDirectHitTarget(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, offset);
+        if (target) {
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+            break;
+          }
+          const amount = profile.directDamage ?? 12;
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'plasma', profile.statusTag);
+          if (event) events.push(event);
+        }
       }
       break;
     }
 
     case 'ricochet': {
-      const bounceCount = 2; // Match VFX renderer
-      const targets = findRicochetTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, bounceCount, offset);
-      const amount = profile.directDamage ?? 18;
-      for (const target of targets) {
-        const bodyCenter = computeBodyWorldCenter(target, offset);
-        // BLOCKOUT-08H: Ricochet targets blocked if line from origin to target hits obstacle
-        // Placeholder: checks direct line only, not segment-by-segment
-        if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
-          continue;
+      if (weaponCfg) {
+        // Projected hit model path: validate ricochet targets with checkDirectHit
+        // using ground-plane aimAngle
+        const bounceCount = 2;
+        const targets = findRicochetTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, bounceCount, offset);
+        const amount = profile.directDamage ?? 18;
+        for (const target of targets) {
+          const hitResult = checkDirectHit(firingVehicle, target, groundAimAngle, firingVehicle.weaponId);
+          if (!hitResult.isHit) continue;
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+            continue;
+          }
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'ricochet', profile.statusTag);
+          if (event) events.push(event);
         }
-        const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'ricochet', profile.statusTag);
-        if (event) events.push(event);
+      } else {
+        // Old screen-space path
+        const bounceCount = 2;
+        const targets = findRicochetTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, bounceCount, offset);
+        const amount = profile.directDamage ?? 18;
+        for (const target of targets) {
+          const bodyCenter = computeBodyWorldCenter(target, offset);
+          if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
+            continue;
+          }
+          const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'ricochet', profile.statusTag);
+          if (event) events.push(event);
+        }
       }
       break;
     }
 
     case 'shotgun': {
-      const pelletHits = findShotgunTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, profile.coneAngleDeg ?? 30, profile.pelletCount ?? 5, offset);
-      // Each pellet does full weapon damage / pelletCount (total damage = weapon damage)
-      const totalDamage = profile.directDamage ?? 35;
-      const pelletCount = profile.pelletCount ?? 5;
-      const damagePerPellet = totalDamage / pelletCount;
-      for (const hit of pelletHits) {
-        const bodyCenter = computeBodyWorldCenter(hit.vehicle, offset);
-        // BLOCKOUT-08H: Each pellet ray can be blocked by obstacle
-        if (obstacles.length > 0) {
-          // Compute pellet angle for this pellet
-          const halfAngleRad = ((profile.coneAngleDeg ?? 30) * Math.PI) / 180;
-          const fraction = pelletCount > 1 ? hit.pelletIndex / (pelletCount - 1) : 0.5;
-          const pelletAngle = aimAngle - halfAngleRad + fraction * 2 * halfAngleRad;
-          const pelletEndX = barrelTipX + Math.cos(pelletAngle) * rangePx;
-          const pelletEndY = barrelTipY + Math.sin(pelletAngle) * rangePx;
-          if (isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, pelletEndX, pelletEndY)) {
-            continue;
+      if (weaponCfg) {
+        // Projected hit model path: use checkConeHit for each pellet
+        // FIXUP-2 Blocker 1: Convert each pellet's screen-space angle to ground-plane
+        const forgiveness = getAimForgiveness(firingVehicle.weaponId);
+        const rangeInfo = getWeaponRangeInfo(firingVehicle.weaponId);
+        const totalDamage = profile.directDamage ?? 35;
+        const pelletCount = profile.pelletCount ?? 5;
+        const damagePerPellet = totalDamage / pelletCount;
+        const halfAngleRad = ((profile.coneAngleDeg ?? 30) * Math.PI) / 180;
+        for (let i = 0; i < pelletCount; i++) {
+          const fraction = pelletCount > 1 ? i / (pelletCount - 1) : 0.5;
+          const pelletScreenAngle = aimAngle - halfAngleRad + fraction * 2 * halfAngleRad;
+          const pelletGroundAngle = screenAngleToGroundAngle(pelletScreenAngle);
+          for (const vehicle of vehicles) {
+            if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+            if (checkConeHit(firingVehicle, vehicle, pelletGroundAngle, forgiveness.coneHalfAngleDeg, rangeInfo.maxRange)) {
+              const bodyCenter = computeBodyWorldCenter(vehicle, offset);
+              if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) continue;
+              const event = applyDamageToVehicle(vehicle, firingVehicle.weaponId, damagePerPellet, bodyCenter.x, bodyCenter.y, nowMs, 'shotgun');
+              if (event) events.push(event);
+              break; // Each pellet hits at most one vehicle
+            }
           }
         }
-        const event = applyDamageToVehicle(hit.vehicle, firingVehicle.weaponId, damagePerPellet, bodyCenter.x, bodyCenter.y, nowMs, 'shotgun');
-        if (event) events.push(event);
+      } else {
+        // Old screen-space path
+        const pelletHits = findShotgunTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, profile.coneAngleDeg ?? 30, profile.pelletCount ?? 5, offset);
+        const totalDamage = profile.directDamage ?? 35;
+        const pelletCount = profile.pelletCount ?? 5;
+        const damagePerPellet = totalDamage / pelletCount;
+        for (const hit of pelletHits) {
+          const bodyCenter = computeBodyWorldCenter(hit.vehicle, offset);
+          if (obstacles.length > 0) {
+            const halfAngleRad = ((profile.coneAngleDeg ?? 30) * Math.PI) / 180;
+            const fraction = pelletCount > 1 ? hit.pelletIndex / (pelletCount - 1) : 0.5;
+            const pelletAngle = aimAngle - halfAngleRad + fraction * 2 * halfAngleRad;
+            const pelletEndX = barrelTipX + Math.cos(pelletAngle) * rangePx;
+            const pelletEndY = barrelTipY + Math.sin(pelletAngle) * rangePx;
+            if (isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, pelletEndX, pelletEndY)) {
+              continue;
+            }
+          }
+          const event = applyDamageToVehicle(hit.vehicle, firingVehicle.weaponId, damagePerPellet, bodyCenter.x, bodyCenter.y, nowMs, 'shotgun');
+          if (event) events.push(event);
+        }
       }
       break;
     }
