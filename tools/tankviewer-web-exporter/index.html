@@ -232,7 +232,8 @@ dirLight.position.set(5, 10, -5);
 scene.add(dirLight);
 
 // ─── State ───────────────────────────────────────────────────────────
-let loadedModel = null;
+let loadedModel = null;    // Raw parsed 3DS model (child of wrapper)
+let modelWrapper = null;   // THREE.Group wrapper — holds scale/rotation, child is centered model
 let renderedImages = []; // { dirIdx, dirName, dataUrl }
 let loadedModelBbox = null; // Original bounding box before centering/scaling
 let loadedModelSize = null; // { x, y, z } original size dimensions
@@ -256,36 +257,45 @@ modelFileInput.addEventListener('change', async (e) => {
 
   const arrayBuffer = await file.arrayBuffer();
   try {
-    // Remove previous model
-    if (loadedModel) {
-      scene.remove(loadedModel);
-      loadedModel.traverse((child) => {
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) {
-          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-          else child.material.dispose();
-        }
-      });
+    // Remove previous model (wrapper and child)
+    if (modelWrapper) {
+      scene.remove(modelWrapper);
+      if (loadedModel) {
+        loadedModel.traverse((child) => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
+      modelWrapper = null;
+      loadedModel = null;
     }
 
     loadedModel = loader.parse(arrayBuffer, '');
 
-    // Compute bounding box before any modifications
+    // Compute bounding box from raw model (before any transform)
     const box = new THREE.Box3().setFromObject(loadedModel);
     const size = new THREE.Vector3();
     box.getSize(size);
     loadedModelBbox = box.clone();
     loadedModelSize = { x: size.x, y: size.y, z: size.z };
 
-    // Center the model around origin
+    // Center the model using a wrapper group (Option B):
+    //   child.position = -center  → vertices centered at wrapper origin
+    //   wrapper.scale = normalizeScale  → scales the centered result
+    // This produces: normalizeScale * (V - center) instead of
+    // the buggy: normalizeScale * V - center
     const center = box.getCenter(new THREE.Vector3());
-    loadedModel.position.sub(center);
+    loadedModel.position.set(-center.x, -center.y, -center.z);
 
-    // Reset scale to unit
-    loadedModel.scale.set(1, 1, 1);
+    modelWrapper = new THREE.Group();
+    modelWrapper.add(loadedModel);
+    modelWrapper.scale.set(1, 1, 1); // unit scale until auto-fit applies
     autoFitInfo = null;
 
-    scene.add(loadedModel);
+    scene.add(modelWrapper);
 
     log(`3DS model loaded successfully.`, 'ok');
     log(`  Original bbox: ${box.min.x.toFixed(2)},${box.min.y.toFixed(2)},${box.min.z.toFixed(2)} → ${box.max.x.toFixed(2)},${box.max.y.toFixed(2)},${box.max.z.toFixed(2)}`);
@@ -377,11 +387,12 @@ function applyLightmapTexture(object, texture) {
 
 // ─── Rotation for direction convention ───────────────────────────────
 function setModelDirection(dirIndex, numDirs) {
-  if (!loadedModel) return;
+  if (!modelWrapper) return;
   const step = 360.0 / numDirs;
   const angleDeg = ROTATION_OFFSET_DEG + dirIndex * step;
   const angleRad = THREE.MathUtils.degToRad(angleDeg);
-  loadedModel.rotation.y = angleRad;
+  // Rotate the wrapper so the centered+scaled model rotates around origin
+  modelWrapper.rotation.y = angleRad;
 }
 
 // ─── Render one frame ────────────────────────────────────────────────
@@ -398,7 +409,7 @@ function renderFrame(resolution) {
 
 // ─── Render all directions ──────────────────────────────────────────
 btnRender.addEventListener('click', () => {
-  if (!loadedModel) { log('Load a 3DS model first.', 'error'); return; }
+  if (!modelWrapper) { log('Load a 3DS model first.', 'error'); return; }
 
   const numDirs = parseInt(document.getElementById('directions').value);
   const resolution = parseInt(document.getElementById('resolution').value);
@@ -407,20 +418,15 @@ btnRender.addEventListener('click', () => {
   const dirNames = numDirs === 16 ? DIRECTION_NAMES_16 : numDirs === 8 ? DIRECTION_NAMES_8 : null;
 
   // Apply auto-fit if enabled (recomputes scale from original bbox)
+  // Auto-fit sets wrapper.scale including zScale.
   if (autoFitCheckbox.checked) {
     applyAutoFit();
+    // applyAutoFit already includes zScale in wrapper.scale
   } else {
-    // Without auto-fit, just apply Z scale at unit scale
-    loadedModel.scale.set(1, 1, zScale);
+    // Without auto-fit, just apply Z scale at unit scale on the wrapper
+    modelWrapper.scale.set(1, zScale, 1);
     autoFitInfo = null;
-    log(`Auto Fit OFF: using raw model scale (1, 1, ${zScale})`);
-  }
-
-  // If auto-fit was applied, also apply Z scale on top
-  if (autoFitInfo && zScale !== 1.0) {
-    const ns = autoFitInfo.normalizeScale;
-    loadedModel.scale.set(ns, ns * zScale, ns);
-    log(`  Z scale applied on top of auto-fit: scale=(${ns.toFixed(6)}, ${(ns * zScale).toFixed(6)}, ${ns.toFixed(6)})`);
+    log(`Auto Fit OFF: using raw model scale (1, ${zScale}, 1)`);
   }
 
   log(`Rendering ${numDirs} directions at ${resolution}x${resolution} (orthoScale=${orthoScale}, zScale=${zScale})...`);
@@ -536,9 +542,9 @@ btnExport.addEventListener('click', () => {
 btnCalibrate.addEventListener('click', () => {
   log('Running calibration test (no model needed)...');
 
-  // Remove model temporarily
-  const savedModel = loadedModel;
-  if (loadedModel) scene.remove(loadedModel);
+  // Remove model wrapper temporarily
+  const savedWrapper = modelWrapper;
+  if (modelWrapper) scene.remove(modelWrapper);
 
   // Create calibration markers
   const CALIBRATION_POINTS = [
@@ -632,8 +638,8 @@ btnCalibrate.addEventListener('click', () => {
     if (child.material) child.material.dispose();
   });
 
-  // Restore model
-  if (savedModel) scene.add(savedModel);
+  // Restore model wrapper
+  if (savedWrapper) scene.add(savedWrapper);
 });
 
 // ─── Auto-fit logic ──────────────────────────────────────────────────
@@ -657,20 +663,25 @@ function computeNormalizeScale(size, targetSize) {
  * Logs original/final bbox info and updates the orthoScale UI hint.
  */
 function applyAutoFit() {
-  if (!loadedModel || !loadedModelSize) return;
+  if (!modelWrapper || !loadedModelSize) return;
 
   const targetSize = parseFloat(fitTargetSizeInput.value) || DEFAULT_FIT_TARGET_SIZE;
+  const zScale = parseFloat(document.getElementById('z-scale').value);
   const size = loadedModelSize;
   const normalizeScale = computeNormalizeScale(size, targetSize);
 
-  // Apply normalized scale (X, Y, Z uniform; Z gets zScale on top during render)
-  loadedModel.scale.set(normalizeScale, normalizeScale, normalizeScale);
+  // Apply normalized scale to wrapper (not child), including zScale on Y axis.
+  // The child (loadedModel) has position=-center, so the transform becomes:
+  //   normalizeScale * (V - center)  [correct centering + scaling]
+  modelWrapper.scale.set(normalizeScale, normalizeScale * zScale, normalizeScale);
 
-  // Recompute bounding box after scaling
-  const finalBox = new THREE.Box3().setFromObject(loadedModel);
+  // Recompute bounding box from wrapper (includes child centering + wrapper scale)
+  const finalBox = new THREE.Box3().setFromObject(modelWrapper);
   const finalSizeVec = new THREE.Vector3();
   finalBox.getSize(finalSizeVec);
   const finalMaxDim = Math.max(finalSizeVec.x, finalSizeVec.y, finalSizeVec.z);
+  const finalCenter = new THREE.Vector3();
+  finalBox.getCenter(finalCenter);
 
   autoFitInfo = {
     originalSize: { x: size.x, y: size.y, z: size.z },
@@ -683,26 +694,32 @@ function applyAutoFit() {
   log(`  Original bbox: ${loadedModelBbox.min.x.toFixed(2)},${loadedModelBbox.min.y.toFixed(2)},${loadedModelBbox.min.z.toFixed(2)} → ${loadedModelBbox.max.x.toFixed(2)},${loadedModelBbox.max.y.toFixed(2)},${loadedModelBbox.max.z.toFixed(2)}`);
   log(`  Original size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
   log(`  Normalize scale: ${normalizeScale.toFixed(6)}`);
+  log(`  Wrapper scale: (${normalizeScale.toFixed(6)}, ${(normalizeScale * zScale).toFixed(6)}, ${normalizeScale.toFixed(6)})`);
   log(`  Final bbox (centered+scaled): ${finalBox.min.x.toFixed(4)},${finalBox.min.y.toFixed(4)},${finalBox.min.z.toFixed(4)} → ${finalBox.max.x.toFixed(4)},${finalBox.max.y.toFixed(4)},${finalBox.max.z.toFixed(4)}`);
+  log(`  Final center: (${finalCenter.x.toFixed(4)}, ${finalCenter.y.toFixed(4)}, ${finalCenter.z.toFixed(4)})`, finalCenter.length() < 0.01 ? 'ok' : 'warn');
   log(`  Final max dimension: ${finalMaxDim.toFixed(4)} (target: ${targetSize})`, Math.abs(finalMaxDim - targetSize) < 0.01 ? 'ok' : 'warn');
   log(`  Effective orthoScale: ${orthoScale}`, 'info');
+  if (finalCenter.length() > 0.01) {
+    log(`  WARNING: Final center is not at origin — centering transform may be incorrect.`, 'warn');
+  }
 }
 
 // Re-apply auto-fit when checkbox or target size changes
 autoFitCheckbox.addEventListener('change', () => {
-  if (loadedModel && autoFitCheckbox.checked) {
+  if (modelWrapper && autoFitCheckbox.checked) {
     applyAutoFit();
-  } else if (loadedModel) {
-    // Reset to unit scale
-    loadedModel.scale.set(1, 1, 1);
+  } else if (modelWrapper) {
+    // Reset wrapper to unit scale (child centering is preserved)
+    const zScale = parseFloat(document.getElementById('z-scale').value);
+    modelWrapper.scale.set(1, zScale, 1);
     autoFitInfo = null;
-    log(`Auto Fit OFF: model scale reset to (1, 1, 1)`, 'warn');
+    log(`Auto Fit OFF: wrapper scale reset to (1, ${zScale}, 1)`, 'warn');
     log(`  Model may be outside camera frustum — increase Ortho Scale manually.`, 'warn');
   }
 });
 
 fitTargetSizeInput.addEventListener('change', () => {
-  if (loadedModel && autoFitCheckbox.checked) {
+  if (modelWrapper && autoFitCheckbox.checked) {
     applyAutoFit();
   }
 });

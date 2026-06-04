@@ -47,13 +47,26 @@ PNGs.
 
 ### How auto-fit works
 
+The auto-fit uses a **wrapper group** pattern (Option B) to ensure correct
+centering + scaling transform:
+
 1. After loading the 3DS model, the exporter computes the bounding box.
-2. The model is centered around the origin.
-3. The maximum dimension (X, Y, or Z) of the bounding box is computed.
-4. A uniform scale factor is calculated: `normalizeScale = targetSize / maxDim`.
-5. The model is scaled uniformly by this factor so the max dimension equals
-   the target size (default: 3.0 world units).
-6. The Z Scale slider is applied on top of the normalization.
+2. The raw model (child) has its position set to `-center`, centering vertices
+   at the wrapper's local origin.
+3. A wrapper `THREE.Group` is created. The child is added to it.
+4. The maximum dimension (X, Y, or Z) of the bounding box is computed.
+5. A uniform scale factor is calculated: `normalizeScale = targetSize / maxDim`.
+6. The **wrapper** (not the child) is scaled:
+   `wrapper.scale = (normalizeScale, normalizeScale * zScale, normalizeScale)`.
+7. This produces the correct transform: `normalizeScale * (V - center)` instead
+   of the buggy `normalizeScale * V - center`.
+
+**Why wrapper group?** In Three.js, `object.position` is not multiplied by the
+object's own scale. Setting `position = -center` then `scale = normalizeScale`
+on the same object produces `scale * V - center`, which for Wasp (center
+≈ 1124, 611, 50) places the model at ≈(-1117, -607, -50) — far from origin.
+The wrapper group fixes this by separating centering (child position) from
+scaling (wrapper scale).
 
 ### Auto-fit UI controls
 
