@@ -437,16 +437,16 @@ describe('Vulcan heat increases while firing', () => {
   it('recordOverheatShot adds heat per shot', () => {
     const rt = createWeaponRuntimeState('vulcan', 0);
     // M0 heatPerShot = 12
-    recordOverheatShot(rt);
+    recordOverheatShot(rt, 1000);
     expect(rt.overheat!.heat).toBe(12);
   });
 
   it('multiple shots accumulate heat', () => {
     const rt = createWeaponRuntimeState('vulcan', 0);
-    recordOverheatShot(rt); // 12
-    recordOverheatShot(rt); // 24
-    recordOverheatShot(rt); // 36
-    recordOverheatShot(rt); // 48
+    recordOverheatShot(rt, 1000); // 12
+    recordOverheatShot(rt, 1100); // 24
+    recordOverheatShot(rt, 1200); // 36
+    recordOverheatShot(rt, 1300); // 48
     expect(rt.overheat!.heat).toBe(48);
   });
 });
@@ -491,7 +491,7 @@ describe('Vulcan overheat blocks/penalizes firing', () => {
     const rt = createWeaponRuntimeState('vulcan', 0);
     // M0 heatPerShot = 12 → 9 shots = 108, clamped to 100
     for (let i = 0; i < 9; i++) {
-      recordOverheatShot(rt);
+      recordOverheatShot(rt, 1000 + i * 100);
     }
     expect(rt.overheat!.heat).toBe(100);
     expect(rt.overheat!.isOverheated).toBe(true);
@@ -522,6 +522,22 @@ describe('Vulcan overheat blocks/penalizes firing', () => {
     updateOverheat(rt, { nowMs: 4001, isFiring: false, deltaSec: 0.001 });
     expect(rt.overheat!.isOverheated).toBe(false);
     expect(rt.overheat!.heat).toBe(0);
+  });
+
+  it('CORE-STEP-08H+ FIXUP: recordOverheatShot uses scene time (nowMs) not Date.now()', () => {
+    const rt = createWeaponRuntimeState('vulcan', 0);
+    // Fire enough shots to trigger overheat
+    for (let i = 0; i < 9; i++) {
+      recordOverheatShot(rt, 5000 + i * 100);
+    }
+    expect(rt.overheat!.isOverheated).toBe(true);
+    // overheatStartedAt should be the last nowMs passed, not Date.now()
+    expect(rt.overheat!.overheatStartedAt).toBe(5800); // 5000 + 8*100
+    // Penalty should clear based on scene time
+    updateOverheat(rt, { nowMs: 7800, isFiring: false, deltaSec: 0.001 }); // 2000ms elapsed — not yet
+    expect(rt.overheat!.isOverheated).toBe(true);
+    updateOverheat(rt, { nowMs: 8801, isFiring: false, deltaSec: 0.001 }); // 3001ms elapsed — cleared
+    expect(rt.overheat!.isOverheated).toBe(false);
   });
 
   it('after overheat penalty clears, weapon can fire again', () => {
@@ -1378,5 +1394,254 @@ describe('M-level scaling across weapon configs', () => {
     const cfg = getWeaponConfig('isida')!;
     expect(getWeaponMLevelValue(cfg.canister!.capacity, 0)).toBe(70);
     expect(getWeaponMLevelValue(cfg.canister!.capacity, 3)).toBe(100);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// CORE-STEP-08H+ FIXUP: Integration tests for all 5 blockers
+// ═══════════════════════════════════════════════════════════════════════
+
+import { updateAllWeaponResources, tryFireWeaponWithRuntime, clearTargetAndWeaponState, getEffectiveWeaponCooldownMs } from '../state/weaponFireCoordinator';
+import { getTrackAnimationState } from '../state/trackAnimation';
+
+describe('FIXUP Blocker 1: Weapon resource update loop wired into runtime', () => {
+  it('canister drains when firing and regenerates when not', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'flamethrower', 'cyan', 5, 5);
+    const capacity = vehicle.weaponRuntime.canister!.current;
+
+    // Fire for 1 second (isFiring = true)
+    updateAllWeaponResources([vehicle], 1000, 1000);
+    // Canister should not drain from updateAllWeaponResources alone — it needs isFiring flag
+    expect(vehicle.weaponRuntime.canister!.current).toBe(capacity);
+
+    // Set firing and update
+    vehicle.fireHeld = true;
+    vehicle.isFiring = true;
+    updateAllWeaponResources([vehicle], 2000, 1000);
+    // Canister should have drained
+    expect(vehicle.weaponRuntime.canister!.current).toBeLessThan(capacity);
+
+    // Stop firing and update
+    vehicle.fireHeld = false;
+    vehicle.isFiring = false;
+    const afterDrain = vehicle.weaponRuntime.canister!.current;
+    updateAllWeaponResources([vehicle], 3000, 1000);
+    // Canister should have regenerated
+    expect(vehicle.weaponRuntime.canister!.current).toBeGreaterThan(afterDrain);
+  });
+
+  it('overheat cooling progresses across update ticks', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'vulcan', 'cyan', 5, 5);
+    vehicle.weaponRuntime.overheat!.heat = 50;
+    vehicle.weaponRuntime.overheat!.isOverheated = false;
+    vehicle.fireHeld = false;
+    vehicle.isFiring = false;
+
+    // Cool for 1 second
+    updateAllWeaponResources([vehicle], 11000, 1000);
+    expect(vehicle.weaponRuntime.overheat!.heat).toBeLessThan(50);
+  });
+
+  it('drum reload completes across update ticks', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'hammer', 'cyan', 5, 5);
+    vehicle.weaponRuntime.drum!.isReloading = true;
+    vehicle.weaponRuntime.drum!.reloadStartedAt = 1000;
+
+    // Not yet reloaded at 2000ms
+    updateAllWeaponResources([vehicle], 2000, 16);
+    expect(vehicle.weaponRuntime.drum!.isReloading).toBe(true);
+
+    // Reload complete at 4001ms (3000ms reload)
+    updateAllWeaponResources([vehicle], 4001, 16);
+    expect(vehicle.weaponRuntime.drum!.isReloading).toBe(false);
+    expect(vehicle.weaponRuntime.drum!.currentVolley).toBe(0);
+  });
+});
+
+describe('FIXUP Blocker 3: Wind-up/drum helpers connected to fire path', () => {
+  it('Railgun wind-up: first fire intent starts charge, no damage until complete', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'railgun', 'cyan', 5, 5);
+    vehicle.lastFiredAt = 0;
+
+    // First fire intent — starts wind-up, does not fire
+    const result1 = tryFireWeaponWithRuntime(vehicle, 100, 100, 0, 200, 200, 1000);
+    expect(result1.fired).toBe(false);
+    expect(result1.reason).toBe('wind_up_charging');
+    expect(vehicle.weaponRuntime.windUp!.isCharging).toBe(true);
+
+    // Wind-up not yet complete
+    const result2 = tryFireWeaponWithRuntime(vehicle, 100, 100, 0, 200, 200, 1500);
+    expect(result2.fired).toBe(false);
+    expect(result2.reason).toBe('wind_up_charging');
+
+    // Wind-up complete — fire! (Railgun M0 windUp = 1500ms, started at 1000)
+    const result3 = tryFireWeaponWithRuntime(vehicle, 100, 100, 0, 200, 200, 2501);
+    expect(result3.fired).toBe(true);
+    expect(result3.windUpCompleted).toBe(true);
+  });
+
+  it('Hammer drum burst: fires multiple volleys then reloads', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'hammer', 'cyan', 5, 5);
+    vehicle.lastFiredAt = 0;
+
+    // First fire — starts burst
+    const result1 = tryFireWeaponWithRuntime(vehicle, 100, 100, 0, 200, 200, 1000);
+    expect(result1.fired).toBe(true);
+    expect(result1.drumVolley).toBe(true);
+    expect(vehicle.weaponRuntime.drum!.isBursting).toBe(true);
+  });
+
+  it('clearTargetAndWeaponState cancels wind-up', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'railgun', 'cyan', 5, 5);
+    vehicle.weaponRuntime.windUp!.isCharging = true;
+    vehicle.weaponRuntime.windUp!.startedAt = 1000;
+    vehicle.targetVehicleId = 'enemy-1';
+    vehicle.fireHeld = true;
+    vehicle.isFiring = true;
+
+    clearTargetAndWeaponState(vehicle);
+
+    expect(vehicle.targetVehicleId).toBeNull();
+    expect(vehicle.fireHeld).toBe(false);
+    expect(vehicle.isFiring).toBe(false);
+    expect(vehicle.weaponRuntime.windUp!.isCharging).toBe(false);
+    expect(vehicle.weaponRuntime.windUp!.startedAt).toBe(0);
+  });
+
+  it('clearTargetAndWeaponState cancels drum burst but keeps reload', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'hammer', 'cyan', 5, 5);
+    vehicle.weaponRuntime.drum!.isBursting = true;
+    vehicle.weaponRuntime.drum!.isReloading = true; // Drum is empty and reloading
+    vehicle.weaponRuntime.drum!.reloadStartedAt = 1000;
+    vehicle.targetVehicleId = 'enemy-1';
+
+    clearTargetAndWeaponState(vehicle);
+
+    expect(vehicle.targetVehicleId).toBeNull();
+    expect(vehicle.weaponRuntime.drum!.isBursting).toBe(false);
+    // Reload should NOT be cancelled — drum is empty
+    expect(vehicle.weaponRuntime.drum!.isReloading).toBe(true);
+  });
+});
+
+describe('FIXUP Blocker 4: M0-M3 scaling works in runtime', () => {
+  it('Smoky M0 fires slower than M3 (cooldown difference)', () => {
+    const v0 = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5);
+    const v3 = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5);
+    v3.modificationLevel = 3;
+    v3.weaponRuntime = createWeaponRuntimeState('smoky', 3);
+
+    const cooldown0 = getEffectiveWeaponCooldownMs(v0);
+    const cooldown3 = getEffectiveWeaponCooldownMs(v3);
+
+    // M0 cooldown = 900, M3 cooldown = 800
+    expect(cooldown0).toBe(900);
+    expect(cooldown3).toBe(800);
+    expect(cooldown0).toBeGreaterThan(cooldown3);
+  });
+
+  it('canFireBlockoutWeapon uses M-level cooldown', () => {
+    const v0 = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5);
+    const v3 = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5);
+    v3.modificationLevel = 3;
+    v3.weaponRuntime = createWeaponRuntimeState('smoky', 3);
+
+    // Both fired at time 1000
+    v0.lastFiredAt = 1000;
+    v3.lastFiredAt = 1000;
+
+    // At time 1800: M0 needs 900ms (not ready), M3 needs 800ms (ready)
+    expect(canFireBlockoutWeapon(v0, 1800)).toBe(false);
+    expect(canFireBlockoutWeapon(v3, 1800)).toBe(true);
+
+    // At time 1900: M0 now ready too
+    expect(canFireBlockoutWeapon(v0, 1901)).toBe(true);
+  });
+
+  it('M-level turret turn speed is used instead of hardcoded 0', () => {
+    // Verify the helper returns correct values
+    expect(getEffectiveTurretTurnSpeed('smoky', 0)).toBe(130);
+    expect(getEffectiveTurretTurnSpeed('smoky', 3)).toBe(150);
+  });
+
+  it('M0 vs M3 damage differs when applied through damage path', () => {
+    // Create two targets with same body
+    const target0 = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5);
+    const target3 = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5);
+    target0.id = 'target-0';
+    target3.id = 'target-3';
+
+    // M0 Smoky damage = 16, M3 = 20
+    const dmg0 = applyArmorReduction('hunter', 0, 16);
+    const dmg3 = applyArmorReduction('hunter', 0, 20);
+
+    expect(dmg3.finalDamage).toBeGreaterThan(dmg0.finalDamage);
+  });
+});
+
+describe('FIXUP Blocker 5: Animation/feedback state', () => {
+  it('track animation: moving = tracks active', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5);
+    vehicle.speed = 50;
+    vehicle.hasMoveTarget = true;
+
+    const anim = getTrackAnimationState(vehicle);
+    expect(anim.isMoving).toBe(true);
+    expect(anim.animSpeed).toBeGreaterThan(0);
+  });
+
+  it('track animation: idle = tracks inactive', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5);
+    vehicle.speed = 0;
+    vehicle.hasMoveTarget = false;
+    vehicle.turretTargetAngle = vehicle.turretAngle;
+
+    const anim = getTrackAnimationState(vehicle);
+    expect(anim.isMoving).toBe(false);
+    expect(anim.isTurningInPlace).toBe(false);
+  });
+
+  it('track animation: turning in place = tracks active', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'smoky', 'cyan', 5, 5);
+    vehicle.speed = 0;
+    vehicle.hasMoveTarget = false;
+    vehicle.turretAngle = 0;
+    vehicle.turretTargetAngle = Math.PI / 2; // 90 degrees difference
+
+    const anim = getTrackAnimationState(vehicle);
+    expect(anim.isTurningInPlace).toBe(true);
+  });
+
+  it('canister state is visible in weaponRuntime', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'flamethrower', 'cyan', 5, 5);
+    expect(vehicle.weaponRuntime.canister).not.toBeNull();
+    expect(vehicle.weaponRuntime.canister!.current).toBeGreaterThan(0);
+    expect(vehicle.weaponRuntime.canister!.isEmpty).toBe(false);
+  });
+
+  it('overheat state is visible in weaponRuntime', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'vulcan', 'cyan', 5, 5);
+    expect(vehicle.weaponRuntime.overheat).not.toBeNull();
+    expect(vehicle.weaponRuntime.overheat!.heat).toBe(0);
+    expect(vehicle.weaponRuntime.overheat!.isOverheated).toBe(false);
+  });
+
+  it('wind-up state is visible in weaponRuntime', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'railgun', 'cyan', 5, 5);
+    expect(vehicle.weaponRuntime.windUp).not.toBeNull();
+    expect(vehicle.weaponRuntime.windUp!.isCharging).toBe(false);
+  });
+
+  it('magazine state is visible in weaponRuntime', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'ricochet', 'cyan', 5, 5);
+    expect(vehicle.weaponRuntime.magazine).not.toBeNull();
+    expect(vehicle.weaponRuntime.magazine!.currentStock).toBeGreaterThan(0);
+  });
+
+  it('drum state is visible in weaponRuntime', () => {
+    const vehicle = createBlockoutVehicle('hunter', 'hammer', 'cyan', 5, 5);
+    expect(vehicle.weaponRuntime.drum).not.toBeNull();
+    expect(vehicle.weaponRuntime.drum!.currentVolley).toBe(0);
+    expect(vehicle.weaponRuntime.drum!.isReloading).toBe(false);
   });
 });

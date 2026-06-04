@@ -22,7 +22,7 @@ import type { RecoilProfile, WeaponId } from '../config/blockoutProfiles';
 import { RECOIL_PROFILES } from '../config/blockoutRecoilData';
 import { getWeaponVfxProfile } from '../config/blockoutVfxData';
 import { getWeaponProfile } from '../config/blockoutWeaponData';
-import { getWeaponConfig } from '../config/weaponData';
+import { getWeaponConfig, getWeaponMLevelValue } from '../config/weaponData';
 import { getCooldownMultiplier } from './blockoutUpgrades';
 import { canFireByRuntimeState } from './weaponRuntime';
 import { clearWeaponPendingStates, recordOverheatShot as recordOverheatShotResource, recordMagazineShot as recordMagazineShotResource } from './weaponResources';
@@ -188,12 +188,12 @@ export function fireBlockoutWeapon(
   // Update last fired timestamp
   vehicle.lastFiredAt = nowMs;
 
-  // CORE-STEP-08H+: Record weapon resource consumption
+  // CORE-STEP-08H+ FIXUP: Record weapon resource consumption
   const runtime = vehicle.weaponRuntime;
 
-  // Overheat: add heat per shot
+  // Overheat: add heat per shot (FIXUP: nowMs passed instead of Date.now())
   if (runtime.overheat) {
-    recordOverheatShotResource(runtime);
+    recordOverheatShotResource(runtime, nowMs);
     // Sync visual overheat indicator
     const weaponCfg = getWeaponConfig(vehicle.weaponId);
     vehicle.visualOverheat = runtime.overheat.heat / (weaponCfg?.overheat?.maxHeat ?? 100);
@@ -223,6 +223,10 @@ export function fireBlockoutWeapon(
  * - Magazine must not be empty
  * - Drum must not be reloading
  *
+ * CORE-STEP-08H+ FIXUP Blocker 4: Uses production weapon config cooldown
+ * at vehicle's modification level instead of blockout profile cooldown.
+ * Falls back to blockout profile if production config is missing.
+ *
  * @param vehicle - The vehicle to check
  * @param nowMs - Current timestamp
  * @returns true if cooldown has elapsed and resource gates allow firing
@@ -239,8 +243,17 @@ export function canFireBlockoutWeapon(
 
   if (vehicle.lastFiredAt === 0) return true; // Never fired
 
+  // CORE-STEP-08H+ FIXUP Blocker 4: Use production config cooldown at vehicle's M-level
+  const weaponConfig = getWeaponConfig(vehicle.weaponId);
+  let baseCooldownMs: number;
+  if (weaponConfig && weaponConfig.cooldown) {
+    baseCooldownMs = getWeaponMLevelValue(weaponConfig.cooldown, vehicle.modificationLevel);
+  } else {
+    baseCooldownMs = weaponProfile.blockoutCooldownMs;
+  }
+
   // BLOCKOUT-09H fixup: Apply cooldown multiplier from upgrades
-  const effectiveCooldownMs = weaponProfile.blockoutCooldownMs * getCooldownMultiplier(vehicle);
+  const effectiveCooldownMs = baseCooldownMs * getCooldownMultiplier(vehicle);
   const elapsed = nowMs - vehicle.lastFiredAt;
   return elapsed >= effectiveCooldownMs;
 }

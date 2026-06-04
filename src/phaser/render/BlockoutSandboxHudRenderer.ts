@@ -14,11 +14,74 @@ import Phaser from 'phaser';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { ALL_UPGRADE_IDS, UPGRADE_PROFILES } from '../../config/blockoutUpgradeData';
 import { canFireBlockoutWeapon } from '../../state/blockoutWeaponVfx';
+import { getWeaponConfig } from '../../config/weaponData';
 
 // ─── Depth ──────────────────────────────────────────────────────────
 
 /** HUD depth — above everything else. */
 const HUD_DEPTH = 200;
+
+// ─── Weapon resource status helper (CORE-STEP-08H+ FIXUP Blocker 5) ──
+
+/**
+ * Build weapon resource status lines for the HUD.
+ * Shows canister level, overheat gauge, wind-up state, magazine/drum/reload state.
+ */
+function getWeaponResourceLines(vehicle: BlockoutVehicleState): string[] {
+  const lines: string[] = [];
+  const rt = vehicle.weaponRuntime;
+  const cfg = getWeaponConfig(vehicle.weaponId);
+
+  // M-level
+  lines.push(`M${vehicle.modificationLevel}`);
+
+  // Canister (Flamethrower, Freeze, Isida)
+  if (rt.canister) {
+    const capacity = cfg?.canister
+      ? (cfg.canister.capacity[vehicle.modificationLevel] ?? cfg.canister.capacity[0])
+      : 100;
+    const pct = Math.round((rt.canister.current / capacity) * 100);
+    const empty = rt.canister.isEmpty ? ' EMPTY' : '';
+    lines.push(`Canister: ${pct}%${empty}`);
+  }
+
+  // Overheat (Vulcan)
+  if (rt.overheat) {
+    const maxHeat = cfg?.overheat?.maxHeat ?? 100;
+    const pct = Math.round((rt.overheat.heat / maxHeat) * 100);
+    const status = rt.overheat.isOverheated ? ' OVERHEATED' : rt.overheat.isSpunUp ? ' SPUN UP' : '';
+    lines.push(`Heat: ${pct}%${status}`);
+  }
+
+  // Wind-up (Railgun)
+  if (rt.windUp) {
+    const state = rt.windUp.isReady ? 'READY' : rt.windUp.isCharging ? 'CHARGING' : 'idle';
+    lines.push(`WindUp: ${state}`);
+  }
+
+  // Magazine (Ricochet)
+  if (rt.magazine) {
+    const stockSize = cfg?.magazine
+      ? (cfg.magazine.stockSize[vehicle.modificationLevel] ?? cfg.magazine.stockSize[0])
+      : 5;
+    const empty = rt.magazine.isEmpty ? ' EMPTY' : '';
+    lines.push(`Mag: ${Math.round(rt.magazine.currentStock)}/${stockSize}${empty}`);
+  }
+
+  // Drum (Hammer)
+  if (rt.drum) {
+    const volleyCount = cfg?.drum?.volleyCount ?? 5;
+    if (rt.drum.isReloading) {
+      lines.push(`Drum: RELOADING`);
+    } else if (rt.drum.isBursting) {
+      lines.push(`Drum: ${rt.drum.currentVolley}/${volleyCount} BURST`);
+    } else {
+      lines.push(`Drum: ${rt.drum.currentVolley}/${volleyCount}`);
+    }
+  }
+
+  return lines;
+}
 
 // ─── Help overlay lines ─────────────────────────────────────────────
 
@@ -219,6 +282,8 @@ export class BlockoutSandboxHudRenderer {
       lines.push(vehicle.hasMoveTarget ? 'moving' : 'stopped');
       const canFire = canFireBlockoutWeapon(vehicle, nowMs);
       lines.push(canFire ? 'ready' : 'cooldown');
+      // CORE-STEP-08H+ FIXUP Blocker 5: Show weapon resource state
+      lines.push(...getWeaponResourceLines(vehicle));
     }
 
     this.statusText.setText(lines.join('\n'));
@@ -285,6 +350,8 @@ export class BlockoutSandboxHudRenderer {
     if (!vehicle.isDestroyed) {
       const canFire = canFireBlockoutWeapon(vehicle, nowMs);
       lines.push(canFire ? 'ready' : 'cooldown');
+      // CORE-STEP-08H+ FIXUP Blocker 5: Show weapon resource state
+      lines.push(...getWeaponResourceLines(vehicle));
     }
 
     this.statusText.setText(lines.join('\n'));

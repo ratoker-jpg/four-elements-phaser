@@ -544,7 +544,8 @@ describe('weapon cooldown', () => {
 
     fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, now);
 
-    const afterCooldown = now + 801;
+    // CORE-STEP-08H+ FIXUP: Smoky M0 production cooldown = 900ms (not blockout 800ms)
+    const afterCooldown = now + 901;
     expect(canFireBlockoutWeapon(vehicle, afterCooldown)).toBe(true);
   });
 
@@ -899,7 +900,8 @@ describe('consistent scene-time basis for weapon timing', () => {
     const event2 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, sceneTime + 1);
     expect(event2).toBeNull();
 
-    const afterCooldown = sceneTime + 801;
+    // CORE-STEP-08H+ FIXUP: Smoky M0 production cooldown = 900ms
+    const afterCooldown = sceneTime + 901;
     expect(canFireBlockoutWeapon(vehicle, afterCooldown)).toBe(true);
     const event3 = fireBlockoutWeapon(vehicle, 100, 100, 0, 300, 0, afterCooldown);
     expect(event3).not.toBeNull();
@@ -920,7 +922,7 @@ describe('consistent scene-time basis for weapon timing', () => {
     updateBlockoutRecoil(vehicle, t1);
     expect(vehicle.recoilActive).toBe(true);
 
-    expect(canFireBlockoutWeapon(vehicle, t0 + 2501)).toBe(true);
+    expect(canFireBlockoutWeapon(vehicle, t0 + 3001)).toBe(true); // M0 production cooldown = 3000ms
 
     updateBlockoutRecoil(vehicle, t0 + 500);
     expect(vehicle.recoilActive).toBe(false);
@@ -1434,9 +1436,10 @@ describe('BLOCKOUT-09H fixup: cooldown upgrade reduces fire cooldown', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
     applyUpgrade(vehicle, 'weapon_tuning', 1000);
 
-    // Smoky base cooldown = 800ms, weapon_tuning L1 multiplier = 0.95
-    // Effective cooldown = 800 * 0.95 = 760ms
-    const baseCooldown = WEAPON_PROFILES.smoky.blockoutCooldownMs;
+    // CORE-STEP-08H+ FIXUP: Smoky now uses production M0 cooldown = 900ms (not blockout 800ms)
+    // weapon_tuning L1 multiplier = 0.95
+    // Effective cooldown = 900 * 0.95 = 855ms
+    const baseCooldown = 900; // Production Smoky M0 cooldown
     const effectiveCooldown = baseCooldown * 0.95;
 
     const now = 1000;
@@ -1484,9 +1487,10 @@ describe('BLOCKOUT-09H fixup: cooldown upgrade reduces fire cooldown', () => {
     applyUpgrade(vehicle, 'weapon_tuning', 1000);
     applyUpgrade(vehicle, 'cooling_system', 2000);
 
+    // CORE-STEP-08H+ FIXUP: Smoky now uses production M0 cooldown = 900ms (not blockout 800ms)
     // Combined multiplier: 0.95 * 0.90 = 0.855
-    // Smoky base cooldown = 800ms, effective = 800 * 0.855 = 684ms
-    const baseCooldown = WEAPON_PROFILES.smoky.blockoutCooldownMs;
+    // Effective cooldown = 900 * 0.855 = 769.5ms
+    const baseCooldown = 900; // Production Smoky M0 cooldown
     const effectiveCooldown = baseCooldown * 0.95 * 0.90;
 
     const now = 1000;

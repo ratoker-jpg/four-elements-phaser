@@ -33,7 +33,9 @@ import {
 } from './projectedGroundPrimitives';
 import { projectWorldPoint, unprojectScreenToGround, PROJ_TILE_W } from '../../config/cameraProjectionContract';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
+import { getWeaponConfig } from '../../config/weaponData';
 import { sortByDepth, type DepthSortable } from './depthSorting';
+import { getTrackAnimationState } from '../../state/trackAnimation';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -539,6 +541,40 @@ export class BlockoutVehicleRenderer {
       0.3, 0.75, 1.0,
     );
 
+    // ── CORE-STEP-08H+ FIXUP Blocker 5: Track animation indicators ──
+    // Blockout/procedural visualization: show track activity as small
+    // colored lines at the sides of the body. Active when moving/turning.
+    {
+      const trackAnim = getTrackAnimationState(vehicle);
+      if (trackAnim.isMoving || trackAnim.isTurningInPlace) {
+        // Track color: slightly different from body to indicate movement
+        const trackColor = 0x888888;
+        const trackAlpha = 0.6;
+
+        // Left track marker (perpendicular to body angle, left side)
+        const perpAngle = bodyAngle - Math.PI / 2;
+        const trackOffset = halfH * 0.8; // Offset from center to track position
+        const trackLen = halfW * 0.3;
+
+        // Left track
+        const ltx = cx + Math.cos(perpAngle) * trackOffset;
+        const lty = cy + Math.sin(perpAngle) * trackOffset;
+        g.lineStyle(2, trackColor, trackAlpha);
+        g.beginPath();
+        g.moveTo(ltx - Math.cos(bodyAngle) * trackLen, lty - Math.sin(bodyAngle) * trackLen);
+        g.lineTo(ltx + Math.cos(bodyAngle) * trackLen, lty + Math.sin(bodyAngle) * trackLen);
+        g.strokePath();
+
+        // Right track
+        const rtx = cx - Math.cos(perpAngle) * trackOffset;
+        const rty = cy - Math.sin(perpAngle) * trackOffset;
+        g.beginPath();
+        g.moveTo(rtx - Math.cos(bodyAngle) * trackLen, rty - Math.sin(bodyAngle) * trackLen);
+        g.lineTo(rtx + Math.cos(bodyAngle) * trackLen, rty + Math.sin(bodyAngle) * trackLen);
+        g.strokePath();
+      }
+    }
+
     // ── Mount point circle (debug, on top face) ──────────────────
     if (this.showMountPoints) {
       // Place mount point on top face using shared mountTileOffset
@@ -574,6 +610,91 @@ export class BlockoutVehicleRenderer {
       const fillWidth = barWidth * Math.max(0, hpRatio);
       g.fillStyle(hpColor, 0.9);
       g.fillRect(hpBarPos.x - barWidth / 2, barY, fillWidth, barHeight);
+
+      // ── CORE-STEP-08H+ FIXUP Blocker 5: Weapon resource bars ──
+      // Show canister charge bar, overheat heat gauge, magazine stock
+      // below the HP bar as thin colored bars. Blockout/procedural only.
+      const rt = vehicle.weaponRuntime;
+      let resourceBarY = barY + barHeight + 1; // Just below HP bar
+      const resourceBarHeight = 2;
+
+      // Canister bar (blue, Flamethrower/Freeze/Isida)
+      if (rt.canister) {
+        const cfg = getWeaponConfig(vehicle.weaponId); // already imported
+        const capacity = cfg?.canister
+          ? (cfg.canister.capacity[vehicle.modificationLevel] ?? cfg.canister.capacity[0])
+          : 100;
+        const canisterRatio = capacity > 0 ? rt.canister.current / capacity : 0;
+        const canisterColor = rt.canister.isEmpty ? 0xff4444 : 0x4488ff; // Red if empty, blue otherwise
+
+        g.fillStyle(0x333333, 0.5);
+        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+        g.fillStyle(canisterColor, 0.8);
+        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, canisterRatio), resourceBarHeight);
+        resourceBarY += resourceBarHeight + 1;
+      }
+
+      // Overheat bar (orange/red, Vulcan)
+      if (rt.overheat) {
+        const cfg = getWeaponConfig(vehicle.weaponId);
+        const maxHeat = cfg?.overheat?.maxHeat ?? 100;
+        const heatRatio = maxHeat > 0 ? rt.overheat.heat / maxHeat : 0;
+        const heatColor = rt.overheat.isOverheated ? 0xff2222 : 0xff8800; // Red if overheated, orange otherwise
+
+        g.fillStyle(0x333333, 0.5);
+        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+        g.fillStyle(heatColor, 0.8);
+        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, heatRatio), resourceBarHeight);
+        resourceBarY += resourceBarHeight + 1;
+      }
+
+      // Magazine bar (yellow, Ricochet)
+      if (rt.magazine) {
+        const cfg = getWeaponConfig(vehicle.weaponId);
+        const stockSize = cfg?.magazine
+          ? (cfg.magazine.stockSize[vehicle.modificationLevel] ?? cfg.magazine.stockSize[0])
+          : 5;
+        const magRatio = stockSize > 0 ? rt.magazine.currentStock / stockSize : 0;
+        const magColor = rt.magazine.isEmpty ? 0xff4444 : 0xcccc00; // Red if empty, yellow otherwise
+
+        g.fillStyle(0x333333, 0.5);
+        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+        g.fillStyle(magColor, 0.8);
+        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, magRatio), resourceBarHeight);
+        resourceBarY += resourceBarHeight + 1;
+      }
+
+      // Drum reload indicator (purple, Hammer) — thin bar showing reload progress
+      if (rt.drum && rt.drum.isReloading) {
+        const cfg = getWeaponConfig(vehicle.weaponId);
+        const reloadMs = cfg?.drum
+          ? (cfg.drum.reloadMs[vehicle.modificationLevel] ?? cfg.drum.reloadMs[0])
+          : 3000;
+        const nowMs = this.scene.time.now;
+        const elapsed = nowMs - rt.drum.reloadStartedAt;
+        const reloadRatio = reloadMs > 0 ? Math.min(1, elapsed / reloadMs) : 0;
+
+        g.fillStyle(0x333333, 0.5);
+        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+        g.fillStyle(0xaa44ff, 0.8); // Purple for drum reload
+        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * reloadRatio, resourceBarHeight);
+      }
+
+      // Wind-up indicator (cyan charge, Railgun) — thin pulsing line while charging
+      if (rt.windUp && rt.windUp.isCharging) {
+        const cfg = getWeaponConfig(vehicle.weaponId);
+        const windUpMs = cfg?.windUp
+          ? (cfg.windUp[vehicle.modificationLevel] ?? cfg.windUp[0])
+          : 1500;
+        const nowMs = this.scene.time.now;
+        const elapsed = nowMs - rt.windUp.startedAt;
+        const chargeRatio = windUpMs > 0 ? Math.min(1, elapsed / windUpMs) : 0;
+
+        g.fillStyle(0x333333, 0.5);
+        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+        g.fillStyle(0x00ffff, 0.9); // Cyan for wind-up
+        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * chargeRatio, resourceBarHeight);
+      }
     }
 
     // ── BLOCKOUT-07H+: Damage flash ──────────────────────────────

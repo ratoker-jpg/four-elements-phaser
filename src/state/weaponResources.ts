@@ -140,8 +140,11 @@ export function updateOverheat(
 /**
  * Record that a shot was fired — add heat for overheat weapons.
  * Called once per shot for overheat weapons.
+ *
+ * @param runtime - Weapon runtime state
+ * @param nowMs - Current scene time (from Phaser this.time.now, NOT Date.now())
  */
-export function recordOverheatShot(runtime: WeaponRuntimeState): void {
+export function recordOverheatShot(runtime: WeaponRuntimeState, nowMs: number): void {
   if (!runtime.overheat) return;
 
   const config = getWeaponConfig(runtime.weaponId);
@@ -154,7 +157,7 @@ export function recordOverheatShot(runtime: WeaponRuntimeState): void {
   // Check if overheat triggered
   if (runtime.overheat.heat >= maxHeat) {
     runtime.overheat.isOverheated = true;
-    runtime.overheat.overheatStartedAt = Date.now(); // Will be overridden by next updateOverheat call
+    runtime.overheat.overheatStartedAt = nowMs; // CORE-STEP-08H+ FIXUP: Use scene time, not Date.now()
     runtime.overheat.isSpunUp = false;
     runtime.overheat.spinUpStartedAt = 0;
   }
