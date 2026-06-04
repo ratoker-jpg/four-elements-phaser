@@ -59,6 +59,10 @@
   .composite-preview { border: 1px solid #0f3460; border-radius: 4px; image-rendering: pixelated; background: repeating-conic-gradient(#222 0% 25%, #333 0% 50%) 0 0 / 16px 16px; }
   .composite-info { background: #2a1a3e; border: 1px solid #5a2a8a; border-radius: 4px; padding: 8px 12px; font-size: 0.8rem; margin: 8px 0; }
   .composite-info code { color: #c490ff; }
+
+  /* ─── SPIKE-02 diagnostic additions ────────────────────────── */
+  .diagnostic-info { background: #3a2a1a; border: 1px solid #8a6020; border-radius: 4px; padding: 8px 12px; font-size: 0.8rem; margin: 8px 0; }
+  .diagnostic-info code { color: #e8a040; }
 </style>
 </head>
 <body>
@@ -160,6 +164,44 @@
       <label>Предпросмотр текстуры:</label>
       <canvas id="composite-preview" width="128" height="128" class="composite-preview"></canvas>
       <span id="composite-status" style="font-size:0.75rem; color:#8899aa;">Загрузи details и lightmap для сборки текстуры</span>
+    </div>
+
+    <!-- SPIKE-02: Diagnostic controls -->
+    <div class="diagnostic-info">
+      <strong>Диагностика UV / альфа (SPIKE-02):</strong><br>
+      Управление для определения причины битого рендера Wasp M0.
+      Попробуй все комбинации альфа-режима и flipY и сравни результаты.
+    </div>
+    <div class="row">
+      <label>Режим альфа:</label>
+      <select id="alpha-mode">
+        <option value="preserve-alpha">Сохранить альфа details</option>
+        <option value="force-opaque">Принудительно непрозрачный</option>
+      </select>
+      <span style="font-size:0.72rem; color:#8899aa;">(preserve-alpha: текущее поведение; force-opaque: alpha=255)</span>
+    </div>
+    <div class="row">
+      <label>Переворот Y (flipY):</label>
+      <select id="texture-flipy">
+        <option value="true">flipY = true</option>
+        <option value="false">flipY = false</option>
+      </select>
+      <span style="font-size:0.72rem; color:#8899aa;">(Переворот текстуры по вертикали для CanvasTexture и raw-текстур)</span>
+    </div>
+    <div class="row">
+      <label>Режим отладки текстуры:</label>
+      <select id="debug-texture-mode">
+        <option value="tankviewer-composite">Композит TankViewer</option>
+        <option value="details-only">Только details</option>
+        <option value="lightmap-only">Только lightmap</option>
+        <option value="uv-checker">UV-шахматка</option>
+      </select>
+      <span style="font-size:0.72rem; color:#8899aa;">(Изоляция: какой слой вызывает проблему)</span>
+    </div>
+    <div class="row">
+      <label>alphaTest:</label>
+      <input type="number" id="alpha-test-value" value="0.01" min="0" max="1" step="0.01" style="width:80px">
+      <span style="font-size:0.72rem; color:#8899aa;">(Порог отсечения альфа; 0 = нет отсечения)</span>
     </div>
   </div>
 </div>
@@ -361,6 +403,13 @@ let compositeCanvasTexture = null; // THREE.CanvasTexture from composition
 let loadedDiffuseTexture = null;  // THREE.Texture from details file (for raw mode)
 let loadedLightmapTexture = null; // THREE.Texture from lightmap file (for raw mode)
 
+// ─── SPIKE-02 diagnostic state ───────────────────────────────────────
+let currentAlphaMode = 'preserve-alpha';  // 'preserve-alpha' | 'force-opaque'
+let currentTextureFlipY = true;            // flipY for CanvasTexture / raw textures
+let currentDebugTextureMode = 'tankviewer-composite'; // 'tankviewer-composite' | 'details-only' | 'lightmap-only' | 'uv-checker'
+let currentAlphaTest = 0.01;              // material.alphaTest value
+let uvCheckerTexture = null;              // generated UV checker texture
+
 // ─── Logging ─────────────────────────────────────────────────────────
 function log(msg, level = 'info') {
   const span = document.createElement('span');
@@ -457,19 +506,99 @@ function applyCompositeMaterial() {
     previewCtx.drawImage(composedCanvas, 0, 0, 128, 128);
   }
 
+  // ─── SPIKE-02: Apply alpha mode ─────────────────────────────
+  if (currentAlphaMode === 'force-opaque') {
+    const imgData = composedCanvas.getContext('2d').getImageData(0, 0, composedCanvas.width, composedCanvas.height);
+    const data = imgData.data;
+    let forcedCount = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      // Force alpha=255 for any pixel that has non-zero RGB data
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      if (r > 0 || g > 0 || b > 0) {
+        if (data[i + 3] < 255) {
+          data[i + 3] = 255;
+          forcedCount++;
+        }
+      }
+    }
+    composedCanvas.getContext('2d').putImageData(imgData, 0, 0);
+    log(`  Принудительно непрозрачный: ${forcedCount} пикселей получили alpha=255`, 'info');
+  }
+
   // Create Three.js texture from composited canvas
   if (compositeCanvasTexture) compositeCanvasTexture.dispose();
   compositeCanvasTexture = new THREE.CanvasTexture(composedCanvas);
   compositeCanvasTexture.colorSpace = THREE.SRGBColorSpace;
+  compositeCanvasTexture.flipY = currentTextureFlipY;
   compositeCanvasTexture.needsUpdate = true;
 
+  // Determine material settings based on alpha mode and debug texture mode
+  const isOpaque = currentAlphaMode === 'force-opaque';
+  const matAlphaTest = isOpaque ? 0 : currentAlphaTest;
+
+  // ─── SPIKE-02: Apply debug texture mode ──────────────────────
+  let textureToApply = compositeCanvasTexture;
+  let textureLabel = 'композит TankViewer';
+
+  if (currentDebugTextureMode === 'details-only' && detailsImage) {
+    // Details-only: create texture from details image directly
+    const detailsCanvas = document.createElement('canvas');
+    detailsCanvas.width = detailsImage.naturalWidth || detailsImage.width;
+    detailsCanvas.height = detailsImage.naturalHeight || detailsImage.height;
+    const dCtx = detailsCanvas.getContext('2d');
+    dCtx.drawImage(detailsImage, 0, 0);
+    if (currentAlphaMode === 'force-opaque') {
+      const dData = dCtx.getImageData(0, 0, detailsCanvas.width, detailsCanvas.height);
+      for (let i = 0; i < dData.data.length; i += 4) {
+        if (dData.data[i] > 0 || dData.data[i + 1] > 0 || dData.data[i + 2] > 0) {
+          dData.data[i + 3] = 255;
+        }
+      }
+      dCtx.putImageData(dData, 0, 0);
+    }
+    const detailsTexture = new THREE.CanvasTexture(detailsCanvas);
+    detailsTexture.colorSpace = THREE.SRGBColorSpace;
+    detailsTexture.flipY = currentTextureFlipY;
+    detailsTexture.needsUpdate = true;
+    textureToApply = detailsTexture;
+    textureLabel = 'details-only';
+  } else if (currentDebugTextureMode === 'lightmap-only' && lightmapImage) {
+    // Lightmap-only: create texture from lightmap image directly
+    const lmCanvas = document.createElement('canvas');
+    lmCanvas.width = lightmapImage.naturalWidth || lightmapImage.width;
+    lmCanvas.height = lightmapImage.naturalHeight || lightmapImage.height;
+    const lCtx = lmCanvas.getContext('2d');
+    lCtx.drawImage(lightmapImage, 0, 0);
+    if (currentAlphaMode === 'force-opaque') {
+      const lData = lCtx.getImageData(0, 0, lmCanvas.width, lmCanvas.height);
+      for (let i = 0; i < lData.data.length; i += 4) {
+        if (lData.data[i] > 0 || lData.data[i + 1] > 0 || lData.data[i + 2] > 0) {
+          lData.data[i + 3] = 255;
+        }
+      }
+      lCtx.putImageData(lData, 0, 0);
+    }
+    const lmTexture = new THREE.CanvasTexture(lmCanvas);
+    lmTexture.colorSpace = THREE.SRGBColorSpace;
+    lmTexture.flipY = currentTextureFlipY;
+    lmTexture.needsUpdate = true;
+    textureToApply = lmTexture;
+    textureLabel = 'lightmap-only';
+  } else if (currentDebugTextureMode === 'uv-checker') {
+    // UV checker: generate a checker/grid texture
+    textureToApply = getOrCreateUVCheckerTexture();
+    textureLabel = 'uv-checker';
+  }
+
   // Apply to all meshes as MeshBasicMaterial (no lighting needed)
+  let meshCount = 0;
   loadedModel.traverse((child) => {
     if (child.isMesh) {
+      meshCount++;
       const newMat = new THREE.MeshBasicMaterial({
-        map: compositeCanvasTexture,
-        transparent: true,
-        alphaTest: 0.01,
+        map: textureToApply,
+        transparent: !isOpaque,
+        alphaTest: matAlphaTest,
         side: THREE.DoubleSide,
       });
       if (Array.isArray(child.material)) {
@@ -481,9 +610,16 @@ function applyCompositeMaterial() {
     }
   });
 
+  // ─── SPIKE-02: Apply flipY to raw mode textures too ──────────
+  if (loadedDiffuseTexture) loadedDiffuseTexture.flipY = currentTextureFlipY;
+  if (loadedLightmapTexture) loadedLightmapTexture.flipY = currentTextureFlipY;
+
+  // ─── SPIKE-02: Diagnostic logging ────────────────────────────
   const statusEl = document.getElementById('composite-status');
-  if (statusEl) statusEl.textContent = `Собрано: краска ${currentFactionPaint} (${composedCanvas.width}x${composedCanvas.height})`;
+  const debugLabel = currentDebugTextureMode !== 'tankviewer-composite' ? ` [${textureLabel}]` : '';
+  if (statusEl) statusEl.textContent = `Собрано: краска ${currentFactionPaint}${debugLabel} (${composedCanvas.width}x${composedCanvas.height})`;
   log(`Композитный материал наложен (краска ${currentFactionPaint}, ${composedCanvas.width}x${composedCanvas.height}).`, 'ok');
+  logDiagnosticInfo(composedCanvas, meshCount);
 }
 
 /**
@@ -1093,6 +1229,150 @@ function applyLightmapTexture(object, texture) {
   });
 }
 
+// ─── SPIKE-02: UV checker texture generator ───────────────────────
+
+/**
+ * Generate or return cached UV checker texture.
+ * Creates a colorful grid with numbered cells to help diagnose UV mapping.
+ * Each grid cell has a different color and a coordinate label.
+ *
+ * @returns {THREE.CanvasTexture}
+ */
+function getOrCreateUVCheckerTexture() {
+  if (uvCheckerTexture) return uvCheckerTexture;
+
+  const size = 512;
+  const gridSize = 8; // 8x8 grid
+  const cellSize = size / gridSize;
+
+  const checkerCanvas = document.createElement('canvas');
+  checkerCanvas.width = size;
+  checkerCanvas.height = size;
+  const ctx = checkerCanvas.getContext('2d');
+
+  // Fill with dark background
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(0, 0, size, size);
+
+  // Draw colored grid cells
+  const cellColors = [
+    '#e74c3c', '#e67e22', '#f1c40f', '#2ecc71',
+    '#1abc9c', '#3498db', '#9b59b6', '#e84393',
+  ];
+
+  for (let gy = 0; gy < gridSize; gy++) {
+    for (let gx = 0; gx < gridSize; gx++) {
+      const x = gx * cellSize;
+      const y = gy * cellSize;
+
+      // Alternate color pattern
+      const colorIdx = (gx + gy) % cellColors.length;
+      ctx.fillStyle = cellColors[colorIdx];
+      ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+
+      // Draw grid coordinate label
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${gx},${gy}`, x + cellSize / 2, y + cellSize / 2);
+    }
+  }
+
+  // Draw border lines for visibility
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= gridSize; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * cellSize, 0);
+    ctx.lineTo(i * cellSize, size);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, i * cellSize);
+    ctx.lineTo(size, i * cellSize);
+    ctx.stroke();
+  }
+
+  // Draw U/V labels
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 24px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('U →', 8, 8);
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('V ↓', size - 8, size - 8);
+
+  uvCheckerTexture = new THREE.CanvasTexture(checkerCanvas);
+  uvCheckerTexture.colorSpace = THREE.SRGBColorSpace;
+  uvCheckerTexture.flipY = currentTextureFlipY;
+  uvCheckerTexture.needsUpdate = true;
+
+  log('UV-шахматка сгенерирована: 512x512, сетка 8x8', 'ok');
+  return uvCheckerTexture;
+}
+
+// ─── SPIKE-02: Diagnostic logging helper ───────────────────────────
+
+/**
+ * Log diagnostic info about the current texture/material state.
+ * Reports texture size, flipY, alpha mode, alpha pixel statistics,
+ * material.transparent, alphaTest, mesh count.
+ *
+ * @param {HTMLCanvasElement} compositeCanvas - The composited canvas
+ * @param {number} meshCount - Number of meshes in the model
+ */
+function logDiagnosticInfo(compositeCanvas, meshCount) {
+  const w = compositeCanvas.width;
+  const h = compositeCanvas.height;
+  const ctx = compositeCanvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+  const totalPixels = w * h;
+
+  // Count alpha=0 pixels in final composite
+  let zeroAlphaCount = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) zeroAlphaCount++;
+  }
+  const zeroAlphaPercent = ((zeroAlphaCount / totalPixels) * 100).toFixed(1);
+
+  // Count alpha=0 pixels in details (if available)
+  let detailsZeroAlpha = 'N/A';
+  if (detailsImage) {
+    const dCanvas = document.createElement('canvas');
+    const dW = detailsImage.naturalWidth || detailsImage.width;
+    const dH = detailsImage.naturalHeight || detailsImage.height;
+    dCanvas.width = dW;
+    dCanvas.height = dH;
+    const dCtx = dCanvas.getContext('2d');
+    dCtx.drawImage(detailsImage, 0, 0);
+    const dData = dCtx.getImageData(0, 0, dW, dH);
+    let dZeroCount = 0;
+    for (let i = 0; i < dData.data.length; i += 4) {
+      if (dData.data[i + 3] === 0) dZeroCount++;
+    }
+    detailsZeroAlpha = `${dZeroCount}/${dW * dH} (${((dZeroCount / (dW * dH)) * 100).toFixed(1)}%)`;
+  }
+
+  const isOpaque = currentAlphaMode === 'force-opaque';
+
+  log('─── Диагностика SPIKE-02 ───', 'info');
+  log(`  Размер текстуры: ${w}x${h}`);
+  log(`  flipY: ${currentTextureFlipY}`);
+  log(`  Режим альфа: ${currentAlphaMode}`);
+  log(`  Режим отладки текстуры: ${currentDebugTextureMode}`);
+  log(`  Alpha=0 в details: ${detailsZeroAlpha}`);
+  log(`  Alpha=0 в композите: ${zeroAlphaCount}/${totalPixels} (${zeroAlphaPercent}%)`);
+  log(`  material.transparent: ${!isOpaque}`);
+  log(`  alphaTest: ${isOpaque ? 0 : currentAlphaTest}`);
+  log(`  Количество мешей: ${meshCount}`);
+  log(`  compositeCanvasTexture.flipY: ${compositeCanvasTexture ? compositeCanvasTexture.flipY : 'N/A'}`);
+  if (loadedDiffuseTexture) log(`  loadedDiffuseTexture.flipY: ${loadedDiffuseTexture.flipY}`);
+  if (loadedLightmapTexture) log(`  loadedLightmapTexture.flipY: ${loadedLightmapTexture.flipY}`);
+  log('─── Конец диагностики ───', 'info');
+}
+
 // ─── Material mode event handlers (SPIKE-01) ────────────────────────
 
 // Material mode selector
@@ -1111,6 +1391,53 @@ materialModeSelect.addEventListener('change', () => {
     applyRawMaterial();
     updateSceneLighting();
     log('Режим материала: Черновой (details + lightmap)', 'info');
+  }
+});
+
+// ─── SPIKE-02: Diagnostic control event handlers ────────────────────
+
+// Alpha mode selector
+const alphaModeSelect = document.getElementById('alpha-mode');
+alphaModeSelect.addEventListener('change', () => {
+  currentAlphaMode = alphaModeSelect.value;
+  log(`Режим альфа: ${currentAlphaMode}`, 'info');
+  if (currentMaterialMode === 'tankviewer-composite') {
+    applyCompositeMaterial();
+  }
+});
+
+// Texture flipY selector
+const textureFlipYSelect = document.getElementById('texture-flipy');
+textureFlipYSelect.addEventListener('change', () => {
+  currentTextureFlipY = textureFlipYSelect.value === 'true';
+  // Also update UV checker texture if it exists
+  if (uvCheckerTexture) {
+    uvCheckerTexture.dispose();
+    uvCheckerTexture = null;
+  }
+  log(`flipY текстуры: ${currentTextureFlipY}`, 'info');
+  if (currentMaterialMode === 'tankviewer-composite') {
+    applyCompositeMaterial();
+  }
+});
+
+// Debug texture mode selector
+const debugTextureModeSelect = document.getElementById('debug-texture-mode');
+debugTextureModeSelect.addEventListener('change', () => {
+  currentDebugTextureMode = debugTextureModeSelect.value;
+  log(`Режим отладки текстуры: ${currentDebugTextureMode}`, 'info');
+  if (currentMaterialMode === 'tankviewer-composite') {
+    applyCompositeMaterial();
+  }
+});
+
+// AlphaTest value input
+const alphaTestInput = document.getElementById('alpha-test-value');
+alphaTestInput.addEventListener('change', () => {
+  currentAlphaTest = parseFloat(alphaTestInput.value) || 0;
+  log(`alphaTest: ${currentAlphaTest}`, 'info');
+  if (currentMaterialMode === 'tankviewer-composite') {
+    applyCompositeMaterial();
   }
 });
 
@@ -1252,9 +1579,9 @@ btnExport.addEventListener('click', () => {
     });
   }
 
-  // Generate manifest (SPIKE-01: added materialMode and paint fields)
+  // Generate manifest (SPIKE-02: added alphaMode, textureFlipY, debugTextureMode)
   const manifest = {
-    version: 3,
+    version: 4,
     pipeline: 'tankviewer-web-isometric',
     name,
     faction,
@@ -1263,6 +1590,10 @@ btnExport.addEventListener('click', () => {
     rotationOffsetDeg: ROTATION_OFFSET_DEG,
     resolution,
     materialMode: currentMaterialMode,
+    alphaMode: currentAlphaMode,
+    textureFlipY: currentTextureFlipY,
+    debugTextureMode: currentDebugTextureMode,
+    alphaTest: currentMaterialMode === 'tankviewer-composite' ? (currentAlphaMode === 'force-opaque' ? 0 : currentAlphaTest) : null,
     paint: currentMaterialMode === 'tankviewer-composite' ? {
       faction: currentFactionPaint,
       color: FACTION_PAINTS[currentFactionPaint].css,
@@ -1485,8 +1816,10 @@ fitTargetSizeInput.addEventListener('change', () => {
 });
 
 // ─── Initial log (SPIKE-01) ──────────────────────────────────────────
-log('WEBEXPORTER-SPIKE-01: Проверка композитной текстуры TankViewer запущена.', 'ok');
-log('Режим материала: Черновой (по умолчанию). Переключи на Композит TankViewer для 3-слойной сборки.', 'info');
+log('WEBEXPORTER-SPIKE-02: Диагностика UV / альфа для TankViewer композита.', 'ok');
+log('Режим материала: Черновой (по умолчанию). Переключи на Композит TankViewer для диагностики.', 'info');
+log('SPIKE-02: Попробуй 4 комбинации: preserve-alpha/force-opaque × flipY true/false.', 'info');
+log('SPIKE-02: Режим отладки текстуры: композит / details-only / lightmap-only / UV-шахматка.', 'info');
 log('Цвета фракций: Зелёная (по умолчанию), Фиолетовая, Жёлтая, Голубая.', 'info');
 log('Three.js + TDSLoader загружены из CDN.', 'ok');
 log('Автоподгонка модели: ВКЛ по умолчанию — нормализует модель под размер кадра.', 'ok');
