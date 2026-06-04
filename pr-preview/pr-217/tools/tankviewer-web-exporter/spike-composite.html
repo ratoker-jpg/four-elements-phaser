@@ -1,0 +1,1501 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Проверка композитной текстуры TankViewer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+  h1 { font-size: 1.4rem; margin-bottom: 12px; color: #00d4ff; }
+  h2 { font-size: 1.1rem; margin: 16px 0 8px; color: #7ecfff; }
+
+  .panel { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .row { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  label { min-width: 100px; font-size: 0.85rem; color: #a0b4c8; }
+  input, select { background: #0f3460; border: 1px solid #1a508b; color: #e0e0e0; padding: 6px 10px; border-radius: 4px; font-size: 0.85rem; }
+  input[type="text"] { width: 320px; }
+  input[type="number"] { width: 80px; }
+  input[type="checkbox"] { width: auto; accent-color: #00d4ff; }
+  input[type="file"] { max-width: 320px; }
+
+  button { background: #00d4ff; color: #1a1a2e; border: none; padding: 8px 20px; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+  button:hover { background: #00b8d4; }
+  button:disabled { background: #555; color: #888; cursor: not-allowed; }
+  button.danger { background: #e74c3c; color: white; }
+  button.danger:hover { background: #c0392b; }
+
+  #log { background: #0d1117; border: 1px solid #21262d; border-radius: 4px; padding: 12px; font-family: 'Consolas', monospace; font-size: 0.78rem; max-height: 200px; overflow-y: auto; line-height: 1.5; }
+  #log .error { color: #f85149; }
+  #log .warn { color: #d29922; }
+  #log .ok { color: #3fb950; }
+  #log .info { color: #58a6ff; }
+
+  #preview-container { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  #preview-container canvas { border: 1px solid #0f3460; border-radius: 4px; background: #111; }
+  #preview-container img { border: 1px solid #0f3460; border-radius: 4px; background: repeating-conic-gradient(#222 0% 25%, #333 0% 50%) 0 0 / 16px 16px; }
+
+  .direction-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-top: 8px; }
+  .direction-grid .dir-cell { text-align: center; font-size: 0.7rem; color: #7ecfff; padding: 2px; }
+  .direction-grid .dir-cell img { width: 64px; height: 64px; display: block; margin: 0 auto; }
+
+  #three-canvas { display: none; }
+
+  .convention { background: #1a3a2e; border: 1px solid #2a5a3e; border-radius: 4px; padding: 8px 12px; font-size: 0.8rem; margin: 8px 0; }
+  .convention code { color: #3fb950; }
+
+  .config-info { background: #1a2a3e; border: 1px solid #1a508b; border-radius: 4px; padding: 8px 12px; font-size: 0.8rem; margin: 8px 0; }
+  .config-info code { color: #58a6ff; }
+  .config-info .label { color: #a0b4c8; }
+  .config-info .value { color: #e0e0e0; font-weight: 600; }
+
+  .validation-warn { background: #3a2a1a; border: 1px solid #8a6020; border-radius: 4px; padding: 6px 10px; font-size: 0.78rem; color: #d29922; margin: 4px 0; }
+  .validation-ok { background: #1a3a2a; border: 1px solid #2a8a40; border-radius: 4px; padding: 6px 10px; font-size: 0.78rem; color: #3fb950; margin: 4px 0; }
+
+  /* ─── Composite spike additions ────────────────────────────── */
+  .faction-swatch { display: inline-block; width: 24px; height: 24px; border-radius: 4px; border: 2px solid #0f3460; cursor: pointer; margin-right: 6px; vertical-align: middle; }
+  .faction-swatch.active { border-color: #00d4ff; box-shadow: 0 0 6px #00d4ff; }
+  .faction-swatch:hover { border-color: #7ecfff; }
+  .composite-preview { border: 1px solid #0f3460; border-radius: 4px; image-rendering: pixelated; background: repeating-conic-gradient(#222 0% 25%, #333 0% 50%) 0 0 / 16px 16px; }
+  .composite-info { background: #2a1a3e; border: 1px solid #5a2a8a; border-radius: 4px; padding: 8px 12px; font-size: 0.8rem; margin: 8px 0; }
+  .composite-info code { color: #c490ff; }
+</style>
+</head>
+<body>
+
+<h1>Проверка композитной текстуры TankViewer</h1>
+<p style="font-size:0.85rem; color:#8899aa; margin-bottom:12px;">
+  Проверка формулы TankViewer для Wasp M0.
+  Формула: HARDLIGHT(colormap, MULTIPLY(lightmap, details)).
+</p>
+
+<div class="convention">
+  <strong>Схема направлений:</strong>
+  <code>dir0=E, dir1=SE, dir2=S, dir3=SW, dir4=W, dir5=NW, dir6=N, dir7=NE</code> (8 направлений)<br>
+  <code>dir0=E, dir1=ESE, dir2=SE, ..., dir12=N, ..., dir15=ENE</code> (16 направлений)<br>
+  Совпадает с <code>directionFromDelta()</code> игры.
+</div>
+
+<!-- Config.xml upload (optional) -->
+<div class="panel">
+  <h2>Config.xml / каталог моделей</h2>
+  <p style="font-size:0.78rem; color:#8899aa; margin-bottom:8px;">
+    Загрузи config.xml из TankViewer, чтобы инструмент сам подсказал нужные файлы модели, details и lightmap.
+    Сами файлы всё равно нужно выбрать вручную ниже — браузер не может читать пути на диске автоматически.
+  </p>
+  <div class="row">
+    <label>Config.xml:</label>
+    <input type="file" id="config-file" accept=".xml">
+    <button id="btn-clear-config" style="padding:4px 12px; font-size:0.8rem;">Очистить</button>
+  </div>
+
+  <!-- Config-driven selectors (shown after config loaded) -->
+  <div id="config-selectors" style="display:none;">
+    <div class="row">
+      <label>Тип:</label>
+      <select id="config-kind">
+        <option value="">-- выбери тип --</option>
+        <option value="hull">Корпус</option>
+        <option value="turret">Пушка</option>
+      </select>
+      <label>Модель:</label>
+      <select id="config-asset" disabled>
+        <option value="">-- сначала выбери тип --</option>
+      </select>
+      <label>Уровень M:</label>
+      <select id="config-mlevel" disabled>
+        <option value="">-- сначала выбери модель --</option>
+      </select>
+    </div>
+    <div id="config-entry-info" class="config-info" style="display:none;"></div>
+    <div id="config-validation"></div>
+  </div>
+</div>
+
+<!-- Source file inputs -->
+<div class="panel">
+  <h2>Исходные файлы</h2>
+  <div class="row">
+    <label>3DS-модель:</label>
+    <input type="file" id="model-file" accept=".3ds">
+    <span id="model-file-hint" style="font-size:0.75rem; color:#8899aa;"></span>
+  </div>
+  <div class="row">
+    <label>Details-текстура:</label>
+    <input type="file" id="diffuse-file" accept=".png,.jpg,.jpeg">
+    <span id="diffuse-file-hint" style="font-size:0.75rem; color:#8899aa;"></span>
+  </div>
+  <div class="row">
+    <label>Lightmap-текстура:</label>
+    <input type="file" id="lightmap-file" accept=".png,.jpg,.jpeg">
+    <span id="lightmap-file-hint" style="font-size:0.75rem; color:#8899aa;"></span>
+  </div>
+</div>
+
+<!-- Material Compositing Panel (SPIKE-01 addition) -->
+<div class="panel">
+  <h2>Сборка текстуры по формуле TankViewer</h2>
+  <div class="composite-info">
+    <strong>Формула TankViewer:</strong>
+    <code>composite = HARDLIGHT(colormap, MULTIPLY(lightmap, details))</code><br>
+    Альфа сохраняется из details PNG. Динамическое освещение не используется (MeshBasicMaterial).
+  </div>
+  <div class="row">
+    <label>Режим материала:</label>
+    <select id="material-mode">
+      <option value="raw">Черновой режим</option>
+      <option value="tankviewer-composite">Композит TankViewer</option>
+    </select>
+  </div>
+  <div id="composite-options" style="display:none;">
+    <div class="row">
+      <label>Цвет фракции:</label>
+      <span id="faction-green" class="faction-swatch active" style="background:#404624;" title="Зелёная"></span>
+      <span id="faction-purple" class="faction-swatch" style="background:#7800B4;" title="Фиолетовая"></span>
+      <span id="faction-yellow" class="faction-swatch" style="background:#E6C800;" title="Жёлтая"></span>
+      <span id="faction-cyan" class="faction-swatch" style="background:#00B4C8;" title="Голубая"></span>
+      <span style="font-size:0.75rem; color:#8899aa; margin-left:8px;">(Нажми для выбора цвета фракции)</span>
+    </div>
+    <div class="row">
+      <label>Предпросмотр текстуры:</label>
+      <canvas id="composite-preview" width="128" height="128" class="composite-preview"></canvas>
+      <span id="composite-status" style="font-size:0.75rem; color:#8899aa;">Загрузи details и lightmap для сборки текстуры</span>
+    </div>
+  </div>
+</div>
+
+<!-- Render settings -->
+<div class="panel">
+  <h2>Настройки рендера</h2>
+  <div class="row">
+    <label>Имя ассета:</label>
+    <input type="text" id="asset-name" value="wasp_m0_hull">
+    <label>Фракция:</label>
+    <input type="text" id="faction" value="green" style="width:80px">
+  </div>
+  <div class="row">
+    <label>Направления:</label>
+    <select id="directions">
+      <option value="8">8 направлений</option>
+      <option value="16" selected>16 направлений</option>
+    </select>
+    <label>Разрешение:</label>
+    <input type="number" id="resolution" value="256" min="64" max="1024" step="64">
+  </div>
+  <div class="row">
+    <label>Масштаб камеры:</label>
+    <input type="number" id="ortho-scale" value="4.0" min="0.5" max="100" step="0.5">
+    <label>Высота / Z-scale:</label>
+    <input type="number" id="z-scale" value="1.0" min="0.1" max="5" step="0.1">
+    <span style="font-size:0.75rem; color:#8899aa;">(Подгони под вертикальное растяжение)</span>
+  </div>
+  <div class="row">
+    <label>Автоподгонка модели:</label>
+    <input type="checkbox" id="auto-fit" checked>
+    <label>Целевой размер:</label>
+    <input type="number" id="fit-target-size" value="3.0" min="0.5" max="20" step="0.5">
+    <span style="font-size:0.75rem; color:#8899aa;">(Макс. размер после нормализации, в мировых единицах)</span>
+  </div>
+  <div class="row">
+    <button id="btn-render" disabled>Рендер 16 направлений</button>
+    <button id="btn-export" disabled>Скачать PNG + manifest</button>
+    <button id="btn-calibrate">Проверка камеры</button>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="panel">
+  <h2>Лог</h2>
+  <div id="log"></div>
+</div>
+
+<!-- Preview -->
+<div class="panel">
+  <h2>Предпросмотр (16 направлений)</h2>
+  <div id="preview-container"></div>
+</div>
+
+<!-- Hidden Three.js canvas -->
+<canvas id="three-canvas"></canvas>
+
+<!-- Three.js from CDN — standalone tool, not part of game runtime -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { TDSLoader } from 'three/addons/loaders/TDSLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─── CAMERA_PROJECTION_CONTRACT constants ────────────────────────────
+const TILE_W = 76;
+const TILE_H = 38;
+const BASIS_X = { x: TILE_W / 2, y: TILE_H / 2 };   // {38, 19}
+const BASIS_Y = { x: -TILE_W / 2, y: TILE_H / 2 };   // {-38, 19}
+const BASIS_Z = { x: 0, y: -60 };
+
+// ─── Direction convention ────────────────────────────────────────────
+const DIRECTION_NAMES_8 = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'];
+const DIRECTION_NAMES_16 = [
+  'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW',
+  'W', 'WNW', 'NW', 'NNW', 'N', 'NNE', 'NE', 'ENE',
+];
+
+// Rotation offset so dir0 = E (screen-right) with isometric camera at
+// azimuth 45 degrees. In Three.js, the camera looks at origin from
+// the NE direction (azimuth 45), so model forward (+Y) needs additional
+// rotation to face screen-right.
+const ROTATION_OFFSET_DEG = -90; // Adjust per model orientation after testing
+
+// ─── Auto-fit constants ──────────────────────────────────────────────
+const DEFAULT_FIT_TARGET_SIZE = 3.0; // Max dimension in world units after normalization
+
+// ─── Faction paint presets (SPIKE-01) ────────────────────────────────
+const FACTION_PAINTS = {
+  green:  { r: 64,  g: 70,  b: 36,  css: 'rgb(64, 70, 36)' },
+  purple: { r: 120, g: 0,   b: 180, css: 'rgb(120, 0, 180)' },
+  yellow: { r: 230, g: 200, b: 0,   css: 'rgb(230, 200, 0)' },
+  cyan:   { r: 0,   g: 180, b: 200, css: 'rgb(0, 180, 200)' },
+};
+
+const MATERIAL_MODES = ['raw', 'tankviewer-composite'];
+
+// ─── DOM elements ────────────────────────────────────────────────────
+const modelFileInput  = document.getElementById('model-file');
+const diffuseFileInput = document.getElementById('diffuse-file');
+const lightmapFileInput = document.getElementById('lightmap-file');
+const btnRender    = document.getElementById('btn-render');
+const btnExport    = document.getElementById('btn-export');
+const btnCalibrate = document.getElementById('btn-calibrate');
+const autoFitCheckbox = document.getElementById('auto-fit');
+const fitTargetSizeInput = document.getElementById('fit-target-size');
+const logDiv       = document.getElementById('log');
+const previewDiv   = document.getElementById('preview-container');
+
+// Config-aware DOM elements
+const configFileInput = document.getElementById('config-file');
+const btnClearConfig = document.getElementById('btn-clear-config');
+const configSelectorsDiv = document.getElementById('config-selectors');
+const configKindSelect = document.getElementById('config-kind');
+const configAssetSelect = document.getElementById('config-asset');
+const configMlevelSelect = document.getElementById('config-mlevel');
+const configEntryInfoDiv = document.getElementById('config-entry-info');
+const configValidationDiv = document.getElementById('config-validation');
+const modelFileHint = document.getElementById('model-file-hint');
+const diffuseFileHint = document.getElementById('diffuse-file-hint');
+const lightmapFileHint = document.getElementById('lightmap-file-hint');
+
+// ─── Three.js setup ──────────────────────────────────────────────────
+const canvas = document.getElementById('three-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, preserveDrawingBuffer: true });
+renderer.setClearColor(0x000000, 0); // transparent background
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+
+// Isometric orthographic camera matching CAMERA_PROJECTION_CONTRACT
+// Azimuth 45 degrees, Elevation arctan(1/sqrt(2)) ≈ 35.264 degrees
+const AZIMUTH = 45;
+const ELEVATION = 35.264;
+const CAM_DIST = 10;
+
+let orthoScale = 4.0;
+let camera;
+
+// Auto-fit state: stores normalization info for current model
+let autoFitInfo = null; // { originalBbox, originalSize, normalizeScale, finalBbox, finalSize }
+
+function createIsometricCamera(scale) {
+  const aspect = 1; // square render
+  const s = scale;
+  // near=0.01, far=10000: accommodate raw TankViewer models (hundreds of units)
+  // before normalization, and tiny normalized models after.
+  const cam = new THREE.OrthographicCamera(-s * aspect, s * aspect, s, -s, 0.01, 10000);
+
+  const azRad = THREE.MathUtils.degToRad(AZIMUTH);
+  const elRad = THREE.MathUtils.degToRad(ELEVATION);
+
+  cam.position.set(
+    CAM_DIST * Math.cos(elRad) * Math.cos(azRad),
+    CAM_DIST * Math.sin(elRad),
+    CAM_DIST * Math.cos(elRad) * Math.sin(azRad)
+  );
+  cam.lookAt(0, 0, 0);
+  cam.updateProjectionMatrix();
+  return cam;
+}
+
+camera = createIsometricCamera(orthoScale);
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+dirLight.position.set(5, 10, -5);
+scene.add(dirLight);
+
+// ─── State ───────────────────────────────────────────────────────────
+let loadedModel = null;    // Raw parsed 3DS model (child of wrapper)
+let modelWrapper = null;   // THREE.Group wrapper — holds scale/rotation, child is centered model
+let renderedImages = []; // { dirIdx, dirName, dataUrl }
+let loadedModelBbox = null; // Original bounding box before centering/scaling
+let loadedModelSize = null; // { x, y, z } original size dimensions
+
+// ─── Config-aware state ──────────────────────────────────────────────
+let parsedConfig = null;   // { cameraRadius, hulls: [...], turrets: [...], colormaps: [...] }
+let selectedConfigEntry = null; // The currently selected model entry from config
+
+// ─── Composite spike state (SPIKE-01) ────────────────────────────────
+let currentMaterialMode = 'raw';
+let currentFactionPaint = 'green';
+let detailsImage = null;   // HTMLImageElement from details file (for compositing)
+let lightmapImage = null;  // HTMLImageElement from lightmap file (for compositing)
+let compositeCanvasTexture = null; // THREE.CanvasTexture from composition
+let loadedDiffuseTexture = null;  // THREE.Texture from details file (for raw mode)
+let loadedLightmapTexture = null; // THREE.Texture from lightmap file (for raw mode)
+
+// ─── Logging ─────────────────────────────────────────────────────────
+function log(msg, level = 'info') {
+  const span = document.createElement('span');
+  span.className = level;
+  span.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  logDiv.appendChild(span);
+  logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+// ─── Scene lighting toggle (SPIKE-01) ───────────────────────────────
+function updateSceneLighting() {
+  if (currentMaterialMode === 'tankviewer-composite') {
+    // MeshBasicMaterial doesn't need lights — remove them to be explicit
+    ambientLight.intensity = 0;
+    dirLight.intensity = 0;
+  } else {
+    ambientLight.intensity = 0.5;
+    dirLight.intensity = 1.0;
+  }
+}
+
+// ─── Composite texture functions (SPIKE-01) ──────────────────────────
+
+/**
+ * Compose a TankViewer-style texture using Canvas2D.
+ * Formula: HARDLIGHT(colormap, MULTIPLY(lightmap, details))
+ * Alpha is preserved from the details PNG.
+ *
+ * @param {HTMLImageElement} detailsImg - Details/diffuse texture (RGBA)
+ * @param {HTMLImageElement} lightmapImg - Lightmap texture (RGB)
+ * @param {string} paintColor - CSS color string for faction paint
+ * @returns {HTMLCanvasElement} Composited canvas with preserved alpha
+ */
+function composeTexture(detailsImg, lightmapImg, paintColor) {
+  const w = detailsImg.naturalWidth || detailsImg.width;
+  const h = detailsImg.naturalHeight || detailsImg.height;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  // Step 1: Draw details as base
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(detailsImg, 0, 0, w, h);
+
+  // Save alpha channel from details — transparent UV areas must remain transparent
+  const detailsData = ctx.getImageData(0, 0, w, h);
+  const alphaChannel = new Uint8ClampedArray(w * h);
+  for (let i = 0; i < w * h; i++) {
+    alphaChannel[i] = detailsData.data[i * 4 + 3];
+  }
+
+  // Step 2: Multiply lightmap on top (darkens the base where lightmap is darker)
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.drawImage(lightmapImg, 0, 0, w, h);
+
+  // Step 3: Apply faction paint with hard-light blend (applies paint color)
+  ctx.globalCompositeOperation = 'hard-light';
+  ctx.fillStyle = paintColor;
+  ctx.fillRect(0, 0, w, h);
+
+  // Step 4: Restore alpha from details — composited areas that were transparent
+  // in the details PNG must remain transparent in the output
+  ctx.globalCompositeOperation = 'source-over';
+  const compositeData = ctx.getImageData(0, 0, w, h);
+  for (let i = 0; i < w * h; i++) {
+    compositeData.data[i * 4 + 3] = alphaChannel[i];
+  }
+  ctx.putImageData(compositeData, 0, 0);
+
+  return canvas;
+}
+
+/**
+ * Apply TankViewer composite material to all meshes.
+ * Replaces all materials with MeshBasicMaterial using the composited texture.
+ * No dynamic lighting needed — lightmap is baked into the composite.
+ */
+function applyCompositeMaterial() {
+  if (!loadedModel || !detailsImage || !lightmapImage) {
+    log('Невозможно собрать композит: нужны модель + details + lightmap', 'warn');
+    return;
+  }
+
+  const paint = FACTION_PAINTS[currentFactionPaint];
+  const composedCanvas = composeTexture(detailsImage, lightmapImage, paint.css);
+
+  // Update preview
+  const previewCanvas = document.getElementById('composite-preview');
+  if (previewCanvas) {
+    const previewCtx = previewCanvas.getContext('2d');
+    previewCtx.clearRect(0, 0, 128, 128);
+    previewCtx.drawImage(composedCanvas, 0, 0, 128, 128);
+  }
+
+  // Create Three.js texture from composited canvas
+  if (compositeCanvasTexture) compositeCanvasTexture.dispose();
+  compositeCanvasTexture = new THREE.CanvasTexture(composedCanvas);
+  compositeCanvasTexture.colorSpace = THREE.SRGBColorSpace;
+  compositeCanvasTexture.needsUpdate = true;
+
+  // Apply to all meshes as MeshBasicMaterial (no lighting needed)
+  loadedModel.traverse((child) => {
+    if (child.isMesh) {
+      const newMat = new THREE.MeshBasicMaterial({
+        map: compositeCanvasTexture,
+        transparent: true,
+        alphaTest: 0.01,
+        side: THREE.DoubleSide,
+      });
+      if (Array.isArray(child.material)) {
+        child.material.forEach(m => m.dispose());
+      } else {
+        child.material.dispose();
+      }
+      child.material = newMat;
+    }
+  });
+
+  const statusEl = document.getElementById('composite-status');
+  if (statusEl) statusEl.textContent = `Собрано: краска ${currentFactionPaint} (${composedCanvas.width}x${composedCanvas.height})`;
+  log(`Композитный материал наложен (краска ${currentFactionPaint}, ${composedCanvas.width}x${composedCanvas.height}).`, 'ok');
+}
+
+/**
+ * Apply raw material mode — standard Three.js materials with diffuse + lightmap.
+ * Re-applies loaded textures using the original material approach.
+ */
+function applyRawMaterial() {
+  if (!loadedModel) return;
+
+  // Re-apply textures to existing materials
+  loadedModel.traverse((child) => {
+    if (child.isMesh) {
+      // Create fresh MeshStandardMaterial
+      const newMat = new THREE.MeshStandardMaterial({
+        transparent: true,
+        side: THREE.DoubleSide,
+      });
+      if (loadedDiffuseTexture) {
+        newMat.map = loadedDiffuseTexture;
+      }
+      if (loadedLightmapTexture) {
+        newMat.lightMap = loadedLightmapTexture;
+      }
+      newMat.needsUpdate = true;
+
+      if (Array.isArray(child.material)) {
+        child.material.forEach(m => m.dispose());
+      } else {
+        child.material.dispose();
+      }
+      child.material = newMat;
+    }
+  });
+
+  log('Черновой режим: MeshStandardMaterial с освещением.', 'ok');
+}
+
+/**
+ * Load a File as an HTMLImageElement for Canvas2D compositing.
+ * @param {File} file - File from input element
+ * @returns {Promise<HTMLImageElement|null>}
+ */
+async function loadImageElement(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => { log(`Не удалось загрузить изображение: ${file.name}`, 'error'); resolve(null); };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ─── Config.xml parsing ──────────────────────────────────────────────
+
+/**
+ * Parse a TankViewer config.xml string into a structured object.
+ *
+ * Expected XML structure:
+ * <root camera-radius="750">
+ *   <hulls>
+ *     <model file="hulls/Wasp_0123.3ds" lightmap="hulls/Wasp_0_lightmap.jpg" details="hulls/Wasp_0_details.png"/>
+ *   </hulls>
+ *   <turrets>
+ *     <model file="turrets/Smoky_0123.3ds" lightmap="turrets/Smoky_0_lightmap.jpg" details="turrets/Smoky_0_details.png"/>
+ *   </turrets>
+ *   <colormaps>
+ *     <colormap ... />
+ *   </colormaps>
+ * </root>
+ *
+ * @param {string} xmlText - Raw XML content of config.xml
+ * @returns {Object} Parsed config with cameraRadius, hulls, turrets, colormaps
+ */
+function parseConfigXml(xmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'text/xml');
+
+  const parseError = doc.querySelector('parsererror');
+  if (parseError) {
+    throw new Error('XML parse error: ' + parseError.textContent.slice(0, 200));
+  }
+
+  // Real TankViewer config.xml uses <config camera-radius="750">.
+  // Fallback to <root> for synthetic/test XML.
+  const root = doc.querySelector('config') || doc.querySelector('root');
+  if (!root) {
+    throw new Error('config.xml missing <config> or <root> element');
+  }
+
+  const cameraRadius = parseFloat(root.getAttribute('camera-radius')) || 750;
+
+  // Parse hull models
+  const hulls = [];
+  const hullModels = root.querySelectorAll('hulls > model');
+  hullModels.forEach((el) => {
+    const entry = {
+      file: el.getAttribute('file') || '',
+      details: el.getAttribute('details') || '',
+      lightmap: el.getAttribute('lightmap') || '',
+    };
+    entry.assetName = inferAssetName(entry.file, 'hull');
+    entry.mLevel = inferMLevel(entry.details || entry.lightmap);
+    entry.kind = 'hull';
+    hulls.push(entry);
+  });
+
+  // Parse turret models
+  const turrets = [];
+  const turretModels = root.querySelectorAll('turrets > model');
+  turretModels.forEach((el) => {
+    const entry = {
+      file: el.getAttribute('file') || '',
+      details: el.getAttribute('details') || '',
+      lightmap: el.getAttribute('lightmap') || '',
+    };
+    entry.assetName = inferAssetName(entry.file, 'turret');
+    entry.mLevel = inferMLevel(entry.details || entry.lightmap);
+    entry.kind = 'turret';
+    turrets.push(entry);
+  });
+
+  // Parse colormaps (informational only — no rendering impact)
+  const colormaps = [];
+  const colormapEls = root.querySelectorAll('colormaps > colormap');
+  colormapEls.forEach((el) => {
+    colormaps.push({
+      name: el.getAttribute('name') || '',
+      file: el.getAttribute('file') || '',
+    });
+  });
+
+  return { cameraRadius, hulls, turrets, colormaps };
+}
+
+/**
+ * Infer the asset group/name from a model file path.
+ * e.g. "hulls/Wasp_0123.3ds" → "Wasp", "turrets/Smoky_01.3ds" → "Smoky"
+ * Real TankViewer files use 1–4 digit suffixes after underscore:
+ *   Dictator_012.3ds, Dictator_3.3ds, Smoky_01.3ds, Smoky_23.3ds,
+ *   Twins_2.3ds, Firebird_012.3ds, Wasp_0123.3ds
+ *
+ * @param {string} filePath - Model file path from config
+ * @param {string} kind - 'hull' or 'turret'
+ * @returns {string} Inferred asset name (capitalized)
+ */
+function inferAssetName(filePath, kind) {
+  if (!filePath) return '';
+  // Extract filename without path and extension
+  const basename = filePath.split('/').pop().replace(/\.[^.]+$/, '');
+  // Strip trailing model-group suffix: underscore followed by 1–4 digits.
+  // This handles Wasp_0123, Dictator_012, Smoky_01, Twins_2, etc.
+  const name = basename.replace(/_\d{1,4}$/, '');
+  // Capitalize first letter
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/**
+ * Infer M-level from a details or lightmap filename suffix.
+ * e.g. "Wasp_0_details.png" → 0, "Wasp_2_lightmap.jpg" → 2
+ * Falls back to 0 if no recognizable _N pattern.
+ *
+ * @param {string} filePath - Details or lightmap file path
+ * @returns {number} Inferred M-level (0-3)
+ */
+function inferMLevel(filePath) {
+  if (!filePath) return 0;
+  // Match _0, _1, _2, _3 before _details or _lightmap
+  const match = filePath.match(/_(\d)_(?:details|lightmap)/i);
+  if (match) return parseInt(match[1]);
+  // Also try matching _0. _1. etc. before extension
+  const match2 = filePath.match(/_(\d)\.[^.]+$/);
+  if (match2 && parseInt(match2[1]) <= 3) return parseInt(match2[1]);
+  return 0;
+}
+
+/**
+ * Get the expected filename from a path (last component).
+ * @param {string} filePath - Full path like "hulls/Wasp_0123.3ds"
+ * @returns {string} Just the filename: "Wasp_0123.3ds"
+ */
+function getExpectedFilename(filePath) {
+  if (!filePath) return '';
+  return filePath.split('/').pop();
+}
+
+/**
+ * Build unique asset names grouped by kind.
+ * Returns a Map of assetName → array of model entries.
+ */
+function groupConfigEntries(config, kind) {
+  const entries = kind === 'hull' ? config.hulls : kind === 'turret' ? config.turrets : [];
+  const groups = new Map();
+  entries.forEach((entry) => {
+    const name = entry.assetName;
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(entry);
+  });
+  return groups;
+}
+
+// ─── Config file upload handler ──────────────────────────────────────
+configFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  log(`Загрузка config.xml: ${file.name}...`);
+  try {
+    const text = await file.text();
+    parsedConfig = parseConfigXml(text);
+
+    log(`Config.xml успешно прочитан.`, 'ok');
+    log(`  camera-radius: ${parsedConfig.cameraRadius}`);
+    log(`  Корпуса: ${parsedConfig.hulls.length}`);
+    log(`  Пушки: ${parsedConfig.turrets.length}`);
+    log(`  Colormap: ${parsedConfig.colormaps.length}`);
+
+    // Show config selectors
+    configSelectorsDiv.style.display = '';
+    configKindSelect.value = '';
+    configAssetSelect.innerHTML = '<option value="">-- сначала выбери тип --</option>';
+    configAssetSelect.disabled = true;
+    configMlevelSelect.innerHTML = '<option value="">-- сначала выбери модель --</option>';
+    configMlevelSelect.disabled = true;
+    configEntryInfoDiv.style.display = 'none';
+    selectedConfigEntry = null;
+
+    // Update camera-radius hint
+    log(`  Подсказка: выбери Тип → Модель → Уровень M, чтобы увидеть ожидаемые имена файлов.`, 'info');
+    log(`  Радиус камеры из конфига: ${parsedConfig.cameraRadius} (может помочь выбрать масштаб камеры)`, 'info');
+  } catch (err) {
+    log(`Не удалось прочитать config.xml: ${err.message}`, 'error');
+    parsedConfig = null;
+    configSelectorsDiv.style.display = 'none';
+  }
+});
+
+// Clear config
+btnClearConfig.addEventListener('click', () => {
+  parsedConfig = null;
+  selectedConfigEntry = null;
+  configFileInput.value = '';
+  configSelectorsDiv.style.display = 'none';
+  configEntryInfoDiv.style.display = 'none';
+  configValidationDiv.innerHTML = '';
+  modelFileHint.textContent = '';
+  diffuseFileHint.textContent = '';
+  lightmapFileHint.textContent = '';
+  log('Config очищен.', 'info');
+});
+
+// Kind selector change
+configKindSelect.addEventListener('change', () => {
+  const kind = configKindSelect.value;
+  configAssetSelect.innerHTML = '';
+  configMlevelSelect.innerHTML = '<option value="">-- сначала выбери модель --</option>';
+  configMlevelSelect.disabled = true;
+  configEntryInfoDiv.style.display = 'none';
+  selectedConfigEntry = null;
+
+  if (!parsedConfig || !kind) {
+    configAssetSelect.innerHTML = '<option value="">-- сначала выбери тип --</option>';
+    configAssetSelect.disabled = true;
+    return;
+  }
+
+  const groups = groupConfigEntries(parsedConfig, kind);
+  configAssetSelect.disabled = false;
+  configAssetSelect.innerHTML = '<option value="">-- выбери модель --</option>';
+  for (const name of Array.from(groups.keys()).sort()) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    configAssetSelect.appendChild(opt);
+  }
+});
+
+// Asset selector change
+configAssetSelect.addEventListener('change', () => {
+  const kind = configKindSelect.value;
+  const assetName = configAssetSelect.value;
+  configMlevelSelect.innerHTML = '';
+  configEntryInfoDiv.style.display = 'none';
+  selectedConfigEntry = null;
+
+  if (!parsedConfig || !kind || !assetName) {
+    configMlevelSelect.innerHTML = '<option value="">-- сначала выбери модель --</option>';
+    configMlevelSelect.disabled = true;
+    return;
+  }
+
+  const groups = groupConfigEntries(parsedConfig, kind);
+  const entries = groups.get(assetName) || [];
+
+  // Get unique M-levels for this asset
+  const mLevels = [...new Set(entries.map(e => e.mLevel))].sort((a, b) => a - b);
+
+  configMlevelSelect.disabled = false;
+  configMlevelSelect.innerHTML = '<option value="">-- выбери уровень M --</option>';
+  mLevels.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = String(m);
+    opt.textContent = `M${m}`;
+    configMlevelSelect.appendChild(opt);
+  });
+
+  // Update hints for selected files
+  updateFileHints();
+});
+
+// M-level selector change
+configMlevelSelect.addEventListener('change', () => {
+  const kind = configKindSelect.value;
+  const assetName = configAssetSelect.value;
+  const mLevel = parseInt(configMlevelSelect.value);
+
+  if (!parsedConfig || !kind || !assetName || isNaN(mLevel)) {
+    configEntryInfoDiv.style.display = 'none';
+    selectedConfigEntry = null;
+    return;
+  }
+
+  const groups = groupConfigEntries(parsedConfig, kind);
+  const entries = groups.get(assetName) || [];
+  const entry = entries.find(e => e.mLevel === mLevel);
+
+  if (!entry) {
+    log(`Не найдена запись конфига для ${kind}/${assetName}/M${mLevel}`, 'warn');
+    configEntryInfoDiv.style.display = 'none';
+    selectedConfigEntry = null;
+    return;
+  }
+
+  selectedConfigEntry = entry;
+
+  // Show entry info
+  configEntryInfoDiv.style.display = '';
+  configEntryInfoDiv.innerHTML = `
+    <span class="label">Тип:</span> <span class="value">${entry.kind}</span> &nbsp;
+    <span class="label">Модель:</span> <span class="value">${entry.assetName}</span> &nbsp;
+    <span class="label">Уровень M:</span> <span class="value">${entry.mLevel}</span><br>
+    <span class="label">Ожидаемая 3DS-модель:</span> <code>${entry.file}</code> → <span class="value">${getExpectedFilename(entry.file)}</span><br>
+    <span class="label">Ожидаемая details:</span> <code>${entry.details}</code> → <span class="value">${getExpectedFilename(entry.details)}</span><br>
+    <span class="label">Ожидаемая lightmap:</span> <code>${entry.lightmap}</code> → <span class="value">${getExpectedFilename(entry.lightmap)}</span><br>
+    <span class="label">Радиус камеры:</span> <span class="value">${parsedConfig.cameraRadius}</span>
+  `;
+
+  log(`Выбрана запись конфига: ${entry.kind}/${entry.assetName}/M${entry.mLevel}`, 'ok');
+  log(`  Ожидаемая модель: ${getExpectedFilename(entry.file)}`);
+  log(`  Ожидаемая details: ${getExpectedFilename(entry.details)}`);
+  log(`  Ожидаемая lightmap: ${getExpectedFilename(entry.lightmap)}`);
+  log(`  Радиус камеры: ${parsedConfig.cameraRadius}`);
+
+  // Update file hints
+  updateFileHints();
+
+  // Auto-set asset name in render settings
+  const assetNameInput = document.getElementById('asset-name');
+  const inferredName = `${entry.assetName.toLowerCase()}_m${entry.mLevel}_${entry.kind}`;
+  assetNameInput.value = inferredName;
+  log(`  Имя ассета автоматически: ${inferredName}`, 'info');
+
+  // Run validation
+  validateFilesAgainstConfig();
+});
+
+/**
+ * Update file input hints based on selected config entry.
+ */
+function updateFileHints() {
+  const kind = configKindSelect.value;
+  const assetName = configAssetSelect.value;
+  const mLevel = configMlevelSelect.value;
+
+  if (!parsedConfig || !kind || !assetName || !mLevel) {
+    modelFileHint.textContent = '';
+    diffuseFileHint.textContent = '';
+    lightmapFileHint.textContent = '';
+    return;
+  }
+
+  const groups = groupConfigEntries(parsedConfig, kind);
+  const entries = groups.get(assetName) || [];
+  const entry = entries.find(e => e.mLevel === parseInt(mLevel));
+
+  if (entry) {
+    modelFileHint.textContent = `Ожидается: ${getExpectedFilename(entry.file)}`;
+    diffuseFileHint.textContent = `Ожидается: ${getExpectedFilename(entry.details)}`;
+    lightmapFileHint.textContent = `Ожидается: ${getExpectedFilename(entry.lightmap)}`;
+  }
+}
+
+/**
+ * Validate selected local files against the config entry.
+ * Shows warnings if filenames don't match.
+ */
+function validateFilesAgainstConfig() {
+  configValidationDiv.innerHTML = '';
+
+  if (!selectedConfigEntry) return;
+
+  const modelFile = modelFileInput.files[0];
+  const diffuseFile = diffuseFileInput.files[0];
+  const lightmapFile = lightmapFileInput.files[0];
+
+  const checks = [
+    { label: 'Модель', actual: modelFile?.name, expected: getExpectedFilename(selectedConfigEntry.file) },
+    { label: 'Details', actual: diffuseFile?.name, expected: getExpectedFilename(selectedConfigEntry.details) },
+    { label: 'Lightmap', actual: lightmapFile?.name, expected: getExpectedFilename(selectedConfigEntry.lightmap) },
+  ];
+
+  checks.forEach(({ label, actual, expected }) => {
+    if (!actual) return; // No file selected yet — skip
+
+    const div = document.createElement('div');
+    if (expected && actual !== expected) {
+      div.className = 'validation-warn';
+      div.textContent = `${label}: файл "${actual}" не совпадает с конфигом "${expected}"`;
+      log(`ВНИМАНИЕ: ${label} файл "${actual}" не совпадает с конфигом "${expected}"`, 'warn');
+    } else if (expected && actual === expected) {
+      div.className = 'validation-ok';
+      div.textContent = `${label}: имя файла совпадает с конфигом ✓`;
+    }
+    configValidationDiv.appendChild(div);
+  });
+}
+
+// ─── 3DS Loading ─────────────────────────────────────────────────────
+modelFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  log(`Загрузка 3DS-модели: ${file.name}...`);
+  const loader = new TDSLoader();
+
+  const arrayBuffer = await file.arrayBuffer();
+  try {
+    // Remove previous model (wrapper and child)
+    if (modelWrapper) {
+      scene.remove(modelWrapper);
+      if (loadedModel) {
+        loadedModel.traverse((child) => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
+      modelWrapper = null;
+      loadedModel = null;
+    }
+
+    loadedModel = loader.parse(arrayBuffer, '');
+
+    // Compute bounding box from raw model (before any transform)
+    const box = new THREE.Box3().setFromObject(loadedModel);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    loadedModelBbox = box.clone();
+    loadedModelSize = { x: size.x, y: size.y, z: size.z };
+
+    // Center the model using a wrapper group (Option B):
+    //   child.position = -center  → vertices centered at wrapper origin
+    //   wrapper.scale = normalizeScale  → scales the centered result
+    // This produces: normalizeScale * (V - center) instead of
+    // the buggy: normalizeScale * V - center
+    const center = box.getCenter(new THREE.Vector3());
+    loadedModel.position.set(-center.x, -center.y, -center.z);
+
+    modelWrapper = new THREE.Group();
+    modelWrapper.add(loadedModel);
+    modelWrapper.scale.set(1, 1, 1); // unit scale until auto-fit applies
+    autoFitInfo = null;
+
+    scene.add(modelWrapper);
+
+    log(`3DS-модель загружена.`, 'ok');
+    log(`  Исходный bbox: ${box.min.x.toFixed(2)},${box.min.y.toFixed(2)},${box.min.z.toFixed(2)} → ${box.max.x.toFixed(2)},${box.max.y.toFixed(2)},${box.max.z.toFixed(2)}`);
+    log(`  Исходный размер: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+
+    // Auto-apply fit if checkbox is on
+    if (autoFitCheckbox.checked) {
+      applyAutoFit();
+    }
+
+    btnRender.disabled = false;
+
+    // Apply current material mode after model load
+    if (currentMaterialMode === 'tankviewer-composite' && detailsImage && lightmapImage) {
+      applyCompositeMaterial();
+    } else if (currentMaterialMode === 'raw') {
+      // Re-apply raw textures if available
+      if (loadedDiffuseTexture) applyDiffuseTexture(loadedModel, loadedDiffuseTexture);
+      if (loadedLightmapTexture) applyLightmapTexture(loadedModel, loadedLightmapTexture);
+    }
+
+    // Validate against config if present
+    validateFilesAgainstConfig();
+  } catch (err) {
+    log(`Не удалось загрузить 3DS: ${err.message}`, 'error');
+    log(`TDSLoader может не поддерживать этот вариант 3DS. Попробуй Blender-пайплайн.`, 'warn');
+  }
+});
+
+// ─── Texture application (modified for compositing) ──────────────────
+diffuseFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file || !loadedModel) return;
+
+  log(`Накладываю details-текстуру: ${file.name}...`);
+
+  // Store image element for compositing
+  detailsImage = await loadImageElement(file);
+
+  const texture = await loadTextureFromFile(file);
+  if (texture) {
+    loadedDiffuseTexture = texture;  // Store for raw mode
+    if (currentMaterialMode === 'raw') {
+      applyDiffuseTexture(loadedModel, texture);
+    }
+    log(`Details-текстура наложена.`, 'ok');
+  }
+
+  // Auto-compose if in composite mode
+  if (currentMaterialMode === 'tankviewer-composite') {
+    applyCompositeMaterial();
+  }
+
+  // Validate against config if present
+  validateFilesAgainstConfig();
+});
+
+lightmapFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file || !loadedModel) return;
+
+  log(`Накладываю lightmap-текстуру: ${file.name}...`);
+
+  // Store image element for compositing
+  lightmapImage = await loadImageElement(file);
+
+  const texture = await loadTextureFromFile(file);
+  if (texture) {
+    loadedLightmapTexture = texture;  // Store for raw mode
+    if (currentMaterialMode === 'raw') {
+      applyLightmapTexture(loadedModel, texture);
+    }
+    log(`Lightmap-текстура наложена (multiply blend).`, 'ok');
+  }
+
+  // Auto-compose if in composite mode
+  if (currentMaterialMode === 'tankviewer-composite') {
+    applyCompositeMaterial();
+  }
+
+  // Validate against config if present
+  validateFilesAgainstConfig();
+});
+
+async function loadTextureFromFile(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const texture = new THREE.Texture(img);
+        texture.needsUpdate = true;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        resolve(texture);
+      };
+      img.onerror = () => {
+        log(`Не удалось загрузить изображение: ${file.name}`, 'error');
+        resolve(null);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function applyDiffuseTexture(object, texture) {
+  object.traverse((child) => {
+    if (child.isMesh) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach(m => { m.map = texture; m.needsUpdate = true; });
+      } else {
+        child.material.map = texture;
+        child.material.needsUpdate = true;
+      }
+    }
+  });
+}
+
+function applyLightmapTexture(object, texture) {
+  object.traverse((child) => {
+    if (child.isMesh) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach(m => { m.lightMap = texture; m.needsUpdate = true; });
+      } else {
+        child.material.lightMap = texture;
+        child.material.needsUpdate = true;
+      }
+    }
+  });
+}
+
+// ─── Material mode event handlers (SPIKE-01) ────────────────────────
+
+// Material mode selector
+const materialModeSelect = document.getElementById('material-mode');
+materialModeSelect.addEventListener('change', () => {
+  currentMaterialMode = materialModeSelect.value;
+  const compositeOptions = document.getElementById('composite-options');
+
+  if (currentMaterialMode === 'tankviewer-composite') {
+    compositeOptions.style.display = '';
+    applyCompositeMaterial();
+    updateSceneLighting();
+    log('Режим материала: Композит TankViewer', 'info');
+  } else {
+    compositeOptions.style.display = 'none';
+    applyRawMaterial();
+    updateSceneLighting();
+    log('Режим материала: Черновой (details + lightmap)', 'info');
+  }
+});
+
+// Faction paint swatch click handlers
+['green', 'purple', 'yellow', 'cyan'].forEach(paintName => {
+  const swatch = document.getElementById(`faction-${paintName}`);
+  if (swatch) {
+    swatch.addEventListener('click', () => {
+      // Remove active from all swatches
+      document.querySelectorAll('.faction-swatch').forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      currentFactionPaint = paintName;
+      // Update faction input in Render Settings
+      document.getElementById('faction').value = currentFactionPaint;
+      log(`Цвет фракции: ${paintName}`, 'info');
+      if (currentMaterialMode === 'tankviewer-composite') {
+        applyCompositeMaterial();
+      }
+    });
+  }
+});
+
+// ─── Rotation for direction convention ───────────────────────────────
+function setModelDirection(dirIndex, numDirs) {
+  if (!modelWrapper) return;
+  const step = 360.0 / numDirs;
+  const angleDeg = ROTATION_OFFSET_DEG + dirIndex * step;
+  const angleRad = THREE.MathUtils.degToRad(angleDeg);
+  // Rotate the wrapper so the centered+scaled model rotates around origin
+  modelWrapper.rotation.y = angleRad;
+}
+
+// ─── Render one frame ────────────────────────────────────────────────
+function renderFrame(resolution) {
+  const w = resolution;
+  const h = resolution;
+  renderer.setSize(w, h);
+  camera = createIsometricCamera(orthoScale);
+  camera.aspect = 1;
+  camera.updateProjectionMatrix();
+  renderer.render(scene, camera);
+  return renderer.domElement.toDataURL('image/png');
+}
+
+// ─── Render all directions ──────────────────────────────────────────
+btnRender.addEventListener('click', () => {
+  if (!modelWrapper) { log('Сначала загрузи 3DS-модель.', 'error'); return; }
+
+  const numDirs = parseInt(document.getElementById('directions').value);
+  const resolution = parseInt(document.getElementById('resolution').value);
+  orthoScale = parseFloat(document.getElementById('ortho-scale').value);
+  const zScale = parseFloat(document.getElementById('z-scale').value);
+  const dirNames = numDirs === 16 ? DIRECTION_NAMES_16 : numDirs === 8 ? DIRECTION_NAMES_8 : null;
+
+  // Apply auto-fit if enabled (recomputes scale from original bbox)
+  // Auto-fit sets wrapper.scale including zScale.
+  if (autoFitCheckbox.checked) {
+    applyAutoFit();
+    // applyAutoFit already includes zScale in wrapper.scale
+  } else {
+    // Without auto-fit, just apply Z scale at unit scale on the wrapper
+    modelWrapper.scale.set(1, zScale, 1);
+    autoFitInfo = null;
+    log(`Автоподгонка ВЫКЛ: масштаб модели (1, ${zScale}, 1)`);
+  }
+
+  log(`Рендер ${numDirs} направлений, ${resolution}x${resolution} (масштаб=${orthoScale}, z-scale=${zScale})...`);
+  log(`Схема направлений: dir0=E (вправо на экране)`);
+  if (autoFitInfo) {
+    log(`  Автоподгонка: scale=${autoFitInfo.normalizeScale.toFixed(6)}, итоговый макс. размер=${autoFitInfo.finalSize.toFixed(2)}`);
+  }
+  log(`  Масштаб камеры: ${orthoScale}`);
+
+  renderedImages = [];
+  previewDiv.innerHTML = '';
+
+  const grid = document.createElement('div');
+  grid.className = 'direction-grid';
+  grid.style.gridTemplateColumns = `repeat(${Math.min(numDirs, 8)}, 1fr)`;
+  previewDiv.appendChild(grid);
+
+  for (let i = 0; i < numDirs; i++) {
+    setModelDirection(i, numDirs);
+    const dataUrl = renderFrame(resolution);
+    const dirName = dirNames && i < dirNames.length ? dirNames[i] : `dir${i}`;
+
+    renderedImages.push({ dirIdx: i, dirName, dataUrl });
+
+    const cell = document.createElement('div');
+    cell.className = 'dir-cell';
+    cell.textContent = `${i}: ${dirName}`;
+
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.width = 64;
+    img.height = 64;
+    cell.appendChild(img);
+    grid.appendChild(cell);
+
+    log(`  dir${i} (${dirName}) отрендерен`);
+  }
+
+  btnExport.disabled = false;
+  log(`Все ${numDirs} направлений отрендерены.`, 'ok');
+});
+
+// ─── Export all PNGs + manifest ──────────────────────────────────────
+btnExport.addEventListener('click', () => {
+  if (renderedImages.length === 0) { log('Сначала сделай рендер.', 'error'); return; }
+
+  const name = document.getElementById('asset-name').value || 'tank';
+  const faction = document.getElementById('faction').value || 'green';
+  const resolution = parseInt(document.getElementById('resolution').value);
+  const numDirs = renderedImages.length;
+  const dirNames = numDirs === 16 ? DIRECTION_NAMES_16 : numDirs === 8 ? DIRECTION_NAMES_8 : null;
+
+  log(`Экспорт ${numDirs} PNG + manifest...`);
+
+  const manifestEntries = [];
+  const step = 360.0 / numDirs;
+
+  for (let i = 0; i < renderedImages.length; i++) {
+    const { dirIdx, dirName, dataUrl } = renderedImages[i];
+    const filename = `${name}_${faction}_dir${dirIdx}.png`;
+
+    // Download PNG
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = dataUrl;
+    link.click();
+
+    const angleDeg = ROTATION_OFFSET_DEG + dirIdx * step;
+    manifestEntries.push({
+      key: `${name}_${faction}_dir${dirIdx}`,
+      direction: dirIdx,
+      directionName: dirName,
+      angleDeg: Math.round(angleDeg * 100) / 100,
+      filename,
+    });
+  }
+
+  // Generate manifest (SPIKE-01: added materialMode and paint fields)
+  const manifest = {
+    version: 3,
+    pipeline: 'tankviewer-web-isometric',
+    name,
+    faction,
+    directions: numDirs,
+    directionConvention: 'E=0, SE=1, S=2, SW=3, W=4, NW=5, N=6, NE=7',
+    rotationOffsetDeg: ROTATION_OFFSET_DEG,
+    resolution,
+    materialMode: currentMaterialMode,
+    paint: currentMaterialMode === 'tankviewer-composite' ? {
+      faction: currentFactionPaint,
+      color: FACTION_PAINTS[currentFactionPaint].css,
+    } : null,
+    autoFit: autoFitInfo ? {
+      enabled: true,
+      targetSize: autoFitInfo.targetSize,
+      originalSize: `${autoFitInfo.originalSize.x.toFixed(2)} x ${autoFitInfo.originalSize.y.toFixed(2)} x ${autoFitInfo.originalSize.z.toFixed(2)}`,
+      normalizeScale: autoFitInfo.normalizeScale,
+      finalSize: autoFitInfo.finalSize.toFixed(2),
+    } : { enabled: false },
+    orthoScale,
+    sourceConfig: selectedConfigEntry ? {
+      enabled: true,
+      cameraRadius: parsedConfig ? parsedConfig.cameraRadius : null,
+      configModelFile: selectedConfigEntry.file || null,
+      configDetailsFile: selectedConfigEntry.details || null,
+      configLightmapFile: selectedConfigEntry.lightmap || null,
+    } : { enabled: false },
+    entries: manifestEntries,
+  };
+
+  const manifestBlob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
+  const manifestUrl = URL.createObjectURL(manifestBlob);
+  const manifestLink = document.createElement('a');
+  manifestLink.download = `${name}_${faction}_manifest.json`;
+  manifestLink.href = manifestUrl;
+  manifestLink.click();
+  URL.revokeObjectURL(manifestUrl);
+
+  log(`Manifest записан: ${name}_${faction}_manifest.json`, 'ok');
+  log(`Экспорт завершён. ${numDirs} PNG + 1 manifest скачаны.`, 'ok');
+  log(`ВНИМАНИЕ: Браузер скачивает файлы по одному. Проверь папку Downloads.`, 'warn');
+});
+
+// ─── Calibration test ───────────────────────────────────────────────
+btnCalibrate.addEventListener('click', () => {
+  log('Проверка камеры (модель не нужна)...');
+
+  // Remove model wrapper temporarily
+  const savedWrapper = modelWrapper;
+  if (modelWrapper) scene.remove(modelWrapper);
+
+  // Create calibration markers
+  const CALIBRATION_POINTS = [
+    { pos: [0, 0, 0], color: 0xffffff, label: 'origin' },
+    { pos: [1, 0, 0], color: 0xff0000, label: '+X' },
+    { pos: [0, 0, 1], color: 0x00ff00, label: '+Z_up' },
+    { pos: [0, 1, 0], color: 0x0000ff, label: '+Y_depth' },
+    { pos: [1, 1, 1], color: 0xffff00, label: '(1,1,1)' },
+  ];
+
+  // NOTE: In Three.js Y is up (height), but in our game Z is up.
+  // The calibration points use game convention: [x, z, y] for Three.js
+  // where game Z = Three.js Y.
+  const markerGroup = new THREE.Group();
+
+  CALIBRATION_POINTS.forEach(({ pos, color }) => {
+    const geo = new THREE.SphereGeometry(0.06, 16, 16);
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const mesh = new THREE.Mesh(geo, mat);
+    // Game (x,y,z) → Three.js (x, z, y) since Three.js Y=up
+    mesh.position.set(pos[0], pos[2], pos[1]);
+    markerGroup.add(mesh);
+  });
+
+  // Add axis lines
+  const axisLen = 1.5;
+  const axisMaterials = [
+    new THREE.LineBasicMaterial({ color: 0xff0000 }),
+    new THREE.LineBasicMaterial({ color: 0x0000ff }),
+    new THREE.LineBasicMaterial({ color: 0x00ff00 }),
+  ];
+
+  // X axis (red)
+  const xGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(axisLen, 0, 0)
+  ]);
+  markerGroup.add(new THREE.Line(xGeo, axisMaterials[0]));
+
+  // Y axis (blue) — game Y = depth → Three.js Z
+  const yGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, axisLen)
+  ]);
+  markerGroup.add(new THREE.Line(yGeo, axisMaterials[1]));
+
+  // Z axis (green) — game Z = height → Three.js Y
+  const zGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, axisLen, 0)
+  ]);
+  markerGroup.add(new THREE.Line(zGeo, axisMaterials[2]));
+
+  scene.add(markerGroup);
+
+  orthoScale = parseFloat(document.getElementById('ortho-scale').value);
+  const resolution = 512;
+  const dataUrl = renderFrame(resolution);
+
+  // Show calibration image
+  previewDiv.innerHTML = '<h3>Калибровочный рендер</h3>';
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.width = 256;
+  img.height = 256;
+  previewDiv.appendChild(img);
+
+  // Compute expected positions
+  const cx = resolution / 2;
+  const cy = resolution / 2;
+  log(`Калибровочный рендер ${resolution}x${resolution}, центр=(${cx},${cy})`);
+  log(`  Projection: screen = origin + x*basisX + y*basisY + z*basisZ`);
+  log(`  basisX = {${BASIS_X.x}, ${BASIS_X.y}}`);
+  log(`  basisY = {${BASIS_Y.x}, ${BASIS_Y.y}}`);
+  log(`  basisZ = {${BASIS_Z.x}, ${BASIS_Z.y}}`);
+  log('');
+
+  CALIBRATION_POINTS.forEach(({ pos, label }) => {
+    const [wx, wy, wz] = pos;
+    const sx = cx + wx * BASIS_X.x + wy * BASIS_Y.x + wz * BASIS_Z.x;
+    const sy = cy + wx * BASIS_X.y + wy * BASIS_Y.y + wz * BASIS_Z.y;
+    log(`  ${label.padEnd(10)}: world(${wx},${wy},${wz}) → expected screen(${sx.toFixed(1)}, ${sy.toFixed(1)})`);
+  });
+
+  log('', 'info');
+  log('Калибровочное изображение готово. Измерь центры маркеров и сравни с ожидаемыми позициями.', 'info');
+  log('Цель: в пределах ±1 пиксель от ожидаемой позиции.', 'info');
+  log('ВНИМАНИЕ: Оси камеры Three.js могут отличаться от игровых. Зелёная линия должна идти ВВЕРХ на экране (игра Z=высота).', 'warn');
+
+  // Cleanup
+  scene.remove(markerGroup);
+  markerGroup.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) child.material.dispose();
+  });
+
+  // Restore model wrapper
+  if (savedWrapper) scene.add(savedWrapper);
+});
+
+// ─── Auto-fit logic ──────────────────────────────────────────────────
+
+/**
+ * Compute normalization scale factor so that the model's max dimension
+ * equals targetSize in world units.
+ *
+ * @param {Object} size - { x, y, z } dimensions of the model
+ * @param {number} targetSize - desired max dimension after scaling
+ * @returns {number} scale factor to apply uniformly
+ */
+function computeNormalizeScale(size, targetSize) {
+  const maxDim = Math.max(size.x, size.y, size.z);
+  if (maxDim <= 0 || !isFinite(maxDim)) return 1; // degenerate model
+  return targetSize / maxDim;
+}
+
+/**
+ * Apply auto-fit: center model, normalize scale so max dimension = targetSize.
+ * Logs original/final bbox info and updates the orthoScale UI hint.
+ */
+function applyAutoFit() {
+  if (!modelWrapper || !loadedModelSize) return;
+
+  const targetSize = parseFloat(fitTargetSizeInput.value) || DEFAULT_FIT_TARGET_SIZE;
+  const zScale = parseFloat(document.getElementById('z-scale').value);
+  const size = loadedModelSize;
+  const normalizeScale = computeNormalizeScale(size, targetSize);
+
+  // Apply normalized scale to wrapper (not child), including zScale on Y axis.
+  // The child (loadedModel) has position=-center, so the transform becomes:
+  //   normalizeScale * (V - center)  [correct centering + scaling]
+  modelWrapper.scale.set(normalizeScale, normalizeScale * zScale, normalizeScale);
+
+  // Recompute bounding box from wrapper (includes child centering + wrapper scale)
+  const finalBox = new THREE.Box3().setFromObject(modelWrapper);
+  const finalSizeVec = new THREE.Vector3();
+  finalBox.getSize(finalSizeVec);
+  const finalMaxDim = Math.max(finalSizeVec.x, finalSizeVec.y, finalSizeVec.z);
+  const finalCenter = new THREE.Vector3();
+  finalBox.getCenter(finalCenter);
+
+  autoFitInfo = {
+    originalSize: { x: size.x, y: size.y, z: size.z },
+    normalizeScale,
+    targetSize,
+    finalSize: finalMaxDim,
+  };
+
+  log(`Автоподгонка применена:`);
+  log(`  Исходный bbox: ${loadedModelBbox.min.x.toFixed(2)},${loadedModelBbox.min.y.toFixed(2)},${loadedModelBbox.min.z.toFixed(2)} → ${loadedModelBbox.max.x.toFixed(2)},${loadedModelBbox.max.y.toFixed(2)},${loadedModelBbox.max.z.toFixed(2)}`);
+  log(`  Исходный размер: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+  log(`  Масштаб нормализации: ${normalizeScale.toFixed(6)}`);
+  log(`  Wrapper scale: (${normalizeScale.toFixed(6)}, ${(normalizeScale * zScale).toFixed(6)}, ${normalizeScale.toFixed(6)})`);
+  log(`  Итоговый bbox (центрирован+масштаб): ${finalBox.min.x.toFixed(4)},${finalBox.min.y.toFixed(4)},${finalBox.min.z.toFixed(4)} → ${finalBox.max.x.toFixed(4)},${finalBox.max.y.toFixed(4)},${finalBox.max.z.toFixed(4)}`);
+  log(`  Итоговый центр: (${finalCenter.x.toFixed(4)}, ${finalCenter.y.toFixed(4)}, ${finalCenter.z.toFixed(4)})`, finalCenter.length() < 0.01 ? 'ok' : 'warn');
+  log(`  Итоговый макс. размер: ${finalMaxDim.toFixed(4)} (цель: ${targetSize})`, Math.abs(finalMaxDim - targetSize) < 0.01 ? 'ok' : 'warn');
+  log(`  Масштаб камеры: ${orthoScale}`, 'info');
+  if (finalCenter.length() > 0.01) {
+    log(`  ВНИМАНИЕ: Итоговый центр не в начале координат — трансформация центрирования может быть некорректной.`, 'warn');
+  }
+}
+
+// Re-apply auto-fit when checkbox or target size changes
+autoFitCheckbox.addEventListener('change', () => {
+  if (modelWrapper && autoFitCheckbox.checked) {
+    applyAutoFit();
+  } else if (modelWrapper) {
+    // Reset wrapper to unit scale (child centering is preserved)
+    const zScale = parseFloat(document.getElementById('z-scale').value);
+    modelWrapper.scale.set(1, zScale, 1);
+    autoFitInfo = null;
+    log(`Автоподгонка ВЫКЛ: wrapper scale сброшен на (1, ${zScale}, 1)`, 'warn');
+    log(`  Модель может оказаться за пределами камеры — увеличь Масштаб камеры вручную.`, 'warn');
+  }
+});
+
+fitTargetSizeInput.addEventListener('change', () => {
+  if (modelWrapper && autoFitCheckbox.checked) {
+    applyAutoFit();
+  }
+});
+
+// ─── Initial log (SPIKE-01) ──────────────────────────────────────────
+log('WEBEXPORTER-SPIKE-01: Проверка композитной текстуры TankViewer запущена.', 'ok');
+log('Режим материала: Черновой (по умолчанию). Переключи на Композит TankViewer для 3-слойной сборки.', 'info');
+log('Цвета фракций: Зелёная (по умолчанию), Фиолетовая, Жёлтая, Голубая.', 'info');
+log('Three.js + TDSLoader загружены из CDN.', 'ok');
+log('Автоподгонка модели: ВКЛ по умолчанию — нормализует модель под размер кадра.', 'ok');
+log('Config-aware: загрузи config.xml, чтобы увидеть модели и ожидаемые имена файлов.', 'ok');
+log('Порядок: загрузи config.xml (опционально), выбери .3ds модель, добавь текстуры, нажми Рендер.', 'info');
+log('ВНИМАНИЕ: схема dir0=E (совпадает с directionFromDelta игры).', 'info');
+log('ВНИМАНИЕ: ROTATION_OFFSET_DEG может потребовать подгонки под конкретную модель.', 'warn');
+log('ВНИМАНИЕ: Веб-экспортёр экспериментальный. Blender-пайплайн остаётся основным.', 'warn');
+</script>
+
+</body>
+</html>
