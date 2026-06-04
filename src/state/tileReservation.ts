@@ -145,6 +145,14 @@ export class TileReservationMap {
   clear(): void {
     this.reservations.clear();
   }
+
+  /**
+   * CORE-STEP-06H+ fixup: Iterate over all active reservations.
+   * Used by civil unit pathfinding integration to respect reserved tiles.
+   */
+  getAllReservations(): TileReservation[] {
+    return Array.from(this.reservations.values());
+  }
 }
 
 // ─── Reservation constants ─────────────────────────────────────────

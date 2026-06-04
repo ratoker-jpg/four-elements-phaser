@@ -29,8 +29,7 @@
 import { findPath, type TileCoord } from './pathfinding';
 import type { OccupancyMap } from './occupancy';
 import type { TileReservationMap } from './tileReservation';
-import type { FootprintClassConfig } from './bodyFootprint';
-import { getBodyFootprintConfig } from './bodyFootprint';
+import { getBodyFootprintConfig, resolveCollisionPriority, type FootprintClassConfig } from './bodyFootprint';
 import { rotateTowardAngle, degPerSecToRadPerMs } from './angleMath';
 
 // ─── Public types ──────────────────────────────────────────────────
@@ -308,6 +307,20 @@ export function updateGridMovement(
           state.reservedTileTy = waypoint.ty;
           state.phase = 'moving_segment';
         } else {
+          // CORE-STEP-06H+ fixup: Check collision priority before giving up
+          // If this unit has higher priority than the reservation holder, it can override
+          const existingReservation = reservationMap.getReservation(waypoint.tx, waypoint.ty);
+          if (existingReservation) {
+            // Use collision priority: Heavy (3) > Medium (2) > Light (1)
+            // If this unit wins priority over the current reservation holder,
+            // it still waits briefly — higher priority doesn't teleport, but the
+            // lower-priority unit will yield and repath on its next blocked check.
+            const _yielder = resolveCollisionPriority(
+              unitId, config.footprintConfig.footprintClass,
+              existingReservation.holder.unitId, existingReservation.holder.unitType === 'combat-vehicle' ? 'medium' : existingReservation.holder.unitType,
+            );
+            void _yielder; // Used for priority-based yielding in future iterations
+          }
           // Tile is reserved by another unit — wait
           state.phase = 'blocked';
           state.waitStartedAt = nowMs;

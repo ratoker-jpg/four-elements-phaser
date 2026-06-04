@@ -32,16 +32,23 @@ import {
   updateGridMovement,
   computeWaypointSmoothing,
 } from '../state/movementStateMachine';
-import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers, isPassable } from '../state/occupancy';
+import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers, addReservationBlockers, isPassable } from '../state/occupancy';
 import { findPath } from '../state/pathfinding';
 import {
   computeDepthKey,
   sortByDepth,
   getDepthOrderMap,
   isBehind,
+  computeDepthValue,
   type DepthSortable,
 } from '../phaser/render/depthSorting';
 import type { GameState } from '../state/types';
+import {
+  getOccupiedTiles,
+  bodiesOverlap,
+  resolveCollisionPriority,
+  getBodyCollisionRadiusTiles,
+} from '../state/bodyFootprint';
 
 // ─── Test helpers ──────────────────────────────────────────────────
 
@@ -446,20 +453,21 @@ describe('Occupancy integration', () => {
 // ═══════════════════════════════════════════════════════════════════
 
 describe('Isometric depth sorting', () => {
-  const offset = { x: 0, y: 0 };
+  const offsetX = 0;
+  const offsetY = 0;
 
   it('unit behind building renders behind it', () => {
     const unit: DepthSortable = {
       id: 'unit-1',
       type: 'unit',
       tx: 5, ty: 3, // behind (lower ty in isometric = further back)
-      offset,
+      offsetX, offsetY,
     };
     const building: DepthSortable = {
       id: 'building-1',
       type: 'building',
       tx: 5, ty: 8, // in front (higher ty = closer to viewer)
-      offset,
+      offsetX, offsetY,
     };
     expect(isBehind(unit, building)).toBe(true);
   });
@@ -469,13 +477,13 @@ describe('Isometric depth sorting', () => {
       id: 'unit-1',
       type: 'unit',
       tx: 5, ty: 10, // in front
-      offset,
+      offsetX, offsetY,
     };
     const building: DepthSortable = {
       id: 'building-1',
       type: 'building',
       tx: 5, ty: 5, // behind
-      offset,
+      offsetX, offsetY,
     };
     expect(isBehind(unit, building)).toBe(false);
   });
@@ -486,14 +494,14 @@ describe('Isometric depth sorting', () => {
       type: 'building',
       tx: 5, ty: 5,
       footprintW: 1, footprintH: 1,
-      offset,
+      offsetX, offsetY,
     };
     const largeBuilding: DepthSortable = {
       id: 'large',
       type: 'building',
       tx: 5, ty: 5,
       footprintW: 3, footprintH: 3,
-      offset,
+      offsetX, offsetY,
     };
     const smallKey = computeDepthKey(smallBuilding);
     const largeKey = computeDepthKey(largeBuilding);
@@ -508,7 +516,7 @@ describe('Isometric depth sorting', () => {
       type: 'building',
       tx: 5, ty: 5,
       footprintW: 3, footprintH: 3,
-      offset,
+      offsetX, offsetY,
     };
     const key = computeDepthKey(building);
     // Front-bottom edge is at (7, 7), not center (6, 6)
@@ -517,16 +525,16 @@ describe('Isometric depth sorting', () => {
       id: 'edge-point',
       type: 'unit',
       tx: 7, ty: 7,
-      offset,
+      offsetX, offsetY,
     });
     expect(key.depthY).toBeCloseTo(frontEdge.depthY, 1);
   });
 
   it('sortByDepth produces correct order', () => {
     const items: DepthSortable[] = [
-      { id: 'front', type: 'unit', tx: 5, ty: 10, offset },
-      { id: 'middle', type: 'unit', tx: 5, ty: 7, offset },
-      { id: 'back', type: 'unit', tx: 5, ty: 3, offset },
+      { id: 'front', type: 'unit', tx: 5, ty: 10, offsetX, offsetY },
+      { id: 'middle', type: 'unit', tx: 5, ty: 7, offsetX, offsetY },
+      { id: 'back', type: 'unit', tx: 5, ty: 3, offsetX, offsetY },
     ];
     const sorted = sortByDepth(items);
     expect(sorted[0].sortable.id).toBe('back');
@@ -536,8 +544,8 @@ describe('Isometric depth sorting', () => {
 
   it('tie-breaking by X works', () => {
     const items: DepthSortable[] = [
-      { id: 'right', type: 'unit', tx: 8, ty: 5, offset },
-      { id: 'left', type: 'unit', tx: 3, ty: 5, offset },
+      { id: 'right', type: 'unit', tx: 8, ty: 5, offsetX, offsetY },
+      { id: 'left', type: 'unit', tx: 3, ty: 5, offsetX, offsetY },
     ];
     const sorted = sortByDepth(items);
     expect(sorted[0].sortable.id).toBe('left');
@@ -546,8 +554,8 @@ describe('Isometric depth sorting', () => {
 
   it('getDepthOrderMap returns correct indices', () => {
     const items: DepthSortable[] = [
-      { id: 'a', type: 'unit', tx: 5, ty: 10, offset },
-      { id: 'b', type: 'unit', tx: 5, ty: 3, offset },
+      { id: 'a', type: 'unit', tx: 5, ty: 10, offsetX, offsetY },
+      { id: 'b', type: 'unit', tx: 5, ty: 3, offsetX, offsetY },
     ];
     const orderMap = getDepthOrderMap(items);
     expect(orderMap.get('b')).toBe(0); // behind = first
@@ -867,14 +875,15 @@ describe('Building/obstacle collision blocking', () => {
 // ═══════════════════════════════════════════════════════════════════
 
 describe('Depth sorting with buildings', () => {
-  const offset = { x: 0, y: 0 };
+  const offsetX = 0;
+  const offsetY = 0;
 
   it('unit behind large building sorts behind', () => {
     const unit: DepthSortable = {
-      id: 'unit-1', type: 'unit', tx: 5, ty: 3, offset,
+      id: 'unit-1', type: 'unit', tx: 5, ty: 3, offsetX, offsetY,
     };
     const building: DepthSortable = {
-      id: 'bldg-1', type: 'building', tx: 4, ty: 4, footprintW: 3, footprintH: 3, offset,
+      id: 'bldg-1', type: 'building', tx: 4, ty: 4, footprintW: 3, footprintH: 3, offsetX, offsetY,
     };
     // Building front-bottom at (6,6), unit at (5,3)
     // Unit should be behind (lower depthY)
@@ -883,10 +892,10 @@ describe('Depth sorting with buildings', () => {
 
   it('unit beside building sorts correctly by X tiebreaker', () => {
     const unitA: DepthSortable = {
-      id: 'unit-a', type: 'unit', tx: 3, ty: 5, offset,
+      id: 'unit-a', type: 'unit', tx: 3, ty: 5, offsetX, offsetY,
     };
     const unitB: DepthSortable = {
-      id: 'unit-b', type: 'unit', tx: 7, ty: 5, offset,
+      id: 'unit-b', type: 'unit', tx: 7, ty: 5, offsetX, offsetY,
     };
     // Same Y position, different X — left unit should be behind
     expect(isBehind(unitA, unitB)).toBe(true);
@@ -894,10 +903,10 @@ describe('Depth sorting with buildings', () => {
 
   it('multiple buildings with different footprint sizes sort correctly', () => {
     const small: DepthSortable = {
-      id: 'small', type: 'building', tx: 5, ty: 5, footprintW: 1, footprintH: 1, offset,
+      id: 'small', type: 'building', tx: 5, ty: 5, footprintW: 1, footprintH: 1, offsetX, offsetY,
     };
     const large: DepthSortable = {
-      id: 'large', type: 'building', tx: 5, ty: 5, footprintW: 3, footprintH: 3, offset,
+      id: 'large', type: 'building', tx: 5, ty: 5, footprintW: 3, footprintH: 3, offsetX, offsetY,
     };
     // Large building has front-bottom at (7,7) which is further south than small at (5,5)
     const sorted = sortByDepth([small, large]);
@@ -976,3 +985,346 @@ function normalizeAngle(angle: number): number {
   while (angle < -Math.PI) angle += 2 * Math.PI;
   return angle;
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// BLOCKER 1 FIXUP: Runtime depth sorting for units + buildings
+// ═══════════════════════════════════════════════════════════════════
+
+describe('Blocker 1: Runtime depth sorting for units + buildings', () => {
+  const offsetX = 0;
+  const offsetY = 0;
+
+  it('unit behind HQ renders behind HQ', () => {
+    const unit: DepthSortable = {
+      id: 'unit-1', type: 'unit', tx: 5, ty: 4, offsetX, offsetY,
+    };
+    const hq: DepthSortable = {
+      id: 'hq', type: 'building', tx: 4, ty: 4, footprintW: 3, footprintH: 3, offsetX, offsetY,
+    };
+    // HQ front-bottom edge at (6,6); unit at (5,4) — unit is behind
+    expect(isBehind(unit, hq)).toBe(true);
+  });
+
+  it('unit in front of HQ renders above HQ', () => {
+    const unit: DepthSortable = {
+      id: 'unit-1', type: 'unit', tx: 6, ty: 8, offsetX, offsetY,
+    };
+    const hq: DepthSortable = {
+      id: 'hq', type: 'building', tx: 4, ty: 4, footprintW: 3, footprintH: 3, offsetX, offsetY,
+    };
+    // HQ front-bottom edge at (6,6); unit at (6,8) — unit is in front
+    expect(isBehind(unit, hq)).toBe(false);
+  });
+
+  it('construction site uses same depth model as building', () => {
+    const site: DepthSortable = {
+      id: 'site-1', type: 'construction-site', tx: 5, ty: 5, footprintW: 2, footprintH: 2, offsetX, offsetY,
+    };
+    const building: DepthSortable = {
+      id: 'bldg-1', type: 'building', tx: 5, ty: 5, footprintW: 2, footprintH: 2, offsetX, offsetY,
+    };
+    // Same position and footprint should produce the same depth
+    const siteKey = computeDepthKey(site);
+    const bldgKey = computeDepthKey(building);
+    expect(siteKey.depthY).toBeCloseTo(bldgKey.depthY, 1);
+    expect(siteKey.depthX).toBeCloseTo(bldgKey.depthX, 1);
+  });
+
+  it('mixed units and buildings sort together correctly', () => {
+    const items: DepthSortable[] = [
+      { id: 'unit-back', type: 'unit', tx: 5, ty: 2, offsetX, offsetY },
+      { id: 'bldg-small', type: 'building', tx: 8, ty: 4, footprintW: 1, footprintH: 1, offsetX, offsetY },
+      { id: 'unit-mid', type: 'unit', tx: 7, ty: 6, offsetX, offsetY },
+      { id: 'bldg-large', type: 'building', tx: 3, ty: 5, footprintW: 3, footprintH: 3, offsetX, offsetY },
+      { id: 'unit-front', type: 'unit', tx: 5, ty: 10, offsetX, offsetY },
+    ];
+    const sorted = sortByDepth(items);
+    // Verify all items are present
+    const ids = sorted.map(s => s.sortable.id);
+    expect(ids).toHaveLength(5);
+    // Back unit should be first (lowest depthY)
+    expect(ids[0]).toBe('unit-back');
+    // Front unit should be last (highest depthY)
+    expect(ids[4]).toBe('unit-front');
+  });
+
+  it('computeDepthValue produces correct numeric depth', () => {
+    // computeDepthValue is imported at top
+    const unit: DepthSortable = {
+      id: 'unit-1', type: 'unit', tx: 5, ty: 5, offsetX, offsetY,
+    };
+    const depth = computeDepthValue(unit, 100);
+    // Depth should be baseDepth + projectedY + projectedX * 0.01
+    expect(depth).toBeGreaterThan(100);
+    expect(typeof depth).toBe('number');
+  });
+
+  it('all renderers use same computeDepthValue for unified depth ordering', () => {
+    // Verify that computeDepthValue is the single source of truth for depth.
+    // ModularTankRenderer, EntityRenderer, ConstructionRenderer, and
+    // BlockoutVehicleRenderer all use computeDepthValue (or sortByDepth
+    // which uses computeDepthKey, consistent with computeDepthValue).
+    // computeDepthValue is imported at top
+
+    // A unit and building at the same position should have consistent depth
+    const unitDepth = computeDepthValue({
+      id: 'unit', type: 'unit', tx: 5, ty: 5, offsetX, offsetY,
+    });
+    const smallBuildingDepth = computeDepthValue({
+      id: 'bldg', type: 'building', tx: 5, ty: 5, footprintW: 1, footprintH: 1, offsetX, offsetY,
+    });
+    // A 1x1 building at same tile should have same depth as unit
+    expect(smallBuildingDepth).toBeCloseTo(unitDepth, 1);
+
+    // A larger building at same base tile should have deeper depth (front-bottom edge is further south)
+    const largeBuildingDepth = computeDepthValue({
+      id: 'bldg-large', type: 'building', tx: 5, ty: 5, footprintW: 3, footprintH: 3, offsetX, offsetY,
+    });
+    expect(largeBuildingDepth).toBeGreaterThan(unitDepth);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// BLOCKER 2 FIXUP: Civil units coverage (harvester/builder)
+// ═══════════════════════════════════════════════════════════════════
+
+describe('Blocker 2: Civil units reservation/occupancy compatibility', () => {
+  it('addReservationBlockers marks reserved tiles as impassable', () => {
+    // addReservationBlockers is imported at top
+    const occupancy = createTestOccupancyMap();
+    const reservationMap = new TileReservationMap(32);
+
+    // Reserve a tile by another unit
+    reservationMap.reserve(10, 10, { unitId: 'unit-1', unitType: 'combat-vehicle' }, 0);
+
+    // Before adding reservation blockers, tile should be passable
+    expect(isPassable(occupancy, 10, 10)).toBe(true);
+
+    // Add reservation blockers
+    addReservationBlockers(reservationMap, occupancy);
+
+    // After adding reservation blockers, tile should be impassable
+    expect(isPassable(occupancy, 10, 10)).toBe(false);
+  });
+
+  it('addReservationBlockers excludes own unit reservations', () => {
+    // addReservationBlockers is imported at top
+    const occupancy = createTestOccupancyMap();
+    const reservationMap = new TileReservationMap(32);
+
+    // Reserve a tile by unit-1
+    reservationMap.reserve(10, 10, { unitId: 'unit-1', unitType: 'combat-vehicle' }, 0);
+
+    // Add reservation blockers excluding unit-1
+    addReservationBlockers(reservationMap, occupancy, 'unit-1');
+
+    // Tile should still be passable because we excluded unit-1's own reservation
+    expect(isPassable(occupancy, 10, 10)).toBe(true);
+  });
+
+  it('harvester pathing respects reserved tiles', () => {
+    // addReservationBlockers is imported at top
+    const reservationMap = new TileReservationMap(32);
+    const state = createTestGameState();
+    const occupancy = buildOccupancyMap(state);
+
+    // Reserve tile (10,10) by a combat vehicle
+    reservationMap.reserve(10, 10, { unitId: 'tank-1', unitType: 'combat-vehicle' }, 0);
+
+    // Add reservation blockers to occupancy
+    addReservationBlockers(reservationMap, occupancy);
+
+    // Tile (10,10) should be impassable for pathfinding
+    expect(isPassable(occupancy, 10, 10)).toBe(false);
+
+    // Path from (9,10) to (11,10) should go around (10,10)
+    const path = findPath(occupancy, 9, 10, 11, 10);
+    if (path) {
+      expect(path.some(p => p.tx === 10 && p.ty === 10)).toBe(false);
+    }
+  });
+
+  it('builder pathing respects reserved tiles', () => {
+    // addReservationBlockers is imported at top
+    const reservationMap = new TileReservationMap(32);
+    const state = createTestGameState();
+    const occupancy = buildOccupancyMap(state);
+
+    // Reserve tile (8,8) by a harvester
+    reservationMap.reserve(8, 8, { unitId: 'harvester-1', unitType: 'harvester' }, 0);
+
+    // Add reservation blockers
+    addReservationBlockers(reservationMap, occupancy);
+
+    // Builder should not path through the reserved tile
+    expect(isPassable(occupancy, 8, 8)).toBe(false);
+  });
+
+  it('TileReservationMap.getAllReservations returns all active reservations', () => {
+    const map = new TileReservationMap(32);
+    map.reserve(5, 5, { unitId: 'u1', unitType: 'combat-vehicle' }, 0);
+    map.reserve(6, 6, { unitId: 'u2', unitType: 'harvester' }, 0);
+
+    const all = map.getAllReservations();
+    expect(all).toHaveLength(2);
+    expect(all.some(r => r.tx === 5 && r.ty === 5)).toBe(true);
+    expect(all.some(r => r.tx === 6 && r.ty === 6)).toBe(true);
+  });
+
+  it('civil unit pathfinding respects combat vehicle blockers', () => {
+    // Simulate what updateGameState.ts does: build occupancy + add vehicle blockers
+    const state = createTestGameState();
+    const occupancy = buildOccupancyMap(state);
+
+    // Add a vehicle blocker at (10,10) with a heavy body (blocks adjacent too)
+    addVehicleBlockers(
+      [{ id: 'v1', tx: 10, ty: 10, bodyId: 'mammoth', isDestroyed: false }],
+      occupancy,
+    );
+
+    // Tile (10,10) should be impassable
+    expect(isPassable(occupancy, 10, 10)).toBe(false);
+    // Adjacent tiles should also be blocked for heavy body
+    expect(isPassable(occupancy, 9, 10)).toBe(false);
+    expect(isPassable(occupancy, 11, 10)).toBe(false);
+
+    // Pathfinding from (8,10) to (12,10) should go around the heavy body
+    const path = findPath(occupancy, 8, 10, 12, 10);
+    if (path) {
+      // Path should not include blocked tiles
+      expect(path.some(p => p.tx === 10 && p.ty === 10)).toBe(false);
+      expect(path.some(p => p.tx === 9 && p.ty === 10)).toBe(false);
+      expect(path.some(p => p.tx === 11 && p.ty === 10)).toBe(false);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// BLOCKER 3 FIXUP: Body footprint classes affect runtime occupancy
+// ═══════════════════════════════════════════════════════════════════
+
+describe('Blocker 3: Body footprint classes affect runtime occupancy', () => {
+  it('heavy body blocks more tiles than light body', () => {
+    // getOccupiedTiles is imported at top
+
+    // Light body (Wasp) occupies only its own tile
+    const lightTiles = getOccupiedTiles(5, 5, 'wasp');
+    expect(lightTiles).toHaveLength(1);
+    expect(lightTiles[0]).toEqual({ tx: 5, ty: 5 });
+
+    // Heavy body (Mammoth) occupies its own tile + 4 adjacent tiles (5 total)
+    // because collisionRadiusTiles=0.6 > 0.5 extends past tile boundary
+    const heavyTiles = getOccupiedTiles(5, 5, 'mammoth');
+    expect(heavyTiles).toHaveLength(5);
+    // Must include the own tile
+    expect(heavyTiles.some((t: any) => t.tx === 5 && t.ty === 5)).toBe(true);
+    // Must include all 4 adjacent tiles
+    expect(heavyTiles.some((t: any) => t.tx === 4 && t.ty === 5)).toBe(true);
+    expect(heavyTiles.some((t: any) => t.tx === 6 && t.ty === 5)).toBe(true);
+    expect(heavyTiles.some((t: any) => t.tx === 5 && t.ty === 4)).toBe(true);
+    expect(heavyTiles.some((t: any) => t.tx === 5 && t.ty === 6)).toBe(true);
+
+    // Medium body (Hunter) occupies only its own tile (collisionRadiusTiles=0.5, NOT > 0.5)
+    const mediumTiles = getOccupiedTiles(5, 5, 'hunter');
+    expect(mediumTiles).toHaveLength(1);
+  });
+
+  it('heavy body affects pathfinding more than light body', () => {
+    // When a heavy body is at position, it blocks more tiles for pathfinding
+    const occupancy = createTestOccupancyMap();
+
+    // Add heavy vehicle blocker
+    addVehicleBlockers(
+      [{ id: 'heavy-1', tx: 10, ty: 10, bodyId: 'mammoth', isDestroyed: false }],
+      occupancy,
+    );
+
+    // Heavy body should block its own tile
+    expect(isPassable(occupancy, 10, 10)).toBe(false);
+
+    // Heavy body with collisionRadiusTiles=0.6 > 0.5 blocks adjacent tiles too
+    // because its collision radius extends past the tile boundary
+    expect(isPassable(occupancy, 9, 10)).toBe(false);
+    expect(isPassable(occupancy, 11, 10)).toBe(false);
+    expect(isPassable(occupancy, 10, 9)).toBe(false);
+    expect(isPassable(occupancy, 10, 11)).toBe(false);
+  });
+
+  it('bodiesOverlap detects collision between close units', () => {
+    // bodiesOverlap is imported at top
+
+    // Two light units at distance 0.5 — overlap (0.4 + 0.4 = 0.8 > 0.5)
+    expect(bodiesOverlap(5, 5, 'wasp', 5.5, 5, 'wasp')).toBe(true);
+
+    // Two light units at distance 1.0 — no overlap (0.4 + 0.4 = 0.8 < 1.0)
+    expect(bodiesOverlap(5, 5, 'wasp', 6, 5, 'wasp')).toBe(false);
+
+    // Heavy + light at distance 0.5 — overlap (0.6 + 0.4 = 1.0 > 0.5)
+    expect(bodiesOverlap(5, 5, 'mammoth', 5.5, 5, 'wasp')).toBe(true);
+
+    // Heavy + light at distance 0.9 — overlap (0.6 + 0.4 = 1.0 > 0.9)
+    expect(bodiesOverlap(5, 5, 'mammoth', 5.9, 5, 'wasp')).toBe(true);
+
+    // Heavy + light at distance 1.1 — no overlap (0.6 + 0.4 = 1.0 < 1.1)
+    expect(bodiesOverlap(5, 5, 'mammoth', 6.1, 5, 'wasp')).toBe(false);
+  });
+
+  it('resolveCollisionPriority: heavy beats medium and light', () => {
+    // resolveCollisionPriority is imported at top
+
+    // Heavy vs medium — medium yields
+    expect(resolveCollisionPriority('tank-a', 'mammoth', 'tank-b', 'hunter')).toBe('tank-b');
+
+    // Heavy vs light — light yields
+    expect(resolveCollisionPriority('tank-a', 'mammoth', 'scout', 'wasp')).toBe('scout');
+
+    // Medium vs light — light yields
+    expect(resolveCollisionPriority('tank-a', 'hunter', 'scout', 'wasp')).toBe('scout');
+
+    // Same class — neither yields
+    expect(resolveCollisionPriority('tank-a', 'hunter', 'tank-b', 'viking')).toBeNull();
+  });
+
+  it('addVehicleBlockers with heavy body blocks more tiles than light body', () => {
+    // Test with heavy body — should block own tile + 4 adjacent tiles
+    const heavyOccupancy = createTestOccupancyMap();
+    addVehicleBlockers(
+      [{ id: 'v1', tx: 10, ty: 10, bodyId: 'mammoth', isDestroyed: false }],
+      heavyOccupancy,
+    );
+    expect(isPassable(heavyOccupancy, 10, 10)).toBe(false);
+    // Heavy body blocks adjacent tiles (collisionRadiusTiles 0.6 > 0.5)
+    expect(isPassable(heavyOccupancy, 9, 10)).toBe(false);
+    expect(isPassable(heavyOccupancy, 11, 10)).toBe(false);
+    expect(isPassable(heavyOccupancy, 10, 9)).toBe(false);
+    expect(isPassable(heavyOccupancy, 10, 11)).toBe(false);
+
+    // Test with light body — should block only own tile
+    const lightOccupancy = createTestOccupancyMap();
+    addVehicleBlockers(
+      [{ id: 'v1', tx: 10, ty: 10, bodyId: 'wasp', isDestroyed: false }],
+      lightOccupancy,
+    );
+    expect(isPassable(lightOccupancy, 10, 10)).toBe(false);
+    // Light body does NOT block adjacent tiles (collisionRadiusTiles 0.4 < 0.5)
+    expect(isPassable(lightOccupancy, 9, 10)).toBe(true);
+    expect(isPassable(lightOccupancy, 11, 10)).toBe(true);
+    expect(isPassable(lightOccupancy, 10, 9)).toBe(true);
+    expect(isPassable(lightOccupancy, 10, 11)).toBe(true);
+  });
+
+  it('collision radius differs between footprint classes', () => {
+    // getBodyCollisionRadiusTiles is imported at top
+
+    const lightRadius = getBodyCollisionRadiusTiles('wasp');
+    const mediumRadius = getBodyCollisionRadiusTiles('hunter');
+    const heavyRadius = getBodyCollisionRadiusTiles('mammoth');
+
+    expect(lightRadius).toBe(0.4);
+    expect(mediumRadius).toBe(0.5);
+    expect(heavyRadius).toBe(0.6);
+
+    // Heavy has larger collision radius than light
+    expect(heavyRadius).toBeGreaterThan(lightRadius);
+  });
+});

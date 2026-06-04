@@ -18,6 +18,7 @@
 
 import type { GameState } from './types';
 import { BUILDING_CONFIG } from './construction';
+import { getOccupiedTiles } from './bodyFootprint';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -281,20 +282,50 @@ export function isTileOccupiedByUnit(
 /**
  * Add blockout vehicle positions as "impassable" blockers to an existing occupancy map.
  * CORE-STEP-06H+: Combat vehicles occupy tiles and block pathfinding.
+ * CORE-STEP-06H+ fixup: Heavy bodies block adjacent tiles based on collisionRadiusTiles.
  *
- * @param vehicles - Array of vehicles with tile positions and destroyed state
+ * @param vehicles - Array of vehicles with tile positions, body IDs, and destroyed state
  * @param map - Occupancy map to mutate
  * @param excludeVehicleId - Optional vehicle ID to exclude (so it can path from its own tile)
  */
 export function addVehicleBlockers(
-  vehicles: Array<{ id: string; tx: number; ty: number; isDestroyed: boolean }>,
+  vehicles: Array<{ id: string; tx: number; ty: number; bodyId?: string; isDestroyed: boolean }>,
   map: OccupancyMap,
   excludeVehicleId?: string,
 ): void {
   for (const v of vehicles) {
     if (v.isDestroyed) continue;
     if (excludeVehicleId && v.id === excludeVehicleId) continue;
-    const k = key(v.tx, v.ty, map.width);
+    // CORE-STEP-06H+ fixup: Use getOccupiedTiles for footprint-class-aware blocking
+    const bodyId = (v as any).bodyId as string | undefined;
+    const blockedTiles = bodyId
+      ? getOccupiedTiles(v.tx, v.ty, bodyId)
+      : [{ tx: v.tx, ty: v.ty }]; // fallback for vehicles without bodyId
+    for (const { tx, ty } of blockedTiles) {
+      const k = key(tx, ty, map.width);
+      getOrMake(map.flags, k).add('impassable');
+    }
+  }
+}
+
+/**
+ * CORE-STEP-06H+ fixup: Add reserved tiles as "impassable" blockers to an existing occupancy map.
+ *
+ * Civil units (harvesters, builders) must respect tiles reserved by other units.
+ * This prevents two units from trying to enter the same tile simultaneously.
+ *
+ * @param reservationMap - Tile reservation map to check
+ * @param map - Occupancy map to mutate
+ * @param excludeUnitId - Optional unit ID whose reservations should NOT block
+ */
+export function addReservationBlockers(
+  reservationMap: import('./tileReservation').TileReservationMap,
+  map: OccupancyMap,
+  excludeUnitId?: string,
+): void {
+  for (const r of reservationMap.getAllReservations()) {
+    if (excludeUnitId && r.holder.unitId === excludeUnitId) continue;
+    const k = key(r.tx, r.ty, map.width);
     getOrMake(map.flags, k).add('impassable');
   }
 }

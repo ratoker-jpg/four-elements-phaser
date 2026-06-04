@@ -63,13 +63,14 @@ export function updateBlockoutVehicleMovement(
   occupancy?: OccupancyMap,
   reservationMap?: TileReservationMap,
   getOccupancyForRepath?: () => OccupancyMap,
+  sceneClockMs?: number,
 ): void {
   // BLOCKOUT-07H+: Destroyed vehicles don't move
   if (vehicle.isDestroyed) return;
 
   // CORE-STEP-06H+: Grid movement path
   if (vehicle.useGridMovement && occupancy && reservationMap) {
-    updateGridMovementPath(vehicle, profile, deltaMs, occupancy, reservationMap, getOccupancyForRepath);
+    updateGridMovementPath(vehicle, profile, deltaMs, occupancy, reservationMap, getOccupancyForRepath, sceneClockMs);
     return;
   }
 
@@ -94,6 +95,7 @@ function updateGridMovementPath(
   occupancy: OccupancyMap,
   reservationMap: TileReservationMap,
   getOccupancyForRepath?: () => OccupancyMap,
+  sceneClockMs?: number,
 ): void {
   const config = createGridMovementConfig(
     profile.maxSpeedPxPerSec,
@@ -105,6 +107,8 @@ function updateGridMovementPath(
 
   const repathFn = getOccupancyForRepath ?? (() => occupancy);
 
+  // CORE-STEP-06H+ fixup: Use scene clock if provided, fall back to Date.now()
+  const nowMs = sceneClockMs ?? Date.now();
   updateGridMovement(
     vehicle.gridMovement,
     config,
@@ -112,7 +116,7 @@ function updateGridMovementPath(
     occupancy,
     reservationMap,
     vehicle.id,
-    Date.now(),
+    nowMs,
     repathFn,
   );
 

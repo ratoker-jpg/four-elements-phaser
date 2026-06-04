@@ -29,6 +29,7 @@ import {
   MODULAR_SCALE_RATIO,
   MODULAR_ANCHOR_CORRECTION,
 } from '../../config/unitRenderConfig';
+import { computeDepthValue } from './depthSorting';
 import { ModularTankDebugOverlay } from '../debug/ModularTankDebugOverlay';
 
 /** Default initial visibility for the debug overlay. */
@@ -120,7 +121,11 @@ export class ModularTankRenderer {
     const hullOff = applyScaleTransform(MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir]);
     const hullWorldX = anchorWorldX + hullOff.x;
     const hullWorldY = anchorWorldY + hullOff.y;
-    const baseDepth = 100 + hullWorldY;
+    // CORE-STEP-06H+ fixup: Use unified depth sorting for correct unit/building ordering
+    const baseDepth = computeDepthValue({
+      id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
+      offsetX: this.offset.x, offsetY: this.offset.y,
+    });
 
     const hull = this.scene.add.image(hullWorldX, hullWorldY, hullKey);
     hull.setScale(MODULAR_TANK_SCALE);

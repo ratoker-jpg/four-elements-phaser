@@ -20,7 +20,7 @@
  * - No top-down assumptions
  */
 
-import { tileToScreen, type IsoPoint } from '../render/isometric';
+import { tileToScreen } from './isometric';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -38,8 +38,10 @@ export interface DepthSortable {
   footprintW?: number;
   /** Footprint height in tiles (for buildings). Default 1. */
   footprintH?: number;
-  /** Map origin offset for screen coordinate computation. */
-  offset: IsoPoint;
+  /** Map origin offset X for screen coordinate computation. */
+  offsetX: number;
+  /** Map origin offset Y for screen coordinate computation. */
+  offsetY: number;
 }
 
 /** Computed depth key for sorting. */
@@ -78,8 +80,8 @@ export function computeDepthKey(sortable: DepthSortable): DepthKey {
 
   // Compute screen position of the front-bottom tile center
   const screenPos = tileToScreen(frontTileTx, frontTileTy);
-  const depthY = screenPos.y + sortable.offset.y;
-  const depthX = screenPos.x + sortable.offset.x;
+  const depthY = screenPos.y + sortable.offsetY;
+  const depthX = screenPos.x + sortable.offsetX;
 
   return { depthY, depthX, sortable };
 }
@@ -124,4 +126,21 @@ export function isBehind(a: DepthSortable, b: DepthSortable): boolean {
   const keyB = computeDepthKey(b);
   if (keyA.depthY !== keyB.depthY) return keyA.depthY < keyB.depthY;
   return keyA.depthX < keyB.depthX;
+}
+
+/**
+ * Compute a single numeric depth value for a renderable, suitable for Phaser's setDepth().
+ *
+ * Uses the projected ground-plane Y of the front-bottom edge, with X as a
+ * tiebreaker scaled to sub-pixel resolution. This produces a total order
+ * consistent with sortByDepth.
+ *
+ * @param sortable - The renderable to compute depth for
+ * @param baseDepth - Base depth value to add (default 100, matches existing conventions)
+ * @returns A numeric depth value for setDepth()
+ */
+export function computeDepthValue(sortable: DepthSortable, baseDepth: number = 100): number {
+  const key = computeDepthKey(sortable);
+  // X tiebreaker: scale to 0.01 sub-pixel so it doesn't overwhelm Y but still breaks ties
+  return baseDepth + key.depthY + key.depthX * 0.01;
 }

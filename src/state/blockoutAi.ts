@@ -29,7 +29,7 @@ import { angleFromTo } from './angleMath';
 import { issueGridMoveCommand, issueGridStopCommand } from './movementStateMachine';
 import { screenToTile } from '../phaser/render/isometric';
 import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from './occupancy';
-import { findPath } from './pathfinding';
+import { findPath, findPathToAdjacent } from './pathfinding';
 import type { GameState } from './types';
 import type { TileReservationMap } from './tileReservation';
 
@@ -143,7 +143,16 @@ function issueGridMoveToward(
 
   const fromTx = enemy.gridMovement.currentTileTx;
   const fromTy = enemy.gridMovement.currentTileTy;
-  const path = findPath(occupancy, fromTx, fromTy, targetTx, targetTy);
+
+  // CORE-STEP-06H+ fixup: If the target tile is impassable (e.g. occupied by ally),
+  // path to an adjacent tile instead. This prevents chasers from getting stuck
+  // when targeting occupied allies.
+  let path = findPath(occupancy, fromTx, fromTy, targetTx, targetTy);
+
+  if (!path) {
+    // Target tile is occupied — try pathing to adjacent tile
+    path = findPathToAdjacent(occupancy, fromTx, fromTy, targetTx, targetTy, 1, 1);
+  }
 
   if (path && path.length > 0) {
     issueGridMoveCommand(enemy.gridMovement, path, targetTx, targetTy);

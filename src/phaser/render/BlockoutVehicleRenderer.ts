@@ -287,7 +287,8 @@ export class BlockoutVehicleRenderer {
         type: 'unit' as const,
         tx: v.tx,
         ty: v.ty,
-        offset: this.offset,
+        offsetX: this.offset.x,
+        offsetY: this.offset.y,
       }));
     const depthOrder = new Map<string, number>();
     if (depthSortables.length > 0) {

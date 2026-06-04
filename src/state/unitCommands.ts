@@ -9,7 +9,7 @@
  */
 
 import type { GameState, HarvesterState, HarvesterBlockedReason } from './types';
-import { buildOccupancyMap, isPassable, addUnitBlockers, isTileOccupiedByUnit } from './occupancy';
+import { buildOccupancyMap, isPassable, addUnitBlockers, addVehicleBlockers, isTileOccupiedByUnit } from './occupancy';
 import { findPath } from './pathfinding';
 import type { SelectableUnit } from './unitSelection';
 
@@ -83,6 +83,11 @@ export function issueManualMove(
     }
     // Add unit blockers so pathfinding avoids other units
     addUnitBlockers(state, occupancy, 'harvester', unit.id);
+    // CORE-STEP-06H+ fixup: Also respect combat vehicles and reservations
+    if (state.blockoutVehicles) {
+      addVehicleBlockers(state.blockoutVehicles, occupancy);
+    }
+    // Note: reservation blockers not added for manual moves (player intentionality)
     return issueHarvesterManualMove(state, unit.id, targetTx, targetTy, occupancy);
   } else if (unit.kind === 'builder') {
     // Target must not be occupied by another unit
@@ -91,6 +96,10 @@ export function issueManualMove(
     }
     // Add unit blockers so pathfinding avoids other units
     addUnitBlockers(state, occupancy, 'builder', unit.id);
+    // CORE-STEP-06H+ fixup: Also respect combat vehicles
+    if (state.blockoutVehicles) {
+      addVehicleBlockers(state.blockoutVehicles, occupancy);
+    }
     return issueBuilderManualMove(state, unit.id, targetTx, targetTy, occupancy);
   }
 

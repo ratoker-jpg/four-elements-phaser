@@ -786,6 +786,7 @@ export class GameScene extends Phaser.Scene {
             vehicle, effectiveProfile, delta, this.gameState.blockoutObstacles,
             occupancy, this.reservationMap ?? undefined,
             () => getOccupancyForRepath(vehicle.id),
+            this.time.now,
           );
         }
       }
