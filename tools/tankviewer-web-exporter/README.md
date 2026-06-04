@@ -272,6 +272,9 @@ validation warnings would have been shown in the UI).
 | config.xml aware | Yes (diagnostic) | N/A |
 | File validation | Yes (filename match) | N/A |
 | SWF shader reverse | No | N/A |
+| 3-layer compositing | Yes (spike-composite.html) | N/A |
+| Faction paint | 4 presets (spike) | N/A |
+| MeshBasicMaterial | Yes (composite mode) | N/A |
 
 ## Dependencies
 
@@ -298,6 +301,130 @@ like it's facing screen-right (East). If not, adjust the offset.
 In the Blender pipeline, the offset is 225 degrees because Blender uses a
 different coordinate convention (Z-up) and the camera is at azimuth 45.
 
+## Composite Spike (WEBEXPORTER-SPIKE-01)
+
+### File: `spike-composite.html`
+
+A separate spike file that adds **TankViewer 3-layer texture compositing** to
+the web exporter. This is a visual proof-of-concept — not production integration
+until Denis visually verifies the output against Flash TankViewer screenshots.
+
+### TankViewer compositing formula
+
+CODEX-WEBEXPORTER-REVERSE-01 reverse-engineered the Flash SWF and found that
+TankViewer composes textures externally using Flash blend modes:
+
+```
+composite = HARDLIGHT(colormap, MULTIPLY(lightmap, details))
+```
+
+Step-by-step:
+1. Draw `details` as base (source-over)
+2. Draw `lightmap` using Canvas2D `globalCompositeOperation = "multiply"`
+3. Draw `colormap` (faction paint) using Canvas2D `globalCompositeOperation = "hard-light"`
+4. Restore alpha from details PNG — transparent UV areas stay transparent
+
+This matches Flash's `BlendMode.MULTIPLY` and `BlendMode.HARDLIGHT` exactly.
+The Canvas2D composite operations produce the same result.
+
+### Why no dynamic lighting in composite mode
+
+The lightmap already contains **baked lighting** from 3ds Max. Applying it via
+Canvas2D multiply bakes the lighting into the texture. Using MeshBasicMaterial
+(no Three.js light response) with the composited texture produces the correct
+visual result — the same approach TankViewer/Flash uses (no real-time lights).
+
+### Faction paint presets
+
+| Paint | RGB | CSS | Source |
+|-------|-----|-----|--------|
+| Green | (64, 70, 36) | `rgb(64, 70, 36)` | Archive colormap pixel data |
+| Purple | (120, 0, 180) | `rgb(120, 0, 180)` | Approximation |
+| Yellow | (230, 200, 0) | `rgb(230, 200, 0)` | Approximation |
+| Cyan | (0, 180, 200) | `rgb(0, 180, 200)` | Approximation |
+
+For the first spike, solid colors are acceptable. Real colormaps from
+TankViewer.zip (1x1 pixel PNG/JPG) can be loaded later for exact color
+matching.
+
+### Material mode selector
+
+The spike adds a **Material Mode** dropdown with two options:
+
+| Mode | Material | Lighting | Description |
+|------|----------|----------|-------------|
+| Raw (default) | MeshStandardMaterial | Ambient + Directional | Details as diffuse map, lightmap as lightMap |
+| TankViewer Composite | MeshBasicMaterial | None (baked) | Composited texture from 3-layer formula |
+
+Default is "Raw" to preserve existing exporter behavior. Switch to
+"TankViewer Composite" to see the Flash-like rendering.
+
+### Proof workflow (for Denis)
+
+1. Open `spike-composite.html` in a browser (serve locally for best results)
+2. Upload `config.xml` from TankViewer.zip
+3. Select **Hull → Wasp → M0**
+4. Select `Wasp_0123.3ds` as the 3DS model
+5. Select `Wasp_0_details.png` as the details texture
+6. Select `Wasp_0_lightmap.jpg` as the lightmap texture
+7. Switch **Material Mode** to "TankViewer Composite"
+8. Select a **Faction Paint** (green, purple, yellow, or cyan)
+9. Check the **Composite Preview** canvas (128x128 thumbnail)
+10. Click **Render All Directions** — renders 16 directions with composited texture
+11. Compare rendered output to Flash TankViewer screenshot of Wasp M0
+
+**Success criteria:**
+- Tank is visible with correct green/purple/yellow/cyan tint
+- Lightmap shading is visible (tank has depth/shadow, not flat)
+- Alpha transparency works (track cutouts and UV margins are transparent)
+- Proportions match Flash TankViewer
+
+### Manifest composite fields
+
+When using composite mode, the exported manifest includes:
+
+```json
+{
+  "materialMode": "tankviewer-composite",
+  "paint": {
+    "faction": "green",
+    "color": "rgb(64, 70, 36)"
+  },
+  "sourceConfig": {
+    "enabled": true,
+    "cameraRadius": 750,
+    "configModelFile": "hulls/Wasp_0123.3ds",
+    "configDetailsFile": "hulls/Wasp_0_details.png",
+    "configLightmapFile": "hulls/Wasp_0_lightmap.jpg"
+  }
+}
+```
+
+In raw mode, `materialMode` is `"raw"` and `paint` is `null`.
+
+### Tests
+
+`tests/unit/tools/tankviewerComposite.test.ts` — 20 tests covering:
+- Faction paint preset keys and RGB values
+- Material mode names
+- Manifest records `materialMode = "tankviewer-composite"`
+- Manifest records paint/faction color
+- sourceConfig remains intact across material modes
+- Compositing formula step ordering
+
+### Next steps depend on visual comparison
+
+If the composite spike visually matches Flash TankViewer:
+- Integrate composite mode into `index.html` (main exporter)
+- Support real colormap image loading from TankViewer.zip
+- Add per-model texture size detection (hull=512, turret=256)
+- Batch sprite generation pipeline
+
+If the composite spike does NOT match Flash:
+- Investigate whether some colormaps use OVERLAY instead of HARDLIGHT
+- Adjust paint color values from real colormaps
+- Consider ShaderMaterial for more precise blend control
+
 ## Status
 
 **Feasibility spike** — validated with real TankViewer Wasp assets:
@@ -310,8 +437,9 @@ different coordinate convention (Z-up) and the camera is at azimuth 45.
 6. config.xml parsing: hulls, turrets, colormaps, camera-radius all extracted
 7. Config-aware selectors: Kind → Asset → M-level workflow functional
 8. File validation: warns on filename mismatches against config entry
+9. Composite spike (WEBEXPORTER-SPIKE-01): 3-layer compositing proof added
 
 **This does NOT make the web exporter production-ready.** It remains an
-experimental diagnostic/preview tool. The next step is to verify the
-config-aware exporter with a real config.xml from TankViewer.zip, then
-decide whether material/camera reverse-engineering is worth continuing.
+experimental diagnostic/preview tool. The next step is for Denis to visually
+verify the composite spike against Flash TankViewer, then decide whether to
+integrate compositing into the main exporter.
