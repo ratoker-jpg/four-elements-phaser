@@ -65,6 +65,12 @@ jobs:
           cp art/generated/manifest.generated.json dist/art/generated/manifest.generated.json
           cp art/generated/audit-report.json dist/art/generated/audit-report.json
 
+      - name: Copy standalone tools into dist
+        run: |
+          mkdir -p dist/tools/tankviewer-web-exporter
+          cp tools/tankviewer-web-exporter/index.html dist/tools/tankviewer-web-exporter/index.html
+          cp tools/tankviewer-web-exporter/README.md dist/tools/tankviewer-web-exporter/README.md
+
       # ─── Diagnostics: ensure artifact is clean ───────────────────────
       - name: Diagnose dist
         run: |
