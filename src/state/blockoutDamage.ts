@@ -23,9 +23,10 @@ import { computeBodyWorldCenter, getBodyPixelSize } from '../phaser/render/block
 import type { IsoPoint } from '../phaser/render/isometric';
 import { getEffectiveDamageProfile, getIncomingDamageMultiplier, getCooldownMultiplier } from './blockoutUpgrades';
 import { checkDirectHit, checkConeHit, findSplashTargets as findProjectedSplashTargets, getAimForgiveness, screenAngleToGroundAngle } from './combatHitModel';
-import { getWeaponConfig } from '../config/weaponData';
+import { getWeaponConfig, getWeaponMLevelValue } from '../config/weaponData';
 import { getWeaponRangeInfo, groundDistanceTiles } from './combatRange';
 import { TILE_W, TILE_H } from '../config/worldConfig';
+import { applyArmorReduction } from './bodyCombatStats';
 
 // ─── Damage Event ──────────────────────────────────────────────────
 
@@ -44,13 +45,32 @@ export interface BlockoutDamageEvent {
   isKill: boolean;
 }
 
+// ─── CORE-STEP-08H+: Heal Event ──────────────────────────────────────
+
+/** Heal event for rendering (Isida heal beam). Transient — not persisted. */
+export interface BlockoutHealEvent {
+  id: number;
+  targetVehicleId: string;
+  weaponId: WeaponId;
+  amount: number;
+  x: number;
+  y: number;
+  createdAt: number;
+  durationMs: number;
+}
+
 // ─── Module-level state ────────────────────────────────────────────
 
 let damageEvents: BlockoutDamageEvent[] = [];
+let healEvents: BlockoutHealEvent[] = [];
 let nextDamageEventId = 1;
+let nextHealEventId = 1;
 
 /** Default damage event display duration in ms. */
 const DAMAGE_EVENT_DURATION_MS = 800;
+
+/** Default heal event display duration in ms. CORE-STEP-08H+. */
+const HEAL_EVENT_DURATION_MS = 600;
 
 // ─── Damage profile lookup ─────────────────────────────────────────
 
@@ -65,11 +85,16 @@ export function getBlockoutDamageProfile(weaponId: string): DamageProfile | unde
  * Apply damage to a vehicle and return a damage event if damage was dealt.
  *
  * - If vehicle.isDestroyed, return null (no damage to dead vehicles).
- * - Applies incoming damage multiplier (armor_plating) to compute adjustedAmount.
- * - Reduces HP by adjustedAmount, clamped to 0.
+ * - CORE-STEP-08H+: Uses the accepted armor formula:
+ *   finalDamage = max(rawDamage - armor, rawDamage * minDamagePercent)
+ *   Armor comes from production body config at the target's modification level.
+ *   The old getIncomingDamageMultiplier (from blockoutUpgrades) is still applied
+ *   as an additional layer for backward compatibility with the upgrade system,
+ *   but the primary damage reduction now comes from body armor.
+ * - Reduces HP by finalDamage, clamped to 0.
  * - Sets lastDamagedAt and damageFlashUntil.
  * - If HP <= 0: sets isDestroyed, destroyedAt, clears fire/move state.
- * - Creates a damage event with adjustedAmount (matches actual HP loss).
+ * - Creates a damage event with finalDamage (matches actual HP loss).
  *
  * @param vehicle - Target vehicle (mutated in place)
  * @param weaponId - Weapon that dealt the damage
@@ -93,9 +118,17 @@ export function applyDamageToVehicle(
 ): BlockoutDamageEvent | null {
   if (vehicle.isDestroyed) return null;
 
-  // BLOCKOUT-09H: Apply incoming damage multiplier (armor plating reduces damage)
+  // CORE-STEP-08H+: Apply body armor from production config.
+  // This uses the accepted formula: max(rawDamage - armor, rawDamage * minDamagePercent)
+  // The old upgrade-based getIncomingDamageMultiplier is applied as an additional
+  // layer for backward compatibility. The armor formula replaces it as the primary
+  // damage reduction mechanism.
+  const armorResult = applyArmorReduction(vehicle.bodyId, vehicle.modificationLevel, amount);
+
+  // Also apply the old upgrade multiplier for backward compatibility
+  // (armor_plating upgrade still reduces damage as a secondary effect)
   const incomingMult = getIncomingDamageMultiplier(vehicle);
-  const adjustedAmount = amount * incomingMult;
+  const adjustedAmount = armorResult.finalDamage * incomingMult;
 
   // Apply damage
   vehicle.hp = Math.max(0, vehicle.hp - adjustedAmount);
@@ -121,7 +154,7 @@ export function applyDamageToVehicle(
   }
 
   // Create damage event — store adjustedAmount so the floating damage
-  // number matches the actual HP loss (armor_plating reduces damage)
+  // number matches the actual HP loss (armor reduces damage)
   const event: BlockoutDamageEvent = {
     id: nextDamageEventId++,
     targetVehicleId: vehicle.id,
@@ -507,6 +540,23 @@ export function applyBlockoutWeaponDamage(
   // CORE-STEP-07H+: When weapon has a production config, use projected hit model
   const weaponCfg = getWeaponConfig(firingVehicle.weaponId);
 
+  // CORE-STEP-08H+ FIXUP Blocker 4: Get M-level damage from production config.
+  // Falls back to blockout profile directDamage if production config is missing.
+  // This ensures M0 vs M3 actually produces different damage values in runtime.
+  // Note: Production config only has directDamage and damagePerSecond —
+  // all damage kinds use directDamage except tick-based weapons which use damagePerSecond.
+  const mLevelDamage = (isTick: boolean = false): number => {
+    if (weaponCfg) {
+      if (isTick && weaponCfg.damage.damagePerSecond) {
+        return getWeaponMLevelValue(weaponCfg.damage.damagePerSecond, firingVehicle.modificationLevel);
+      }
+      if (weaponCfg.damage.directDamage) {
+        return getWeaponMLevelValue(weaponCfg.damage.directDamage, firingVehicle.modificationLevel);
+      }
+    }
+    return profile.directDamage ?? 20;
+  };
+
   // FIXUP-2 Blocker 1: Convert screen-space aimAngle to ground-plane aimAngle.
   // aimAngle comes from vehicle.turretAngle which is screen-space (computed from
   // projected screen coordinates). The hit model functions compare aimAngle with
@@ -536,7 +586,7 @@ export function applyBlockoutWeaponDamage(
           if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
             break;
           }
-          const amount = profile.directDamage ?? 20;
+          const amount = mLevelDamage();
           const event = applyDamageToVehicle(bestTarget, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'direct');
           if (event) events.push(event);
         }
@@ -548,7 +598,7 @@ export function applyBlockoutWeaponDamage(
           if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
             break;
           }
-          const amount = profile.directDamage ?? 20;
+          const amount = mLevelDamage();
           const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'direct');
           if (event) events.push(event);
         }
@@ -589,7 +639,7 @@ export function applyBlockoutWeaponDamage(
         const forgiveness = getAimForgiveness(firingVehicle.weaponId);
         const splashRadiusTiles = forgiveness.splashRadiusTiles || weaponCfg.damage.splashRadius;
         const splashTargets = findProjectedSplashTargets(firingVehicle.id, vehicles, impactTileX, impactTileY, splashRadiusTiles, weaponCfg.damage.selfDamageScale ?? 0);
-        const baseAmount = profile.directDamage ?? 25;
+        const baseAmount = mLevelDamage();
         for (const target of splashTargets) {
           const bodyCenter = computeBodyWorldCenter(target, offset);
           let amount = baseAmount;
@@ -605,7 +655,7 @@ export function applyBlockoutWeaponDamage(
       } else {
         // Old screen-space path
         const targets = findSplashTargets(firingVehicle, vehicles, impactX, impactY, profile.radiusPx ?? 60, offset);
-        const baseAmount = profile.directDamage ?? 25;
+        const baseAmount = mLevelDamage();
         for (const target of targets) {
           const bodyCenter = computeBodyWorldCenter(target, offset);
           let amount = baseAmount;
@@ -637,7 +687,7 @@ export function applyBlockoutWeaponDamage(
         }
         candidates.sort((a, b) => a.dist - b.dist);
         const pierceCount = profile.pierceCount ?? 3;
-        const amount = profile.directDamage ?? 40;
+        const amount = mLevelDamage();
         for (const candidate of candidates.slice(0, pierceCount)) {
           const target = candidate.vehicle;
           const bodyCenter = computeBodyWorldCenter(target, offset);
@@ -650,7 +700,7 @@ export function applyBlockoutWeaponDamage(
       } else {
         // Old screen-space path
         const targets = findPenetrationTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, 0, profile.pierceCount ?? 3, offset);
-        const amount = profile.directDamage ?? 40;
+        const amount = mLevelDamage();
         for (const target of targets) {
           const bodyCenter = computeBodyWorldCenter(target, offset);
           if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y, true)) {
@@ -699,6 +749,14 @@ export function applyBlockoutWeaponDamage(
     }
 
     case 'beam_tick': {
+      // CORE-STEP-08H+: Isida is heal-only — do NOT apply damage to any target.
+      // Instead, the Isida heal beam is handled separately by applyIsidaHealBeam().
+      // If this weapon has a heal_beam support model, skip damage entirely.
+      if (weaponCfg && weaponCfg.support && weaponCfg.support.kind === 'heal_beam') {
+        // Isida does NOT deal damage — it only heals allies.
+        // Heal is handled by the continuous tick calling applyIsidaHealBeam.
+        break;
+      }
       if (weaponCfg) {
         // Projected hit model path: use checkDirectHit with ground-plane aimAngle
         const dps = profile.damagePerSecond ?? 25;
@@ -753,7 +811,7 @@ export function applyBlockoutWeaponDamage(
           if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
             break;
           }
-          const amount = profile.directDamage ?? 5;
+          const amount = mLevelDamage(true);
           const event = applyDamageToVehicle(bestTarget, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'rapid_tick', profile.statusTag);
           if (event) events.push(event);
         }
@@ -765,7 +823,7 @@ export function applyBlockoutWeaponDamage(
           if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
             break;
           }
-          const amount = profile.directDamage ?? 5;
+          const amount = mLevelDamage(true);
           const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'rapid_tick', profile.statusTag);
           if (event) events.push(event);
         }
@@ -794,7 +852,7 @@ export function applyBlockoutWeaponDamage(
           if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
             break;
           }
-          const amount = profile.directDamage ?? 12;
+          const amount = mLevelDamage(true);
           const event = applyDamageToVehicle(bestTarget, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'plasma', profile.statusTag);
           if (event) events.push(event);
         }
@@ -806,7 +864,7 @@ export function applyBlockoutWeaponDamage(
           if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
             break;
           }
-          const amount = profile.directDamage ?? 12;
+          const amount = mLevelDamage(true);
           const event = applyDamageToVehicle(target, firingVehicle.weaponId, amount, bodyCenter.x, bodyCenter.y, nowMs, 'plasma', profile.statusTag);
           if (event) events.push(event);
         }
@@ -820,7 +878,7 @@ export function applyBlockoutWeaponDamage(
         // using ground-plane aimAngle
         const bounceCount = 2;
         const targets = findRicochetTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, bounceCount, offset);
-        const amount = profile.directDamage ?? 18;
+        const amount = mLevelDamage();
         for (const target of targets) {
           const hitResult = checkDirectHit(firingVehicle, target, groundAimAngle, firingVehicle.weaponId);
           if (!hitResult.isHit) continue;
@@ -835,7 +893,7 @@ export function applyBlockoutWeaponDamage(
         // Old screen-space path
         const bounceCount = 2;
         const targets = findRicochetTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, bounceCount, offset);
-        const amount = profile.directDamage ?? 18;
+        const amount = mLevelDamage();
         for (const target of targets) {
           const bodyCenter = computeBodyWorldCenter(target, offset);
           if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) {
@@ -854,7 +912,7 @@ export function applyBlockoutWeaponDamage(
         // FIXUP-2 Blocker 1: Convert each pellet's screen-space angle to ground-plane
         const forgiveness = getAimForgiveness(firingVehicle.weaponId);
         const rangeInfo = getWeaponRangeInfo(firingVehicle.weaponId);
-        const totalDamage = profile.directDamage ?? 35;
+        const totalDamage = mLevelDamage();
         const pelletCount = profile.pelletCount ?? 5;
         const damagePerPellet = totalDamage / pelletCount;
         const halfAngleRad = ((profile.coneAngleDeg ?? 30) * Math.PI) / 180;
@@ -876,7 +934,7 @@ export function applyBlockoutWeaponDamage(
       } else {
         // Old screen-space path
         const pelletHits = findShotgunTargets(firingVehicle, vehicles, barrelTipX, barrelTipY, aimAngle, rangePx, profile.coneAngleDeg ?? 30, profile.pelletCount ?? 5, offset);
-        const totalDamage = profile.directDamage ?? 35;
+        const totalDamage = mLevelDamage();
         const pelletCount = profile.pelletCount ?? 5;
         const damagePerPellet = totalDamage / pelletCount;
         for (const hit of pelletHits) {
@@ -909,7 +967,11 @@ export function applyBlockoutWeaponDamage(
  * BLOCKOUT-07H+ fixup: Uses lastDamageTickAt (separate from lastStreamTickAt)
  * so VFX cadence and damage cadence do not block each other.
  *
- * @returns Array of damage events created
+ * CORE-STEP-08H+: Isida is handled specially — it heals allies instead
+ * of dealing damage. For Isida, this calls applyIsidaHealBeam() instead
+ * of applyBlockoutWeaponDamage().
+ *
+ * @returns Array of damage events created (empty for Isida which creates heal events)
  */
 export function tickContinuousDamage(
   firingVehicle: BlockoutVehicleState,
@@ -940,6 +1002,15 @@ export function tickContinuousDamage(
   const elapsed = nowMs - firingVehicle.lastDamageTickAt;
   if (elapsed < effectiveTickMs) return [];
 
+  // CORE-STEP-08H+: Handle Isida heal beam separately
+  const weaponCfg = getWeaponConfig(firingVehicle.weaponId);
+  if (weaponCfg && weaponCfg.support && weaponCfg.support.kind === 'heal_beam') {
+    // Isida heals allies instead of dealing damage
+    applyIsidaHealBeam(firingVehicle, vehicles, aimAngle, offset, nowMs);
+    firingVehicle.lastDamageTickAt = nowMs;
+    return []; // No damage events for Isida
+  }
+
   // Apply damage using the main function (it handles the kind-specific logic)
   const events = applyBlockoutWeaponDamage(
     firingVehicle, vehicles,
@@ -962,6 +1033,7 @@ export function tickContinuousDamage(
 /** Remove expired damage events based on current time. */
 export function expireDamageEvents(nowMs: number): void {
   damageEvents = damageEvents.filter(e => (nowMs - e.createdAt) < e.durationMs);
+  healEvents = healEvents.filter(e => (nowMs - e.createdAt) < e.durationMs);
 }
 
 /** Get all active damage events. */
@@ -977,5 +1049,114 @@ export function clearDamageEvents(): void {
 /** Reset damage event ID counter (for tests). */
 export function resetDamageEventIdCounter(): void {
   nextDamageEventId = 1;
+  nextHealEventId = 1;
   damageEvents = [];
+  healEvents = [];
+}
+
+// ─── CORE-STEP-08H+: Heal system (Isida) ──────────────────────────
+
+/**
+ * Heal a vehicle and return a heal event.
+ *
+ * Isida is heal-only per MECHANICS_DECISIONS — it must NOT damage enemies.
+ * This function increases HP up to maxHp and creates a heal event for rendering.
+ *
+ * @param vehicle - Target vehicle (mutated: HP increased)
+ * @param weaponId - Weapon that provided the heal (should be 'isida')
+ * @param amount - Heal amount
+ * @param x - World X of the heal target
+ * @param y - World Y of the heal target
+ * @param nowMs - Current scene time
+ * @returns Heal event, or null if vehicle is destroyed or at full HP
+ */
+export function healVehicle(
+  vehicle: BlockoutVehicleState,
+  weaponId: WeaponId,
+  amount: number,
+  x: number,
+  y: number,
+  nowMs: number,
+): BlockoutHealEvent | null {
+  if (vehicle.isDestroyed) return null;
+  if (vehicle.hp >= vehicle.maxHp) return null; // Already at full HP
+
+  // Apply heal, capped at maxHp
+  const oldHp = vehicle.hp;
+  vehicle.hp = Math.min(vehicle.maxHp, vehicle.hp + amount);
+  const actualHeal = vehicle.hp - oldHp;
+
+  if (actualHeal <= 0) return null;
+
+  const event: BlockoutHealEvent = {
+    id: nextHealEventId++,
+    targetVehicleId: vehicle.id,
+    weaponId,
+    amount: actualHeal,
+    x,
+    y,
+    createdAt: nowMs,
+    durationMs: HEAL_EVENT_DURATION_MS,
+  };
+
+  healEvents.push(event);
+  return event;
+}
+
+/** Remove expired heal events based on current time. CORE-STEP-08H+. */
+export function expireHealEvents(nowMs: number): void {
+  healEvents = healEvents.filter(e => (nowMs - e.createdAt) < e.durationMs);
+}
+
+/** Get all active heal events. CORE-STEP-08H+. */
+export function getHealEvents(): ReadonlyArray<BlockoutHealEvent> {
+  return healEvents;
+}
+
+/** Clear all heal events. CORE-STEP-08H+. */
+export function clearHealEvents(): void {
+  healEvents = [];
+}
+
+/**
+ * Apply Isida heal beam — find nearest ally within beam range and heal.
+ * CORE-STEP-08H+: Isida is heal-only per MECHANICS_DECISIONS.
+ * It must NOT damage enemies under any circumstances.
+ *
+ * @returns Array of heal events created
+ */
+export function applyIsidaHealBeam(
+  healer: BlockoutVehicleState,
+  vehicles: BlockoutVehicleState[],
+  aimAngle: number,
+  offset: IsoPoint,
+  nowMs: number,
+): BlockoutHealEvent[] {
+  const events: BlockoutHealEvent[] = [];
+  const config = getWeaponConfig(healer.weaponId);
+  if (!config || !config.support || config.support.kind !== 'heal_beam') return events;
+
+  const mLevel = healer.modificationLevel;
+  const healPerSecond = getWeaponMLevelValue(config.support.healPerSecond, mLevel);
+  const tickMs = 50; // 50ms tick rate for heal beam
+  const healAmount = healPerSecond * tickMs / 1000;
+
+  // Find allies within beam range using direct hit model
+  const groundAimAngle = screenAngleToGroundAngle(aimAngle);
+
+  for (const vehicle of vehicles) {
+    if (vehicle.isDestroyed) continue;
+    if (vehicle.id === healer.id) continue; // Don't heal self
+    // Only heal allies (same team as healer)
+    if (vehicle.team !== healer.team) continue;
+
+    const hitResult = checkDirectHit(healer, vehicle, groundAimAngle, healer.weaponId);
+    if (hitResult.isHit) {
+      const bodyCenter = computeBodyWorldCenter(vehicle, offset);
+      const healEvent = healVehicle(vehicle, healer.weaponId, healAmount, bodyCenter.x, bodyCenter.y, nowMs);
+      if (healEvent) events.push(healEvent);
+    }
+  }
+
+  return events;
 }

@@ -30,6 +30,7 @@ import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from './occupa
 import { findPath, findPathToAdjacent } from './pathfinding';
 import { issueGridMoveCommand, issueGridStopCommand } from './movementStateMachine';
 import { angleFromTo } from './angleMath';
+import { clearWeaponPendingStates } from './weaponResources';
 
 // ─── Combat state per vehicle ────────────────────────────────────
 
@@ -271,6 +272,7 @@ export function stopChase(
 /**
  * Clear target-lock and stop chase for a vehicle.
  * Called when S key is pressed or when target is lost.
+ * CORE-STEP-08H+: Also cancels pending weapon states (wind-up, drum burst).
  */
 export function clearTargetLock(
   vehicle: BlockoutVehicleState,
@@ -278,6 +280,8 @@ export function clearTargetLock(
 ): void {
   vehicle.targetVehicleId = null;
   stopChase(vehicle, reservationMap);
+  // CORE-STEP-08H+: Cancel pending weapon states when target-lock is cleared
+  clearWeaponPendingStates(vehicle.weaponRuntime);
 }
 
 // ─── Batch combat update ───────────────────────────────────────────
@@ -338,6 +342,14 @@ export function updateAllCombatTargeting(
     if (result.shouldFire && result.isAimed && options?.fireWeapon && options.nowMs !== undefined) {
       const fireTarget = vehicles.find(v => v.id === vehicle.targetVehicleId);
       if (fireTarget) {
+        // CORE-STEP-08H+ FIXUP-2: Mark canister weapons as auto-firing for resource drain.
+        // When target-lock auto-fire is active for a canister stream weapon,
+        // set isAutoFiring=true so updateAllWeaponResources knows to drain
+        // the canister, not just regen. This flag is cleared by
+        // updateAllWeaponResources after each frame's drain calculation.
+        if (vehicle.weaponRuntime.canister) {
+          vehicle.weaponRuntime.isAutoFiring = true;
+        }
         options.fireWeapon(vehicle, fireTarget, options.nowMs);
       }
     }

@@ -53,8 +53,9 @@ import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
 import { TileReservationMap, RESERVATION_MAX_AGE_MS } from '../state/tileReservation';
 import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from '../state/occupancy';
-import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring, fireBlockoutWeapon, canFireBlockoutWeapon } from '../state/blockoutWeaponVfx';
-import { tickContinuousDamage, expireDamageEvents, applyBlockoutWeaponDamage } from '../state/blockoutDamage';
+import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring } from '../state/blockoutWeaponVfx';
+import { updateAllWeaponResources, tryFireWithDamage, clearTargetAndWeaponState } from '../state/weaponFireCoordinator';
+import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
 import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter } from './render/blockoutVehicleGeometry';
@@ -444,14 +445,15 @@ export class GameScene extends Phaser.Scene {
         },
         onClearTarget: () => {
           // ARENA-04H+: Clear target on selected vehicle.
+          // CORE-STEP-08H+ FIXUP Blocker 3: Uses clearTargetAndWeaponState
+          // to properly cancel wind-up (Railgun) and drum bursts (Hammer).
           const selectedId = this.blockoutVehicleInputController?.selectedVehicleId;
           if (!selectedId) return;
           const vehicles = this.gameState.blockoutVehicles;
           if (vehicles) {
             const selected = vehicles.find(v => v.id === selectedId);
             if (selected) {
-              selected.targetVehicleId = null;
-              if (selected.fireHeld || selected.isFiring) stopFiring(selected);
+              clearTargetAndWeaponState(selected);
             }
           }
         },
@@ -813,8 +815,9 @@ export class GameScene extends Phaser.Scene {
         // CORE-STEP-06H+: Pass gameState and reservationMap for grid pathing
         gameState: this.gameState,
         reservationMap: this.reservationMap ?? undefined,
-        // ARENA-05H+ fixup: fireWeapon callback for single-shot AI weapons.
-        // Uses the same geometry and damage path as player fire.
+        // CORE-STEP-08H+ FIXUP Blocker 3: fireWeapon callback now uses weapon fire coordinator
+        // This ensures wind-up (Railgun), drum burst (Hammer), and resource gates
+        // are properly handled for AI weapons too.
         fireWeapon: (enemy, target, fireNowMs) => {
           // Compute barrel tip using projected geometry at barrel Z
           // (shared source of truth with renderer — PROJECTION-01)
@@ -826,19 +829,9 @@ export class GameScene extends Phaser.Scene {
           const aimTargetX = targetCenter.x;
           const aimTargetY = targetCenter.y;
 
-          fireBlockoutWeapon(
+          tryFireWithDamage(
             enemy,
-            barrelTipX,
-            barrelTipY,
-            enemy.turretAngle,
-            aimTargetX,
-            aimTargetY,
-            fireNowMs,
-          );
-
-          // Apply damage using the same path as player fire
-          applyBlockoutWeaponDamage(
-            enemy, this.gameState.blockoutVehicles!,
+            this.gameState.blockoutVehicles!,
             barrelTipX, barrelTipY,
             enemy.turretAngle,
             aimTargetX, aimTargetY,
@@ -848,12 +841,13 @@ export class GameScene extends Phaser.Scene {
         },
       });
       // ARENA-05H+: Rotate enemy turrets toward their AI-set target angle
-      // CORE-STEP-07H+: Use production weapon config turretTurnSpeed
+      // CORE-STEP-08H+ FIXUP Blocker 4: Use production weapon config turretTurnSpeed at vehicle's M-level
       for (const vehicle of this.gameState.blockoutVehicles) {
         if (vehicle.team === 'enemy' && !vehicle.isDestroyed) {
           const weaponConfig = getWeaponConfig(vehicle.weaponId);
+          // FIXUP: Use vehicle.modificationLevel instead of hardcoded 0
           const effectiveTurretSpeed = weaponConfig
-            ? getWeaponMLevelValue(weaponConfig.turretTurnSpeed, 0)
+            ? getWeaponMLevelValue(weaponConfig.turretTurnSpeed, vehicle.modificationLevel)
             : vehicle.turretTurnSpeedDeg;
           const maxDelta = degPerSecToRadPerMs(effectiveTurretSpeed) * delta;
           const angleDelta = vehicle.turretTargetAngle - vehicle.turretAngle;
@@ -877,24 +871,16 @@ export class GameScene extends Phaser.Scene {
         this._offset as { x: number; y: number },
         {
           nowMs: this.time.now,
+          // CORE-STEP-08H+ FIXUP Blocker 3: Target-lock auto-fire uses weapon fire coordinator
+          // This ensures wind-up (Railgun), drum burst (Hammer), and resource gates
+          // are properly handled for player target-lock weapons too.
           fireWeapon: (vehicle, target, fireNowMs) => {
-            // Use the same fire path as AI weapons
             const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this._offset as IsoPoint);
             const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
 
-            // Check cooldown before firing
-            if (!canFireBlockoutWeapon(vehicle, fireNowMs)) return;
-
-            fireBlockoutWeapon(
+            tryFireWithDamage(
               vehicle,
-              barrelTip.x, barrelTip.y,
-              vehicle.turretAngle,
-              targetCenter.x, targetCenter.y,
-              fireNowMs,
-            );
-
-            applyBlockoutWeaponDamage(
-              vehicle, this.gameState.blockoutVehicles!,
+              this.gameState.blockoutVehicles!,
               barrelTip.x, barrelTip.y,
               vehicle.turretAngle,
               targetCenter.x, targetCenter.y,
@@ -904,6 +890,13 @@ export class GameScene extends Phaser.Scene {
           },
         },
       );
+    }
+    // CORE-STEP-08H+ FIXUP-2: Update weapon resources AFTER combat targeting and AI.
+    // Canisters drain/regen, overheat cools, magazines regen, drums reload.
+    // Must run after updateAllCombatTargeting so isAutoFiring is set for canister drain.
+    if (this.gameState.blockoutVehicles) {
+      const nowMs = this.time.now;
+      updateAllWeaponResources(this.gameState.blockoutVehicles, nowMs, delta);
     }
     // CORE-STEP-06H+: Clean up stale tile reservations periodically
     if (this.reservationMap) {

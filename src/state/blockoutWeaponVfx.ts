@@ -22,7 +22,11 @@ import type { RecoilProfile, WeaponId } from '../config/blockoutProfiles';
 import { RECOIL_PROFILES } from '../config/blockoutRecoilData';
 import { getWeaponVfxProfile } from '../config/blockoutVfxData';
 import { getWeaponProfile } from '../config/blockoutWeaponData';
+import { getWeaponConfig, getWeaponMLevelValue } from '../config/weaponData';
 import { getCooldownMultiplier } from './blockoutUpgrades';
+import { canFireByRuntimeState } from './weaponRuntime';
+import { clearWeaponPendingStates, recordOverheatShot as recordOverheatShotResource, recordMagazineShot as recordMagazineShotResource } from './weaponResources';
+import { getRecoilScale } from './bodyCombatStats';
 
 // ─── VFX Event ────────────────────────────────────────────────────
 
@@ -130,6 +134,9 @@ function getVfxEventType(weaponId: WeaponId): VfxEventType {
  * @param aimTargetX - Aim target X in screen-space pixels (with offset)
  * @param aimTargetY - Aim target Y in screen-space pixels (with offset)
  * @param nowMs - Current timestamp
+ * @param skipCooldownCheck - CORE-STEP-08H+ FIXUP-2: If true, skip global cooldown check.
+ *   Used by drum burst volleys where timing is managed by drum delay, not weapon cooldown.
+ *   The drum's own delay mechanism (canDrumVolleyFire) replaces the cooldown timing.
  * @returns The VFX event, or null if on cooldown
  */
 export function fireBlockoutWeapon(
@@ -140,12 +147,13 @@ export function fireBlockoutWeapon(
   aimTargetX: number,
   aimTargetY: number,
   nowMs: number,
+  skipCooldownCheck: boolean = false,
 ): BlockoutWeaponVfxEvent | null {
   const weaponId = vehicle.weaponId;
   const eventType = getVfxEventType(weaponId);
 
-  // Check cooldown
-  if (!canFireBlockoutWeapon(vehicle, nowMs)) return null;
+  // Check cooldown (skip for drum volleys — timing managed by drum delay)
+  if (!skipCooldownCheck && !canFireBlockoutWeapon(vehicle, nowMs)) return null;
 
   const weaponProfile = getWeaponProfile(weaponId);
   if (!weaponProfile) return null;
@@ -184,21 +192,48 @@ export function fireBlockoutWeapon(
   // Update last fired timestamp
   vehicle.lastFiredAt = nowMs;
 
+  // CORE-STEP-08H+ FIXUP: Record weapon resource consumption
+  const runtime = vehicle.weaponRuntime;
+
+  // Overheat: add heat per shot (FIXUP: nowMs passed instead of Date.now())
+  if (runtime.overheat) {
+    recordOverheatShotResource(runtime, nowMs);
+    // Sync visual overheat indicator
+    const weaponCfg = getWeaponConfig(vehicle.weaponId);
+    vehicle.visualOverheat = runtime.overheat.heat / (weaponCfg?.overheat?.maxHeat ?? 100);
+  }
+
+  // Magazine: decrement stock
+  if (runtime.magazine) {
+    recordMagazineShotResource(runtime);
+  }
+
   return event;
 }
 
 // ─── Cooldown ────────────────────────────────────────────────────
 
 /**
- * Check whether a blockout vehicle can fire (cooldown elapsed).
+ * Check whether a blockout vehicle can fire (cooldown elapsed + resource gates).
  *
  * BLOCKOUT-09H fixup: Uses getCooldownMultiplier to apply weapon_tuning
  * (-5% cooldown/level) and cooling_system (-10% cadence/level) effects.
  * Does NOT mutate the base weapon profile.
  *
+ * CORE-STEP-08H+: Now also checks weapon runtime resource gates:
+ * - Canister must not be empty
+ * - Must not be overheated
+ * - Wind-up must not be in progress (unless ready)
+ * - Magazine must not be empty
+ * - Drum must not be reloading
+ *
+ * CORE-STEP-08H+ FIXUP Blocker 4: Uses production weapon config cooldown
+ * at vehicle's modification level instead of blockout profile cooldown.
+ * Falls back to blockout profile if production config is missing.
+ *
  * @param vehicle - The vehicle to check
  * @param nowMs - Current timestamp
- * @returns true if cooldown has elapsed and the vehicle can fire
+ * @returns true if cooldown has elapsed and resource gates allow firing
  */
 export function canFireBlockoutWeapon(
   vehicle: BlockoutVehicleState,
@@ -207,10 +242,22 @@ export function canFireBlockoutWeapon(
   const weaponProfile = getWeaponProfile(vehicle.weaponId);
   if (!weaponProfile) return false;
 
+  // CORE-STEP-08H+: Check weapon runtime resource gates
+  if (!canFireByRuntimeState(vehicle.weaponRuntime)) return false;
+
   if (vehicle.lastFiredAt === 0) return true; // Never fired
 
+  // CORE-STEP-08H+ FIXUP Blocker 4: Use production config cooldown at vehicle's M-level
+  const weaponConfig = getWeaponConfig(vehicle.weaponId);
+  let baseCooldownMs: number;
+  if (weaponConfig && weaponConfig.cooldown) {
+    baseCooldownMs = getWeaponMLevelValue(weaponConfig.cooldown, vehicle.modificationLevel);
+  } else {
+    baseCooldownMs = weaponProfile.blockoutCooldownMs;
+  }
+
   // BLOCKOUT-09H fixup: Apply cooldown multiplier from upgrades
-  const effectiveCooldownMs = weaponProfile.blockoutCooldownMs * getCooldownMultiplier(vehicle);
+  const effectiveCooldownMs = baseCooldownMs * getCooldownMultiplier(vehicle);
   const elapsed = nowMs - vehicle.lastFiredAt;
   return elapsed >= effectiveCooldownMs;
 }
@@ -223,18 +270,23 @@ export function canFireBlockoutWeapon(
  * Sets recoil fields on the vehicle state. Recoil decays over time
  * via updateBlockoutRecoil(). Recoil does NOT permanently change
  * turretTargetAngle or movement.
+ *
+ * CORE-STEP-08H+: Recoil is now scaled by body mass using
+ * getRecoilScale(). Light bodies get more visual kick, heavy bodies
+ * get less. The scale is normalized to 1.0 at 3000 kg (medium baseline).
  */
 function startRecoil(
   vehicle: BlockoutVehicleState,
   recoilProfile: RecoilProfile,
   nowMs: number,
 ): void {
+  const scale = getRecoilScale(vehicle.bodyId);
   vehicle.recoilActive = true;
   vehicle.recoilStartedAt = nowMs;
   vehicle.recoilDurationMs = recoilProfile.recoveryMs;
-  vehicle.recoilBarrelOffset = recoilProfile.barrelKickbackPx;
-  vehicle.recoilTurretOffset = recoilProfile.turretKickbackRad;
-  vehicle.recoilBodyOffset = recoilProfile.bodyImpulsePx;
+  vehicle.recoilBarrelOffset = recoilProfile.barrelKickbackPx * scale;
+  vehicle.recoilTurretOffset = recoilProfile.turretKickbackRad * scale;
+  vehicle.recoilBodyOffset = recoilProfile.bodyImpulsePx * scale;
 }
 
 /**
@@ -278,9 +330,11 @@ export function updateBlockoutRecoil(
     return;
   }
 
-  vehicle.recoilBarrelOffset = recoilProfile.barrelKickbackPx * decay;
-  vehicle.recoilTurretOffset = recoilProfile.turretKickbackRad * decay;
-  vehicle.recoilBodyOffset = recoilProfile.bodyImpulsePx * decay;
+  // CORE-STEP-08H+: Apply mass-dependent recoil scale
+  const scale = getRecoilScale(vehicle.bodyId);
+  vehicle.recoilBarrelOffset = recoilProfile.barrelKickbackPx * scale * decay;
+  vehicle.recoilTurretOffset = recoilProfile.turretKickbackRad * scale * decay;
+  vehicle.recoilBodyOffset = recoilProfile.bodyImpulsePx * scale * decay;
 }
 
 // ─── Continuous Fire (BLOCKOUT-06H+) ──────────────────────────────
@@ -296,11 +350,13 @@ export function startFiring(vehicle: BlockoutVehicleState): void {
   vehicle.isFiring = true;
 }
 
-/** Stop firing state for a vehicle. BLOCKOUT-06H+. */
+/** Stop firing state for a vehicle. BLOCKOUT-06H+. CORE-STEP-08H+: clears pending states. */
 export function stopFiring(vehicle: BlockoutVehicleState): void {
   vehicle.fireHeld = false;
   vehicle.isFiring = false;
   vehicle.visualOverheat = 0;
+  // CORE-STEP-08H+: Clear weapon pending states (wind-up, drum burst)
+  clearWeaponPendingStates(vehicle.weaponRuntime);
 }
 
 /**
