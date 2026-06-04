@@ -11,6 +11,17 @@ frames + manifest.json.
 
 **No Blender required.** Denis opens the HTML file locally in a browser.
 
+**Config-aware**: Upload a TankViewer `config.xml` to auto-discover model
+entries, expected filenames, and camera-radius. The browser cannot read disk
+paths automatically, so you still select local files manually — but the tool
+validates that selected filenames match the config entry.
+
+> **Important**: The web exporter is **experimental**. config.xml is the
+> source-of-truth for file mapping, but this tool is a diagnostic/preview
+> aid, not a production render path. The next step is to verify the
+> config-aware exporter with a real config.xml from TankViewer.zip, then
+> decide whether material/camera reverse-engineering is worth continuing.
+
 ## Quick Start
 
 ```bash
@@ -26,13 +37,88 @@ python3 -m http.server 8765
 ## Usage
 
 1. **Open** the page in a modern browser (Chrome/Edge recommended).
-2. **Select** the .3ds model file (e.g., `Wasp_0123.3ds`).
-3. **Optionally select** details texture and lightmap texture.
-4. **Click "Render All Directions"** — the page renders 16 directions and
+2. **Optionally upload** a `config.xml` file from TankViewer.zip to enable
+   config-aware mode (see [Config.xml Mode](#configxml-mode) below).
+3. **Select** the .3ds model file (e.g., `Wasp_0123.3ds`).
+4. **Optionally select** details texture and lightmap texture.
+5. **Click "Render All Directions"** — the page renders 16 directions and
    shows a preview grid.
-5. **Click "Export All PNGs + Manifest"** — downloads each PNG and a
+6. **Click "Export All PNGs + Manifest"** — downloads each PNG and a
    `manifest.json` to your Downloads folder.
-6. **Move** downloaded files to `art/generated/tankviewer/`.
+7. **Move** downloaded files to `art/generated/tankviewer/`.
+
+## Config.xml Mode
+
+The web exporter can optionally read a TankViewer `config.xml` to become
+config-aware. This does **not** change rendering behavior — it provides
+diagnostic metadata, file validation, and auto-fills asset names.
+
+### What config.xml contains
+
+TankViewer.zip includes `config.xml` alongside `TankViewer.exe` and `movie.swf`.
+The XML structure is:
+
+```xml
+<root camera-radius="750">
+  <hulls>
+    <model file="hulls/Wasp_0123.3ds" lightmap="hulls/Wasp_0_lightmap.jpg"
+           details="hulls/Wasp_0_details.png"/>
+  </hulls>
+  <turrets>
+    <model file="turrets/Smoky_0123.3ds" lightmap="turrets/Smoky_0_lightmap.jpg"
+           details="turrets/Smoky_0_details.png"/>
+  </turrets>
+  <colormaps>
+    <colormap ... />
+  </colormaps>
+</root>
+```
+
+Key elements:
+- **camera-radius** on `<root>`: The TankViewer camera distance. May inform
+  ortho scale decisions but is not applied automatically.
+- **hulls/model**: Each entry maps a .3ds file to its details + lightmap
+  textures for a specific hull M-level.
+- **turrets/model**: Same structure for turrets.
+- **colormaps/colormap**: Faction color maps (informational only — no
+  rendering impact in the web exporter).
+
+### Config-aware workflow
+
+1. Upload `config.xml` via the new "Config.xml" panel.
+2. Select **Kind** (Hull / Turret) — populates the Asset dropdown.
+3. Select **Asset** (e.g., "Wasp") — populates the M-level dropdown.
+4. Select **M-level** (e.g., M0) — shows expected filenames and camera-radius.
+5. Select your local .3ds, details, and lightmap files as usual.
+6. The tool validates whether selected filenames match the config entry and
+   shows warnings if they don't.
+7. The Asset Name field auto-fills based on the config entry
+   (e.g., `wasp_m0_hull`).
+
+### Inference rules
+
+The tool infers asset metadata from config.xml paths:
+
+| Path Pattern | Inference |
+|---|---|
+| `hulls/Wasp_0123.3ds` | Kind=Hull, Asset=Wasp |
+| `turrets/Smoky_0123.3ds` | Kind=Turret, Asset=Smoky |
+| `Wasp_0_details.png` | M-level=0 |
+| `Wasp_2_lightmap.jpg` | M-level=2 |
+
+The trailing `_####` (4 digits) on .3ds filenames is the model rotation index
+(not M-level). M-level is inferred from the `_0_`, `_1_`, `_2_`, `_3_` suffix
+on details/lightmap filenames.
+
+### File validation
+
+When a config entry is selected, the tool compares selected local filenames
+against the expected filenames from the config. Mismatches produce a warning
+banner and a log entry. This catches common errors like selecting the wrong
+M-level's texture or a different hull's model.
+
+The validation is filename-only — it does not check file contents, paths, or
+extensions beyond the name match.
 
 ## Auto Fit Model
 
@@ -145,6 +231,30 @@ The exported `manifest.json` includes an `autoFit` section:
 }
 ```
 
+## Manifest config-aware fields
+
+When a config.xml entry is selected, the manifest includes a `sourceConfig`
+section recording the config-derived metadata:
+
+```json
+{
+  "sourceConfig": {
+    "enabled": true,
+    "cameraRadius": 750,
+    "configModelFile": "hulls/Wasp_0123.3ds",
+    "configDetailsFile": "hulls/Wasp_0_details.png",
+    "configLightmapFile": "hulls/Wasp_0_lightmap.jpg"
+  }
+}
+```
+
+When no config.xml is loaded, `sourceConfig.enabled` is `false`.
+
+These fields are purely informational — they record which config entry the
+user selected, not what was actually rendered. The actual model/texture files
+are chosen by the user and may differ from the config (in which case the
+validation warnings would have been shown in the UI).
+
 ## Known Limitations (vs Blender)
 
 | Feature | Web Exporter | Blender Pipeline |
@@ -159,6 +269,9 @@ The exported `manifest.json` includes an `autoFit` section:
 | Batch processing | Manual per-model | CLI script |
 | Output quality | Good for preview | Production quality |
 | Auto-fit scale | Yes (default ON) | N/A (manual) |
+| config.xml aware | Yes (diagnostic) | N/A |
+| File validation | Yes (filename match) | N/A |
+| SWF shader reverse | No | N/A |
 
 ## Dependencies
 
@@ -194,3 +307,11 @@ different coordinate convention (Z-up) and the camera is at azimuth 45.
 3. Textures apply correctly via file picker
 4. Direction convention: dir0=E (needs visual verification per model)
 5. Empty PNG root cause: fixed by auto-fit + camera near/far adjustment
+6. config.xml parsing: hulls, turrets, colormaps, camera-radius all extracted
+7. Config-aware selectors: Kind → Asset → M-level workflow functional
+8. File validation: warns on filename mismatches against config entry
+
+**This does NOT make the web exporter production-ready.** It remains an
+experimental diagnostic/preview tool. The next step is to verify the
+config-aware exporter with a real config.xml from TankViewer.zip, then
+decide whether material/camera reverse-engineering is worth continuing.

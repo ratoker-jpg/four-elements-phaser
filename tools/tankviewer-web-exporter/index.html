@@ -43,6 +43,14 @@
 
   .convention { background: #1a3a2e; border: 1px solid #2a5a3e; border-radius: 4px; padding: 8px 12px; font-size: 0.8rem; margin: 8px 0; }
   .convention code { color: #3fb950; }
+
+  .config-info { background: #1a2a3e; border: 1px solid #1a508b; border-radius: 4px; padding: 8px 12px; font-size: 0.8rem; margin: 8px 0; }
+  .config-info code { color: #58a6ff; }
+  .config-info .label { color: #a0b4c8; }
+  .config-info .value { color: #e0e0e0; font-weight: 600; }
+
+  .validation-warn { background: #3a2a1a; border: 1px solid #8a6020; border-radius: 4px; padding: 6px 10px; font-size: 0.78rem; color: #d29922; margin: 4px 0; }
+  .validation-ok { background: #1a3a2a; border: 1px solid #2a8a40; border-radius: 4px; padding: 6px 10px; font-size: 0.78rem; color: #3fb950; margin: 4px 0; }
 </style>
 </head>
 <body>
@@ -60,20 +68,59 @@
   Matches game's <code>directionFromDelta()</code>.
 </div>
 
+<!-- Config.xml upload (optional) -->
+<div class="panel">
+  <h2>Config.xml (Optional)</h2>
+  <p style="font-size:0.78rem; color:#8899aa; margin-bottom:8px;">
+    Upload TankViewer config.xml to auto-discover model entries, expected filenames, and camera-radius.
+    You still need to select actual local files below — the browser cannot read disk paths automatically.
+  </p>
+  <div class="row">
+    <label>Config.xml:</label>
+    <input type="file" id="config-file" accept=".xml">
+    <button id="btn-clear-config" style="padding:4px 12px; font-size:0.8rem;">Clear</button>
+  </div>
+
+  <!-- Config-driven selectors (shown after config loaded) -->
+  <div id="config-selectors" style="display:none;">
+    <div class="row">
+      <label>Kind:</label>
+      <select id="config-kind">
+        <option value="">-- select --</option>
+        <option value="hull">Hull</option>
+        <option value="turret">Turret</option>
+      </select>
+      <label>Asset:</label>
+      <select id="config-asset" disabled>
+        <option value="">-- select kind first --</option>
+      </select>
+      <label>M-Level:</label>
+      <select id="config-mlevel" disabled>
+        <option value="">-- select asset first --</option>
+      </select>
+    </div>
+    <div id="config-entry-info" class="config-info" style="display:none;"></div>
+    <div id="config-validation"></div>
+  </div>
+</div>
+
 <!-- Source file inputs -->
 <div class="panel">
   <h2>Source Assets</h2>
   <div class="row">
     <label>3DS Model:</label>
     <input type="file" id="model-file" accept=".3ds">
+    <span id="model-file-hint" style="font-size:0.75rem; color:#8899aa;"></span>
   </div>
   <div class="row">
     <label>Details Texture:</label>
     <input type="file" id="diffuse-file" accept=".png,.jpg,.jpeg">
+    <span id="diffuse-file-hint" style="font-size:0.75rem; color:#8899aa;"></span>
   </div>
   <div class="row">
     <label>Lightmap Texture:</label>
     <input type="file" id="lightmap-file" accept=".png,.jpg,.jpeg">
+    <span id="lightmap-file-hint" style="font-size:0.75rem; color:#8899aa;"></span>
   </div>
 </div>
 
@@ -181,6 +228,19 @@ const fitTargetSizeInput = document.getElementById('fit-target-size');
 const logDiv       = document.getElementById('log');
 const previewDiv   = document.getElementById('preview-container');
 
+// Config-aware DOM elements
+const configFileInput = document.getElementById('config-file');
+const btnClearConfig = document.getElementById('btn-clear-config');
+const configSelectorsDiv = document.getElementById('config-selectors');
+const configKindSelect = document.getElementById('config-kind');
+const configAssetSelect = document.getElementById('config-asset');
+const configMlevelSelect = document.getElementById('config-mlevel');
+const configEntryInfoDiv = document.getElementById('config-entry-info');
+const configValidationDiv = document.getElementById('config-validation');
+const modelFileHint = document.getElementById('model-file-hint');
+const diffuseFileHint = document.getElementById('diffuse-file-hint');
+const lightmapFileHint = document.getElementById('lightmap-file-hint');
+
 // ─── Three.js setup ──────────────────────────────────────────────────
 const canvas = document.getElementById('three-canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, preserveDrawingBuffer: true });
@@ -238,6 +298,10 @@ let renderedImages = []; // { dirIdx, dirName, dataUrl }
 let loadedModelBbox = null; // Original bounding box before centering/scaling
 let loadedModelSize = null; // { x, y, z } original size dimensions
 
+// ─── Config-aware state ──────────────────────────────────────────────
+let parsedConfig = null;   // { cameraRadius, hulls: [...], turrets: [...], colormaps: [...] }
+let selectedConfigEntry = null; // The currently selected model entry from config
+
 // ─── Logging ─────────────────────────────────────────────────────────
 function log(msg, level = 'info') {
   const span = document.createElement('span');
@@ -245,6 +309,380 @@ function log(msg, level = 'info') {
   span.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
   logDiv.appendChild(span);
   logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+// ─── Config.xml parsing ──────────────────────────────────────────────
+
+/**
+ * Parse a TankViewer config.xml string into a structured object.
+ *
+ * Expected XML structure:
+ * <root camera-radius="750">
+ *   <hulls>
+ *     <model file="hulls/Wasp_0123.3ds" lightmap="hulls/Wasp_0_lightmap.jpg" details="hulls/Wasp_0_details.png"/>
+ *   </hulls>
+ *   <turrets>
+ *     <model file="turrets/Smoky_0123.3ds" lightmap="turrets/Smoky_0_lightmap.jpg" details="turrets/Smoky_0_details.png"/>
+ *   </turrets>
+ *   <colormaps>
+ *     <colormap ... />
+ *   </colormaps>
+ * </root>
+ *
+ * @param {string} xmlText - Raw XML content of config.xml
+ * @returns {Object} Parsed config with cameraRadius, hulls, turrets, colormaps
+ */
+function parseConfigXml(xmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'text/xml');
+
+  const parseError = doc.querySelector('parsererror');
+  if (parseError) {
+    throw new Error('XML parse error: ' + parseError.textContent.slice(0, 200));
+  }
+
+  // Real TankViewer config.xml uses <config camera-radius="750">.
+  // Fallback to <root> for synthetic/test XML.
+  const root = doc.querySelector('config') || doc.querySelector('root');
+  if (!root) {
+    throw new Error('config.xml missing <config> or <root> element');
+  }
+
+  const cameraRadius = parseFloat(root.getAttribute('camera-radius')) || 750;
+
+  // Parse hull models
+  const hulls = [];
+  const hullModels = root.querySelectorAll('hulls > model');
+  hullModels.forEach((el) => {
+    const entry = {
+      file: el.getAttribute('file') || '',
+      details: el.getAttribute('details') || '',
+      lightmap: el.getAttribute('lightmap') || '',
+    };
+    entry.assetName = inferAssetName(entry.file, 'hull');
+    entry.mLevel = inferMLevel(entry.details || entry.lightmap);
+    entry.kind = 'hull';
+    hulls.push(entry);
+  });
+
+  // Parse turret models
+  const turrets = [];
+  const turretModels = root.querySelectorAll('turrets > model');
+  turretModels.forEach((el) => {
+    const entry = {
+      file: el.getAttribute('file') || '',
+      details: el.getAttribute('details') || '',
+      lightmap: el.getAttribute('lightmap') || '',
+    };
+    entry.assetName = inferAssetName(entry.file, 'turret');
+    entry.mLevel = inferMLevel(entry.details || entry.lightmap);
+    entry.kind = 'turret';
+    turrets.push(entry);
+  });
+
+  // Parse colormaps (informational only — no rendering impact)
+  const colormaps = [];
+  const colormapEls = root.querySelectorAll('colormaps > colormap');
+  colormapEls.forEach((el) => {
+    colormaps.push({
+      name: el.getAttribute('name') || '',
+      file: el.getAttribute('file') || '',
+    });
+  });
+
+  return { cameraRadius, hulls, turrets, colormaps };
+}
+
+/**
+ * Infer the asset group/name from a model file path.
+ * e.g. "hulls/Wasp_0123.3ds" → "Wasp", "turrets/Smoky_01.3ds" → "Smoky"
+ * Real TankViewer files use 1–4 digit suffixes after underscore:
+ *   Dictator_012.3ds, Dictator_3.3ds, Smoky_01.3ds, Smoky_23.3ds,
+ *   Twins_2.3ds, Firebird_012.3ds, Wasp_0123.3ds
+ *
+ * @param {string} filePath - Model file path from config
+ * @param {string} kind - 'hull' or 'turret'
+ * @returns {string} Inferred asset name (capitalized)
+ */
+function inferAssetName(filePath, kind) {
+  if (!filePath) return '';
+  // Extract filename without path and extension
+  const basename = filePath.split('/').pop().replace(/\.[^.]+$/, '');
+  // Strip trailing model-group suffix: underscore followed by 1–4 digits.
+  // This handles Wasp_0123, Dictator_012, Smoky_01, Twins_2, etc.
+  const name = basename.replace(/_\d{1,4}$/, '');
+  // Capitalize first letter
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/**
+ * Infer M-level from a details or lightmap filename suffix.
+ * e.g. "Wasp_0_details.png" → 0, "Wasp_2_lightmap.jpg" → 2
+ * Falls back to 0 if no recognizable _N pattern.
+ *
+ * @param {string} filePath - Details or lightmap file path
+ * @returns {number} Inferred M-level (0-3)
+ */
+function inferMLevel(filePath) {
+  if (!filePath) return 0;
+  // Match _0, _1, _2, _3 before _details or _lightmap
+  const match = filePath.match(/_(\d)_(?:details|lightmap)/i);
+  if (match) return parseInt(match[1]);
+  // Also try matching _0. _1. etc. before extension
+  const match2 = filePath.match(/_(\d)\.[^.]+$/);
+  if (match2 && parseInt(match2[1]) <= 3) return parseInt(match2[1]);
+  return 0;
+}
+
+/**
+ * Get the expected filename from a path (last component).
+ * @param {string} filePath - Full path like "hulls/Wasp_0123.3ds"
+ * @returns {string} Just the filename: "Wasp_0123.3ds"
+ */
+function getExpectedFilename(filePath) {
+  if (!filePath) return '';
+  return filePath.split('/').pop();
+}
+
+/**
+ * Build unique asset names grouped by kind.
+ * Returns a Map of assetName → array of model entries.
+ */
+function groupConfigEntries(config, kind) {
+  const entries = kind === 'hull' ? config.hulls : kind === 'turret' ? config.turrets : [];
+  const groups = new Map();
+  entries.forEach((entry) => {
+    const name = entry.assetName;
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(entry);
+  });
+  return groups;
+}
+
+// ─── Config file upload handler ──────────────────────────────────────
+configFileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  log(`Loading config.xml: ${file.name}...`);
+  try {
+    const text = await file.text();
+    parsedConfig = parseConfigXml(text);
+
+    log(`Config.xml parsed successfully.`, 'ok');
+    log(`  camera-radius: ${parsedConfig.cameraRadius}`);
+    log(`  Hull entries: ${parsedConfig.hulls.length}`);
+    log(`  Turret entries: ${parsedConfig.turrets.length}`);
+    log(`  Colormap entries: ${parsedConfig.colormaps.length}`);
+
+    // Show config selectors
+    configSelectorsDiv.style.display = '';
+    configKindSelect.value = '';
+    configAssetSelect.innerHTML = '<option value="">-- select kind first --</option>';
+    configAssetSelect.disabled = true;
+    configMlevelSelect.innerHTML = '<option value="">-- select asset first --</option>';
+    configMlevelSelect.disabled = true;
+    configEntryInfoDiv.style.display = 'none';
+    selectedConfigEntry = null;
+
+    // Update camera-radius hint
+    log(`  Tip: Select kind → asset → M-level to see expected filenames.`, 'info');
+    log(`  Camera radius from config: ${parsedConfig.cameraRadius} (may inform ortho scale)`, 'info');
+  } catch (err) {
+    log(`Failed to parse config.xml: ${err.message}`, 'error');
+    parsedConfig = null;
+    configSelectorsDiv.style.display = 'none';
+  }
+});
+
+// Clear config
+btnClearConfig.addEventListener('click', () => {
+  parsedConfig = null;
+  selectedConfigEntry = null;
+  configFileInput.value = '';
+  configSelectorsDiv.style.display = 'none';
+  configEntryInfoDiv.style.display = 'none';
+  configValidationDiv.innerHTML = '';
+  modelFileHint.textContent = '';
+  diffuseFileHint.textContent = '';
+  lightmapFileHint.textContent = '';
+  log('Config cleared.', 'info');
+});
+
+// Kind selector change
+configKindSelect.addEventListener('change', () => {
+  const kind = configKindSelect.value;
+  configAssetSelect.innerHTML = '';
+  configMlevelSelect.innerHTML = '<option value="">-- select asset first --</option>';
+  configMlevelSelect.disabled = true;
+  configEntryInfoDiv.style.display = 'none';
+  selectedConfigEntry = null;
+
+  if (!parsedConfig || !kind) {
+    configAssetSelect.innerHTML = '<option value="">-- select kind first --</option>';
+    configAssetSelect.disabled = true;
+    return;
+  }
+
+  const groups = groupConfigEntries(parsedConfig, kind);
+  configAssetSelect.disabled = false;
+  configAssetSelect.innerHTML = '<option value="">-- select asset --</option>';
+  for (const name of Array.from(groups.keys()).sort()) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    configAssetSelect.appendChild(opt);
+  }
+});
+
+// Asset selector change
+configAssetSelect.addEventListener('change', () => {
+  const kind = configKindSelect.value;
+  const assetName = configAssetSelect.value;
+  configMlevelSelect.innerHTML = '';
+  configEntryInfoDiv.style.display = 'none';
+  selectedConfigEntry = null;
+
+  if (!parsedConfig || !kind || !assetName) {
+    configMlevelSelect.innerHTML = '<option value="">-- select asset first --</option>';
+    configMlevelSelect.disabled = true;
+    return;
+  }
+
+  const groups = groupConfigEntries(parsedConfig, kind);
+  const entries = groups.get(assetName) || [];
+
+  // Get unique M-levels for this asset
+  const mLevels = [...new Set(entries.map(e => e.mLevel))].sort((a, b) => a - b);
+
+  configMlevelSelect.disabled = false;
+  configMlevelSelect.innerHTML = '<option value="">-- select M-level --</option>';
+  mLevels.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = String(m);
+    opt.textContent = `M${m}`;
+    configMlevelSelect.appendChild(opt);
+  });
+
+  // Update hints for selected files
+  updateFileHints();
+});
+
+// M-level selector change
+configMlevelSelect.addEventListener('change', () => {
+  const kind = configKindSelect.value;
+  const assetName = configAssetSelect.value;
+  const mLevel = parseInt(configMlevelSelect.value);
+
+  if (!parsedConfig || !kind || !assetName || isNaN(mLevel)) {
+    configEntryInfoDiv.style.display = 'none';
+    selectedConfigEntry = null;
+    return;
+  }
+
+  const groups = groupConfigEntries(parsedConfig, kind);
+  const entries = groups.get(assetName) || [];
+  const entry = entries.find(e => e.mLevel === mLevel);
+
+  if (!entry) {
+    log(`No config entry found for ${kind}/${assetName}/M${mLevel}`, 'warn');
+    configEntryInfoDiv.style.display = 'none';
+    selectedConfigEntry = null;
+    return;
+  }
+
+  selectedConfigEntry = entry;
+
+  // Show entry info
+  configEntryInfoDiv.style.display = '';
+  configEntryInfoDiv.innerHTML = `
+    <span class="label">Kind:</span> <span class="value">${entry.kind}</span> &nbsp;
+    <span class="label">Asset:</span> <span class="value">${entry.assetName}</span> &nbsp;
+    <span class="label">M-level:</span> <span class="value">${entry.mLevel}</span><br>
+    <span class="label">Expected model:</span> <code>${entry.file}</code> → <span class="value">${getExpectedFilename(entry.file)}</span><br>
+    <span class="label">Expected details:</span> <code>${entry.details}</code> → <span class="value">${getExpectedFilename(entry.details)}</span><br>
+    <span class="label">Expected lightmap:</span> <code>${entry.lightmap}</code> → <span class="value">${getExpectedFilename(entry.lightmap)}</span><br>
+    <span class="label">Camera radius:</span> <span class="value">${parsedConfig.cameraRadius}</span>
+  `;
+
+  log(`Config entry selected: ${entry.kind}/${entry.assetName}/M${entry.mLevel}`, 'ok');
+  log(`  Expected model: ${getExpectedFilename(entry.file)}`);
+  log(`  Expected details: ${getExpectedFilename(entry.details)}`);
+  log(`  Expected lightmap: ${getExpectedFilename(entry.lightmap)}`);
+  log(`  Camera radius: ${parsedConfig.cameraRadius}`);
+
+  // Update file hints
+  updateFileHints();
+
+  // Auto-set asset name in render settings
+  const assetNameInput = document.getElementById('asset-name');
+  const inferredName = `${entry.assetName.toLowerCase()}_m${entry.mLevel}_${entry.kind}`;
+  assetNameInput.value = inferredName;
+  log(`  Asset name auto-set to: ${inferredName}`, 'info');
+
+  // Run validation
+  validateFilesAgainstConfig();
+});
+
+/**
+ * Update file input hints based on selected config entry.
+ */
+function updateFileHints() {
+  const kind = configKindSelect.value;
+  const assetName = configAssetSelect.value;
+  const mLevel = configMlevelSelect.value;
+
+  if (!parsedConfig || !kind || !assetName || !mLevel) {
+    modelFileHint.textContent = '';
+    diffuseFileHint.textContent = '';
+    lightmapFileHint.textContent = '';
+    return;
+  }
+
+  const groups = groupConfigEntries(parsedConfig, kind);
+  const entries = groups.get(assetName) || [];
+  const entry = entries.find(e => e.mLevel === parseInt(mLevel));
+
+  if (entry) {
+    modelFileHint.textContent = `Expected: ${getExpectedFilename(entry.file)}`;
+    diffuseFileHint.textContent = `Expected: ${getExpectedFilename(entry.details)}`;
+    lightmapFileHint.textContent = `Expected: ${getExpectedFilename(entry.lightmap)}`;
+  }
+}
+
+/**
+ * Validate selected local files against the config entry.
+ * Shows warnings if filenames don't match.
+ */
+function validateFilesAgainstConfig() {
+  configValidationDiv.innerHTML = '';
+
+  if (!selectedConfigEntry) return;
+
+  const modelFile = modelFileInput.files[0];
+  const diffuseFile = diffuseFileInput.files[0];
+  const lightmapFile = lightmapFileInput.files[0];
+
+  const checks = [
+    { label: 'Model', actual: modelFile?.name, expected: getExpectedFilename(selectedConfigEntry.file) },
+    { label: 'Details', actual: diffuseFile?.name, expected: getExpectedFilename(selectedConfigEntry.details) },
+    { label: 'Lightmap', actual: lightmapFile?.name, expected: getExpectedFilename(selectedConfigEntry.lightmap) },
+  ];
+
+  checks.forEach(({ label, actual, expected }) => {
+    if (!actual) return; // No file selected yet — skip
+
+    const div = document.createElement('div');
+    if (expected && actual !== expected) {
+      div.className = 'validation-warn';
+      div.textContent = `${label}: filename "${actual}" does not match config entry "${expected}"`;
+      log(`WARNING: ${label} file "${actual}" does not match config entry "${expected}"`, 'warn');
+    } else if (expected && actual === expected) {
+      div.className = 'validation-ok';
+      div.textContent = `${label}: filename matches config entry ✓`;
+    }
+    configValidationDiv.appendChild(div);
+  });
 }
 
 // ─── 3DS Loading ─────────────────────────────────────────────────────
@@ -307,6 +745,9 @@ modelFileInput.addEventListener('change', async (e) => {
     }
 
     btnRender.disabled = false;
+
+    // Validate against config if present
+    validateFilesAgainstConfig();
   } catch (err) {
     log(`Failed to load 3DS: ${err.message}`, 'error');
     log(`TDSLoader may not support this 3DS variant. Try Blender pipeline as fallback.`, 'warn');
@@ -324,6 +765,9 @@ diffuseFileInput.addEventListener('change', async (e) => {
     applyDiffuseTexture(loadedModel, texture);
     log(`Details texture applied.`, 'ok');
   }
+
+  // Validate against config if present
+  validateFilesAgainstConfig();
 });
 
 lightmapFileInput.addEventListener('change', async (e) => {
@@ -336,6 +780,9 @@ lightmapFileInput.addEventListener('change', async (e) => {
     applyLightmapTexture(loadedModel, texture);
     log(`Lightmap texture applied (multiply blend).`, 'ok');
   }
+
+  // Validate against config if present
+  validateFilesAgainstConfig();
 });
 
 async function loadTextureFromFile(file) {
@@ -522,6 +969,13 @@ btnExport.addEventListener('click', () => {
       finalSize: autoFitInfo.finalSize.toFixed(2),
     } : { enabled: false },
     orthoScale,
+    sourceConfig: selectedConfigEntry ? {
+      enabled: true,
+      cameraRadius: parsedConfig ? parsedConfig.cameraRadius : null,
+      configModelFile: selectedConfigEntry.file || null,
+      configDetailsFile: selectedConfigEntry.details || null,
+      configLightmapFile: selectedConfigEntry.lightmap || null,
+    } : { enabled: false },
     entries: manifestEntries,
   };
 
@@ -728,9 +1182,11 @@ fitTargetSizeInput.addEventListener('change', () => {
 log('TankViewer Web Sprite Exporter initialized.', 'ok');
 log('Three.js + TDSLoader loaded from CDN.', 'ok');
 log('Auto Fit Model: ON by default — normalizes model to fit render frame.', 'ok');
-log('Directions: Select .3ds model file, optionally add textures, then Render.', 'info');
+log('Config-aware: Upload config.xml to discover model entries and expected filenames.', 'ok');
+log('Directions: Upload config.xml (optional), select .3ds model file, add textures, then Render.', 'info');
 log('NOTE: dir0=E convention (matches game directionFromDelta).', 'info');
 log('NOTE: ROTATION_OFFSET_DEG may need adjustment per model after visual testing.', 'warn');
+log('NOTE: Web exporter is experimental. Blender factory remains production path.', 'warn');
 </script>
 
 </body>
