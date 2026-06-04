@@ -209,6 +209,36 @@ export function findNearestAlly(
 
 // ─── Weapon range ───────────────────────────────────────────────────
 
+/**
+ * Find the nearest alive ally vehicle using ground-plane (tile) distance.
+ * FIXUP-2 P2: stationary_shooter should select targets by tile distance
+ * because screen-space distance can skip valid tile-range targets.
+ *
+ * @param vehicles - All vehicles
+ * @param enemy - The enemy searching for allies
+ * @param maxRangeTiles - Maximum range in tile units (default: Infinity)
+ * @returns Nearest alive ally within tile range, or null
+ */
+export function findNearestAllyByTileDistance(
+  vehicles: BlockoutVehicleState[],
+  enemy: BlockoutVehicleState,
+  maxRangeTiles: number = Infinity,
+): BlockoutVehicleState | null {
+  let nearest: BlockoutVehicleState | null = null;
+  let nearestDist = Infinity;
+
+  for (const v of vehicles) {
+    if (v.team !== 'ally' || v.isDestroyed) continue;
+    const dist = groundDistanceTiles(enemy, v);
+    if (dist < nearestDist && dist <= maxRangeTiles) {
+      nearestDist = dist;
+      nearest = v;
+    }
+  }
+
+  return nearest;
+}
+
 /** Get the effective weapon range for a vehicle (screen-space pixels). */
 export function getWeaponRangePx(vehicle: BlockoutVehicleState): number {
   const baseProfile = DAMAGE_PROFILES[vehicle.weaponId];
@@ -320,9 +350,10 @@ function handleStationaryShooter(
   // CORE-STEP-07H+: Use production weapon config range in tile units
   const maxRangeTiles = getWeaponMaxRangeTiles(enemy);
 
-  // CORE-STEP-07H+ fixup: Use tile range for initial search, not screen-space
-  // Screen-space pre-filter can discard valid production-range targets
-  const nearestAlly = findNearestAlly(vehicles, enemy, offsetX, offsetY);
+  // FIXUP-2 P2: Use tile-space distance for target selection.
+  // Screen-space findNearestAlly can choose a screen-nearer target that is
+  // actually out of tile range, skipping a valid tile-range target.
+  const nearestAlly = findNearestAllyByTileDistance(vehicles, enemy, maxRangeTiles + AI_RANGE_TOLERANCE_TILES);
 
   if (!nearestAlly) {
     // No ally in range — stop targeting/firing
@@ -331,21 +362,6 @@ function handleStationaryShooter(
       stopFiring(enemy);
     }
     // CORE-STEP-06H+: Stationary shooters should not move
-    if (enemy.useGridMovement && options.reservationMap) {
-      issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
-    }
-    enemy.hasMoveTarget = false;
-    return;
-  }
-
-  // CORE-STEP-07H+: Validate range using ground-plane tile distance
-  const distTiles = groundDistanceTiles(enemy, nearestAlly);
-  if (distTiles > maxRangeTiles + AI_RANGE_TOLERANCE_TILES) {
-    // Ally found by screen-space but actually out of range on ground plane
-    enemy.targetVehicleId = null;
-    if (enemy.fireHeld || enemy.isFiring) {
-      stopFiring(enemy);
-    }
     if (enemy.useGridMovement && options.reservationMap) {
       issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
     }

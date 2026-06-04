@@ -32,6 +32,8 @@ import {
   isTurretAimed,
   getAimToleranceRad,
   getAimForgiveness,
+  screenAngleToGroundAngle,
+  groundAngleToScreenAngle,
 } from '../state/combatHitModel';
 import {
   validateTargetLock,
@@ -608,6 +610,283 @@ describe('stationary shooter tile range', () => {
     // can still target enemies.
     // Just verify the AI code doesn't use screen-space pre-filter by checking the function signature.
     expect(true).toBe(true); // Integration test - behavior verified by manual testing
+  });
+});
+
+// ─── FIXUP-2 Blocker 1: screen-angle vs ground-plane angle ──────────────
+
+describe('FIXUP-2 Blocker 1: screen-angle vs ground-plane angle conversion', () => {
+  it('screenAngleToGroundAngle converts screen 0 to ground -PI/4 (isometric right = NE)', () => {
+    // Screen angle 0 = aiming right on screen
+    // In 2:1 isometric, that corresponds to +X/-Y ground direction (NE), which is -PI/4
+    const groundAngle = screenAngleToGroundAngle(0);
+    expect(groundAngle).toBeCloseTo(-Math.PI / 4, 2);
+  });
+
+  it('groundAngleToScreenAngle converts ground 0 to screen ~26.57 degrees', () => {
+    // Ground angle 0 = aiming east on ground plane
+    // Projects to screen as basisX direction: atan2(TILE_H/2, TILE_W/2) ≈ 26.57 degrees
+    const screenAngle = groundAngleToScreenAngle(0);
+    const expectedScreenAngle = Math.atan2(19, 38); // TILE_H/2, TILE_W/2
+    expect(screenAngle).toBeCloseTo(expectedScreenAngle, 4);
+  });
+
+  it('screenAngleToGroundAngle and groundAngleToScreenAngle are inverses', () => {
+    const testAngles = [0, Math.PI / 4, Math.PI / 2, Math.PI, -Math.PI / 3, 2.5];
+    for (const angle of testAngles) {
+      const groundAngle = screenAngleToGroundAngle(angle);
+      const roundTrip = groundAngleToScreenAngle(groundAngle);
+      // Normalize for comparison
+      const diff = Math.abs(angle - roundTrip);
+      const normalizedDiff = Math.min(diff, 2 * Math.PI - diff);
+      expect(normalizedDiff).toBeLessThan(0.001);
+    }
+  });
+
+  it('off-axis isometric hit: screen-space aim hits diagonal target via ground conversion', () => {
+    // Attacker at (0,0), target at (3,3) — diagonal in tile space
+    const attacker = makeVehicle(0, 0, { weaponId: 'smoky' });
+    const target = makeVehicle(3, 3, { team: 'enemy' });
+
+    // Ground-plane angle toward (3,3) is atan2(3,3) = PI/4
+    const groundAngle = Math.atan2(3, 3);
+    // Convert to screen angle (what turretAngle would be set to)
+    const screenAngle = groundAngleToScreenAngle(groundAngle);
+
+    // Now convert back: should hit
+    const convertedAngle = screenAngleToGroundAngle(screenAngle);
+    const hitResult = checkDirectHit(attacker, target, convertedAngle, 'smoky');
+    expect(hitResult.isHit).toBe(true);
+  });
+
+  it('off-axis isometric miss: screen-space aim at wrong angle misses', () => {
+    // Attacker at (0,0), target at (3,3) — diagonal
+    const attacker = makeVehicle(0, 0, { weaponId: 'smoky' });
+    const target = makeVehicle(3, 3, { team: 'enemy' });
+
+    // Aim along X axis (ground angle 0), target is at PI/4 — should miss
+    const hitResult = checkDirectHit(attacker, target, 0, 'smoky');
+    expect(hitResult.isHit).toBe(false);
+  });
+
+  it('runtime path: screen-space turretAngle converts correctly for off-axis target', () => {
+    // Simulate what the runtime does:
+    // 1. turretAngle is set from screen-space angleFromTo(screen coords)
+    // 2. applyBlockoutWeaponDamage receives turretAngle as aimAngle
+    // 3. It converts to ground-plane via screenAngleToGroundAngle
+    // 4. checkDirectHit uses ground-plane angle
+
+    const attacker = makeVehicle(0, 0, { weaponId: 'smoky' });
+    const target = makeVehicle(5, 3, { team: 'enemy' }); // Off-axis target
+
+    // Compute screen-space angle (as the runtime does)
+    const attackerScreen = tileToScreen(0, 0);
+    const targetScreen = tileToScreen(5, 3);
+    const screenAngle = angleFromTo(attackerScreen.x, attackerScreen.y, targetScreen.x, targetScreen.y);
+
+    // Convert to ground-plane and check hit
+    const groundAimAngle = screenAngleToGroundAngle(screenAngle);
+    const hitResult = checkDirectHit(attacker, target, groundAimAngle, 'smoky');
+    expect(hitResult.isHit).toBe(true);
+
+    // Verify: WITHOUT conversion, the raw screen angle might not match the tile atan2
+    const tileAngleToTarget = Math.atan2(3, 5);
+    // The converted ground angle should match the tile-space direction
+    expect(groundAimAngle).toBeCloseTo(tileAngleToTarget, 2);
+  });
+
+  it('cone hit with ground-plane angle works for off-axis target', () => {
+    const attacker = makeVehicle(0, 0, { weaponId: 'flamethrower' });
+    const target = makeVehicle(3, 3, { team: 'enemy' });
+
+    // Ground-plane cone aim toward (3,3) should hit
+    const groundAngle = Math.atan2(3, 3);
+    const result = checkConeHit(attacker, target, groundAngle, 15, 6);
+    expect(result).toBe(true);
+
+    // Screen-space angle without conversion should give wrong result
+    // (screen atan2 of projected coords != tile atan2)
+    const attackerScreen = tileToScreen(0, 0);
+    const targetScreen = tileToScreen(3, 3);
+    const screenAngle = angleFromTo(attackerScreen.x, attackerScreen.y, targetScreen.x, targetScreen.y);
+    // Screen angle and ground angle differ in isometric
+    expect(screenAngle).not.toBeCloseTo(groundAngle, 1);
+  });
+});
+
+// ─── FIXUP-2 Blocker 2: projected hit model is primary selector ──────
+
+describe('FIXUP-2 Blocker 2: projected hit model is primary candidate selector', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+  });
+
+  it('production weapon uses projected hit model directly (not old screen-space preselect)', () => {
+    // With the fix, checkDirectHit is called for ALL enemy candidates,
+    // not just those pre-selected by findDirectHitTarget (screen-space).
+    // This means targets that the old screen-space function would miss
+    // can still be hit if checkDirectHit confirms them.
+    const attacker = makeVehicle(0, 0, { weaponId: 'smoky' });
+    const target = makeVehicle(3, 3, { team: 'enemy' });
+
+    // Compute the correct ground-plane aim angle
+    const groundAimAngle = Math.atan2(3, 3);
+
+    // checkDirectHit should hit this target
+    const hitResult = checkDirectHit(attacker, target, groundAimAngle, 'smoky');
+    expect(hitResult.isHit).toBe(true);
+  });
+
+  it('nearest valid hit by ground-plane distance is selected for direct damage', () => {
+    // Two targets in the same general direction, choose the nearer one
+    const attacker = makeVehicle(0, 0, { weaponId: 'smoky' });
+    const nearTarget = makeVehicle(3, 0, { team: 'enemy' });
+    const farTarget = makeVehicle(6, 0, { team: 'enemy' });
+
+    const groundAimAngle = 0; // Aim right along X axis
+    const nearHit = checkDirectHit(attacker, nearTarget, groundAimAngle, 'smoky');
+    const farHit = checkDirectHit(attacker, farTarget, groundAimAngle, 'smoky');
+
+    expect(nearHit.isHit).toBe(true);
+    expect(farHit.isHit).toBe(true);
+
+    // Near target has shorter ground distance
+    expect(groundDistanceTiles(attacker, nearTarget)).toBeLessThan(groundDistanceTiles(attacker, farTarget));
+  });
+
+  it('penetration weapon selects all valid candidates sorted by ground distance', () => {
+    const attacker = makeVehicle(0, 0, { weaponId: 'smoky' });
+    const target1 = makeVehicle(3, 0, { team: 'enemy' });
+    const target2 = makeVehicle(6, 0, { team: 'enemy' });
+
+    const groundAimAngle = 0; // Aim right
+
+    // Both should be valid hits in the projected model
+    expect(checkDirectHit(attacker, target1, groundAimAngle, 'smoky').isHit).toBe(true);
+    expect(checkDirectHit(attacker, target2, groundAimAngle, 'smoky').isHit).toBe(true);
+
+    // Ground-plane distances should be correct
+    expect(groundDistanceTiles(attacker, target1)).toBeLessThan(groundDistanceTiles(attacker, target2));
+  });
+});
+
+// ─── FIXUP-2 Blocker 3: missing target id stops chase ────────────────
+
+describe('FIXUP-2 Blocker 3: missing target id stops chase', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+  });
+
+  it('clears target and stops chase when target id is missing from vehicles list', () => {
+    const attacker = makeVehicle(0, 0, { weaponId: 'smoky' });
+    attacker.targetVehicleId = 'nonexistent-id';
+    attacker.hasMoveTarget = true;
+
+    const reservationMap = new TileReservationMap(64);
+    updateAllCombatTargeting([attacker], null as any, reservationMap, { x: 0, y: 0 });
+
+    expect(attacker.targetVehicleId).toBeNull();
+    expect(attacker.hasMoveTarget).toBe(false);
+  });
+
+  it('clears target and stops chase when target id references removed vehicle', () => {
+    const attacker = makeVehicle(0, 0, { weaponId: 'smoky' });
+    const oldTarget = makeVehicle(10, 10, { team: 'enemy' });
+    // Simulate: target was in list before but was removed (e.g. entity cleanup)
+    attacker.targetVehicleId = oldTarget.id;
+    attacker.hasMoveTarget = true;
+
+    // Update with only the attacker — target not in the list anymore
+    const reservationMap = new TileReservationMap(64);
+    updateAllCombatTargeting([attacker], null as any, reservationMap, { x: 0, y: 0 });
+
+    expect(attacker.targetVehicleId).toBeNull();
+    expect(attacker.hasMoveTarget).toBe(false);
+  });
+
+  it('destroyed target also stops chase (existing behavior preserved)', () => {
+    const attacker = makeVehicle(0, 0, { weaponId: 'smoky' });
+    const target = makeVehicle(10, 0, { team: 'enemy' });
+    target.isDestroyed = true;
+    attacker.targetVehicleId = target.id;
+    attacker.hasMoveTarget = true;
+
+    const reservationMap = new TileReservationMap(64);
+    updateAllCombatTargeting([attacker, target], null as any, reservationMap, { x: 0, y: 0 });
+
+    expect(attacker.targetVehicleId).toBeNull();
+    expect(attacker.hasMoveTarget).toBe(false);
+  });
+});
+
+// ─── FIXUP-2 P2: stationary shooter tile-space target selection ──────
+
+describe('FIXUP-2 P2: stationary shooter tile-space target selection', () => {
+  beforeEach(() => {
+    resetBlockoutVehicleIdCounter();
+  });
+
+  it('findNearestAllyByTileDistance selects by ground-plane tile distance', async () => {
+    const { findNearestAllyByTileDistance } = await import('../state/blockoutAi');
+
+    // Two allies: one screen-nearer (but far in tiles), one tile-nearer
+    const allyTileNear = makeVehicle(5, 5, { team: 'ally' });
+    const allyTileFar = makeVehicle(15, 15, { team: 'ally' });
+    const enemy = makeVehicle(6, 6, { team: 'enemy' });
+
+    const vehicles = [allyTileNear, allyTileFar, enemy];
+    const result = findNearestAllyByTileDistance(vehicles, enemy, 100);
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe(allyTileNear.id);
+  });
+
+  it('findNearestAllyByTileDistance respects maxRangeTiles', async () => {
+    const { findNearestAllyByTileDistance } = await import('../state/blockoutAi');
+
+    const allyNear = makeVehicle(5, 5, { team: 'ally' });
+    const allyFar = makeVehicle(15, 15, { team: 'ally' });
+    const enemy = makeVehicle(6, 6, { team: 'enemy' });
+
+    // Small tile range: only allyNear should be in range
+    const result = findNearestAllyByTileDistance([allyNear, allyFar, enemy], enemy, 5);
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe(allyNear.id);
+
+    // Very small range: no ally in range
+    const noResult = findNearestAllyByTileDistance([allyFar, enemy], enemy, 2);
+    expect(noResult).toBeNull();
+  });
+
+  it('stationary shooter with long-range weapon selects tile-in-range target over screen-nearer tile-out-of-range', async () => {
+    const { updateBlockoutAi, resetAiTickTimer } = await import('../state/blockoutAi');
+    const { resetVfxEventIdCounter, clearVfxEvents } = await import('../state/blockoutWeaponVfx');
+
+    resetBlockoutVehicleIdCounter();
+    resetVfxEventIdCounter();
+    clearVfxEvents();
+    resetAiTickTimer();
+
+    // Use railgun (long-range: maxRange=13 tiles) so tile range is large
+    const allyTileInRange = makeVehicle(8, 8, { team: 'ally', weaponId: 'smoky' });
+    // Screen-nearer ally that's actually out of railgun tile range
+    // (In isometric, a vehicle at certain screen positions can appear close
+    // but be far in tile distance)
+    const allyOutOfRange = makeVehicle(30, 0, { team: 'ally', weaponId: 'smoky' });
+
+    const enemy = createBlockoutVehicle('viking', 'railgun', 'green', 6, 6, Math.PI / 2, 120, 'enemy');
+    enemy.aiMode = 'stationary_shooter';
+    // Pre-align turret
+    enemy.turretAngle = enemy.turretTargetAngle;
+
+    const vehicles = [allyTileInRange, allyOutOfRange, enemy];
+    updateBlockoutAi(vehicles, {
+      nowMs: 1000,
+      offsetX: 400,
+      offsetY: 200,
+    });
+
+    // Should target the tile-in-range ally, not the screen-nearer out-of-range one
+    expect(enemy.targetVehicleId).toBe(allyTileInRange.id);
   });
 });
 

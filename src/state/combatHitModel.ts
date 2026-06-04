@@ -437,3 +437,60 @@ export function getAimToleranceRad(): number {
 // ─── Import for range info ────────────────────────────────────────
 
 import { getWeaponRangeInfo } from './combatRange';
+import { TILE_W, TILE_H } from '../config/worldConfig';
+
+// ─── Screen-space ↔ ground-plane angle conversion ──────────────────
+
+/**
+ * Convert a screen-space angle to a ground-plane (tile-space) angle.
+ *
+ * In isometric projection, the same "aim direction" looks different on screen
+ * vs the ground plane. The turret angle (turretAngle) is stored as a
+ * screen-space angle because it's computed from projected coordinates
+ * (angleFromTo with screen X/Y). But the hit model uses tile-space
+ * geometry (atan2 of tile deltas), so comparing them directly is wrong.
+ *
+ * Derivation: A ground direction (dx,dy) in tile space projects to screen as:
+ *   screen_dx = dx * basisX.x + dy * basisY.x = (TILE_W/2)*dx - (TILE_W/2)*dy
+ *   screen_dy = dx * basisX.y + dy * basisY.y = (TILE_H/2)*dx + (TILE_H/2)*dy
+ *
+ * Inverting: given screen direction (sx, sy):
+ *   dx - dy = 2*sx/TILE_W
+ *   dx + dy = 2*sy/TILE_H
+ *   dx = (sx/TILE_W + sy/TILE_H)
+ *   dy = (sy/TILE_H - sx/TILE_W)
+ *
+ * Ground angle = atan2(dy, dx)
+ *
+ * @param screenAngle - Angle in radians from screen-space coordinates
+ * @returns Angle in radians in ground-plane/tile-space
+ */
+export function screenAngleToGroundAngle(screenAngle: number): number {
+  const sx = Math.cos(screenAngle);
+  const sy = Math.sin(screenAngle);
+  // Invert the isometric projection for directions
+  const dx = sx / TILE_W + sy / TILE_H;
+  const dy = sy / TILE_H - sx / TILE_W;
+  return Math.atan2(dy, dx);
+}
+
+/**
+ * Convert a ground-plane (tile-space) angle to a screen-space angle.
+ *
+ * Inverse of screenAngleToGroundAngle. Used when we need to convert
+ * a tile-space aim direction back to screen-space (e.g., for rendering).
+ *
+ * Derivation: A ground direction (dx,dy) projects to screen as:
+ *   sx = (TILE_W/2)*dx - (TILE_W/2)*dy = (TILE_W/2)*(dx - dy)
+ *   sy = (TILE_H/2)*dx + (TILE_H/2)*dy = (TILE_H/2)*(dx + dy)
+ *
+ * @param groundAngle - Angle in radians from ground-plane/tile-space
+ * @returns Angle in radians in screen-space
+ */
+export function groundAngleToScreenAngle(groundAngle: number): number {
+  const dx = Math.cos(groundAngle);
+  const dy = Math.sin(groundAngle);
+  const sx = (TILE_W / 2) * (dx - dy);
+  const sy = (TILE_H / 2) * (dx + dy);
+  return Math.atan2(sy, sx);
+}

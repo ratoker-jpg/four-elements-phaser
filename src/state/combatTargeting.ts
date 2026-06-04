@@ -309,7 +309,12 @@ export function updateAllCombatTargeting(
     if (!vehicle.targetVehicleId) continue;
 
     const target = vehicles.find(v => v.id === vehicle.targetVehicleId);
-    if (!target) continue;
+    if (!target) {
+      // FIXUP-2 Blocker 3: Target ID is missing/invalid — clear target and stop chase
+      vehicle.targetVehicleId = null;
+      stopChase(vehicle, reservationMap);
+      continue;
+    }
 
     // Compute screen-space coordinates for aim angle calculation
     const attackerScreenX = vehicle.worldX + offset.x;
