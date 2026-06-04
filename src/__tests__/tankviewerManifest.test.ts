@@ -319,3 +319,303 @@ describe('TankViewer direction convention', () => {
     expect(DIRECTION_NAMES_16).toHaveLength(16);
   });
 });
+
+// ─── Auto-fit normalize scale tests ─────────────────────────────────
+
+describe('TankViewer web exporter auto-fit normalize scale', () => {
+  /**
+   * Pure helper matching the computeNormalizeScale() function in
+   * tools/tankviewer-web-exporter/index.html.
+   * Duplicated here to avoid importing browser-only code into Node tests.
+   */
+  function computeNormalizeScale(size: { x: number; y: number; z: number }, targetSize: number): number {
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim <= 0 || !isFinite(maxDim)) return 1; // degenerate model
+    return targetSize / maxDim;
+  }
+
+  it('computes positive finite scale for Wasp bbox 264x462x181 with target 3.0', () => {
+    const scale = computeNormalizeScale({ x: 264, y: 462, z: 181.5 }, 3.0);
+    expect(scale).toBeGreaterThan(0);
+    expect(isFinite(scale)).toBe(true);
+  });
+
+  it('normalizes Wasp bbox so max dimension matches target size', () => {
+    const size = { x: 264, y: 462, z: 181.5 };
+    const targetSize = 3.0;
+    const scale = computeNormalizeScale(size, targetSize);
+    const finalMaxDim = Math.max(size.x * scale, size.y * scale, size.z * scale);
+    expect(finalMaxDim).toBeCloseTo(targetSize, 6);
+  });
+
+  it('Wasp Y axis (462) is the max dimension, so Y * scale = target', () => {
+    const size = { x: 264, y: 462, z: 181.5 };
+    const targetSize = 3.0;
+    const scale = computeNormalizeScale(size, targetSize);
+    expect(size.y * scale).toBeCloseTo(targetSize, 6);
+    expect(size.x * scale).toBeLessThan(targetSize);
+    expect(size.z * scale).toBeLessThan(targetSize);
+  });
+
+  it('returns 1 for degenerate zero-size model', () => {
+    const scale = computeNormalizeScale({ x: 0, y: 0, z: 0 }, 3.0);
+    expect(scale).toBe(1);
+  });
+
+  it('returns 1 for negative-size model', () => {
+    const scale = computeNormalizeScale({ x: -1, y: -1, z: -1 }, 3.0);
+    expect(scale).toBe(1);
+  });
+
+  it('returns 1 for NaN dimensions', () => {
+    const scale = computeNormalizeScale({ x: NaN, y: NaN, z: NaN }, 3.0);
+    expect(scale).toBe(1);
+  });
+
+  it('returns 1 for Infinity dimensions', () => {
+    const scale = computeNormalizeScale({ x: Infinity, y: 10, z: 10 }, 3.0);
+    expect(scale).toBe(1);
+  });
+
+  it('handles uniform cube model', () => {
+    const scale = computeNormalizeScale({ x: 100, y: 100, z: 100 }, 2.5);
+    expect(scale).toBeCloseTo(0.025, 6);
+    expect(100 * scale).toBeCloseTo(2.5, 6);
+  });
+
+  it('handles very small model (0.001 units)', () => {
+    const scale = computeNormalizeScale({ x: 0.001, y: 0.001, z: 0.001 }, 3.0);
+    expect(scale).toBe(3000);
+    expect(0.001 * scale).toBeCloseTo(3.0, 6);
+  });
+
+  it('different target sizes produce proportional scales', () => {
+    const size = { x: 264, y: 462, z: 181.5 };
+    const scale3 = computeNormalizeScale(size, 3.0);
+    const scale5 = computeNormalizeScale(size, 5.0);
+    expect(scale5 / scale3).toBeCloseTo(5.0 / 3.0, 6);
+  });
+});
+
+// ─── Auto-fit centering transform tests (Option B: wrapper group) ────
+
+describe('TankViewer web exporter auto-fit centering transform', () => {
+  /**
+   * Simulates the Option B wrapper-group transform used in
+   * tools/tankviewer-web-exporter/index.html:
+   *   child.position = -center
+   *   wrapper.scale = (normalizeScale, normalizeScale * zScale, normalizeScale)
+   *   Final world vertex = normalizeScale * (V_original - center)
+   *
+   * These tests verify the math without Three.js at runtime.
+   */
+  function computeNormalizeScale(size: { x: number; y: number; z: number }, targetSize: number): number {
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim <= 0 || !isFinite(maxDim)) return 1;
+    return targetSize / maxDim;
+  }
+
+  /**
+   * Simulate the wrapper-group transform for an axis-aligned bbox.
+   * Returns the final bbox { min, max } and derived properties.
+   */
+  function simulateWrapperTransform(
+    bboxMin: [number, number, number],
+    bboxMax: [number, number, number],
+    targetSize: number,
+    zScale: number = 1.0,
+  ) {
+    // Original size
+    const sizeX = bboxMax[0] - bboxMin[0];
+    const sizeY = bboxMax[1] - bboxMin[1];
+    const sizeZ = bboxMax[2] - bboxMin[2];
+    const normalizeScale = computeNormalizeScale({ x: sizeX, y: sizeY, z: sizeZ }, targetSize);
+
+    // Center of original bbox
+    const cx = (bboxMin[0] + bboxMax[0]) / 2;
+    const cy = (bboxMin[1] + bboxMax[1]) / 2;
+    const cz = (bboxMin[2] + bboxMax[2]) / 2;
+
+    // Option B: final world vertex = wrapper.scale * (V - center)
+    // wrapper.scale = (normalizeScale, normalizeScale * zScale, normalizeScale)
+    // child.position = (-cx, -cy, -cz)
+    // For each original vertex V, world = (normalizeScale * (V.x - cx),
+    //                                       normalizeScale * zScale * (V.y - cy),
+    //                                       normalizeScale * (V.z - cz))
+    //
+    // Since bbox is axis-aligned, the extreme vertices are the 8 corners.
+    // For each axis, the min corner stays min and max corner stays max after
+    // the centering (V - center is symmetric), so:
+    //   finalMin.x = normalizeScale * (bboxMin.x - cx)
+    //   finalMax.x = normalizeScale * (bboxMax.x - cx)
+    //   etc.
+
+    const finalMinX = normalizeScale * (bboxMin[0] - cx);
+    const finalMaxX = normalizeScale * (bboxMax[0] - cx);
+    const finalMinY = normalizeScale * zScale * (bboxMin[1] - cy);
+    const finalMaxY = normalizeScale * zScale * (bboxMax[1] - cy);
+    const finalMinZ = normalizeScale * (bboxMin[2] - cz);
+    const finalMaxZ = normalizeScale * (bboxMax[2] - cz);
+
+    const finalCenterX = (finalMinX + finalMaxX) / 2;
+    const finalCenterY = (finalMinY + finalMaxY) / 2;
+    const finalCenterZ = (finalMinZ + finalMaxZ) / 2;
+
+    const finalSizeX = finalMaxX - finalMinX;
+    const finalSizeY = finalMaxY - finalMinY;
+    const finalSizeZ = finalMaxZ - finalMinZ;
+
+    return {
+      normalizeScale,
+      finalBbox: {
+        min: [finalMinX, finalMinY, finalMinZ] as [number, number, number],
+        max: [finalMaxX, finalMaxY, finalMaxZ] as [number, number, number],
+      },
+      finalCenter: [finalCenterX, finalCenterY, finalCenterZ] as [number, number, number],
+      finalSize: [finalSizeX, finalSizeY, finalSizeZ] as [number, number, number],
+      finalMaxDim: Math.max(finalSizeX, finalSizeY, finalSizeZ),
+    };
+  }
+
+  // ─── Wasp-specific tests ──────────────────────────────────────────
+
+  it('Wasp bbox: final center is at origin after wrapper transform', () => {
+    const result = simulateWrapperTransform(
+      [992.38, 379.92, -40.71],
+      [1256.38, 841.92, 140.79],
+      3.0,
+    );
+    expect(result.finalCenter[0]).toBeCloseTo(0, 6);
+    expect(result.finalCenter[1]).toBeCloseTo(0, 6);
+    expect(result.finalCenter[2]).toBeCloseTo(0, 6);
+  });
+
+  it('Wasp bbox: final max dimension equals target size', () => {
+    const result = simulateWrapperTransform(
+      [992.38, 379.92, -40.71],
+      [1256.38, 841.92, 140.79],
+      3.0,
+    );
+    expect(result.finalMaxDim).toBeCloseTo(3.0, 4);
+  });
+
+  it('Wasp bbox: final bbox is inside orthoScale=4 frustum with margin', () => {
+    const result = simulateWrapperTransform(
+      [992.38, 379.92, -40.71],
+      [1256.38, 841.92, 140.79],
+      3.0,
+    );
+    const orthoScale = 4.0;
+    // All final min/max should be within [-orthoScale, orthoScale]
+    expect(result.finalBbox.min[0]).toBeGreaterThan(-orthoScale);
+    expect(result.finalBbox.max[0]).toBeLessThan(orthoScale);
+    expect(result.finalBbox.min[1]).toBeGreaterThan(-orthoScale);
+    expect(result.finalBbox.max[1]).toBeLessThan(orthoScale);
+    expect(result.finalBbox.min[2]).toBeGreaterThan(-orthoScale);
+    expect(result.finalBbox.max[2]).toBeLessThan(orthoScale);
+  });
+
+  it('Wasp bbox: final bbox min/max symmetric around origin', () => {
+    const result = simulateWrapperTransform(
+      [992.38, 379.92, -40.71],
+      [1256.38, 841.92, 140.79],
+      3.0,
+    );
+    // Since center is at origin, min and max should be symmetric
+    expect(result.finalBbox.min[0]).toBeCloseTo(-result.finalBbox.max[0], 4);
+    expect(result.finalBbox.min[1]).toBeCloseTo(-result.finalBbox.max[1], 4);
+    expect(result.finalBbox.min[2]).toBeCloseTo(-result.finalBbox.max[2], 4);
+  });
+
+  it('Wasp bbox with zScale=1.5: Y axis is stretched but center stays at origin', () => {
+    const result = simulateWrapperTransform(
+      [992.38, 379.92, -40.71],
+      [1256.38, 841.92, 140.79],
+      3.0,
+      1.5,
+    );
+    expect(result.finalCenter[0]).toBeCloseTo(0, 6);
+    expect(result.finalCenter[1]).toBeCloseTo(0, 6);
+    expect(result.finalCenter[2]).toBeCloseTo(0, 6);
+    // Y dimension should be 1.5x the non-zScaled Y
+    const resultNoZ = simulateWrapperTransform(
+      [992.38, 379.92, -40.71],
+      [1256.38, 841.92, 140.79],
+      3.0,
+      1.0,
+    );
+    expect(result.finalSize[1]).toBeCloseTo(resultNoZ.finalSize[1] * 1.5, 4);
+  });
+
+  // ─── Degenerate / edge case tests ─────────────────────────────────
+
+  it('degenerate zero-size bbox: normalizeScale=1, center at origin', () => {
+    const result = simulateWrapperTransform([0, 0, 0], [0, 0, 0], 3.0);
+    expect(result.normalizeScale).toBe(1);
+    expect(result.finalCenter[0]).toBeCloseTo(0, 6);
+    expect(result.finalCenter[1]).toBeCloseTo(0, 6);
+    expect(result.finalCenter[2]).toBeCloseTo(0, 6);
+  });
+
+  it('off-center model: center at origin after transform', () => {
+    // Model with bbox from (1000, 1000, 1000) to (1010, 1020, 1005)
+    // Center is at (1005, 1010, 1002.5)
+    const result = simulateWrapperTransform(
+      [1000, 1000, 1000],
+      [1010, 1020, 1005],
+      3.0,
+    );
+    expect(result.finalCenter[0]).toBeCloseTo(0, 6);
+    expect(result.finalCenter[1]).toBeCloseTo(0, 6);
+    expect(result.finalCenter[2]).toBeCloseTo(0, 6);
+  });
+
+  it('off-center model: final max dimension matches target', () => {
+    const result = simulateWrapperTransform(
+      [1000, 1000, 1000],
+      [1010, 1020, 1005],
+      3.0,
+    );
+    // Max dimension is 20 (Y axis), so after normalization max dim = 3.0
+    expect(result.finalMaxDim).toBeCloseTo(3.0, 4);
+  });
+
+  // ─── Bug regression test: OLD buggy transform ──────────────────────
+
+  it('REGRESSION: wrapper transform center is at origin, unlike old buggy transform', () => {
+    // The old (buggy) transform did: position = -center, then scale on same object
+    // In Three.js: worldVertex = scale * V + (-center)
+    //   = scale * V - center
+    // For Wasp center ≈ (1124, 611, 50):
+    //   worldCenter = scale * center - center = center * (scale - 1)
+    //   ≈ (1124 * -0.9935) ≈ -1117 — far from origin!
+
+    const bboxMin = [992.38, 379.92, -40.71] as [number, number, number];
+    const bboxMax = [1256.38, 841.92, 140.79] as [number, number, number];
+    const cx = (bboxMin[0] + bboxMax[0]) / 2; // ≈ 1124.38
+    const cy = (bboxMin[1] + bboxMax[1]) / 2; // ≈ 610.92
+    const cz = (bboxMin[2] + bboxMax[2]) / 2; // ≈ 50.04
+
+    const sizeX = bboxMax[0] - bboxMin[0]; // 264
+    const sizeY = bboxMax[1] - bboxMin[1]; // 462
+    const sizeZ = bboxMax[2] - bboxMin[2]; // 181.5
+    const maxDim = Math.max(sizeX, sizeY, sizeZ); // 462
+    const normalizeScale = 3.0 / maxDim;
+
+    // Old buggy center: center * (normalizeScale - 1)
+    const buggyCenterX = cx * (normalizeScale - 1);
+    const buggyCenterY = cy * (normalizeScale - 1);
+    const buggyCenterZ = cz * (normalizeScale - 1);
+
+    // The buggy center is FAR from origin
+    const buggyDistance = Math.sqrt(buggyCenterX ** 2 + buggyCenterY ** 2 + buggyCenterZ ** 2);
+    expect(buggyDistance).toBeGreaterThan(100); // Buggy center is hundreds of units away
+
+    // The correct (wrapper) center is at origin
+    const result = simulateWrapperTransform(bboxMin, bboxMax, 3.0);
+    const correctDistance = Math.sqrt(
+      result.finalCenter[0] ** 2 + result.finalCenter[1] ** 2 + result.finalCenter[2] ** 2,
+    );
+    expect(correctDistance).toBeCloseTo(0, 4);
+  });
+});
