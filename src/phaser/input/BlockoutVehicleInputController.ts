@@ -49,6 +49,8 @@ import type { GameState } from '../../state/types';
 import type { TileReservationMap } from '../../state/tileReservation';
 import { applyUpgrade } from '../../state/blockoutUpgrades';
 import type { BlockoutUpgradeId } from '../../config/blockoutUpgradeData';
+import { getWeaponConfig, getWeaponMLevelValue } from '../../config/weaponData';
+import { clearTargetLock } from '../../state/combatTargeting';
 
 // Turret size constants are now in blockoutVehicleGeometry (BLOCKOUT_TURRET_SIZE_W/H).
 // No local duplicate needed — computeProjectedBarrelTipScreen uses the shared source.
@@ -316,7 +318,13 @@ export class BlockoutVehicleInputController {
           const targetAngle = angleFromTo(turretMountScreen.x, turretMountScreen.y, this._mouseWorldX, this._mouseWorldY);
           selected.turretTargetAngle = targetAngle;
 
-          const maxDelta = degPerSecToRadPerMs(selected.turretTurnSpeedDeg) * delta;
+          // CORE-STEP-07H+: Use production weapon config turretTurnSpeed when available
+          const weaponConfig = getWeaponConfig(selected.weaponId);
+          const effectiveTurretSpeed = weaponConfig
+            ? getWeaponMLevelValue(weaponConfig.turretTurnSpeed, 0) // Use M0 for now
+            : selected.turretTurnSpeedDeg;
+
+          const maxDelta = degPerSecToRadPerMs(effectiveTurretSpeed) * delta;
           selected.turretAngle = rotateTowardAngle(selected.turretAngle, targetAngle, maxDelta);
         }
       } else {
@@ -359,8 +367,14 @@ export class BlockoutVehicleInputController {
         const targetAngle = angleFromTo(turretMountScreen.x, turretMountScreen.y, targetCenter.x, targetCenter.y);
         selected.turretTargetAngle = targetAngle;
 
+        // CORE-STEP-07H+: Use production weapon config turretTurnSpeed
+        const weaponConfig = getWeaponConfig(selected.weaponId);
+        const effectiveTurretSpeed = weaponConfig
+          ? getWeaponMLevelValue(weaponConfig.turretTurnSpeed, 0)
+          : selected.turretTurnSpeedDeg;
+
         // Rate-limited rotation
-        const maxDelta = degPerSecToRadPerMs(selected.turretTurnSpeedDeg) * delta;
+        const maxDelta = degPerSecToRadPerMs(effectiveTurretSpeed) * delta;
         selected.turretAngle = rotateTowardAngle(selected.turretAngle, targetAngle, maxDelta);
       }
     }
@@ -705,8 +719,11 @@ export class BlockoutVehicleInputController {
             selected.vy = 0;
             selected.speed = 0;
 
-            // Clear target-lock
-            if (selected.targetVehicleId) {
+            // CORE-STEP-07H+: Clear target-lock using combat system
+            const reservationMap = this.getReservationMap();
+            if (reservationMap) {
+              clearTargetLock(selected, reservationMap);
+            } else {
               selected.targetVehicleId = null;
             }
 

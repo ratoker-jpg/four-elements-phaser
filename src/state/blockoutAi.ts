@@ -8,13 +8,19 @@
  * has useGridMovement=true. This ensures AI units follow the same
  * tile-based pathing rules as player-controlled vehicles.
  *
+ * CORE-STEP-07H+: AI now uses the production combat model:
+ * - stationary_shooter uses target-lock + stopDistance + projected hit detection
+ * - chaser uses range bands (minRange/maxRange/stopDistance) from weapon config
+ * - hold_position respects stopDistance/range from weapon config
+ * - All AI modes use ground-plane distance (tile units), not screen-space pixels
+ *
  * Pure TypeScript, no Phaser, no DOM.
  * AI update is gated to Arena mode — Normal Game is unchanged.
  *
  * Modes:
  * - passive: enemy stands still, does not fire
  * - stationary_shooter: enemy stands still, targets nearest ally, fires
- * - chaser: enemy moves toward nearest ally, fires when in range
+ * - chaser: enemy moves toward nearest ally, stops at stopDistance, fires
  * - hold_position: enemy engages only within hold radius from spawn point
  *
  * Tick rate: AI decisions update at ~200ms intervals for performance.
@@ -32,6 +38,11 @@ import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from './occupa
 import { findPath, findPathToAdjacent } from './pathfinding';
 import type { GameState } from './types';
 import type { TileReservationMap } from './tileReservation';
+import {
+  groundDistanceTiles,
+  getWeaponRangeInfo,
+} from './combatRange';
+import { isTurretAimed } from './combatHitModel';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -40,6 +51,9 @@ export const AI_TICK_INTERVAL_MS = 200;
 
 /** Distance threshold for "in weapon range" (screen-space pixels). */
 export const AI_RANGE_TOLERANCE_PX = 20;
+
+/** CORE-STEP-07H+: Range tolerance in tile units for AI range checks. */
+export const AI_RANGE_TOLERANCE_TILES = 0.5;
 
 // ─── AI update options ──────────────────────────────────────────────
 
@@ -203,6 +217,16 @@ function getWeaponRangePx(vehicle: BlockoutVehicleState): number {
   return effectiveProfile.rangePx ?? 0;
 }
 
+/**
+ * CORE-STEP-07H+: Get weapon max range in tile units using production config.
+ * Falls back to blockout profile converted to tile units.
+ */
+function getWeaponMaxRangeTiles(vehicle: BlockoutVehicleState): number {
+  return getWeaponRangeInfo(vehicle.weaponId).maxRange;
+}
+
+
+
 // ─── Turret aim toward target ───────────────────────────────────────
 
 /**
@@ -293,6 +317,10 @@ function handleStationaryShooter(
   nowMs: number,
   options: BlockoutAiOptions,
 ): void {
+  // CORE-STEP-07H+: Use production weapon config range in tile units
+  const maxRangeTiles = getWeaponMaxRangeTiles(enemy);
+
+  // Find nearest ally (using screen-space for initial search, then validate with tile distance)
   const range = getWeaponRangePx(enemy);
   const nearestAlly = findNearestAlly(vehicles, enemy, offsetX, offsetY, range + AI_RANGE_TOLERANCE_PX);
 
@@ -310,6 +338,21 @@ function handleStationaryShooter(
     return;
   }
 
+  // CORE-STEP-07H+: Validate range using ground-plane tile distance
+  const distTiles = groundDistanceTiles(enemy, nearestAlly);
+  if (distTiles > maxRangeTiles + AI_RANGE_TOLERANCE_TILES) {
+    // Ally found by screen-space but actually out of range on ground plane
+    enemy.targetVehicleId = null;
+    if (enemy.fireHeld || enemy.isFiring) {
+      stopFiring(enemy);
+    }
+    if (enemy.useGridMovement && options.reservationMap) {
+      issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
+    }
+    enemy.hasMoveTarget = false;
+    return;
+  }
+
   // Set target and aim turret
   enemy.targetVehicleId = nearestAlly.id;
   aimTurretAtTarget(enemy, nearestAlly, offsetX, offsetY);
@@ -320,8 +363,11 @@ function handleStationaryShooter(
   }
   enemy.hasMoveTarget = false;
 
-  // Fire weapon
-  tryAiFire(enemy, nearestAlly, nowMs, options);
+  // CORE-STEP-07H+: Only fire if turret is aimed enough
+  const aimed = isTurretAimed(enemy, enemy.turretTargetAngle);
+  if (aimed) {
+    tryAiFire(enemy, nearestAlly, nowMs, options);
+  }
 }
 
 /**
@@ -336,7 +382,10 @@ function handleChaser(
   nowMs: number,
   options: BlockoutAiOptions,
 ): void {
-  const range = getWeaponRangePx(enemy);
+  // CORE-STEP-07H+: Use production weapon config for range bands
+  const rangeInfo = getWeaponRangeInfo(enemy.weaponId);
+  const stopDistTiles = rangeInfo.stopDistance;
+  const maxRangeTiles = rangeInfo.maxRange;
   const nearestAlly = findNearestAlly(vehicles, enemy, offsetX, offsetY);
 
   if (!nearestAlly) {
@@ -353,29 +402,38 @@ function handleChaser(
     return;
   }
 
-  const dist = vehicleDistance(enemy, nearestAlly, offsetX, offsetY);
+  // CORE-STEP-07H+: Use ground-plane tile distance for range check
+  const distTiles = groundDistanceTiles(enemy, nearestAlly);
 
   // Set target and aim turret
   enemy.targetVehicleId = nearestAlly.id;
   aimTurretAtTarget(enemy, nearestAlly, offsetX, offsetY);
 
-  // Move toward ally if not in weapon range
-  if (dist > range - AI_RANGE_TOLERANCE_PX) {
-    // CORE-STEP-06H+: Use grid pathing toward ally position
+  // CORE-STEP-07H+: Use range bands from weapon config
+  if (distTiles > stopDistTiles + AI_RANGE_TOLERANCE_TILES) {
+    // Out of stop distance — approach using grid pathing toward ally
     // ally worldX/Y are screen-space (no offset), matching targetWorldX/Y convention
     issueGridMoveToward(enemy, nearestAlly.worldX, nearestAlly.worldY, options);
-    // Stop firing while closing distance (except continuous weapons)
-    if (!canFireBlockoutWeapon(enemy, nowMs) && enemy.isFiring) {
-      // Keep fire state for continuous weapons that can still tick
+    // CORE-STEP-07H+: Can still fire if within maxRange while approaching
+    if (distTiles <= maxRangeTiles + AI_RANGE_TOLERANCE_TILES) {
+      // In weapon range but not at stop distance — fire while approaching
+      const aimed = isTurretAimed(enemy, enemy.turretTargetAngle);
+      if (aimed) {
+        tryAiFire(enemy, nearestAlly, nowMs, options);
+      }
     }
   } else {
-    // In range — stop moving and fire
+    // At stop distance — stop moving and fire
     // CORE-STEP-06H+: Stop grid movement
     if (enemy.useGridMovement && options.reservationMap) {
       issueGridStopCommand(enemy.gridMovement, options.reservationMap, enemy.id);
     }
     enemy.hasMoveTarget = false;
-    tryAiFire(enemy, nearestAlly, nowMs, options);
+    // CORE-STEP-07H+: Only fire if turret is aimed enough
+    const aimed = isTurretAimed(enemy, enemy.turretTargetAngle);
+    if (aimed) {
+      tryAiFire(enemy, nearestAlly, nowMs, options);
+    }
   }
 }
 
@@ -438,8 +496,16 @@ function handleHoldPosition(
   }
   enemy.hasMoveTarget = false;
 
-  // Fire weapon
-  tryAiFire(enemy, nearestAlly, nowMs, options);
+  // CORE-STEP-07H+: Only fire if turret is aimed enough
+  // Also validate range using ground-plane distance
+  const distTiles = groundDistanceTiles(enemy, nearestAlly);
+  const maxRangeTiles = getWeaponMaxRangeTiles(enemy);
+  if (distTiles <= maxRangeTiles + AI_RANGE_TOLERANCE_TILES) {
+    const aimed = isTurretAimed(enemy, enemy.turretTargetAngle);
+    if (aimed) {
+      tryAiFire(enemy, nearestAlly, nowMs, options);
+    }
+  }
 }
 
 // ─── Main AI update ─────────────────────────────────────────────────

@@ -60,6 +60,9 @@ import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
 import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter } from './render/blockoutVehicleGeometry';
 import type { BlockoutVehicleState } from '../state/blockoutVehicleState';
 import { updateBlockoutAi } from '../state/blockoutAi';
+import { updateAllCombatTargeting } from '../state/combatTargeting';
+import { getWeaponConfig, getWeaponMLevelValue } from '../config/weaponData';
+import { degPerSecToRadPerMs } from '../state/angleMath';
 
 
 /**
@@ -845,9 +848,14 @@ export class GameScene extends Phaser.Scene {
         },
       });
       // ARENA-05H+: Rotate enemy turrets toward their AI-set target angle
+      // CORE-STEP-07H+: Use production weapon config turretTurnSpeed
       for (const vehicle of this.gameState.blockoutVehicles) {
         if (vehicle.team === 'enemy' && !vehicle.isDestroyed) {
-          const maxDelta = (vehicle.turretTurnSpeedDeg * Math.PI / 180) * (delta / 1000);
+          const weaponConfig = getWeaponConfig(vehicle.weaponId);
+          const effectiveTurretSpeed = weaponConfig
+            ? getWeaponMLevelValue(weaponConfig.turretTurnSpeed, 0)
+            : vehicle.turretTurnSpeedDeg;
+          const maxDelta = degPerSecToRadPerMs(effectiveTurretSpeed) * delta;
           const angleDelta = vehicle.turretTargetAngle - vehicle.turretAngle;
           // Normalize to [-PI, PI]
           const normalizedDelta = Math.atan2(Math.sin(angleDelta), Math.cos(angleDelta));
@@ -858,6 +866,16 @@ export class GameScene extends Phaser.Scene {
           }
         }
       }
+    }
+    // CORE-STEP-07H+: Update combat targeting for all vehicles with active target-locks
+    // This drives auto-chase, stop-at-range, and turret aim tracking for player allies
+    if (this.gameState.blockoutVehicles && this.arenaMode && this.reservationMap) {
+      updateAllCombatTargeting(
+        this.gameState.blockoutVehicles,
+        this.gameState,
+        this.reservationMap,
+        this._offset as { x: number; y: number },
+      );
     }
     // CORE-STEP-06H+: Clean up stale tile reservations periodically
     if (this.reservationMap) {
