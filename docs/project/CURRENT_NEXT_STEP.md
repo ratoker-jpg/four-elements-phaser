@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: Core Mechanics implementation active — STEP 03C next  
+Status: Core Mechanics implementation cycle closed — no active implementation roadmap  
 Project: Four Elements Phaser  
-Date: 2026-06-03
+Date: 2026-06-04
 
 ---
 
@@ -19,20 +19,16 @@ What should GPT/GLM/Codex do next by default?
 ## Current answer
 
 ```text
-Core Mechanics Roadmap: ACCEPTED.
-Core Mechanics System Audit: ACCEPTED.
+Core Mechanics Roadmap: CLOSED / IMPLEMENTED.
+Core Mechanics System Audit: CLOSED / IMPLEMENTED.
 
-Completed:
-- STEP 01H+ — UI / Localization / Start Flow / Faction Display
-- STEP 02H+ — Config and Data Model Foundation
-- CORE-STEP-03A — Resource class runtime type and asset mapping
-- CORE-STEP-03B — Anchor-based generated resource placement
-
-Next action after Denis/GPT approval:
-- CORE-STEP-03C — Harvester 6-class gathering + UI display + map validation update
-
-Do not start implementation without explicit Denis/GPT task assignment.
+Default next action:
+- Do not start new implementation by inertia.
+- Pick the next product direction.
+- Create a new roadmap/audit before code.
 ```
+
+Do not start implementation without explicit Denis/GPT task assignment and an accepted roadmap/audit for the new direction.
 
 ---
 
@@ -49,10 +45,31 @@ STEP 02H+ — COMPLETE
   PR #197 — CORE-STEP-02B: Faction resource and building config data models
   PR #198 — CORE-STEP-02C: Scaling helpers armor formula and config integration tests
 
-STEP 03H+ — IN PROGRESS
+STEP 03H+ — COMPLETE
   PR #199 — CORE-STEP-03A: Resource class runtime type and asset mapping
   PR #200 — CORE-STEP-03B: Anchor-based generated resource placement
-  Next: CORE-STEP-03C
+  PR #202 — CORE-STEP-03C: Resource classes wired into harvesting and validation
+
+STEP 04H+ — COMPLETE
+  PR #203 — CORE-STEP-04H: Buildings and Core Economy Loop
+
+STEP 05H+ — COMPLETE
+  PR #204 — CORE-STEP-05H+: Unified RTS Controls and Command Routing
+
+STEP 06H+ — COMPLETE
+  PR #205 — CORE-STEP-06H+: Movement / Occupancy / Depth Sorting
+
+STEP 07H+ — COMPLETE
+  PR #206 — CORE-STEP-07H+: Combat Core / Targeting / Hit Model
+
+STEP 08H+ — COMPLETE
+  PR #207 — CORE-STEP-08H+: Weapons / Bodies / M0-M3 / Animation Feel
+```
+
+Closure report:
+
+```text
+docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
 ```
 
 ---
@@ -60,74 +77,64 @@ STEP 03H+ — IN PROGRESS
 ## Active mode
 
 ```text
-CORE MECHANICS IMPLEMENTATION CYCLE.
-Current focus: finish STEP 03H+.
-Next implementation slice: CORE-STEP-03C only after Denis/GPT approval.
+NO ACTIVE IMPLEMENTATION ROADMAP.
+CORE MECHANICS CYCLE CLOSED.
 ```
 
 Allowed immediate work:
 
 ```text
-- review docs PR updating handoff/current-next-step
-- prepare or assign CORE-STEP-03C
-- review open implementation PRs
-- docs cleanup directly supporting Core Mechanics implementation
+- review this docs closure PR
+- manual QA of the closed Core Mechanics cycle
+- collect bug/polish findings into a backlog
+- prepare the next roadmap/audit for a new direction
+- review existing open PRs, if any
 ```
 
 Do not start by default:
 
 ```text
-- STEP 04 before STEP 03C is complete
-- Arena features by inertia
-- bot/strategic AI/waves/enemy economy without separate roadmap/audit
-- TankViewer asset pipeline without separate pipeline audit
+- more Core Mechanics implementation by inertia
+- Arena save/load/waves/strategic AI without a new roadmap/audit
+- production visual/world-space work without a new roadmap/audit
+- TankViewer/final asset pipeline without a separate pipeline audit
+- economy/progression/victory systems without a new roadmap/audit
 ```
 
 ---
 
-## Roadmap steps
+## Closed roadmap steps
 
 ```text
 STEP 01H+ — UI / Localization / Start Flow / Faction Display — COMPLETE
 STEP 02H+ — Config and Data Model Foundation — COMPLETE
-STEP 03H+ — Industrial Map and Resource Layout — IN PROGRESS
-STEP 04H+ — Buildings and Core Economy Loop
-STEP 05H+ — Unified RTS Controls and Command Routing
-STEP 06H+ — Movement / Occupancy / Depth Sorting
-STEP 07H+ — Combat Core / Targeting / Hit Model
-STEP 08H+ — Weapons / Bodies / M0-M3 / Animation Feel
+STEP 03H+ — Industrial Map and Resource Layout — COMPLETE
+STEP 04H+ — Buildings and Core Economy Loop — COMPLETE
+STEP 05H+ — Unified RTS Controls and Command Routing — COMPLETE
+STEP 06H+ — Movement / Occupancy / Depth Sorting — COMPLETE
+STEP 07H+ — Combat Core / Targeting / Hit Model — COMPLETE
+STEP 08H+ — Weapons / Bodies / M0-M3 / Animation Feel — COMPLETE
 ```
 
 ---
 
-## Recommended next implementation PR
+## Recommended next planning options
+
+Pick one direction, then create a roadmap/audit before implementation:
 
 ```text
-CORE-STEP-03C — Harvester 6-class gathering + UI display + map validation update
+1. Core Mechanics manual QA + polish/fix backlog audit.
+2. Normal Game player loop roadmap: onboarding, goals, victory/loss, progression.
+3. Production visual/world-space roadmap using CAMERA_PROJECTION_CONTRACT.md.
+4. Final asset integration roadmap for units/buildings/tanks.
+5. Arena combat balance/readability roadmap.
 ```
 
-Expected scope:
+---
 
-```text
-- move generated resource runtime amounts from legacy type to resourceClass where resourceClass exists
-- keep legacy fallback for old/saved resources without resourceClass
-- update map validation for missing/invalid generated resourceClass
-- update player-facing resource display where in scope to use Russian resource class names
-- keep anchor placement from PR #200 intact
-- keep legacy type populated for compatibility
-```
+## Validation baseline for future implementation PRs
 
-Implementation must follow:
-
-```text
-- docs/project/MECHANICS_DECISIONS_2026_06_03.md
-- docs/project/CORE_MECHANICS_ROADMAP_2026_06_03.md
-- docs/project/CORE_MECHANICS_SYSTEM_AUDIT_2026_06_03.md
-- docs/project/CAMERA_PROJECTION_CONTRACT.md when visual/world-space rules are relevant
-- docs/project/NEW_CHAT_HANDOFF_CORE_STEP_03C_2026_06_03.md
-```
-
-Validation for implementation PRs:
+Future implementation PRs should keep using:
 
 ```text
 npm run typecheck
@@ -135,3 +142,30 @@ npm run test
 npm run build
 npm run qa:smoke
 ```
+
+If any command cannot run, the PR body must state why.
+
+---
+
+## Required source docs for future planning
+
+Before new roadmap/task work, read:
+
+```text
+docs/project/PROJECT_STATE.md
+docs/project/CURRENT_NEXT_STEP.md
+docs/project/GPT_WORKFLOW.md
+docs/project/GLM_EXECUTOR_RULES.md
+docs/project/CAMERA_PROJECTION_CONTRACT.md
+docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
+```
+
+Closed references:
+
+```text
+docs/project/MECHANICS_DECISIONS_2026_06_03.md
+docs/project/CORE_MECHANICS_ROADMAP_2026_06_03.md
+docs/project/CORE_MECHANICS_SYSTEM_AUDIT_2026_06_03.md
+```
+
+Closed references are context, not active implementation queues.
