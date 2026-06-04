@@ -26,7 +26,7 @@ import type { BlockoutVehicleState } from './blockoutVehicleState';
  *
  * For more precise checks, use ground-plane distance functions.
  */
-const APPROX_PX_PER_TILE = 42;
+export const APPROX_PX_PER_TILE = 42;
 
 /** Range tolerance in tiles — units within this of maxRange are considered "in range". */
 export const RANGE_TOLERANCE_TILES = 0.5;
@@ -268,14 +268,44 @@ export function isOutOfRange(
  * The combat targeting update loop handles the stop decision.
  */
 export function getChaseTargetTile(
-  _attacker: BlockoutVehicleState,
+  attacker: BlockoutVehicleState,
   target: BlockoutVehicleState,
 ): { tx: number; ty: number } {
-  // Path toward the target's current tile position.
-  // The combat update will stop movement when stopDistance is reached.
+  const rangeInfo = getWeaponRangeInfo(attacker.weaponId);
+  const stopDist = rangeInfo.stopDistance;
+
+  const targetTileX = target.gridMovement.ftx > 0 ? Math.round(target.gridMovement.ftx) : target.tx;
+  const targetTileY = target.gridMovement.fty > 0 ? Math.round(target.gridMovement.fty) : target.ty;
+
+  // If attacker is already within stopDistance, no chase needed
+  const dist = groundDistanceTiles(attacker, target);
+  if (dist <= stopDist + RANGE_TOLERANCE_TILES) {
+    // Already at stop distance — return current position
+    return {
+      tx: attacker.gridMovement.ftx > 0 ? Math.round(attacker.gridMovement.ftx) : attacker.tx,
+      ty: attacker.gridMovement.fty > 0 ? Math.round(attacker.gridMovement.fty) : attacker.ty,
+    };
+  }
+
+  // Compute a tile at stopDistance from target along the approach direction
+  const attackerTileX = attacker.gridMovement.ftx;
+  const attackerTileY = attacker.gridMovement.fty;
+  const dx = attackerTileX - targetTileX;
+  const dy = attackerTileY - targetTileY;
+  const approachDist = Math.sqrt(dx * dx + dy * dy);
+
+  if (approachDist < 0.01) {
+    // Attacker is on top of target — return own tile
+    return { tx: attacker.tx, ty: attacker.ty };
+  }
+
+  // Normalize and scale to stopDistance from target
+  const stopX = targetTileX + (dx / approachDist) * stopDist;
+  const stopY = targetTileY + (dy / approachDist) * stopDist;
+
   return {
-    tx: target.gridMovement.ftx > 0 ? Math.round(target.gridMovement.ftx) : target.tx,
-    ty: target.gridMovement.fty > 0 ? Math.round(target.gridMovement.fty) : target.ty,
+    tx: Math.round(stopX),
+    ty: Math.round(stopY),
   };
 }
 

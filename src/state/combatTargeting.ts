@@ -58,6 +58,17 @@ export interface CombatUpdateResult {
   debugInfo: string;
 }
 
+/** Options for updateAllCombatTargeting. */
+export interface CombatTargetingOptions {
+  /** Current scene time in milliseconds. */
+  nowMs?: number;
+  /**
+   * Blocker 2: Callback to auto-fire weapon when shouldFire && isAimed.
+   * Called for each vehicle that should fire with a valid target.
+   */
+  fireWeapon?: (vehicle: BlockoutVehicleState, target: BlockoutVehicleState, nowMs: number) => void;
+}
+
 // ─── Target validation ──────────────────────────────────────────────
 
 /**
@@ -289,6 +300,7 @@ export function updateAllCombatTargeting(
   gameState: GameState,
   reservationMap: TileReservationMap,
   offset: { x: number; y: number },
+  options?: CombatTargetingOptions,
 ): Map<string, CombatUpdateResult> {
   const results = new Map<string, CombatUpdateResult>();
 
@@ -314,6 +326,20 @@ export function updateAllCombatTargeting(
       issueChaseCommand(vehicle, target, gameState, reservationMap);
     } else if (result.shouldStop) {
       // Stop at range
+      stopChase(vehicle, reservationMap);
+    }
+
+    // Blocker 2: Auto-fire when shouldFire and turret aimed
+    if (result.shouldFire && result.isAimed && options?.fireWeapon && options.nowMs !== undefined) {
+      const fireTarget = vehicles.find(v => v.id === vehicle.targetVehicleId);
+      if (fireTarget) {
+        options.fireWeapon(vehicle, fireTarget, options.nowMs);
+      }
+    }
+
+    // Blocker 3: If target became invalid, stop any active chase
+    if (result.intent === 'none' && vehicle.targetVehicleId === null) {
+      // Target was just cleared by validateTargetLock — stop chase
       stopChase(vehicle, reservationMap);
     }
   }

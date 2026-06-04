@@ -53,7 +53,7 @@ import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
 import { TileReservationMap, RESERVATION_MAX_AGE_MS } from '../state/tileReservation';
 import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from '../state/occupancy';
-import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring, fireBlockoutWeapon } from '../state/blockoutWeaponVfx';
+import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring, fireBlockoutWeapon, canFireBlockoutWeapon } from '../state/blockoutWeaponVfx';
 import { tickContinuousDamage, expireDamageEvents, applyBlockoutWeaponDamage } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
@@ -875,6 +875,34 @@ export class GameScene extends Phaser.Scene {
         this.gameState,
         this.reservationMap,
         this._offset as { x: number; y: number },
+        {
+          nowMs: this.time.now,
+          fireWeapon: (vehicle, target, fireNowMs) => {
+            // Use the same fire path as AI weapons
+            const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this._offset as IsoPoint);
+            const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
+
+            // Check cooldown before firing
+            if (!canFireBlockoutWeapon(vehicle, fireNowMs)) return;
+
+            fireBlockoutWeapon(
+              vehicle,
+              barrelTip.x, barrelTip.y,
+              vehicle.turretAngle,
+              targetCenter.x, targetCenter.y,
+              fireNowMs,
+            );
+
+            applyBlockoutWeaponDamage(
+              vehicle, this.gameState.blockoutVehicles!,
+              barrelTip.x, barrelTip.y,
+              vehicle.turretAngle,
+              targetCenter.x, targetCenter.y,
+              this._offset as IsoPoint, fireNowMs,
+              this.gameState.blockoutObstacles ?? [],
+            );
+          },
+        },
       );
     }
     // CORE-STEP-06H+: Clean up stale tile reservations periodically

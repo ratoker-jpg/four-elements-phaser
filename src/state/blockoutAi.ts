@@ -210,7 +210,7 @@ export function findNearestAlly(
 // ─── Weapon range ───────────────────────────────────────────────────
 
 /** Get the effective weapon range for a vehicle (screen-space pixels). */
-function getWeaponRangePx(vehicle: BlockoutVehicleState): number {
+export function getWeaponRangePx(vehicle: BlockoutVehicleState): number {
   const baseProfile = DAMAGE_PROFILES[vehicle.weaponId];
   if (!baseProfile) return 0;
   const effectiveProfile = getEffectiveDamageProfile(vehicle, baseProfile);
@@ -320,9 +320,9 @@ function handleStationaryShooter(
   // CORE-STEP-07H+: Use production weapon config range in tile units
   const maxRangeTiles = getWeaponMaxRangeTiles(enemy);
 
-  // Find nearest ally (using screen-space for initial search, then validate with tile distance)
-  const range = getWeaponRangePx(enemy);
-  const nearestAlly = findNearestAlly(vehicles, enemy, offsetX, offsetY, range + AI_RANGE_TOLERANCE_PX);
+  // CORE-STEP-07H+ fixup: Use tile range for initial search, not screen-space
+  // Screen-space pre-filter can discard valid production-range targets
+  const nearestAlly = findNearestAlly(vehicles, enemy, offsetX, offsetY);
 
   if (!nearestAlly) {
     // No ally in range — stop targeting/firing
