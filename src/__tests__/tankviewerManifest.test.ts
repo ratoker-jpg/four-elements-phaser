@@ -619,3 +619,410 @@ describe('TankViewer web exporter auto-fit centering transform', () => {
     expect(correctDistance).toBeCloseTo(0, 4);
   });
 });
+
+// ─── Config.xml parsing tests ────────────────────────────────────────
+
+describe('TankViewer web exporter config.xml parsing', () => {
+  /**
+   * Pure helpers matching the parseConfigXml() and inference functions in
+   * tools/tankviewer-web-exporter/index.html.
+   * Duplicated here to avoid importing browser-only code into Node tests.
+   * We use a minimal XML parser (no DOMParser in Node) to test the logic.
+   */
+
+  /**
+   * Infer asset name from model file path.
+   * e.g. "hulls/Wasp_0123.3ds" → "Wasp"
+   */
+  function inferAssetName(filePath: string, _kind: string): string {
+    if (!filePath) return '';
+    const basename = filePath.split('/').pop()!.replace(/\.[^.]+$/, '');
+    const name = basename.replace(/_\d{4}$/, '');
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  /**
+   * Infer M-level from details/lightmap filename suffix.
+   * e.g. "Wasp_0_details.png" → 0, "Wasp_2_lightmap.jpg" → 2
+   */
+  function inferMLevel(filePath: string): number {
+    if (!filePath) return 0;
+    const match = filePath.match(/_(\d)_(?:details|lightmap)/i);
+    if (match) return parseInt(match[1]);
+    const match2 = filePath.match(/_(\d)\.[^.]+$/);
+    if (match2 && parseInt(match2[1]) <= 3) return parseInt(match2[1]);
+    return 0;
+  }
+
+  /**
+   * Get expected filename from a path.
+   */
+  function getExpectedFilename(filePath: string): string {
+    if (!filePath) return '';
+    return filePath.split('/').pop()!;
+  }
+
+  /**
+   * Parse config.xml text using a simple regex-based extractor.
+   * This mirrors the DOMParser-based parseConfigXml in the browser,
+   * but works in Node without a DOM.
+   */
+  function parseConfigXmlSimple(xmlText: string) {
+    // Extract camera-radius
+    const rootMatch = xmlText.match(/<root[^>]*camera-radius="([^"]*)"[^>]*>/);
+    const cameraRadius = rootMatch ? parseFloat(rootMatch[1]) || 750 : 750;
+
+    // Extract hull model entries
+    const hulls: Array<{
+      file: string;
+      details: string;
+      lightmap: string;
+      assetName: string;
+      mLevel: number;
+      kind: string;
+    }> = [];
+    const hullModelRegex = /<model\s+([^>]*)\/>/g;
+    const hullsSection = xmlText.match(/<hulls>([\s\S]*?)<\/hulls>/)?.[1] || '';
+    let match;
+    while ((match = hullModelRegex.exec(hullsSection)) !== null) {
+      const attrs = match[1];
+      const fileMatch = attrs.match(/file="([^"]*)"/);
+      const detailsMatch = attrs.match(/details="([^"]*)"/);
+      const lightmapMatch = attrs.match(/lightmap="([^"]*)"/);
+      const entry = {
+        file: fileMatch?.[1] || '',
+        details: detailsMatch?.[1] || '',
+        lightmap: lightmapMatch?.[1] || '',
+        assetName: '',
+        mLevel: 0,
+        kind: 'hull',
+      };
+      entry.assetName = inferAssetName(entry.file, 'hull');
+      entry.mLevel = inferMLevel(entry.details || entry.lightmap);
+      hulls.push(entry);
+    }
+
+    // Extract turret model entries
+    const turrets: Array<{
+      file: string;
+      details: string;
+      lightmap: string;
+      assetName: string;
+      mLevel: number;
+      kind: string;
+    }> = [];
+    const turretsSection = xmlText.match(/<turrets>([\s\S]*?)<\/turrets>/)?.[1] || '';
+    const turretModelRegex = /<model\s+([^>]*)\/>/g;
+    while ((match = turretModelRegex.exec(turretsSection)) !== null) {
+      const attrs = match[1];
+      const fileMatch = attrs.match(/file="([^"]*)"/);
+      const detailsMatch = attrs.match(/details="([^"]*)"/);
+      const lightmapMatch = attrs.match(/lightmap="([^"]*)"/);
+      const entry = {
+        file: fileMatch?.[1] || '',
+        details: detailsMatch?.[1] || '',
+        lightmap: lightmapMatch?.[1] || '',
+        assetName: '',
+        mLevel: 0,
+        kind: 'turret',
+      };
+      entry.assetName = inferAssetName(entry.file, 'turret');
+      entry.mLevel = inferMLevel(entry.details || entry.lightmap);
+      turrets.push(entry);
+    }
+
+    return { cameraRadius, hulls, turrets, colormaps: [] };
+  }
+
+  // Sample config.xml matching real TankViewer structure
+  const SAMPLE_CONFIG_XML = `<?xml version="1.0" encoding="utf-8"?>
+<root camera-radius="750">
+  <hulls>
+    <model file="hulls/Wasp_0123.3ds" lightmap="hulls/Wasp_0_lightmap.jpg" details="hulls/Wasp_0_details.png"/>
+    <model file="hulls/Wasp_1123.3ds" lightmap="hulls/Wasp_1_lightmap.jpg" details="hulls/Wasp_1_details.png"/>
+    <model file="hulls/Hornet_0123.3ds" lightmap="hulls/Hornet_0_lightmap.jpg" details="hulls/Hornet_0_details.png"/>
+  </hulls>
+  <turrets>
+    <model file="turrets/Smoky_0123.3ds" lightmap="turrets/Smoky_0_lightmap.jpg" details="turrets/Smoky_0_details.png"/>
+    <model file="turrets/Firebird_0123.3ds" lightmap="turrets/Firebird_0_lightmap.jpg" details="turrets/Firebird_0_details.png"/>
+  </turrets>
+  <colormaps>
+    <colormap name="cyan" file="colormaps/cyan.png"/>
+  </colormaps>
+</root>`;
+
+  // ─── Camera radius ──────────────────────────────────────────────
+
+  it('parses camera-radius from root element', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.cameraRadius).toBe(750);
+  });
+
+  it('defaults camera-radius to 750 when attribute is missing', () => {
+    const xml = '<root><hulls></hulls><turrets></turrets></root>';
+    const config = parseConfigXmlSimple(xml);
+    expect(config.cameraRadius).toBe(750);
+  });
+
+  // ─── Hull model entries ─────────────────────────────────────────
+
+  it('parses correct number of hull model entries', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.hulls).toHaveLength(3);
+  });
+
+  it('parses hull model file path', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.hulls[0].file).toBe('hulls/Wasp_0123.3ds');
+  });
+
+  it('parses hull details path', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.hulls[0].details).toBe('hulls/Wasp_0_details.png');
+  });
+
+  it('parses hull lightmap path', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.hulls[0].lightmap).toBe('hulls/Wasp_0_lightmap.jpg');
+  });
+
+  it('infers hull asset name from model file', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.hulls[0].assetName).toBe('Wasp');
+    expect(config.hulls[2].assetName).toBe('Hornet');
+  });
+
+  it('infers hull M-level from details suffix', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.hulls[0].mLevel).toBe(0);
+    expect(config.hulls[1].mLevel).toBe(1);
+  });
+
+  it('sets hull kind to "hull"', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.hulls[0].kind).toBe('hull');
+  });
+
+  // ─── Turret model entries ───────────────────────────────────────
+
+  it('parses correct number of turret model entries', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.turrets).toHaveLength(2);
+  });
+
+  it('parses turret model file path', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.turrets[0].file).toBe('turrets/Smoky_0123.3ds');
+  });
+
+  it('infers turret asset name from model file', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.turrets[0].assetName).toBe('Smoky');
+    expect(config.turrets[1].assetName).toBe('Firebird');
+  });
+
+  it('infers turret M-level from details suffix', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.turrets[0].mLevel).toBe(0);
+  });
+
+  it('sets turret kind to "turret"', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    expect(config.turrets[0].kind).toBe('turret');
+  });
+
+  // ─── Inference helpers ──────────────────────────────────────────
+
+  it('inferAssetName: strips trailing _#### (4-digit model index)', () => {
+    expect(inferAssetName('hulls/Wasp_0123.3ds', 'hull')).toBe('Wasp');
+    expect(inferAssetName('turrets/Smoky_0123.3ds', 'turret')).toBe('Smoky');
+  });
+
+  it('inferAssetName: handles path without directory prefix', () => {
+    expect(inferAssetName('Wasp_0123.3ds', 'hull')).toBe('Wasp');
+  });
+
+  it('inferAssetName: returns empty string for empty path', () => {
+    expect(inferAssetName('', 'hull')).toBe('');
+  });
+
+  it('inferMLevel: extracts M-level from _0_details pattern', () => {
+    expect(inferMLevel('hulls/Wasp_0_details.png')).toBe(0);
+    expect(inferMLevel('hulls/Wasp_1_details.png')).toBe(1);
+    expect(inferMLevel('hulls/Wasp_2_details.png')).toBe(2);
+    expect(inferMLevel('hulls/Wasp_3_details.png')).toBe(3);
+  });
+
+  it('inferMLevel: extracts M-level from _0_lightmap pattern', () => {
+    expect(inferMLevel('hulls/Wasp_0_lightmap.jpg')).toBe(0);
+    expect(inferMLevel('hulls/Wasp_3_lightmap.jpg')).toBe(3);
+  });
+
+  it('inferMLevel: defaults to 0 for unrecognized pattern', () => {
+    expect(inferMLevel('hulls/Wasp_details.png')).toBe(0);
+    expect(inferMLevel('')).toBe(0);
+  });
+
+  it('getExpectedFilename: extracts last path component', () => {
+    expect(getExpectedFilename('hulls/Wasp_0123.3ds')).toBe('Wasp_0123.3ds');
+    expect(getExpectedFilename('hulls/Wasp_0_details.png')).toBe('Wasp_0_details.png');
+    expect(getExpectedFilename('')).toBe('');
+    expect(getExpectedFilename('simple.3ds')).toBe('simple.3ds');
+  });
+
+  // ─── Grouping / selection ───────────────────────────────────────
+
+  it('groups hull entries by asset name', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    const waspEntries = config.hulls.filter(e => e.assetName === 'Wasp');
+    expect(waspEntries).toHaveLength(2); // M0 and M1
+    expect(waspEntries[0].mLevel).toBe(0);
+    expect(waspEntries[1].mLevel).toBe(1);
+  });
+
+  it('finds unique hull asset names', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    const names = [...new Set(config.hulls.map(e => e.assetName))].sort();
+    expect(names).toEqual(['Hornet', 'Wasp']);
+  });
+
+  it('finds unique turret asset names', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    const names = [...new Set(config.turrets.map(e => e.assetName))].sort();
+    expect(names).toEqual(['Firebird', 'Smoky']);
+  });
+
+  it('finds specific entry by kind + asset + mLevel', () => {
+    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+    const entry = config.hulls.find(e => e.assetName === 'Wasp' && e.mLevel === 1);
+    expect(entry).toBeDefined();
+    expect(entry!.file).toBe('hulls/Wasp_1123.3ds');
+    expect(entry!.details).toBe('hulls/Wasp_1_details.png');
+    expect(entry!.lightmap).toBe('hulls/Wasp_1_lightmap.jpg');
+  });
+});
+
+// ─── Manifest sourceConfig fields tests ──────────────────────────────
+
+describe('TankViewer web exporter manifest sourceConfig fields', () => {
+  it('sourceConfig is enabled when config entry is selected', () => {
+    const selectedConfigEntry = {
+      file: 'hulls/Wasp_0123.3ds',
+      details: 'hulls/Wasp_0_details.png',
+      lightmap: 'hulls/Wasp_0_lightmap.jpg',
+      assetName: 'Wasp',
+      mLevel: 0,
+      kind: 'hull',
+    };
+    const parsedConfig = { cameraRadius: 750, hulls: [], turrets: [], colormaps: [] };
+
+    const sourceConfig = selectedConfigEntry ? {
+      enabled: true,
+      cameraRadius: parsedConfig.cameraRadius,
+      configModelFile: selectedConfigEntry.file || null,
+      configDetailsFile: selectedConfigEntry.details || null,
+      configLightmapFile: selectedConfigEntry.lightmap || null,
+    } : { enabled: false };
+
+    expect(sourceConfig.enabled).toBe(true);
+    expect(sourceConfig.cameraRadius).toBe(750);
+    expect(sourceConfig.configModelFile).toBe('hulls/Wasp_0123.3ds');
+    expect(sourceConfig.configDetailsFile).toBe('hulls/Wasp_0_details.png');
+    expect(sourceConfig.configLightmapFile).toBe('hulls/Wasp_0_lightmap.jpg');
+  });
+
+  it('sourceConfig is disabled when no config entry is selected', () => {
+    const selectedConfigEntry = null;
+    const sourceConfig = selectedConfigEntry ? {
+      enabled: true,
+    } : { enabled: false };
+
+    expect(sourceConfig.enabled).toBe(false);
+  });
+
+  it('sourceConfig handles turret entry', () => {
+    const selectedConfigEntry = {
+      file: 'turrets/Smoky_0123.3ds',
+      details: 'turrets/Smoky_0_details.png',
+      lightmap: 'turrets/Smoky_0_lightmap.jpg',
+      assetName: 'Smoky',
+      mLevel: 0,
+      kind: 'turret',
+    };
+    const parsedConfig = { cameraRadius: 750, hulls: [], turrets: [], colormaps: [] };
+
+    const sourceConfig = selectedConfigEntry ? {
+      enabled: true,
+      cameraRadius: parsedConfig.cameraRadius,
+      configModelFile: selectedConfigEntry.file || null,
+      configDetailsFile: selectedConfigEntry.details || null,
+      configLightmapFile: selectedConfigEntry.lightmap || null,
+    } : { enabled: false };
+
+    expect(sourceConfig.enabled).toBe(true);
+    expect(sourceConfig.configModelFile).toBe('turrets/Smoky_0123.3ds');
+  });
+
+  it('sourceConfig handles missing optional fields as null', () => {
+    const selectedConfigEntry = {
+      file: 'hulls/Test_0123.3ds',
+      details: '',  // No details
+      lightmap: '', // No lightmap
+      assetName: 'Test',
+      mLevel: 0,
+      kind: 'hull',
+    };
+    const parsedConfig = { cameraRadius: 750, hulls: [], turrets: [], colormaps: [] };
+
+    const sourceConfig = {
+      enabled: true,
+      cameraRadius: parsedConfig.cameraRadius,
+      configModelFile: selectedConfigEntry.file || null,
+      configDetailsFile: selectedConfigEntry.details || null,
+      configLightmapFile: selectedConfigEntry.lightmap || null,
+    };
+
+    expect(sourceConfig.configModelFile).toBe('hulls/Test_0123.3ds');
+    expect(sourceConfig.configDetailsFile).toBeNull();
+    expect(sourceConfig.configLightmapFile).toBeNull();
+  });
+});
+
+// ─── File validation tests ───────────────────────────────────────────
+
+describe('TankViewer web exporter file validation', () => {
+  function getExpectedFilename(filePath: string): string {
+    if (!filePath) return '';
+    return filePath.split('/').pop()!;
+  }
+
+  it('matching filename passes validation', () => {
+    const actual = 'Wasp_0123.3ds';
+    const expected = getExpectedFilename('hulls/Wasp_0123.3ds');
+    expect(actual).toBe(expected);
+  });
+
+  it('mismatched filename fails validation', () => {
+    const actual = 'Hornet_0123.3ds';
+    const expected = getExpectedFilename('hulls/Wasp_0123.3ds');
+    expect(actual).not.toBe(expected);
+  });
+
+  it('different M-level texture fails validation', () => {
+    const actual = 'Wasp_1_details.png';
+    const expected = getExpectedFilename('hulls/Wasp_0_details.png');
+    expect(actual).not.toBe(expected);
+  });
+
+  it('correct M-level lightmap passes validation', () => {
+    const actual = 'Wasp_0_lightmap.jpg';
+    const expected = getExpectedFilename('hulls/Wasp_0_lightmap.jpg');
+    expect(actual).toBe(expected);
+  });
+
+  it('empty expected filename means no validation needed', () => {
+    const expected = getExpectedFilename('');
+    expect(expected).toBe('');
+    // When expected is empty, no validation warning is needed
+  });
+});
