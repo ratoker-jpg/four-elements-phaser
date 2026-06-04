@@ -26,13 +26,57 @@ python3 -m http.server 8765
 ## Usage
 
 1. **Open** the page in a modern browser (Chrome/Edge recommended).
-2. **Select** the .3ds model file (e.g., `wasp.3ds`).
+2. **Select** the .3ds model file (e.g., `Wasp_0123.3ds`).
 3. **Optionally select** details texture and lightmap texture.
 4. **Click "Render All Directions"** — the page renders 16 directions and
    shows a preview grid.
 5. **Click "Export All PNGs + Manifest"** — downloads each PNG and a
    `manifest.json` to your Downloads folder.
 6. **Move** downloaded files to `art/generated/tankviewer/`.
+
+## Auto Fit Model
+
+**ON by default.** When enabled, the exporter automatically normalizes the
+model scale so that it fits within the render frame regardless of the original
+3DS model's unit size.
+
+TankViewer .3ds models use large raw units (e.g., Wasp bbox spans 264 x 462 x
+181.5 units). Without auto-fit, the default ortho scale of 4.0 causes the model
+to be entirely outside the camera frustum, producing fully transparent/empty
+PNGs.
+
+### How auto-fit works
+
+1. After loading the 3DS model, the exporter computes the bounding box.
+2. The model is centered around the origin.
+3. The maximum dimension (X, Y, or Z) of the bounding box is computed.
+4. A uniform scale factor is calculated: `normalizeScale = targetSize / maxDim`.
+5. The model is scaled uniformly by this factor so the max dimension equals
+   the target size (default: 3.0 world units).
+6. The Z Scale slider is applied on top of the normalization.
+
+### Auto-fit UI controls
+
+| Control | Default | Description |
+|---------|---------|-------------|
+| Auto Fit Model | ON | Enable/disable automatic scale normalization |
+| Fit Target Size | 3.0 | Target max dimension in world units after normalization |
+
+### Auto-fit log output
+
+When auto-fit is applied, the log shows:
+- Original bounding box (min → max)
+- Original size (X x Y x Z)
+- Normalize scale factor applied
+- Final bounding box (centered + scaled)
+- Final max dimension (should match target)
+- Effective orthoScale
+
+### When to turn auto-fit OFF
+
+If you need to render at the original 3DS model scale (e.g., for debugging or
+comparing raw geometry), uncheck "Auto Fit Model" and increase the Ortho Scale
+manually to match the model's size.
 
 ## Direction Convention
 
@@ -49,6 +93,7 @@ The Three.js orthographic camera is configured to match CAMERA_PROJECTION_CONTRA
 - **Type**: Orthographic (no perspective)
 - **Azimuth**: 45 degrees
 - **Elevation**: arctan(1/√2) ≈ 35.264 degrees
+- **Near/Far**: 0.01 / 10000 (accommodates raw TankViewer model units)
 - **Background**: Transparent (RGBA)
 
 ## Calibration
@@ -66,7 +111,26 @@ Measure marker centers in the rendered image to determine pixel error.
 | Directions | 16 | Number of rotation angles |
 | Resolution | 256 | Output image size (square) |
 | Ortho Scale | 4.0 | Camera orthographic scale |
-| Z Scale | 1.0 | Model Z-axis stretch factor |
+| Z Scale | 1.0 | Model Z-axis stretch factor (applied on top of auto-fit) |
+| Auto Fit Model | ON | Normalize model scale to fit render frame |
+| Fit Target Size | 3.0 | Max dimension in world units after normalization |
+
+## Manifest auto-fit fields
+
+The exported `manifest.json` includes an `autoFit` section:
+
+```json
+{
+  "autoFit": {
+    "enabled": true,
+    "targetSize": 3.0,
+    "originalSize": "264.00 x 462.00 x 181.50",
+    "normalizeScale": 0.006494,
+    "finalSize": "3.00"
+  },
+  "orthoScale": 4.0
+}
+```
 
 ## Known Limitations (vs Blender)
 
@@ -81,6 +145,7 @@ Measure marker centers in the rendered image to determine pixel error.
 | Z-stretch handling | Manual Z-scale slider | VERTICAL_STRETCH_FACTOR |
 | Batch processing | Manual per-model | CLI script |
 | Output quality | Good for preview | Production quality |
+| Auto-fit scale | Yes (default ON) | N/A (manual) |
 
 ## Dependencies
 
@@ -109,11 +174,10 @@ different coordinate convention (Z-up) and the camera is at azimuth 45.
 
 ## Status
 
-**Feasibility spike** — not yet validated with real TankViewer assets.
-Needs testing with actual wasp.3ds to confirm:
+**Feasibility spike** — validated with real TankViewer Wasp assets:
 
-1. TDSLoader can parse the file without errors
-2. Geometry looks correct after import
-3. Textures apply correctly
-4. Rendered sprites match the game's isometric projection within ±1 px
-5. Direction convention produces correct facing for all 16 angles
+1. TDSLoader parses Wasp_0123.3ds successfully
+2. Auto-fit normalizes model scale so it fits the render frame
+3. Textures apply correctly via file picker
+4. Direction convention: dir0=E (needs visual verification per model)
+5. Empty PNG root cause: fixed by auto-fit + camera near/far adjustment

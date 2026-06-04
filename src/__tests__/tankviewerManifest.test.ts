@@ -319,3 +319,80 @@ describe('TankViewer direction convention', () => {
     expect(DIRECTION_NAMES_16).toHaveLength(16);
   });
 });
+
+// ─── Auto-fit normalize scale tests ─────────────────────────────────
+
+describe('TankViewer web exporter auto-fit normalize scale', () => {
+  /**
+   * Pure helper matching the computeNormalizeScale() function in
+   * tools/tankviewer-web-exporter/index.html.
+   * Duplicated here to avoid importing browser-only code into Node tests.
+   */
+  function computeNormalizeScale(size: { x: number; y: number; z: number }, targetSize: number): number {
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim <= 0 || !isFinite(maxDim)) return 1; // degenerate model
+    return targetSize / maxDim;
+  }
+
+  it('computes positive finite scale for Wasp bbox 264x462x181 with target 3.0', () => {
+    const scale = computeNormalizeScale({ x: 264, y: 462, z: 181.5 }, 3.0);
+    expect(scale).toBeGreaterThan(0);
+    expect(isFinite(scale)).toBe(true);
+  });
+
+  it('normalizes Wasp bbox so max dimension matches target size', () => {
+    const size = { x: 264, y: 462, z: 181.5 };
+    const targetSize = 3.0;
+    const scale = computeNormalizeScale(size, targetSize);
+    const finalMaxDim = Math.max(size.x * scale, size.y * scale, size.z * scale);
+    expect(finalMaxDim).toBeCloseTo(targetSize, 6);
+  });
+
+  it('Wasp Y axis (462) is the max dimension, so Y * scale = target', () => {
+    const size = { x: 264, y: 462, z: 181.5 };
+    const targetSize = 3.0;
+    const scale = computeNormalizeScale(size, targetSize);
+    expect(size.y * scale).toBeCloseTo(targetSize, 6);
+    expect(size.x * scale).toBeLessThan(targetSize);
+    expect(size.z * scale).toBeLessThan(targetSize);
+  });
+
+  it('returns 1 for degenerate zero-size model', () => {
+    const scale = computeNormalizeScale({ x: 0, y: 0, z: 0 }, 3.0);
+    expect(scale).toBe(1);
+  });
+
+  it('returns 1 for negative-size model', () => {
+    const scale = computeNormalizeScale({ x: -1, y: -1, z: -1 }, 3.0);
+    expect(scale).toBe(1);
+  });
+
+  it('returns 1 for NaN dimensions', () => {
+    const scale = computeNormalizeScale({ x: NaN, y: NaN, z: NaN }, 3.0);
+    expect(scale).toBe(1);
+  });
+
+  it('returns 1 for Infinity dimensions', () => {
+    const scale = computeNormalizeScale({ x: Infinity, y: 10, z: 10 }, 3.0);
+    expect(scale).toBe(1);
+  });
+
+  it('handles uniform cube model', () => {
+    const scale = computeNormalizeScale({ x: 100, y: 100, z: 100 }, 2.5);
+    expect(scale).toBeCloseTo(0.025, 6);
+    expect(100 * scale).toBeCloseTo(2.5, 6);
+  });
+
+  it('handles very small model (0.001 units)', () => {
+    const scale = computeNormalizeScale({ x: 0.001, y: 0.001, z: 0.001 }, 3.0);
+    expect(scale).toBe(3000);
+    expect(0.001 * scale).toBeCloseTo(3.0, 6);
+  });
+
+  it('different target sizes produce proportional scales', () => {
+    const size = { x: 264, y: 462, z: 181.5 };
+    const scale3 = computeNormalizeScale(size, 3.0);
+    const scale5 = computeNormalizeScale(size, 5.0);
+    expect(scale5 / scale3).toBeCloseTo(5.0 / 3.0, 6);
+  });
+});

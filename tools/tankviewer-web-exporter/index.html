@@ -16,6 +16,7 @@
   input, select { background: #0f3460; border: 1px solid #1a508b; color: #e0e0e0; padding: 6px 10px; border-radius: 4px; font-size: 0.85rem; }
   input[type="text"] { width: 320px; }
   input[type="number"] { width: 80px; }
+  input[type="checkbox"] { width: auto; accent-color: #00d4ff; }
   input[type="file"] { max-width: 320px; }
 
   button { background: #00d4ff; color: #1a1a2e; border: none; padding: 8px 20px; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
@@ -96,10 +97,17 @@
   </div>
   <div class="row">
     <label>Ortho Scale:</label>
-    <input type="number" id="ortho-scale" value="4.0" min="0.5" max="20" step="0.5">
+    <input type="number" id="ortho-scale" value="4.0" min="0.5" max="100" step="0.5">
     <label>Z Scale:</label>
     <input type="number" id="z-scale" value="1.0" min="0.1" max="5" step="0.1">
     <span style="font-size:0.75rem; color:#8899aa;">(Adjust to match vertical stretch)</span>
+  </div>
+  <div class="row">
+    <label>Auto Fit Model:</label>
+    <input type="checkbox" id="auto-fit" checked>
+    <label>Fit Target Size:</label>
+    <input type="number" id="fit-target-size" value="3.0" min="0.5" max="20" step="0.5">
+    <span style="font-size:0.75rem; color:#8899aa;">(Max dimension after normalization, in world units)</span>
   </div>
   <div class="row">
     <button id="btn-render" disabled>Render All Directions</button>
@@ -158,6 +166,9 @@ const DIRECTION_NAMES_16 = [
 // rotation to face screen-right.
 const ROTATION_OFFSET_DEG = -90; // Adjust per model orientation after testing
 
+// ─── Auto-fit constants ──────────────────────────────────────────────
+const DEFAULT_FIT_TARGET_SIZE = 3.0; // Max dimension in world units after normalization
+
 // ─── DOM elements ────────────────────────────────────────────────────
 const modelFileInput  = document.getElementById('model-file');
 const diffuseFileInput = document.getElementById('diffuse-file');
@@ -165,6 +176,8 @@ const lightmapFileInput = document.getElementById('lightmap-file');
 const btnRender    = document.getElementById('btn-render');
 const btnExport    = document.getElementById('btn-export');
 const btnCalibrate = document.getElementById('btn-calibrate');
+const autoFitCheckbox = document.getElementById('auto-fit');
+const fitTargetSizeInput = document.getElementById('fit-target-size');
 const logDiv       = document.getElementById('log');
 const previewDiv   = document.getElementById('preview-container');
 
@@ -185,10 +198,15 @@ const CAM_DIST = 10;
 let orthoScale = 4.0;
 let camera;
 
+// Auto-fit state: stores normalization info for current model
+let autoFitInfo = null; // { originalBbox, originalSize, normalizeScale, finalBbox, finalSize }
+
 function createIsometricCamera(scale) {
   const aspect = 1; // square render
   const s = scale;
-  const cam = new THREE.OrthographicCamera(-s * aspect, s * aspect, s, -s, 0.1, 100);
+  // near=0.01, far=10000: accommodate raw TankViewer models (hundreds of units)
+  // before normalization, and tiny normalized models after.
+  const cam = new THREE.OrthographicCamera(-s * aspect, s * aspect, s, -s, 0.01, 10000);
 
   const azRad = THREE.MathUtils.degToRad(AZIMUTH);
   const elRad = THREE.MathUtils.degToRad(ELEVATION);
@@ -216,6 +234,8 @@ scene.add(dirLight);
 // ─── State ───────────────────────────────────────────────────────────
 let loadedModel = null;
 let renderedImages = []; // { dirIdx, dirName, dataUrl }
+let loadedModelBbox = null; // Original bounding box before centering/scaling
+let loadedModelSize = null; // { x, y, z } original size dimensions
 
 // ─── Logging ─────────────────────────────────────────────────────────
 function log(msg, level = 'info') {
@@ -250,16 +270,31 @@ modelFileInput.addEventListener('change', async (e) => {
 
     loadedModel = loader.parse(arrayBuffer, '');
 
-    // Center the model
+    // Compute bounding box before any modifications
     const box = new THREE.Box3().setFromObject(loadedModel);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    loadedModelBbox = box.clone();
+    loadedModelSize = { x: size.x, y: size.y, z: size.z };
+
+    // Center the model around origin
     const center = box.getCenter(new THREE.Vector3());
     loadedModel.position.sub(center);
+
+    // Reset scale to unit
+    loadedModel.scale.set(1, 1, 1);
+    autoFitInfo = null;
 
     scene.add(loadedModel);
 
     log(`3DS model loaded successfully.`, 'ok');
-    log(`  Bounding box: ${box.min.x.toFixed(2)},${box.min.y.toFixed(2)},${box.min.z.toFixed(2)} → ${box.max.x.toFixed(2)},${box.max.y.toFixed(2)},${box.max.z.toFixed(2)}`);
-    log(`  Size: ${(box.max.x - box.min.x).toFixed(2)} x ${(box.max.y - box.min.y).toFixed(2)} x ${(box.max.z - box.min.z).toFixed(2)}`);
+    log(`  Original bbox: ${box.min.x.toFixed(2)},${box.min.y.toFixed(2)},${box.min.z.toFixed(2)} → ${box.max.x.toFixed(2)},${box.max.y.toFixed(2)},${box.max.z.toFixed(2)}`);
+    log(`  Original size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+
+    // Auto-apply fit if checkbox is on
+    if (autoFitCheckbox.checked) {
+      applyAutoFit();
+    }
 
     btnRender.disabled = false;
   } catch (err) {
@@ -371,11 +406,29 @@ btnRender.addEventListener('click', () => {
   const zScale = parseFloat(document.getElementById('z-scale').value);
   const dirNames = numDirs === 16 ? DIRECTION_NAMES_16 : numDirs === 8 ? DIRECTION_NAMES_8 : null;
 
-  // Apply Z scale
-  loadedModel.scale.set(1, 1, zScale);
+  // Apply auto-fit if enabled (recomputes scale from original bbox)
+  if (autoFitCheckbox.checked) {
+    applyAutoFit();
+  } else {
+    // Without auto-fit, just apply Z scale at unit scale
+    loadedModel.scale.set(1, 1, zScale);
+    autoFitInfo = null;
+    log(`Auto Fit OFF: using raw model scale (1, 1, ${zScale})`);
+  }
+
+  // If auto-fit was applied, also apply Z scale on top
+  if (autoFitInfo && zScale !== 1.0) {
+    const ns = autoFitInfo.normalizeScale;
+    loadedModel.scale.set(ns, ns * zScale, ns);
+    log(`  Z scale applied on top of auto-fit: scale=(${ns.toFixed(6)}, ${(ns * zScale).toFixed(6)}, ${ns.toFixed(6)})`);
+  }
 
   log(`Rendering ${numDirs} directions at ${resolution}x${resolution} (orthoScale=${orthoScale}, zScale=${zScale})...`);
   log(`Direction convention: dir0=E (screen-right)`);
+  if (autoFitInfo) {
+    log(`  Auto-fit: scale=${autoFitInfo.normalizeScale.toFixed(6)}, final max dim=${autoFitInfo.finalSize.toFixed(2)}`);
+  }
+  log(`  Effective orthoScale=${orthoScale}`);
 
   renderedImages = [];
   previewDiv.innerHTML = '';
@@ -455,6 +508,14 @@ btnExport.addEventListener('click', () => {
     directionConvention: 'E=0, SE=1, S=2, SW=3, W=4, NW=5, N=6, NE=7',
     rotationOffsetDeg: ROTATION_OFFSET_DEG,
     resolution,
+    autoFit: autoFitInfo ? {
+      enabled: true,
+      targetSize: autoFitInfo.targetSize,
+      originalSize: `${autoFitInfo.originalSize.x.toFixed(2)} x ${autoFitInfo.originalSize.y.toFixed(2)} x ${autoFitInfo.originalSize.z.toFixed(2)}`,
+      normalizeScale: autoFitInfo.normalizeScale,
+      finalSize: autoFitInfo.finalSize.toFixed(2),
+    } : { enabled: false },
+    orthoScale,
     entries: manifestEntries,
   };
 
@@ -575,9 +636,81 @@ btnCalibrate.addEventListener('click', () => {
   if (savedModel) scene.add(savedModel);
 });
 
+// ─── Auto-fit logic ──────────────────────────────────────────────────
+
+/**
+ * Compute normalization scale factor so that the model's max dimension
+ * equals targetSize in world units.
+ *
+ * @param {Object} size - { x, y, z } dimensions of the model
+ * @param {number} targetSize - desired max dimension after scaling
+ * @returns {number} scale factor to apply uniformly
+ */
+function computeNormalizeScale(size, targetSize) {
+  const maxDim = Math.max(size.x, size.y, size.z);
+  if (maxDim <= 0 || !isFinite(maxDim)) return 1; // degenerate model
+  return targetSize / maxDim;
+}
+
+/**
+ * Apply auto-fit: center model, normalize scale so max dimension = targetSize.
+ * Logs original/final bbox info and updates the orthoScale UI hint.
+ */
+function applyAutoFit() {
+  if (!loadedModel || !loadedModelSize) return;
+
+  const targetSize = parseFloat(fitTargetSizeInput.value) || DEFAULT_FIT_TARGET_SIZE;
+  const size = loadedModelSize;
+  const normalizeScale = computeNormalizeScale(size, targetSize);
+
+  // Apply normalized scale (X, Y, Z uniform; Z gets zScale on top during render)
+  loadedModel.scale.set(normalizeScale, normalizeScale, normalizeScale);
+
+  // Recompute bounding box after scaling
+  const finalBox = new THREE.Box3().setFromObject(loadedModel);
+  const finalSizeVec = new THREE.Vector3();
+  finalBox.getSize(finalSizeVec);
+  const finalMaxDim = Math.max(finalSizeVec.x, finalSizeVec.y, finalSizeVec.z);
+
+  autoFitInfo = {
+    originalSize: { x: size.x, y: size.y, z: size.z },
+    normalizeScale,
+    targetSize,
+    finalSize: finalMaxDim,
+  };
+
+  log(`Auto Fit applied:`);
+  log(`  Original bbox: ${loadedModelBbox.min.x.toFixed(2)},${loadedModelBbox.min.y.toFixed(2)},${loadedModelBbox.min.z.toFixed(2)} → ${loadedModelBbox.max.x.toFixed(2)},${loadedModelBbox.max.y.toFixed(2)},${loadedModelBbox.max.z.toFixed(2)}`);
+  log(`  Original size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}`);
+  log(`  Normalize scale: ${normalizeScale.toFixed(6)}`);
+  log(`  Final bbox (centered+scaled): ${finalBox.min.x.toFixed(4)},${finalBox.min.y.toFixed(4)},${finalBox.min.z.toFixed(4)} → ${finalBox.max.x.toFixed(4)},${finalBox.max.y.toFixed(4)},${finalBox.max.z.toFixed(4)}`);
+  log(`  Final max dimension: ${finalMaxDim.toFixed(4)} (target: ${targetSize})`, Math.abs(finalMaxDim - targetSize) < 0.01 ? 'ok' : 'warn');
+  log(`  Effective orthoScale: ${orthoScale}`, 'info');
+}
+
+// Re-apply auto-fit when checkbox or target size changes
+autoFitCheckbox.addEventListener('change', () => {
+  if (loadedModel && autoFitCheckbox.checked) {
+    applyAutoFit();
+  } else if (loadedModel) {
+    // Reset to unit scale
+    loadedModel.scale.set(1, 1, 1);
+    autoFitInfo = null;
+    log(`Auto Fit OFF: model scale reset to (1, 1, 1)`, 'warn');
+    log(`  Model may be outside camera frustum — increase Ortho Scale manually.`, 'warn');
+  }
+});
+
+fitTargetSizeInput.addEventListener('change', () => {
+  if (loadedModel && autoFitCheckbox.checked) {
+    applyAutoFit();
+  }
+});
+
 // ─── Initial render ──────────────────────────────────────────────────
 log('TankViewer Web Sprite Exporter initialized.', 'ok');
 log('Three.js + TDSLoader loaded from CDN.', 'ok');
+log('Auto Fit Model: ON by default — normalizes model to fit render frame.', 'ok');
 log('Directions: Select .3ds model file, optionally add textures, then Render.', 'info');
 log('NOTE: dir0=E convention (matches game directionFromDelta).', 'info');
 log('NOTE: ROTATION_OFFSET_DEG may need adjustment per model after visual testing.', 'warn');
