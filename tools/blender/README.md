@@ -2,6 +2,8 @@
 
 This directory contains the offline render factory for TankViewer `.3ds` hulls and turrets. It is the production path for readable asset output. The browser/Three.js exporter is experimental only and should not be used for Wasp-class production renders.
 
+Projection rules remain defined by `docs/project/CAMERA_PROJECTION_CONTRACT.md`; this tooling does not replace or rewrite that contract.
+
 ## Scripts
 
 - `render_tank_sprite.py`
