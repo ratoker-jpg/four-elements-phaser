@@ -36,6 +36,12 @@ import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import { getWeaponConfig } from '../../config/weaponData';
 import { sortByDepth, type DepthSortable } from './depthSorting';
 import { getTrackAnimationState } from '../../state/trackAnimation';
+import {
+  resolveGeneratedHullKey,
+  GENERATED_HULL_SCALE,
+  GENERATED_HULL_ORIGIN_X,
+  GENERATED_HULL_ORIGIN_Y,
+} from '../../assets/generatedHullAssets';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -155,6 +161,9 @@ export class BlockoutVehicleRenderer {
   /** Graphics objects keyed by blockout vehicle ID. */
   private vehicleGraphics = new Map<string, Phaser.GameObjects.Graphics>();
 
+  /** Generated hull sprite images keyed by blockout vehicle ID. */
+  private vehicleHullSprites = new Map<string, Phaser.GameObjects.Image>();
+
   /** Debug text labels keyed by blockout vehicle ID. */
   private debugLabels = new Map<string, Phaser.GameObjects.Text>();
 
@@ -163,6 +172,12 @@ export class BlockoutVehicleRenderer {
 
   /** Whether mount points are shown. */
   private showMountPoints = true;
+
+  /** Whether generated hull sprites have been logged (once). */
+  private generatedHullLogged = false;
+
+  /** Whether blockout fallback has been logged (once). */
+  private blockoutFallbackLogged = false;
 
   /** Currently selected vehicle ID (set from BlockoutVehicleInputController). */
   private _selectedVehicleId: string | null = null;
@@ -245,8 +260,46 @@ export class BlockoutVehicleRenderer {
       const isSelected = vehicle.id === this._selectedVehicleId;
       const isHovered = vehicle.id === this._hoveredVehicleId;
 
-      // Redraw this vehicle
-      this.renderVehicle(g, vehicle, isSelected, isHovered);
+      // Check for generated hull sprite
+      const hullKey = resolveGeneratedHullKey(
+        this.scene, vehicle.bodyId, vehicle.faction,
+        vehicle.modificationLevel, vehicle.bodyAngle,
+      );
+      const useGeneratedHull = hullKey !== null;
+
+      // Manage hull sprite lifecycle
+      let hullSprite = this.vehicleHullSprites.get(vehicle.id);
+      if (useGeneratedHull) {
+        if (!hullSprite) {
+          // Create hull sprite image
+          hullSprite = this.scene.add.image(0, 0, hullKey);
+          hullSprite.setScale(GENERATED_HULL_SCALE);
+          hullSprite.setOrigin(GENERATED_HULL_ORIGIN_X, GENERATED_HULL_ORIGIN_Y);
+          hullSprite.setDepth(BLOCKOUT_DEPTH);
+          this.vehicleHullSprites.set(vehicle.id, hullSprite);
+
+          if (!this.generatedHullLogged) {
+            console.log(`[BlockoutVehicleRenderer] Using generated hull sprite for ${vehicle.bodyId}+${vehicle.weaponId} (${vehicle.faction}, m${vehicle.modificationLevel})`);
+            this.generatedHullLogged = true;
+          }
+        } else {
+          // Update texture if direction changed
+          hullSprite.setTexture(hullKey);
+        }
+      } else {
+        // No generated hull — destroy sprite if it exists
+        if (hullSprite) {
+          hullSprite.destroy();
+          this.vehicleHullSprites.delete(vehicle.id);
+        }
+        if (!this.blockoutFallbackLogged) {
+          console.log(`[BlockoutVehicleRenderer] No generated hull texture for ${vehicle.bodyId}+${vehicle.weaponId} — using blockout cube fallback`);
+          this.blockoutFallbackLogged = true;
+        }
+      }
+
+      // Redraw this vehicle (Graphics overlay; body box is skipped if hull sprite is used)
+      this.renderVehicle(g, vehicle, isSelected, isHovered, useGeneratedHull, hullSprite);
 
       // Debug label
       let label = this.debugLabels.get(vehicle.id);
@@ -310,6 +363,14 @@ export class BlockoutVehicleRenderer {
           g.setDepth(BLOCKOUT_DEPTH + orderIdx);
         }
       }
+      // Also update hull sprite depth to match
+      const hullSprite = this.vehicleHullSprites.get(vehicle.id);
+      if (hullSprite) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx);
+        }
+      }
       // Also update debug label depth
       const label = this.debugLabels.get(vehicle.id);
       if (label) {
@@ -327,6 +388,12 @@ export class BlockoutVehicleRenderer {
         this.vehicleGraphics.delete(id);
       }
     }
+    for (const [id, hullSprite] of this.vehicleHullSprites) {
+      if (!activeIds.has(id)) {
+        hullSprite.destroy();
+        this.vehicleHullSprites.delete(id);
+      }
+    }
     for (const [id, label] of this.debugLabels) {
       if (!activeIds.has(id)) {
         label.destroy();
@@ -337,7 +404,14 @@ export class BlockoutVehicleRenderer {
 
   // ─── Vehicle rendering ──────────────────────────────────────────
 
-  private renderVehicle(g: Phaser.GameObjects.Graphics, vehicle: BlockoutVehicleState, isSelected: boolean, isHovered: boolean): void {
+  private renderVehicle(
+    g: Phaser.GameObjects.Graphics,
+    vehicle: BlockoutVehicleState,
+    isSelected: boolean,
+    isHovered: boolean,
+    useGeneratedHull: boolean,
+    hullSprite: Phaser.GameObjects.Image | undefined,
+  ): void {
     g.clear();
 
     // ── Shared projected geometry (single source of truth) ────────
@@ -469,6 +543,11 @@ export class BlockoutVehicleRenderer {
 
     // ── BLOCKOUT-07H+: Destroyed vehicle rendering ────────────────
     if (vehicle.isDestroyed) {
+      // Hide hull sprite for destroyed vehicles
+      if (hullSprite) {
+        hullSprite.setVisible(false);
+      }
+
       // Dimmed flat body on ground (no height)
       const cosA = Math.cos(bodyAngle);
       const sinA = Math.sin(bodyAngle);
@@ -522,31 +601,46 @@ export class BlockoutVehicleRenderer {
     const shadowRadius = Math.max(halfW, halfH) * SHADOW_RADIUS_FRACTION;
     drawProjectedShadow(g, cx, cy, shadowRadius, this.offset);
 
-    // ── Pseudo-isometric body (base + side + top) ────────────────
-    // Derive side color (darker than body) and top color (brighter)
-    const sideR = ((bodyColor >> 16) & 0xff) * 0.6;
-    const sideG = ((bodyColor >> 8) & 0xff) * 0.6;
-    const sideB = (bodyColor & 0xff) * 0.6;
-    const sideColor = (Math.floor(sideR) << 16) | (Math.floor(sideG) << 8) | Math.floor(sideB);
+    // ── Hull rendering: generated sprite OR blockout cube ─────────
+    if (useGeneratedHull && hullSprite) {
+      // ── Generated hull sprite path ─────────────────────────────
+      // Position the hull sprite at the body center (cx, cy).
+      // The sprite uses its own origin (GENERATED_HULL_ORIGIN_X/Y)
+      // and scale (GENERATED_HULL_SCALE) which are pilot-tuned.
+      // TODO: Visual QA — tune per hull if origin/scale is off.
+      hullSprite.setPosition(cx, cy);
+      hullSprite.setVisible(true);
 
-    const topR = Math.min(255, ((bodyColor >> 16) & 0xff) * 1.2);
-    const topG = Math.min(255, ((bodyColor >> 8) & 0xff) * 1.2);
-    const topB = Math.min(255, (bodyColor & 0xff) * 1.2);
-    const topColor = (Math.floor(topR) << 16) | (Math.floor(topG) << 8) | Math.floor(topB);
+      // Body box is NOT drawn — the hull sprite replaces it.
+      // Track animation indicators are also skipped since the
+      // generated sprite should already include track detail.
+    } else {
+      // ── Legacy blockout cube path ──────────────────────────────
+      // Pseudo-isometric body (base + side + top)
+      // Derive side color (darker than body) and top color (brighter)
+      const sideR = ((bodyColor >> 16) & 0xff) * 0.6;
+      const sideG = ((bodyColor >> 8) & 0xff) * 0.6;
+      const sideB = (bodyColor & 0xff) * 0.6;
+      const sideColor = (Math.floor(sideR) << 16) | (Math.floor(sideG) << 8) | Math.floor(sideB);
 
-    drawProjectedBox(
-      g, cx, cy, halfW, halfH, BLOCKOUT_VEHICLE_BODY_Z,
-      this.offset, bodyAngle,
-      bodyColor, sideColor, topColor, BODY_OUTLINE_COLOR,
-      0.3, 0.75, 1.0,
-    );
+      const topR = Math.min(255, ((bodyColor >> 16) & 0xff) * 1.2);
+      const topG = Math.min(255, ((bodyColor >> 8) & 0xff) * 1.2);
+      const topB = Math.min(255, (bodyColor & 0xff) * 1.2);
+      const topColor = (Math.floor(topR) << 16) | (Math.floor(topG) << 8) | Math.floor(topB);
 
-    // ── CORE-STEP-08H+ FIXUP Blocker 5: Track animation indicators ──
-    // Blockout/procedural visualization: show track activity as small
-    // colored lines at the sides of the body. Active when moving/turning.
-    {
-      const trackAnim = getTrackAnimationState(vehicle);
-      if (trackAnim.isMoving || trackAnim.isTurningInPlace) {
+      drawProjectedBox(
+        g, cx, cy, halfW, halfH, BLOCKOUT_VEHICLE_BODY_Z,
+        this.offset, bodyAngle,
+        bodyColor, sideColor, topColor, BODY_OUTLINE_COLOR,
+        0.3, 0.75, 1.0,
+      );
+
+      // ── CORE-STEP-08H+ FIXUP Blocker 5: Track animation indicators ──
+      // Blockout/procedural visualization: show track activity as small
+      // colored lines at the sides of the body. Active when moving/turning.
+      {
+        const trackAnim = getTrackAnimationState(vehicle);
+        if (trackAnim.isMoving || trackAnim.isTurningInPlace) {
         // Track color: slightly different from body to indicate movement
         const trackColor = 0x888888;
         const trackAlpha = 0.6;
@@ -574,6 +668,7 @@ export class BlockoutVehicleRenderer {
         g.strokePath();
       }
     }
+    } // end else (legacy blockout cube path)
 
     // ── Mount point circle (debug, on top face) ──────────────────
     if (this.showMountPoints) {
@@ -852,6 +947,11 @@ export class BlockoutVehicleRenderer {
       g.destroy();
     }
     this.vehicleGraphics.clear();
+
+    for (const [, hullSprite] of this.vehicleHullSprites) {
+      hullSprite.destroy();
+    }
+    this.vehicleHullSprites.clear();
 
     for (const [, label] of this.debugLabels) {
       label.destroy();
