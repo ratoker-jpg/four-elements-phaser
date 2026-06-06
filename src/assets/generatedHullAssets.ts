@@ -309,29 +309,173 @@ export function resolveGeneratedHullKey(
 
 // ─── Pilot-tuned render constants ───────────────────────────────
 // These values are initial pilot estimates for the generated hull
-// sprites (512x512) and will need visual QA tuning per hull.
+// sprites (512x512). Kept for backward compatibility. The per-hull
+// visual profile system (below) overrides these when a profile exists.
 
 /**
  * Render scale for generated hull sprites.
+ * Default/fallback value. Per-hull profiles override this.
  * Pilot value: 512px sprites at the same tile footprint as the
  * legacy 256px sprites, so roughly half the scale factor.
- *
- * TODO: Visual QA — tune per hull if sizes differ significantly.
- * Generated hulls may appear at a different visual weight than
- * the legacy chassis sprites.
  */
 export const GENERATED_HULL_SCALE = 0.24;
 
 /**
  * Sprite origin X for generated hull sprites.
+ * Default/fallback value. Per-hull profiles override this.
  * 0.5 = horizontal center.
- * TODO: Visual QA — may need per-hull tuning.
  */
 export const GENERATED_HULL_ORIGIN_X = 0.5;
 
 /**
  * Sprite origin Y for generated hull sprites.
+ * Default/fallback value. Per-hull profiles override this.
  * 0.75 = 75% down from top, matching legacy hull origin.
- * TODO: Visual QA — may need per-hull tuning.
  */
 export const GENERATED_HULL_ORIGIN_Y = 0.75;
+
+// ─── Per-hull visual profiles (HULL-VISUAL-FIXUP-02) ───────────
+
+/**
+ * Per-hull visual tuning profile for generated hull sprites.
+ *
+ * Each 512×512 hull sprite has different proportions of actual art
+ * vs transparent canvas padding, so a single global scale/origin
+ * produces visual misalignment. This profile allows per-hull tuning
+ * of scale, origin, positional offset, and UI lift.
+ *
+ * Conservative tuning principle: keep hulls visually large enough
+ * to be impactful — do NOT shrink them down to match old blockout
+ * cube size. The cube was a placeholder, not the visual target.
+ */
+export interface GeneratedHullVisualProfile {
+  /** Scale factor for this hull's 512px sprite.
+   *  Conservative: keep near 0.24 unless visual QA demands change. */
+  scale: number;
+  /** Sprite origin X (0..1). 0.5 = horizontal center. */
+  originX: number;
+  /** Sprite origin Y (0..1). Where the ground contact point is
+   *  within the sprite canvas. Higher = anchor lower on canvas,
+   *  which pushes the sprite art up relative to the anchor. */
+  originY: number;
+  /** Screen-pixel offset X from body center. Fine-tunes horizontal
+   *  alignment with the selection ring / logical center. */
+  offsetX: number;
+  /** Screen-pixel offset Y from body center. Fine-tunes vertical
+   *  alignment with the ground marker / selection ring. */
+  offsetY: number;
+  /** Screen-pixel upward shift for HP bar, resource bars, and debug
+   *  label when generated hull is active. Lifts UI above the hull
+   *  sprite so it does not overlap the model. */
+  uiOffsetY: number;
+}
+
+/**
+ * Default visual profile. Used when no per-hull profile exists.
+ * Matches the original global constants for backward compatibility.
+ */
+export const DEFAULT_GENERATED_HULL_VISUAL_PROFILE: GeneratedHullVisualProfile = {
+  scale: GENERATED_HULL_SCALE,
+  originX: GENERATED_HULL_ORIGIN_X,
+  originY: GENERATED_HULL_ORIGIN_Y,
+  offsetX: 0,
+  offsetY: 0,
+  uiOffsetY: 0,
+};
+
+/**
+ * Per-hull visual profiles for generated hull sprites.
+ *
+ * HULL-VISUAL-FIXUP-02: Conservative tuning to center hulls on
+ * selection rings and lift UI above the sprite body.
+ *
+ * Scale: kept near 0.24 (the original global value). Slight
+ * variation per hull size class preserves visual weight difference.
+ *
+ * OriginY: shifted upward (lower value) from 0.75 so the sprite's
+ * ground contact point aligns better with the isometric ground
+ * marker. The 512×512 canvas has substantial transparent padding;
+ * moving originY up compensates for bottom padding.
+ *
+ * OffsetX/OffsetY: small pixel adjustments to align the hull visual
+ * center with the selection ring / logical cell center. Positive
+ * offsetY shifts the sprite downward on screen (toward camera),
+ * which can help when the originY adjustment isn't quite enough.
+ *
+ * uiOffsetY: estimated based on the hull's visual height
+ * (512 * scale ≈ 120px). The blockout HP bar Z was 0.45, which
+ * projects to ~27px above ground — well inside a 120px sprite.
+ * A uiOffsetY of ~40-50px lifts bars above most hulls.
+ * Larger hulls (titan, mammoth) need more lift.
+ */
+export const GENERATED_HULL_VISUAL_PROFILES: Record<GeneratedHullId, GeneratedHullVisualProfile> = {
+  wasp: {
+    scale: 0.22,
+    originX: 0.5,
+    originY: 0.72,
+    offsetX: 0,
+    offsetY: 2,
+    uiOffsetY: 40,
+  },
+  hornet: {
+    scale: 0.23,
+    originX: 0.5,
+    originY: 0.72,
+    offsetX: 0,
+    offsetY: 2,
+    uiOffsetY: 42,
+  },
+  hunter: {
+    scale: 0.24,
+    originX: 0.5,
+    originY: 0.73,
+    offsetX: 0,
+    offsetY: 1,
+    uiOffsetY: 44,
+  },
+  viking: {
+    scale: 0.24,
+    originX: 0.5,
+    originY: 0.73,
+    offsetX: 0,
+    offsetY: 1,
+    uiOffsetY: 44,
+  },
+  dictator: {
+    scale: 0.25,
+    originX: 0.5,
+    originY: 0.73,
+    offsetX: 0,
+    offsetY: 0,
+    uiOffsetY: 46,
+  },
+  titan: {
+    scale: 0.26,
+    originX: 0.5,
+    originY: 0.74,
+    offsetX: 0,
+    offsetY: 0,
+    uiOffsetY: 50,
+  },
+  mammoth: {
+    scale: 0.28,
+    originX: 0.5,
+    originY: 0.74,
+    offsetX: 0,
+    offsetY: -1,
+    uiOffsetY: 54,
+  },
+};
+
+/**
+ * Get the visual profile for a generated hull.
+ *
+ * Returns the per-hull profile if the hull ID is known,
+ * or the default profile as fallback.
+ *
+ * @param hull - Generated hull ID
+ * @returns Visual profile for this hull
+ */
+export function getGeneratedHullVisualProfile(hull: GeneratedHullId): GeneratedHullVisualProfile {
+  return GENERATED_HULL_VISUAL_PROFILES[hull] ?? DEFAULT_GENERATED_HULL_VISUAL_PROFILE;
+}

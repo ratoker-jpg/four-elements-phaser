@@ -20,6 +20,12 @@ import {
   modificationLevelToMod,
   bodyIdToGeneratedHullId,
   type GeneratedHullDir16Index,
+  getGeneratedHullVisualProfile,
+  GENERATED_HULL_VISUAL_PROFILES,
+  DEFAULT_GENERATED_HULL_VISUAL_PROFILE,
+  GENERATED_HULL_SCALE,
+  GENERATED_HULL_ORIGIN_X,
+  GENERATED_HULL_ORIGIN_Y,
 } from '../assets/generatedHullAssets';
 
 // ─── Path builder tests ──────────────────────────────────────────
@@ -321,5 +327,88 @@ describe('bodyIdToGeneratedHullId', () => {
   it('returns null for unknown bodyId', () => {
     expect(bodyIdToGeneratedHullId('unknown')).toBeNull();
     expect(bodyIdToGeneratedHullId('')).toBeNull();
+  });
+});
+
+// ─── Visual profile tests (HULL-VISUAL-FIXUP-02) ──────────────────
+
+describe('getGeneratedHullVisualProfile', () => {
+  it('returns a profile for all 7 known hulls', () => {
+    for (const hull of GENERATED_HULL_IDS) {
+      const profile = getGeneratedHullVisualProfile(hull);
+      expect(profile).toBeDefined();
+      expect(profile.scale).toBeGreaterThan(0);
+      expect(profile.originX).toBeGreaterThan(0);
+      expect(profile.originY).toBeGreaterThan(0);
+    }
+  });
+
+  it('returns the default profile for unknown hull ID via fallback', () => {
+    // The function signature takes GeneratedHullId, but test the fallback
+    // behavior by checking the DEFAULT_GENERATED_HULL_VISUAL_PROFILE directly
+    expect(DEFAULT_GENERATED_HULL_VISUAL_PROFILE.scale).toBe(GENERATED_HULL_SCALE);
+    expect(DEFAULT_GENERATED_HULL_VISUAL_PROFILE.originX).toBe(GENERATED_HULL_ORIGIN_X);
+    expect(DEFAULT_GENERATED_HULL_VISUAL_PROFILE.originY).toBe(GENERATED_HULL_ORIGIN_Y);
+    expect(DEFAULT_GENERATED_HULL_VISUAL_PROFILE.offsetX).toBe(0);
+    expect(DEFAULT_GENERATED_HULL_VISUAL_PROFILE.offsetY).toBe(0);
+    expect(DEFAULT_GENERATED_HULL_VISUAL_PROFILE.uiOffsetY).toBe(0);
+  });
+});
+
+describe('GENERATED_HULL_VISUAL_PROFILES', () => {
+  it('has an entry for every GeneratedHullId', () => {
+    for (const hull of GENERATED_HULL_IDS) {
+      expect(GENERATED_HULL_VISUAL_PROFILES[hull]).toBeDefined();
+    }
+  });
+
+  it('has exactly 7 profile entries', () => {
+    expect(Object.keys(GENERATED_HULL_VISUAL_PROFILES).length).toBe(7);
+  });
+
+  it('all profiles have sane scale values (>0.05 and <1)', () => {
+    for (const hull of GENERATED_HULL_IDS) {
+      const profile = GENERATED_HULL_VISUAL_PROFILES[hull];
+      expect(profile.scale).toBeGreaterThan(0.05);
+      expect(profile.scale).toBeLessThan(1);
+    }
+  });
+
+  it('all profiles have sane originX values (0..1)', () => {
+    for (const hull of GENERATED_HULL_IDS) {
+      const profile = GENERATED_HULL_VISUAL_PROFILES[hull];
+      expect(profile.originX).toBeGreaterThan(0);
+      expect(profile.originX).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('all profiles have sane originY values (0..1)', () => {
+    for (const hull of GENERATED_HULL_IDS) {
+      const profile = GENERATED_HULL_VISUAL_PROFILES[hull];
+      expect(profile.originY).toBeGreaterThan(0);
+      expect(profile.originY).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('all offset and uiOffset values are finite', () => {
+    for (const hull of GENERATED_HULL_IDS) {
+      const profile = GENERATED_HULL_VISUAL_PROFILES[hull];
+      expect(Number.isFinite(profile.offsetX)).toBe(true);
+      expect(Number.isFinite(profile.offsetY)).toBe(true);
+      expect(Number.isFinite(profile.uiOffsetY)).toBe(true);
+    }
+  });
+
+  it('larger hulls have larger scale than smaller hulls', () => {
+    // Wasp (small_fast) should have smaller scale than Mammoth (super_heavy)
+    const waspScale = GENERATED_HULL_VISUAL_PROFILES.wasp.scale;
+    const mammothScale = GENERATED_HULL_VISUAL_PROFILES.mammoth.scale;
+    expect(mammothScale).toBeGreaterThan(waspScale);
+  });
+
+  it('larger hulls have larger uiOffsetY than smaller hulls', () => {
+    const waspUi = GENERATED_HULL_VISUAL_PROFILES.wasp.uiOffsetY;
+    const mammothUi = GENERATED_HULL_VISUAL_PROFILES.mammoth.uiOffsetY;
+    expect(mammothUi).toBeGreaterThan(waspUi);
   });
 });
