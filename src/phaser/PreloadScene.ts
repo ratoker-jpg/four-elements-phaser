@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadGeneratedModularUnitAssets, loadGeneratedTerrainAndResourceAssets, loadGeneratedIndustrialTerrainAssets, loadGeneratedIndustrialFrameAssets, loadGeneratedIndustrialResourceAssets } from '../assets/runtimeGeneratedAssets';
 import { preloadGeneratedHullSet, DEFAULT_GENERATED_HULL_MOD, GENERATED_HULL_IDS, type GeneratedHullFaction } from '../assets/generatedHullAssets';
+import { preloadGeneratedTurretSet, DEFAULT_GENERATED_TURRET_MOD, GENERATED_TURRET_IDS, type GeneratedTurretFaction } from '../assets/generatedTurretAssets';
 import { isDevtoolsEnabled } from '../state/devCommands';
 
 /**
@@ -64,6 +65,20 @@ export class PreloadScene extends Phaser.Scene {
         }
       }
       console.log(`[PreloadScene] generated hull sets loaded: ${hullSetsLoaded} sets (${hullSetsLoaded * 16} PNGs, 7 hulls × 2 factions × m0).`);
+
+      // RUNTIME-TURRET-02: Load generated turret sets needed for arena.
+      // Arena scenario uses all 10 turrets × 2 factions (cyan, green) × m0.
+      // That's 10 × 2 × 16 = 320 PNGs — a small fraction of the full
+      // 2560-PNG matrix. Full matrix is addressable but NOT preloaded.
+      const arenaTurretFactions: GeneratedTurretFaction[] = ['cyan', 'green'];
+      let turretSetsLoaded = 0;
+      for (const turret of GENERATED_TURRET_IDS) {
+        for (const faction of arenaTurretFactions) {
+          preloadGeneratedTurretSet(this, turret, faction, DEFAULT_GENERATED_TURRET_MOD);
+          turretSetsLoaded++;
+        }
+      }
+      console.log(`[PreloadScene] generated turret sets loaded: ${turretSetsLoaded} sets (${turretSetsLoaded * 16} PNGs, 10 turrets × 2 factions × m0).`);
     } else {
       console.log('[PreloadScene] modularUnits loading skipped (standard mode).');
     }
