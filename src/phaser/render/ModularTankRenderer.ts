@@ -17,6 +17,19 @@ import {
   getWaspHullKey,
 } from '../../assets/modularUnitAssets';
 import {
+  getGeneratedHullTextureKey,
+  mapRuntimeDir8ToGeneratedDir16,
+  isGeneratedHullSetLoaded,
+  DEFAULT_GENERATED_HULL,
+  DEFAULT_GENERATED_HULL_MOD,
+  resolveGeneratedHullFaction,
+  GENERATED_HULL_SCALE,
+  GENERATED_HULL_ORIGIN_X,
+  GENERATED_HULL_ORIGIN_Y,
+  type GeneratedHullId,
+  type GeneratedHullMod,
+} from '../../assets/generatedHullAssets';
+import {
   MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
   MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR,
   tunerState,
@@ -38,7 +51,7 @@ const MODULAR_TANK_DEBUG = false;
 /** Render scale for the modular tank sprites (ARCH-05A: 25% reduction). */
 export const MODULAR_TANK_SCALE = MODULAR_RENDER_SCALE;
 
-/** Sprite origin for the hull image. */
+/** Sprite origin for the legacy hull image. */
 const MODULAR_TANK_HULL_ORIGIN = { x: 0.5, y: 0.75 };
 
 /** Sprite origin for the turret image. */
@@ -86,6 +99,15 @@ export class ModularTankRenderer {
   /** Faction of the modular tank, stored for texture swaps. */
   private faction: Faction = 'cyan';
 
+  /** Whether the current hull is using a generated hull sprite. */
+  private usingGeneratedHull: boolean = false;
+
+  /** Generated hull ID in use (only meaningful when usingGeneratedHull is true). */
+  private generatedHullId: GeneratedHullId = DEFAULT_GENERATED_HULL;
+
+  /** Generated hull mod in use (only meaningful when usingGeneratedHull is true). */
+  private generatedHullMod: GeneratedHullMod = DEFAULT_GENERATED_HULL_MOD;
+
   /** Debug overlay for tuner markers and text. */
   private debugOverlay: ModularTankDebugOverlay | null = null;
 
@@ -109,8 +131,38 @@ export class ModularTankRenderer {
     const bodyDir: ModularTankDirection = (entity.dir ?? 2) as ModularTankDirection;
     const turretDir: ModularTankDirection = (entity.turretDir ?? bodyDir) as ModularTankDirection;
 
-    // Hull texture uses bodyDir; turret texture uses turretDir.
-    const hullKey = getWaspHullKey(faction, bodyDir);
+    // Resolve generated hull faction (falls back to 'cyan')
+    const generatedFaction = resolveGeneratedHullFaction(faction);
+
+    // Check whether generated hull sprites are loaded for default hull/mod
+    const generatedLoaded = isGeneratedHullSetLoaded(
+      this.scene, DEFAULT_GENERATED_HULL, generatedFaction, DEFAULT_GENERATED_HULL_MOD,
+    );
+
+    this.usingGeneratedHull = generatedLoaded;
+    this.generatedHullId = DEFAULT_GENERATED_HULL;
+    this.generatedHullMod = DEFAULT_GENERATED_HULL_MOD;
+
+    // Hull texture: prefer generated hull if loaded, fallback to legacy
+    let hullKey: string;
+    let hullScale: number;
+    let hullOriginX: number;
+    let hullOriginY: number;
+
+    if (generatedLoaded) {
+      const dir16 = mapRuntimeDir8ToGeneratedDir16(bodyDir);
+      hullKey = getGeneratedHullTextureKey(DEFAULT_GENERATED_HULL, generatedFaction, DEFAULT_GENERATED_HULL_MOD, dir16);
+      hullScale = GENERATED_HULL_SCALE;
+      hullOriginX = GENERATED_HULL_ORIGIN_X;
+      hullOriginY = GENERATED_HULL_ORIGIN_Y;
+    } else {
+      hullKey = getWaspHullKey(faction, bodyDir);
+      hullScale = MODULAR_TANK_SCALE;
+      hullOriginX = MODULAR_TANK_HULL_ORIGIN.x;
+      hullOriginY = MODULAR_TANK_HULL_ORIGIN.y;
+    }
+
+    // Turret texture: unchanged — always legacy Smoky turret
     const turretKey = getSmokyTurretKey(faction, turretDir);
 
     const tileAnchor = tileToScreen(entity.tx, entity.ty);
@@ -128,8 +180,8 @@ export class ModularTankRenderer {
     });
 
     const hull = this.scene.add.image(hullWorldX, hullWorldY, hullKey);
-    hull.setScale(MODULAR_TANK_SCALE);
-    hull.setOrigin(MODULAR_TANK_HULL_ORIGIN.x, MODULAR_TANK_HULL_ORIGIN.y);
+    hull.setScale(hullScale);
+    hull.setOrigin(hullOriginX, hullOriginY);
     hull.setDepth(baseDepth);
 
     // Turret mount position = anchor + scaleTransform(turretMount[bodyDir]) (NOT turretDir!)
@@ -174,7 +226,8 @@ export class ModularTankRenderer {
     );
 
     if (!this.combatLogged) {
-      console.log('[ModularTankRenderer] Rendered modular combat: wasp_m0 + smoky_m0');
+      const hullSource = this.usingGeneratedHull ? 'generated' : 'legacy';
+      console.log(`[ModularTankRenderer] Rendered modular combat: wasp_m0 + smoky_m0 (hull: ${hullSource})`);
       this.combatLogged = true;
     }
   }
@@ -189,8 +242,20 @@ export class ModularTankRenderer {
     this.bodyDir = dir;
     tunerState.bodyDir = dir;
 
-    // Hull texture follows bodyDir
-    this.hull.setTexture(getWaspHullKey(this.faction, dir));
+    // Hull texture follows bodyDir — prefer generated if available
+    if (this.usingGeneratedHull) {
+      const dir16 = mapRuntimeDir8ToGeneratedDir16(dir);
+      const generatedFaction = resolveGeneratedHullFaction(this.faction);
+      const key = getGeneratedHullTextureKey(this.generatedHullId, generatedFaction, this.generatedHullMod, dir16);
+      // If the specific generated texture is missing, fall back to legacy
+      if (this.scene.textures.exists(key)) {
+        this.hull.setTexture(key);
+      } else {
+        this.hull.setTexture(getWaspHullKey(this.faction, dir));
+      }
+    } else {
+      this.hull.setTexture(getWaspHullKey(this.faction, dir));
+    }
 
     // Turret mount position changes because bodyDir changed
     this.updateVisuals();
