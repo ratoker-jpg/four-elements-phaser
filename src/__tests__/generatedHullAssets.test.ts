@@ -16,6 +16,9 @@ import {
   DEFAULT_GENERATED_HULL,
   DEFAULT_GENERATED_HULL_MOD,
   resolveGeneratedHullFaction,
+  bodyAngleToDir8,
+  modificationLevelToMod,
+  bodyIdToGeneratedHullId,
   type GeneratedHullDir16Index,
 } from '../assets/generatedHullAssets';
 
@@ -209,5 +212,114 @@ describe('generated hull constants', () => {
 
   it('total matrix size is 1792', () => {
     expect(GENERATED_HULL_IDS.length * GENERATED_HULL_FACTIONS.length * GENERATED_HULL_MODS.length * GENERATED_HULL_DIRECTIONS_16.length).toBe(1792);
+  });
+});
+
+// ─── Body angle to dir8 tests ────────────────────────────────────
+
+describe('bodyAngleToDir8', () => {
+  it('returns 0 (E) for angle 0', () => {
+    expect(bodyAngleToDir8(0)).toBe(0);
+  });
+
+  it('returns 1 (SE) for angle PI/4', () => {
+    expect(bodyAngleToDir8(Math.PI / 4)).toBe(1);
+  });
+
+  it('returns 2 (S) for angle PI/2', () => {
+    expect(bodyAngleToDir8(Math.PI / 2)).toBe(2);
+  });
+
+  it('returns 3 (SW) for angle 3*PI/4', () => {
+    expect(bodyAngleToDir8(3 * Math.PI / 4)).toBe(3);
+  });
+
+  it('returns 4 (W) for angle PI', () => {
+    expect(bodyAngleToDir8(Math.PI)).toBe(4);
+  });
+
+  it('returns 5 (NW) for angle -3*PI/4', () => {
+    expect(bodyAngleToDir8(-3 * Math.PI / 4)).toBe(5);
+  });
+
+  it('returns 6 (N) for angle -PI/2', () => {
+    expect(bodyAngleToDir8(-Math.PI / 2)).toBe(6);
+  });
+
+  it('returns 7 (NE) for angle -PI/4', () => {
+    expect(bodyAngleToDir8(-Math.PI / 4)).toBe(7);
+  });
+
+  it('returns 4 (W) for angle -PI (same as PI)', () => {
+    expect(bodyAngleToDir8(-Math.PI)).toBe(4);
+  });
+
+  it('handles angles beyond 2*PI by wrapping', () => {
+    expect(bodyAngleToDir8(2 * Math.PI)).toBe(0); // Same as 0
+    expect(bodyAngleToDir8(2 * Math.PI + Math.PI / 4)).toBe(1); // Same as PI/4
+  });
+
+  it('handles angles below -2*PI by wrapping', () => {
+    expect(bodyAngleToDir8(-2 * Math.PI)).toBe(0); // Same as 0
+  });
+
+  it('always returns 0-7 for any angle', () => {
+    for (let a = -4 * Math.PI; a <= 4 * Math.PI; a += 0.3) {
+      const dir = bodyAngleToDir8(a);
+      expect(dir).toBeGreaterThanOrEqual(0);
+      expect(dir).toBeLessThanOrEqual(7);
+    }
+  });
+});
+
+// ─── Modification level to mod tests ─────────────────────────────
+
+describe('modificationLevelToMod', () => {
+  it('maps 0 → m0', () => {
+    expect(modificationLevelToMod(0)).toBe('m0');
+  });
+
+  it('maps 1 → m1', () => {
+    expect(modificationLevelToMod(1)).toBe('m1');
+  });
+
+  it('maps 2 → m2', () => {
+    expect(modificationLevelToMod(2)).toBe('m2');
+  });
+
+  it('maps 3 → m3', () => {
+    expect(modificationLevelToMod(3)).toBe('m3');
+  });
+
+  it('clamps negative to m0', () => {
+    expect(modificationLevelToMod(-1)).toBe('m0');
+  });
+
+  it('clamps >3 to m3', () => {
+    expect(modificationLevelToMod(5)).toBe('m3');
+  });
+
+  it('rounds fractional values', () => {
+    expect(modificationLevelToMod(0.7)).toBe('m1');
+    expect(modificationLevelToMod(2.4)).toBe('m2');
+  });
+});
+
+// ─── BodyId to GeneratedHullId tests ─────────────────────────────
+
+describe('bodyIdToGeneratedHullId', () => {
+  it('returns valid hull ID for all 7 hulls', () => {
+    expect(bodyIdToGeneratedHullId('wasp')).toBe('wasp');
+    expect(bodyIdToGeneratedHullId('hornet')).toBe('hornet');
+    expect(bodyIdToGeneratedHullId('hunter')).toBe('hunter');
+    expect(bodyIdToGeneratedHullId('viking')).toBe('viking');
+    expect(bodyIdToGeneratedHullId('titan')).toBe('titan');
+    expect(bodyIdToGeneratedHullId('mammoth')).toBe('mammoth');
+    expect(bodyIdToGeneratedHullId('dictator')).toBe('dictator');
+  });
+
+  it('returns null for unknown bodyId', () => {
+    expect(bodyIdToGeneratedHullId('unknown')).toBeNull();
+    expect(bodyIdToGeneratedHullId('')).toBeNull();
   });
 });

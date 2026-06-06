@@ -222,6 +222,91 @@ export function resolveGeneratedHullFaction(faction?: Faction): GeneratedHullFac
   return 'cyan';
 }
 
+// ─── Body angle → direction helpers ─────────────────────────────
+
+/**
+ * Quantize a continuous body angle (radians, screen-space) to the
+ * nearest 8-direction index used by the runtime direction system.
+ *
+ * Screen-space convention (matching directionFromDelta):
+ *   E=0 (~0rad), SE=1 (~PI/4), S=2 (~PI/2), SW=3 (~3PI/4),
+ *   W=4 (~±PI), NW=5 (~-3PI/4), N=6 (~-PI/2), NE=7 (~-PI/4)
+ *
+ * Default (angle=0): returns 0 (E).
+ */
+export function bodyAngleToDir8(bodyAngle: number): number {
+  // Normalize to -PI..PI
+  let a = bodyAngle % (Math.PI * 2);
+  if (a > Math.PI) a -= Math.PI * 2;
+  if (a < -Math.PI) a += Math.PI * 2;
+
+  // Quantize to 8 sectors (PI/4 each)
+  const sector = Math.round(a / (Math.PI / 4));
+  const map: Record<number, number> = {
+    0: 0, 1: 1, 2: 2, 3: 3, 4: 4,
+    '-4': 4, '-3': 5, '-2': 6, '-1': 7,
+  };
+  return map[sector] ?? 2; // default S if out of range
+}
+
+/**
+ * Convert a blockout vehicle modificationLevel (0–3) to the
+ * generated hull mod string ('m0'–'m3').
+ *
+ * Clamps out-of-range values to the nearest valid mod.
+ */
+export function modificationLevelToMod(level: number): GeneratedHullMod {
+  const clamped = Math.min(Math.max(Math.round(level), 0), 3);
+  return GENERATED_HULL_MODS[clamped];
+}
+
+/**
+ * Check whether a BodyId string is a valid GeneratedHullId.
+ *
+ * This bridges the blockout vehicle bodyId (e.g. 'wasp', 'hornet')
+ * to the generated hull asset system. Returns the typed hull ID
+ * if valid, or null if the bodyId has no generated hull assets.
+ */
+export function bodyIdToGeneratedHullId(bodyId: string): GeneratedHullId | null {
+  if ((GENERATED_HULL_IDS as readonly string[]).includes(bodyId)) {
+    return bodyId as GeneratedHullId;
+  }
+  return null;
+}
+
+/**
+ * Resolve the best generated hull texture key for a blockout vehicle.
+ *
+ * Uses bodyId + faction + modificationLevel to determine the hull set,
+ * then uses bodyAngle to pick the correct 16-direction sprite.
+ *
+ * Returns the texture key if the texture exists in the scene's
+ * TextureManager, or null if no generated hull texture is available
+ * (either the bodyId is not supported, or the texture set hasn't
+ * been loaded).
+ */
+export function resolveGeneratedHullKey(
+  scene: Phaser.Scene,
+  bodyId: string,
+  faction: Faction,
+  modificationLevel: number,
+  bodyAngle: number,
+): string | null {
+  const hullId = bodyIdToGeneratedHullId(bodyId);
+  if (!hullId) return null;
+
+  const hullFaction = resolveGeneratedHullFaction(faction);
+  const mod = modificationLevelToMod(modificationLevel);
+  const dir8 = bodyAngleToDir8(bodyAngle);
+  const dir16 = mapRuntimeDir8ToGeneratedDir16(dir8);
+
+  const key = getGeneratedHullTextureKey(hullId, hullFaction, mod, dir16);
+  if (scene.textures.exists(key)) {
+    return key;
+  }
+  return null;
+}
+
 // ─── Pilot-tuned render constants ───────────────────────────────
 // These values are initial pilot estimates for the generated hull
 // sprites (512x512) and will need visual QA tuning per hull.
