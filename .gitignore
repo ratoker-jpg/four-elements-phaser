@@ -7,6 +7,9 @@ playwright-report
 test-results
 worklog.md
 
+# Telegram notification config (contains bot token — never commit)
+.telegram-notify.json
+
 # TankViewer source assets (local/uncommitted)
 art/source/tankviewer/
 
