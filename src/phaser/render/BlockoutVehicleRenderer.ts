@@ -10,7 +10,19 @@
  * - Range indicators use projected ground-plane circles
  * - Turret sits visually on top plane using basisZ
  *
- * Uses no PNG assets, no asset manifest, no texture loading.
+ * RUNTIME-TURRET-02: Generated turret sprite integration.
+ * - When a generated turret texture exists, it replaces the procedural
+ *   turret box + barrel line with a sprite Image.
+ * - When no generated turret texture exists (e.g. shaft, not loaded),
+ *   the procedural turret box + barrel line remains as fallback.
+ * - Turret sprites are layered above hull sprites / body.
+ * - HP/resource bars and UI overlays render above turret sprites
+ *   via a separate overlay Graphics object.
+ *
+ * Layering (bottom to top):
+ *   base Graphics (shadow, rings, body, turret) → hull sprite →
+ *   turret sprite → overlay Graphics (HP bars, indicators, aim line) → labels
+ *
  * Only active when devtools/arena mode is on.
  */
 
@@ -42,11 +54,23 @@ import {
   GENERATED_HULL_ORIGIN_X,
   GENERATED_HULL_ORIGIN_Y,
 } from '../../assets/generatedHullAssets';
+import {
+  resolveGeneratedTurretKey,
+  GENERATED_TURRET_SCALE,
+  GENERATED_TURRET_ORIGIN_X,
+  GENERATED_TURRET_ORIGIN_Y,
+} from '../../assets/generatedTurretAssets';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
 /** Depth for blockout vehicles (above terrain, coexisting with entities). */
 const BLOCKOUT_DEPTH = 120;
+
+/** Depth offset for generated turret sprites (above hull, below overlay). */
+const TURRET_SPRITE_DEPTH_OFFSET = 0.1;
+
+/** Depth offset for overlay Graphics (HP bars, indicators; above turret sprite). */
+const OVERLAY_DEPTH_OFFSET = 0.2;
 
 /** Mount point circle radius. */
 const MOUNT_POINT_RADIUS = 3;
@@ -158,11 +182,17 @@ export class BlockoutVehicleRenderer {
   private scene: Phaser.Scene;
   private offset: IsoPoint;
 
-  /** Graphics objects keyed by blockout vehicle ID. */
+  /** Base graphics objects keyed by blockout vehicle ID (shadow, rings, body, turret). */
   private vehicleGraphics = new Map<string, Phaser.GameObjects.Graphics>();
+
+  /** Overlay graphics objects keyed by blockout vehicle ID (HP bars, indicators, aim line). */
+  private vehicleOverlayGraphics = new Map<string, Phaser.GameObjects.Graphics>();
 
   /** Generated hull sprite images keyed by blockout vehicle ID. */
   private vehicleHullSprites = new Map<string, Phaser.GameObjects.Image>();
+
+  /** Generated turret sprite images keyed by blockout vehicle ID. */
+  private vehicleTurretSprites = new Map<string, Phaser.GameObjects.Image>();
 
   /** Debug text labels keyed by blockout vehicle ID. */
   private debugLabels = new Map<string, Phaser.GameObjects.Text>();
@@ -178,6 +208,12 @@ export class BlockoutVehicleRenderer {
 
   /** Whether blockout fallback has been logged (once). */
   private blockoutFallbackLogged = false;
+
+  /** Whether generated turret sprites have been logged (once). */
+  private generatedTurretLogged = false;
+
+  /** Whether blockout turret fallback has been logged (once). */
+  private blockoutTurretFallbackLogged = false;
 
   /** Currently selected vehicle ID (set from BlockoutVehicleInputController). */
   private _selectedVehicleId: string | null = null;
@@ -256,6 +292,13 @@ export class BlockoutVehicleRenderer {
         this.vehicleGraphics.set(vehicle.id, g);
       }
 
+      let og = this.vehicleOverlayGraphics.get(vehicle.id);
+      if (!og) {
+        og = this.scene.add.graphics();
+        og.setDepth(BLOCKOUT_DEPTH);
+        this.vehicleOverlayGraphics.set(vehicle.id, og);
+      }
+
       // Determine selection/hover state for this vehicle
       const isSelected = vehicle.id === this._selectedVehicleId;
       const isHovered = vehicle.id === this._hoveredVehicleId;
@@ -298,8 +341,48 @@ export class BlockoutVehicleRenderer {
         }
       }
 
-      // Redraw this vehicle (Graphics overlay; body box is skipped if hull sprite is used)
-      this.renderVehicle(g, vehicle, isSelected, isHovered, useGeneratedHull, hullSprite);
+      // Check for generated turret sprite
+      const turretKey = resolveGeneratedTurretKey(
+        this.scene, vehicle.weaponId, vehicle.faction,
+        vehicle.modificationLevel, vehicle.turretAngle,
+      );
+      const useGeneratedTurret = turretKey !== null;
+
+      // Manage turret sprite lifecycle
+      let turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+      if (useGeneratedTurret) {
+        if (!turretSprite) {
+          // Create turret sprite image
+          turretSprite = this.scene.add.image(0, 0, turretKey);
+          turretSprite.setScale(GENERATED_TURRET_SCALE);
+          turretSprite.setOrigin(GENERATED_TURRET_ORIGIN_X, GENERATED_TURRET_ORIGIN_Y);
+          turretSprite.setDepth(BLOCKOUT_DEPTH);
+          this.vehicleTurretSprites.set(vehicle.id, turretSprite);
+
+          if (!this.generatedTurretLogged) {
+            console.log(`[BlockoutVehicleRenderer] Using generated turret sprite for ${vehicle.bodyId}+${vehicle.weaponId} (${vehicle.faction}, m${vehicle.modificationLevel})`);
+            this.generatedTurretLogged = true;
+          }
+        } else {
+          // Update texture if direction changed
+          turretSprite.setTexture(turretKey);
+        }
+      } else {
+        // No generated turret — destroy sprite if it exists (fallback to procedural)
+        if (turretSprite) {
+          turretSprite.destroy();
+          this.vehicleTurretSprites.delete(vehicle.id);
+        }
+        if (!this.blockoutTurretFallbackLogged) {
+          console.log(`[BlockoutVehicleRenderer] No generated turret texture for ${vehicle.bodyId}+${vehicle.weaponId} — using blockout/procedural turret fallback`);
+          this.blockoutTurretFallbackLogged = true;
+        }
+      }
+
+      // Redraw this vehicle
+      // Base graphics: shadow, rings, body, turret box/barrel
+      // Overlay graphics: HP bars, resource bars, indicators, aim line, damage flash
+      this.renderVehicle(g, og, vehicle, isSelected, isHovered, useGeneratedHull, hullSprite, useGeneratedTurret, turretSprite);
 
       // Debug label
       let label = this.debugLabels.get(vehicle.id);
@@ -353,31 +436,38 @@ export class BlockoutVehicleRenderer {
       }
     }
 
-    // Apply depth to each vehicle's graphics object
+    // Apply depth to each vehicle's graphics objects
     for (const vehicle of vehicles) {
+      const orderIdx = depthOrder.get(vehicle.id);
+
+      // Base graphics: shadow, rings, body, procedural turret
       const g = this.vehicleGraphics.get(vehicle.id);
-      if (g) {
-        const orderIdx = depthOrder.get(vehicle.id);
-        if (orderIdx !== undefined) {
-          // Use BLOCKOUT_DEPTH as base + sorted order for isometric correctness
-          g.setDepth(BLOCKOUT_DEPTH + orderIdx);
-        }
+      if (g && orderIdx !== undefined) {
+        g.setDepth(BLOCKOUT_DEPTH + orderIdx);
       }
-      // Also update hull sprite depth to match
+
+      // Hull sprite: same depth as base graphics
       const hullSprite = this.vehicleHullSprites.get(vehicle.id);
-      if (hullSprite) {
-        const orderIdx = depthOrder.get(vehicle.id);
-        if (orderIdx !== undefined) {
-          hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx);
-        }
+      if (hullSprite && orderIdx !== undefined) {
+        hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx);
       }
-      // Also update debug label depth
+
+      // Turret sprite: above hull, below overlay
+      const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+      if (turretSprite && orderIdx !== undefined) {
+        turretSprite.setDepth(BLOCKOUT_DEPTH + orderIdx + TURRET_SPRITE_DEPTH_OFFSET);
+      }
+
+      // Overlay graphics: above turret sprite (HP bars, indicators, aim line)
+      const og = this.vehicleOverlayGraphics.get(vehicle.id);
+      if (og && orderIdx !== undefined) {
+        og.setDepth(BLOCKOUT_DEPTH + orderIdx + OVERLAY_DEPTH_OFFSET);
+      }
+
+      // Debug label: above everything
       const label = this.debugLabels.get(vehicle.id);
-      if (label) {
-        const orderIdx = depthOrder.get(vehicle.id);
-        if (orderIdx !== undefined) {
-          label.setDepth(BLOCKOUT_DEPTH + orderIdx + 1);
-        }
+      if (label && orderIdx !== undefined) {
+        label.setDepth(BLOCKOUT_DEPTH + orderIdx + 1);
       }
     }
 
@@ -388,10 +478,22 @@ export class BlockoutVehicleRenderer {
         this.vehicleGraphics.delete(id);
       }
     }
+    for (const [id, og] of this.vehicleOverlayGraphics) {
+      if (!activeIds.has(id)) {
+        og.destroy();
+        this.vehicleOverlayGraphics.delete(id);
+      }
+    }
     for (const [id, hullSprite] of this.vehicleHullSprites) {
       if (!activeIds.has(id)) {
         hullSprite.destroy();
         this.vehicleHullSprites.delete(id);
+      }
+    }
+    for (const [id, turretSprite] of this.vehicleTurretSprites) {
+      if (!activeIds.has(id)) {
+        turretSprite.destroy();
+        this.vehicleTurretSprites.delete(id);
       }
     }
     for (const [id, label] of this.debugLabels) {
@@ -406,13 +508,17 @@ export class BlockoutVehicleRenderer {
 
   private renderVehicle(
     g: Phaser.GameObjects.Graphics,
+    og: Phaser.GameObjects.Graphics,
     vehicle: BlockoutVehicleState,
     isSelected: boolean,
     isHovered: boolean,
     useGeneratedHull: boolean,
     hullSprite: Phaser.GameObjects.Image | undefined,
+    useGeneratedTurret: boolean,
+    turretSprite: Phaser.GameObjects.Image | undefined,
   ): void {
     g.clear();
+    og.clear();
 
     // ── Shared projected geometry (single source of truth) ────────
     const geom = computeProjectedBlockoutVehicleGeometry(vehicle, this.offset);
@@ -473,9 +579,7 @@ export class BlockoutVehicleRenderer {
       drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
 
       // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity
-      // Use screen-space arrow from body center along body angle
-      // Approximate ring edge in screen space for arrow placement
-      const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38; // approximate pixel distance
+      const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38;
       const arrowBaseX = cx + Math.cos(bodyAngle) * ringEdgeDist;
       const arrowBaseY = cy + Math.sin(bodyAngle) * ringEdgeDist;
       const arrowTipX = cx + Math.cos(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
@@ -512,33 +616,30 @@ export class BlockoutVehicleRenderer {
     if (isTargeted && !isSelected) {
       const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 600) / 600 * Math.PI * 2);
       const alpha = 0.5 + 0.5 * pulse;
-      g.lineStyle(2, 0xff4444, alpha); // Red targeting ring
+      g.lineStyle(2, 0xff4444, alpha);
       drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
 
-      // Small crosshair in center
       const crossSize = 0.12;
       g.lineStyle(1.5, 0xff4444, alpha);
       drawProjectedCrosshair(g, cx, cy, crossSize, this.offset);
     }
 
-    // ── CORE-STEP-07H+: Target-lock status indicator on attacker ──
-    // Show a small colored dot above the turret when this vehicle has an active target-lock
+    // ── CORE-STEP-07H+: Target-lock status indicator (overlay — above turret) ──
     if (vehicle.targetVehicleId && !vehicle.isDestroyed) {
-      // Target-lock active: show yellow dot above turret
       const lockIndicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.3;
       const tilePosLocal = unprojectScreenToGround(cx, cy, this.offset);
       const lockPos = projectWorldPoint(tilePosLocal.x, tilePosLocal.y, lockIndicatorZ, this.offset);
-      g.fillStyle(0xffcc00, 0.9); // Yellow target-lock indicator
-      g.fillCircle(lockPos.x, lockPos.y, 3);
+      og.fillStyle(0xffcc00, 0.9);
+      og.fillCircle(lockPos.x, lockPos.y, 3);
     }
 
-    // ── ARENA-03H+: Enemy team indicator (small red diamond above HP bar) ──
+    // ── ARENA-03H+: Enemy team indicator (overlay — above turret) ──
     if (vehicle.team === 'enemy' && !vehicle.isDestroyed) {
       const indicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.2;
       const indicatorPos = projectWorldPoint(tilePos.x, tilePos.y, indicatorZ, this.offset);
       const indicatorSize = 0.08;
-      g.lineStyle(1, 0xff4444, 0.7);
-      drawProjectedGroundDiamond(g, indicatorPos.x, indicatorPos.y, indicatorSize, this.offset);
+      og.lineStyle(1, 0xff4444, 0.7);
+      drawProjectedGroundDiamond(og, indicatorPos.x, indicatorPos.y, indicatorSize, this.offset);
     }
 
     // ── BLOCKOUT-07H+: Destroyed vehicle rendering ────────────────
@@ -547,8 +648,11 @@ export class BlockoutVehicleRenderer {
       if (hullSprite) {
         hullSprite.setVisible(false);
       }
+      // Hide turret sprite for destroyed vehicles
+      if (turretSprite) {
+        turretSprite.setVisible(false);
+      }
 
-      // Dimmed flat body on ground (no height)
       const cosA = Math.cos(bodyAngle);
       const sinA = Math.sin(bodyAngle);
       const localCorners = [
@@ -581,7 +685,6 @@ export class BlockoutVehicleRenderer {
       g.closePath();
       g.strokePath();
 
-      // X marker over body (use tile-unit size for consistency)
       g.lineStyle(2, 0xff0000, 0.8);
       const xSize = Math.min(halfW, halfH) * PROJ_TILE_W / 2 - 2;
       g.beginPath();
@@ -593,7 +696,6 @@ export class BlockoutVehicleRenderer {
       g.lineTo(cx - xSize, cy + xSize);
       g.strokePath();
 
-      // No turret/barrel or HP bar for destroyed vehicles
       return;
     }
 
@@ -603,21 +705,9 @@ export class BlockoutVehicleRenderer {
 
     // ── Hull rendering: generated sprite OR blockout cube ─────────
     if (useGeneratedHull && hullSprite) {
-      // ── Generated hull sprite path ─────────────────────────────
-      // Position the hull sprite at the body center (cx, cy).
-      // The sprite uses its own origin (GENERATED_HULL_ORIGIN_X/Y)
-      // and scale (GENERATED_HULL_SCALE) which are pilot-tuned.
-      // TODO: Visual QA — tune per hull if origin/scale is off.
       hullSprite.setPosition(cx, cy);
       hullSprite.setVisible(true);
-
-      // Body box is NOT drawn — the hull sprite replaces it.
-      // Track animation indicators are also skipped since the
-      // generated sprite should already include track detail.
     } else {
-      // ── Legacy blockout cube path ──────────────────────────────
-      // Pseudo-isometric body (base + side + top)
-      // Derive side color (darker than body) and top color (brighter)
       const sideR = ((bodyColor >> 16) & 0xff) * 0.6;
       const sideG = ((bodyColor >> 8) & 0xff) * 0.6;
       const sideB = (bodyColor & 0xff) * 0.6;
@@ -635,22 +725,17 @@ export class BlockoutVehicleRenderer {
         0.3, 0.75, 1.0,
       );
 
-      // ── CORE-STEP-08H+ FIXUP Blocker 5: Track animation indicators ──
-      // Blockout/procedural visualization: show track activity as small
-      // colored lines at the sides of the body. Active when moving/turning.
+      // Track animation indicators
       {
         const trackAnim = getTrackAnimationState(vehicle);
         if (trackAnim.isMoving || trackAnim.isTurningInPlace) {
-        // Track color: slightly different from body to indicate movement
         const trackColor = 0x888888;
         const trackAlpha = 0.6;
 
-        // Left track marker (perpendicular to body angle, left side)
         const perpAngle = bodyAngle - Math.PI / 2;
-        const trackOffset = halfH * 0.8; // Offset from center to track position
+        const trackOffset = halfH * 0.8;
         const trackLen = halfW * 0.3;
 
-        // Left track
         const ltx = cx + Math.cos(perpAngle) * trackOffset;
         const lty = cy + Math.sin(perpAngle) * trackOffset;
         g.lineStyle(2, trackColor, trackAlpha);
@@ -659,7 +744,6 @@ export class BlockoutVehicleRenderer {
         g.lineTo(ltx + Math.cos(bodyAngle) * trackLen, lty + Math.sin(bodyAngle) * trackLen);
         g.strokePath();
 
-        // Right track
         const rtx = cx - Math.cos(perpAngle) * trackOffset;
         const rty = cy - Math.sin(perpAngle) * trackOffset;
         g.beginPath();
@@ -672,7 +756,6 @@ export class BlockoutVehicleRenderer {
 
     // ── Mount point circle (debug, on top face) ──────────────────
     if (this.showMountPoints) {
-      // Place mount point on top face using shared mountTileOffset
       const mountScreen = projectWorldPoint(mountWorldX, mountWorldY, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
 
       g.fillStyle(MOUNT_POINT_COLOR, 0.7);
@@ -680,6 +763,95 @@ export class BlockoutVehicleRenderer {
       g.lineStyle(1, 0xff0000, 1);
       g.strokeCircle(mountScreen.x, mountScreen.y, MOUNT_POINT_RADIUS);
     }
+
+    // ── Turret + Barrel (on top face, using basisZ) ──────────────
+    {
+      const turretZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
+      const turretCosA = Math.cos(effectiveTurretAngle);
+      const turretSinA = Math.sin(effectiveTurretAngle);
+
+      if (useGeneratedTurret && turretSprite) {
+        // ── Generated turret sprite path ────────────────────────────
+        const turretMountScreen = projectWorldPoint(mountWorldX, mountWorldY, turretZ, this.offset);
+        turretSprite.setPosition(turretMountScreen.x, turretMountScreen.y);
+        turretSprite.setVisible(true);
+        // Procedural turret box and barrel are NOT drawn — the turret sprite replaces them.
+      } else {
+        // ── Legacy blockout/procedural turret path ─────────────────
+        const turretHeight = BLOCKOUT_TURRET_BOX_HEIGHT;
+        const turretLocalCorners = [
+          { lx: -turretHalfW, ly: -turretHalfH },
+          { lx: turretHalfW, ly: -turretHalfH },
+          { lx: turretHalfW, ly: turretHalfH },
+          { lx: -turretHalfW, ly: turretHalfH },
+        ];
+
+        const turretBasePts = turretLocalCorners.map(c => {
+          const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
+          const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
+          return projectWorldPoint(wx, wy, turretZ, this.offset);
+        });
+
+        const turretTopPts = turretLocalCorners.map(c => {
+          const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
+          const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
+          return projectWorldPoint(wx, wy, turretZ + turretHeight, this.offset);
+        });
+
+        // Turret side face (left)
+        g.fillStyle(turretColor, 0.7);
+        g.beginPath();
+        g.moveTo(turretBasePts[3].x, turretBasePts[3].y);
+        g.lineTo(turretBasePts[0].x, turretBasePts[0].y);
+        g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
+        g.lineTo(turretTopPts[3].x, turretTopPts[3].y);
+        g.closePath();
+        g.fillPath();
+
+        // Turret side face (right)
+        g.fillStyle(turretColor, 0.6);
+        g.beginPath();
+        g.moveTo(turretBasePts[0].x, turretBasePts[0].y);
+        g.lineTo(turretBasePts[1].x, turretBasePts[1].y);
+        g.lineTo(turretTopPts[1].x, turretTopPts[1].y);
+        g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
+        g.closePath();
+        g.fillPath();
+
+        // Turret top face
+        g.fillStyle(turretColor, 1);
+        g.beginPath();
+        g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
+        for (let i = 1; i < turretTopPts.length; i++) {
+          g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+        }
+        g.closePath();
+        g.fillPath();
+
+        // Turret outline
+        const turretOutlineWidth = isSelected ? 2 : 1;
+        g.lineStyle(turretOutlineWidth, TURRET_OUTLINE_COLOR, 1);
+        g.beginPath();
+        g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
+        for (let i = 1; i < turretTopPts.length; i++) {
+          g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+        }
+        g.closePath();
+        g.strokePath();
+
+        // Barrel line
+        g.lineStyle(barrelWidth, BARREL_COLOR, 1);
+        g.beginPath();
+        g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
+        g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
+        g.strokePath();
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // OVERLAY (og): HP bar, resource bars, damage flash, aim line
+    // These render ABOVE turret sprites via OVERLAY_DEPTH_OFFSET.
+    // ═══════════════════════════════════════════════════════════════
 
     // ── BLOCKOUT-07H+: HP bar above vehicle ──────────────────────
     {
@@ -692,8 +864,8 @@ export class BlockoutVehicleRenderer {
       const barY = hpBarPos.y - 4;
 
       // Background (dark)
-      g.fillStyle(0x333333, 0.7);
-      g.fillRect(hpBarPos.x - barWidth / 2, barY, barWidth, barHeight);
+      og.fillStyle(0x333333, 0.7);
+      og.fillRect(hpBarPos.x - barWidth / 2, barY, barWidth, barHeight);
 
       // HP fill (green > 60%, yellow 30-60%, red < 30%)
       let hpColor = 0x44ff44;
@@ -703,63 +875,57 @@ export class BlockoutVehicleRenderer {
         hpColor = 0xffcc00;
       }
       const fillWidth = barWidth * Math.max(0, hpRatio);
-      g.fillStyle(hpColor, 0.9);
-      g.fillRect(hpBarPos.x - barWidth / 2, barY, fillWidth, barHeight);
+      og.fillStyle(hpColor, 0.9);
+      og.fillRect(hpBarPos.x - barWidth / 2, barY, fillWidth, barHeight);
 
-      // ── CORE-STEP-08H+ FIXUP Blocker 5: Weapon resource bars ──
-      // Show canister charge bar, overheat heat gauge, magazine stock
-      // below the HP bar as thin colored bars. Blockout/procedural only.
+      // Weapon resource bars
       const rt = vehicle.weaponRuntime;
-      let resourceBarY = barY + barHeight + 1; // Just below HP bar
+      let resourceBarY = barY + barHeight + 1;
       const resourceBarHeight = 2;
 
-      // Canister bar (blue, Flamethrower/Freeze/Isida)
       if (rt.canister) {
-        const cfg = getWeaponConfig(vehicle.weaponId); // already imported
+        const cfg = getWeaponConfig(vehicle.weaponId);
         const capacity = cfg?.canister
           ? (cfg.canister.capacity[vehicle.modificationLevel] ?? cfg.canister.capacity[0])
           : 100;
         const canisterRatio = capacity > 0 ? rt.canister.current / capacity : 0;
-        const canisterColor = rt.canister.isEmpty ? 0xff4444 : 0x4488ff; // Red if empty, blue otherwise
+        const canisterColor = rt.canister.isEmpty ? 0xff4444 : 0x4488ff;
 
-        g.fillStyle(0x333333, 0.5);
-        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
-        g.fillStyle(canisterColor, 0.8);
-        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, canisterRatio), resourceBarHeight);
+        og.fillStyle(0x333333, 0.5);
+        og.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+        og.fillStyle(canisterColor, 0.8);
+        og.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, canisterRatio), resourceBarHeight);
         resourceBarY += resourceBarHeight + 1;
       }
 
-      // Overheat bar (orange/red, Vulcan)
       if (rt.overheat) {
         const cfg = getWeaponConfig(vehicle.weaponId);
         const maxHeat = cfg?.overheat?.maxHeat ?? 100;
         const heatRatio = maxHeat > 0 ? rt.overheat.heat / maxHeat : 0;
-        const heatColor = rt.overheat.isOverheated ? 0xff2222 : 0xff8800; // Red if overheated, orange otherwise
+        const heatColor = rt.overheat.isOverheated ? 0xff2222 : 0xff8800;
 
-        g.fillStyle(0x333333, 0.5);
-        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
-        g.fillStyle(heatColor, 0.8);
-        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, heatRatio), resourceBarHeight);
+        og.fillStyle(0x333333, 0.5);
+        og.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+        og.fillStyle(heatColor, 0.8);
+        og.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, heatRatio), resourceBarHeight);
         resourceBarY += resourceBarHeight + 1;
       }
 
-      // Magazine bar (yellow, Ricochet)
       if (rt.magazine) {
         const cfg = getWeaponConfig(vehicle.weaponId);
         const stockSize = cfg?.magazine
           ? (cfg.magazine.stockSize[vehicle.modificationLevel] ?? cfg.magazine.stockSize[0])
           : 5;
         const magRatio = stockSize > 0 ? rt.magazine.currentStock / stockSize : 0;
-        const magColor = rt.magazine.isEmpty ? 0xff4444 : 0xcccc00; // Red if empty, yellow otherwise
+        const magColor = rt.magazine.isEmpty ? 0xff4444 : 0xcccc00;
 
-        g.fillStyle(0x333333, 0.5);
-        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
-        g.fillStyle(magColor, 0.8);
-        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, magRatio), resourceBarHeight);
+        og.fillStyle(0x333333, 0.5);
+        og.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+        og.fillStyle(magColor, 0.8);
+        og.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, magRatio), resourceBarHeight);
         resourceBarY += resourceBarHeight + 1;
       }
 
-      // Drum reload indicator (purple, Hammer) — thin bar showing reload progress
       if (rt.drum && rt.drum.isReloading) {
         const cfg = getWeaponConfig(vehicle.weaponId);
         const reloadMs = cfg?.drum
@@ -769,13 +935,12 @@ export class BlockoutVehicleRenderer {
         const elapsed = nowMs - rt.drum.reloadStartedAt;
         const reloadRatio = reloadMs > 0 ? Math.min(1, elapsed / reloadMs) : 0;
 
-        g.fillStyle(0x333333, 0.5);
-        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
-        g.fillStyle(0xaa44ff, 0.8); // Purple for drum reload
-        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * reloadRatio, resourceBarHeight);
+        og.fillStyle(0x333333, 0.5);
+        og.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+        og.fillStyle(0xaa44ff, 0.8);
+        og.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * reloadRatio, resourceBarHeight);
       }
 
-      // Wind-up indicator (cyan charge, Railgun) — thin pulsing line while charging
       if (rt.windUp && rt.windUp.isCharging) {
         const cfg = getWeaponConfig(vehicle.weaponId);
         const windUpMs = cfg?.windUp
@@ -785,18 +950,17 @@ export class BlockoutVehicleRenderer {
         const elapsed = nowMs - rt.windUp.startedAt;
         const chargeRatio = windUpMs > 0 ? Math.min(1, elapsed / windUpMs) : 0;
 
-        g.fillStyle(0x333333, 0.5);
-        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
-        g.fillStyle(0x00ffff, 0.9); // Cyan for wind-up
-        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * chargeRatio, resourceBarHeight);
+        og.fillStyle(0x333333, 0.5);
+        og.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+        og.fillStyle(0x00ffff, 0.9);
+        og.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * chargeRatio, resourceBarHeight);
       }
     }
 
-    // ── BLOCKOUT-07H+: Damage flash ──────────────────────────────
+    // ── BLOCKOUT-07H+: Damage flash (overlay — above turret) ─────
     {
       const nowMs = this.scene.time.now;
       if (nowMs < vehicle.damageFlashUntil) {
-        // White overlay on top face
         const cosA = Math.cos(bodyAngle);
         const sinA = Math.sin(bodyAngle);
         const localCorners = [
@@ -810,132 +974,46 @@ export class BlockoutVehicleRenderer {
           const wy = tilePos.y + c.lx * sinA + c.ly * cosA;
           return projectWorldPoint(wx, wy, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
         });
-        g.fillStyle(0xffffff, 0.4);
-        g.beginPath();
-        g.moveTo(topPts[0].x, topPts[0].y);
+        og.fillStyle(0xffffff, 0.4);
+        og.beginPath();
+        og.moveTo(topPts[0].x, topPts[0].y);
         for (let i = 1; i < topPts.length; i++) {
-          g.lineTo(topPts[i].x, topPts[i].y);
+          og.lineTo(topPts[i].x, topPts[i].y);
         }
-        g.closePath();
-        g.fillPath();
+        og.closePath();
+        og.fillPath();
       }
     }
 
-    // ── Turret + Barrel (on top face, using basisZ) ──────────────
-    // Uses shared mountTileOffset from computeProjectedBlockoutVehicleGeometry
-    // to ensure visual mount equals logical mount used by input/fire/damage.
-    {
-      // Turret position on top face (shared mountWorldX/Y from above)
-      const turretZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
-
-      // Draw turret as small projected box on top face
-      const turretHeight = BLOCKOUT_TURRET_BOX_HEIGHT;
+    // ── Aim line for selected vehicle (overlay — above turret) ────
+    if (isSelected) {
+      og.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
+      const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
+      const aimStart = barrelTipScreen;
       const turretCosA = Math.cos(effectiveTurretAngle);
       const turretSinA = Math.sin(effectiveTurretAngle);
-      const turretLocalCorners = [
-        { lx: -turretHalfW, ly: -turretHalfH },
-        { lx: turretHalfW, ly: -turretHalfH },
-        { lx: turretHalfW, ly: turretHalfH },
-        { lx: -turretHalfW, ly: turretHalfH },
-      ];
+      const aimEndWorld = {
+        x: mountWorldX + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretCosA,
+        y: mountWorldY + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretSinA,
+      };
+      const aimEnd = projectWorldPoint(aimEndWorld.x, aimEndWorld.y, barrelZ, this.offset);
 
-      // Turret base (on body top)
-      const turretBasePts = turretLocalCorners.map(c => {
-        const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
-        const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
-        return projectWorldPoint(wx, wy, turretZ, this.offset);
-      });
+      const dashLen = AIM_LINE_DASH;
+      const gapLen = AIM_LINE_GAP;
+      const dx = aimEnd.x - aimStart.x;
+      const dy = aimEnd.y - aimStart.y;
+      const totalLen = Math.sqrt(dx * dx + dy * dy);
+      const ux = dx / totalLen;
+      const uy = dy / totalLen;
 
-      // Turret top
-      const turretTopPts = turretLocalCorners.map(c => {
-        const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
-        const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
-        return projectWorldPoint(wx, wy, turretZ + turretHeight, this.offset);
-      });
-
-      // Barrel screen positions from shared geometry (PROJECTION-01 fixup #3).
-      // No local recomputation — barrelTipScreen and barrelStartScreen are the
-      // single source of truth used by both renderer and fire/damage logic,
-      // including body recoil impulse, barrel Z, and all recoil offsets.
-
-      // Turret side face (left: base[3]→base[0] → top[3]→top[0])
-      g.fillStyle(turretColor, 0.7);
-      g.beginPath();
-      g.moveTo(turretBasePts[3].x, turretBasePts[3].y);
-      g.lineTo(turretBasePts[0].x, turretBasePts[0].y);
-      g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
-      g.lineTo(turretTopPts[3].x, turretTopPts[3].y);
-      g.closePath();
-      g.fillPath();
-
-      // Turret side face (right: base[0]→base[1] → top[0]→top[1])
-      g.fillStyle(turretColor, 0.6);
-      g.beginPath();
-      g.moveTo(turretBasePts[0].x, turretBasePts[0].y);
-      g.lineTo(turretBasePts[1].x, turretBasePts[1].y);
-      g.lineTo(turretTopPts[1].x, turretTopPts[1].y);
-      g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
-      g.closePath();
-      g.fillPath();
-
-      // Turret top face
-      g.fillStyle(turretColor, 1);
-      g.beginPath();
-      g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
-      for (let i = 1; i < turretTopPts.length; i++) {
-        g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
-      }
-      g.closePath();
-      g.fillPath();
-
-      // Turret outline
-      const turretOutlineWidth = isSelected ? 2 : 1;
-      g.lineStyle(turretOutlineWidth, TURRET_OUTLINE_COLOR, 1);
-      g.beginPath();
-      g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
-      for (let i = 1; i < turretTopPts.length; i++) {
-        g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
-      }
-      g.closePath();
-      g.strokePath();
-
-      // Barrel line (using shared barrelStartScreen/barrelTipScreen — PROJECTION-01 fixup #3)
-      g.lineStyle(barrelWidth, BARREL_COLOR, 1);
-      g.beginPath();
-      g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
-      g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
-      g.strokePath();
-
-      // ── Aim line for selected vehicle ─────────────────────────────
-      if (isSelected) {
-        g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
-        const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
-        // Aim starts at shared barrel tip (PROJECTION-01 fixup #3)
-        const aimStart = barrelTipScreen;
-        const aimEndWorld = {
-          x: mountWorldX + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretCosA,
-          y: mountWorldY + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretSinA,
-        };
-        const aimEnd = projectWorldPoint(aimEndWorld.x, aimEndWorld.y, barrelZ, this.offset);
-
-        // Draw dashed aim line
-        const dashLen = AIM_LINE_DASH;
-        const gapLen = AIM_LINE_GAP;
-        const dx = aimEnd.x - aimStart.x;
-        const dy = aimEnd.y - aimStart.y;
-        const totalLen = Math.sqrt(dx * dx + dy * dy);
-        const ux = dx / totalLen;
-        const uy = dy / totalLen;
-
-        let pos = 0;
-        while (pos < totalLen) {
-          const segEnd = Math.min(pos + dashLen, totalLen);
-          g.beginPath();
-          g.moveTo(aimStart.x + ux * pos, aimStart.y + uy * pos);
-          g.lineTo(aimStart.x + ux * segEnd, aimStart.y + uy * segEnd);
-          g.strokePath();
-          pos = segEnd + gapLen;
-        }
+      let pos = 0;
+      while (pos < totalLen) {
+        const segEnd = Math.min(pos + dashLen, totalLen);
+        og.beginPath();
+        og.moveTo(aimStart.x + ux * pos, aimStart.y + uy * pos);
+        og.lineTo(aimStart.x + ux * segEnd, aimStart.y + uy * segEnd);
+        og.strokePath();
+        pos = segEnd + gapLen;
       }
     }
   }
@@ -948,10 +1026,20 @@ export class BlockoutVehicleRenderer {
     }
     this.vehicleGraphics.clear();
 
+    for (const [, og] of this.vehicleOverlayGraphics) {
+      og.destroy();
+    }
+    this.vehicleOverlayGraphics.clear();
+
     for (const [, hullSprite] of this.vehicleHullSprites) {
       hullSprite.destroy();
     }
     this.vehicleHullSprites.clear();
+
+    for (const [, turretSprite] of this.vehicleTurretSprites) {
+      turretSprite.destroy();
+    }
+    this.vehicleTurretSprites.clear();
 
     for (const [, label] of this.debugLabels) {
       label.destroy();
