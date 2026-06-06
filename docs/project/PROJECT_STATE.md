@@ -3,7 +3,7 @@
 Status: operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Updated: 2026-06-04
+Updated: 2026-06-06
 
 ---
 
@@ -12,7 +12,8 @@ Updated: 2026-06-04
 ```text
 NO ACTIVE IMPLEMENTATION ROADMAP.
 CORE MECHANICS ROADMAP: CLOSED / IMPLEMENTED.
-NO NEW CODE WITHOUT A NEW ACCEPTED ROADMAP/AUDIT.
+HULL SPRITE ASSET INTEGRATION: MERGED / NEEDS MANUAL VISUAL QA.
+NO NEW CODE WITHOUT A NEW ACCEPTED ROADMAP/AUDIT OR EXPLICIT USER-APPROVED FIXUP.
 ```
 
 Closed / accepted cycles:
@@ -24,12 +25,15 @@ CAMERA-00 projection contract: IMPLEMENTED / ACCEPTED.
 PROJECTION-01 ground-plane retrofit: IMPLEMENTED / ACCEPTED.
 Arena Sandbox roadmap/audit cycle: CLOSED after PR #184.
 Core Mechanics roadmap/audit cycle: CLOSED after PR #207.
+Hull sprite asset upload/runtime hook: MERGED after PR #220, PR #221, PR #222.
 ```
 
 Current default action:
 
 ```text
-Choose the next product direction and create a new roadmap audit before implementation.
+Manual QA the generated hull sprites in Arena.
+If visuals are acceptable, plan turret sprite pipeline/audit next.
+If visuals are not acceptable, create a focused fixup for scale/origin/loading only.
 ```
 
 ---
@@ -56,6 +60,7 @@ docs/project/GLM_EXECUTOR_RULES.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
 docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
+docs/project/UNIT_ASSET_PIPELINE_ROADMAP_2026_06_04.md
 ```
 
 Closed roadmap/audit references:
@@ -115,6 +120,65 @@ The project currently has:
 - accepted weapon runtime mechanics for 10 weapons, excluding Shaft
 - body armor/damage reduction, body/weapon M0-M3 runtime scaling, mass-dependent recoil
 - minimal weapon runtime feedback/state display and track-animation hook
+- generated 512x512 hull sprite matrix in repo: 7 hulls × 4 factions × 4 mods × 16 directions = 1792 PNG
+- generated hull runtime registry/path builder in `src/assets/generatedHullAssets.ts`
+- Arena blockout renderer can display generated hull sprites instead of body cubes when loaded
+```
+
+---
+
+## Hull sprite integration state
+
+Merged PRs:
+
+```text
+PR #220 — ASSET: add generated hull sprite matrix
+PR #221 — HULL-ASSET-01: integrate generated hull sprite runtime loader
+PR #222 — HULL-ASSET-01-FIXUP: show generated hull sprites in arena
+```
+
+Current asset path:
+
+```text
+public/assets/units/hulls/<hull>/<faction>/<mod>/<hull>_<faction>_<mod>_hull_dirNN_<DIR>.png
+```
+
+Matrix:
+
+```text
+hulls: wasp, hornet, hunter, viking, titan, mammoth, dictator
+factions: cyan, green, yellow, purple
+mods: m0, m1, m2, m3
+directions: 16, dir00_E ... dir15_ENE
+```
+
+Runtime state:
+
+```text
+- full matrix is addressable by code
+- full matrix is NOT preloaded
+- Arena/devtools currently preloads 7 hulls × 2 factions (cyan, green) × m0 = 224 PNG
+- PR #222 changed Arena path: `BlockoutVehicleRenderer` now uses generated hull sprites if the texture exists
+- turret rendering remains blockout/procedural; generated turret sprites are not integrated yet
+```
+
+Manual QA needed:
+
+```text
+Open: http://localhost:5173/?devtools=1&arena=1
+Check:
+- generated hull sprites are visible instead of cube bodies
+- no 404 for `assets/units/hulls/...`
+- scale/origin are acceptable
+- labels, HP bars, selection rings, turret graphics still render
+- no attempt to load all 1792 PNGs at startup
+```
+
+Known risk:
+
+```text
+`GENERATED_HULL_SCALE` / origin values are pilot-tuned and may need visual fixup.
+Only cyan/green m0 hulls are preloaded for Arena currently; other factions/mods may fall back until loading/selection is expanded.
 ```
 
 ---
@@ -167,6 +231,7 @@ It has:
 - target-lock firing rules
 - runtime weapon resources and weapon-specific mechanics
 - real VFX/damage path for AI and player target-lock weapons
+- generated hull sprites can replace blockout body cubes when loaded
 ```
 
 Arena intentionally does not have:
@@ -178,6 +243,7 @@ Arena intentionally does not have:
 - strategic/economy/base-building AI
 - final combat balance
 - final art
+- generated turret sprites integrated
 ```
 
 Closure report:
@@ -214,14 +280,17 @@ Non-negotiables:
 ## Active next work
 
 ```text
-No active implementation roadmap.
+Manual QA of merged hull sprite integration.
+No broader implementation roadmap is active.
 ```
 
-Allowed next work:
+Allowed immediate work:
 
 ```text
-- manual QA of the closed Core Mechanics cycle
+- manual QA for PR #220/#221/#222 result
+- focused fixup if generated hull scale/origin/loading is wrong
 - docs cleanup
+- turret sprite pipeline audit/planning
 - next roadmap/audit planning
 - review of existing open PRs, if any
 ```
@@ -229,11 +298,12 @@ Allowed next work:
 Recommended next planning options:
 
 ```text
-1. Core Mechanics manual QA + polish/fix backlog audit.
-2. Normal Game player loop roadmap: onboarding, goals, victory/loss, progression.
-3. Production visual/world-space roadmap using CAMERA_PROJECTION_CONTRACT.md.
-4. Final asset integration roadmap for units/buildings/tanks.
-5. Arena combat balance/readability roadmap.
+1. Hull sprite manual QA + focused fixup if needed.
+2. Turret sprite pipeline audit and batch render scripts.
+3. Final asset integration roadmap for generated hulls + turrets.
+4. Core Mechanics manual QA + polish/fix backlog audit.
+5. Normal Game player loop roadmap: onboarding, goals, victory/loss, progression.
+6. Arena combat balance/readability roadmap.
 ```
 
 ---
@@ -249,6 +319,7 @@ Do not start implementation if:
 - visual/world-space work ignores CAMERA_PROJECTION_CONTRACT.md
 - task asks for Arena save/load/waves/strategic AI without new roadmap/audit
 - task asks for final assets without accepted asset/integration plan
+- task asks to preload all generated hull/turret frames at startup
 ```
 
 ---

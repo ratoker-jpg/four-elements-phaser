@@ -1,279 +1,296 @@
 # UNIT-ASSET-PIPELINE — 3DS TankViewer → Blender → Isometric Sprite Pipeline
 
-Status: roadmap — UNIT-ASSET-PIPELINE-01 (tooling/calibration PR)  
+Status: hull sprite matrix generated and runtime-connected; turret pipeline pending audit  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Date: 2026-06-04
+Date: 2026-06-06
 
 ---
 
 ## 1. Purpose
 
-Define the offline pipeline for converting TankViewer-style 3DS models and textures into 2D isometric sprite sheets compatible with the game's CAMERA_PROJECTION_CONTRACT.
+Define the offline pipeline for converting TankViewer-style 3DS models and textures into 2D isometric sprites compatible with the game's CAMERA_PROJECTION_CONTRACT.
 
-Source assets are TankViewer .3ds geometry files plus _details.png and _lightmap.jpg textures per hull/turret per M-level. The pipeline renders each asset at 16 directions on a transparent background through an orthographic camera that matches the game's fixed isometric projection, producing separate hull and turret sprite layers for runtime compositing.
-
----
-
-## 2. Source archive structure
-
-Source assets are placed locally under an ignored/staging path and are NOT committed to the repo:
-
-```
-art/source/tankviewer/
-├── data/
-│   ├── hulls/
-│   │   ├── wasp/                      # Wasp hull
-│   │   │   ├── wasp.3ds               # Geometry (may cover all M-levels)
-│   │   │   ├── wasp_0_details.png     # M0 diffuse/details texture
-│   │   │   ├── wasp_0_lightmap.jpg    # M0 lightmap/baked AO
-│   │   │   ├── wasp_1_details.png     # M1
-│   │   │   ├── wasp_1_lightmap.jpg
-│   │   │   ├── wasp_2_details.png     # M2
-│   │   │   ├── wasp_2_lightmap.jpg
-│   │   │   ├── wasp_3_details.png     # M3
-│   │   │   └── wasp_3_lightmap.jpg
-│   │   ├── hornet/
-│   │   ├── hunter/
-│   │   ├── viking/
-│   │   ├── dictator/
-│   │   ├── titan/
-│   │   └── mammoth/
-│   └── turrets/
-│       ├── smoky/
-│       │   ├── smoky.3ds              # Geometry (may cover all M-levels)
-│       │   ├── smoky_0_details.png
-│       │   ├── smoky_0_lightmap.jpg
-│       │   ├── smoky_1_details.png
-│       │   ├── smoky_1_lightmap.jpg
-│       │   ├── smoky_2_details.png
-│       │   ├── smoky_2_lightmap.jpg
-│       │   ├── smoky_3_details.png
-│       │   └── smoky_3_lightmap.jpg
-│       ├── firebird/                   # = Flamethrower in game naming
-│       ├── freeze/
-│       ├── isida/
-│       ├── railgun/
-│       ├── ricochet/
-│       ├── thunder/
-│       ├── twins/
-│       ├── vulcan/
-│       ├── hammer/
-│       └── striker/
-```
-
-Some .3ds files may use alternative naming (e.g. `wasp_0.3ds`, `wasp_hull.3ds`). The Blender import script handles this by scanning the directory for matching .3ds files.
+The project currently has the generated hull sprite matrix in the repo and a runtime path for Arena hull display. Turret sprites are not generated/integrated yet.
 
 ---
 
-## 3. M-level mapping
+## 2. Current merged hull state
+
+Merged PRs:
+
+```text
+PR #220 — ASSET: add generated hull sprite matrix
+PR #221 — HULL-ASSET-01: integrate generated hull sprite runtime loader
+PR #222 — HULL-ASSET-01-FIXUP: show generated hull sprites in arena
+```
+
+Runtime asset path:
+
+```text
+public/assets/units/hulls/<hull>/<faction>/<mod>/<hull>_<faction>_<mod>_hull_dirNN_<DIR>.png
+```
+
+Committed hull matrix:
+
+```text
+7 hulls × 4 factions × 4 mods × 16 directions = 1792 PNG
+hulls: wasp, hornet, hunter, viking, titan, mammoth, dictator
+factions: cyan, green, yellow, purple
+mods: m0, m1, m2, m3
+directions: dir00_E ... dir15_ENE
+```
+
+Runtime code:
+
+```text
+src/assets/generatedHullAssets.ts
+src/phaser/render/BlockoutVehicleRenderer.ts
+src/phaser/PreloadScene.ts
+```
+
+Important runtime rule:
+
+```text
+Full hull matrix is addressable by code but must NOT be preloaded at startup.
+Arena/devtools currently preloads 7 hulls × 2 factions (cyan, green) × m0 = 224 PNG.
+```
+
+Manual QA URL:
+
+```text
+http://localhost:5173/?devtools=1&arena=1
+```
+
+---
+
+## 3. Source archive structure
+
+Source assets remain local/off-repo unless explicitly approved.
+
+Hull source working folders used by Denis:
+
+```text
+C:\Users\Den\Desktop\Модели\3ds
+C:\Users\Den\Desktop\Модели\Мапы
+C:\Users\Den\Desktop\Модели\Blend
+```
+
+Turret source working folders currently being prepared by Denis:
+
+```text
+C:\Users\Den\Desktop\Модели\Пушки\3ds
+C:\Users\Den\Desktop\Модели\Пушки\Мапы
+C:\Users\Den\Desktop\Модели\Пушки\blend
+```
+
+Known clean turret example:
+
+```text
+C:\Users\Den\Desktop\Модели\Пушки\blend\Огнемет_м3.blend
+```
+
+---
+
+## 4. M-level mapping
 
 | Suffix | Game M-level | Description |
 |--------|-------------|-------------|
-| _0 | M0 | Base / stock modification |
-| _1 | M1 | First upgrade |
-| _2 | M2 | Second upgrade |
-| _3 | M3 | Maximum upgrade |
+| _0 / m0 / м0 | M0 | Base / stock modification |
+| _1 / m1 / м1 | M1 | First upgrade |
+| _2 / m2 / м2 | M2 | Second upgrade |
+| _3 / m3 / м3 | M3 | Maximum upgrade |
 
-Textures use the suffix pattern `{name}_{level}_details.png` and `{name}_{level}_lightmap.jpg`.
+Some TankViewer 3DS files cover multiple M-levels by suffix grouping:
 
----
-
-## 4. Firebird → Flamethrower mapping
-
-| Source asset name | Game weapon name | Notes |
-|------------------|-----------------|-------|
-| firebird | flamethrower | The TankViewer source calls it "firebird"; the game's weapon config uses "flamethrower" |
-
-All tooling and manifest generation must map `firebird` → `flamethrower` at the output path stage. The source archive is not renamed; mapping is applied during the render/manifest step.
+```text
+_0123 => M0/M1/M2/M3
+_012  => M0/M1/M2
+_01   => M0/M1
+_23   => M2/M3
+_2    => M2 only
+_3    => M3 only
+```
 
 ---
 
 ## 5. Direction model: 16 directions
 
-### Current state (8 directions)
+The generated asset pipeline uses 16 directions:
 
-The current blockout/modular system uses 8 directions (dir0–dir7) with a 45-degree step. The ModularTankRenderer and modularUnitAssets use the game's canonical `directionFromDelta()` convention:
+| Direction index | Name |
+|----------------|------|
+| dir00 | E |
+| dir01 | ESE |
+| dir02 | SE |
+| dir03 | SSE |
+| dir04 | S |
+| dir05 | SSW |
+| dir06 | SW |
+| dir07 | WSW |
+| dir08 | W |
+| dir09 | WNW |
+| dir10 | NW |
+| dir11 | NNW |
+| dir12 | N |
+| dir13 | NNE |
+| dir14 | NE |
+| dir15 | ENE |
 
+Current runtime still has 8-dir body logic in places. Hull runtime maps 8-dir body direction to 16-dir generated sprites using even indices:
+
+```text
+0 E  -> 00 E
+1 SE -> 02 SE
+2 S  -> 04 S
+3 SW -> 06 SW
+4 W  -> 08 W
+5 NW -> 10 NW
+6 N  -> 12 N
+7 NE -> 14 NE
 ```
-dir0 = facing E  (screen-right)
-dir1 = facing SE
-dir2 = facing S  (screen-down in isometric)
-dir3 = facing SW
-dir4 = facing W  (screen-left)
-dir5 = facing NW
-dir6 = facing N  (screen-up in isometric)
-dir7 = facing NE
-```
-
-### Target state (16 directions)
-
-The production pipeline uses 16 directions with a 22.5-degree step for smoother turret rotation. This is especially important for turrets that must aim precisely at targets.
-
-| Direction index | Name  | Angle (degrees) | Angle (radians) |
-|----------------|-------|-----------------|-----------------|
-| dir0           | E     | 0.0             | 0.0             |
-| dir1           | ESE   | 22.5            | π/8             |
-| dir2           | SE    | 45.0            | π/4             |
-| dir3           | SSE   | 67.5            | 3π/8            |
-| dir4           | S     | 90.0            | π/2             |
-| dir5           | SSW   | 112.5           | 5π/8            |
-| dir6           | SW    | 135.0           | 3π/4            |
-| dir7           | WSW   | 157.5           | 7π/8            |
-| dir8           | W     | 180.0           | π               |
-| dir9           | WNW   | 202.5           | 9π/8            |
-| dir10          | NW    | 225.0           | 5π/4            |
-| dir11          | NNW   | 247.5           | 11π/8           |
-| dir12          | N     | 270.0           | 3π/2            |
-| dir13          | NNE   | 292.5           | 13π/8           |
-| dir14          | NE    | 315.0           | 7π/4            |
-| dir15          | ENE   | 337.5           | 15π/8           |
-
-### Why 16 directions for the first pilot
-
-- Turrets require fine-grained aiming for target-lock behavior; 8 directions produce visible "stepping" when the turret tracks a moving target.
-- 16 directions give 22.5-degree resolution, which is visually acceptable for isometric tanks at typical zoom levels.
-- 32 directions would be smoother but double the sprite count (32 × 2 layers × 4 factions = 256 images per hull/turret combo).
-- 16 is the pragmatic balance between visual quality and asset footprint.
-- Hulls may still use 8 directions in production if visual testing shows no perceptible difference for body rotation; the pilot tests both at 16 to gather data.
 
 ---
 
-## 6. Camera calibration: CAMERA_PROJECTION_CONTRACT alignment
+## 6. Camera / projection constraints
 
-The game's projection contract defines:
+All visual/world-space/rendering/asset work must follow:
 
-```
-screen = origin + worldX * basisX + worldY * basisY + worldZ * basisZ
-
-basisX = { x: 38, y: 19 }   (TILE_W/2, TILE_H/2)
-basisY = { x: -38, y: 19 }  (-TILE_W/2, TILE_H/2)
-basisZ = { x: 0, y: -60 }   (vertical scale)
+```text
+docs/project/CAMERA_PROJECTION_CONTRACT.md
 ```
 
-### Blender camera setup
+Non-negotiables:
 
-To match this in Blender:
-
-1. **Orthographic camera** — no perspective distortion.
-2. **Camera rotation** — set to match the isometric angle implied by the basis vectors.
-3. **Scale** — calibrated so that 1 Blender unit = 1 tile unit, and rendered pixels match the basis projection.
-
-### Deriving Blender camera angles from basis vectors
-
-The isometric basis vectors imply:
-
-- basisX = {38, 19}: +X moves right and down on screen.
-- basisY = {-38, 19}: +Y moves left and down on screen.
-- The ground plane is a 2:1 diamond (76×38 tile).
-
-For a true isometric projection (equal foreshortening on all three axes), the camera azimuth and elevation are:
-- **Azimuth** (rotation around Z): 45 degrees
-- **Elevation** (angle from horizontal): arctan(1/√2) ≈ 35.264 degrees
-
-However, the game's basisZ = {0, -60} means the vertical scale is NOT standard isometric. The vertical stretch factor relative to the ground plane is:
-
-```
-verticalStretch = |basisZ.y| / (TILE_H / 2) = 60 / 19 ≈ 3.158
+```text
+- fixed isometric / axonometric 2.5D camera
+- no camera rotation
+- ground markers/rings/shadows/ranges/footprints projected onto ground plane
+- no top-down screen circles for ground-space concepts
 ```
 
-This means 1 world Z unit appears 3.158× taller than 1 ground-plane tile step in Y. The Blender camera must account for this by either:
-- Scaling the model's Z axis by the inverse (1/3.158) before rendering, OR
-- Using a non-uniform orthographic scale.
-
-The calibration script in `tools/blender/calibrate_camera.py` computes the exact camera parameters and validates them against the contract's projection formula.
+The offline Blender scripts used by Denis for hulls were manually validated visually and then integrated as static PNG assets. Any turret pipeline should keep the same 16-dir naming convention and transparent PNG output.
 
 ---
 
-## 7. Output folder structure
+## 7. Runtime output folder structure
 
-Rendered sprites are written to the art/generated/ directory (gitignored for mass output):
+Current committed hulls:
 
-```
-art/generated/
-├── tankviewer/
-│   ├── hulls/
-│   │   └── wasp/
-│   │       ├── m0/
-│   │       │   ├── wasp_m0_hull_cyan_dir0.png
-│   │       │   ├── wasp_m0_hull_cyan_dir1.png
-│   │       │   └── ... (16 dirs × 4 factions = 64 PNGs per hull per M-level)
-│   │       ├── m1/
-│   │       ├── m2/
-│   │       └── m3/
-│   └── turrets/
-│       └── smoky/
-│           ├── m0/
-│           │   ├── smoky_m0_turret_cyan_dir0.png
-│           │   └── ... (16 dirs × 4 factions = 64 PNGs per turret per M-level)
-│           ├── m1/
-│           ├── m2/
-│           └── m3/
-└── tankviewer_manifest.json
+```text
+public/assets/units/hulls/
+  wasp/
+    cyan/
+      m0/
+      m1/
+      m2/
+      m3/
+    green/
+    yellow/
+    purple/
+  hornet/
+  hunter/
+  viking/
+  titan/
+  mammoth/
+  dictator/
 ```
 
-After visual review and approval, selected sprites are copied to `public/assets/units/` following the existing naming convention, and the manifest is regenerated.
+Expected future turret path, pending audit/approval:
+
+```text
+public/assets/units/turrets/<turret>/<faction>/<mod>/<turret>_<faction>_<mod>_turret_dirNN_<DIR>.png
+```
+
+Do not commit generated turret assets until the turret source audit and render validation pass.
 
 ---
 
-## 8. Manifest schema (draft)
+## 8. Current asset loading policy
 
-```json
-{
-  "version": 2,
-  "pipeline": "tankviewer-blender-isometric",
-  "generatedAt": "2026-06-04T12:00:00.000Z",
-  "source": {
-    "archive": "art/source/tankviewer/data",
-    "mapping": {
-      "firebird": "flamethrower"
-    }
-  },
-  "entries": [
-    {
-      "key": "wasp_m0_hull_cyan_dir0",
-      "sourceModel": "art/source/tankviewer/data/hulls/wasp/wasp.3ds",
-      "sourceDiffuse": "art/source/tankviewer/data/hulls/wasp/wasp_0_details.png",
-      "sourceLightmap": "art/source/tankviewer/data/hulls/wasp/wasp_0_lightmap.jpg",
-      "outputPath": "art/generated/tankviewer/hulls/wasp/m0/wasp_m0_hull_cyan_dir0.png",
-      "runtimePath": "assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir0_0.png",
-      "category": "hull",
-      "hullName": "wasp",
-      "mLevel": 0,
-      "faction": "cyan",
-      "direction": 0,
-      "directionAngleDeg": 0.0,
-      "frameW": 256,
-      "frameH": 256
-    }
-  ]
-}
+```text
+- Do not preload the full hull matrix.
+- Do not preload future full turret matrix.
+- Use set-based loading: one hull/turret + faction + mod = 16 PNG.
+- Arena/devtools may preload a limited validation subset.
+- Normal game startup should remain conservative.
 ```
 
-This manifest is for pipeline tracking only. The runtime manifest (`GENERATED_ASSET_MANIFEST` in `src/assets/generatedAssetManifest.ts`) continues to be generated by `tools/process_art_assets.mjs` and only includes assets that have been approved and copied to `public/assets/`.
+---
+
+## 9. Turret pipeline status
+
+Current status:
+
+```text
+Turret source assets are being prepared locally.
+No generated turret sprite matrix is committed.
+No turret runtime integration exists.
+Next correct step: turret sprite pipeline audit before scripts/integration.
+```
+
+Known turret source complexity:
+
+```text
+- many 3DS files include helper objects such as Box/FMNT/Muzzle
+- helper objects should probably be hidden for sprite render, not destructively deleted
+- helper coordinates may become useful later for muzzle/socket metadata
+- different 3DS files cover different M-level groups
+- Firebird source name maps to Flamethrower in game naming
+```
+
+Known 3DS examples from local screenshots/context:
+
+```text
+Firebird_3.3ds
+Firebird_012.3ds
+Freeze_0123.3ds
+Hammer_0123.3ds
+Isida_0123.3ds
+Railgun_3.3ds
+Railgun_012.3ds
+Ricochet_0123.3ds
+Smoky_01.3ds
+Smoky_23.3ds
+Thunder_0123.3ds
+Twins_01.3ds
+Twins_2.3ds
+Twins_3.3ds
+Vulcan_B_0123.3ds
+```
+
+Before any turret script generation, run a local Codex/GLM audit over:
+
+```text
+C:\Users\Den\Desktop\Модели\Пушки\3ds
+C:\Users\Den\Desktop\Модели\Пушки\Мапы
+C:\Users\Den\Desktop\Модели\Пушки\blend\Огнемет_м3.blend
+```
+
+The audit must answer:
+
+```text
+- which 3DS files map to which turret/mods
+- which texture files exist by faction/mod
+- which objects are render meshes vs helper objects
+- which helper objects should be hidden and which should be preserved in manifest
+- whether one universal Blender script is safe
+- recommended render margin/offset for turret sprites
+```
 
 ---
 
-## 9. PR sequence
+## 10. Recommended next sequence
 
-| PR | Task | Scope |
-|----|------|-------|
-| UNIT-ASSET-PIPELINE-01 | Blender camera rig + 3DS import calibration | Tooling, scripts, docs. No runtime changes. No production sprites. |
-| UNIT-ASSET-PIPELINE-02 | Wasp M0 hull 16-dir render + hull manifest pilot | Render Wasp M0 hull 16 directions, cyan faction. Integrate into runtime manifest. |
-| UNIT-ASSET-PIPELINE-03 | Smoky M0 turret 16-dir render + turret manifest pilot | Render Smoky M0 turret 16 directions, cyan faction. Integrate with hull. |
-| UNIT-ASSET-PIPELINE-04 | ProductionTankRenderer (16-dir) | New renderer using 16-dir sprites, replacing ModularTankRenderer for production assets. |
-| UNIT-ASSET-PIPELINE-05+ | Additional hulls/turrets, all factions, M-levels | Expand to all hulls/turrets with validated pipeline. |
-
----
-
-## 10. Pilot target
-
-First pilot (UNIT-ASSET-PIPELINE-02/03):
-- **Hull**: Wasp M0
-- **Turret**: Smoky M0
-- **Directions**: 16
-- **Faction**: cyan first
-- **Purpose**: Validate end-to-end pipeline from .3ds import through Blender render to Phaser runtime display.
+```text
+1. Manual QA merged hull sprites in Arena.
+2. If needed, focused hull fixup: scale/origin/loading only.
+3. Run turret sprite pipeline audit.
+4. Generate turret Blender batch script(s).
+5. Render turret sprite matrix locally and audit counts/layout.
+6. Asset-only PR for turret sprites.
+7. Runtime integration PR for turret sprites with lazy/set-based loading.
+```
 
 ---
 
@@ -281,21 +298,22 @@ First pilot (UNIT-ASSET-PIPELINE-02/03):
 
 | Risk | Mitigation |
 |------|-----------|
-| .3ds import produces broken geometry in Blender | Test with Wasp M0 early; if 3DS import fails, consider alternative converters (Assimp, 3ds2obj) |
-| Camera calibration does not match contract within ±1 px | Calibration script reports exact error; if >1 px, adjust Blender camera scale empirically and document the offset |
-| Lightmap UV does not align with details texture | Test texture application on Wasp M0; may need UV remapping in Blender |
-| 16 directions produce too many assets (size/load time) | Measure first; if excessive, fall back to 8 for hulls and keep 16 for turrets only |
-| Source archive structure varies from expected | Import script uses flexible scanning with clear error messages |
-| Blender not available in CI | Pipeline is offline/manual; CI does not run Blender. Validation is typecheck + test + build only. |
+| Generated hull scale/origin off in Arena | Manual QA at `?devtools=1&arena=1`, then focused fixup only |
+| Too many assets loaded | Never preload full matrix; use set-based loading |
+| Turret helper objects rendered accidentally | Audit objects; hide helpers by name/pattern for render |
+| Muzzle/helper metadata lost | Preserve helper positions in local manifest/report rather than deleting blindly |
+| Turret 3DS group-to-mod mapping inconsistent | Audit each 3DS filename and texture matrix before scripts |
+| Firebird naming mismatch | Decide source `firebird` vs game `flamethrower` mapping before runtime path |
 
 ---
 
-## 12. Acceptance criteria for UNIT-ASSET-PIPELINE-01
+## 12. Acceptance criteria for current hull state
 
-1. Blender Python script can import a .3ds file and apply textures.
-2. Camera calibration script renders test markers and generates expected positions and a calibration image for manual comparison against CAMERA_PROJECTION_CONTRACT (±1 px target).
-3. Pipeline documentation describes the complete workflow.
-4. .gitignore updated for local source/output paths.
-5. Dry-run manifest/path planning test passes.
-6. No runtime code changes, no gameplay changes.
-7. `npm run typecheck && npm run test && npm run build && npm run qa:smoke` all pass.
+```text
+- `public/assets/units/hulls` contains 1792 PNG
+- generated hull path/key builders cover all hull/faction/mod/dir combinations
+- Arena displays generated hull sprites instead of cube bodies when loaded
+- no full matrix preload
+- `npm run typecheck`, `npm run test`, `npm run build`, `npm run qa:smoke` pass for runtime integration PRs
+- manual visual QA confirms scale/origin are acceptable or produces a focused fixup task
+```
