@@ -1,6 +1,6 @@
 # PLAYER_INTEGRATION_ROADMAP_2026_06_07.md
 
-Status: proposed current roadmap, docs-only  
+Status: accepted current roadmap, docs-only  
 Project: Four Elements Phaser  
 Main repo: `ratoker-jpg/four-elements-phaser`  
 Source audit: `FOUR ELEMENTS PHASER — NEXT ROADMAP SYSTEM AUDIT`, 2026-06-07  
@@ -12,7 +12,7 @@ Bot policy: enemy bot / strategic AI development is explicitly out of scope
 
 ## 1. Purpose
 
-This roadmap turns the accepted user wishlist and the GLM huge system audit into a current implementation direction.
+This roadmap turns the accepted user wishlist and the GLM huge system audit into the current implementation direction.
 
 The goal is not to build a larger engine. The goal is to make the existing engine and asset work visible and usable as a player-facing RTS loop.
 
@@ -61,12 +61,45 @@ This roadmap is based on:
    - generated hull matrix is merged after PR #220/#221/#222;
    - generated turret runtime integration is merged after PR #226/#228;
    - per-hull visual profile fixup is merged after PR #230;
-   - no broad active implementation roadmap existed before this document.
+   - Player Integration is the next accepted direction.
 ```
 
 ---
 
-## 3. Non-negotiables
+## 3. Execution model
+
+Use this workflow for this roadmap:
+
+```text
+1. Roadmap accepted.
+2. One detailed implementation audit across ALL roadmap steps.
+3. GPT/Denis review and accept the audit as the implementation sequence.
+4. Implement Step 1.
+5. Review PR.
+6. Merge.
+7. Implement Step 2.
+8. Continue sequentially.
+```
+
+Do not use this weaker pattern for the main roadmap:
+
+```text
+step audit -> implementation -> next step audit -> implementation
+```
+
+That pattern is only allowed if a later implementation step exposes a new unknown blocker that was not covered by the full roadmap implementation audit.
+
+Required next action before any implementation:
+
+```text
+PIM-IMPLEMENTATION-AUDIT-01 — Full implementation audit for all Player Integration High/High+ steps.
+```
+
+The audit must cover the implementation approach, files/functions, dependency order, risks, validation and manual QA for every track in this document. After the audit is accepted, GLM should implement the agreed steps one by one without re-auditing every step by default.
+
+---
+
+## 4. Non-negotiables
 
 ```text
 - No enemy bot / strategic AI / base-building AI in this roadmap.
@@ -86,9 +119,9 @@ This roadmap is based on:
 
 ---
 
-## 4. High / High+ policy
+## 5. High / High+ policy
 
-This roadmap intentionally contains only `High` and `High+` steps.
+This roadmap intentionally contains only `High` and `High+` implementation steps.
 
 ```text
 High+ = blocks visible player-facing progress or foundational architecture.
@@ -99,7 +132,32 @@ Anything below High is not part of the active roadmap. It may be recorded as bac
 
 ---
 
-## 5. Accepted tracks
+## 6. Pre-implementation audit gate
+
+| ID | Risk | Step | Scope |
+|---|---:|---|---|
+| PIM-IMPLEMENTATION-AUDIT-01 | High+ | Full implementation audit for all Player Integration steps | One large audit covering Tracks A-J, exact implementation order, files/functions, dependencies, risks, validation and manual QA. No code changes. |
+
+Expected audit output:
+
+```text
+- per-track implementation strategy;
+- exact PR sequence;
+- files/functions likely touched per step;
+- risk notes for every High/High+ step;
+- dependency graph;
+- what can run in parallel and what cannot;
+- where GLM is enough;
+- where Codex/Blender/local asset analysis may be needed;
+- validation commands per step;
+- manual QA checklist per step;
+- explicit out-of-scope list;
+- final implementation order for Step 1, Step 2, Step 3, etc.
+```
+
+---
+
+## 7. Accepted tracks
 
 ### Track A — Asset visibility across player modes
 
@@ -107,11 +165,10 @@ Goal: generated hulls and turrets must appear in Standard, Debug, and Arena thro
 
 | ID | Risk | Step | Scope |
 |---|---:|---|---|
-| PIM-A01 | High+ | Generated asset loading audit for Standard / Debug / Arena | Inspect mode entry points, preload policy, current texture availability, no code changes unless explicitly scoped. |
-| PIM-A02 | High+ | Bounded generated asset loading for public game flow | Load only the current faction / needed M0 sets / visible mode subset. No full matrix preload. |
-| PIM-A03 | High+ | Generated hull/turret rendering in Standard + Debug + Arena | Use the same renderer contract and fallback policy across modes. |
-| PIM-A04 | High | Public mode entry cleanup | Player should not need `?devtools=1&arena=1` to see the game’s current visual baseline. |
-| PIM-A05 | High | Asset loading validation docs/tests | Validate no 1792/2560 full preload, no 404, fallback remains safe. |
+| PIM-A01 | High+ | Bounded generated asset loading for public game flow | Load only the current faction / needed M0 sets / visible mode subset. No full matrix preload. |
+| PIM-A02 | High+ | Generated hull/turret rendering in Standard + Debug + Arena | Use the same renderer contract and fallback policy across modes. |
+| PIM-A03 | High | Public mode entry cleanup | Player should not need obscure query strings to see the game’s current visual baseline. |
+| PIM-A04 | High | Asset loading validation docs/tests | Validate no 1792/2560 full preload, no 404, fallback remains safe. |
 
 Acceptance:
 
@@ -176,6 +233,12 @@ Important: this track should not block the first playable tank production MVP. C
 | PIM-C03 | High | Profile validation tests | Validate finite/sane values for all current hulls/turrets. |
 | PIM-C04 | High | Blender pipeline metadata design | Define how future render scripts should output profile metadata. No mass asset rewrite in this step. |
 | PIM-C05 | High | Runtime migration plan from hardcoded values | Replace manual constants when metadata is trustworthy. |
+
+Potentially needs Codex/Blender/local analysis:
+
+```text
+PIM-C04 may need local PNG analysis or Blender render-script inspection to design automatic artBounds / groundAnchor / mountPoint extraction.
+```
 
 Do not do now:
 
@@ -333,11 +396,12 @@ Do not start Track J before Tracks A, D, E, F and G have usable MVP results.
 
 ---
 
-## 6. Recommended implementation order
+## 8. Recommended implementation order
 
-This is the accepted order unless Denis/GPT explicitly changes it.
+The final order must be confirmed by `PIM-IMPLEMENTATION-AUDIT-01` before implementation starts. Current roadmap-preferred order is:
 
 ```text
+0. PIM-IMPLEMENTATION-AUDIT-01 — full implementation audit across Tracks A-J
 1. Track A — asset visibility across player modes
 2. Track B — Russian names and unit identity
 3. Track F — movement feel / jerk reduction MVP
@@ -353,7 +417,8 @@ This is the accepted order unless Denis/GPT explicitly changes it.
 Rationale:
 
 ```text
-- First make current assets visible in real game flows.
+- First audit the implementation route for every step.
+- Then make current assets visible in real game flows.
 - Then make them understandable to the player.
 - Then fix the most visible feel issue: jerky movement.
 - Then make tanks producible.
@@ -363,31 +428,21 @@ Rationale:
 
 ---
 
-## 7. Current first implementation target
+## 9. Current next action
 
-First implementation target after this roadmap is accepted:
-
-```text
-PIM-A01 — Generated asset loading audit for Standard / Debug / Arena
-```
-
-Expected output:
+Before any implementation PR, run:
 
 ```text
-- exact current mode entry points;
-- exact current preload gates;
-- which assets load in Standard, Debug, Arena;
-- why public URL shows no generated tanks;
-- bounded loading proposal;
-- exact files/functions for PIM-A02/PIM-A03;
-- no code changes unless separately requested.
+PIM-IMPLEMENTATION-AUDIT-01 — Full implementation audit for all Player Integration High/High+ steps.
 ```
 
-If the audit is already obvious from code, GLM may still return a short scoped audit rather than a huge audit. The huge roadmap audit is already complete.
+This audit replaces separate per-step audits by default.
+
+Only after GPT/Denis accept that audit should implementation begin with the first agreed step.
 
 ---
 
-## 8. Out of scope for this roadmap
+## 10. Out of scope for this roadmap
 
 ```text
 - enemy bot / strategic AI;
@@ -405,7 +460,7 @@ If the audit is already obvious from code, GLM may still return a short scoped a
 
 ---
 
-## 9. Validation baseline
+## 11. Validation baseline
 
 Every implementation PR must run or explicitly report why it could not run:
 
@@ -427,7 +482,7 @@ Manual QA must be specific to the track.
 
 ---
 
-## 10. Manual QA baseline by track
+## 12. Manual QA baseline by track
 
 ```text
 Track A:
@@ -463,11 +518,12 @@ Track I:
 
 ---
 
-## 11. Docs to create during roadmap
+## 13. Docs to create during roadmap
 
 Create these only when their track starts, not all at once:
 
 ```text
+docs/project/PLAYER_INTEGRATION_IMPLEMENTATION_AUDIT_2026_06_07.md
 docs/project/ASSET_PROFILE_CONTRACT.md
 docs/project/BODY_WEAPON_PRODUCTION_MODEL.md
 docs/project/TIER_PROGRESSION_MODEL.md
@@ -479,7 +535,7 @@ docs/project/COMBAT_VFX_SPEC.md
 
 ---
 
-## 12. Final decision
+## 14. Final decision
 
 This roadmap accepts the GLM audit as source material, but trims it into a current High / High+ roadmap.
 
@@ -489,6 +545,12 @@ Current accepted direction:
 PLAYER-INTEGRATION-MVP
 ```
 
-Start with Track A. Do not start bot work. Do not expand scope without Denis/GPT approval.
+Required next action:
+
+```text
+PIM-IMPLEMENTATION-AUDIT-01 — full implementation audit across every roadmap step.
+```
+
+After that audit is accepted, implement the agreed steps sequentially. Do not start bot work. Do not expand scope without Denis/GPT approval.
 
 Audit complete. Ready for GPT review.

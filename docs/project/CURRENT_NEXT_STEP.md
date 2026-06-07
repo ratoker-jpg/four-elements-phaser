@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: Player Integration roadmap proposed / current next direction  
+Status: Player Integration roadmap accepted / full implementation audit next  
 Project: Four Elements Phaser  
 Date: 2026-06-07
 
@@ -25,6 +25,7 @@ Arena Sandbox Roadmap: CLOSED / IMPLEMENTED.
 Hull sprite asset integration: MERGED.
 Turret sprite runtime integration: MERGED.
 Hull visual profile fixup: MERGED.
+Player Integration roadmap: ACCEPTED.
 
 Current next direction:
 PLAYER-INTEGRATION-MVP.
@@ -36,14 +37,40 @@ docs/project/PLAYER_INTEGRATION_ROADMAP_2026_06_07.md
 Default next action:
 
 ```text
-Start with Track A from PLAYER_INTEGRATION_ROADMAP_2026_06_07.md:
-PIM-A01 — Generated asset loading audit for Standard / Debug / Arena.
+Run the required full roadmap implementation audit:
+PIM-IMPLEMENTATION-AUDIT-01 — Full implementation audit for all Player Integration High/High+ steps.
 
 Goal:
-Find exactly why generated hull/turret assets are visible in dev/Arena flows but not properly visible in the normal public game flow, then prepare a bounded loading/rendering implementation plan.
+Audit how to implement every accepted roadmap step before any implementation starts.
+The audit must cover Tracks A-J, exact implementation order, files/functions, dependencies, risks, validation, manual QA, and where GLM / Codex / Blender or local asset analysis may be needed.
 ```
 
-Do not start implementation without an explicit Denis/GPT task assignment and the accepted roadmap/audit context.
+Do not start implementation yet.
+
+---
+
+## Active roadmap execution model
+
+Use this flow:
+
+```text
+1. Roadmap accepted.
+2. One detailed implementation audit across ALL roadmap steps.
+3. GPT/Denis review and accept the audit as the implementation sequence.
+4. Implement Step 1.
+5. Review PR.
+6. Merge.
+7. Implement Step 2.
+8. Continue sequentially.
+```
+
+Do not use this as the default roadmap flow:
+
+```text
+step audit -> implementation -> next step audit -> implementation
+```
+
+Per-step audit is allowed only if a later implementation step exposes a new unknown blocker not covered by the full roadmap implementation audit.
 
 ---
 
@@ -138,6 +165,7 @@ TURRET-ASSET — COMPLETE FOR ARENA RUNTIME BASELINE
 ## Do not start by default
 
 ```text
+- implementation before PIM-IMPLEMENTATION-AUDIT-01 is accepted;
 - more Core Mechanics implementation by inertia;
 - broad Arena feature work outside PLAYER-INTEGRATION-MVP;
 - enemy bot / strategic AI;
