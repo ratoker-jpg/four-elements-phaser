@@ -863,8 +863,10 @@ The audit must be explicit, high+, and read-only.
 It must end with:
 
 ```text
-Жду Делай
+Аудит завершён. Готово для проверки GPT.
 ```
+
+> **Note:** Do not require the exact phrase "Жду Делай". Do not auto-start implementation after an audit. A new separate implementation prompt/task is required before any code changes.
 
 It must not edit code, docs, assets, tests, package files, or generated files.
 

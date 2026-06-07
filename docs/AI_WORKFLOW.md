@@ -52,17 +52,20 @@ Stage audit output must include:
 - validation;
 - manual QA;
 - rollback;
-- end with `Жду Делай`.
+- end with: `Аудит завершён. Готово для проверки GPT.`
+
+> **Note:** Do not require the exact phrase "Жду Делай". Do not auto-start implementation after an audit. A new separate implementation prompt/task is required before any code changes.
 
 ## When implementation can start
 
-Implementation starts only after explicit user approval:
+Implementation starts only from a separate explicit implementation task, after:
 
-```text
-Делай
-```
+1. Audit/report completes.
+2. GPT reviews the audit.
+3. Denis decides next action.
+4. A new implementation prompt/task is explicitly provided.
 
-No approval, no code.
+No separate implementation task — no code.
 
 ## Codex usage
 
