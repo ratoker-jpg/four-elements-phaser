@@ -10,23 +10,26 @@
  * The debug offset affects visual sprite position only — selection ring,
  * movement, pathfinding, turret aim are all unchanged.
  *
- * Hotkeys (Arena/devtools only, Wasp selected, placement calibration active):
- *   U        — toggle placement calibration mode on/off
- *   I        — move hull up by 1px
- *   K        — move hull down by 1px
- *   J        — move hull left by 1px
- *   L        — move hull right by 1px
- *   Shift+I  — move hull up by 5px
- *   Shift+K  — move hull down by 5px
- *   Shift+J  — move hull left by 5px
- *   Shift+L  — move hull right by 5px
- *   R or 0   — reset debug placement offset to (0, 0)
- *   P        — print current placement values to console
- *   O        — toggle placement overlay visibility
+ * Hotkeys (Arena/devtools only, Wasp selected):
+ *   Alt+U      — toggle placement calibration mode on/off
+ *                (Alt chord avoids conflict with upgrade hotkeys)
  *
- * These keys are chosen to avoid conflict with camera controls (Arrow keys).
- * While placement calibration is active, I/K/J/L are consumed and camera
- * does NOT pan.
+ *   When placement calibration is ACTIVE (after Alt+U):
+ *   I          — move hull up by 1px
+ *   K          — move hull down by 1px
+ *   J          — move hull left by 1px
+ *   L          — move hull right by 1px
+ *   Shift+I    — move hull up by 5px
+ *   Shift+K    — move hull down by 5px
+ *   Shift+J    — move hull left by 5px
+ *   Shift+L    — move hull right by 5px
+ *   R or 0     — reset debug placement offset to (0, 0)
+ *   P          — print current placement values to console
+ *   O          — toggle placement overlay visibility
+ *
+ * While placement calibration is active, all placement keys are consumed
+ * (preventDefault + stopPropagation) so camera does NOT pan and upgrade
+ * icons/effects do NOT trigger.
  *
  * No gameplay systems are changed.
  * No turret direction logic is affected.
@@ -171,6 +174,7 @@ export function buildPlacementOverlayText(params: PlacementOverlayParams): strin
   lines.push(`tile: (${params.tileX.toFixed(1)}, ${params.tileY.toFixed(1)})`);
   lines.push(`placement: ${params.isPlacementActive ? 'ACTIVE' : 'off'}`);
   lines.push(`keys: I/K/J/L=1px  Shift=5px  R/0=reset  P=print  O=overlay`);
+  lines.push(`toggle: Alt+U`);
 
   return lines.join('\n');
 }

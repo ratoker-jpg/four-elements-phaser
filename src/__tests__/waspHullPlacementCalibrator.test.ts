@@ -241,5 +241,6 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
     expect(text).toContain('R/0=reset');
     expect(text).toContain('P=print');
     expect(text).toContain('O=overlay');
+    expect(text).toContain('Alt+U');
   });
 });
