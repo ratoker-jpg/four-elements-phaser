@@ -60,6 +60,15 @@ import {
   buildCalibrationOverlayText,
   type CalibrationOverlayParams,
 } from '../debug/WaspHullDirectionCalibrator';
+import {
+  isPlacementActive as isWaspPlacementActive,
+  isPlacementOverlayVisible as isWaspPlacementOverlayVisible,
+  getDebugOffsetX as getWaspDebugOffsetX,
+  getDebugOffsetY as getWaspDebugOffsetY,
+  buildPlacementOverlayText,
+  type PlacementOverlayParams,
+} from '../debug/WaspHullPlacementCalibrator';
+import { projectGroundPoint } from '../../config/cameraProjectionContract';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -205,6 +214,9 @@ export class BlockoutVehicleRenderer {
 
   /** PIM-HULL-WASP-DIR-MAP-01: Calibration overlay text labels keyed by blockout vehicle ID. */
   private calibrationLabels = new Map<string, Phaser.GameObjects.Text>();
+
+  /** PIM-HULL-WASP-ANCHOR-MAP-01: Placement calibration overlay text labels. */
+  private placementLabels = new Map<string, Phaser.GameObjects.Text>();
 
   /** Whether generated hull sprites have been logged (once). */
   private generatedHullLogged = false;
@@ -448,6 +460,14 @@ export class BlockoutVehicleRenderer {
           calibLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 20);
         }
       }
+      // Also update placement label depth
+      const placeLabel = this.placementLabels.get(vehicle.id);
+      if (placeLabel) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          placeLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 25);
+        }
+      }
     }
 
     // Clean up stale vehicles
@@ -484,6 +504,13 @@ export class BlockoutVehicleRenderer {
         this.calibrationLabels.delete(id);
       }
     }
+    // Clean up stale placement labels
+    for (const [id, label] of this.placementLabels) {
+      if (!activeIds.has(id)) {
+        label.destroy();
+        this.placementLabels.delete(id);
+      }
+    }
   }
 
   // ─── Vehicle rendering ──────────────────────────────────────────
@@ -501,8 +528,20 @@ export class BlockoutVehicleRenderer {
       const bodyAngle = vehicle.bodyAngle;
       const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
       const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
-      const spriteCx = vehicle.worldX + this.offset.x + bodyImpulseX;
-      const spriteCy = vehicle.worldY + this.offset.y + bodyImpulseY;
+      let spriteCx = vehicle.worldX + this.offset.x + bodyImpulseX;
+      let spriteCy = vehicle.worldY + this.offset.y + bodyImpulseY;
+
+      // PIM-HULL-WASP-ANCHOR-MAP-01: Apply debug placement offset for Wasp
+      // Arena/devtools-only: this offset is purely visual, affects sprite position only.
+      // Selection ring, movement, pathfinding are all unchanged.
+      const isWaspPlacement = this.isDevtoolsActive()
+        && isWaspPlacementActive()
+        && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp';
+      if (isWaspPlacement) {
+        spriteCx += getWaspDebugOffsetX();
+        spriteCy += getWaspDebugOffsetY();
+      }
+
       hullSprite.setPosition(spriteCx, spriteCy);
       hullSprite.setDepth(BLOCKOUT_DEPTH); // will be updated by depth sorting below
     }
@@ -1112,6 +1151,121 @@ export class BlockoutVehicleRenderer {
         calibLabel.setVisible(false);
       }
     }
+
+    // ── PIM-HULL-WASP-ANCHOR-MAP-01: Placement calibration overlay (Wasp-only, dev-only) ──
+    // Arena/devtools-only: placement overlay is explicitly gated to devtools mode.
+    // Must never render in Standard gameplay.
+    if (this.isDevtoolsActive() && isWaspPlacementActive() && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp') {
+      // ── Draw projected ground cell diamond (1×1 tile) ──
+      const cellZ = 0;
+      const cellPos = projectWorldPoint(tilePos.x, tilePos.y, cellZ, this.offset);
+
+      // Draw a full 1×1 tile diamond centered on the vehicle's ground position
+      g.lineStyle(1.5, 0xffff00, 0.7); // yellow tile outline
+      const tileHalfSize = 0.5; // half-tile in world units
+      const tileCorners = [
+        projectGroundPoint(tilePos.x, tilePos.y - tileHalfSize, this.offset), // top corner
+        projectGroundPoint(tilePos.x + tileHalfSize, tilePos.y, this.offset), // right corner
+        projectGroundPoint(tilePos.x, tilePos.y + tileHalfSize, this.offset), // bottom corner
+        projectGroundPoint(tilePos.x - tileHalfSize, tilePos.y, this.offset), // left corner
+      ];
+      g.beginPath();
+      g.moveTo(tileCorners[0].x, tileCorners[0].y);
+      for (let i = 1; i < tileCorners.length; i++) {
+        g.lineTo(tileCorners[i].x, tileCorners[i].y);
+      }
+      g.closePath();
+      g.strokePath();
+
+      // ── Draw selection ring center marker (magenta cross) ──
+      g.lineStyle(2, 0xff00ff, 0.9); // magenta = selection ring center
+      const ringCrossArm = 8;
+      g.beginPath();
+      g.moveTo(cx - ringCrossArm, cy);
+      g.lineTo(cx + ringCrossArm, cy);
+      g.strokePath();
+      g.beginPath();
+      g.moveTo(cx, cy - ringCrossArm);
+      g.lineTo(cx, cy + ringCrossArm);
+      g.strokePath();
+
+      // ── Draw hull sprite anchor marker (cyan cross) ──
+      // This is where the hull sprite's origin is actually placed.
+      const hullSpriteObj = this.vehicleHullSprites.get(vehicle.id);
+      if (hullSpriteObj) {
+        const hullCx = hullSpriteObj.x;
+        const hullCy = hullSpriteObj.y;
+        g.lineStyle(2, 0x00ffff, 0.9); // cyan = hull anchor
+        g.beginPath();
+        g.moveTo(hullCx - ringCrossArm, hullCy);
+        g.lineTo(hullCx + ringCrossArm, hullCy);
+        g.strokePath();
+        g.beginPath();
+        g.moveTo(hullCx, hullCy - ringCrossArm);
+        g.lineTo(hullCx, hullCy + ringCrossArm);
+        g.strokePath();
+
+        // ── Draw hull sprite bounds outline (green) ──
+        // Show the visible bounds of the hull sprite so Denis can see the full footprint
+        g.lineStyle(1, 0x00ff00, 0.5); // green = hull bounds
+        const bounds = hullSpriteObj.getBounds();
+        g.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      }
+
+      // ── Draw ground anchor dot (white) ──
+      g.fillStyle(0xffffff, 0.9);
+      g.fillCircle(cellPos.x, cellPos.y, 3);
+
+      // ── Placement overlay text ──
+      const placeZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.8;
+      const placePos = projectWorldPoint(tilePos.x, tilePos.y, placeZ, this.offset);
+
+      const diag = resolveHullDirectionDiagnostic(
+        vehicle.bodyId, vehicle.faction,
+        vehicle.modificationLevel, vehicle.bodyAngle,
+      );
+
+      const overlayParams: PlacementOverlayParams = {
+        hullId: diag.hullId,
+        vehicleId: vehicle.id,
+        bodyId: vehicle.bodyId,
+        offsetX: getWaspDebugOffsetX(),
+        offsetY: getWaspDebugOffsetY(),
+        scale: GENERATED_HULL_SCALE,
+        originX: GENERATED_HULL_ORIGIN_X,
+        originY: GENERATED_HULL_ORIGIN_Y,
+        textureKey: diag.textureKey,
+        tileX: tilePos.x,
+        tileY: tilePos.y,
+        isPlacementActive: true,
+      };
+
+      const placeText = buildPlacementOverlayText(overlayParams);
+      const showPlaceLabel = isWaspPlacementOverlayVisible();
+
+      let placeLabel = this.placementLabels.get(vehicle.id);
+      if (!placeLabel) {
+        placeLabel = this.scene.add.text(0, 0, '', {
+          fontSize: '9px',
+          fontFamily: 'monospace',
+          color: '#ff99ff',
+          backgroundColor: '#000000dd',
+          padding: { x: 4, y: 2 },
+        });
+        placeLabel.setDepth(BLOCKOUT_DEPTH + 25);
+        placeLabel.setOrigin(0.5, 0); // anchor top-center, positioned above vehicle
+        this.placementLabels.set(vehicle.id, placeLabel);
+      }
+      placeLabel.setText(placeText);
+      placeLabel.setPosition(placePos.x, placePos.y - 80); // above the direction calibrator label
+      placeLabel.setVisible(showPlaceLabel);
+    } else {
+      // Hide placement label for non-Wasp or when placement calibration is off
+      const placeLabel = this.placementLabels.get(vehicle.id);
+      if (placeLabel) {
+        placeLabel.setVisible(false);
+      }
+    }
   }
 
   // ─── Cleanup ─────────────────────────────────────────────────────
@@ -1141,5 +1295,10 @@ export class BlockoutVehicleRenderer {
       label.destroy();
     }
     this.calibrationLabels.clear();
+
+    for (const [, label] of this.placementLabels) {
+      label.destroy();
+    }
+    this.placementLabels.clear();
   }
 }

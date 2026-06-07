@@ -65,6 +65,18 @@ import {
   getDir16Label,
 } from '../debug/WaspHullDirectionCalibrator';
 import { resolveHullDirectionDiagnostic } from '../../assets/generatedHullAssets';
+import {
+  togglePlacement as toggleWaspPlacement,
+  isPlacementActive as isWaspPlacementActiveCheck,
+  adjustUp as waspPlaceAdjustUp,
+  adjustDown as waspPlaceAdjustDown,
+  adjustLeft as waspPlaceAdjustLeft,
+  adjustRight as waspPlaceAdjustRight,
+  resetPlacementOffset as waspPlaceResetOffset,
+  togglePlacementOverlay as waspPlaceToggleOverlay,
+  printPlacementValues as waspPlacePrintValues,
+  installPlacementConsoleAPI as waspPlaceInstallConsole,
+} from '../debug/WaspHullPlacementCalibrator';
 
 // Turret size constants are now in blockoutVehicleGeometry (BLOCKOUT_TURRET_SIZE_W/H).
 // No local duplicate needed — computeProjectedBarrelTipScreen uses the shared source.
@@ -826,6 +838,83 @@ export class BlockoutVehicleInputController {
           if (event.code === 'Semicolon') {
             const v = waspCalibToggleOverlay();
             console.log(`[WaspCalibrator] Overlay ${v ? 'ON' : 'OFF'}`);
+            return;
+          }
+        }
+      }
+
+      // ── PIM-HULL-WASP-ANCHOR-MAP-01: Wasp placement calibration hotkeys ──
+      // Arena/devtools-only: explicit gate prevents any placement action
+      // in Standard gameplay. Requires Alt modifier for all placement keys.
+      // Alt + Arrow = adjust 1px, Shift+Alt + Arrow = adjust 5px
+      // Alt + 0 = reset, Alt + P = print, Alt + O = toggle overlay
+      if (event.altKey && selected && selected.bodyId === 'wasp') {
+        // Alt + U — toggle placement calibration mode
+        if (event.code === 'KeyU') {
+          event.preventDefault(); // prevent browser Alt behavior
+          const newState = toggleWaspPlacement();
+          if (newState) {
+            waspPlaceInstallConsole();
+            console.log('[WaspPlacement] Placement calibration ACTIVATED. Alt+Arrow to adjust, Alt+0 to reset, Alt+P to print.');
+          } else {
+            console.log('[WaspPlacement] Placement calibration DEACTIVATED. Offset reset to (0, 0).');
+          }
+          return;
+        }
+
+        // Placement hotkeys only work when placement calibration is active
+        if (isWaspPlacementActiveCheck()) {
+          const large = event.shiftKey;
+
+          // Alt + ArrowUp — adjust up
+          if (event.code === 'ArrowUp') {
+            event.preventDefault();
+            const o = waspPlaceAdjustUp(large);
+            console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
+            return;
+          }
+
+          // Alt + ArrowDown — adjust down
+          if (event.code === 'ArrowDown') {
+            event.preventDefault();
+            const o = waspPlaceAdjustDown(large);
+            console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
+            return;
+          }
+
+          // Alt + ArrowLeft — adjust left
+          if (event.code === 'ArrowLeft') {
+            event.preventDefault();
+            const o = waspPlaceAdjustLeft(large);
+            console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
+            return;
+          }
+
+          // Alt + ArrowRight — adjust right
+          if (event.code === 'ArrowRight') {
+            event.preventDefault();
+            const o = waspPlaceAdjustRight(large);
+            console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
+            return;
+          }
+
+          // Alt + 0 — reset placement offset
+          if (event.code === 'Digit0') {
+            waspPlaceResetOffset();
+            console.log('[WaspPlacement] Offset reset to (0, 0)');
+            return;
+          }
+
+          // Alt + P — print placement values
+          if (event.code === 'KeyP') {
+            waspPlacePrintValues();
+            return;
+          }
+
+          // Alt + O — toggle placement overlay visibility
+          if (event.code === 'KeyO') {
+            const v = waspPlaceToggleOverlay();
+            console.log(`[WaspPlacement] Overlay ${v ? 'ON' : 'OFF'}`);
             return;
           }
         }
