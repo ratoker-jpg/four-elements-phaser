@@ -312,6 +312,35 @@ describe('WASP_HULL_VISUAL_DIR16_REMAP', () => {
     }
     expect(targets.size).toBe(16);
   });
+
+  it('applies reflection around E-W axis: visual = (16 - logical) % 16', () => {
+    // This is the mathematical formula derived from the TDSLoader coordinate
+    // conversion and the web exporter's rotation math.
+    for (let i = 0; i <= 15; i++) {
+      const expected = (16 - i) % 16;
+      expect(WASP_HULL_VISUAL_DIR16_REMAP[i]).toBe(expected);
+    }
+  });
+
+  it('E and W are on the reflection axis (unchanged)', () => {
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[0]).toBe(0);  // E → E
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[8]).toBe(8);  // W → W
+  });
+
+  it('N and S are swapped (PNG labels are inverted)', () => {
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[4]).toBe(12);  // S → N (PNG labeled "N" shows S)
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[12]).toBe(4);  // N → S (PNG labeled "S" shows N)
+  });
+
+  it('SE and NE are swapped', () => {
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[2]).toBe(14);  // SE → NE
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[14]).toBe(2);  // NE → SE
+  });
+
+  it('SW and NW are swapped', () => {
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[6]).toBe(10);  // SW → NW
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[10]).toBe(6);  // NW → SW
+  });
 });
 
 // ─── applyHullVisualDir16Remap tests (PIM-HULL-WASP-DIR-01) ──────
@@ -332,6 +361,22 @@ describe('applyHullVisualDir16Remap', () => {
       expect(applyHullVisualDir16Remap('hunter', i as GeneratedHullDir16Index)).toBe(i);
       expect(applyHullVisualDir16Remap('titan', i as GeneratedHullDir16Index)).toBe(i);
     }
+  });
+
+  it('Wasp: logical S (4) maps to visual N (12) — PNG labeled "N" shows S', () => {
+    expect(applyHullVisualDir16Remap('wasp', 4)).toBe(12);
+  });
+
+  it('Wasp: logical N (12) maps to visual S (4) — PNG labeled "S" shows N', () => {
+    expect(applyHullVisualDir16Remap('wasp', 12)).toBe(4);
+  });
+
+  it('Wasp: logical E (0) is unchanged — E is on reflection axis', () => {
+    expect(applyHullVisualDir16Remap('wasp', 0)).toBe(0);
+  });
+
+  it('Wasp: logical SE (2) maps to visual NE (14)', () => {
+    expect(applyHullVisualDir16Remap('wasp', 2)).toBe(14);
   });
 });
 
