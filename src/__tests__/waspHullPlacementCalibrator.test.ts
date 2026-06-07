@@ -204,6 +204,8 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
     expect(text).toContain('dx=12');
     expect(text).toContain('dy=-8');
     expect(text).toContain('I/K/J/L');
+    expect(text).toContain('Screen buttons');
+    expect(text).toContain('RESET');
   });
 
   it('buildPlacementOverlayText shows offset when placement is off', () => {

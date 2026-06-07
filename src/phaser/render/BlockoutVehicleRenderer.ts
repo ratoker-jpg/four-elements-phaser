@@ -68,6 +68,7 @@ import {
   buildPlacementOverlayText,
   type PlacementOverlayParams,
 } from '../debug/WaspHullPlacementCalibrator';
+import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibrationPanel';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -217,6 +218,9 @@ export class BlockoutVehicleRenderer {
 
   /** PIM-HULL-WASP-ANCHOR-MAP-01: Placement calibration overlay text labels. */
   private placementLabels = new Map<string, Phaser.GameObjects.Text>();
+
+  /** PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: On-screen calibration button panel. */
+  private placementPanel: WaspPlacementCalibrationPanel | null = null;
 
   /** Whether generated hull sprites have been logged (once). */
   private generatedHullLogged = false;
@@ -510,6 +514,18 @@ export class BlockoutVehicleRenderer {
         label.destroy();
         this.placementLabels.delete(id);
       }
+    }
+
+    // ── PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: On-screen calibration button panel ──
+    // Show the panel when placement calibration is active for a Wasp, hide otherwise.
+    // The panel is a fixed-screen UI that doesn't move with vehicles.
+    const shouldShowPanel = this.isDevtoolsActive() && isWaspPlacementActive();
+    if (shouldShowPanel && !this.placementPanel) {
+      this.placementPanel = new WaspPlacementCalibrationPanel(this.scene);
+      this.placementPanel.show();
+    } else if (!shouldShowPanel && this.placementPanel) {
+      this.placementPanel.hide();
+      this.placementPanel = null;
     }
   }
 
@@ -1284,6 +1300,12 @@ export class BlockoutVehicleRenderer {
       label.destroy();
     }
     this.placementLabels.clear();
+
+    // PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: Clean up calibration button panel
+    if (this.placementPanel) {
+      this.placementPanel.destroy();
+      this.placementPanel = null;
+    }
 
   }
 }

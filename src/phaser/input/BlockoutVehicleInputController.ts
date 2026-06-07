@@ -418,6 +418,11 @@ export class BlockoutVehicleInputController {
     // changes and movement commands from the same click events.
     if (this.isPlacementActive()) return;
 
+    // PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: Also suppress pointer tracking when
+    // Wasp placement calibration is active. Calibration panel button clicks must
+    // not leak into gameplay (no unit selection, no camera pan, no upgrades).
+    if (isWaspPlacementActiveCheck()) return;
+
     if (pointer.leftButtonDown()) {
       this._lmbClickStartX = pointer.x;
       this._lmbClickStartY = pointer.y;
@@ -437,7 +442,9 @@ export class BlockoutVehicleInputController {
     // Even though pointerdown is also guarded, we must guard here too because
     // a pointerdown that started before placement mode was entered could have
     // its pointerup fire during placement mode.
-    const placementActive = this.isPlacementActive();
+    // PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: Also suppress when Wasp placement
+    // calibration is active (button clicks must not select vehicles or set targets).
+    const placementActive = this.isPlacementActive() || isWaspPlacementActiveCheck();
 
     // Handle LMB click
     if (this._lmbButtonDown) {

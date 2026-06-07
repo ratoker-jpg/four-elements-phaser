@@ -31,6 +31,12 @@
  * (preventDefault + stopPropagation) so camera does NOT pan and upgrade
  * icons/effects do NOT trigger.
  *
+ * On-screen buttons are also provided (WaspPlacementCalibrationPanel)
+ * for mouse/touch calibration. Buttons call the same placement functions
+ * as keyboard controls and are large enough for GitHub Pages preview.
+ * Button clicks do not leak into gameplay (input controller guards
+ * pointer events when placement calibration is active).
+ *
  * No gameplay systems are changed.
  * No turret direction logic is affected.
  * No movement/pathfinding logic is affected.
@@ -179,6 +185,7 @@ export function buildPlacementOverlayText(params: PlacementOverlayParams): strin
   const dy = Math.round(params.turretScreenY - params.hullScreenY);
   lines.push(`hull → turret: dx=${dx} dy=${dy}`);
   lines.push(`Alt+U=toggle  I/K/J/L=move  R=reset  P=print  O=overlay`);
+  lines.push(`Screen buttons: ↑↓←→ / x5 / RESET / PRINT`);
 
   return lines.join('\n');
 }
