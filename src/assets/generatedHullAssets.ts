@@ -275,52 +275,71 @@ export function bodyIdToGeneratedHullId(bodyId: string): GeneratedHullId | null 
 }
 
 // ─── Wasp-only visual direction calibration ────────────────────────
-// PIM-HULL-WASP-DIR-01: Wasp-only calibration MVP.
+// PIM-HULL-WASP-DIR-01: Wasp-only calibration.
 // Do not generalize without visual validation.
 //
-// The generated Wasp hull PNGs were rendered by the Three.js web exporter
-// (tools/tankviewer-web-exporter/) with a ROTATION_OFFSET_DEG that may not
-// perfectly match the Wasp 3DS model's default facing direction. This table
-// compensates by remapping the "logical" dir16 (what the code thinks the
-// direction should be) to the "visual" dir16 (which PNG actually shows the
-// hull facing that screen direction).
+// ROOT CAUSE: The Wasp 3DS model faces +Y in 3DS coordinates (Z-up system).
+// After TDSLoader conversion to Three.js (Y-up), this becomes -Z in Three.js
+// world space, which maps to "North" in the game's isometric screen space.
+// The web exporter uses ROTATION_OFFSET_DEG = -90° to align dir0 with East,
+// but the rotation step direction is inverted: increasing dir index rotates
+// the model from E → NE → N (CCW on screen) instead of the expected
+// E → SE → S (CW on screen). This causes the PNG labeled "N" to show the
+// tank facing South, the PNG labeled "S" to show the tank facing North, etc.
+//
+// This table compensates by remapping the "logical" dir16 (what the direction
+// pipeline produces from bodyAngle) to the "visual" dir16 (which PNG actually
+// shows the hull facing the correct screen direction).
+//
+// The mathematical derivation: for a model facing -Z (North) in Three.js,
+// PNG dirN was rendered with rotation.y = -90° + N×22.5°. The actual screen
+// direction of the tank in PNG dirN is (16 - N) % 16 in the dir16 system.
+// Therefore, to display logical direction D, we must look up PNG (16-D) % 16.
 //
 // Key = logical dir16 (what bodyAngleToDir8 → mapRuntimeDir8ToGeneratedDir16 produces)
 // Value = visual dir16 (which Wasp PNG to actually display)
 //
-// IMPORTANT: This is a Wasp-only empirical calibration.
+// IMPORTANT: This is a Wasp-only empirical calibration derived from the
+// Three.js TDSLoader coordinate conversion and the web exporter's rotation math.
 // Other hulls may need different remap tables once visually validated.
 // Turrets are NOT affected by this remap.
 
 /**
- * Wasp-only calibration MVP. Do not generalize without visual validation.
+ * Wasp-only direction calibration. Do not generalize without visual validation.
  *
  * Maps logical dir16 → visual dir16 for Wasp generated hull sprites.
  * Logical dir16 is what the direction pipeline produces from bodyAngle.
  * Visual dir16 is which PNG actually shows the Wasp facing the correct
  * screen direction to match the yellow heading/movement arrow.
  *
- * Current calibration: identity (no remap) — needs manual QA to determine
- * the actual offset. The debug overlay (BlockoutVehicleRenderer) will show
- * both raw and remapped dir16 so the correct mapping can be determined.
+ * Calibration: reflection around the E-W axis (formula: visual = (16 - logical) % 16).
+ *
+ * Derivation: The Wasp 3DS model faces +Y in 3DS coords (Z-up). After TDSLoader
+ * conversion to Three.js (Y-up), this becomes -Z = "North" on the isometric screen.
+ * The web exporter's ROTATION_OFFSET_DEG = -90° correctly aligns dir0=E, but
+ * increasing dir index rotates the model in the opposite direction from what the
+ * compass labels expect (CCW on screen vs CW). The PNG labeled "S" (dir4) shows
+ * the tank facing North; the PNG labeled "N" (dir12) shows it facing South.
+ * This remap selects the PNG whose actual visual direction matches the logical
+ * direction the vehicle is heading.
  */
 export const WASP_HULL_VISUAL_DIR16_REMAP: Record<number, number> = {
-  0: 0,   // E  → E  (identity — calibrate with manual QA)
-  1: 1,   // ESE → ESE
-  2: 2,   // SE  → SE
-  3: 3,   // SSE → SSE
-  4: 4,   // S   → S
-  5: 5,   // SSW → SSW
-  6: 6,   // SW  → SW
-  7: 7,   // WSW → WSW
-  8: 8,   // W   → W
-  9: 9,   // WNW → WNW
-  10: 10, // NW  → NW
-  11: 11, // NNW → NNW
-  12: 12, // N   → N
-  13: 13, // NNE → NNE
-  14: 14, // NE  → NE
-  15: 15, // ENE → ENE
+  0: 0,   // E  → E  (E and W are on the reflection axis, unchanged)
+  1: 15,  // ESE → ENE
+  2: 14,  // SE  → NE
+  3: 13,  // SSE → NNE
+  4: 12,  // S   → N  (PNG labeled "N" actually shows tank facing S)
+  5: 11,  // SSW → NNW
+  6: 10,  // SW  → NW
+  7: 9,   // WSW → WNW
+  8: 8,   // W   → W  (E and W are on the reflection axis, unchanged)
+  9: 7,   // WNW → WSW
+  10: 6,  // NW  → SW
+  11: 5,  // NNW → SSW
+  12: 4,  // N   → S  (PNG labeled "S" actually shows tank facing N)
+  13: 3,  // NNE → SSE
+  14: 2,  // NE  → SE
+  15: 1,  // ENE → ESE
 };
 
 /**
