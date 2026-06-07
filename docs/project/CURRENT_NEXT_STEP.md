@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: Hull sprite runtime integration merged — manual visual QA next  
+Status: Player Integration roadmap proposed / current next direction  
 Project: Four Elements Phaser  
-Date: 2026-06-06
+Date: 2026-06-07
 
 ---
 
@@ -21,16 +21,69 @@ What should GPT/GLM/Codex do next by default?
 ```text
 Core Mechanics Roadmap: CLOSED / IMPLEMENTED.
 Core Mechanics System Audit: CLOSED / IMPLEMENTED.
-Hull sprite asset upload/runtime hook: MERGED after PR #220, PR #221, PR #222.
+Arena Sandbox Roadmap: CLOSED / IMPLEMENTED.
+Hull sprite asset integration: MERGED.
+Turret sprite runtime integration: MERGED.
+Hull visual profile fixup: MERGED.
 
-Default next action:
-- Manual QA the merged generated hull sprite integration in Arena.
-- If hull visuals are wrong, do a focused fixup for scale/origin/loading only.
-- If hull visuals are acceptable, continue with turret sprite pipeline audit/render scripts.
-- Do not start broad runtime/gameplay work by inertia.
+Current next direction:
+PLAYER-INTEGRATION-MVP.
+
+Source roadmap:
+docs/project/PLAYER_INTEGRATION_ROADMAP_2026_06_07.md
 ```
 
-Do not start implementation without explicit Denis/GPT task assignment and either an accepted roadmap/audit or a focused post-merge fixup scope.
+Default next action:
+
+```text
+Start with Track A from PLAYER_INTEGRATION_ROADMAP_2026_06_07.md:
+PIM-A01 — Generated asset loading audit for Standard / Debug / Arena.
+
+Goal:
+Find exactly why generated hull/turret assets are visible in dev/Arena flows but not properly visible in the normal public game flow, then prepare a bounded loading/rendering implementation plan.
+```
+
+Do not start implementation without an explicit Denis/GPT task assignment and the accepted roadmap/audit context.
+
+---
+
+## Active roadmap rule
+
+```text
+All active implementation steps in PLAYER-INTEGRATION-MVP are High or High+.
+Lower-priority ideas are backlog only.
+```
+
+Hard block:
+
+```text
+No enemy bot / strategic AI / base-building AI in this roadmap.
+```
+
+---
+
+## Required source docs for future planning/tasks
+
+Before new roadmap/task work, read:
+
+```text
+docs/project/PROJECT_STATE.md
+docs/project/CURRENT_NEXT_STEP.md
+docs/project/GPT_WORKFLOW.md
+docs/project/GLM_EXECUTOR_RULES.md
+docs/project/CAMERA_PROJECTION_CONTRACT.md
+docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
+docs/project/UNIT_ASSET_PIPELINE_ROADMAP_2026_06_04.md
+docs/project/NEW_CHAT_HANDOFF_HULL_ASSETS_2026_06_06.md
+docs/project/PLAYER_INTEGRATION_ROADMAP_2026_06_07.md
+```
+
+For Arena/core mechanics context, also read:
+
+```text
+docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
+docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
+```
 
 ---
 
@@ -67,130 +120,30 @@ STEP 07H+ — COMPLETE
 STEP 08H+ — COMPLETE
   PR #207 — CORE-STEP-08H+: Weapons / Bodies / M0-M3 / Animation Feel
 
-HULL-ASSET — MERGED
+HULL-ASSET — COMPLETE
   PR #220 — ASSET: add generated hull sprite matrix
   PR #221 — HULL-ASSET-01: integrate generated hull sprite runtime loader
   PR #222 — HULL-ASSET-01-FIXUP: show generated hull sprites in Arena
-```
+  PR #230 — HULL-VISUAL-FIXUP-02: per-hull visual profiles for generated hull sprites
 
-Closure reports:
-
-```text
-docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
-docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
-```
-
----
-
-## Hull asset state after PR #220/#221/#222
-
-Asset matrix in repo:
-
-```text
-public/assets/units/hulls
-7 hulls × 4 factions × 4 mods × 16 directions = 1792 PNG
-hulls: wasp, hornet, hunter, viking, titan, mammoth, dictator
-factions: cyan, green, yellow, purple
-mods: m0, m1, m2, m3
-directions: dir00_E ... dir15_ENE
-```
-
-Runtime state:
-
-```text
-- full hull matrix is addressable via `src/assets/generatedHullAssets.ts`
-- full matrix is NOT preloaded
-- Arena/devtools currently preloads 7 hulls × 2 factions (cyan, green) × m0 = 224 PNG
-- PR #222 connected the real Arena renderer path: `BlockoutVehicleRenderer`
-- generated hull sprite replaces the blockout body cube when loaded
-- turret rendering remains blockout/procedural; generated turret sprites are not integrated yet
-```
-
-Manual QA URL:
-
-```text
-http://localhost:5173/?devtools=1&arena=1
-```
-
-Check:
-
-```text
-- generated hull sprites visible instead of cube bodies
-- no 404 for `assets/units/hulls/...`
-- scale/origin acceptable
-- labels/HP bars/selection rings/turret graphics still visible
-- no 1792-PNG preload at startup
-```
-
-Known risks:
-
-```text
-- GENERATED_HULL_SCALE / origin are pilot-tuned and may need visual fixup
-- only cyan/green m0 hull sets are preloaded in Arena currently
-- non-loaded factions/mods fall back until loading/selection expands
+TURRET-ASSET — COMPLETE FOR ARENA RUNTIME BASELINE
+  PR #224 — ASSET-TURRET-01: add generated turret sprite matrix
+  PR #225 — ASSET-TURRET-02: fix turret direction labels
+  PR #226 — RUNTIME-TURRET-01: generated turret asset registry
+  PR #228 — RUNTIME-TURRET-02: show generated turret sprites in Arena
 ```
 
 ---
 
-## Active mode
+## Do not start by default
 
 ```text
-NO BROAD ACTIVE IMPLEMENTATION ROADMAP.
-CORE MECHANICS CYCLE CLOSED.
-HULL SPRITE INTEGRATION MERGED; MANUAL QA / FOCUSED FIXUP ONLY.
-```
-
-Allowed immediate work:
-
-```text
-- manual QA of merged hull sprite integration
-- focused hull scale/origin/loading fixup if visual QA fails
-- turret sprite pipeline audit/planning
-- docs cleanup
-- prepare the next roadmap/audit for a new direction
-- review existing open PRs, if any
-```
-
-Do not start by default:
-
-```text
-- more Core Mechanics implementation by inertia
-- broad Arena feature work without a new roadmap/audit
-- generated turret runtime integration before turret asset audit/render pipeline is accepted
-- production visual/world-space work without a new roadmap/audit
-- economy/progression/victory systems without a new roadmap/audit
-- preloading all generated hull/turret frames at startup
-```
-
----
-
-## Closed roadmap steps
-
-```text
-STEP 01H+ — UI / Localization / Start Flow / Faction Display — COMPLETE
-STEP 02H+ — Config and Data Model Foundation — COMPLETE
-STEP 03H+ — Industrial Map and Resource Layout — COMPLETE
-STEP 04H+ — Buildings and Core Economy Loop — COMPLETE
-STEP 05H+ — Unified RTS Controls and Command Routing — COMPLETE
-STEP 06H+ — Movement / Occupancy / Depth Sorting — COMPLETE
-STEP 07H+ — Combat Core / Targeting / Hit Model — COMPLETE
-STEP 08H+ — Weapons / Bodies / M0-M3 / Animation Feel — COMPLETE
-HULL-ASSET — Generated hull assets uploaded and connected to Arena runtime path — MERGED
-```
-
----
-
-## Recommended next planning options
-
-Pick one direction, then create a roadmap/audit before implementation unless it is a focused fixup:
-
-```text
-1. Hull sprite manual QA + focused scale/origin/loading fixup if needed.
-2. Turret sprite pipeline audit and Blender batch scripts.
-3. Final asset integration roadmap for generated hulls + turrets.
-4. Core Mechanics manual QA + polish/fix backlog audit.
-5. Normal Game player loop roadmap: onboarding, goals, victory/loss, progression.
-6. Arena combat balance/readability roadmap.
+- more Core Mechanics implementation by inertia;
+- broad Arena feature work outside PLAYER-INTEGRATION-MVP;
+- enemy bot / strategic AI;
+- preloading all generated hull/turret frames at startup;
+- combat VFX before asset visibility, factory, movement feel and HUD MVP are usable;
+- fog/territory/minimap before the core player-facing tank loop is visible.
 ```
 
 ---
@@ -206,30 +159,11 @@ npm run build
 npm run qa:smoke
 ```
 
+Asset-related PRs should also run when applicable:
+
+```text
+node tools/validate_hull_assets.mjs
+node tools/validate_turret_assets.mjs
+```
+
 If any command cannot run, the PR body must state why.
-
----
-
-## Required source docs for future planning
-
-Before new roadmap/task work, read:
-
-```text
-docs/project/PROJECT_STATE.md
-docs/project/CURRENT_NEXT_STEP.md
-docs/project/GPT_WORKFLOW.md
-docs/project/GLM_EXECUTOR_RULES.md
-docs/project/CAMERA_PROJECTION_CONTRACT.md
-docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
-docs/project/UNIT_ASSET_PIPELINE_ROADMAP_2026_06_04.md
-```
-
-Closed references:
-
-```text
-docs/project/MECHANICS_DECISIONS_2026_06_03.md
-docs/project/CORE_MECHANICS_ROADMAP_2026_06_03.md
-docs/project/CORE_MECHANICS_SYSTEM_AUDIT_2026_06_03.md
-```
-
-Closed references are context, not active implementation queues.
