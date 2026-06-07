@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadGeneratedModularUnitAssets, loadGeneratedTerrainAndResourceAssets, loadGeneratedIndustrialTerrainAssets, loadGeneratedIndustrialFrameAssets, loadGeneratedIndustrialResourceAssets } from '../assets/runtimeGeneratedAssets';
-import { preloadGeneratedHullSet, DEFAULT_GENERATED_HULL_MOD, GENERATED_HULL_IDS, type GeneratedHullFaction } from '../assets/generatedHullAssets';
-import { preloadGeneratedTurretSet, DEFAULT_GENERATED_TURRET_MOD, GENERATED_TURRET_IDS, type GeneratedTurretFaction } from '../assets/generatedTurretAssets';
+import { preloadGeneratedHullSet, DEFAULT_GENERATED_HULL, DEFAULT_GENERATED_HULL_MOD, GENERATED_HULL_IDS, type GeneratedHullFaction } from '../assets/generatedHullAssets';
+import { preloadGeneratedTurretSet, DEFAULT_GENERATED_TURRET, DEFAULT_GENERATED_TURRET_MOD, GENERATED_TURRET_IDS, type GeneratedTurretFaction } from '../assets/generatedTurretAssets';
 import { isDevtoolsEnabled } from '../state/devCommands';
 
 /**
@@ -47,6 +47,25 @@ export class PreloadScene extends Phaser.Scene {
     // --- Civil unit spritesheets (loaded from generated manifest) ---
     loadGeneratedCivilUnitAssets(this);
 
+    // PIM-STEP-01: Standard-mode bounded generated asset loading.
+    // Loads only the starter set: Wasp hull + Smoky turret at M0 for the
+    // default player faction ('cyan'). Player faction is not yet determined
+    // at preload time (user selects faction in NewGameSetup after preload
+    // completes), so 'cyan' is used as the safe default matching
+    // DEFAULT_SETUP.faction and resolveGeneratedHullFaction() fallback.
+    // Total: 2 sets × 16 directions = 32 PNGs.
+    // Full matrix preload (1792 hull + 2560 turret) remains impossible.
+    if (!isDevtoolsEnabled()) {
+      const starterFaction: GeneratedHullFaction = 'cyan';
+      const starterTurretFaction: GeneratedTurretFaction = 'cyan';
+      const hullKeys = preloadGeneratedHullSet(this, DEFAULT_GENERATED_HULL, starterFaction, DEFAULT_GENERATED_HULL_MOD);
+      const turretKeys = preloadGeneratedTurretSet(this, DEFAULT_GENERATED_TURRET, starterTurretFaction, DEFAULT_GENERATED_TURRET_MOD);
+      console.log(
+        `[PreloadScene] Standard mode: starter-only generated assets loaded ` +
+        `(${hullKeys.length + turretKeys.length} PNGs: ${DEFAULT_GENERATED_HULL} hull + ${DEFAULT_GENERATED_TURRET} turret, ${starterFaction}, m0).`,
+      );
+    }
+
     // --- Modular combat images (PHASER4-LOAD-02: devtools/arena only) ---
     if (isDevtoolsEnabled()) {
       loadGeneratedModularUnitAssets(this);
@@ -56,6 +75,8 @@ export class PreloadScene extends Phaser.Scene {
       // Arena scenario uses all 7 hulls × 2 factions (cyan, green) × m0.
       // That's 7 × 2 × 16 = 224 PNGs — a small fraction of the full
       // 1792-PNG matrix. Full matrix is addressable but NOT preloaded.
+      // PIM-STEP-01: Wasp cyan m0 is already loaded by the Standard-mode
+      // preload above; preloadGeneratedHullSet skips already-loaded keys.
       const arenaFactions: GeneratedHullFaction[] = ['cyan', 'green'];
       let hullSetsLoaded = 0;
       for (const hull of GENERATED_HULL_IDS) {
@@ -70,6 +91,8 @@ export class PreloadScene extends Phaser.Scene {
       // Arena scenario uses all 10 turrets × 2 factions (cyan, green) × m0.
       // That's 10 × 2 × 16 = 320 PNGs — a small fraction of the full
       // 2560-PNG matrix. Full matrix is addressable but NOT preloaded.
+      // PIM-STEP-01: Smoky cyan m0 is already loaded by the Standard-mode
+      // preload above; preloadGeneratedTurretSet skips already-loaded keys.
       const arenaTurretFactions: GeneratedTurretFaction[] = ['cyan', 'green'];
       let turretSetsLoaded = 0;
       for (const turret of GENERATED_TURRET_IDS) {

@@ -23,7 +23,11 @@
  *   base Graphics (shadow, rings, body, turret) → hull sprite →
  *   turret sprite → overlay Graphics (HP bars, indicators, aim line) → labels
  *
- * Only active when devtools/arena mode is on.
+ * PIM-STEP-01: Available in all modes (Standard, Debug, Arena).
+ * In Standard mode, no combat vehicles exist yet, so the renderer
+ * syncs from an empty vehicle list. When Track E adds Unit Factory
+ * production, vehicles will render with generated sprites.
+ * Fallback blockout cube remains when no generated texture is loaded.
  */
 
 import Phaser from 'phaser';

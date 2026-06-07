@@ -12,6 +12,8 @@ import {
   GENERATED_HULL_DIRECTIONS_16,
   getGeneratedHullTextureKey,
   getGeneratedHullAssetPath,
+  preloadGeneratedHullSet,
+  resolveGeneratedHullKey,
   mapRuntimeDir8ToGeneratedDir16,
   DEFAULT_GENERATED_HULL,
   DEFAULT_GENERATED_HULL_MOD,
@@ -20,6 +22,8 @@ import {
   modificationLevelToMod,
   bodyIdToGeneratedHullId,
   type GeneratedHullDir16Index,
+  type GeneratedHullFaction,
+  type GeneratedHullMod,
   getGeneratedHullVisualProfile,
   GENERATED_HULL_VISUAL_PROFILES,
   DEFAULT_GENERATED_HULL_VISUAL_PROFILE,
@@ -410,5 +414,161 @@ describe('GENERATED_HULL_VISUAL_PROFILES', () => {
     const waspUi = GENERATED_HULL_VISUAL_PROFILES.wasp.uiOffsetY;
     const mammothUi = GENERATED_HULL_VISUAL_PROFILES.mammoth.uiOffsetY;
     expect(mammothUi).toBeGreaterThan(waspUi);
+  });
+});
+
+// ─── PIM-STEP-01: Starter-only bounded loading tests ──────────────
+
+describe('PIM-STEP-01: starter-only hull asset loading', () => {
+  it('DEFAULT_GENERATED_HULL is wasp (starter hull)', () => {
+    expect(DEFAULT_GENERATED_HULL).toBe('wasp');
+  });
+
+  it('DEFAULT_GENERATED_HULL_MOD is m0 (starter mod)', () => {
+    expect(DEFAULT_GENERATED_HULL_MOD).toBe('m0');
+  });
+
+  it('preloadGeneratedHullSet for starter set returns exactly 16 keys', () => {
+    const loadImageCalls: Array<{ key: string; path: string }> = [];
+    const mockScene = {
+      textures: { exists: () => false },
+      load: {
+        image: (_key: string, _path: string) => {
+          loadImageCalls.push({ key: _key, path: _path });
+        },
+      },
+    } as unknown as Phaser.Scene;
+
+    const keys = preloadGeneratedHullSet(
+      mockScene, DEFAULT_GENERATED_HULL,
+      'cyan' as GeneratedHullFaction,
+      DEFAULT_GENERATED_HULL_MOD as GeneratedHullMod,
+    );
+
+    expect(keys.length).toBe(16);
+    expect(loadImageCalls.length).toBe(16);
+  });
+
+  it('starter hull set loads only wasp, not all 7 hulls', () => {
+    const loadImageCalls: Array<{ key: string; path: string }> = [];
+    const mockScene = {
+      textures: { exists: () => false },
+      load: {
+        image: (_key: string, _path: string) => {
+          loadImageCalls.push({ key: _key, path: _path });
+        },
+      },
+    } as unknown as Phaser.Scene;
+
+    preloadGeneratedHullSet(
+      mockScene, DEFAULT_GENERATED_HULL,
+      'cyan' as GeneratedHullFaction,
+      DEFAULT_GENERATED_HULL_MOD as GeneratedHullMod,
+    );
+
+    // All loaded paths should be for wasp only
+    for (const call of loadImageCalls) {
+      expect(call.path).toContain('wasp/');
+      expect(call.key).toContain('wasp_');
+    }
+    // Should NOT load other hulls
+    for (const call of loadImageCalls) {
+      expect(call.path).not.toContain('hornet/');
+      expect(call.path).not.toContain('hunter/');
+      expect(call.path).not.toContain('viking/');
+      expect(call.path).not.toContain('titan/');
+      expect(call.path).not.toContain('mammoth/');
+      expect(call.path).not.toContain('dictator/');
+    }
+  });
+
+  it('starter hull set loads only cyan faction, not all 4', () => {
+    const loadImageCalls: Array<{ key: string; path: string }> = [];
+    const mockScene = {
+      textures: { exists: () => false },
+      load: {
+        image: (_key: string, _path: string) => {
+          loadImageCalls.push({ key: _key, path: _path });
+        },
+      },
+    } as unknown as Phaser.Scene;
+
+    preloadGeneratedHullSet(
+      mockScene, DEFAULT_GENERATED_HULL,
+      'cyan' as GeneratedHullFaction,
+      DEFAULT_GENERATED_HULL_MOD as GeneratedHullMod,
+    );
+
+    for (const call of loadImageCalls) {
+      expect(call.path).toContain('cyan/');
+      expect(call.path).not.toContain('green/');
+      expect(call.path).not.toContain('yellow/');
+      expect(call.path).not.toContain('purple/');
+    }
+  });
+
+  it('starter hull set loads only m0, not all 4 mods', () => {
+    const loadImageCalls: Array<{ key: string; path: string }> = [];
+    const mockScene = {
+      textures: { exists: () => false },
+      load: {
+        image: (_key: string, _path: string) => {
+          loadImageCalls.push({ key: _key, path: _path });
+        },
+      },
+    } as unknown as Phaser.Scene;
+
+    preloadGeneratedHullSet(
+      mockScene, DEFAULT_GENERATED_HULL,
+      'cyan' as GeneratedHullFaction,
+      DEFAULT_GENERATED_HULL_MOD as GeneratedHullMod,
+    );
+
+    for (const call of loadImageCalls) {
+      expect(call.path).toContain('/m0/');
+      expect(call.path).not.toContain('/m1/');
+      expect(call.path).not.toContain('/m2/');
+      expect(call.path).not.toContain('/m3/');
+    }
+  });
+
+  it('full matrix is 112x larger than starter set (1792 vs 16)', () => {
+    const starterSetSize = 16; // 1 hull × 1 faction × 1 mod × 16 dirs
+    const fullMatrixSize = GENERATED_HULL_IDS.length * GENERATED_HULL_FACTIONS.length * GENERATED_HULL_MODS.length * 16;
+    expect(fullMatrixSize).toBe(1792);
+    expect(fullMatrixSize / starterSetSize).toBe(112);
+  });
+});
+
+// ─── PIM-STEP-01: Fallback when texture missing ──────────────────
+
+describe('PIM-STEP-01: hull fallback when texture missing', () => {
+  it('resolveGeneratedHullKey returns null when texture not loaded', () => {
+    const mockScene = {
+      textures: { exists: () => false },
+    } as unknown as Phaser.Scene;
+
+    const result = resolveGeneratedHullKey(mockScene, 'wasp', 'cyan', 0, 0);
+    expect(result).toBeNull();
+  });
+
+  it('resolveGeneratedHullKey returns null for unknown bodyId', () => {
+    const mockScene = {
+      textures: { exists: () => true },
+    } as unknown as Phaser.Scene;
+
+    const result = resolveGeneratedHullKey(mockScene, 'unknown_body', 'cyan', 0, 0);
+    expect(result).toBeNull();
+  });
+
+  it('resolveGeneratedHullKey returns key when texture exists', () => {
+    const mockScene = {
+      textures: {
+        exists: (key: string) => key === 'generated_hull_wasp_cyan_m0_dir00',
+      },
+    } as unknown as Phaser.Scene;
+
+    const result = resolveGeneratedHullKey(mockScene, 'wasp', 'cyan', 0, 0);
+    expect(result).toBe('generated_hull_wasp_cyan_m0_dir00');
   });
 });

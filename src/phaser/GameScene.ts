@@ -546,10 +546,16 @@ export class GameScene extends Phaser.Scene {
       console.log('[GameScene] Asset preview tool enabled (toggle: 0).');
     }
 
-    // BLOCKOUT-02H: Create blockout vehicle renderer and spawn initial set if devtools is active
+    // PIM-STEP-01: Create BlockoutVehicleRenderer in all modes so that
+    // the generated hull/turret sprite rendering path is prepared even
+    // when no combat vehicles exist yet in Standard mode. Previously
+    // this was devtools-only; now the renderer exists but renders nothing
+    // until blockout vehicles are added (Track E: Unit Factory production).
+    this.blockoutVehicleRenderer = new BlockoutVehicleRenderer(this, this._offset as IsoPoint);
+
+    // BLOCKOUT-02H: Create blockout debug/arena subsystems if devtools is active
     // ARENA-01H+: Arena mode uses ARENA_SANDBOX_SCENARIO (no obstacles)
     if (this.devtoolsActive) {
-      this.blockoutVehicleRenderer = new BlockoutVehicleRenderer(this, this._offset as IsoPoint);
       this.blockoutWeaponVfxRenderer = new BlockoutWeaponVfxRenderer(this, this._offset as IsoPoint);
       this.blockoutDamageRenderer = new BlockoutDamageRenderer(this, this._offset as IsoPoint);
       this.blockoutObstacleRenderer = new BlockoutObstacleRenderer(this, this._offset as IsoPoint);
@@ -558,6 +564,8 @@ export class GameScene extends Phaser.Scene {
       const scenario = this.arenaMode ? ARENA_SANDBOX_SCENARIO : DEFAULT_SANDBOX_SCENARIO;
       resetBlockoutScenario(this.gameState, scenario);
       console.log('[GameScene] Blockout vehicle renderer enabled. Spawned', this.arenaMode ? 'arena' : 'sandbox', 'scenario.');
+    } else {
+      console.log('[GameScene] BlockoutVehicleRenderer created (Standard mode, no combat vehicles to render yet).');
     }
 
     // ARENA-02H+: Create placement marker graphics (projected ground plane diamond)

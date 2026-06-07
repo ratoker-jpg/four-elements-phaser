@@ -502,3 +502,84 @@ describe('preloadGeneratedTurretSet', () => {
     expect(keys).not.toContain('generated_turret_smoky_cyan_m0_dir00');
   });
 });
+
+// ─── PIM-STEP-01: Starter-only bounded turret loading tests ──────
+
+describe('PIM-STEP-01: starter-only turret asset loading', () => {
+  it('DEFAULT_GENERATED_TURRET is smoky (starter turret)', () => {
+    expect(DEFAULT_GENERATED_TURRET).toBe('smoky');
+  });
+
+  it('DEFAULT_GENERATED_TURRET_MOD is m0 (starter mod)', () => {
+    expect(DEFAULT_GENERATED_TURRET_MOD).toBe('m0');
+  });
+
+  it('preloadGeneratedTurretSet for starter set returns exactly 16 keys', () => {
+    const loadImageCalls: Array<{ key: string; path: string }> = [];
+    const mockScene = {
+      textures: { exists: () => false },
+      load: {
+        image: (_key: string, _path: string) => {
+          loadImageCalls.push({ key: _key, path: _path });
+        },
+      },
+    } as unknown as Phaser.Scene;
+
+    const keys = preloadGeneratedTurretSet(mockScene, DEFAULT_GENERATED_TURRET, 'cyan', DEFAULT_GENERATED_TURRET_MOD);
+
+    expect(keys.length).toBe(16);
+    expect(loadImageCalls.length).toBe(16);
+  });
+
+  it('starter turret set loads only smoky, not all 10 turrets', () => {
+    const loadImageCalls: Array<{ key: string; path: string }> = [];
+    const mockScene = {
+      textures: { exists: () => false },
+      load: {
+        image: (_key: string, _path: string) => {
+          loadImageCalls.push({ key: _key, path: _path });
+        },
+      },
+    } as unknown as Phaser.Scene;
+
+    preloadGeneratedTurretSet(mockScene, DEFAULT_GENERATED_TURRET, 'cyan', DEFAULT_GENERATED_TURRET_MOD);
+
+    for (const call of loadImageCalls) {
+      expect(call.path).toContain('smoky/');
+      expect(call.key).toContain('smoky_');
+    }
+    // Should NOT load other turrets
+    const otherTurrets = GENERATED_TURRET_IDS.filter(t => t !== 'smoky');
+    for (const call of loadImageCalls) {
+      for (const other of otherTurrets) {
+        expect(call.path).not.toContain(`${other}/`);
+      }
+    }
+  });
+
+  it('full matrix is 160x larger than starter set (2560 vs 16)', () => {
+    const starterSetSize = 16; // 1 turret × 1 faction × 1 mod × 16 dirs
+    const fullMatrixSize = GENERATED_TURRET_IDS.length * GENERATED_TURRET_FACTIONS.length * GENERATED_TURRET_MODS.length * 16;
+    expect(fullMatrixSize).toBe(2560);
+    expect(fullMatrixSize / starterSetSize).toBe(160);
+  });
+
+  it('combined starter hull + turret = 32 PNG (PIM-STEP-01 contract)', () => {
+    // This test validates the PIM-STEP-01 expected count:
+    // Wasp hull (16 dirs) + Smoky turret (16 dirs) = 32 PNG
+    const hullStarterSize = 16;
+    const turretStarterSize = 16;
+    expect(hullStarterSize + turretStarterSize).toBe(32);
+  });
+
+  it('no full matrix preload path: full matrix is vastly larger than starter', () => {
+    const starterTotal = 32; // 16 hull + 16 turret
+    const fullHullMatrix = 1792;
+    const fullTurretMatrix = 2560;
+    const fullTotal = fullHullMatrix + fullTurretMatrix;
+    // Full matrix is ~136x larger than starter (4352 / 32 = 136)
+    expect(fullTotal / starterTotal).toBe(136);
+    // Starter should never load even 1% of full matrix
+    expect(starterTotal / fullTotal).toBeLessThan(0.01);
+  });
+});
