@@ -358,5 +358,6 @@ export class ModularTankRenderer {
     this.debugOverlay?.destroy();
     this.debugOverlay = null;
     this.anchorWorld = null;
+    // Debug overlay destroyed above; no anchor tile state to clear here.
   }
 }
