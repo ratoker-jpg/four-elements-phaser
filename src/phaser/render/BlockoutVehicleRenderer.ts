@@ -36,6 +36,15 @@ import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import { getWeaponConfig } from '../../config/weaponData';
 import { sortByDepth, type DepthSortable } from './depthSorting';
 import { getTrackAnimationState } from '../../state/trackAnimation';
+import {
+  resolveGeneratedHullKey,
+  resolveHullDirectionDiagnostic,
+  GENERATED_HULL_SCALE,
+  GENERATED_HULL_ORIGIN_X,
+  GENERATED_HULL_ORIGIN_Y,
+  directionDebugEnabled,
+  toggleDirectionDebug as toggleDirDebug,
+} from '../../assets/generatedHullAssets';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -173,6 +182,18 @@ export class BlockoutVehicleRenderer {
   /** ARENA-03H+: Currently targeted vehicle ID (for target indicator rendering). */
   private _targetedVehicleId: string | null = null;
 
+  /** Generated hull sprite images keyed by blockout vehicle ID. */
+  private vehicleHullSprites = new Map<string, Phaser.GameObjects.Image>();
+
+  /** Direction debug text labels keyed by blockout vehicle ID. */
+  private directionDebugLabels = new Map<string, Phaser.GameObjects.Text>();
+
+  /** Whether generated hull sprites have been logged (once). */
+  private generatedHullLogged = false;
+
+  /** Whether blockout fallback has been logged (once). */
+  private blockoutFallbackLogged = false;
+
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
     this.offset = offset;
@@ -222,6 +243,17 @@ export class BlockoutVehicleRenderer {
     return this.showMountPoints;
   }
 
+  /** Toggle the direction debug overlay. Returns new state. */
+  toggleDirectionDebug(): boolean {
+    const newState = toggleDirDebug();
+    if (!newState) {
+      for (const [, label] of this.directionDebugLabels) {
+        label.setVisible(false);
+      }
+    }
+    return newState;
+  }
+
   // ─── Frame sync ──────────────────────────────────────────────────
 
   /**
@@ -239,6 +271,40 @@ export class BlockoutVehicleRenderer {
         g = this.scene.add.graphics();
         g.setDepth(BLOCKOUT_DEPTH);
         this.vehicleGraphics.set(vehicle.id, g);
+      }
+
+      // Check for generated hull sprite
+      const hullKey = resolveGeneratedHullKey(
+        this.scene, vehicle.bodyId, vehicle.faction,
+        vehicle.modificationLevel, vehicle.bodyAngle,
+      );
+      const useGeneratedHull = hullKey !== null;
+
+      // Manage hull sprite lifecycle
+      let hullSprite = this.vehicleHullSprites.get(vehicle.id);
+      if (useGeneratedHull) {
+        if (!hullSprite) {
+          hullSprite = this.scene.add.image(0, 0, hullKey);
+          hullSprite.setScale(GENERATED_HULL_SCALE);
+          hullSprite.setOrigin(GENERATED_HULL_ORIGIN_X, GENERATED_HULL_ORIGIN_Y);
+          hullSprite.setDepth(BLOCKOUT_DEPTH);
+          this.vehicleHullSprites.set(vehicle.id, hullSprite);
+          if (!this.generatedHullLogged) {
+            console.log(`[BlockoutVehicleRenderer] Using generated hull sprite for ${vehicle.bodyId}+${vehicle.weaponId}`);
+            this.generatedHullLogged = true;
+          }
+        } else {
+          hullSprite.setTexture(hullKey);
+        }
+      } else {
+        if (hullSprite) {
+          hullSprite.destroy();
+          this.vehicleHullSprites.delete(vehicle.id);
+        }
+        if (!this.blockoutFallbackLogged) {
+          console.log(`[BlockoutVehicleRenderer] No generated hull for ${vehicle.bodyId} — blockout fallback`);
+          this.blockoutFallbackLogged = true;
+        }
       }
 
       // Determine selection/hover state for this vehicle
@@ -318,6 +384,22 @@ export class BlockoutVehicleRenderer {
           label.setDepth(BLOCKOUT_DEPTH + orderIdx + 1);
         }
       }
+      // Also update hull sprite depth
+      const hullSprite = this.vehicleHullSprites.get(vehicle.id);
+      if (hullSprite) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx);
+        }
+      }
+      // Also update direction debug label depth
+      const dirLabel = this.directionDebugLabels.get(vehicle.id);
+      if (dirLabel) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          dirLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 10);
+        }
+      }
     }
 
     // Clean up stale vehicles
@@ -333,12 +415,42 @@ export class BlockoutVehicleRenderer {
         this.debugLabels.delete(id);
       }
     }
+    // Clean up stale hull sprites
+    for (const [id, sprite] of this.vehicleHullSprites) {
+      if (!activeIds.has(id)) {
+        sprite.destroy();
+        this.vehicleHullSprites.delete(id);
+      }
+    }
+    // Clean up stale direction debug labels
+    for (const [id, label] of this.directionDebugLabels) {
+      if (!activeIds.has(id)) {
+        label.destroy();
+        this.directionDebugLabels.delete(id);
+      }
+    }
   }
 
   // ─── Vehicle rendering ──────────────────────────────────────────
 
   private renderVehicle(g: Phaser.GameObjects.Graphics, vehicle: BlockoutVehicleState, isSelected: boolean, isHovered: boolean): void {
     g.clear();
+
+    // If using generated hull sprite, skip blockout body rendering but keep overlays
+    const hullSprite = this.vehicleHullSprites.get(vehicle.id);
+    const skipBlockoutBody = hullSprite !== undefined;
+
+    // Position hull sprite at vehicle center
+    if (hullSprite) {
+      const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
+      const bodyAngle = vehicle.bodyAngle;
+      const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
+      const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
+      const spriteCx = vehicle.worldX + this.offset.x + bodyImpulseX;
+      const spriteCy = vehicle.worldY + this.offset.y + bodyImpulseY;
+      hullSprite.setPosition(spriteCx, spriteCy);
+      hullSprite.setDepth(BLOCKOUT_DEPTH); // will be updated by depth sorting below
+    }
 
     // ── Shared projected geometry (single source of truth) ────────
     const geom = computeProjectedBlockoutVehicleGeometry(vehicle, this.offset);
@@ -519,27 +631,29 @@ export class BlockoutVehicleRenderer {
     }
 
     // ── Vehicle shadow (projected ground-plane) ──────────────────
-    const shadowRadius = Math.max(halfW, halfH) * SHADOW_RADIUS_FRACTION;
-    drawProjectedShadow(g, cx, cy, shadowRadius, this.offset);
-
     // ── Pseudo-isometric body (base + side + top) ────────────────
-    // Derive side color (darker than body) and top color (brighter)
-    const sideR = ((bodyColor >> 16) & 0xff) * 0.6;
-    const sideG = ((bodyColor >> 8) & 0xff) * 0.6;
-    const sideB = (bodyColor & 0xff) * 0.6;
-    const sideColor = (Math.floor(sideR) << 16) | (Math.floor(sideG) << 8) | Math.floor(sideB);
+    if (!skipBlockoutBody) {
+      const shadowRadius = Math.max(halfW, halfH) * SHADOW_RADIUS_FRACTION;
+      drawProjectedShadow(g, cx, cy, shadowRadius, this.offset);
 
-    const topR = Math.min(255, ((bodyColor >> 16) & 0xff) * 1.2);
-    const topG = Math.min(255, ((bodyColor >> 8) & 0xff) * 1.2);
-    const topB = Math.min(255, (bodyColor & 0xff) * 1.2);
-    const topColor = (Math.floor(topR) << 16) | (Math.floor(topG) << 8) | Math.floor(topB);
+      // Derive side color (darker than body) and top color (brighter)
+      const sideR = ((bodyColor >> 16) & 0xff) * 0.6;
+      const sideG = ((bodyColor >> 8) & 0xff) * 0.6;
+      const sideB = (bodyColor & 0xff) * 0.6;
+      const sideColor = (Math.floor(sideR) << 16) | (Math.floor(sideG) << 8) | Math.floor(sideB);
 
-    drawProjectedBox(
-      g, cx, cy, halfW, halfH, BLOCKOUT_VEHICLE_BODY_Z,
-      this.offset, bodyAngle,
-      bodyColor, sideColor, topColor, BODY_OUTLINE_COLOR,
-      0.3, 0.75, 1.0,
-    );
+      const topR = Math.min(255, ((bodyColor >> 16) & 0xff) * 1.2);
+      const topG = Math.min(255, ((bodyColor >> 8) & 0xff) * 1.2);
+      const topB = Math.min(255, (bodyColor & 0xff) * 1.2);
+      const topColor = (Math.floor(topR) << 16) | (Math.floor(topG) << 8) | Math.floor(topB);
+
+      drawProjectedBox(
+        g, cx, cy, halfW, halfH, BLOCKOUT_VEHICLE_BODY_Z,
+        this.offset, bodyAngle,
+        bodyColor, sideColor, topColor, BODY_OUTLINE_COLOR,
+        0.3, 0.75, 1.0,
+      );
+    }
 
     // ── CORE-STEP-08H+ FIXUP Blocker 5: Track animation indicators ──
     // Blockout/procedural visualization: show track activity as small
@@ -843,6 +957,37 @@ export class BlockoutVehicleRenderer {
         }
       }
     }
+
+    // ── Direction debug overlay (dev-only, Wasp-only focus) ──────────
+    if (directionDebugEnabled) {
+      const diag = resolveHullDirectionDiagnostic(
+        vehicle.bodyId, vehicle.faction,
+        vehicle.modificationLevel, vehicle.bodyAngle,
+      );
+      const diagZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.4;
+      const diagPos = projectWorldPoint(tilePos.x, tilePos.y, diagZ, this.offset);
+      const diagText = [
+        `${vehicle.bodyId} angle=${diag.bodyAngleDeg}°`,
+        `dir8=${diag.dir8} dir16=${diag.logicalDir16}→${diag.visualDir16}`,
+        `${diag.compassSuffix} ${diag.textureKey.split('_').slice(-2).join('_')}`,
+      ].join('\n');
+
+      let diagLabel = this.directionDebugLabels.get(vehicle.id);
+      if (!diagLabel) {
+        diagLabel = this.scene.add.text(0, 0, '', {
+          fontSize: '8px',
+          color: '#ffcc00',
+          backgroundColor: '#000000cc',
+          padding: { x: 2, y: 1 },
+        });
+        diagLabel.setDepth(BLOCKOUT_DEPTH + 10);
+        diagLabel.setOrigin(0.5, 1);
+        this.directionDebugLabels.set(vehicle.id, diagLabel);
+      }
+      diagLabel.setText(diagText);
+      diagLabel.setPosition(diagPos.x, diagPos.y);
+      diagLabel.setVisible(true);
+    }
   }
 
   // ─── Cleanup ─────────────────────────────────────────────────────
@@ -857,5 +1002,15 @@ export class BlockoutVehicleRenderer {
       label.destroy();
     }
     this.debugLabels.clear();
+
+    for (const [, sprite] of this.vehicleHullSprites) {
+      sprite.destroy();
+    }
+    this.vehicleHullSprites.clear();
+
+    for (const [, label] of this.directionDebugLabels) {
+      label.destroy();
+    }
+    this.directionDebugLabels.clear();
   }
 }

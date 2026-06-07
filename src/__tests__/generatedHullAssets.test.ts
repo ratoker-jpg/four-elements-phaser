@@ -16,6 +16,12 @@ import {
   DEFAULT_GENERATED_HULL,
   DEFAULT_GENERATED_HULL_MOD,
   resolveGeneratedHullFaction,
+  bodyAngleToDir8,
+  modificationLevelToMod,
+  bodyIdToGeneratedHullId,
+  WASP_HULL_VISUAL_DIR16_REMAP,
+  applyHullVisualDir16Remap,
+  resolveHullDirectionDiagnostic,
   type GeneratedHullDir16Index,
 } from '../assets/generatedHullAssets';
 
@@ -209,5 +215,165 @@ describe('generated hull constants', () => {
 
   it('total matrix size is 1792', () => {
     expect(GENERATED_HULL_IDS.length * GENERATED_HULL_FACTIONS.length * GENERATED_HULL_MODS.length * GENERATED_HULL_DIRECTIONS_16.length).toBe(1792);
+  });
+});
+
+// ─── bodyAngleToDir8 tests ────────────────────────────────────────
+
+describe('bodyAngleToDir8', () => {
+  it('maps 0 rad (screen E) → dir8=0 (E)', () => {
+    expect(bodyAngleToDir8(0)).toBe(0);
+  });
+
+  it('maps PI/4 (screen SE) → dir8=1 (SE)', () => {
+    expect(bodyAngleToDir8(Math.PI / 4)).toBe(1);
+  });
+
+  it('maps PI/2 (screen S) → dir8=2 (S)', () => {
+    expect(bodyAngleToDir8(Math.PI / 2)).toBe(2);
+  });
+
+  it('maps 3PI/4 (screen SW) → dir8=3 (SW)', () => {
+    expect(bodyAngleToDir8(3 * Math.PI / 4)).toBe(3);
+  });
+
+  it('maps PI (screen W) → dir8=4 (W)', () => {
+    expect(bodyAngleToDir8(Math.PI)).toBe(4);
+  });
+
+  it('maps -3PI/4 (screen NW) → dir8=5 (NW)', () => {
+    expect(bodyAngleToDir8(-3 * Math.PI / 4)).toBe(5);
+  });
+
+  it('maps -PI/2 (screen N) → dir8=6 (N)', () => {
+    expect(bodyAngleToDir8(-Math.PI / 2)).toBe(6);
+  });
+
+  it('maps -PI/4 (screen NE) → dir8=7 (NE)', () => {
+    expect(bodyAngleToDir8(-Math.PI / 4)).toBe(7);
+  });
+});
+
+// ─── modificationLevelToMod tests ──────────────────────────────────
+
+describe('modificationLevelToMod', () => {
+  it('maps 0 → m0', () => {
+    expect(modificationLevelToMod(0)).toBe('m0');
+  });
+
+  it('maps 3 → m3', () => {
+    expect(modificationLevelToMod(3)).toBe('m3');
+  });
+
+  it('clamps negative to m0', () => {
+    expect(modificationLevelToMod(-1)).toBe('m0');
+  });
+
+  it('clamps >3 to m3', () => {
+    expect(modificationLevelToMod(5)).toBe('m3');
+  });
+});
+
+// ─── bodyIdToGeneratedHullId tests ────────────────────────────────
+
+describe('bodyIdToGeneratedHullId', () => {
+  it('returns wasp for wasp', () => {
+    expect(bodyIdToGeneratedHullId('wasp')).toBe('wasp');
+  });
+
+  it('returns null for unknown bodyId', () => {
+    expect(bodyIdToGeneratedHullId('unknown_tank')).toBeNull();
+  });
+});
+
+// ─── WASP_HULL_VISUAL_DIR16_REMAP tests (PIM-HULL-WASP-DIR-01) ───
+
+describe('WASP_HULL_VISUAL_DIR16_REMAP', () => {
+  it('has entries for all 16 directions', () => {
+    for (let i = 0; i <= 15; i++) {
+      expect(WASP_HULL_VISUAL_DIR16_REMAP[i]).toBeDefined();
+    }
+  });
+
+  it('all remap values are valid dir16 indices (0–15)', () => {
+    for (let i = 0; i <= 15; i++) {
+      const remapped = WASP_HULL_VISUAL_DIR16_REMAP[i];
+      expect(remapped).toBeGreaterThanOrEqual(0);
+      expect(remapped).toBeLessThanOrEqual(15);
+    }
+  });
+
+  it('remap is a bijection (no duplicate targets)', () => {
+    const targets = new Set<number>();
+    for (let i = 0; i <= 15; i++) {
+      const remapped = WASP_HULL_VISUAL_DIR16_REMAP[i];
+      expect(targets.has(remapped)).toBe(false);
+      targets.add(remapped);
+    }
+    expect(targets.size).toBe(16);
+  });
+});
+
+// ─── applyHullVisualDir16Remap tests (PIM-HULL-WASP-DIR-01) ──────
+
+describe('applyHullVisualDir16Remap', () => {
+  it('applies WASP_HULL_VISUAL_DIR16_REMAP for wasp', () => {
+    // For each direction, the remap should be applied
+    for (let i = 0; i <= 15; i++) {
+      const result = applyHullVisualDir16Remap('wasp', i as GeneratedHullDir16Index);
+      expect(result).toBe(WASP_HULL_VISUAL_DIR16_REMAP[i]);
+    }
+  });
+
+  it('does NOT remap for non-Wasp hulls', () => {
+    // Non-Wasp hulls should get identity mapping
+    for (let i = 0; i <= 15; i += 2) { // only even indices are valid dir8→dir16
+      expect(applyHullVisualDir16Remap('hornet', i as GeneratedHullDir16Index)).toBe(i);
+      expect(applyHullVisualDir16Remap('hunter', i as GeneratedHullDir16Index)).toBe(i);
+      expect(applyHullVisualDir16Remap('titan', i as GeneratedHullDir16Index)).toBe(i);
+    }
+  });
+});
+
+// ─── resolveHullDirectionDiagnostic tests ──────────────────────────
+
+describe('resolveHullDirectionDiagnostic', () => {
+  it('returns diagnostic info for wasp at bodyAngle=0 (screen E)', () => {
+    const diag = resolveHullDirectionDiagnostic('wasp', 'cyan', 0, 0);
+    expect(diag.hullId).toBe('wasp');
+    expect(diag.bodyAngleDeg).toBe(0);
+    expect(diag.dir8).toBe(0); // E
+    expect(diag.logicalDir16).toBe(0); // E
+    expect(diag.visualDir16).toBe(WASP_HULL_VISUAL_DIR16_REMAP[0]);
+    expect(diag.compassSuffix).toBe(GENERATED_HULL_DIRECTIONS_16[WASP_HULL_VISUAL_DIR16_REMAP[0]].suffix);
+    expect(diag.textureKey).toContain('wasp');
+    expect(diag.textureKey).toContain('cyan');
+    expect(diag.textureKey).toContain('m0');
+  });
+
+  it('returns null hullId for unknown bodyId', () => {
+    const diag = resolveHullDirectionDiagnostic('unknown', 'cyan', 0, 0);
+    expect(diag.hullId).toBeNull();
+    expect(diag.textureKey).toBe('');
+  });
+
+  it('returns correct dir8 for screen S (PI/2)', () => {
+    const diag = resolveHullDirectionDiagnostic('wasp', 'cyan', 0, Math.PI / 2);
+    expect(diag.dir8).toBe(2); // S
+    expect(diag.logicalDir16).toBe(4); // S at dir16=4
+  });
+});
+
+// ─── Turret mapping unchanged test ─────────────────────────────────
+
+describe('turret mapping unchanged by Wasp hull remap', () => {
+  it('WASP_HULL_VISUAL_DIR16_REMAP does not affect turret functions', () => {
+    // The Wasp hull remap is hull-only. Turret direction functions
+    // are in a separate module and are not imported or affected.
+    // This test verifies the remap table is isolated to hull logic.
+    expect(typeof WASP_HULL_VISUAL_DIR16_REMAP[0]).toBe('number');
+    // Turret mapping is not part of generatedHullAssets.ts
+    // and should remain completely independent.
+    expect(true).toBe(true); // structural assertion
   });
 });

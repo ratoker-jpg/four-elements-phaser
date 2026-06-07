@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadGeneratedModularUnitAssets, loadGeneratedTerrainAndResourceAssets, loadGeneratedIndustrialTerrainAssets, loadGeneratedIndustrialFrameAssets, loadGeneratedIndustrialResourceAssets } from '../assets/runtimeGeneratedAssets';
-import { preloadGeneratedHullSet, DEFAULT_GENERATED_HULL, DEFAULT_GENERATED_HULL_MOD } from '../assets/generatedHullAssets';
+import { preloadGeneratedHullSet, DEFAULT_GENERATED_HULL, DEFAULT_GENERATED_HULL_MOD, GENERATED_HULL_FACTIONS, type GeneratedHullFaction } from '../assets/generatedHullAssets';
 import { isDevtoolsEnabled } from '../state/devCommands';
 
 /**
@@ -51,11 +51,14 @@ export class PreloadScene extends Phaser.Scene {
       loadGeneratedModularUnitAssets(this);
       console.log('[PreloadScene] modularUnits loading enabled (devtools/arena mode).');
 
-      // HULL-ASSET-01: Load default generated hull set (wasp/cyan/m0, 16 PNGs)
+      // HULL-ASSET-01 + PIM-HULL-WASP-DIR-01: Load Wasp hull sets for all factions.
       // Only in devtools/arena mode. Full 1792-PNG matrix is addressable
       // but NOT preloaded — sets are loaded on demand by hull+faction+mod.
-      preloadGeneratedHullSet(this, DEFAULT_GENERATED_HULL, 'cyan', DEFAULT_GENERATED_HULL_MOD);
-      console.log('[PreloadScene] generated hull set loaded: wasp/cyan/m0 (16 directions).');
+      // Preload Wasp M0 for all 4 factions so Arena vehicles render immediately.
+      for (const faction of GENERATED_HULL_FACTIONS) {
+        preloadGeneratedHullSet(this, DEFAULT_GENERATED_HULL, faction as GeneratedHullFaction, DEFAULT_GENERATED_HULL_MOD);
+      }
+      console.log('[PreloadScene] generated hull sets loaded: wasp/all factions/m0 (64 directions).');
     } else {
       console.log('[PreloadScene] modularUnits loading skipped (standard mode).');
     }

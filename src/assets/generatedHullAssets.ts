@@ -222,6 +222,214 @@ export function resolveGeneratedHullFaction(faction?: Faction): GeneratedHullFac
   return 'cyan';
 }
 
+// ─── Body angle → direction helpers ─────────────────────────────
+
+/**
+ * Quantize a continuous body angle (radians, screen-space) to the
+ * nearest 8-direction index used by the runtime direction system.
+ *
+ * Screen-space convention (matching directionFromDelta):
+ *   E=0 (~0rad), SE=1 (~PI/4), S=2 (~PI/2), SW=3 (~3PI/4),
+ *   W=4 (~±PI), NW=5 (~-3PI/4), N=6 (~-PI/2), NE=7 (~-PI/4)
+ *
+ * Default (angle=0): returns 0 (E).
+ */
+export function bodyAngleToDir8(bodyAngle: number): number {
+  // Normalize to -PI..PI
+  let a = bodyAngle % (Math.PI * 2);
+  if (a > Math.PI) a -= Math.PI * 2;
+  if (a < -Math.PI) a += Math.PI * 2;
+
+  // Quantize to 8 sectors (PI/4 each)
+  const sector = Math.round(a / (Math.PI / 4));
+  const map: Record<number, number> = {
+    0: 0, 1: 1, 2: 2, 3: 3, 4: 4,
+    '-4': 4, '-3': 5, '-2': 6, '-1': 7,
+  };
+  return map[sector] ?? 2; // default S if out of range
+}
+
+/**
+ * Convert a blockout vehicle modificationLevel (0–3) to the
+ * generated hull mod string ('m0'–'m3').
+ *
+ * Clamps out-of-range values to the nearest valid mod.
+ */
+export function modificationLevelToMod(level: number): GeneratedHullMod {
+  const clamped = Math.min(Math.max(Math.round(level), 0), 3);
+  return GENERATED_HULL_MODS[clamped];
+}
+
+/**
+ * Check whether a BodyId string is a valid GeneratedHullId.
+ *
+ * This bridges the blockout vehicle bodyId (e.g. 'wasp', 'hornet')
+ * to the generated hull asset system. Returns the typed hull ID
+ * if valid, or null if the bodyId has no generated hull assets.
+ */
+export function bodyIdToGeneratedHullId(bodyId: string): GeneratedHullId | null {
+  if ((GENERATED_HULL_IDS as readonly string[]).includes(bodyId)) {
+    return bodyId as GeneratedHullId;
+  }
+  return null;
+}
+
+// ─── Wasp-only visual direction calibration ────────────────────────
+// PIM-HULL-WASP-DIR-01: Wasp-only calibration MVP.
+// Do not generalize without visual validation.
+//
+// The generated Wasp hull PNGs were rendered by the Three.js web exporter
+// (tools/tankviewer-web-exporter/) with a ROTATION_OFFSET_DEG that may not
+// perfectly match the Wasp 3DS model's default facing direction. This table
+// compensates by remapping the "logical" dir16 (what the code thinks the
+// direction should be) to the "visual" dir16 (which PNG actually shows the
+// hull facing that screen direction).
+//
+// Key = logical dir16 (what bodyAngleToDir8 → mapRuntimeDir8ToGeneratedDir16 produces)
+// Value = visual dir16 (which Wasp PNG to actually display)
+//
+// IMPORTANT: This is a Wasp-only empirical calibration.
+// Other hulls may need different remap tables once visually validated.
+// Turrets are NOT affected by this remap.
+
+/**
+ * Wasp-only calibration MVP. Do not generalize without visual validation.
+ *
+ * Maps logical dir16 → visual dir16 for Wasp generated hull sprites.
+ * Logical dir16 is what the direction pipeline produces from bodyAngle.
+ * Visual dir16 is which PNG actually shows the Wasp facing the correct
+ * screen direction to match the yellow heading/movement arrow.
+ *
+ * Current calibration: identity (no remap) — needs manual QA to determine
+ * the actual offset. The debug overlay (BlockoutVehicleRenderer) will show
+ * both raw and remapped dir16 so the correct mapping can be determined.
+ */
+export const WASP_HULL_VISUAL_DIR16_REMAP: Record<number, number> = {
+  0: 0,   // E  → E  (identity — calibrate with manual QA)
+  1: 1,   // ESE → ESE
+  2: 2,   // SE  → SE
+  3: 3,   // SSE → SSE
+  4: 4,   // S   → S
+  5: 5,   // SSW → SSW
+  6: 6,   // SW  → SW
+  7: 7,   // WSW → WSW
+  8: 8,   // W   → W
+  9: 9,   // WNW → WNW
+  10: 10, // NW  → NW
+  11: 11, // NNW → NNW
+  12: 12, // N   → N
+  13: 13, // NNE → NNE
+  14: 14, // NE  → NE
+  15: 15, // ENE → ENE
+};
+
+/**
+ * Apply hull-specific visual dir16 remap.
+ *
+ * For Wasp: applies WASP_HULL_VISUAL_DIR16_REMAP.
+ * For other hulls: returns the input dir16 unchanged.
+ *
+ * Wasp-only calibration MVP. Do not generalize without visual validation.
+ */
+export function applyHullVisualDir16Remap(
+  hullId: GeneratedHullId,
+  dir16: GeneratedHullDir16Index,
+): GeneratedHullDir16Index {
+  if (hullId === 'wasp') {
+    const remapped = WASP_HULL_VISUAL_DIR16_REMAP[dir16];
+    if (remapped !== undefined && remapped >= 0 && remapped <= 15) {
+      return remapped as GeneratedHullDir16Index;
+    }
+  }
+  return dir16;
+}
+
+/**
+ * Resolve the best generated hull texture key for a blockout vehicle.
+ *
+ * Uses bodyId + faction + modificationLevel to determine the hull set,
+ * then uses bodyAngle to pick the correct 16-direction sprite.
+ * For Wasp, applies WASP_HULL_VISUAL_DIR16_REMAP to compensate for
+ * the PNG rendering rotation offset.
+ *
+ * Returns the texture key if the texture exists in the scene's
+ * TextureManager, or null if no generated hull texture is available
+ * (either the bodyId is not supported, or the texture set hasn't
+ * been loaded).
+ */
+export function resolveGeneratedHullKey(
+  scene: Phaser.Scene,
+  bodyId: string,
+  faction: Faction,
+  modificationLevel: number,
+  bodyAngle: number,
+): string | null {
+  const hullId = bodyIdToGeneratedHullId(bodyId);
+  if (!hullId) return null;
+
+  const hullFaction = resolveGeneratedHullFaction(faction);
+  const mod = modificationLevelToMod(modificationLevel);
+  const dir8 = bodyAngleToDir8(bodyAngle);
+  const logicalDir16 = mapRuntimeDir8ToGeneratedDir16(dir8);
+  const visualDir16 = applyHullVisualDir16Remap(hullId, logicalDir16);
+
+  const key = getGeneratedHullTextureKey(hullId, hullFaction, mod, visualDir16);
+  if (scene.textures.exists(key)) {
+    return key;
+  }
+  return null;
+}
+
+/**
+ * Get the diagnostic info for a hull direction resolution.
+ * Used by the dev-only direction debug overlay.
+ *
+ * Returns all intermediate values for debugging:
+ * - bodyAngle in degrees
+ * - raw dir8 from bodyAngle
+ * - logical dir16 (before remap)
+ * - visual dir16 (after remap, Wasp-only)
+ * - PNG compass suffix
+ * - final texture key
+ */
+export function resolveHullDirectionDiagnostic(
+  bodyId: string,
+  faction: Faction,
+  modificationLevel: number,
+  bodyAngle: number,
+): {
+  bodyAngleDeg: number;
+  dir8: number;
+  logicalDir16: number;
+  visualDir16: number;
+  compassSuffix: string;
+  textureKey: string;
+  hullId: string | null;
+} {
+  const hullId = bodyIdToGeneratedHullId(bodyId);
+  const dir8 = bodyAngleToDir8(bodyAngle);
+  const logicalDir16 = mapRuntimeDir8ToGeneratedDir16(dir8);
+  const visualDir16 = hullId
+    ? applyHullVisualDir16Remap(hullId, logicalDir16)
+    : logicalDir16;
+  const hullFaction = resolveGeneratedHullFaction(faction);
+  const mod = modificationLevelToMod(modificationLevel);
+  const compassSuffix = GENERATED_HULL_DIRECTIONS_16[visualDir16]?.suffix ?? '?';
+  const textureKey = hullId
+    ? getGeneratedHullTextureKey(hullId, hullFaction, mod, visualDir16)
+    : '';
+
+  return {
+    bodyAngleDeg: Math.round((bodyAngle * 180 / Math.PI) * 100) / 100,
+    dir8,
+    logicalDir16,
+    visualDir16,
+    compassSuffix,
+    textureKey,
+    hullId,
+  };
+}
+
 // ─── Pilot-tuned render constants ───────────────────────────────
 // These values are initial pilot estimates for the generated hull
 // sprites (512x512) and will need visual QA tuning per hull.
@@ -236,6 +444,19 @@ export function resolveGeneratedHullFaction(faction?: Faction): GeneratedHullFac
  * the legacy chassis sprites.
  */
 export const GENERATED_HULL_SCALE = 0.24;
+
+/**
+ * Whether the direction debug overlay is enabled.
+ * Only shown in dev/arena mode. Defaults to false.
+ * Toggle via BlockoutVehicleRenderer.toggleDirectionDebug().
+ */
+export let directionDebugEnabled = false;
+
+/** Toggle the direction debug overlay. Returns new state. */
+export function toggleDirectionDebug(): boolean {
+  directionDebugEnabled = !directionDebugEnabled;
+  return directionDebugEnabled;
+}
 
 /**
  * Sprite origin X for generated hull sprites.
