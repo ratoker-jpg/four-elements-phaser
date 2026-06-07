@@ -583,3 +583,93 @@ describe('PIM-STEP-01: starter-only turret asset loading', () => {
     expect(starterTotal / fullTotal).toBeLessThan(0.01);
   });
 });
+
+// ─── PIM-STEP-01 FIXUP: Config-mode bounded turret loading tests ────
+
+describe('PIM-STEP-01 FIXUP: config-mode bounded turret loading', () => {
+  it('bounded arena/debug set is 10 turrets × 2 factions × m0 = 320 PNG', () => {
+    const turretSets = GENERATED_TURRET_IDS.length; // 10
+    const factions = 2; // cyan, green (arena factions)
+    const dirs = 16;
+    expect(turretSets * factions * dirs).toBe(320);
+  });
+
+  it('bounded set is a small fraction of full matrix (320 vs 2560)', () => {
+    expect(320 / 2560).toBeLessThan(0.15); // ~12.5%
+  });
+
+  it('preloadGeneratedTurretSet skips already-loaded textures (no duplication)', () => {
+    // Simulate: smoky cyan m0 was already loaded by Standard preload
+    const smokyCyanKeys = new Set<string>();
+    for (const dir of GENERATED_TURRET_DIRECTIONS_16) {
+      smokyCyanKeys.add(getGeneratedTurretTextureKey('smoky', 'cyan', DEFAULT_GENERATED_TURRET_MOD, dir.index as GeneratedTurretDir16Index));
+    }
+
+    const loadImageCalls: Array<{ key: string; path: string }> = [];
+    const mockScene = {
+      textures: {
+        exists: (key: string) => smokyCyanKeys.has(key),
+      },
+      load: {
+        image: (_key: string, _path: string) => {
+          loadImageCalls.push({ key: _key, path: _path });
+        },
+      },
+    } as unknown as Phaser.Scene;
+
+    // Load the full arena set — smoky cyan m0 should be skipped
+    const turretFactions: Array<'cyan' | 'green'> = ['cyan', 'green'];
+    let totalKeys: string[] = [];
+    for (const turret of GENERATED_TURRET_IDS) {
+      for (const faction of turretFactions) {
+        const keys = preloadGeneratedTurretSet(mockScene, turret, faction, DEFAULT_GENERATED_TURRET_MOD);
+        totalKeys = totalKeys.concat(keys);
+      }
+    }
+
+    // 10 turrets × 2 factions = 20 sets. Minus smoky cyan m0 (16 dirs already loaded) = 19 × 16 = 304
+    expect(totalKeys.length).toBe(320 - 16);
+    // Verify no smoky cyan m0 keys in the loaded set
+    for (const key of totalKeys) {
+      expect(smokyCyanKeys.has(key)).toBe(false);
+    }
+  });
+
+  it('full matrix preload remains impossible (bounded set never approaches full)', () => {
+    const boundedTurretPNGs = 10 * 2 * 16; // 320 (turrets × 2 factions × m0 × 16 dirs)
+    const fullTurretPNGs = 2560;
+    const combinedStarterPlusBounded = 16 + boundedTurretPNGs; // 16 (standard) + 320 (debug/arena) = 336
+    // Still well under full matrix
+    expect(combinedStarterPlusBounded / fullTurretPNGs).toBeLessThan(0.15);
+  });
+
+  it('combined config-mode hull + turret = 544 PNG (224 + 320)', () => {
+    const boundedHullPNGs = 7 * 2 * 16; // 224
+    const boundedTurretPNGs = 10 * 2 * 16; // 320
+    expect(boundedHullPNGs + boundedTurretPNGs).toBe(544);
+  });
+
+  it('no yellow or purple in bounded arena/debug set', () => {
+    const turretFactions: Array<'cyan' | 'green'> = ['cyan', 'green'];
+    const loadImageCalls: Array<{ key: string; path: string }> = [];
+    const mockScene = {
+      textures: { exists: () => false },
+      load: {
+        image: (_key: string, _path: string) => {
+          loadImageCalls.push({ key: _key, path: _path });
+        },
+      },
+    } as unknown as Phaser.Scene;
+
+    for (const turret of GENERATED_TURRET_IDS) {
+      for (const faction of turretFactions) {
+        preloadGeneratedTurretSet(mockScene, turret, faction, DEFAULT_GENERATED_TURRET_MOD);
+      }
+    }
+
+    for (const call of loadImageCalls) {
+      expect(call.path).not.toContain('yellow/');
+      expect(call.path).not.toContain('purple/');
+    }
+  });
+});

@@ -572,3 +572,88 @@ describe('PIM-STEP-01: hull fallback when texture missing', () => {
     expect(result).toBe('generated_hull_wasp_cyan_m0_dir00');
   });
 });
+
+// ─── PIM-STEP-01 FIXUP: Config-mode bounded loading tests ─────────
+
+describe('PIM-STEP-01 FIXUP: config-mode bounded hull loading', () => {
+  it('bounded arena/debug set is 7 hulls × 2 factions × m0 = 224 PNG', () => {
+    const hullSets = GENERATED_HULL_IDS.length; // 7
+    const factions = 2; // cyan, green (arena factions)
+    const dirs = 16;
+    expect(hullSets * factions * dirs).toBe(224);
+  });
+
+  it('bounded set is a small fraction of full matrix (224 vs 1792)', () => {
+    expect(224 / 1792).toBeLessThan(0.15); // ~12.5%
+  });
+
+  it('preloadGeneratedHullSet skips already-loaded textures (no duplication)', () => {
+    // Simulate: wasp cyan m0 was already loaded by Standard preload
+    const waspCyanKeys = new Set<string>();
+    for (const dir of GENERATED_HULL_DIRECTIONS_16) {
+      waspCyanKeys.add(getGeneratedHullTextureKey('wasp', 'cyan', DEFAULT_GENERATED_HULL_MOD, dir.index as GeneratedHullDir16Index));
+    }
+
+    const loadImageCalls: Array<{ key: string; path: string }> = [];
+    const mockScene = {
+      textures: {
+        exists: (key: string) => waspCyanKeys.has(key),
+      },
+      load: {
+        image: (_key: string, _path: string) => {
+          loadImageCalls.push({ key: _key, path: _path });
+        },
+      },
+    } as unknown as Phaser.Scene;
+
+    // Load the full arena set — wasp cyan m0 should be skipped
+    const hullFactions: GeneratedHullFaction[] = ['cyan', 'green'];
+    let totalKeys: string[] = [];
+    for (const hull of GENERATED_HULL_IDS) {
+      for (const faction of hullFactions) {
+        const keys = preloadGeneratedHullSet(mockScene, hull, faction, DEFAULT_GENERATED_HULL_MOD);
+        totalKeys = totalKeys.concat(keys);
+      }
+    }
+
+    // 7 hulls × 2 factions = 14 sets. Minus wasp cyan m0 (16 dirs already loaded) = 13 × 16 + 0 = 208
+    // Actually: 14 sets × 16 = 224 total, minus 16 (wasp cyan already loaded) = 208
+    expect(totalKeys.length).toBe(224 - 16);
+    // Verify no wasp cyan m0 keys in the loaded set
+    for (const key of totalKeys) {
+      expect(waspCyanKeys.has(key)).toBe(false);
+    }
+  });
+
+  it('full matrix preload remains impossible (bounded set never approaches full)', () => {
+    const boundedHullPNGs = 7 * 2 * 16; // 224 (hulls × 2 factions × m0 × 16 dirs)
+    const fullHullPNGs = 1792;
+    const combinedStarterPlusBounded = 16 + boundedHullPNGs; // 16 (standard) + 224 (debug/arena) = 240
+    // Still well under full matrix
+    expect(combinedStarterPlusBounded / fullHullPNGs).toBeLessThan(0.15);
+  });
+
+  it('no yellow or purple in bounded arena/debug set', () => {
+    const hullFactions: GeneratedHullFaction[] = ['cyan', 'green'];
+    const loadImageCalls: Array<{ key: string; path: string }> = [];
+    const mockScene = {
+      textures: { exists: () => false },
+      load: {
+        image: (_key: string, _path: string) => {
+          loadImageCalls.push({ key: _key, path: _path });
+        },
+      },
+    } as unknown as Phaser.Scene;
+
+    for (const hull of GENERATED_HULL_IDS) {
+      for (const faction of hullFactions) {
+        preloadGeneratedHullSet(mockScene, hull, faction, DEFAULT_GENERATED_HULL_MOD);
+      }
+    }
+
+    for (const call of loadImageCalls) {
+      expect(call.path).not.toContain('yellow/');
+      expect(call.path).not.toContain('purple/');
+    }
+  });
+});

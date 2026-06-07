@@ -75,8 +75,12 @@ export class PreloadScene extends Phaser.Scene {
       // Arena scenario uses all 7 hulls × 2 factions (cyan, green) × m0.
       // That's 7 × 2 × 16 = 224 PNGs — a small fraction of the full
       // 1792-PNG matrix. Full matrix is addressable but NOT preloaded.
-      // PIM-STEP-01: Wasp cyan m0 is already loaded by the Standard-mode
-      // preload above; preloadGeneratedHullSet skips already-loaded keys.
+      // PIM-STEP-01 FIXUP: When isDevtoolsEnabled() is true, the
+      // Standard-mode preload block (!isDevtoolsEnabled()) does NOT run,
+      // so no hulls/turrets are pre-loaded yet. The 224 hull PNGs are
+      // loaded here from scratch. When isDevtoolsEnabled() is false
+      // (Standard mode without URL params), the Standard block already
+      // loaded Wasp cyan m0, but this block does not execute.
       const arenaFactions: GeneratedHullFaction[] = ['cyan', 'green'];
       let hullSetsLoaded = 0;
       for (const hull of GENERATED_HULL_IDS) {
@@ -91,8 +95,11 @@ export class PreloadScene extends Phaser.Scene {
       // Arena scenario uses all 10 turrets × 2 factions (cyan, green) × m0.
       // That's 10 × 2 × 16 = 320 PNGs — a small fraction of the full
       // 2560-PNG matrix. Full matrix is addressable but NOT preloaded.
-      // PIM-STEP-01: Smoky cyan m0 is already loaded by the Standard-mode
-      // preload above; preloadGeneratedTurretSet skips already-loaded keys.
+      // PIM-STEP-01 FIXUP: When isDevtoolsEnabled() is true, the
+      // Standard-mode preload block (!isDevtoolsEnabled()) does NOT run,
+      // so no turrets are pre-loaded yet. The 320 turret PNGs are
+      // loaded here from scratch. When isDevtoolsEnabled() is false
+      // (Standard mode), this block does not execute.
       const arenaTurretFactions: GeneratedTurretFaction[] = ['cyan', 'green'];
       let turretSetsLoaded = 0;
       for (const turret of GENERATED_TURRET_IDS) {

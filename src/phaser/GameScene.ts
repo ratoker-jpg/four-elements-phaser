@@ -27,6 +27,9 @@ import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
 import { FeedbackRenderer } from './render/FeedbackRenderer';
 import { UnitMotionFxRenderer } from './render/UnitMotionFxRenderer';
 import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData, arenaSpawnVehicle } from '../state/devArena';
+import { preloadGeneratedHullSet, GENERATED_HULL_IDS, DEFAULT_GENERATED_HULL_MOD, type GeneratedHullFaction } from '../assets/generatedHullAssets';
+import { preloadGeneratedTurretSet, GENERATED_TURRET_IDS, DEFAULT_GENERATED_TURRET_MOD, type GeneratedTurretFaction } from '../assets/generatedTurretAssets';
+import { loadGeneratedModularUnitAssets } from '../assets/runtimeGeneratedAssets';
 import { createArenaModeContext, type ArenaModeContext } from '../state/arenaModeContext';
 import { ArenaMenu } from './ui/ArenaMenu';
 import {
@@ -243,6 +246,19 @@ export class GameScene extends Phaser.Scene {
 
     this.devtoolsActive = urlDevtools || configDebug || configArena;
     this.arenaMode = urlArena || configArena;
+
+    // PIM-STEP-01 FIXUP: Late-load arena/debug asset sets for menu/config-based modes.
+    // PreloadScene only loads the full arena set when URL devtools is set.
+    // When the user selects Debug/Arena from the menu (no URL params),
+    // PreloadScene only loaded the Standard starter set (32 PNG).
+    // Here we late-load the missing arena sets so all vehicles get sprites.
+    // Uses Phaser late-loading: queue assets then call load.start().
+    // preloadGeneratedHullSet/preloadGeneratedTurretSet skip already-loaded
+    // textures, so if URL devtools was set, this is a no-op.
+    const needsRuntimeAssetLoad = !urlDevtools && (configDebug || configArena);
+    if (needsRuntimeAssetLoad) {
+      this.loadConfigModeAssets(configArena);
+    }
 
     // ARENA-01H+: Create ArenaModeContext — controls which subsystems are active
     this.arenaCtx = createArenaModeContext(this.arenaMode);
@@ -688,6 +704,81 @@ export class GameScene extends Phaser.Scene {
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
       `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B/P/F: build | N: queue builder | G: queue harvester | Q/E: body dir | Z/X: turret dir`,
+    );
+  }
+
+  /**
+   * PIM-STEP-01 FIXUP: Late-load generated asset sets for menu/config-based modes.
+   *
+   * When the user selects Debug or Arena from the menu (no URL params),
+   * PreloadScene only loaded the Standard starter set (32 PNG: Wasp+Smoky
+   * cyan m0). This method loads the additional hull and turret sets needed
+   * for Debug/Arena scenarios with multiple vehicle types.
+   *
+   * Uses Phaser's late-loading mechanism: queue assets via load.image()
+   * then call load.start() to process them. Textures become available
+   * asynchronously. BlockoutVehicleRenderer's resolveGeneratedHullKey /
+   * resolveGeneratedTurretKey check textures.exists() per frame, so once
+   * the late-load completes, the renderer automatically switches from
+   * procedural fallback to generated sprites.
+   *
+   * Bounded preload: same set as URL devtools/arena preload:
+   *   Hulls: 7 × 2 factions (cyan, green) × m0 × 16 dirs = 224 PNG
+   *   Turrets: 10 × 2 factions (cyan, green) × m0 × 16 dirs = 320 PNG
+   * Total: 544 PNG (minus any already loaded by Standard starter set).
+   * Full matrix preload (1792 hull + 2560 turret) remains impossible.
+   *
+   * @param isArena - Whether Arena-specific subset is needed (same as Debug
+   *   for now — both load the full bounded set. Parameter reserved for
+   *   future differentiation if Debug needs fewer assets.)
+   */
+  private loadConfigModeAssets(isArena: boolean): void {
+    const modeLabel = isArena ? 'Arena' : 'Debug';
+    const hullFactions: GeneratedHullFaction[] = ['cyan', 'green'];
+    const turretFactions: GeneratedTurretFaction[] = ['cyan', 'green'];
+
+    let hullSetsQueued = 0;
+    let turretSetsQueued = 0;
+
+    // Load modular combat unit assets (also loaded by PreloadScene for URL devtools)
+    loadGeneratedModularUnitAssets(this);
+
+    // Load all 7 hulls × 2 factions × m0 (224 PNG minus already-loaded)
+    for (const hull of GENERATED_HULL_IDS) {
+      for (const faction of hullFactions) {
+        preloadGeneratedHullSet(this, hull, faction, DEFAULT_GENERATED_HULL_MOD);
+        hullSetsQueued++;
+      }
+    }
+
+    // Load all 10 turrets × 2 factions × m0 (320 PNG minus already-loaded)
+    for (const turret of GENERATED_TURRET_IDS) {
+      for (const faction of turretFactions) {
+        preloadGeneratedTurretSet(this, turret, faction, DEFAULT_GENERATED_TURRET_MOD);
+        turretSetsQueued++;
+      }
+    }
+
+    // Start the late-loading pipeline.
+    // After load completes, BlockoutVehicleRenderer automatically picks up
+    // the new textures via resolveGeneratedHullKey/resolveGeneratedTurretKey
+    // (they check scene.textures.exists() each frame).
+    this.load.once('complete', () => {
+      console.log(
+        `[GameScene] Config-mode ${modeLabel} late-load complete. ` +
+        `Hull sets queued: ${hullSetsQueued} (${hullSetsQueued * 16} PNGs), ` +
+        `Turret sets queued: ${turretSetsQueued} (${turretSetsQueued * 16} PNGs). ` +
+        `Already-loaded textures were skipped by preload helpers.`,
+      );
+    });
+
+    this.load.start();
+
+    console.log(
+      `[GameScene] Config-mode ${modeLabel}: late-loading generated assets ` +
+      `(${hullSetsQueued} hull sets + ${turretSetsQueued} turret sets, ` +
+      `bounded: 7 hulls × 2 factions × m0, 10 turrets × 2 factions × m0). ` +
+      `Vehicles use procedural fallback until textures arrive.`,
     );
   }
 
