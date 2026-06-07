@@ -58,10 +58,13 @@ import {
   clearOverride as waspCalibClearOverride,
   toggleOverlay as waspCalibToggleOverlay,
   isCalibrationActive as isWaspCalibActive,
+  isOverrideActive as isWaspCalibOverrideActive,
   isMovementFrozen as isWaspCalibFrozen,
+  activateOverrideFromCurrent as waspCalibActivateOverrideFromCurrent,
   installConsoleAPI as waspCalibInstallConsole,
   getDir16Label,
 } from '../debug/WaspHullDirectionCalibrator';
+import { resolveHullDirectionDiagnostic } from '../../assets/generatedHullAssets';
 
 // Turret size constants are now in blockoutVehicleGeometry (BLOCKOUT_TURRET_SIZE_W/H).
 // No local duplicate needed — computeProjectedBarrelTipScreen uses the shared source.
@@ -781,6 +784,17 @@ export class BlockoutVehicleInputController {
         if (isWaspCalibActive()) {
           // ] key — next dir16
           if (event.code === 'BracketRight') {
+            // If override is OFF, activate from current visual dir16 before cycling.
+            // This ensures the first cycle press advances FROM the current direction,
+            // not from an arbitrary default (0). The hull direction does not change
+            // until the user explicitly presses ] or [.
+            if (!isWaspCalibOverrideActive()) {
+              const diag = resolveHullDirectionDiagnostic(
+                selected.bodyId, selected.faction,
+                selected.modificationLevel, selected.bodyAngle,
+              );
+              waspCalibActivateOverrideFromCurrent(diag.visualDir16);
+            }
             const d = waspCalibCycleNext();
             console.log(`[WaspCalibrator] visual dir16 = ${d} (${getDir16Label(d)})`);
             return;
@@ -788,6 +802,14 @@ export class BlockoutVehicleInputController {
 
           // [ key — previous dir16
           if (event.code === 'BracketLeft') {
+            // If override is OFF, activate from current visual dir16 before cycling.
+            if (!isWaspCalibOverrideActive()) {
+              const diag = resolveHullDirectionDiagnostic(
+                selected.bodyId, selected.faction,
+                selected.modificationLevel, selected.bodyAngle,
+              );
+              waspCalibActivateOverrideFromCurrent(diag.visualDir16);
+            }
             const d = waspCalibCyclePrev();
             console.log(`[WaspCalibrator] visual dir16 = ${d} (${getDir16Label(d)})`);
             return;
