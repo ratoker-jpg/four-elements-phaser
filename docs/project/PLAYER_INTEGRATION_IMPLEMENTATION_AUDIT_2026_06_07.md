@@ -26,24 +26,24 @@ Yes. The PLAYER_INTEGRATION_MVP roadmap is implementable within the existing Pha
 
 5. **DOM HUD coupling to civil loop.** PlaytestHud is tightly coupled to the civil economy flow (economy readout, harvester status, separator status, factory queue for builders/harvesters). Adding tank production UI and RTS-style command grid requires either major PlaytestHud extension or a parallel HUD system.
 
-6. **Movement interpolation gap.** Current movement is tile-based with immediate teleport between tiles. Visual interpolation (easing between tile positions), acceleration/braking, dust particles, and inertia do not exist. These are rendering-layer concerns but require state-layer hooks.
+6. **Movement visual micro-stutter / tile-step feel.** Current movement is tile-based with functional acceleration, speed, and pathfinding already implemented. The problem is not that movement is absent — it is that the rendering layer snaps between tile positions, producing a visual tile-step feel. Visual interpolation (easing between tile positions), acceleration/braking easing overlays, dust particles, and inertia overshoot are missing at the renderer-state smoothing layer. These are purely rendering-layer concerns and do not require pathfinding or occupancy rewrites.
 
 ### Recommended final implementation order
 
 ```
-Step 1 (Track A)  — Asset visibility across modes
+Step 1 (Track A)  — Asset visibility / loading / rendering across modes
 Step 2 (Track B)  — Russian unit identity / player-facing labels
-Step 3 (Track C)  — Systemic asset profile contract
+Step 3 (Track F)  — Movement feel / visual smoothing MVP
 Step 4 (Track D)  — Body/weapon production config
 Step 5 (Track E)  — Unit Factory tank production MVP
-Step 6 (Track F)  — Movement feel / visual smoothing
-Step 7 (Track G)  — RTS HUD MVP
-Step 8 (Track H)  — M-level progression
-Step 9 (Track I)  — Fog / territory / minimap
-Step 10 (Track J) — Combat VFX late slice
+Step 6 (Track G)  — RTS HUD MVP
+Step 7 (Track H)  — M-level progression
+Step 8 (Track I)  — Fog / territory / minimap
+Step 9 (Track J)  — Combat VFX late slice
+     (Track C)  — Systemic asset profile contract (parallel, docs/design, does not block Track E)
 ```
 
-Tracks A-E form the core player tank loop (see tank, produce tank, select tank, move tank). Tracks F-G add feel and control. Track H adds progression. Tracks I-J are strategic and visual layers that come after the core loop works.
+Tracks A → B → F form the first player-facing slice: see tank, name tank, move tank smoothly. Track D adds production config. Track E adds tank production (core game loop). Track G adds RTS control. Track H adds progression. Tracks I-J add strategic and visual depth. Track C runs in parallel as docs/design and does not block Track E unless this audit proves otherwise.
 
 ### What must happen before Step 1
 
@@ -180,35 +180,35 @@ Tracks A-E form the core player tank loop (see tank, produce tank, select tank, 
 ## 4. Final Dependency Graph
 
 ```
-Track A (Asset visibility)
+Track A (Asset visibility) ──┐
+  ↓                           │
+Track B (Russian labels)     │ Track C (Asset profiles) — parallel docs/design,
+  ↓                           │ does NOT block Track E
+Track F (Movement feel)  ←───┤ depends on A (sprites visible for interpolation)
+  ↓                           │
+Track D (Production config) ─┤ independent of A/B/F, can start in parallel
+  ↓                           │
+Track E (Tank production) ←──┘ depends on A (sprites load), D (config data)
+  ↓                           │
+Track G (RTS HUD) ←── B (labels), E (production UI), F (movement commands)
   ↓
-Track B (Russian labels) ←── no hard dep on A, but A makes sprites visible first
+Track H (M-level progression) ←── D (config), E (production), G (upgrade UI)
   ↓
-Track C (Asset profiles) ←── depends on A for knowing what needs profiling
+Track I (Fog/territory/minimap) ←── G (minimap in HUD), E (units to reveal)
   ↓
-Track D (Production config) ←── independent of A/B/C, can start in parallel
-  ↓
-Track E (Tank production) ←── depends on A (sprites load), D (config data)
-  ↓
-Track F (Movement feel) ←── depends on A (sprites visible), E (tanks to move)
-  ↓
-Track G (RTS HUD) ←── depends on B (labels), E (production UI), F (movement commands)
-  ↓
-Track H (M-level progression) ←── depends on D (config), E (production), G (upgrade UI)
-  ↓
-Track I (Fog/territory/minimap) ←── depends on G (minimap in HUD), E (units to reveal)
-  ↓
-Track J (Combat VFX) ←── depends on A (sprite rendering), E (combat units), F (movement)
+Track J (Combat VFX) ←── A (sprite rendering), E (combat units), F (movement)
 ```
 
 **Parallel opportunities:**
-- Track D can run in parallel with Tracks A + B + C
-- Track F can start partially in parallel with Track E (interpolation layer is renderer-only)
+- Track C runs in parallel as docs/design and does NOT block Track E
+- Track D can run in parallel with Tracks A + B + F
+- Track F is pulled forward before D/E because visual smoothing is renderer-only and only needs A (sprites visible); it does not require E (tank production) to start
 - Track J prototyping can start anytime but must not merge before E + F
 
 **Sequential constraints:**
+- F must wait for A (sprites visible for interpolation to have something to smooth)
 - E must wait for A + D
-- G must wait for B + E
+- G must wait for B + E + F
 - H must wait for D + E + G
 - I must wait for E + G
 
@@ -223,20 +223,20 @@ Track J (Combat VFX) ←── depends on A (sprite rendering), E (combat units)
 
 ## 5. Final Implementation Sequence
 
-### Step 1 — PIM-STEP-01: Asset visibility across player modes (Track A)
+### Step 1 — PIM-STEP-01: Asset visibility / loading / rendering across player modes (Track A)
 
 | Field | Value |
 |---|---|
 | Risk | High+ |
-| Goal | Make generated hull and turret sprites load and display in Standard and Debug game modes, not just Arena |
+| Goal | Make generated hull and turret sprites load and display in Standard and Debug game modes, not just Arena. Scope is strictly asset visibility, loading, and rendering — no production vehicle state adapter, no factory production, no starter tank creation |
 | Prerequisites | PR #230 merged; manual hull QA confirmed |
-| Expected files/functions touched | `src/phaser/PreloadScene.ts`, `src/phaser/GameScene.ts`, possibly `src/phaser/render/BlockoutVehicleRenderer.ts` |
-| What must NOT be touched | State types, production system, economy, PlaytestHud, ArenaMenu |
+| Expected files/functions touched | `src/phaser/PreloadScene.ts` (add bounded Standard-mode loading), `src/phaser/GameScene.ts` (remove arena-only renderer gate), possibly `src/phaser/render/BlockoutVehicleRenderer.ts` (ensure it works outside arena) |
+| What must NOT be touched | State types, production system, economy, PlaytestHud, ArenaMenu, factory logic, vehicle state adapter, starter tank creation. Track A may define how Standard mode will render already-existing/loaded combat vehicle state, but must not create a production/state model — that belongs in Track E |
 | Tool classification | GLM-only |
 | Expected PR size | Medium |
 | Validation commands | `npm run typecheck && npm run test && npm run build && npm run qa:smoke` |
-| Manual QA checklist | (1) Start Standard game — no 1792+2560 PNG preload. (2) Starter tank visible with generated hull+turret sprite. (3) Arena still works identically. (4) No 404 for hull/turret assets. (5) Fallback to blockout cube works if sprite not loaded. |
-| Acceptance criteria | Standard mode loads starter hull+turret set (1 body × 1 weapon × 1 faction × m0 × 16 dir = 32 PNG) on game start; BlockoutVehicleRenderer renders generated sprites outside arena; no full matrix preload |
+| Manual QA checklist | (1) Start Standard game — no 1792+2560 PNG preload. (2) Bounded hull+turret sprite set loads without errors. (3) Arena still works identically. (4) No 404 for hull/turret assets. (5) Fallback to blockout cube works if sprite not loaded. (6) BlockoutVehicleRenderer renders generated sprites in Standard/Debug mode (not just arena) |
+| Acceptance criteria | Standard mode loads bounded hull+turret sprite set (recommended: starter-only preload = 32 PNG — see Section 6 preload strategy comparison); BlockoutVehicleRenderer renders generated sprites outside arena; no full matrix preload; no production vehicle state adapter in this step |
 | Rollback risk | Low — adding bounded loading does not break existing Arena path |
 
 ### Step 2 — PIM-STEP-02: Russian unit identity and player-facing labels (Track B)
@@ -255,21 +255,21 @@ Track J (Combat VFX) ←── depends on A (sprite rendering), E (combat units)
 | Acceptance criteria | All player-visible UI shows Russian names; internal IDs unchanged; `displayNameKey` fields added to body profiles; composite name helper exists |
 | Rollback risk | Low — labels are display-only |
 
-### Step 3 — PIM-STEP-03: Systemic asset profile contract (Track C)
+### Step 3 — PIM-STEP-03: Movement feel and visual smoothing MVP (Track F)
 
 | Field | Value |
 |---|---|
 | Risk | High |
-| Goal | Formalize per-hull and per-turret visual profiles; introduce metadata validation; determine what needs Codex/local analysis |
-| Prerequisites | Step 1 (sprites visible in Standard mode) |
-| Expected files/functions touched | `src/assets/generatedHullAssets.ts` (add profile validation), possibly `src/assets/generatedTurretAssets.ts` (add per-turret profiles), `tools/validate_hull_assets.mjs` (extend) |
-| What must NOT be touched | Sprite rendering in production; runtime behavior changes |
-| Tool classification | GLM-only for code; Codex/local PNG analysis recommended for computing artBounds, groundAnchor, mountPoint from actual pixel data |
-| Expected PR size | Medium |
-| Validation commands | `npm run typecheck && npm run test && npm run build && node tools/validate_hull_assets.mjs` |
-| Manual QA checklist | (1) Per-hull profiles have validated scale/origin/offset values. (2) Per-turret profile system exists even if values are global defaults. (3) Validation tool checks profile completeness. (4) Documentation of which values need Codex/local analysis. |
-| Acceptance criteria | Per-hull profiles validated; per-turret profile interface defined; validation tool extended; documented list of values that need pixel analysis vs manual tuning |
-| Rollback risk | Medium — profile values directly affect visual rendering |
+| Goal | Add visual interpolation between tile positions to eliminate micro-stutter / tile-step feel; acceleration/braking easing; dust particles; inertia overshoot; direction smoothing. This is a rendering-layer fix — does not change pathfinding, occupancy, or game logic speed |
+| Prerequisites | Step 1 (sprites visible — interpolation needs sprites to smooth). Does NOT require Step 5 (tank production) |
+| Expected files/functions touched | `src/phaser/render/BlockoutVehicleRenderer.ts` (interpolation), `src/state/blockoutVehicleState.ts` (add visual interpolation fields), possibly new `src/phaser/render/vehicleInterpolation.ts`, `src/phaser/render/dustEmitter.ts` |
+| What must NOT be touched | Occupancy system, pathfinding, game logic speed |
+| Tool classification | GLM-only for interpolation logic; dust emitter can reference four-elements-next's `dust-emitter.ts` design |
+| Expected PR size | Large |
+| Validation commands | `npm run typecheck && npm run test && npm run build` |
+| Manual QA checklist | (1) Tanks visually ease between tiles instead of snapping. (2) Acceleration/braking visible on start/stop. (3) Dust particles emit on movement start. (4) Direction changes are smooth (easing or crossfade). (5) Logical tile occupancy unchanged. (6) Arena movement still works. |
+| Acceptance criteria | Visual position interpolates between tiles; acceleration/braking easing implemented; dust MVP particles present; direction smoothing works; occupancy/pathfinding unchanged |
+| Rollback risk | Medium — adds rendering state but does not change game logic |
 
 ### Step 4 — PIM-STEP-04: Body/weapon production config (Track D)
 
@@ -293,7 +293,7 @@ Track J (Combat VFX) ←── depends on A (sprite rendering), E (combat units)
 |---|---|
 | Risk | High+ |
 | Goal | Extend production system to produce tanks (body+weapon composition); add TankProductionQueueItem; spawn logic; M0 default; tier locking; starter tank |
-| Prerequisites | Step 1 (sprites load), Step 4 (production config) |
+| Prerequisites | Step 1 (sprites load), Step 4 (production config). Note: production vehicle state adapter and starter tank creation belong here in Track E, not in Track A |
 | Expected files/functions touched | `src/state/production.ts`, `src/state/types.ts`, `src/state/createInitialState.ts`, `src/state/updateGameState.ts`, `src/phaser/GameScene.ts`, possibly `src/phaser/render/BlockoutVehicleRenderer.ts` |
 | What must NOT be touched | Civil production (builder/harvester) — must keep working; economy constants |
 | Tool classification | GLM-only |
@@ -303,29 +303,13 @@ Track J (Combat VFX) ←── depends on A (sprite rendering), E (combat units)
 | Acceptance criteria | `ProducibleUnitType` extended with tank; tank queue item has bodyId + weaponId; spawn creates a production vehicle (not arena-only blockout); tier locking enforced; starter tank present; civil production unbroken |
 | Rollback risk | High — touches production state and save format |
 
-### Step 6 — PIM-STEP-06: Movement feel and visual smoothing (Track F)
-
-| Field | Value |
-|---|---|
-| Risk | High |
-| Goal | Add visual interpolation between tile positions; acceleration/braking easing; dust particles; inertia overshoot; direction smoothing |
-| Prerequisites | Step 1 (sprites visible), Step 5 (tanks to move) |
-| Expected files/functions touched | `src/phaser/render/BlockoutVehicleRenderer.ts` (interpolation), `src/state/blockoutVehicleState.ts` (add visual interpolation fields), possibly new `src/phaser/render/vehicleInterpolation.ts`, `src/phaser/render/dustEmitter.ts` |
-| What must NOT be touched | Occupancy system, pathfinding, game logic speed |
-| Tool classification | GLM-only for interpolation logic; dust emitter can reference four-elements-next's `dust-emitter.ts` design |
-| Expected PR size | Large |
-| Validation commands | `npm run typecheck && npm run test && npm run build` |
-| Manual QA checklist | (1) Tanks visually ease between tiles instead of teleporting. (2) Acceleration/braking visible on start/stop. (3) Dust particles emit on movement start. (4) Direction changes are smooth (easing or crossfade). (5) Logical tile occupancy unchanged. (6) Arena movement still works. |
-| Acceptance criteria | Visual position interpolates between tiles; acceleration/braking easing implemented; dust MVP particles present; direction smoothing works; occupancy/pathfinding unchanged |
-| Rollback risk | Medium — adds rendering state but does not change game logic |
-
-### Step 7 — PIM-STEP-07: RTS HUD MVP (Track G)
+### Step 6 — PIM-STEP-06: RTS HUD MVP (Track G)
 
 | Field | Value |
 |---|---|
 | Risk | High+ |
 | Goal | Create RTS-style HUD with selected unit info, command grid, factory integration, multi-select MVP, hotkeys |
-| Prerequisites | Step 2 (Russian labels), Step 5 (production UI), Step 6 (movement commands) |
+| Prerequisites | Step 2 (Russian labels), Step 5 (production UI), Step 3 (movement commands) |
 | Expected files/functions touched | New `src/phaser/ui/RtsHud.ts`, possibly `src/phaser/ui/CommandGrid.ts`, `src/phaser/ui/UnitInfoPanel.ts`, `src/phaser/ui/MinimapPlaceholder.ts`, `src/phaser/GameScene.ts` (wire HUD) |
 | What must NOT be touched | PlaytestHud (keep for civil loop until RtsHud replaces it); ArenaMenu (keep for Arena mode) |
 | Tool classification | GLM-only |
@@ -335,13 +319,13 @@ Track J (Combat VFX) ←── depends on A (sprite rendering), E (combat units)
 | Acceptance criteria | RTS HUD renders in Standard mode; selected unit info displays; command grid functional; factory production integrated; multi-select MVP works; hotkeys wired; existing HUDs unbroken |
 | Rollback risk | Medium — new UI component, existing HUDs preserved |
 
-### Step 8 — PIM-STEP-08: M-level progression (Track H)
+### Step 7 — PIM-STEP-07: M-level progression (Track H)
 
 | Field | Value |
 |---|---|
 | Risk | High |
 | Goal | Track kills + damage dealt; unlock M1/M2/M3 upgrades; upgrade UI; separate body vs turret upgrade; T3 direct M1+ production as design-only |
-| Prerequisites | Step 4 (config with M0-M3 data), Step 5 (production), Step 7 (upgrade UI in HUD) |
+| Prerequisites | Step 4 (config with M0-M3 data), Step 5 (production), Step 6 (upgrade UI in HUD) |
 | Expected files/functions touched | `src/state/types.ts` (add MLevelProgress), new `src/state/mLevelProgress.ts`, `src/state/updateGameState.ts` (combat contribution tracking), `src/phaser/ui/RtsHud.ts` (upgrade button), `src/config/weaponData.ts` / new `src/config/bodyData.ts` (M-level values already exist) |
 | What must NOT be touched | M0-M3 scaling formulas (already accepted); base damage/HP values |
 | Tool classification | GLM-only |
@@ -351,13 +335,13 @@ Track J (Combat VFX) ←── depends on A (sprite rendering), E (combat units)
 | Acceptance criteria | Kill/damage tracking state; M-level upgrade unlock logic; upgrade UI in RTS HUD; M0→M3 scaling applied on upgrade; T3 direct M1+ documented as design-only |
 | Rollback risk | Low — additive state and UI |
 
-### Step 9 — PIM-STEP-09: Fog / territory / minimap (Track I)
+### Step 8 — PIM-STEP-08: Fog / territory / minimap (Track I)
 
 | Field | Value |
 |---|---|
-| Risk | High+ |
+| Risk | High |
 | Goal | Pure TS visibility model (two-layer fog); fog render strategy; territory ownership/spread; minimap architecture |
-| Prerequisites | Step 5 (units to reveal), Step 7 (minimap in HUD) |
+| Prerequisites | Step 5 (units to reveal), Step 6 (minimap in HUD) |
 | Expected files/functions touched | New `src/state/fog.ts`, `src/state/territory.ts`, `src/phaser/render/FogRenderer.ts`, `src/phaser/render/TerritoryRenderer.ts`, `src/phaser/ui/Minimap.ts`, `src/state/types.ts` (add fog/territory state) |
 | What must NOT be touched | Camera rotation (forbidden); projection contract; existing rendering depth sorting |
 | Tool classification | GLM-only for state and rendering; Codex not needed |
@@ -367,13 +351,13 @@ Track J (Combat VFX) ←── depends on A (sprite rendering), E (combat units)
 | Acceptance criteria | Two-layer fog state model; fog rendering on isometric ground plane; territory cell ownership model; territory spread from buildings; minimap renders fog + territory + units; projection-compliant rendering |
 | Rollback risk | High — new rendering layer, potential performance impact |
 
-### Step 10 — PIM-STEP-10: Combat VFX late slice (Track J)
+### Step 9 — PIM-STEP-09: Combat VFX late slice (Track J)
 
 | Field | Value |
 |---|---|
 | Risk | High |
 | Goal | Weapon VFX profiles; muzzle flash / projectile / beam / hit effects; which VFX are procedural vs need assets |
-| Prerequisites | Step 1 (sprite rendering), Step 5 (combat units), Step 6 (movement for projectile tracking) |
+| Prerequisites | Step 1 (sprite rendering), Step 5 (combat units), Step 3 (movement for projectile tracking) |
 | Expected files/functions touched | New `src/config/vfxProfiles.ts`, `src/phaser/render/VfxRenderer.ts`, possibly `src/phaser/render/projectile.ts`, `src/phaser/render/beam.ts`, `src/phaser/render/muzzleFlash.ts` |
 | What must NOT be touched | Combat logic (hit model, damage calc); weapon configs |
 | Tool classification | GLM-only for procedural VFX; Blender/local analysis needed for any pre-rendered VFX assets |
@@ -382,6 +366,23 @@ Track J (Combat VFX) ←── depends on A (sprite rendering), E (combat units)
 | Manual QA checklist | (1) Smoky projectile visible on fire. (2) Thunder splash effect on impact. (3) Railgun beam visible. (4) Flamethrower cone visual. (5) Freeze cone visual. (6) Isida beam visual. (7) Vulcan rapid-fire tracers. (8) Twins plasma projectiles. (9) Ricochet bouncing projectile. (10) Hammer shotgun spread. (11) Muzzle flash on all weapons. |
 | Acceptance criteria | VFX profile config for all 10 weapons; at least procedural VFX for all weapons; muzzle flash implemented; hit effect implemented; documented which VFX need Blender assets later |
 | Rollback risk | Low — additive rendering layer |
+
+### Parallel — PIM-STEP-C: Systemic asset profile contract (Track C)
+
+| Field | Value |
+|---|---|
+| Risk | High |
+| Goal | Formalize per-hull and per-turret visual profiles; introduce metadata validation; determine what needs Codex/local analysis |
+| Prerequisites | Step 1 (sprites visible in Standard mode) |
+| Expected files/functions touched | `src/assets/generatedHullAssets.ts` (add profile validation), possibly `src/assets/generatedTurretAssets.ts` (add per-turret profiles), `tools/validate_hull_assets.mjs` (extend) |
+| What must NOT be touched | Sprite rendering in production; runtime behavior changes |
+| Tool classification | GLM-only for code; Codex/local PNG analysis recommended for computing artBounds, groundAnchor, mountPoint from actual pixel data |
+| Expected PR size | Medium |
+| Validation commands | `npm run typecheck && npm run test && npm run build && node tools/validate_hull_assets.mjs` |
+| Manual QA checklist | (1) Per-hull profiles have validated scale/origin/offset values. (2) Per-turret profile system exists even if values are global defaults. (3) Validation tool checks profile completeness. (4) Documentation of which values need Codex/local analysis. |
+| Acceptance criteria | Per-hull profiles validated; per-turret profile interface defined; validation tool extended; documented list of values that need pixel analysis vs manual tuning |
+| Rollback risk | Medium — profile values directly affect visual rendering |
+| Blocking | Does NOT block Track E or any other sequential step. Runs in parallel as docs/design work. |
 
 ---
 
@@ -415,21 +416,26 @@ Additionally, `BlockoutVehicleRenderer` is only instantiated and synced when the
 | Debug | `/?devtools=1` | All Standard + modularUnits + hull/turret subsets | BlockoutVehicleRenderer active |
 | Arena | `/?devtools=1&arena=1` | All Debug + Arena-specific setup | BlockoutVehicleRenderer + ArenaMenu |
 
-### How to load bounded subsets
+### Bounded preload strategy comparison
 
-The on-demand loader `preloadGeneratedHullSet(scene, hull, faction, mod)` loads exactly 16 PNGs (one per direction) for one hull+faction+mod combination. To load a bounded subset for Standard mode:
+The on-demand loader `preloadGeneratedHullSet(scene, hull, faction, mod)` loads exactly 16 PNGs (one per direction) for one hull+faction+mod combination. Three strategies exist for Standard mode startup:
 
-1. **Starter tank set:** Load 1 hull × 1 faction × 1 mod = 16 hull PNGs + 1 turret × 1 faction × 1 mod = 16 turret PNGs = 32 PNGs total.
-2. **Player faction set:** Load 7 hulls × 1 faction × 1 mod = 112 hull PNGs + 10 turrets × 1 faction × 1 mod = 160 turret PNGs = 272 PNGs total.
-3. **Full visible set:** Load 7 hulls × 2 factions × 1 mod = 224 hull PNGs + 10 turrets × 2 factions × 1 mod = 320 turret PNGs = 544 PNGs total.
+| Strategy | PNG count | What loads | Pros | Cons |
+|---|---|---|---|---|
+| **Starter-only** | 32 (16 hull + 16 turret) | Wasp + Smoky, 1 faction, m0 | Minimum download; fastest startup; sufficient for very first frame | Can only render starter tank; any other body/weapon shows blockout cube until late-loaded |
+| **Current-faction M0** | 272 (112 hull + 160 turret) | 7 hulls + 10 turrets, 1 faction, m0 | All player faction tanks visible immediately; no late-load stutter when switching units | 8.5× more PNGs than starter-only; loads hulls player may never produce this game |
+| **Lazy load on factory selection/production** | 32 + on-demand | Starter at startup; additional sets loaded when factory selects body/weapon | Minimal startup cost; only loads what player actually uses | Loading delay when selecting a new body type; potential stutter on first production of each hull type |
+| **Full matrix** (forbidden) | 1792 + 2560 = 4352 | All 7 hulls × 4 factions × 4 mods × 16 dir | Everything available | Completely unacceptable; 8-second+ preload on fast connections; violates hard constraint |
 
-The recommended approach for Step 1 is: always load the player faction's hull and turret sets at m0 during Standard game startup. This gives 272 PNGs — manageable and sufficient for the player's own tanks. Enemy tanks (different faction) would fall back to blockout cubes until their sets are loaded on encounter or discovery.
+**Recommended: Starter-only preload (32 PNG)** for Track A Step 1.
+
+Justification: The starter-only strategy is the safest choice for the first implementation step because: (1) it has the smallest possible surface area — only the Wasp hull and Smoky turret are loaded, making debugging and QA straightforward; (2) it guarantees no startup performance regression; (3) the late-loading API (Track A, future step or Track E) will handle additional body/weapon sets when the factory produces them; (4) blockout cube fallback for unloaded sprites already works and is visually acceptable for non-starter units in the MVP. The current-faction M0 strategy (272 PNGs) is a reasonable optimization for a later step, but should not be the initial implementation because it bundles loading logic with config assumptions about which hulls are player-faction.
 
 ### How to avoid full 1792 hull + 2560 turret preload
 
 Never call `preloadGeneratedHullSet()` or `preloadGeneratedTurretSet()` for all 4 factions × 4 mods × all hulls/turrets. Load only:
-- Player faction at game start (m0 only = 272 PNGs)
-- Additional factions/mods on-demand when discovered (late-loading via Phaser's `scene.load.start()` after initial preload)
+- Starter tank at game start (Wasp + Smoky, m0 = 32 PNGs — recommended for Step 1)
+- Additional hull/weapon sets on-demand when factory selects or produces them (late-loading via Phaser's `scene.load.start()` after initial preload)
 - M1/M2/M3 mod sets only when a unit actually upgrades to that level
 
 ### How to preserve fallback
@@ -447,10 +453,10 @@ Never call `preloadGeneratedHullSet()` or `preloadGeneratedTurretSet()` for all 
 
 What it needs to work in Standard mode:
 1. Remove the arena/devtools-only instantiation gate in GameScene
-2. Add support for production vehicle state (not just `BlockoutVehicleState`)
-3. Ensure it can render when `blockoutVehicles` is empty but production vehicles exist
+2. Ensure it can render when `blockoutVehicles` is empty (Track A scope — just the rendering gate)
+3. Add support for production vehicle state (not just `BlockoutVehicleState`) — **this belongs in Track E**, not Track A
 
-The cleanest approach is to create a thin adapter that maps production vehicle state to the same rendering interface BlockoutVehicleRenderer expects, rather than creating a new renderer.
+The cleanest approach is to create a thin adapter that maps production vehicle state to the same rendering interface BlockoutVehicleRenderer expects, rather than creating a new renderer. **However, this adapter is Track E scope.** Track A only removes the gate and enables the renderer to exist in Standard mode. Track E will provide the adapter when tank production creates actual vehicles.
 
 ### Whether PreloadScene should change and how
 
@@ -734,6 +740,8 @@ This tank is created in `createInitialState()` and added to the combat units arr
 ---
 
 ## 11. Track F Audit — Movement Feel / Visual Smoothing
+
+**Important framing:** Movement, acceleration, speed, and pathfinding already exist and work. The problem this track addresses is visual micro-stutter / tile-step feel — the rendering layer snaps between tile positions instead of interpolating smoothly. This is a renderer-state smoothing problem, not a pathfinding or occupancy problem. No pathfinding or occupancy rewrite is needed or implied.
 
 ### Where movement logical state lives
 
@@ -1159,22 +1167,22 @@ These are polish items that can be added after the procedural VFX system is in p
 
 ## 16. High / High+ Validation
 
-All 10 implementation steps are confirmed High or High+ priority:
+All 9 implementation steps are confirmed High or High+ priority (Track C is parallel docs/design):
 
 | Step | Track | Risk | Priority Justification |
 |---|---|---|---|
-| 1 | A — Asset visibility | High+ | Without this, no generated sprites appear in Standard mode — entire visual identity broken |
+| 1 | A — Asset visibility / loading / rendering | High+ | Without this, no generated sprites appear in Standard mode — entire visual identity broken |
 | 2 | B — Russian labels | High | Player-facing identity is critical for Russian-speaking target audience |
-| 3 | C — Asset profiles | High | Profile accuracy affects all visual rendering; systemic approach prevents manual drift |
+| 3 | F — Movement feel | High | Visual micro-stutter / tile-step feel is the primary differentiator from a boring grid game; critical for player retention |
 | 4 | D — Production config | High | Config foundation required for tank production; no tank data = no tank game |
 | 5 | E — Tank production | High+ | Core game loop — without tank production, there is no game |
-| 6 | F — Movement feel | High | Movement feel is the primary differentiator from a boring grid game; critical for player retention |
-| 7 | G — RTS HUD | High+ | Without HUD, player cannot interact with the game at all in Standard mode |
-| 8 | H — M-level progression | High | Progression is the long-term engagement driver; game feels flat without it |
-| 9 | I — Fog/territory/minimap | High+ | Strategic layer; map feels empty and unchallenging without fog; minimap is essential for orientation |
-| 10 | J — Combat VFX | High | Visual feedback makes combat readable; without it, combat feels flat |
+| 6 | G — RTS HUD | High+ | Without HUD, player cannot interact with the game at all in Standard mode |
+| 7 | H — M-level progression | High | Progression is the long-term engagement driver; game feels flat without it |
+| 8 | I — Fog/territory/minimap | High | Strategic layer; map feels empty without fog; minimap essential for orientation. Kept High per roadmap — not escalated to High+ |
+| 9 | J — Combat VFX | High | Visual feedback makes combat readable; without it, combat feels flat |
+| — | C — Asset profiles | High | Systemic profile contract runs in parallel as docs/design; does not block Track E |
 
-No steps are Medium or Low priority. All steps directly contribute to the PLAYER_INTEGRATION_MVP goal of creating a playable tank game with progression and strategic depth.
+No steps are Medium or Low priority. All steps directly contribute to the PLAYER_INTEGRATION_MVP goal of creating a playable tank game with progression and strategic depth. Track I risk is classified as High (not High+) per the accepted roadmap — this classification is maintained unless explicitly justified otherwise.
 
 ---
 
@@ -1184,14 +1192,14 @@ No steps are Medium or Low priority. All steps directly contribute to the PLAYER
 |---|---|---|---|---|
 | 1 — Asset visibility | Yes | — | — | — |
 | 2 — Russian labels | Yes | — | — | Yes (confirm names) |
-| 3 — Asset profiles | Yes | Yes (compute artBounds from PNGs) | Yes (optional, for mountPoint computation) | — |
+| 3 — Movement feel | Yes | — | — | — |
 | 4 — Production config | Yes | — | — | Yes (costs, tiers, starter comp) |
 | 5 — Tank production | Yes | — | — | Yes (queue model, tier locking) |
-| 6 — Movement feel | Yes | — | — | — |
-| 7 — RTS HUD | Yes | — | — | Yes (HUD layout priorities) |
-| 8 — M-level progression | Yes | — | — | Yes (upgrade formula, thresholds) |
-| 9 — Fog/territory | Yes | — | — | Yes (territory spread model) |
-| 10 — Combat VFX | Yes | — | — (procedural only) | — |
+| 6 — RTS HUD | Yes | — | — | Yes (HUD layout priorities) |
+| 7 — M-level progression | Yes | — | — | Yes (upgrade formula, thresholds) |
+| 8 — Fog/territory | Yes | — | — | Yes (territory spread model) |
+| 9 — Combat VFX | Yes | — | — (procedural only) | — |
+| C — Asset profiles (parallel) | Yes | Yes (compute artBounds from PNGs) | Yes (optional, for mountPoint computation) | — |
 
 ---
 
@@ -1225,14 +1233,14 @@ No steps are Medium or Low priority. All steps directly contribute to the PLAYER
 
 ## 19. Final Recommended Step 1 / Step 2 / Step 3
 
-### Step 1: PIM-STEP-01 — Asset visibility across player modes
+### Step 1: PIM-STEP-01 — Asset visibility / loading / rendering across player modes
 
 **Implementation-ready.** This step:
-- Extends PreloadScene to load player faction hull+turret sets (m0) in Standard mode.
-- Makes BlockoutVehicleRenderer work outside arena/devtools mode.
-- Adds a production vehicle state adapter so the renderer can display tanks created through the factory system.
+- Extends PreloadScene to load starter-only hull+turret set (Wasp + Smoky, m0, 32 PNG) in Standard mode — no 272-PNG faction preload, no 1792+2560 full matrix.
+- Makes BlockoutVehicleRenderer work outside arena/devtools mode by removing the instantiation gate.
+- **Does NOT include** production vehicle state adapter, factory production, or starter tank creation — those belong in Track E (Step 5).
+- Track A may define how Standard mode will render already-existing/loaded combat vehicle state, but must not create a production/state model.
 - Preserves full Arena/Debug backward compatibility.
-- Estimated: 272 PNGs loaded at Standard game start (7 hulls + 10 turrets × 1 faction × m0 × 16 dir).
 - No Denis decisions required — technical implementation only.
 
 ### Step 2: PIM-STEP-02 — Russian unit identity and player-facing labels
@@ -1245,14 +1253,17 @@ No steps are Medium or Low priority. All steps directly contribute to the PLAYER
 - Internal IDs remain stable English.
 - Requires Denis confirmation of body and weapon Russian names.
 
-### Step 3: PIM-STEP-03 — Systemic asset profile contract
+### Step 3: PIM-STEP-03 — Movement feel / visual smoothing MVP
 
 **Implementation-ready.** This step:
-- Formalizes the per-hull profile system with validation.
-- Adds per-turret profile interface (data can start as global defaults).
-- Extends validation tools to check profile completeness.
-- Documents which values need Codex/local PNG analysis for precise computation.
+- Adds visual interpolation between tile positions to eliminate micro-stutter / tile-step feel.
+- Does NOT change pathfinding, occupancy, or game logic speed — purely renderer-state smoothing.
+- Adds acceleration/braking easing overlays, dust particles, inertia overshoot, direction smoothing.
+- Only requires Step 1 (sprites visible — interpolation needs sprites to smooth).
+- Does NOT require Step 5 (tank production) — visual smoothing works on any vehicle with sprites, including Arena vehicles.
 - No Denis decisions required — technical implementation only.
+
+**Why Step 3 is Movement feel (Track F) instead of Asset profiles (Track C):** Track F is pulled forward because visual smoothing is the most impactful player-facing improvement after seeing and naming the tank. It is renderer-only, requires only Track A, and does not depend on production config or tank production. Track C (asset profiles) runs in parallel as docs/design and does not block Track E.
 
 ---
 
