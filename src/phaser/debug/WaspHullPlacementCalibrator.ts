@@ -10,12 +10,23 @@
  * The debug offset affects visual sprite position only — selection ring,
  * movement, pathfinding, turret aim are all unchanged.
  *
- * Hotkeys (Arena/devtools only, Wasp selected):
- *   Alt + ArrowUp/Down/Left/Right  — adjust offset by 1px
- *   Shift + Alt + ArrowUp/Down/Left/Right — adjust offset by 5px
- *   Alt + 0  — reset debug placement offset to (0, 0)
- *   Alt + P  — print current placement values to console
- *   Alt + O  — toggle placement overlay visibility
+ * Hotkeys (Arena/devtools only, Wasp selected, placement calibration active):
+ *   U        — toggle placement calibration mode on/off
+ *   I        — move hull up by 1px
+ *   K        — move hull down by 1px
+ *   J        — move hull left by 1px
+ *   L        — move hull right by 1px
+ *   Shift+I  — move hull up by 5px
+ *   Shift+K  — move hull down by 5px
+ *   Shift+J  — move hull left by 5px
+ *   Shift+L  — move hull right by 5px
+ *   R or 0   — reset debug placement offset to (0, 0)
+ *   P        — print current placement values to console
+ *   O        — toggle placement overlay visibility
+ *
+ * These keys are chosen to avoid conflict with camera controls (Arrow keys).
+ * While placement calibration is active, I/K/J/L are consumed and camera
+ * does NOT pan.
  *
  * No gameplay systems are changed.
  * No turret direction logic is affected.
@@ -145,19 +156,21 @@ export interface PlacementOverlayParams {
 /**
  * Build the placement calibration overlay text for display.
  * Shows all diagnostic info needed to calibrate hull placement.
+ * offsetX/Y are shown prominently at the top.
  */
 export function buildPlacementOverlayText(params: PlacementOverlayParams): string {
   const lines: string[] = [];
 
   lines.push('=== WASP PLACEMENT CALIBRATOR ===');
+  lines.push(`>> OFFSET: (${params.offsetX}, ${params.offsetY}) <<`);
   lines.push(`hull: ${params.hullId ?? 'N/A'}`);
   lines.push(`vehicle: ${params.vehicleId}`);
   lines.push(`body: ${params.bodyId}`);
-  lines.push(`offset: (${params.offsetX}, ${params.offsetY})`);
   lines.push(`scale: ${params.scale}  origin: (${params.originX}, ${params.originY})`);
   lines.push(`texture: ${params.textureKey.split('_').slice(-2).join('_')}`);
   lines.push(`tile: (${params.tileX.toFixed(1)}, ${params.tileY.toFixed(1)})`);
   lines.push(`placement: ${params.isPlacementActive ? 'ACTIVE' : 'off'}`);
+  lines.push(`keys: I/K/J/L=1px  Shift=5px  R/0=reset  P=print  O=overlay`);
 
   return lines.join('\n');
 }

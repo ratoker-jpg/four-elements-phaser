@@ -679,35 +679,48 @@ export class BlockoutVehicleInputController {
   private onKeydown(event: KeyboardEvent): void {
     if (!this.isDevtoolsActive()) return;
 
+    // PIM-HULL-WASP-ANCHOR-MAP-01 fixup: When placement calibration is active
+    // on a Wasp, I/K/J/L/O/P/U/R are consumed by placement calibration and must
+    // NOT trigger upgrades or other actions. Skip upgrade processing for these keys.
+    const placementConflictingKeys = new Set(['KeyI', 'KeyK', 'KeyJ', 'KeyL', 'KeyO', 'KeyP', 'KeyU', 'KeyR']);
+    const isPlacementConflictingKey = placementConflictingKeys.has(event.code);
+    const shouldSkipUpgrade = isPlacementConflictingKey
+      && this._selectedVehicleId !== null
+      && isWaspPlacementActiveCheck();
+
     // BLOCKOUT-09H: Upgrade hotkeys (processed before fire keys)
-    const upgradeKeys: Array<{ code: string; id: BlockoutUpgradeId }> = [
-      { code: 'KeyU', id: 'mobility_boost' },
-      { code: 'Digit1', id: 'mobility_boost' },
-      { code: 'KeyI', id: 'armor_plating' },
-      { code: 'Digit2', id: 'armor_plating' },
-      { code: 'KeyO', id: 'weapon_tuning' },
-      { code: 'Digit3', id: 'weapon_tuning' },
-      { code: 'KeyP', id: 'range_extender' },
-      { code: 'Digit4', id: 'range_extender' },
-      { code: 'KeyB', id: 'cooling_system' },
-      { code: 'Digit5', id: 'cooling_system' },
-    ];
-    for (const { code, id } of upgradeKeys) {
-      if (event.code === code) {
-        if (!this._selectedVehicleId) return;
-        const gameState = this.getGameState();
-        const vehicles = gameState.blockoutVehicles;
-        if (!vehicles) return;
-        const selected = vehicles.find(v => v.id === this._selectedVehicleId);
-        if (!selected || selected.isDestroyed) return;
-        const nowMs = this.scene.time.now;
-        applyUpgrade(selected, id, nowMs);
-        return; // Don't process other keys
+    if (!shouldSkipUpgrade) {
+      const upgradeKeys: Array<{ code: string; id: BlockoutUpgradeId }> = [
+        { code: 'KeyU', id: 'mobility_boost' },
+        { code: 'Digit1', id: 'mobility_boost' },
+        { code: 'KeyI', id: 'armor_plating' },
+        { code: 'Digit2', id: 'armor_plating' },
+        { code: 'KeyO', id: 'weapon_tuning' },
+        { code: 'Digit3', id: 'weapon_tuning' },
+        { code: 'KeyP', id: 'range_extender' },
+        { code: 'Digit4', id: 'range_extender' },
+        { code: 'KeyB', id: 'cooling_system' },
+        { code: 'Digit5', id: 'cooling_system' },
+      ];
+      for (const { code, id } of upgradeKeys) {
+        if (event.code === code) {
+          if (!this._selectedVehicleId) return;
+          const gameState = this.getGameState();
+          const vehicles = gameState.blockoutVehicles;
+          if (!vehicles) return;
+          const selected = vehicles.find(v => v.id === this._selectedVehicleId);
+          if (!selected || selected.isDestroyed) return;
+          const nowMs = this.scene.time.now;
+          applyUpgrade(selected, id, nowMs);
+          return; // Don't process other keys
+        }
       }
     }
 
     // BLOCKOUT-10H+: R key — reset scenario (dev/arena-only)
-    if (event.code === 'KeyR') {
+    // PIM-HULL-WASP-ANCHOR-MAP-01 fixup: R is also used for placement reset.
+    // When placement calibration is active on a Wasp, let placement handle R.
+    if (event.code === 'KeyR' && !shouldSkipUpgrade) {
       this.onResetScenario?.();
       return;
     }
@@ -845,17 +858,27 @@ export class BlockoutVehicleInputController {
 
       // ── PIM-HULL-WASP-ANCHOR-MAP-01: Wasp placement calibration hotkeys ──
       // Arena/devtools-only: explicit gate prevents any placement action
-      // in Standard gameplay. Requires Alt modifier for all placement keys.
-      // Alt + Arrow = adjust 1px, Shift+Alt + Arrow = adjust 5px
-      // Alt + 0 = reset, Alt + P = print, Alt + O = toggle overlay
-      if (event.altKey && selected && selected.bodyId === 'wasp') {
-        // Alt + U — toggle placement calibration mode
-        if (event.code === 'KeyU') {
-          event.preventDefault(); // prevent browser Alt behavior
+      // in Standard gameplay.
+      //
+      // HOTKEYS (when Wasp selected):
+      //   U             — toggle placement calibration mode on/off
+      //   I/K/J/L       — adjust offset 1px (up/down/left/right)
+      //   Shift+I/K/J/L — adjust offset 5px
+      //   R or 0        — reset offset to (0, 0)
+      //   P             — print placement values
+      //   O             — toggle placement overlay visibility
+      //
+      // These keys use I/K/J/L instead of Arrow keys to avoid conflict
+      // with camera pan. When placement calibration is active, these keys
+      // are consumed (preventDefault + stopPropagation) so the camera
+      // does NOT move while calibrating.
+      if (selected && selected.bodyId === 'wasp') {
+        // U key — toggle placement calibration mode (no Alt needed)
+        if (event.code === 'KeyU' && !event.ctrlKey && !event.altKey && !event.metaKey) {
           const newState = toggleWaspPlacement();
           if (newState) {
             waspPlaceInstallConsole();
-            console.log('[WaspPlacement] Placement calibration ACTIVATED. Alt+Arrow to adjust, Alt+0 to reset, Alt+P to print.');
+            console.log('[WaspPlacement] Placement calibration ACTIVATED. I/K/J/L to adjust, R/0 to reset, P to print.');
           } else {
             console.log('[WaspPlacement] Placement calibration DEACTIVATED. Offset reset to (0, 0).');
           }
@@ -866,52 +889,56 @@ export class BlockoutVehicleInputController {
         if (isWaspPlacementActiveCheck()) {
           const large = event.shiftKey;
 
-          // Alt + ArrowUp — adjust up
-          if (event.code === 'ArrowUp') {
+          // I — adjust up
+          if (event.code === 'KeyI') {
             event.preventDefault();
+            event.stopPropagation(); // prevent camera from receiving this key
             const o = waspPlaceAdjustUp(large);
             console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
             return;
           }
 
-          // Alt + ArrowDown — adjust down
-          if (event.code === 'ArrowDown') {
+          // K — adjust down
+          if (event.code === 'KeyK') {
             event.preventDefault();
+            event.stopPropagation(); // prevent camera from receiving this key
             const o = waspPlaceAdjustDown(large);
             console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
             return;
           }
 
-          // Alt + ArrowLeft — adjust left
-          if (event.code === 'ArrowLeft') {
+          // J — adjust left
+          if (event.code === 'KeyJ') {
             event.preventDefault();
+            event.stopPropagation(); // prevent camera from receiving this key
             const o = waspPlaceAdjustLeft(large);
             console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
             return;
           }
 
-          // Alt + ArrowRight — adjust right
-          if (event.code === 'ArrowRight') {
+          // L — adjust right
+          if (event.code === 'KeyL') {
             event.preventDefault();
+            event.stopPropagation(); // prevent camera from receiving this key
             const o = waspPlaceAdjustRight(large);
             console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
             return;
           }
 
-          // Alt + 0 — reset placement offset
-          if (event.code === 'Digit0') {
+          // R or 0 — reset placement offset
+          if (event.code === 'KeyR' || event.code === 'Digit0') {
             waspPlaceResetOffset();
             console.log('[WaspPlacement] Offset reset to (0, 0)');
             return;
           }
 
-          // Alt + P — print placement values
+          // P — print placement values
           if (event.code === 'KeyP') {
             waspPlacePrintValues();
             return;
           }
 
-          // Alt + O — toggle placement overlay visibility
+          // O — toggle placement overlay visibility
           if (event.code === 'KeyO') {
             const v = waspPlaceToggleOverlay();
             console.log(`[WaspPlacement] Overlay ${v ? 'ON' : 'OFF'}`);

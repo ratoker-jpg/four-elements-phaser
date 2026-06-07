@@ -191,16 +191,17 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
     };
     const text = buildPlacementOverlayText(params);
     expect(text).toContain('WASP PLACEMENT CALIBRATOR');
+    expect(text).toContain('OFFSET: (3, -5)');
     expect(text).toContain('wasp');
     expect(text).toContain('v-001');
-    expect(text).toContain('(3, -5)');
     expect(text).toContain('0.24');
     expect(text).toContain('0.5');
     expect(text).toContain('0.75');
     expect(text).toContain('ACTIVE');
+    expect(text).toContain('I/K/J/L');
   });
 
-  it('buildPlacementOverlayText shows offset when placement is off', () => {
+  it('buildPlacementOverlayText shows offset prominently when placement is off', () => {
     const params: PlacementOverlayParams = {
       hullId: 'wasp',
       vehicleId: 'v-002',
@@ -217,6 +218,28 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
     };
     const text = buildPlacementOverlayText(params);
     expect(text).toContain('off');
-    expect(text).toContain('(0, 0)');
+    expect(text).toContain('OFFSET: (0, 0)');
+  });
+
+  it('buildPlacementOverlayText includes hotkey reference', () => {
+    const params: PlacementOverlayParams = {
+      hullId: 'wasp',
+      vehicleId: 'v-003',
+      bodyId: 'wasp',
+      offsetX: 7,
+      offsetY: 12,
+      scale: 0.24,
+      originX: 0.5,
+      originY: 0.75,
+      textureKey: 'generated_hull_wasp_cyan_m0_dir08',
+      tileX: 3.0,
+      tileY: 4.0,
+      isPlacementActive: true,
+    };
+    const text = buildPlacementOverlayText(params);
+    expect(text).toContain('Shift=5px');
+    expect(text).toContain('R/0=reset');
+    expect(text).toContain('P=print');
+    expect(text).toContain('O=overlay');
   });
 });
