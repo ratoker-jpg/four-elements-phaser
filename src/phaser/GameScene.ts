@@ -549,7 +549,7 @@ export class GameScene extends Phaser.Scene {
     // BLOCKOUT-02H: Create blockout vehicle renderer and spawn initial set if devtools is active
     // ARENA-01H+: Arena mode uses ARENA_SANDBOX_SCENARIO (no obstacles)
     if (this.devtoolsActive) {
-      this.blockoutVehicleRenderer = new BlockoutVehicleRenderer(this, this._offset as IsoPoint);
+      this.blockoutVehicleRenderer = new BlockoutVehicleRenderer(this, this._offset as IsoPoint, () => this.devtoolsActive);
       this.blockoutWeaponVfxRenderer = new BlockoutWeaponVfxRenderer(this, this._offset as IsoPoint);
       this.blockoutDamageRenderer = new BlockoutDamageRenderer(this, this._offset as IsoPoint);
       this.blockoutObstacleRenderer = new BlockoutObstacleRenderer(this, this._offset as IsoPoint);

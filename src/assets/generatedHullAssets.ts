@@ -430,6 +430,40 @@ export function resolveHullDirectionDiagnostic(
   };
 }
 
+// ─── Forced direction resolver (calibration aid) ────────────────
+// PIM-HULL-WASP-DIR-MAP-01: Used by WaspHullDirectionCalibrator
+// to force a specific visual dir16 for manual calibration.
+// Bypasses the normal bodyAngle → dir8 → dir16 → remap pipeline.
+
+/**
+ * Resolve a generated hull texture key with a forced visual dir16.
+ *
+ * This bypasses the normal direction pipeline and uses the provided
+ * visualDir16 directly. Used only by the calibration tool to force
+ * display of a specific direction sprite.
+ *
+ * Returns the texture key if the texture exists, or null otherwise.
+ */
+export function resolveGeneratedHullKeyForced(
+  scene: Phaser.Scene,
+  bodyId: string,
+  faction: Faction,
+  modificationLevel: number,
+  forcedVisualDir16: GeneratedHullDir16Index,
+): string | null {
+  const hullId = bodyIdToGeneratedHullId(bodyId);
+  if (!hullId) return null;
+
+  const hullFaction = resolveGeneratedHullFaction(faction);
+  const mod = modificationLevelToMod(modificationLevel);
+  const key = getGeneratedHullTextureKey(hullId, hullFaction, mod, forcedVisualDir16);
+
+  if (scene.textures.exists(key)) {
+    return key;
+  }
+  return null;
+}
+
 // ─── Pilot-tuned render constants ───────────────────────────────
 // These values are initial pilot estimates for the generated hull
 // sprites (512x512) and will need visual QA tuning per hull.

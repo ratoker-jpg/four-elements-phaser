@@ -38,13 +38,28 @@ import { sortByDepth, type DepthSortable } from './depthSorting';
 import { getTrackAnimationState } from '../../state/trackAnimation';
 import {
   resolveGeneratedHullKey,
+  resolveGeneratedHullKeyForced,
   resolveHullDirectionDiagnostic,
+  bodyIdToGeneratedHullId,
+  GENERATED_HULL_DIRECTIONS_16,
+  getGeneratedHullTextureKey,
+  resolveGeneratedHullFaction,
+  modificationLevelToMod,
   GENERATED_HULL_SCALE,
   GENERATED_HULL_ORIGIN_X,
   GENERATED_HULL_ORIGIN_Y,
   directionDebugEnabled,
   toggleDirectionDebug as toggleDirDebug,
+  type GeneratedHullDir16Index,
 } from '../../assets/generatedHullAssets';
+import {
+  isCalibrationActive,
+  getForcedVisualDir16,
+  isOverrideActive,
+  isOverlayVisible as isCalibOverlayVisible,
+  buildCalibrationOverlayText,
+  type CalibrationOverlayParams,
+} from '../debug/WaspHullDirectionCalibrator';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -188,15 +203,23 @@ export class BlockoutVehicleRenderer {
   /** Direction debug text labels keyed by blockout vehicle ID. */
   private directionDebugLabels = new Map<string, Phaser.GameObjects.Text>();
 
+  /** PIM-HULL-WASP-DIR-MAP-01: Calibration overlay text labels keyed by blockout vehicle ID. */
+  private calibrationLabels = new Map<string, Phaser.GameObjects.Text>();
+
   /** Whether generated hull sprites have been logged (once). */
   private generatedHullLogged = false;
 
   /** Whether blockout fallback has been logged (once). */
   private blockoutFallbackLogged = false;
 
-  constructor(scene: Phaser.Scene, offset: IsoPoint) {
+  /** PIM-HULL-WASP-DIR-MAP-01: Whether devtools/arena mode is active.
+   *  Calibration overlay and forced direction are gated to devtools mode only. */
+  private isDevtoolsActive: () => boolean;
+
+  constructor(scene: Phaser.Scene, offset: IsoPoint, isDevtoolsActive?: () => boolean) {
     this.scene = scene;
     this.offset = offset;
+    this.isDevtoolsActive = isDevtoolsActive ?? (() => false);
   }
 
   // ─── Selection state ───────────────────────────────────────────
@@ -274,15 +297,32 @@ export class BlockoutVehicleRenderer {
       }
 
       // Check for generated hull sprite
-      const hullKey = resolveGeneratedHullKey(
-        this.scene, vehicle.bodyId, vehicle.faction,
-        vehicle.modificationLevel, vehicle.bodyAngle,
-      );
+      // PIM-HULL-WASP-DIR-MAP-01: When calibration is active and vehicle is Wasp,
+      // use the forced visual dir16 instead of the normal pipeline.
+      // Arena/devtools-only: forced direction is gated to devtools mode.
+      const isWaspCalibrating = this.isDevtoolsActive()
+        && isCalibrationActive()
+        && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp'
+        && isOverrideActive();
+
+      let hullKey: string | null;
+      if (isWaspCalibrating) {
+        const forcedDir16 = getForcedVisualDir16() as GeneratedHullDir16Index;
+        hullKey = resolveGeneratedHullKeyForced(
+          this.scene, vehicle.bodyId, vehicle.faction,
+          vehicle.modificationLevel, forcedDir16,
+        );
+      } else {
+        hullKey = resolveGeneratedHullKey(
+          this.scene, vehicle.bodyId, vehicle.faction,
+          vehicle.modificationLevel, vehicle.bodyAngle,
+        );
+      }
       const useGeneratedHull = hullKey !== null;
 
       // Manage hull sprite lifecycle
       let hullSprite = this.vehicleHullSprites.get(vehicle.id);
-      if (useGeneratedHull) {
+      if (useGeneratedHull && hullKey) {
         if (!hullSprite) {
           hullSprite = this.scene.add.image(0, 0, hullKey);
           hullSprite.setScale(GENERATED_HULL_SCALE);
@@ -400,6 +440,14 @@ export class BlockoutVehicleRenderer {
           dirLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 10);
         }
       }
+      // Also update calibration label depth
+      const calibLabel = this.calibrationLabels.get(vehicle.id);
+      if (calibLabel) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          calibLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 20);
+        }
+      }
     }
 
     // Clean up stale vehicles
@@ -427,6 +475,13 @@ export class BlockoutVehicleRenderer {
       if (!activeIds.has(id)) {
         label.destroy();
         this.directionDebugLabels.delete(id);
+      }
+    }
+    // Clean up stale calibration labels
+    for (const [id, label] of this.calibrationLabels) {
+      if (!activeIds.has(id)) {
+        label.destroy();
+        this.calibrationLabels.delete(id);
       }
     }
   }
@@ -988,6 +1043,75 @@ export class BlockoutVehicleRenderer {
       diagLabel.setPosition(diagPos.x, diagPos.y);
       diagLabel.setVisible(true);
     }
+
+    // ── PIM-HULL-WASP-DIR-MAP-01: Calibration overlay (Wasp-only, dev-only) ──
+    // Arena/devtools-only: calibration overlay is explicitly gated to devtools mode.
+    // Must never render in Standard gameplay.
+    if (this.isDevtoolsActive() && isCalibrationActive() && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp') {
+      const calibZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.6;
+      const calibPos = projectWorldPoint(tilePos.x, tilePos.y, calibZ, this.offset);
+
+      // Compute diagnostic values for the overlay
+      const diag = resolveHullDirectionDiagnostic(
+        vehicle.bodyId, vehicle.faction,
+        vehicle.modificationLevel, vehicle.bodyAngle,
+      );
+      const forcedDir16 = getForcedVisualDir16();
+      const isForced = isOverrideActive();
+
+      // Determine the texture key actually being used
+      let actualTextureKey: string;
+      if (isForced && forcedDir16 !== null) {
+        const hullId = bodyIdToGeneratedHullId(vehicle.bodyId);
+        const hullFaction = resolveGeneratedHullFaction(vehicle.faction);
+        const mod = modificationLevelToMod(vehicle.modificationLevel);
+        actualTextureKey = hullId
+          ? getGeneratedHullTextureKey(hullId, hullFaction, mod, forcedDir16 as GeneratedHullDir16Index)
+          : diag.textureKey;
+      } else {
+        actualTextureKey = diag.textureKey;
+      }
+
+      const overlayParams: CalibrationOverlayParams = {
+        hullId: diag.hullId,
+        bodyAngleDeg: diag.bodyAngleDeg,
+        dir8: diag.dir8,
+        logicalDir16: diag.logicalDir16,
+        normalVisualDir16: diag.visualDir16,
+        forcedDir16,
+        compassSuffix: isForced && forcedDir16 !== null
+          ? (GENERATED_HULL_DIRECTIONS_16[forcedDir16]?.suffix ?? '?')
+          : diag.compassSuffix,
+        textureKey: actualTextureKey,
+        isOverrideActive: isForced,
+      };
+
+      const calibText = buildCalibrationOverlayText(overlayParams);
+      const showCalibLabel = isCalibOverlayVisible();
+
+      let calibLabel = this.calibrationLabels.get(vehicle.id);
+      if (!calibLabel) {
+        calibLabel = this.scene.add.text(0, 0, '', {
+          fontSize: '9px',
+          fontFamily: 'monospace',
+          color: '#00ffcc',
+          backgroundColor: '#000000dd',
+          padding: { x: 4, y: 2 },
+        });
+        calibLabel.setDepth(BLOCKOUT_DEPTH + 20);
+        calibLabel.setOrigin(0.5, 0); // anchor top-center, positioned above vehicle
+        this.calibrationLabels.set(vehicle.id, calibLabel);
+      }
+      calibLabel.setText(calibText);
+      calibLabel.setPosition(calibPos.x, calibPos.y - 60); // position above the direction debug label
+      calibLabel.setVisible(showCalibLabel);
+    } else {
+      // Hide calibration label for non-Wasp or when calibration is off
+      const calibLabel = this.calibrationLabels.get(vehicle.id);
+      if (calibLabel) {
+        calibLabel.setVisible(false);
+      }
+    }
   }
 
   // ─── Cleanup ─────────────────────────────────────────────────────
@@ -1012,5 +1136,10 @@ export class BlockoutVehicleRenderer {
       label.destroy();
     }
     this.directionDebugLabels.clear();
+
+    for (const [, label] of this.calibrationLabels) {
+      label.destroy();
+    }
+    this.calibrationLabels.clear();
   }
 }

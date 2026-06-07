@@ -51,6 +51,17 @@ import { applyUpgrade } from '../../state/blockoutUpgrades';
 import type { BlockoutUpgradeId } from '../../config/blockoutUpgradeData';
 import { getWeaponConfig, getWeaponMLevelValue } from '../../config/weaponData';
 import { clearTargetLock } from '../../state/combatTargeting';
+import {
+  toggleCalibration as toggleWaspCalibration,
+  cycleNextDir16 as waspCalibCycleNext,
+  cyclePrevDir16 as waspCalibCyclePrev,
+  clearOverride as waspCalibClearOverride,
+  toggleOverlay as waspCalibToggleOverlay,
+  isCalibrationActive as isWaspCalibActive,
+  isMovementFrozen as isWaspCalibFrozen,
+  installConsoleAPI as waspCalibInstallConsole,
+  getDir16Label,
+} from '../debug/WaspHullDirectionCalibrator';
 
 // Turret size constants are now in blockoutVehicleGeometry (BLOCKOUT_TURRET_SIZE_W/H).
 // No local duplicate needed — computeProjectedBarrelTipScreen uses the shared source.
@@ -576,6 +587,11 @@ export class BlockoutVehicleInputController {
     // ARENA-03H+: In Arena mode, enemies cannot receive movement commands
     if (this.isArenaMode() && selected.team === 'enemy') return;
 
+    // PIM-HULL-WASP-DIR-MAP-01: Suppress movement when calibration freeze is active
+    // Arena/devtools-only: calibration freeze cannot apply in Standard gameplay
+    // because the controller is only created when devtoolsActive is true.
+    if (selected.bodyId === 'wasp' && this.isDevtoolsActive() && isWaspCalibFrozen()) return;
+
     // Convert world click position to screen-space (subtract offset)
     const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
 
@@ -735,6 +751,63 @@ export class BlockoutVehicleInputController {
         }
       }
       return;
+    }
+
+    // ── PIM-HULL-WASP-DIR-MAP-01: Wasp hull calibration hotkeys ──────
+    // Arena/devtools-only: explicit gate prevents any calibration action
+    // in Standard gameplay. Matches the dev/arena-only guard pattern used
+    // by R, H, C, T, and S keys above.
+    // ] = next dir16, [ = prev dir16, \ = reset/clear, ; = toggle overlay
+    // . = activate/toggle calibration mode
+    if (this._selectedVehicleId && this.isDevtoolsActive()) {
+      const gameState = this.getGameState();
+      const vehicles = gameState.blockoutVehicles;
+      const selected = vehicles?.find(v => v.id === this._selectedVehicleId);
+      if (selected && selected.bodyId === 'wasp') {
+        // . key — toggle calibration mode on/off
+        if (event.code === 'Period') {
+          const newState = toggleWaspCalibration();
+          if (newState) {
+            // Install console API on first activation
+            waspCalibInstallConsole();
+            console.log('[WaspCalibrator] Calibration mode ACTIVATED. Use ]/[ to cycle, \\ to reset, ; to toggle overlay.');
+          } else {
+            console.log('[WaspCalibrator] Calibration mode DEACTIVATED.');
+          }
+          return;
+        }
+
+        // Calibration hotkeys only work when calibration is active
+        if (isWaspCalibActive()) {
+          // ] key — next dir16
+          if (event.code === 'BracketRight') {
+            const d = waspCalibCycleNext();
+            console.log(`[WaspCalibrator] visual dir16 = ${d} (${getDir16Label(d)})`);
+            return;
+          }
+
+          // [ key — previous dir16
+          if (event.code === 'BracketLeft') {
+            const d = waspCalibCyclePrev();
+            console.log(`[WaspCalibrator] visual dir16 = ${d} (${getDir16Label(d)})`);
+            return;
+          }
+
+          // \ key — reset to auto (clear override)
+          if (event.code === 'Backslash') {
+            waspCalibClearOverride();
+            console.log('[WaspCalibrator] Override cleared — auto mode');
+            return;
+          }
+
+          // ; key — toggle calibration overlay visibility
+          if (event.code === 'Semicolon') {
+            const v = waspCalibToggleOverlay();
+            console.log(`[WaspCalibrator] Overlay ${v ? 'ON' : 'OFF'}`);
+            return;
+          }
+        }
+      }
     }
 
     if (event.code !== 'Space' && event.code !== 'KeyF') return;
