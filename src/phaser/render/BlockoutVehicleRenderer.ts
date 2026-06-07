@@ -50,9 +50,10 @@ import { sortByDepth, type DepthSortable } from './depthSorting';
 import { getTrackAnimationState } from '../../state/trackAnimation';
 import {
   resolveGeneratedHullKey,
-  GENERATED_HULL_SCALE,
-  GENERATED_HULL_ORIGIN_X,
-  GENERATED_HULL_ORIGIN_Y,
+  bodyIdToGeneratedHullId,
+  getGeneratedHullVisualProfile,
+  DEFAULT_GENERATED_HULL_VISUAL_PROFILE,
+  type GeneratedHullVisualProfile,
 } from '../../assets/generatedHullAssets';
 import {
   resolveGeneratedTurretKey,
@@ -310,14 +311,20 @@ export class BlockoutVehicleRenderer {
       );
       const useGeneratedHull = hullKey !== null;
 
+      // Resolve per-hull visual profile (HULL-VISUAL-FIXUP-02)
+      const hullId = bodyIdToGeneratedHullId(vehicle.bodyId);
+      const hullProfile: GeneratedHullVisualProfile = hullId
+        ? getGeneratedHullVisualProfile(hullId)
+        : DEFAULT_GENERATED_HULL_VISUAL_PROFILE;
+
       // Manage hull sprite lifecycle
       let hullSprite = this.vehicleHullSprites.get(vehicle.id);
       if (useGeneratedHull) {
         if (!hullSprite) {
-          // Create hull sprite image
+          // Create hull sprite image using per-hull profile
           hullSprite = this.scene.add.image(0, 0, hullKey);
-          hullSprite.setScale(GENERATED_HULL_SCALE);
-          hullSprite.setOrigin(GENERATED_HULL_ORIGIN_X, GENERATED_HULL_ORIGIN_Y);
+          hullSprite.setScale(hullProfile.scale);
+          hullSprite.setOrigin(hullProfile.originX, hullProfile.originY);
           hullSprite.setDepth(BLOCKOUT_DEPTH);
           this.vehicleHullSprites.set(vehicle.id, hullSprite);
 
@@ -326,8 +333,10 @@ export class BlockoutVehicleRenderer {
             this.generatedHullLogged = true;
           }
         } else {
-          // Update texture if direction changed
+          // Update texture if direction changed; also re-apply profile
           hullSprite.setTexture(hullKey);
+          hullSprite.setScale(hullProfile.scale);
+          hullSprite.setOrigin(hullProfile.originX, hullProfile.originY);
         }
       } else {
         // No generated hull — destroy sprite if it exists
@@ -382,7 +391,7 @@ export class BlockoutVehicleRenderer {
       // Redraw this vehicle
       // Base graphics: shadow, rings, body, turret box/barrel
       // Overlay graphics: HP bars, resource bars, indicators, aim line, damage flash
-      this.renderVehicle(g, og, vehicle, isSelected, isHovered, useGeneratedHull, hullSprite, useGeneratedTurret, turretSprite);
+      this.renderVehicle(g, og, vehicle, isSelected, isHovered, useGeneratedHull, hullSprite, hullProfile, useGeneratedTurret, turretSprite);
 
       // Debug label
       let label = this.debugLabels.get(vehicle.id);
@@ -407,10 +416,12 @@ export class BlockoutVehicleRenderer {
         label.setText(`${vehicle.bodyId}+${vehicle.weaponId}${selectedMarker}${hpMarker}${speedMarker}`);
 
         // Position label above top face (body center + Z offset)
+        // HULL-VISUAL-FIXUP-02: lift label above generated hull when active
         const labelZ = vehicle.isDestroyed ? 0 : BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.1;
         const tilePos = unprojectScreenToGround(bodyCenter.x, bodyCenter.y, this.offset);
         const labelPos = projectWorldPoint(tilePos.x, tilePos.y, labelZ, this.offset);
-        label.setPosition(labelPos.x, labelPos.y);
+        const labelUiLift = (useGeneratedHull && !vehicle.isDestroyed) ? hullProfile.uiOffsetY : 0;
+        label.setPosition(labelPos.x, labelPos.y - labelUiLift);
         label.setVisible(this.showDebugLabels);
       }
     }
@@ -514,6 +525,7 @@ export class BlockoutVehicleRenderer {
     isHovered: boolean,
     useGeneratedHull: boolean,
     hullSprite: Phaser.GameObjects.Image | undefined,
+    hullProfile: GeneratedHullVisualProfile,
     useGeneratedTurret: boolean,
     turretSprite: Phaser.GameObjects.Image | undefined,
   ): void {
@@ -705,7 +717,8 @@ export class BlockoutVehicleRenderer {
 
     // ── Hull rendering: generated sprite OR blockout cube ─────────
     if (useGeneratedHull && hullSprite) {
-      hullSprite.setPosition(cx, cy);
+      // HULL-VISUAL-FIXUP-02: position using per-hull profile offset
+      hullSprite.setPosition(cx + hullProfile.offsetX, cy + hullProfile.offsetY);
       hullSprite.setVisible(true);
     } else {
       const sideR = ((bodyColor >> 16) & 0xff) * 0.6;
@@ -855,13 +868,19 @@ export class BlockoutVehicleRenderer {
 
     // ── BLOCKOUT-07H+: HP bar above vehicle ──────────────────────
     {
+      // HULL-VISUAL-FIXUP-02: when generated hull is active, lift the
+      // HP bar and resource bars above the hull sprite using uiOffsetY,
+      // and widen the bar to match the hull's visual footprint.
       const hpBarZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.15;
       const hpBarPos = projectWorldPoint(tilePos.x, tilePos.y, hpBarZ, this.offset);
+      const uiLift = useGeneratedHull ? hullProfile.uiOffsetY : 0;
 
       const hpRatio = vehicle.maxHp > 0 ? vehicle.hp / vehicle.maxHp : 0;
-      const barWidth = halfW * PROJ_TILE_W + 4;
+      const barWidth = useGeneratedHull
+        ? 512 * hullProfile.scale * 0.7   // wider bar matching hull visual width
+        : halfW * PROJ_TILE_W + 4;        // blockout default
       const barHeight = 3;
-      const barY = hpBarPos.y - 4;
+      const barY = hpBarPos.y - 4 - uiLift;
 
       // Background (dark)
       og.fillStyle(0x333333, 0.7);
