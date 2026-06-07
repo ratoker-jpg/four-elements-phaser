@@ -20,6 +20,7 @@ import {
   cyclePrevDir16,
   resetToDir00,
   clearOverride,
+  activateOverrideFromCurrent,
   toggleOverlay,
   toggleMovementFreeze,
   getDir16CompassSuffix,
@@ -46,16 +47,20 @@ describe('WaspHullDirectionCalibrator state management', () => {
     expect(isCalibrationActive()).toBe(true);
   });
 
-  it('activateCalibration sets forced dir to 0 if not already set', () => {
+  it('activateCalibration does NOT set forced dir (override stays off)', () => {
     activateCalibration();
-    expect(getForcedVisualDir16()).toBe(0);
+    expect(getForcedVisualDir16()).toBeNull();
+    expect(isOverrideActive()).toBe(false);
   });
 
-  it('activateCalibration preserves existing forced dir', () => {
-    cycleNextDir16(); // Set dir to 0 (was null, starts at 0)
-    cycleNextDir16(); // dir = 1
+  it('activateCalibration preserves existing forced dir if already set', () => {
+    // Simulate: activate override from a specific direction, then reactivate calibration
+    activateOverrideFromCurrent(5);
+    expect(getForcedVisualDir16()).toBe(5);
+    // deactivate and reactivate should clear override
+    deactivateCalibration();
     activateCalibration();
-    expect(getForcedVisualDir16()).toBe(1);
+    expect(getForcedVisualDir16()).toBeNull();
   });
 
   it('deactivateCalibration deactivates and clears override', () => {
@@ -84,13 +89,20 @@ describe('WaspHullDirectionCalibrator override state', () => {
     expect(isOverrideActive()).toBe(false);
   });
 
-  it('isOverrideActive is true when forced dir is set', () => {
+  it('isOverrideActive is false after activateCalibration (override stays off)', () => {
     activateCalibration();
+    expect(isOverrideActive()).toBe(false);
+  });
+
+  it('isOverrideActive is true after activateOverrideFromCurrent', () => {
+    activateCalibration();
+    activateOverrideFromCurrent(5);
     expect(isOverrideActive()).toBe(true);
   });
 
   it('clearOverride sets forced dir to null', () => {
-    activateCalibration();
+    activateOverrideFromCurrent(3);
+    expect(isOverrideActive()).toBe(true);
     clearOverride();
     expect(getForcedVisualDir16()).toBeNull();
     expect(isOverrideActive()).toBe(false);
@@ -104,7 +116,9 @@ describe('WaspHullDirectionCalibrator direction cycling', () => {
     deactivateCalibration();
   });
 
-  it('cycleNextDir16 starts at 0 if no dir is set', () => {
+  it('cycleNextDir16 starts at 0 if no dir is set (fallback)', () => {
+    // When override is OFF and no currentVisualDir16 is provided,
+    // cycleNextDir16 falls back to 0.
     expect(cycleNextDir16()).toBe(0);
   });
 
@@ -148,6 +162,54 @@ describe('WaspHullDirectionCalibrator direction cycling', () => {
       visited.push(cycleNextDir16());
     }
     expect(visited).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+  });
+
+  it('activateOverrideFromCurrent then cycleNext advances from current', () => {
+    activateCalibration();
+    // Override is OFF, hull direction has NOT changed
+    expect(isOverrideActive()).toBe(false);
+    // Activate override from current visual dir16 = 5
+    activateOverrideFromCurrent(5);
+    expect(getForcedVisualDir16()).toBe(5);
+    expect(isOverrideActive()).toBe(true);
+    // Now cycle next — should advance from 5 to 6
+    const d = cycleNextDir16();
+    expect(d).toBe(6);
+    expect(getForcedVisualDir16()).toBe(6);
+  });
+
+  it('activateOverrideFromCurrent then cyclePrev goes back from current', () => {
+    activateCalibration();
+    // Activate override from current visual dir16 = 5
+    activateOverrideFromCurrent(5);
+    expect(getForcedVisualDir16()).toBe(5);
+    // Now cycle prev — should go from 5 to 4
+    const d = cyclePrevDir16();
+    expect(d).toBe(4);
+    expect(getForcedVisualDir16()).toBe(4);
+  });
+
+  it('activateOverrideFromCurrent with 0 then cycleNext wraps to 1', () => {
+    activateOverrideFromCurrent(0);
+    expect(cycleNextDir16()).toBe(1);
+  });
+
+  it('activateOverrideFromCurrent with 15 then cycleNext wraps to 0', () => {
+    activateOverrideFromCurrent(15);
+    expect(cycleNextDir16()).toBe(0);
+  });
+
+  it('activateOverrideFromCurrent with 0 then cyclePrev wraps to 15', () => {
+    activateOverrideFromCurrent(0);
+    expect(cyclePrevDir16()).toBe(15);
+  });
+
+  it('clearOverride returns to AUTO mode after activateOverrideFromCurrent', () => {
+    activateOverrideFromCurrent(7);
+    expect(isOverrideActive()).toBe(true);
+    clearOverride();
+    expect(isOverrideActive()).toBe(false);
+    expect(getForcedVisualDir16()).toBeNull();
   });
 
   it('can cycle backward through all 16 directions', () => {

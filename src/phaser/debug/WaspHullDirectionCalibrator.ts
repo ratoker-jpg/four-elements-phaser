@@ -77,13 +77,14 @@ export function isMovementFrozen(): boolean {
 
 // ─── State mutations ────────────────────────────────────────────
 
-/** Activate calibration mode. Sets forced dir to 0 if not already set. */
+/** Activate calibration mode. Does NOT set forced dir — override stays OFF
+ *  until the user presses ] or [ to start cycling. This ensures the hull
+ *  direction does not change the moment calibration mode is toggled on. */
 export function activateCalibration(): boolean {
   calibrationActive = true;
   movementFrozen = true;
-  if (forcedVisualDir16 === null) {
-    forcedVisualDir16 = 0;
-  }
+  // Do NOT set forcedVisualDir16 — override remains OFF until user cycles.
+  // The overlay will show AUTO mode with current direction diagnostics.
   return calibrationActive;
 }
 
@@ -104,7 +105,10 @@ export function toggleCalibration(): boolean {
   return calibrationActive;
 }
 
-/** Cycle to next dir16 (forward). Returns new forced dir16. */
+/** Cycle to next dir16 (forward). Returns new forced dir16.
+ *  When called from the null state (override OFF), starts at 0 and returns 0.
+ *  For initial activation from the current visual direction, call
+ *  activateOverrideFromCurrent() first, then cycle from there. */
 export function cycleNextDir16(): number {
   if (forcedVisualDir16 === null) {
     forcedVisualDir16 = 0;
@@ -114,7 +118,10 @@ export function cycleNextDir16(): number {
   return forcedVisualDir16;
 }
 
-/** Cycle to previous dir16 (backward). Returns new forced dir16. */
+/** Cycle to previous dir16 (backward). Returns new forced dir16.
+ *  When called from the null state (override OFF), starts at 15 and returns 15.
+ *  For initial activation from the current visual direction, call
+ *  activateOverrideFromCurrent() first, then cycle from there. */
 export function cyclePrevDir16(): number {
   if (forcedVisualDir16 === null) {
     forcedVisualDir16 = 15;
@@ -127,6 +134,16 @@ export function cyclePrevDir16(): number {
 /** Reset forced dir to 00 (East). */
 export function resetToDir00(): number {
   forcedVisualDir16 = 0;
+  return forcedVisualDir16;
+}
+
+/** Activate override from the current visual dir16.
+ *  Sets forcedVisualDir16 to the provided value without cycling.
+ *  This allows the first cycle press (] or [) to advance FROM the current
+ *  direction rather than starting from an arbitrary default.
+ *  Returns the new forced dir16. */
+export function activateOverrideFromCurrent(currentVisualDir16: number): number {
+  forcedVisualDir16 = currentVisualDir16;
   return forcedVisualDir16;
 }
 
@@ -278,15 +295,16 @@ export function printCalibrationTemplate(): void {
  * Install the calibrator's console API on the window object.
  * This allows Denis to interact from the browser dev console:
  *
- *   window.WASP_CAL.cycle()     — cycle next dir16
- *   window.WASP_CAL.prev()      — cycle prev dir16
- *   window.WASP_CAL.reset()     — reset to dir00
- *   window.WASP_CAL.auto()      — clear override (auto mode)
- *   window.WASP_CAL.dir(n)      — force specific dir16
- *   window.WASP_CAL.overlay()   — toggle overlay
- *   window.WASP_CAL.freeze()    — toggle movement freeze
- *   window.WASP_CAL.template()  — print calibration template
- *   window.WASP_CAL.state()     — print current state
+ *   window.WASP_CAL.cycle()        — cycle next dir16
+ *   window.WASP_CAL.prev()         — cycle prev dir16
+ *   window.WASP_CAL.fromCurrent(n) — activate override from current visual dir16
+ *   window.WASP_CAL.reset()        — reset to dir00
+ *   window.WASP_CAL.auto()         — clear override (auto mode)
+ *   window.WASP_CAL.dir(n)         — force specific dir16
+ *   window.WASP_CAL.overlay()      — toggle overlay
+ *   window.WASP_CAL.freeze()       — toggle movement freeze
+ *   window.WASP_CAL.template()     — print calibration template
+ *   window.WASP_CAL.state()        — print current state
  */
 export function installConsoleAPI(): void {
   if (typeof window === 'undefined') return;
@@ -300,6 +318,12 @@ export function installConsoleAPI(): void {
     prev: () => {
       const d = cyclePrevDir16();
       console.log(`[WASP_CAL] forced visual dir16 = ${d} (${getDir16Label(d)})`);
+      return d;
+    },
+    fromCurrent: (n: number) => {
+      const clamped = Math.min(Math.max(Math.round(n), 0), 15);
+      const d = activateOverrideFromCurrent(clamped);
+      console.log(`[WASP_CAL] override activated from current dir16 = ${d} (${getDir16Label(d)})`);
       return d;
     },
     reset: () => {
