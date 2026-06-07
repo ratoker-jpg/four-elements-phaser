@@ -286,7 +286,7 @@ describe('bodyIdToGeneratedHullId', () => {
   });
 });
 
-// ─── WASP_HULL_VISUAL_DIR16_REMAP tests (PIM-HULL-WASP-DIR-01) ───
+// ─── WASP_HULL_VISUAL_DIR16_REMAP tests (PIM-HULL-WASP-DIR-FIX-01) ──
 
 describe('WASP_HULL_VISUAL_DIR16_REMAP', () => {
   it('has entries for all 16 directions', () => {
@@ -312,9 +312,43 @@ describe('WASP_HULL_VISUAL_DIR16_REMAP', () => {
     }
     expect(targets.size).toBe(16);
   });
+
+  it('Wasp remap is NOT identity (at least one entry differs)', () => {
+    let anyDiffers = false;
+    for (let i = 0; i <= 15; i++) {
+      if (WASP_HULL_VISUAL_DIR16_REMAP[i] !== i) {
+        anyDiffers = true;
+        break;
+      }
+    }
+    expect(anyDiffers).toBe(true);
+  });
+
+  it('Wasp remap follows (logical + 4) % 16 formula', () => {
+    for (let i = 0; i <= 15; i++) {
+      expect(WASP_HULL_VISUAL_DIR16_REMAP[i]).toBe((i + 4) % 16);
+    }
+  });
+
+  // Calibrated anchor points from manual QA (Denis, Arena devtools)
+  it('anchor: logical 0 (down-right) → visual 4', () => {
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[0]).toBe(4);
+  });
+
+  it('anchor: logical 4 (down-left) → visual 8', () => {
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[4]).toBe(8);
+  });
+
+  it('anchor: logical 8 (up-left) → visual 12', () => {
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[8]).toBe(12);
+  });
+
+  it('anchor: logical 12 (up-right) → visual 0', () => {
+    expect(WASP_HULL_VISUAL_DIR16_REMAP[12]).toBe(0);
+  });
 });
 
-// ─── applyHullVisualDir16Remap tests (PIM-HULL-WASP-DIR-01) ──────
+// ─── applyHullVisualDir16Remap tests (PIM-HULL-WASP-DIR-FIX-01) ────
 
 describe('applyHullVisualDir16Remap', () => {
   it('applies WASP_HULL_VISUAL_DIR16_REMAP for wasp', () => {
@@ -331,6 +365,20 @@ describe('applyHullVisualDir16Remap', () => {
       expect(applyHullVisualDir16Remap('hornet', i as GeneratedHullDir16Index)).toBe(i);
       expect(applyHullVisualDir16Remap('hunter', i as GeneratedHullDir16Index)).toBe(i);
       expect(applyHullVisualDir16Remap('titan', i as GeneratedHullDir16Index)).toBe(i);
+    }
+  });
+
+  it('non-Wasp hulls get identity for ALL 16 directions', () => {
+    for (let i = 0; i <= 15; i++) {
+      expect(applyHullVisualDir16Remap('hornet', i as GeneratedHullDir16Index)).toBe(i);
+      expect(applyHullVisualDir16Remap('dictator', i as GeneratedHullDir16Index)).toBe(i);
+    }
+  });
+
+  it('Wasp remap shifts each direction by +4 (mod 16)', () => {
+    for (let i = 0; i <= 15; i++) {
+      const result = applyHullVisualDir16Remap('wasp', i as GeneratedHullDir16Index);
+      expect(result).toBe((i + 4) % 16);
     }
   });
 });

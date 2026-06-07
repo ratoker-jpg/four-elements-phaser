@@ -300,27 +300,36 @@ export function bodyIdToGeneratedHullId(bodyId: string): GeneratedHullId | null 
  * Visual dir16 is which PNG actually shows the Wasp facing the correct
  * screen direction to match the yellow heading/movement arrow.
  *
- * Current calibration: identity (no remap) — needs manual QA to determine
- * the actual offset. The debug overlay (BlockoutVehicleRenderer) will show
- * both raw and remapped dir16 so the correct mapping can be determined.
+ * Calibrated via manual QA using the Wasp hull direction calibration tool
+ * (PR #240). The Wasp PNG direction cycle is offset by +4 relative to
+ * the logical dir16 cycle. The remap formula is:
+ *   visual = (logical + 4) % 16
+ *
+ * Observed calibration anchor points (Denis, Arena devtools):
+ *   logical dir16 0  (down-right)  → visual 4
+ *   logical dir16 4  (down-left)   → visual 8
+ *   logical dir16 8  (up-left)     → visual 12
+ *   logical dir16 12 (up-right)    → visual 0
+ *
+ * PIM-HULL-WASP-DIR-FIX-01: replaces identity remap with calibrated values.
  */
 export const WASP_HULL_VISUAL_DIR16_REMAP: Record<number, number> = {
-  0: 0,   // E  → E  (identity — calibrate with manual QA)
-  1: 1,   // ESE → ESE
-  2: 2,   // SE  → SE
-  3: 3,   // SSE → SSE
-  4: 4,   // S   → S
-  5: 5,   // SSW → SSW
-  6: 6,   // SW  → SW
-  7: 7,   // WSW → WSW
-  8: 8,   // W   → W
-  9: 9,   // WNW → WNW
-  10: 10, // NW  → NW
-  11: 11, // NNW → NNW
-  12: 12, // N   → N
-  13: 13, // NNE → NNE
-  14: 14, // NE  → NE
-  15: 15, // ENE → ENE
+  0: 4,   // down-right  → visual 4
+  1: 5,   // → visual 5
+  2: 6,   // → visual 6
+  3: 7,   // → visual 7
+  4: 8,   // down-left   → visual 8
+  5: 9,   // → visual 9
+  6: 10,  // → visual 10
+  7: 11,  // → visual 11
+  8: 12,  // up-left     → visual 12
+  9: 13,  // → visual 13
+  10: 14, // → visual 14
+  11: 15, // → visual 15
+  12: 0,  // up-right    → visual 0
+  13: 1,  // → visual 1
+  14: 2,  // → visual 2
+  15: 3,  // → visual 3
 };
 
 /**
