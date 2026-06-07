@@ -188,20 +188,25 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
       tileX: 5.0,
       tileY: 3.0,
       isPlacementActive: true,
+      hullScreenX: 234,
+      hullScreenY: 156,
+      turretScreenX: 246,
+      turretScreenY: 148,
     };
     const text = buildPlacementOverlayText(params);
-    expect(text).toContain('WASP PLACEMENT CALIBRATOR');
-    expect(text).toContain('OFFSET: (3, -5)');
-    expect(text).toContain('wasp');
-    expect(text).toContain('v-001');
+    expect(text).toContain('tile:');
+    expect(text).toContain('offset: (3, -5)');
+    expect(text).toContain('world: 234, 156');
     expect(text).toContain('0.24');
-    expect(text).toContain('0.5');
+    expect(text).toContain('0.50');
     expect(text).toContain('0.75');
-    expect(text).toContain('ACTIVE');
+    expect(text).toContain('hull → turret');
+    expect(text).toContain('dx=12');
+    expect(text).toContain('dy=-8');
     expect(text).toContain('I/K/J/L');
   });
 
-  it('buildPlacementOverlayText shows offset prominently when placement is off', () => {
+  it('buildPlacementOverlayText shows offset when placement is off', () => {
     const params: PlacementOverlayParams = {
       hullId: 'wasp',
       vehicleId: 'v-002',
@@ -215,10 +220,14 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
       tileX: 1.0,
       tileY: 2.0,
       isPlacementActive: false,
+      hullScreenX: 100,
+      hullScreenY: 200,
+      turretScreenX: 100,
+      turretScreenY: 200,
     };
     const text = buildPlacementOverlayText(params);
-    expect(text).toContain('off');
-    expect(text).toContain('OFFSET: (0, 0)');
+    expect(text).toContain('offset: (0, 0)');
+    expect(text).toContain('hull → turret');
   });
 
   it('buildPlacementOverlayText includes hotkey reference', () => {
@@ -235,12 +244,15 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
       tileX: 3.0,
       tileY: 4.0,
       isPlacementActive: true,
+      hullScreenX: 300,
+      hullScreenY: 400,
+      turretScreenX: 300,
+      turretScreenY: 400,
     };
     const text = buildPlacementOverlayText(params);
-    expect(text).toContain('Shift=5px');
-    expect(text).toContain('R/0=reset');
+    expect(text).toContain('Alt+U');
+    expect(text).toContain('R=reset');
     expect(text).toContain('P=print');
     expect(text).toContain('O=overlay');
-    expect(text).toContain('Alt+U');
   });
 });

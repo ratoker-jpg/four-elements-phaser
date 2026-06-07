@@ -154,27 +154,31 @@ export interface PlacementOverlayParams {
   tileX: number;
   tileY: number;
   isPlacementActive: boolean;
+  /** Hull sprite screen X (includes debug offset). */
+  hullScreenX: number;
+  /** Hull sprite screen Y (includes debug offset). */
+  hullScreenY: number;
+  /** Turret mount screen X (projected). */
+  turretScreenX: number;
+  /** Turret mount screen Y (projected). */
+  turretScreenY: number;
 }
 
 /**
  * Build the placement calibration overlay text for display.
- * Shows all diagnostic info needed to calibrate hull placement.
- * offsetX/Y are shown prominently at the top.
+ * ModularTankDebugOverlay-style compact text panel.
  */
 export function buildPlacementOverlayText(params: PlacementOverlayParams): string {
   const lines: string[] = [];
 
-  lines.push('=== WASP PLACEMENT CALIBRATOR ===');
-  lines.push(`>> OFFSET: (${params.offsetX}, ${params.offsetY}) <<`);
-  lines.push(`hull: ${params.hullId ?? 'N/A'}`);
-  lines.push(`vehicle: ${params.vehicleId}`);
-  lines.push(`body: ${params.bodyId}`);
-  lines.push(`scale: ${params.scale}  origin: (${params.originX}, ${params.originY})`);
-  lines.push(`texture: ${params.textureKey.split('_').slice(-2).join('_')}`);
   lines.push(`tile: (${params.tileX.toFixed(1)}, ${params.tileY.toFixed(1)})`);
-  lines.push(`placement: ${params.isPlacementActive ? 'ACTIVE' : 'off'}`);
-  lines.push(`keys: I/K/J/L=1px  Shift=5px  R/0=reset  P=print  O=overlay`);
-  lines.push(`toggle: Alt+U`);
+  lines.push(`world: ${Math.round(params.hullScreenX)}, ${Math.round(params.hullScreenY)}`);
+  lines.push(`scale: ${params.scale.toFixed(2)}  origin: ${params.originX.toFixed(2)}, ${params.originY.toFixed(2)}`);
+  lines.push(`>> offset: (${params.offsetX}, ${params.offsetY})`);
+  const dx = Math.round(params.turretScreenX - params.hullScreenX);
+  const dy = Math.round(params.turretScreenY - params.hullScreenY);
+  lines.push(`hull → turret: dx=${dx} dy=${dy}`);
+  lines.push(`Alt+U=toggle  I/K/J/L=move  R=reset  P=print  O=overlay`);
 
   return lines.join('\n');
 }

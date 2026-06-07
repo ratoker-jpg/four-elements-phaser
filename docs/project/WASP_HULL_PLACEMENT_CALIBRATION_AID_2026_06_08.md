@@ -12,13 +12,13 @@ Manual QA shows the generated Wasp hull sprite is visually shifted upward / not 
 
 1. Open: `https://ratoker-jpg.github.io/four-elements-phaser/pr-preview/pr-XXX/?arena=1&devtools=1`
 2. Select a Wasp vehicle.
-3. Press **U** to activate placement calibration mode.
+3. Press **Alt+U** to activate placement calibration mode.
 
 ## Hotkeys (Arena/devtools only, Wasp selected)
 
 | Hotkey | Action |
 |--------|--------|
-| **U** | Toggle placement calibration mode on/off |
+| **Alt+U** | Toggle placement calibration mode on/off |
 | **I** | Move hull up by 1px |
 | **K** | Move hull down by 1px |
 | **J** | Move hull left by 1px |
@@ -68,31 +68,31 @@ window.WASP_PLACE.set(x, y)  // set offset directly
 
 ## Overlay Markers
 
-| Marker | Color | Label | Meaning |
+Visual language reused from ModularTankDebugOverlay:
+
+| Marker | Color | Style | Meaning |
 |--------|-------|-------|---------|
-| **Thick diamond** | Yellow `#ffff00` | TILE | Projected ground cell (1x1 tile) under Wasp |
-| **Cross** | Magenta `#ff00ff` | RING CENTER | Selection ring center (where the game thinks the vehicle is) |
-| **Cross** | Cyan `#00ffff` | HULL ANCHOR | Hull sprite origin (where the hull PNG origin is placed) |
-| **Rectangle** | Green `#00ff00` | BOUNDS | Hull sprite bounds (full visible area of the PNG) |
-| **Dot** | White `#ffffff` | GROUND | Ground anchor point (projected ground contact) |
+| **Tile footprint diamond** | Green `#7cff7c` | 4-cornered diamond, lineWidth 2 | Projected ground cell (1×1 tile) under Wasp |
+| **Tile anchor crosshair** | Gold `#ffd54f` | circle(radius 7) + horizontal/vertical lines (arm 10) | Selection ring center / logical tile anchor |
+| **Hull sprite origin** | Cyan `#26c6da` | circle(radius 6) + X pattern (arm 8) | Hull sprite origin point (includes debug offset) |
+| **Hull→turret connection** | White `#ffffff` | line, lineWidth 2 | Visual connection from hull origin to turret mount |
+| **Turret mount origin** | Red `#ff6b6b` | circle(radius 6) + crosshair lines (arm 8) | Projected turret mount screen position |
 
 ## Overlay Text
 
-The placement overlay text panel is positioned to the RIGHT of the hull (not above) to avoid overlapping the vehicle. It shows:
-- **OFFSET: (X, Y)** — prominently at the top (current debug offset values)
-- hull: wasp
-- selected vehicle id
-- current scale / originX / originY
-- current texture key
-- projected tile/cell coordinates
-- whether placement calibration is active
-- hotkey reference: I/K/J/L=1px, Shift=5px, R/0=reset, P=print, O=overlay
+The placement overlay text panel is positioned like ModularTankDebugOverlay (hullX+30, hullY+28) with a compact monospace style. It shows:
+- **tile: (X, Y)** — projected tile/cell coordinates
+- **world: X, Y** — hull sprite screen position
+- **scale / origin** — current scale and origin values
+- **>> offset: (X, Y)** — current debug offset values (prominent)
+- **hull → turret: dx=… dy=…** — screen-space distance from hull origin to turret mount
+- Hotkey reference: Alt+U=toggle, I/K/J/L=move, R=reset, P=print, O=overlay
 
 ## What to Do
 
-1. Activate placement calibration (U).
-2. Look at the markers — the yellow tile diamond, magenta cross (RING CENTER), and cyan cross (HULL ANCHOR) should overlap if the hull is perfectly centered.
-3. If the hull is shifted, use I/K/J/L keys to move it until the cyan cross aligns with the magenta cross inside the yellow tile diamond.
+1. Activate placement calibration (Alt+U).
+2. Look at the markers — the green tile diamond, gold crosshair (tile anchor), cyan X marker (hull origin), and red crosshair (turret mount) should align correctly if the hull is perfectly centered.
+3. If the hull is shifted, use I/K/J/L keys to move it until the cyan X marker aligns with the gold crosshair inside the green tile diamond.
 4. Once aligned, press P to print the current values.
 5. Report the values in the template below.
 
@@ -117,4 +117,4 @@ uiOffsetY =
 - Turret aim is **unchanged**.
 - Deactivating placement calibration resets the offset to (0, 0).
 - This is NOT the final placement fix — values must be applied to the hull profile system after calibration.
-- While placement calibration is active, I/K/J/L/O/P/R/U keys are consumed and will NOT trigger upgrades or other actions.
+- While placement calibration is active, I/K/J/L/O/P/R keys are consumed and will NOT trigger upgrades or other actions.

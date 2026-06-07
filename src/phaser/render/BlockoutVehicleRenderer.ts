@@ -68,7 +68,7 @@ import {
   buildPlacementOverlayText,
   type PlacementOverlayParams,
 } from '../debug/WaspHullPlacementCalibrator';
-import { projectGroundPoint } from '../../config/cameraProjectionContract';
+
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -217,9 +217,6 @@ export class BlockoutVehicleRenderer {
 
   /** PIM-HULL-WASP-ANCHOR-MAP-01: Placement calibration overlay text labels. */
   private placementLabels = new Map<string, Phaser.GameObjects.Text>();
-
-  /** PIM-HULL-WASP-ANCHOR-MAP-01: Placement calibration marker labels (TILE, RING, HULL, etc.). */
-  private placementMarkerLabels = new Map<string, Phaser.GameObjects.Text[]>();
 
   /** Whether generated hull sprites have been logged (once). */
   private generatedHullLogged = false;
@@ -512,15 +509,6 @@ export class BlockoutVehicleRenderer {
       if (!activeIds.has(id)) {
         label.destroy();
         this.placementLabels.delete(id);
-      }
-    }
-    // Clean up stale placement marker labels
-    for (const [id, markers] of this.placementMarkerLabels) {
-      if (!activeIds.has(id)) {
-        for (const ml of markers) {
-          ml.destroy();
-        }
-        this.placementMarkerLabels.delete(id);
       }
     }
   }
@@ -1167,102 +1155,51 @@ export class BlockoutVehicleRenderer {
     // ── PIM-HULL-WASP-ANCHOR-MAP-01: Placement calibration overlay (Wasp-only, dev-only) ──
     // Arena/devtools-only: placement overlay is explicitly gated to devtools mode.
     // Must never render in Standard gameplay.
+    // Visual language reused from ModularTankDebugOverlay: green diamond, gold crosshair,
+    // cyan X marker, white connecting line, red crosshair.
     if (this.isDevtoolsActive() && isWaspPlacementActive() && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp') {
-      // Destroy old marker labels from previous frame before creating new ones
-      const oldMarkers = this.placementMarkerLabels.get(vehicle.id);
-      if (oldMarkers) {
-        for (const ml of oldMarkers) {
-          ml.destroy();
-        }
-        this.placementMarkerLabels.delete(vehicle.id);
-      }
+      // ── Positions (projected isometric coordinates) ──
+      // Tile anchor (ax, ay): body screen center = selection ring center
+      const ax = cx;
+      const ay = cy;
 
-      // ── Draw projected ground cell diamond (1×1 tile) ──
-      // THICKER + BRIGHTER than before for better visibility
-      const cellZ = 0;
-      const cellPos = projectWorldPoint(tilePos.x, tilePos.y, cellZ, this.offset);
-
-      // Draw a full 1×1 tile diamond centered on the vehicle's ground position
-      // Draw twice with different line widths for a thick+crisp look
-      g.lineStyle(4, 0xffff00, 0.5); // thick semi-transparent yellow outline (glow)
-      const tileHalfSize = 0.5; // half-tile in world units
-      const tileCorners = [
-        projectGroundPoint(tilePos.x, tilePos.y - tileHalfSize, this.offset), // top corner
-        projectGroundPoint(tilePos.x + tileHalfSize, tilePos.y, this.offset), // right corner
-        projectGroundPoint(tilePos.x, tilePos.y + tileHalfSize, this.offset), // bottom corner
-        projectGroundPoint(tilePos.x - tileHalfSize, tilePos.y, this.offset), // left corner
-      ];
-      g.beginPath();
-      g.moveTo(tileCorners[0].x, tileCorners[0].y);
-      for (let i = 1; i < tileCorners.length; i++) {
-        g.lineTo(tileCorners[i].x, tileCorners[i].y);
-      }
-      g.closePath();
-      g.strokePath();
-      // Crisp inner line
-      g.lineStyle(2, 0xffff00, 0.9);
-      g.beginPath();
-      g.moveTo(tileCorners[0].x, tileCorners[0].y);
-      for (let i = 1; i < tileCorners.length; i++) {
-        g.lineTo(tileCorners[i].x, tileCorners[i].y);
-      }
-      g.closePath();
-      g.strokePath();
-
-      // Label: TILE
-      const tileLabelPos = tileCorners[0]; // top corner of diamond
-      const markerLabels: Phaser.GameObjects.Text[] = [];
-      markerLabels.push(this.ensureMarkerLabel(this.scene, 'TILE', tileLabelPos.x + 6, tileLabelPos.y - 4, 0xffff00));
-
-      // ── Draw selection ring center marker (magenta cross + label) ──
-      g.lineStyle(2.5, 0xff00ff, 0.9); // magenta = selection ring center
-      const ringCrossArm = 10;
-      g.beginPath();
-      g.moveTo(cx - ringCrossArm, cy);
-      g.lineTo(cx + ringCrossArm, cy);
-      g.strokePath();
-      g.beginPath();
-      g.moveTo(cx, cy - ringCrossArm);
-      g.lineTo(cx, cy + ringCrossArm);
-      g.strokePath();
-      // Label: RING CENTER
-      markerLabels.push(this.ensureMarkerLabel(this.scene, 'RING CENTER', cx + ringCrossArm + 6, cy - 6, 0xff00ff));
-
-      // ── Draw hull sprite anchor marker (cyan cross + label) ──
-      // This is where the hull sprite's origin is actually placed.
+      // Hull origin (hullX, hullY): hull sprite's current position (includes debug offset)
       const hullSpriteObj = this.vehicleHullSprites.get(vehicle.id);
-      if (hullSpriteObj) {
-        const hullCx = hullSpriteObj.x;
-        const hullCy = hullSpriteObj.y;
-        g.lineStyle(2.5, 0x00ffff, 0.9); // cyan = hull anchor
-        g.beginPath();
-        g.moveTo(hullCx - ringCrossArm, hullCy);
-        g.lineTo(hullCx + ringCrossArm, hullCy);
-        g.strokePath();
-        g.beginPath();
-        g.moveTo(hullCx, hullCy - ringCrossArm);
-        g.lineTo(hullCx, hullCy + ringCrossArm);
-        g.strokePath();
-        // Label: HULL ANCHOR
-        markerLabels.push(this.ensureMarkerLabel(this.scene, 'HULL ANCHOR', hullCx + ringCrossArm + 6, hullCy - 6, 0x00ffff));
+      const hullX = hullSpriteObj ? hullSpriteObj.x : cx;
+      const hullY = hullSpriteObj ? hullSpriteObj.y : cy;
 
-        // ── Draw hull sprite bounds outline (green + label) ──
-        // Show the visible bounds of the hull sprite so Denis can see the full footprint
-        g.lineStyle(1.5, 0x00ff00, 0.6); // green = hull bounds
-        const bounds = hullSpriteObj.getBounds();
-        g.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-        // Label: BOUNDS
-        markerLabels.push(this.ensureMarkerLabel(this.scene, 'BOUNDS', bounds.x + bounds.width + 4, bounds.y, 0x00ff00));
-      }
+      // Turret origin (turretX, turretY): projected turret mount screen position
+      const turretScreenPos = projectWorldPoint(mountWorldX, mountWorldY, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
+      const turretX = turretScreenPos.x;
+      const turretY = turretScreenPos.y;
 
-      // ── Draw ground anchor dot (white + label) ──
-      g.fillStyle(0xffffff, 0.9);
-      g.fillCircle(cellPos.x, cellPos.y, 4);
-      g.lineStyle(1, 0xffffff, 0.8);
-      g.strokeCircle(cellPos.x, cellPos.y, 4);
-      markerLabels.push(this.ensureMarkerLabel(this.scene, 'GROUND', cellPos.x + 8, cellPos.y - 6, 0xffffff));
+      // ── Tile footprint diamond (green, projected ground-plane) ──
+      g.lineStyle(2, 0x7cff7c, 0.95);
+      drawProjectedGroundDiamond(g, cx, cy, 0.5, this.offset);
 
-      // ── Placement overlay text (positioned to the RIGHT of the vehicle, not above) ──
+      // ── Logical tile anchor crosshair (gold circle + lines) ──
+      g.lineStyle(2, 0xffd54f, 0.95);
+      g.strokeCircle(ax, ay, 7);
+      g.lineBetween(ax - 10, ay, ax + 10, ay);
+      g.lineBetween(ax, ay - 10, ax, ay + 10);
+
+      // ── Hull sprite origin marker (cyan circle + X pattern) ──
+      g.lineStyle(2, 0x26c6da, 0.95);
+      g.strokeCircle(hullX, hullY, 6);
+      g.lineBetween(hullX - 8, hullY - 8, hullX + 8, hullY + 8);
+      g.lineBetween(hullX - 8, hullY + 8, hullX + 8, hullY - 8);
+
+      // ── Connecting line from hull origin to turret origin (white) ──
+      g.lineStyle(2, 0xffffff, 0.9);
+      g.lineBetween(hullX, hullY, turretX, turretY);
+
+      // ── Turret sprite/mount origin marker (red crosshair + circle) ──
+      g.lineStyle(2, 0xff6b6b, 0.95);
+      g.strokeCircle(turretX, turretY, 6);
+      g.lineBetween(turretX - 8, turretY, turretX + 8, turretY);
+      g.lineBetween(turretX, turretY - 8, turretX, turretY + 8);
+
+      // ── Placement overlay text (compact debug panel, ModularTankDebugOverlay style) ──
       const diag = resolveHullDirectionDiagnostic(
         vehicle.bodyId, vehicle.faction,
         vehicle.modificationLevel, vehicle.bodyAngle,
@@ -1281,6 +1218,10 @@ export class BlockoutVehicleRenderer {
         tileX: tilePos.x,
         tileY: tilePos.y,
         isPlacementActive: true,
+        hullScreenX: hullX,
+        hullScreenY: hullY,
+        turretScreenX: turretX,
+        turretScreenY: turretY,
       };
 
       const placeText = buildPlacementOverlayText(overlayParams);
@@ -1289,70 +1230,29 @@ export class BlockoutVehicleRenderer {
       let placeLabel = this.placementLabels.get(vehicle.id);
       if (!placeLabel) {
         placeLabel = this.scene.add.text(0, 0, '', {
-          fontSize: '10px',
           fontFamily: 'monospace',
-          color: '#ff99ff',
-          backgroundColor: '#000000ee',
-          padding: { x: 6, y: 4 },
-          lineSpacing: 2,
+          fontSize: '10px',
+          color: '#f4f7fb',
+          backgroundColor: 'rgba(16, 18, 28, 0.76)',
+          padding: { x: 4, y: 3 },
         });
         placeLabel.setDepth(BLOCKOUT_DEPTH + 25);
-        placeLabel.setOrigin(0, 0.5); // anchor left-center
         this.placementLabels.set(vehicle.id, placeLabel);
       }
       placeLabel.setText(placeText);
-      // Position to the right of the vehicle, vertically centered on the hull
-      const placeX = cx + 80; // offset to the right to avoid overlapping the hull
-      const placeY = cy;       // vertically centered
-      placeLabel.setPosition(placeX, placeY);
+      // Position like ModularTankDebugOverlay: hullX+30, hullY+28
+      placeLabel.setPosition(hullX + 30, hullY + 28);
       placeLabel.setVisible(showPlaceLabel);
-
-      // Store marker labels for cleanup next frame
-      this.placementMarkerLabels.set(vehicle.id, markerLabels);
     } else {
       // Hide placement label for non-Wasp or when placement calibration is off
       const placeLabel = this.placementLabels.get(vehicle.id);
       if (placeLabel) {
         placeLabel.setVisible(false);
       }
-      // Destroy marker labels for this vehicle
-      const existingMarkers = this.placementMarkerLabels.get(vehicle.id);
-      if (existingMarkers) {
-        for (const ml of existingMarkers) {
-          ml.destroy();
-        }
-        this.placementMarkerLabels.delete(vehicle.id);
-      }
     }
   }
 
   // ─── Cleanup ─────────────────────────────────────────────────────
-
-  /**
-   * Create a small Phaser Text label for placement calibration overlay markers.
-   * Each call creates a new text object — these are destroyed each frame when
-   * the overlay is redrawn. The label shows the marker name (TILE, RING, HULL, etc.)
-   * at the specified position with the specified color.
-   */
-  private ensureMarkerLabel(
-    scene: Phaser.Scene,
-    text: string,
-    x: number,
-    y: number,
-    color: number,
-  ): Phaser.GameObjects.Text {
-    const hexColor = '#' + color.toString(16).padStart(6, '0');
-    const label = scene.add.text(x, y, text, {
-      fontSize: '9px',
-      fontFamily: 'monospace',
-      color: hexColor,
-      backgroundColor: '#000000cc',
-      padding: { x: 3, y: 1 },
-    });
-    label.setDepth(BLOCKOUT_DEPTH + 30);
-    label.setOrigin(0, 0.5);
-    return label;
-  }
 
   destroy(): void {
     for (const [, g] of this.vehicleGraphics) {
@@ -1385,11 +1285,5 @@ export class BlockoutVehicleRenderer {
     }
     this.placementLabels.clear();
 
-    for (const [, markers] of this.placementMarkerLabels) {
-      for (const ml of markers) {
-        ml.destroy();
-      }
-    }
-    this.placementMarkerLabels.clear();
   }
 }
