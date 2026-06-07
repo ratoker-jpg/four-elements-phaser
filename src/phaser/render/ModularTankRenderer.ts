@@ -19,7 +19,6 @@ import {
 import {
   getGeneratedHullTextureKey,
   mapRuntimeDir8ToGeneratedDir16,
-  applyHullVisualDir16Remap,
   isGeneratedHullSetLoaded,
   DEFAULT_GENERATED_HULL,
   DEFAULT_GENERATED_HULL_MOD,
@@ -151,8 +150,7 @@ export class ModularTankRenderer {
     let hullOriginY: number;
 
     if (generatedLoaded) {
-      const rawDir16 = mapRuntimeDir8ToGeneratedDir16(bodyDir);
-      const dir16 = applyHullVisualDir16Remap(DEFAULT_GENERATED_HULL, rawDir16);
+      const dir16 = mapRuntimeDir8ToGeneratedDir16(bodyDir);
       hullKey = getGeneratedHullTextureKey(DEFAULT_GENERATED_HULL, generatedFaction, DEFAULT_GENERATED_HULL_MOD, dir16);
       hullScale = GENERATED_HULL_SCALE;
       hullOriginX = GENERATED_HULL_ORIGIN_X;
@@ -246,8 +244,7 @@ export class ModularTankRenderer {
 
     // Hull texture follows bodyDir — prefer generated if available
     if (this.usingGeneratedHull) {
-      const rawDir16 = mapRuntimeDir8ToGeneratedDir16(dir);
-      const dir16 = applyHullVisualDir16Remap(this.generatedHullId, rawDir16);
+      const dir16 = mapRuntimeDir8ToGeneratedDir16(dir);
       const generatedFaction = resolveGeneratedHullFaction(this.faction);
       const key = getGeneratedHullTextureKey(this.generatedHullId, generatedFaction, this.generatedHullMod, dir16);
       // If the specific generated texture is missing, fall back to legacy
@@ -361,6 +358,5 @@ export class ModularTankRenderer {
     this.debugOverlay?.destroy();
     this.debugOverlay = null;
     this.anchorWorld = null;
-    // Debug overlay destroyed above; no anchor tile state to clear here.
   }
 }
