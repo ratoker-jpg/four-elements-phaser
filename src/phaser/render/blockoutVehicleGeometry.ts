@@ -151,11 +151,18 @@ export function getBodyPixelSize(bodyId: string): { w: number; h: number } {
 
 // ─── Shared turret constants (PROJECTION-01 fixup) ──────────────────
 
-/** Turret rectangle width in pixels — source of truth for all consumers. */
-export const BLOCKOUT_TURRET_SIZE_W = 10;
+/** Turret rectangle width in pixels — source of truth for all consumers.
+ *  PIM-WASP-SCALE-PLACEMENT-01: Reduced from 10 to 5 (2x smaller) to match
+ *  the reduced hull scale. This affects ALL blockout/procedural turrets
+ *  globally in the Arena rendering path, since all Arena vehicles use
+ *  the same procedural turret geometry from blockoutVehicleGeometry. */
+export const BLOCKOUT_TURRET_SIZE_W = 5;
 
-/** Turret rectangle height in pixels — source of truth for all consumers. */
-export const BLOCKOUT_TURRET_SIZE_H = 6;
+/** Turret rectangle height in pixels — source of truth for all consumers.
+ *  PIM-WASP-SCALE-PLACEMENT-01: Reduced from 6 to 3 (2x smaller) to match
+ *  the reduced hull scale. This affects ALL blockout/procedural turrets
+ *  globally in the Arena rendering path. */
+export const BLOCKOUT_TURRET_SIZE_H = 3;
 
 // ─── Shared Z-level constants (PROJECTION-01 fixup #2) ────────────────
 

@@ -181,7 +181,7 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
       bodyId: 'wasp',
       offsetX: 3,
       offsetY: -5,
-      scale: 0.24,
+      scale: 0.12,
       originX: 0.5,
       originY: 0.75,
       textureKey: 'generated_hull_wasp_cyan_m0_dir04',
@@ -197,7 +197,7 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
     expect(text).toContain('tile:');
     expect(text).toContain('offset: (3, -5)');
     expect(text).toContain('world: 234, 156');
-    expect(text).toContain('0.24');
+    expect(text).toContain('0.12');
     expect(text).toContain('0.50');
     expect(text).toContain('0.75');
     expect(text).toContain('hull → turret');
@@ -215,7 +215,7 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
       bodyId: 'wasp',
       offsetX: 0,
       offsetY: 0,
-      scale: 0.24,
+      scale: 0.12,
       originX: 0.5,
       originY: 0.75,
       textureKey: 'generated_hull_wasp_cyan_m0_dir00',
@@ -239,7 +239,7 @@ describe('WaspHullPlacementCalibrator overlay text', () => {
       bodyId: 'wasp',
       offsetX: 7,
       offsetY: 12,
-      scale: 0.24,
+      scale: 0.12,
       originX: 0.5,
       originY: 0.75,
       textureKey: 'generated_hull_wasp_cyan_m0_dir08',

@@ -479,14 +479,17 @@ export function resolveGeneratedHullKeyForced(
 
 /**
  * Render scale for generated hull sprites.
- * Pilot value: 512px sprites at the same tile footprint as the
- * legacy 256px sprites, so roughly half the scale factor.
+ * PIM-WASP-SCALE-PLACEMENT-01: Reduced from 0.24 to 0.12 (2x smaller)
+ * to match the intended visual size of generated hull sprites within
+ * the isometric tile footprint. At 0.24 the hulls were roughly 2x
+ * too large relative to the selection ring and tile grid.
+ *
+ * This affects ALL generated hull sprites globally (both Arena
+ * BlockoutVehicleRenderer and Standard ModularTankRenderer).
  *
  * TODO: Visual QA — tune per hull if sizes differ significantly.
- * Generated hulls may appear at a different visual weight than
- * the legacy chassis sprites.
  */
-export const GENERATED_HULL_SCALE = 0.24;
+export const GENERATED_HULL_SCALE = 0.12;
 
 /**
  * Whether the direction debug overlay is enabled.
@@ -514,3 +517,41 @@ export const GENERATED_HULL_ORIGIN_X = 0.5;
  * TODO: Visual QA — may need per-hull tuning.
  */
 export const GENERATED_HULL_ORIGIN_Y = 0.75;
+
+// ─── Per-hull placement profiles ─────────────────────────────────
+// PIM-WASP-SCALE-PLACEMENT-01: Per-hull visual offset constants.
+// These compensate for the difference between the sprite anchor point
+// and the actual visual center of the hull after scale changes.
+// The offset is applied as a screen-pixel shift to the hull sprite
+// position only — selection ring, movement, and turret aim are unchanged.
+
+/**
+ * Wasp-specific hull sprite offset X (screen pixels).
+ * Calibrated via the Wasp placement calibration tool (PR #243).
+ * At scale 0.12, the Wasp hull sprite needs this X offset to sit
+ * correctly centered within the selection ring and tile footprint.
+ */
+export const WASP_HULL_OFFSET_X = 0;
+
+/**
+ * Wasp-specific hull sprite offset Y (screen pixels).
+ * Calibrated via the Wasp placement calibration tool (PR #243).
+ * At scale 0.12, the Wasp hull sprite needs this Y offset to sit
+ * correctly centered within the selection ring and tile footprint.
+ */
+export const WASP_HULL_OFFSET_Y = 0;
+
+/**
+ * Get the per-hull placement offset for a generated hull.
+ * Returns { offsetX, offsetY } in screen pixels.
+ * Currently only Wasp has a calibrated offset; other hulls default to (0, 0).
+ * When more hulls are visually validated, add their offsets here.
+ */
+export function getGeneratedHullPlacementOffset(hullId: GeneratedHullId): { offsetX: number; offsetY: number } {
+  switch (hullId) {
+    case 'wasp':
+      return { offsetX: WASP_HULL_OFFSET_X, offsetY: WASP_HULL_OFFSET_Y };
+    default:
+      return { offsetX: 0, offsetY: 0 };
+  }
+}
