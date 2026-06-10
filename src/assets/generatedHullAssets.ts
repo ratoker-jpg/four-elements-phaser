@@ -527,19 +527,21 @@ export const GENERATED_HULL_ORIGIN_Y = 0.75;
 
 /**
  * Wasp-specific hull sprite offset X (screen pixels).
- * Calibrated via the Wasp placement calibration tool (PR #243).
- * At scale 0.12, the Wasp hull sprite needs this X offset to sit
- * correctly centered within the selection ring and tile footprint.
+ * Calibrated via manual QA by Denis using the Wasp placement calibration
+ * tool (PR #243). At scale 0.12, the Wasp hull sprite needs this X offset
+ * to sit correctly centered within the selection ring and tile footprint.
+ * Final calibrated value: offsetX = -1 (Denis, 2025-06).
  */
-export const WASP_HULL_OFFSET_X = 0;
+export const WASP_HULL_OFFSET_X = -1;
 
 /**
  * Wasp-specific hull sprite offset Y (screen pixels).
- * Calibrated via the Wasp placement calibration tool (PR #243).
- * At scale 0.12, the Wasp hull sprite needs this Y offset to sit
- * correctly centered within the selection ring and tile footprint.
+ * Calibrated via manual QA by Denis using the Wasp placement calibration
+ * tool (PR #243). At scale 0.12, the Wasp hull sprite needs this Y offset
+ * to sit correctly centered within the selection ring and tile footprint.
+ * Final calibrated value: offsetY = 12 (Denis, 2025-06).
  */
-export const WASP_HULL_OFFSET_Y = 0;
+export const WASP_HULL_OFFSET_Y = 12;
 
 /**
  * Get the per-hull placement offset for a generated hull.

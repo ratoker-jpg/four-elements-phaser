@@ -449,12 +449,12 @@ describe('generated hull scale constant', () => {
 });
 
 describe('Wasp-specific placement offsets', () => {
-  it('WASP_HULL_OFFSET_X is a finite number', () => {
-    expect(Number.isFinite(WASP_HULL_OFFSET_X)).toBe(true);
+  it('WASP_HULL_OFFSET_X is -1 (Denis manual calibration, scale=0.12)', () => {
+    expect(WASP_HULL_OFFSET_X).toBe(-1);
   });
 
-  it('WASP_HULL_OFFSET_Y is a finite number', () => {
-    expect(Number.isFinite(WASP_HULL_OFFSET_Y)).toBe(true);
+  it('WASP_HULL_OFFSET_Y is 12 (Denis manual calibration, scale=0.12)', () => {
+    expect(WASP_HULL_OFFSET_Y).toBe(12);
   });
 });
 
