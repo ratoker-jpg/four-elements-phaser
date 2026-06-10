@@ -198,7 +198,7 @@ export function buildPlacementOverlayText(params: PlacementOverlayParams): strin
  */
 export function printPlacementValues(): void {
   const values = {
-    scale: 0.24,         // GENERATED_HULL_SCALE default
+    scale: 0.12,         // GENERATED_HULL_SCALE (PIM-WASP-SCALE-PLACEMENT-01: reduced from 0.24)
     originX: 0.5,        // GENERATED_HULL_ORIGIN_X default
     originY: 0.75,       // GENERATED_HULL_ORIGIN_Y default
     offsetX: debugOffsetX,

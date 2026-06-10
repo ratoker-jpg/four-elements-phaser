@@ -48,6 +48,7 @@ import {
   GENERATED_HULL_SCALE,
   GENERATED_HULL_ORIGIN_X,
   GENERATED_HULL_ORIGIN_Y,
+  getGeneratedHullPlacementOffset,
   directionDebugEnabled,
   toggleDirectionDebug as toggleDirDebug,
   type GeneratedHullDir16Index,
@@ -556,6 +557,18 @@ export class BlockoutVehicleRenderer {
       if (isWaspPlacement) {
         spriteCx += getWaspDebugOffsetX();
         spriteCy += getWaspDebugOffsetY();
+      }
+
+      // PIM-WASP-SCALE-PLACEMENT-01: Apply per-hull placement offset.
+      // This is a permanent runtime offset (not the debug calibration offset)
+      // that centers the hull sprite correctly within the tile footprint
+      // after the scale reduction from 0.24 to 0.12.
+      // Only applies to hulls with generated sprites.
+      const hullId = bodyIdToGeneratedHullId(vehicle.bodyId);
+      if (hullId) {
+        const placement = getGeneratedHullPlacementOffset(hullId);
+        spriteCx += placement.offsetX;
+        spriteCy += placement.offsetY;
       }
 
       hullSprite.setPosition(spriteCx, spriteCy);

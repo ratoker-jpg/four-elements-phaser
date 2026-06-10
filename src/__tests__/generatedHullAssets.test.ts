@@ -22,6 +22,12 @@ import {
   WASP_HULL_VISUAL_DIR16_REMAP,
   applyHullVisualDir16Remap,
   resolveHullDirectionDiagnostic,
+  GENERATED_HULL_SCALE,
+  GENERATED_HULL_ORIGIN_X,
+  GENERATED_HULL_ORIGIN_Y,
+  WASP_HULL_OFFSET_X,
+  WASP_HULL_OFFSET_Y,
+  getGeneratedHullPlacementOffset,
   type GeneratedHullDir16Index,
 } from '../assets/generatedHullAssets';
 
@@ -423,5 +429,56 @@ describe('turret mapping unchanged by Wasp hull remap', () => {
     // Turret mapping is not part of generatedHullAssets.ts
     // and should remain completely independent.
     expect(true).toBe(true); // structural assertion
+  });
+});
+
+// ─── Generated hull scale and placement constants (PIM-WASP-SCALE-PLACEMENT-01) ──
+
+describe('generated hull scale constant', () => {
+  it('GENERATED_HULL_SCALE is 0.12 (2x reduction from original 0.24)', () => {
+    expect(GENERATED_HULL_SCALE).toBe(0.12);
+  });
+
+  it('GENERATED_HULL_ORIGIN_X is 0.5 (horizontal center)', () => {
+    expect(GENERATED_HULL_ORIGIN_X).toBe(0.5);
+  });
+
+  it('GENERATED_HULL_ORIGIN_Y is 0.75 (legacy hull origin)', () => {
+    expect(GENERATED_HULL_ORIGIN_Y).toBe(0.75);
+  });
+});
+
+describe('Wasp-specific placement offsets', () => {
+  it('WASP_HULL_OFFSET_X is -1 (Denis manual calibration, scale=0.12)', () => {
+    expect(WASP_HULL_OFFSET_X).toBe(-1);
+  });
+
+  it('WASP_HULL_OFFSET_Y is 12 (Denis manual calibration, scale=0.12)', () => {
+    expect(WASP_HULL_OFFSET_Y).toBe(12);
+  });
+});
+
+describe('getGeneratedHullPlacementOffset', () => {
+  it('returns Wasp offset for wasp', () => {
+    const offset = getGeneratedHullPlacementOffset('wasp');
+    expect(offset.offsetX).toBe(WASP_HULL_OFFSET_X);
+    expect(offset.offsetY).toBe(WASP_HULL_OFFSET_Y);
+  });
+
+  it('returns (0, 0) for non-Wasp hulls', () => {
+    for (const hullId of GENERATED_HULL_IDS) {
+      if (hullId === 'wasp') continue;
+      const offset = getGeneratedHullPlacementOffset(hullId);
+      expect(offset.offsetX).toBe(0);
+      expect(offset.offsetY).toBe(0);
+    }
+  });
+
+  it('offset values are finite numbers for all hull IDs', () => {
+    for (const hullId of GENERATED_HULL_IDS) {
+      const offset = getGeneratedHullPlacementOffset(hullId);
+      expect(Number.isFinite(offset.offsetX)).toBe(true);
+      expect(Number.isFinite(offset.offsetY)).toBe(true);
+    }
   });
 });

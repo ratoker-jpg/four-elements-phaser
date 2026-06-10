@@ -26,6 +26,7 @@ import {
   GENERATED_HULL_SCALE,
   GENERATED_HULL_ORIGIN_X,
   GENERATED_HULL_ORIGIN_Y,
+  getGeneratedHullPlacementOffset,
   type GeneratedHullId,
   type GeneratedHullMod,
 } from '../../assets/generatedHullAssets';
@@ -171,8 +172,16 @@ export class ModularTankRenderer {
 
     // Hull position = anchor + scaleTransform(hullOffset[bodyDir])
     const hullOff = applyScaleTransform(MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir]);
-    const hullWorldX = anchorWorldX + hullOff.x;
-    const hullWorldY = anchorWorldY + hullOff.y;
+    let hullWorldX = anchorWorldX + hullOff.x;
+    let hullWorldY = anchorWorldY + hullOff.y;
+
+    // PIM-WASP-SCALE-PLACEMENT-01: Apply per-hull placement offset for generated hulls.
+    // This compensates for the visual centering shift after the scale reduction.
+    if (generatedLoaded) {
+      const placement = getGeneratedHullPlacementOffset(this.generatedHullId);
+      hullWorldX += placement.offsetX;
+      hullWorldY += placement.offsetY;
+    }
     // CORE-STEP-06H+ fixup: Use unified depth sorting for correct unit/building ordering
     const baseDepth = computeDepthValue({
       id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
@@ -292,8 +301,16 @@ export class ModularTankRenderer {
 
     // Hull position = anchor + scaleTransform(hullOffset[bodyDir])
     const hullOff = applyScaleTransform(MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir]);
-    const hullX = ax + hullOff.x;
-    const hullY = ay + hullOff.y;
+    let hullX = ax + hullOff.x;
+    let hullY = ay + hullOff.y;
+
+    // PIM-WASP-SCALE-PLACEMENT-01: Apply per-hull placement offset for generated hulls.
+    if (this.usingGeneratedHull) {
+      const placement = getGeneratedHullPlacementOffset(this.generatedHullId);
+      hullX += placement.offsetX;
+      hullY += placement.offsetY;
+    }
+
     this.hull.setPosition(hullX, hullY);
 
     // Turret mount position = anchor + scaleTransform(turretMount[bodyDir])
