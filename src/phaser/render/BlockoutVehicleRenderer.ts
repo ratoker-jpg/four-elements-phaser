@@ -60,6 +60,16 @@ import {
   buildCalibrationOverlayText,
   type CalibrationOverlayParams,
 } from '../debug/WaspHullDirectionCalibrator';
+import {
+  isPlacementActive as isWaspPlacementActive,
+  isPlacementOverlayVisible as isWaspPlacementOverlayVisible,
+  getDebugOffsetX as getWaspDebugOffsetX,
+  getDebugOffsetY as getWaspDebugOffsetY,
+  buildPlacementOverlayText,
+  type PlacementOverlayParams,
+} from '../debug/WaspHullPlacementCalibrator';
+import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibrationPanel';
+
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -205,6 +215,12 @@ export class BlockoutVehicleRenderer {
 
   /** PIM-HULL-WASP-DIR-MAP-01: Calibration overlay text labels keyed by blockout vehicle ID. */
   private calibrationLabels = new Map<string, Phaser.GameObjects.Text>();
+
+  /** PIM-HULL-WASP-ANCHOR-MAP-01: Placement calibration overlay text labels. */
+  private placementLabels = new Map<string, Phaser.GameObjects.Text>();
+
+  /** PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: On-screen calibration button panel. */
+  private placementPanel: WaspPlacementCalibrationPanel | null = null;
 
   /** Whether generated hull sprites have been logged (once). */
   private generatedHullLogged = false;
@@ -448,6 +464,14 @@ export class BlockoutVehicleRenderer {
           calibLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 20);
         }
       }
+      // Also update placement label depth
+      const placeLabel = this.placementLabels.get(vehicle.id);
+      if (placeLabel) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          placeLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 25);
+        }
+      }
     }
 
     // Clean up stale vehicles
@@ -484,6 +508,25 @@ export class BlockoutVehicleRenderer {
         this.calibrationLabels.delete(id);
       }
     }
+    // Clean up stale placement labels
+    for (const [id, label] of this.placementLabels) {
+      if (!activeIds.has(id)) {
+        label.destroy();
+        this.placementLabels.delete(id);
+      }
+    }
+
+    // ── PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: On-screen calibration button panel ──
+    // Show the panel when placement calibration is active for a Wasp, hide otherwise.
+    // The panel is a fixed-screen UI that doesn't move with vehicles.
+    const shouldShowPanel = this.isDevtoolsActive() && isWaspPlacementActive();
+    if (shouldShowPanel && !this.placementPanel) {
+      this.placementPanel = new WaspPlacementCalibrationPanel(this.scene);
+      this.placementPanel.show();
+    } else if (!shouldShowPanel && this.placementPanel) {
+      this.placementPanel.hide();
+      this.placementPanel = null;
+    }
   }
 
   // ─── Vehicle rendering ──────────────────────────────────────────
@@ -501,8 +544,20 @@ export class BlockoutVehicleRenderer {
       const bodyAngle = vehicle.bodyAngle;
       const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
       const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
-      const spriteCx = vehicle.worldX + this.offset.x + bodyImpulseX;
-      const spriteCy = vehicle.worldY + this.offset.y + bodyImpulseY;
+      let spriteCx = vehicle.worldX + this.offset.x + bodyImpulseX;
+      let spriteCy = vehicle.worldY + this.offset.y + bodyImpulseY;
+
+      // PIM-HULL-WASP-ANCHOR-MAP-01: Apply debug placement offset for Wasp
+      // Arena/devtools-only: this offset is purely visual, affects sprite position only.
+      // Selection ring, movement, pathfinding are all unchanged.
+      const isWaspPlacement = this.isDevtoolsActive()
+        && isWaspPlacementActive()
+        && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp';
+      if (isWaspPlacement) {
+        spriteCx += getWaspDebugOffsetX();
+        spriteCy += getWaspDebugOffsetY();
+      }
+
       hullSprite.setPosition(spriteCx, spriteCy);
       hullSprite.setDepth(BLOCKOUT_DEPTH); // will be updated by depth sorting below
     }
@@ -1112,6 +1167,105 @@ export class BlockoutVehicleRenderer {
         calibLabel.setVisible(false);
       }
     }
+
+    // ── PIM-HULL-WASP-ANCHOR-MAP-01: Placement calibration overlay (Wasp-only, dev-only) ──
+    // Arena/devtools-only: placement overlay is explicitly gated to devtools mode.
+    // Must never render in Standard gameplay.
+    // Visual language reused from ModularTankDebugOverlay: green diamond, gold crosshair,
+    // cyan X marker, white connecting line, red crosshair.
+    if (this.isDevtoolsActive() && isWaspPlacementActive() && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp') {
+      // ── Positions (projected isometric coordinates) ──
+      // Tile anchor (ax, ay): body screen center = selection ring center
+      const ax = cx;
+      const ay = cy;
+
+      // Hull origin (hullX, hullY): hull sprite's current position (includes debug offset)
+      const hullSpriteObj = this.vehicleHullSprites.get(vehicle.id);
+      const hullX = hullSpriteObj ? hullSpriteObj.x : cx;
+      const hullY = hullSpriteObj ? hullSpriteObj.y : cy;
+
+      // Turret origin (turretX, turretY): projected turret mount screen position
+      const turretScreenPos = projectWorldPoint(mountWorldX, mountWorldY, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
+      const turretX = turretScreenPos.x;
+      const turretY = turretScreenPos.y;
+
+      // ── Tile footprint diamond (green, projected ground-plane) ──
+      g.lineStyle(2, 0x7cff7c, 0.95);
+      drawProjectedGroundDiamond(g, cx, cy, 0.5, this.offset);
+
+      // ── Logical tile anchor crosshair (gold circle + lines) ──
+      g.lineStyle(2, 0xffd54f, 0.95);
+      g.strokeCircle(ax, ay, 7);
+      g.lineBetween(ax - 10, ay, ax + 10, ay);
+      g.lineBetween(ax, ay - 10, ax, ay + 10);
+
+      // ── Hull sprite origin marker (cyan circle + X pattern) ──
+      g.lineStyle(2, 0x26c6da, 0.95);
+      g.strokeCircle(hullX, hullY, 6);
+      g.lineBetween(hullX - 8, hullY - 8, hullX + 8, hullY + 8);
+      g.lineBetween(hullX - 8, hullY + 8, hullX + 8, hullY - 8);
+
+      // ── Connecting line from hull origin to turret origin (white) ──
+      g.lineStyle(2, 0xffffff, 0.9);
+      g.lineBetween(hullX, hullY, turretX, turretY);
+
+      // ── Turret sprite/mount origin marker (red crosshair + circle) ──
+      g.lineStyle(2, 0xff6b6b, 0.95);
+      g.strokeCircle(turretX, turretY, 6);
+      g.lineBetween(turretX - 8, turretY, turretX + 8, turretY);
+      g.lineBetween(turretX, turretY - 8, turretX, turretY + 8);
+
+      // ── Placement overlay text (compact debug panel, ModularTankDebugOverlay style) ──
+      const diag = resolveHullDirectionDiagnostic(
+        vehicle.bodyId, vehicle.faction,
+        vehicle.modificationLevel, vehicle.bodyAngle,
+      );
+
+      const overlayParams: PlacementOverlayParams = {
+        hullId: diag.hullId,
+        vehicleId: vehicle.id,
+        bodyId: vehicle.bodyId,
+        offsetX: getWaspDebugOffsetX(),
+        offsetY: getWaspDebugOffsetY(),
+        scale: GENERATED_HULL_SCALE,
+        originX: GENERATED_HULL_ORIGIN_X,
+        originY: GENERATED_HULL_ORIGIN_Y,
+        textureKey: diag.textureKey,
+        tileX: tilePos.x,
+        tileY: tilePos.y,
+        isPlacementActive: true,
+        hullScreenX: hullX,
+        hullScreenY: hullY,
+        turretScreenX: turretX,
+        turretScreenY: turretY,
+      };
+
+      const placeText = buildPlacementOverlayText(overlayParams);
+      const showPlaceLabel = isWaspPlacementOverlayVisible();
+
+      let placeLabel = this.placementLabels.get(vehicle.id);
+      if (!placeLabel) {
+        placeLabel = this.scene.add.text(0, 0, '', {
+          fontFamily: 'monospace',
+          fontSize: '10px',
+          color: '#f4f7fb',
+          backgroundColor: 'rgba(16, 18, 28, 0.76)',
+          padding: { x: 4, y: 3 },
+        });
+        placeLabel.setDepth(BLOCKOUT_DEPTH + 25);
+        this.placementLabels.set(vehicle.id, placeLabel);
+      }
+      placeLabel.setText(placeText);
+      // Position like ModularTankDebugOverlay: hullX+30, hullY+28
+      placeLabel.setPosition(hullX + 30, hullY + 28);
+      placeLabel.setVisible(showPlaceLabel);
+    } else {
+      // Hide placement label for non-Wasp or when placement calibration is off
+      const placeLabel = this.placementLabels.get(vehicle.id);
+      if (placeLabel) {
+        placeLabel.setVisible(false);
+      }
+    }
   }
 
   // ─── Cleanup ─────────────────────────────────────────────────────
@@ -1141,5 +1295,17 @@ export class BlockoutVehicleRenderer {
       label.destroy();
     }
     this.calibrationLabels.clear();
+
+    for (const [, label] of this.placementLabels) {
+      label.destroy();
+    }
+    this.placementLabels.clear();
+
+    // PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: Clean up calibration button panel
+    if (this.placementPanel) {
+      this.placementPanel.destroy();
+      this.placementPanel = null;
+    }
+
   }
 }

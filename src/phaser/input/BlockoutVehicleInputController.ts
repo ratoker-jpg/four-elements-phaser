@@ -65,6 +65,18 @@ import {
   getDir16Label,
 } from '../debug/WaspHullDirectionCalibrator';
 import { resolveHullDirectionDiagnostic } from '../../assets/generatedHullAssets';
+import {
+  togglePlacement as toggleWaspPlacement,
+  isPlacementActive as isWaspPlacementActiveCheck,
+  adjustUp as waspPlaceAdjustUp,
+  adjustDown as waspPlaceAdjustDown,
+  adjustLeft as waspPlaceAdjustLeft,
+  adjustRight as waspPlaceAdjustRight,
+  resetPlacementOffset as waspPlaceResetOffset,
+  togglePlacementOverlay as waspPlaceToggleOverlay,
+  printPlacementValues as waspPlacePrintValues,
+  installPlacementConsoleAPI as waspPlaceInstallConsole,
+} from '../debug/WaspHullPlacementCalibrator';
 
 // Turret size constants are now in blockoutVehicleGeometry (BLOCKOUT_TURRET_SIZE_W/H).
 // No local duplicate needed — computeProjectedBarrelTipScreen uses the shared source.
@@ -406,6 +418,11 @@ export class BlockoutVehicleInputController {
     // changes and movement commands from the same click events.
     if (this.isPlacementActive()) return;
 
+    // PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: Also suppress pointer tracking when
+    // Wasp placement calibration is active. Calibration panel button clicks must
+    // not leak into gameplay (no unit selection, no camera pan, no upgrades).
+    if (isWaspPlacementActiveCheck()) return;
+
     if (pointer.leftButtonDown()) {
       this._lmbClickStartX = pointer.x;
       this._lmbClickStartY = pointer.y;
@@ -425,7 +442,9 @@ export class BlockoutVehicleInputController {
     // Even though pointerdown is also guarded, we must guard here too because
     // a pointerdown that started before placement mode was entered could have
     // its pointerup fire during placement mode.
-    const placementActive = this.isPlacementActive();
+    // PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: Also suppress when Wasp placement
+    // calibration is active (button clicks must not select vehicles or set targets).
+    const placementActive = this.isPlacementActive() || isWaspPlacementActiveCheck();
 
     // Handle LMB click
     if (this._lmbButtonDown) {
@@ -667,7 +686,93 @@ export class BlockoutVehicleInputController {
   private onKeydown(event: KeyboardEvent): void {
     if (!this.isDevtoolsActive()) return;
 
-    // BLOCKOUT-09H: Upgrade hotkeys (processed before fire keys)
+    // ── PIM-HULL-WASP-ANCHOR-MAP-01 fixup v2: Alt+U = toggle placement calibration ──
+    // This MUST be processed BEFORE upgrade hotkeys because U/I/O/P are all
+    // mapped to upgrades (mobility_boost, armor_plating, weapon_tuning, range_extender).
+    // Alt+U uses an Alt chord to avoid triggering the U upgrade key.
+    if (event.code === 'KeyU' && event.altKey && !event.ctrlKey && !event.metaKey) {
+      if (this._selectedVehicleId) {
+        const gameState = this.getGameState();
+        const vehicles = gameState.blockoutVehicles;
+        const selected = vehicles?.find(v => v.id === this._selectedVehicleId);
+        if (selected && selected.bodyId === 'wasp') {
+          const newState = toggleWaspPlacement();
+          if (newState) {
+            waspPlaceInstallConsole();
+            console.log('[WaspPlacement] Placement calibration ACTIVATED. I/K/J/L to adjust, R/0 to reset, P to print.');
+          } else {
+            console.log('[WaspPlacement] Placement calibration DEACTIVATED. Offset reset to (0, 0).');
+          }
+          event.preventDefault();
+          event.stopPropagation(); // consume Alt+U — camera must NOT move
+          return;
+        }
+      }
+    }
+
+    // ── PIM-HULL-WASP-ANCHOR-MAP-01 fixup v2: When placement calibration is active ──
+    // on a Wasp, I/K/J/L/O/P/R are consumed by placement calibration and must
+    // NOT trigger upgrades, camera movement, or other gameplay actions.
+    // This block runs BEFORE upgrade hotkeys so these keys are fully consumed.
+    const placementConflictingKeys = new Set(['KeyI', 'KeyK', 'KeyJ', 'KeyL', 'KeyO', 'KeyP', 'KeyR', 'Digit0']);
+    const isPlacementConflictingKey = placementConflictingKeys.has(event.code);
+    if (isPlacementConflictingKey
+        && this._selectedVehicleId !== null
+        && isWaspPlacementActiveCheck()) {
+      // Consume the key and handle placement calibration
+      const large = event.shiftKey;
+      let handled = false;
+
+      // I — adjust up
+      if (event.code === 'KeyI') {
+        const o = waspPlaceAdjustUp(large);
+        console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
+        handled = true;
+      }
+      // K — adjust down
+      if (event.code === 'KeyK') {
+        const o = waspPlaceAdjustDown(large);
+        console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
+        handled = true;
+      }
+      // J — adjust left
+      if (event.code === 'KeyJ') {
+        const o = waspPlaceAdjustLeft(large);
+        console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
+        handled = true;
+      }
+      // L — adjust right
+      if (event.code === 'KeyL') {
+        const o = waspPlaceAdjustRight(large);
+        console.log(`[WaspPlacement] offset = (${o.x}, ${o.y})${large ? ' [5px]' : ''}`);
+        handled = true;
+      }
+      // R or 0 — reset placement offset
+      if (event.code === 'KeyR' || event.code === 'Digit0') {
+        waspPlaceResetOffset();
+        console.log('[WaspPlacement] Offset reset to (0, 0)');
+        handled = true;
+      }
+      // P — print placement values
+      if (event.code === 'KeyP') {
+        waspPlacePrintValues();
+        handled = true;
+      }
+      // O — toggle placement overlay visibility
+      if (event.code === 'KeyO') {
+        const v = waspPlaceToggleOverlay();
+        console.log(`[WaspPlacement] Overlay ${v ? 'ON' : 'OFF'}`);
+        handled = true;
+      }
+
+      if (handled) {
+        event.preventDefault();
+        event.stopPropagation(); // prevent camera from receiving this key
+        return; // Do NOT fall through to upgrades or other handlers
+      }
+    }
+
+    // BLOCKOUT-09H: Upgrade hotkeys (processed after placement calibration)
     const upgradeKeys: Array<{ code: string; id: BlockoutUpgradeId }> = [
       { code: 'KeyU', id: 'mobility_boost' },
       { code: 'Digit1', id: 'mobility_boost' },
@@ -682,6 +787,8 @@ export class BlockoutVehicleInputController {
     ];
     for (const { code, id } of upgradeKeys) {
       if (event.code === code) {
+        // Skip U upgrade if Alt is held (Alt+U is placement toggle)
+        if (code === 'KeyU' && event.altKey) continue;
         if (!this._selectedVehicleId) return;
         const gameState = this.getGameState();
         const vehicles = gameState.blockoutVehicles;
@@ -695,6 +802,8 @@ export class BlockoutVehicleInputController {
     }
 
     // BLOCKOUT-10H+: R key — reset scenario (dev/arena-only)
+    // PIM-HULL-WASP-ANCHOR-MAP-01 fixup v2: R is consumed at the top of onKeydown
+    // when placement calibration is active, so it never reaches this point in that case.
     if (event.code === 'KeyR') {
       this.onResetScenario?.();
       return;
@@ -830,6 +939,11 @@ export class BlockoutVehicleInputController {
           }
         }
       }
+
+      // ── PIM-HULL-WASP-ANCHOR-MAP-01: Placement hotkeys are now handled ──
+      // at the TOP of onKeydown (before upgrades) so they can be consumed
+      // with preventDefault/stopPropagation. The Alt+U toggle is also
+      // handled at the top. No placement key handling needed here.
     }
 
     if (event.code !== 'Space' && event.code !== 'KeyF') return;
