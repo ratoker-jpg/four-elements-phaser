@@ -442,11 +442,15 @@ export class BlockoutVehicleRenderer {
         }
       }
       // Also update hull sprite depth
+      // PIM-TURRET-VISUAL-01: Hull sprite must render BELOW the turret Graphics
+      // so the procedural turret, barrel, and HP bar are visible above the hull.
+      // The Graphics object draws turret + overlays at BLOCKOUT_DEPTH + orderIdx,
+      // so the hull sprite goes one level below at BLOCKOUT_DEPTH + orderIdx - 1.
       const hullSprite = this.vehicleHullSprites.get(vehicle.id);
       if (hullSprite) {
         const orderIdx = depthOrder.get(vehicle.id);
         if (orderIdx !== undefined) {
-          hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx);
+          hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx - 1);
         }
       }
       // Also update direction debug label depth
