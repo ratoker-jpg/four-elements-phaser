@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: Fix backlog collection active — no implementation yet  
+Status: Fix backlog audit accepted — A2 map cleanup next  
 Project: Four Elements Phaser  
 Date: 2026-06-12
 
@@ -11,7 +11,7 @@ Date: 2026-06-12
 This file answers one operational question:
 
 ```text
-What should GPT/GLM/Codex do next by default?
+What should GPT/GLM/Codex/Claude do next by default?
 ```
 
 ---
@@ -22,70 +22,144 @@ What should GPT/GLM/Codex do next by default?
 Core Mechanics Roadmap: CLOSED / IMPLEMENTED.
 Core Mechanics System Audit: CLOSED / IMPLEMENTED.
 
-Default next action:
-- Do not start new implementation by inertia.
-- Use the current fix backlog process for visual/Arena/debug bugs.
-- Review/accept docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md.
-- After that, run GLM audit on the fix backlog before code.
+Current active process:
+- Use the accepted fix backlog and accepted fix backlog audit.
+- Do not reopen old roadmap queues by inertia.
+- Start with A2: Debug mode map cleanup / keep Sand Classic.
+- Do not start B1/B2/C1/C2 until prior dependencies are merged/accepted.
 ```
 
-Do not start implementation without explicit Denis/GPT task assignment and an accepted roadmap/backlog + audit for the active direction.
+Active source docs for this process:
+
+```text
+docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
+docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md
+```
+
+Do not start implementation without explicit Denis/GPT task assignment and the active accepted backlog/audit.
 
 ---
 
 ## Owner-selected immediate sequence
 
-Denis selected the following immediate docs/planning sequence before returning to visual/runtime bugfix implementation:
+Denis selected this docs/planning sequence before returning to visual/runtime bugfix implementation:
 
 ```text
 1. AI execution workflow docs PR.                                      DONE
 2. CODEMAP docs PR.                                                    DONE
-3. Collect current bug/polish findings into a scoped fix roadmap/backlog. THIS STEP
-4. Run GLM audit on that fix roadmap/backlog.                           NEXT AFTER ACCEPTANCE
-5. Split the accepted audit into High / High+ implementation steps.
-6. Implement steps through Claude/Opus or Codex depending on task type and available limits.
-7. Use GLM mainly for patch application / validation / PR delivery when Claude cannot push.
-8. GPT reviews PRs before merge recommendation.
-9. Denis performs final visual/manual QA and decides merge/no-merge.
+3. Collect current bug/polish findings into a scoped fix roadmap.       DONE
+4. Run GLM audit on that fix roadmap/backlog.                           DONE
+5. Record accepted audit decisions in docs.                             DONE
+6. Start A2: Debug mode map cleanup / keep Sand Classic.                NEXT
+7. Then B1: Arena placement center alignment.                           AFTER A2
+8. Then B2: Arena body + weapon visual calibration.                     AFTER B1 + Denis QA
+9. Then C1: Turret rest / target-lock behavior.                         AFTER B2
+10. Then C2: Arena body/weapon inspection controls.                     AFTER C1
 ```
 
 Important:
 
 ```text
 This does not reopen closed roadmaps by inertia.
-This creates a new scoped fix roadmap/backlog process for current bugs/polish.
+This creates a scoped fix roadmap/backlog process for current bugs/polish.
 Claude/Opus and Codex should be reserved for high-value code implementation, not routine audits.
-GLM can be used for low-cost audits and PR delivery.
+GLM can be used for low-cost audits, patch application, validation, PR delivery, and Telegram notification.
 ```
 
 ---
 
-## Current fix backlog doc
+## Accepted fix backlog docs
 
-Current draft/accepted fix backlog target:
+Current accepted fix backlog:
 
 ```text
 docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
 ```
 
-This backlog currently covers owner-reported visual/Arena/debug bugs and workflow corrections, including:
+Accepted audit / implementation sequence:
 
 ```text
-- manual QA through real menus instead of query-flag-only acceptance;
-- Debug / Отладка menu cleanup;
-- Sand Classic kept as calibration map;
-- Arena placement preview and center-of-cell clarity;
-- body + weapon visual calibration;
-- turret rest / target-lock behavior;
-- Arena body/weapon inspection controls;
-- dev grid overlay deferred while Sand Classic is sufficient.
+docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md
 ```
 
-Next after this backlog doc is accepted:
+The accepted sequence is:
 
 ```text
-Run GLM audit on docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md.
-Do not implement yet.
+A2 — Debug mode map cleanup / keep Sand Classic
+B1 — Arena placement center alignment
+B2 — Arena body + weapon visual calibration
+C1 — Turret rest / target-lock behavior
+C2 — Arena body/weapon inspection controls
+D  — Dev grid overlay deferred unless Sand Classic is insufficient
+```
+
+Dependency rule:
+
+```text
+Do not start B2 before B1 is merged and Denis visually confirms placement on Sand Classic.
+```
+
+---
+
+## Immediate next task
+
+```text
+FIX-A2-MAP-CLEANUP-01 — Debug mode map cleanup / keep Sand Classic
+```
+
+Executor:
+
+```text
+GLM
+```
+
+Reason:
+
+```text
+Low-risk config/UI cleanup. It does not need Claude/Opus or Codex limits.
+```
+
+Accepted decisions for A2:
+
+```text
+- Remove Map 1 / customMap1 from visible UI / MAP_LIST.
+- Keep src/data/maps/customMap1.ts in the repo as fallback/reference.
+- Keep Sand Classic / Песок visible as calibration map.
+- Do not implement dev grid overlay.
+- Do not touch renderers, Arena placement, turret/body/weapon logic, movement, combat, economy, assets, or dependencies.
+```
+
+---
+
+## Active mode
+
+```text
+FIX BACKLOG AUDIT ACCEPTED.
+A2 MAP CLEANUP IS NEXT.
+NO B1/B2/C1/C2 IMPLEMENTATION UNTIL EXPLICITLY ASSIGNED.
+```
+
+Allowed immediate work:
+
+```text
+- implement/review A2 map cleanup
+- review existing open PRs, if any
+- manual QA of real menu routes and Sand Classic availability
+- prepare task prompts for B1 only after A2 is merged/accepted
+```
+
+Do not start by default:
+
+```text
+- B1 placement fix before A2 is complete or explicitly skipped
+- B2 body+weapon calibration before B1 is merged and Denis visually accepts placement
+- C1 turret behavior before B2 is visually accepted
+- C2 inspection controls before C1 is accepted
+- Arena save/load/waves/strategic AI without a new roadmap/audit
+- production visual/world-space work outside the accepted fix backlog
+- TankViewer/final asset pipeline without a separate pipeline audit
+- economy/progression/victory systems without a new roadmap/audit
+- burning Claude/Opus or Codex limits on routine audit/PR delivery work
 ```
 
 ---
@@ -132,37 +206,6 @@ docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
 
 ---
 
-## Active mode
-
-```text
-NO ACTIVE IMPLEMENTATION ROADMAP.
-CORE MECHANICS CYCLE CLOSED.
-FIX BACKLOG / GLM AUDIT SEQUENCE ACTIVE BEFORE NEXT BUGFIX IMPLEMENTATION.
-```
-
-Allowed immediate work:
-
-```text
-- review/merge fix backlog docs PR
-- run GLM audit on the accepted fix backlog
-- split accepted audit into High / High+ steps
-- review existing open PRs, if any
-- manual QA of closed cycles and current previews
-```
-
-Do not start by default:
-
-```text
-- more Core Mechanics implementation by inertia
-- Arena save/load/waves/strategic AI without a new roadmap/audit
-- production visual/world-space work without a new roadmap/audit or fix backlog audit
-- TankViewer/final asset pipeline without a separate pipeline audit
-- economy/progression/victory systems without a new roadmap/audit
-- burning Claude/Opus or Codex limits on routine audit/PR delivery work
-```
-
----
-
 ## Closed roadmap steps
 
 ```text
@@ -178,13 +221,7 @@ STEP 08H+ — Weapons / Bodies / M0-M3 / Animation Feel — COMPLETE
 
 ---
 
-## Recommended next planning options
-
-Current owner-selected path is:
-
-```text
-workflow docs -> CODEMAP -> fix roadmap/backlog -> GLM audit -> scoped High/High+ implementation steps
-```
+## Future planning options
 
 Other future options remain available only after this bugfix/polish direction is paused or closed:
 
@@ -210,6 +247,14 @@ npm run qa:smoke
 
 If any command cannot run, the PR body must state why.
 
+Visual/runtime PRs also need:
+
+```text
+- preview URL
+- GPT PR review
+- Denis visual QA before merge
+```
+
 ---
 
 ## Required source docs for future planning
@@ -219,26 +264,10 @@ Before new roadmap/task work, read:
 ```text
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
-docs/project/GPT_WORKFLOW.md
-docs/project/GLM_EXECUTOR_RULES.md
 docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md
 docs/project/CODEMAP.md
-docs/project/CAMERA_PROJECTION_CONTRACT.md
-docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
-```
-
-For this current bugfix/polish direction, also read:
-
-```text
 docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
+docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md
+docs/project/GLM_EXECUTOR_RULES.md
+docs/project/CAMERA_PROJECTION_CONTRACT.md
 ```
-
-Closed references:
-
-```text
-docs/project/MECHANICS_DECISIONS_2026_06_03.md
-docs/project/CORE_MECHANICS_ROADMAP_2026_06_03.md
-docs/project/CORE_MECHANICS_SYSTEM_AUDIT_2026_06_03.md
-```
-
-Closed references are context, not active implementation queues.
