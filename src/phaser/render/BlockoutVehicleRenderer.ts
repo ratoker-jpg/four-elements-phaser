@@ -70,6 +70,11 @@ import {
   type PlacementOverlayParams,
 } from '../debug/WaspHullPlacementCalibrator';
 import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibrationPanel';
+import { resolveModularTurretSpriteKey } from '../../assets/modularUnitAssets';
+import { MODULAR_RENDER_SCALE } from '../../config/unitRenderConfig';
+import {
+  resolveTurretSpriteMountingData,
+} from '../../config/turretSpriteMountingAdapter';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -83,6 +88,14 @@ const BLOCKOUT_DEPTH = 120;
  * Keep the bias below 1 so inter-vehicle isometric ordering remains stable.
  */
 const HULL_SPRITE_DEPTH_BIAS = -0.5;
+
+/**
+ * TURRET-HULL-CONTRACT-PR-F2:
+ * Turret sprite images render above hull sprites. Small positive bias
+ * ensures the turret is visually on top of the hull while keeping
+ * inter-vehicle isometric ordering stable.
+ */
+const TURRET_SPRITE_DEPTH_BIAS = 0.5;
 
 /** Mount point circle radius. */
 const MOUNT_POINT_RADIUS = 3;
@@ -217,6 +230,12 @@ export class BlockoutVehicleRenderer {
 
   /** Generated hull sprite images keyed by blockout vehicle ID. */
   private vehicleHullSprites = new Map<string, Phaser.GameObjects.Image>();
+
+  /** TURRET-HULL-CONTRACT-PR-F2: Turret sprite images keyed by blockout vehicle ID. */
+  private vehicleTurretSprites = new Map<string, Phaser.GameObjects.Image>();
+
+  /** TURRET-HULL-CONTRACT-PR-F2: Whether turret sprite log has been emitted (once). */
+  private turretSpriteLogged = false;
 
   /** Direction debug text labels keyed by blockout vehicle ID. */
   private directionDebugLabels = new Map<string, Phaser.GameObjects.Text>();
@@ -371,6 +390,87 @@ export class BlockoutVehicleRenderer {
         }
       }
 
+      // ── TURRET-HULL-CONTRACT-PR-F2: Turret sprite lifecycle ──────
+      // Resolve turret sprite key using profile-based resolver.
+      // Only attempt when a generated hull sprite is active (Wasp+Smoky path).
+      let turretKey: string | null = null;
+      if (useGeneratedHull) {
+        turretKey = resolveModularTurretSpriteKey(
+          this.scene, vehicle.weaponId, vehicle.faction, vehicle.turretAngle,
+        );
+      }
+
+      let turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+      if (turretKey !== null) {
+        // Real turret sprite is available — create or update
+        if (!turretSprite) {
+          turretSprite = this.scene.add.image(0, 0, turretKey);
+          turretSprite.setScale(MODULAR_RENDER_SCALE);
+          turretSprite.setOrigin(0.5, 0.5); // IMPORTANT: origin stays centered, never set to pivot
+          turretSprite.setDepth(BLOCKOUT_DEPTH + TURRET_SPRITE_DEPTH_BIAS);
+          this.vehicleTurretSprites.set(vehicle.id, turretSprite);
+          if (!this.turretSpriteLogged) {
+            console.log(`[BlockoutVehicleRenderer] Using real turret sprite for ${vehicle.weaponId}`);
+            this.turretSpriteLogged = true;
+          }
+        } else {
+          turretSprite.setTexture(turretKey);
+        }
+
+        // Position turret sprite relative to hull sprite using directional mounting data
+        const mountingData = resolveTurretSpriteMountingData({
+          textureKey: turretKey,
+          weaponId: vehicle.weaponId,
+          bodyId: vehicle.bodyId,
+          modificationLevel: vehicle.modificationLevel,
+          turretAngle: vehicle.turretAngle,
+          sourceSizes: { hullSourceWidthPx: 512, hullSourceHeightPx: 512, turretSourceWidthPx: 256, turretSourceHeightPx: 256 },
+          scaleFactors: { hullScale: GENERATED_HULL_SCALE, turretScale: MODULAR_RENDER_SCALE },
+        });
+
+        if (hullSprite && mountingData.offsetFromHullCenter) {
+          // Apply hull placement offset (same as hull sprite uses)
+          const hullId = bodyIdToGeneratedHullId(vehicle.bodyId);
+          const placementOffset = hullId ? getGeneratedHullPlacementOffset(hullId) : { offsetX: 0, offsetY: 0 };
+
+          // Hull sprite center position (same calculation as hull positioning)
+          const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
+          const bodyAngle = vehicle.bodyAngle;
+          const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
+          const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
+          let hullCx = vehicle.worldX + this.offset.x + bodyImpulseX;
+          let hullCy = vehicle.worldY + this.offset.y + bodyImpulseY;
+
+          // Apply same placement offset as hull sprite
+          hullCx += placementOffset.offsetX;
+          hullCy += placementOffset.offsetY;
+
+          // Apply same Wasp debug placement offset if active
+          const isWaspPlacement = this.isDevtoolsActive()
+            && isWaspPlacementActive()
+            && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp';
+          if (isWaspPlacement) {
+            hullCx += getWaspDebugOffsetX();
+            hullCy += getWaspDebugOffsetY();
+          }
+
+          // Position turret sprite at hull center + mounting offset
+          turretSprite.setPosition(
+            hullCx + mountingData.offsetFromHullCenter.x,
+            hullCy + mountingData.offsetFromHullCenter.y,
+          );
+        } else if (hullSprite) {
+          // No mounting offset computed — fall back to hull center position
+          turretSprite.setPosition(hullSprite.x, hullSprite.y);
+        }
+      } else {
+        // No real turret sprite — destroy if exists, use procedural fallback
+        if (turretSprite) {
+          turretSprite.destroy();
+          this.vehicleTurretSprites.delete(vehicle.id);
+        }
+      }
+
       // Determine selection/hover state for this vehicle
       const isSelected = vehicle.id === this._selectedVehicleId;
       const isHovered = vehicle.id === this._hoveredVehicleId;
@@ -456,6 +556,14 @@ export class BlockoutVehicleRenderer {
           hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx + HULL_SPRITE_DEPTH_BIAS);
         }
       }
+      // TURRET-HULL-CONTRACT-PR-F2: Also update turret sprite depth
+      const turretSpriteObj = this.vehicleTurretSprites.get(vehicle.id);
+      if (turretSpriteObj) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          turretSpriteObj.setDepth(BLOCKOUT_DEPTH + orderIdx + TURRET_SPRITE_DEPTH_BIAS);
+        }
+      }
       // Also update direction debug label depth
       const dirLabel = this.directionDebugLabels.get(vehicle.id);
       if (dirLabel) {
@@ -502,6 +610,13 @@ export class BlockoutVehicleRenderer {
         this.vehicleHullSprites.delete(id);
       }
     }
+    // TURRET-HULL-CONTRACT-PR-F2: Clean up stale turret sprites
+    for (const [id, sprite] of this.vehicleTurretSprites) {
+      if (!activeIds.has(id)) {
+        sprite.destroy();
+        this.vehicleTurretSprites.delete(id);
+      }
+    }
     // Clean up stale direction debug labels
     for (const [id, label] of this.directionDebugLabels) {
       if (!activeIds.has(id)) {
@@ -545,6 +660,11 @@ export class BlockoutVehicleRenderer {
     // If using generated hull sprite, skip blockout body rendering but keep overlays
     const hullSprite = this.vehicleHullSprites.get(vehicle.id);
     const skipBlockoutBody = hullSprite !== undefined;
+
+    // TURRET-HULL-CONTRACT-PR-F2: If a real turret sprite is active,
+    // skip procedural turret box + barrel rendering. Keep aim line if selected.
+    const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+    const skipBlockoutTurret = turretSprite !== undefined;
 
     // Position hull sprite at vehicle center
     if (hullSprite) {
@@ -973,90 +1093,97 @@ export class BlockoutVehicleRenderer {
     // ── Turret + Barrel (on top face, using basisZ) ──────────────
     // Uses shared mountTileOffset from computeProjectedBlockoutVehicleGeometry
     // to ensure visual mount equals logical mount used by input/fire/damage.
+    //
+    // TURRET-HULL-CONTRACT-PR-F2: When a real turret sprite is active
+    // (skipBlockoutTurret), skip the procedural box + barrel but still
+    // draw the aim line for selected vehicles.
     {
       // Turret position on top face (shared mountWorldX/Y from above)
       const turretZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
 
-      // Draw turret as small projected box on top face
-      const turretHeight = BLOCKOUT_TURRET_BOX_HEIGHT;
-      const turretCosA = Math.cos(effectiveTurretAngle);
-      const turretSinA = Math.sin(effectiveTurretAngle);
-      const turretLocalCorners = [
-        { lx: -turretHalfW, ly: -turretHalfH },
-        { lx: turretHalfW, ly: -turretHalfH },
-        { lx: turretHalfW, ly: turretHalfH },
-        { lx: -turretHalfW, ly: turretHalfH },
-      ];
+      // Draw procedural turret box + barrel only when no real turret sprite
+      if (!skipBlockoutTurret) {
+        // Draw turret as small projected box on top face
+        const turretHeight = BLOCKOUT_TURRET_BOX_HEIGHT;
+        const turretCosA = Math.cos(effectiveTurretAngle);
+        const turretSinA = Math.sin(effectiveTurretAngle);
+        const turretLocalCorners = [
+          { lx: -turretHalfW, ly: -turretHalfH },
+          { lx: turretHalfW, ly: -turretHalfH },
+          { lx: turretHalfW, ly: turretHalfH },
+          { lx: -turretHalfW, ly: turretHalfH },
+        ];
 
-      // Turret base (on body top)
-      const turretBasePts = turretLocalCorners.map(c => {
-        const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
-        const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
-        return projectWorldPoint(wx, wy, turretZ, this.offset);
-      });
+        // Turret base (on body top)
+        const turretBasePts = turretLocalCorners.map(c => {
+          const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
+          const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
+          return projectWorldPoint(wx, wy, turretZ, this.offset);
+        });
 
-      // Turret top
-      const turretTopPts = turretLocalCorners.map(c => {
-        const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
-        const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
-        return projectWorldPoint(wx, wy, turretZ + turretHeight, this.offset);
-      });
+        // Turret top
+        const turretTopPts = turretLocalCorners.map(c => {
+          const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
+          const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
+          return projectWorldPoint(wx, wy, turretZ + turretHeight, this.offset);
+        });
 
-      // Barrel screen positions from shared geometry (PROJECTION-01 fixup #3).
-      // No local recomputation — barrelTipScreen and barrelStartScreen are the
-      // single source of truth used by both renderer and fire/damage logic,
-      // including body recoil impulse, barrel Z, and all recoil offsets.
+        // Turret side face (left: base[3]→base[0] → top[3]→top[0])
+        g.fillStyle(turretColor, 0.7);
+        g.beginPath();
+        g.moveTo(turretBasePts[3].x, turretBasePts[3].y);
+        g.lineTo(turretBasePts[0].x, turretBasePts[0].y);
+        g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
+        g.lineTo(turretTopPts[3].x, turretTopPts[3].y);
+        g.closePath();
+        g.fillPath();
 
-      // Turret side face (left: base[3]→base[0] → top[3]→top[0])
-      g.fillStyle(turretColor, 0.7);
-      g.beginPath();
-      g.moveTo(turretBasePts[3].x, turretBasePts[3].y);
-      g.lineTo(turretBasePts[0].x, turretBasePts[0].y);
-      g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
-      g.lineTo(turretTopPts[3].x, turretTopPts[3].y);
-      g.closePath();
-      g.fillPath();
+        // Turret side face (right: base[0]→base[1] → top[0]→top[1])
+        g.fillStyle(turretColor, 0.6);
+        g.beginPath();
+        g.moveTo(turretBasePts[0].x, turretBasePts[0].y);
+        g.lineTo(turretBasePts[1].x, turretBasePts[1].y);
+        g.lineTo(turretTopPts[1].x, turretTopPts[1].y);
+        g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
+        g.closePath();
+        g.fillPath();
 
-      // Turret side face (right: base[0]→base[1] → top[0]→top[1])
-      g.fillStyle(turretColor, 0.6);
-      g.beginPath();
-      g.moveTo(turretBasePts[0].x, turretBasePts[0].y);
-      g.lineTo(turretBasePts[1].x, turretBasePts[1].y);
-      g.lineTo(turretTopPts[1].x, turretTopPts[1].y);
-      g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
-      g.closePath();
-      g.fillPath();
+        // Turret top face
+        g.fillStyle(turretColor, 1);
+        g.beginPath();
+        g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
+        for (let i = 1; i < turretTopPts.length; i++) {
+          g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+        }
+        g.closePath();
+        g.fillPath();
 
-      // Turret top face
-      g.fillStyle(turretColor, 1);
-      g.beginPath();
-      g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
-      for (let i = 1; i < turretTopPts.length; i++) {
-        g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+        // Turret outline
+        const turretOutlineWidth = isSelected ? 2 : 1;
+        g.lineStyle(turretOutlineWidth, TURRET_OUTLINE_COLOR, 1);
+        g.beginPath();
+        g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
+        for (let i = 1; i < turretTopPts.length; i++) {
+          g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+        }
+        g.closePath();
+        g.strokePath();
+
+        // Barrel line (using shared barrelStartScreen/barrelTipScreen — PROJECTION-01 fixup #3)
+        g.lineStyle(barrelWidth, BARREL_COLOR, 1);
+        g.beginPath();
+        g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
+        g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
+        g.strokePath();
       }
-      g.closePath();
-      g.fillPath();
-
-      // Turret outline
-      const turretOutlineWidth = isSelected ? 2 : 1;
-      g.lineStyle(turretOutlineWidth, TURRET_OUTLINE_COLOR, 1);
-      g.beginPath();
-      g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
-      for (let i = 1; i < turretTopPts.length; i++) {
-        g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
-      }
-      g.closePath();
-      g.strokePath();
-
-      // Barrel line (using shared barrelStartScreen/barrelTipScreen — PROJECTION-01 fixup #3)
-      g.lineStyle(barrelWidth, BARREL_COLOR, 1);
-      g.beginPath();
-      g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
-      g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
-      g.strokePath();
 
       // ── Aim line for selected vehicle ─────────────────────────────
+      // Draw aim line even when real turret sprite is active (it does not
+      // visually contradict the turret direction).
       if (isSelected) {
+        const turretCosA = Math.cos(effectiveTurretAngle);
+        const turretSinA = Math.sin(effectiveTurretAngle);
+
         g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
         const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
         // Aim starts at shared barrel tip (PROJECTION-01 fixup #3)
@@ -1305,6 +1432,12 @@ export class BlockoutVehicleRenderer {
       sprite.destroy();
     }
     this.vehicleHullSprites.clear();
+
+    // TURRET-HULL-CONTRACT-PR-F2: Destroy turret sprites
+    for (const [, sprite] of this.vehicleTurretSprites) {
+      sprite.destroy();
+    }
+    this.vehicleTurretSprites.clear();
 
     for (const [, label] of this.directionDebugLabels) {
       label.destroy();
