@@ -49,10 +49,21 @@ import {
   GENERATED_HULL_ORIGIN_X,
   GENERATED_HULL_ORIGIN_Y,
   getGeneratedHullPlacementOffset,
+  bodyAngleToDir8,
   directionDebugEnabled,
   toggleDirectionDebug as toggleDirDebug,
   type GeneratedHullDir16Index,
 } from '../../assets/generatedHullAssets';
+// PIM-TURRET-VISUAL-02: Smoky turret Image layer for Arena Wasp+Smoky.
+// Reuses the working debug model's turret texture helper and the calibrated
+// modular hull/turret mount constants (adapted to the Arena generated hull).
+import { getSmokyTurretKey, type ModularDirection } from '../../assets/modularUnitAssets';
+import { MODULAR_RENDER_SCALE, MODULAR_SCALE_RATIO } from '../../config/unitRenderConfig';
+import {
+  MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
+  MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR,
+  type ModularTankDirection,
+} from '../../config/worldConfig';
 import {
   isCalibrationActive,
   getForcedVisualDir16,
@@ -211,6 +222,13 @@ export class BlockoutVehicleRenderer {
   /** Generated hull sprite images keyed by blockout vehicle ID. */
   private vehicleHullSprites = new Map<string, Phaser.GameObjects.Image>();
 
+  /** PIM-TURRET-VISUAL-02: Smoky turret sprite images keyed by blockout vehicle ID.
+   *  Only populated for Wasp+Smoky vehicles when the turret texture is loaded. */
+  private vehicleTurretSprites = new Map<string, Phaser.GameObjects.Image>();
+
+  /** Whether the Smoky turret sprite has been logged (once). */
+  private turretSpriteLogged = false;
+
   /** Direction debug text labels keyed by blockout vehicle ID. */
   private directionDebugLabels = new Map<string, Phaser.GameObjects.Text>();
 
@@ -294,6 +312,27 @@ export class BlockoutVehicleRenderer {
     return newState;
   }
 
+  // ─── Smoky turret sprite resolution (PIM-TURRET-VISUAL-02) ───────
+
+  /**
+   * Resolve the Smoky turret texture key for a vehicle, or null if the
+   * vehicle should not use a Smoky turret Image sprite.
+   *
+   * Only Wasp+Smoky vehicles use the turret Image layer. The turret PNG
+   * direction follows the turret aim (turretAngle), quantized to dir8 the
+   * same way the body direction is quantized — reusing the working debug
+   * model's getSmokyTurretKey() helper. Returns null when the body is not
+   * Wasp, the weapon is not Smoky, or the texture is not loaded (so other
+   * weapons/hulls keep their existing procedural turret).
+   */
+  private resolveSmokyTurretKey(vehicle: BlockoutVehicleState): string | null {
+    if (bodyIdToGeneratedHullId(vehicle.bodyId) !== 'wasp') return null;
+    if (vehicle.weaponId !== 'smoky') return null;
+    const turretDir8 = bodyAngleToDir8(vehicle.turretAngle) as ModularDirection;
+    const key = getSmokyTurretKey(vehicle.faction, turretDir8);
+    return this.scene.textures.exists(key) ? key : null;
+  }
+
   // ─── Frame sync ──────────────────────────────────────────────────
 
   /**
@@ -362,6 +401,32 @@ export class BlockoutVehicleRenderer {
           console.log(`[BlockoutVehicleRenderer] No generated hull for ${vehicle.bodyId} — blockout fallback`);
           this.blockoutFallbackLogged = true;
         }
+      }
+
+      // PIM-TURRET-VISUAL-02: Manage Smoky turret sprite lifecycle (Wasp+Smoky only).
+      // Gated on the hull sprite also being present so the turret is never
+      // orphaned without a hull to attach to.
+      const turretKey = hullSprite ? this.resolveSmokyTurretKey(vehicle) : null;
+      let turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+      if (turretKey) {
+        if (!turretSprite) {
+          turretSprite = this.scene.add.image(0, 0, turretKey);
+          // Legacy 256px Smoky turret at MODULAR_RENDER_SCALE (0.24) visually
+          // matches the 512px generated hull at GENERATED_HULL_SCALE (0.12).
+          turretSprite.setScale(MODULAR_RENDER_SCALE);
+          turretSprite.setOrigin(0.5, 0.5);
+          turretSprite.setDepth(BLOCKOUT_DEPTH);
+          this.vehicleTurretSprites.set(vehicle.id, turretSprite);
+          if (!this.turretSpriteLogged) {
+            console.log(`[BlockoutVehicleRenderer] Using Smoky turret sprite for ${vehicle.bodyId}+${vehicle.weaponId}`);
+            this.turretSpriteLogged = true;
+          }
+        } else {
+          turretSprite.setTexture(turretKey);
+        }
+      } else if (turretSprite) {
+        turretSprite.destroy();
+        this.vehicleTurretSprites.delete(vehicle.id);
       }
 
       // Determine selection/hover state for this vehicle
@@ -449,6 +514,16 @@ export class BlockoutVehicleRenderer {
           hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx);
         }
       }
+      // PIM-TURRET-VISUAL-02: Smoky turret sits just above its own hull
+      // (+0.5) but stays within this vehicle's depth band so multiple
+      // vehicles still depth-sort correctly relative to each other.
+      const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+      if (turretSprite) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          turretSprite.setDepth(BLOCKOUT_DEPTH + orderIdx + 0.5);
+        }
+      }
       // Also update direction debug label depth
       const dirLabel = this.directionDebugLabels.get(vehicle.id);
       if (dirLabel) {
@@ -495,6 +570,13 @@ export class BlockoutVehicleRenderer {
         this.vehicleHullSprites.delete(id);
       }
     }
+    // PIM-TURRET-VISUAL-02: Clean up stale Smoky turret sprites
+    for (const [id, sprite] of this.vehicleTurretSprites) {
+      if (!activeIds.has(id)) {
+        sprite.destroy();
+        this.vehicleTurretSprites.delete(id);
+      }
+    }
     // Clean up stale direction debug labels
     for (const [id, label] of this.directionDebugLabels) {
       if (!activeIds.has(id)) {
@@ -539,6 +621,12 @@ export class BlockoutVehicleRenderer {
     const hullSprite = this.vehicleHullSprites.get(vehicle.id);
     const skipBlockoutBody = hullSprite !== undefined;
 
+    // PIM-TURRET-VISUAL-02: When the Smoky turret Image is active, skip the
+    // procedural turret box + barrel so we don't draw a duplicate tiny turret
+    // on top of the sprite. The aim line and all other overlays are kept.
+    const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+    const useTurretSprite = turretSprite !== undefined;
+
     // Position hull sprite at vehicle center
     if (hullSprite) {
       const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
@@ -565,14 +653,40 @@ export class BlockoutVehicleRenderer {
       // after the scale reduction from 0.24 to 0.12.
       // Only applies to hulls with generated sprites.
       const hullId = bodyIdToGeneratedHullId(vehicle.bodyId);
-      if (hullId) {
-        const placement = getGeneratedHullPlacementOffset(hullId);
-        spriteCx += placement.offsetX;
-        spriteCy += placement.offsetY;
-      }
+      const placement = hullId
+        ? getGeneratedHullPlacementOffset(hullId)
+        : { offsetX: 0, offsetY: 0 };
+      spriteCx += placement.offsetX;
+      spriteCy += placement.offsetY;
 
       hullSprite.setPosition(spriteCx, spriteCy);
       hullSprite.setDepth(BLOCKOUT_DEPTH); // will be updated by depth sorting below
+
+      // PIM-TURRET-VISUAL-02: Position the Smoky turret sprite attached to the
+      // hull mount/socket. The turret-relative-to-hull offset is derived from
+      // the calibrated modular constants (hull/turret mount per bodyDir),
+      // scaled by MODULAR_SCALE_RATIO to the Arena generated hull. Because the
+      // modular ANCHOR_CORRECTION applies equally to hull and turret it cancels
+      // in the difference, so only the scale ratio is needed here.
+      //   turret = hullAnchor + (turretMount[bodyDir] - hullOffset[bodyDir]) * ratio
+      // where hullAnchor = hull sprite position minus the per-hull placement
+      // offset (i.e. the body center, tracking recoil + wasp debug offset).
+      if (turretSprite) {
+        if (vehicle.isDestroyed) {
+          turretSprite.setVisible(false);
+        } else {
+          turretSprite.setVisible(true);
+          const bodyDir8 = bodyAngleToDir8(vehicle.bodyAngle) as ModularTankDirection;
+          const hullMountOff = MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir8];
+          const turretMountOff = MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir8];
+          const turretRelX = (turretMountOff.x - hullMountOff.x) * MODULAR_SCALE_RATIO;
+          const turretRelY = (turretMountOff.y - hullMountOff.y) * MODULAR_SCALE_RATIO;
+          const anchorX = spriteCx - placement.offsetX;
+          const anchorY = spriteCy - placement.offsetY;
+          turretSprite.setPosition(anchorX + turretRelX, anchorY + turretRelY);
+          turretSprite.setDepth(BLOCKOUT_DEPTH + 0.5); // updated by depth sorting below
+        }
+      }
     }
 
     // ── Shared projected geometry (single source of truth) ────────
@@ -1000,6 +1114,10 @@ export class BlockoutVehicleRenderer {
       // single source of truth used by both renderer and fire/damage logic,
       // including body recoil impulse, barrel Z, and all recoil offsets.
 
+      // PIM-TURRET-VISUAL-02: Skip the procedural turret box + barrel when the
+      // Smoky turret Image sprite is active (avoids a duplicate tiny turret).
+      // The aim line below is still drawn so selection feedback is preserved.
+      if (!useTurretSprite) {
       // Turret side face (left: base[3]→base[0] → top[3]→top[0])
       g.fillStyle(turretColor, 0.7);
       g.beginPath();
@@ -1047,6 +1165,7 @@ export class BlockoutVehicleRenderer {
       g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
       g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
       g.strokePath();
+      } // end if (!useTurretSprite)
 
       // ── Aim line for selected vehicle ─────────────────────────────
       if (isSelected) {
@@ -1298,6 +1417,12 @@ export class BlockoutVehicleRenderer {
       sprite.destroy();
     }
     this.vehicleHullSprites.clear();
+
+    // PIM-TURRET-VISUAL-02: Clean up Smoky turret sprites
+    for (const [, sprite] of this.vehicleTurretSprites) {
+      sprite.destroy();
+    }
+    this.vehicleTurretSprites.clear();
 
     for (const [, label] of this.directionDebugLabels) {
       label.destroy();
