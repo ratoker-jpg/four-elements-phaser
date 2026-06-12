@@ -10,6 +10,12 @@
  *
  * Profile instances are populated from existing exported constants so that a drift
  * guard test can assert parity. The renderer is NOT rewired in this PR.
+ *
+ * PR-F1: Directional profile types and helpers are now in the pure module
+ * directionalTurretProfiles.ts. The single PivotProfile here is retained as
+ * a legacy/fallback for compatibility with existing PR-B/C/D/E1 code.
+ * New code should use resolveTurretPivotForDir() from directionalTurretProfiles
+ * for direction-dependent pivot data from projection recovery.
  */
 
 import type { BodyId, WeaponId } from './blockoutProfiles';
@@ -69,6 +75,15 @@ export interface SocketProfile {
 
 /**
  * Turret pivot in normalized turret-image-local coordinates.
+ *
+ * @deprecated Legacy/fallback single-pivot model. Turret pivot positions
+ * are direction-dependent; a single {px, py} is insufficient because
+ * each direction PNG shows the base ring at a different normalized position.
+ * Use resolveTurretPivotForDir() from directionalTurretProfiles.ts instead.
+ *
+ * This interface is retained for backward compatibility with existing
+ * PR-B/C/D/E1 code. It will be removed once the renderer is fully
+ * rewired to use directional profiles (PR-E2+).
  *
  * This is the point about which the turret visually rotates and which
  * must coincide with the hull socket. NOT necessarily image center.
@@ -207,9 +222,14 @@ export const WASP_HULL_VISUAL_PROFILE: HullVisualProfile = {
  * +4 in dir16 space (4 / 2 = 2). This is the turret's own remap value,
  * not borrowed from the hull (closing audit RC-3).
  *
- * pivot.px/py = 0.5/0.5 is a PLACEHOLDER matching today's behavior
- * (image center origin). Denis must confirm the true base-ring pivot
- * position (expected py > 0.5) before PR-E wires this into the renderer.
+ * pivot.px/py = 0.5/0.5 is a LEGACY PLACEHOLDER matching today's behavior
+ * (image center origin). The directional profile data from PR-F1 shows the
+ * true per-direction pivot positions, which differ from (0.5, 0.5) for every
+ * direction. Use resolveTurretPivotForDir('smoky', level, dir) for
+ * projection-recovered directional pivot data.
+ *
+ * This legacy pivot is retained as a fallback for existing code that has
+ * not yet been wired to the directional profile system.
  */
 export const SMOKY_TURRET_VISUAL_PROFILE: TurretVisualProfile = {
   weaponId: 'smoky',
@@ -217,7 +237,7 @@ export const SMOKY_TURRET_VISUAL_PROFILE: TurretVisualProfile = {
   textureScale: MODULAR_RENDER_SCALE,    // 0.24
   pivot: {
     px: 0.5,
-    py: 0.5,   // PLACEHOLDER — Denis to confirm base-ring py > 0.5 (audit RC-6)
+    py: 0.5,   // LEGACY PLACEHOLDER — use resolveTurretPivotForDir for directional data
   },
   direction: { dirCount: 8, facingOffset: 2 },
   mountSocketId: 'turret_main',
@@ -265,10 +285,17 @@ export function resolveSocketMetadata(
 /**
  * Resolve turret pivot metadata from a turret profile.
  *
+ * @deprecated Legacy single-pivot resolver. Turret pivot positions are
+ * direction-dependent; use resolveTurretPivotForDir() from
+ * directionalTurretProfiles.ts for projection-recovered directional data.
+ *
  * Returns the PivotProfile if the turret profile exists, or null.
  * The pivot is read-only and does not depend on renderer state.
  * It is authored once per turret family (art-truth, Denis-confirmed),
  * exactly like the facing offset.
+ *
+ * This legacy resolver is retained as a fallback for existing code that
+ * has not yet been wired to the directional profile system.
  */
 export function resolveTurretPivot(
   turretProfile: TurretVisualProfile | null,
