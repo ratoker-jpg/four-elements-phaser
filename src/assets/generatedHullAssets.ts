@@ -13,6 +13,7 @@
  */
 
 import type { Faction } from '../state/types';
+import { remapVisualDir, WASP_HULL_DIRECTION_REMAP_PROFILE } from '../config/visualDirectionRemap';
 
 // ─── Hull IDs ────────────────────────────────────────────────────
 
@@ -335,18 +336,23 @@ export const WASP_HULL_VISUAL_DIR16_REMAP: Record<number, number> = {
 /**
  * Apply hull-specific visual dir16 remap.
  *
- * For Wasp: applies WASP_HULL_VISUAL_DIR16_REMAP.
+ * For Wasp: applies the profile-based remap via remapVisualDir +
+ * WASP_HULL_DIRECTION_REMAP_PROFILE (equivalent to WASP_HULL_VISUAL_DIR16_REMAP).
  * For other hulls: returns the input dir16 unchanged.
  *
- * Wasp-only calibration MVP. Do not generalize without visual validation.
+ * PR-C: Internals now route through the profile helper instead of the
+ * hardcoded lookup table. Output is byte-identical for all 16 Wasp dirs.
+ *
+ * WASP_HULL_VISUAL_DIR16_REMAP is still exported for compatibility and
+ * drift-guard tests. Do not remove until the table is explicitly retired.
  */
 export function applyHullVisualDir16Remap(
   hullId: GeneratedHullId,
   dir16: GeneratedHullDir16Index,
 ): GeneratedHullDir16Index {
   if (hullId === 'wasp') {
-    const remapped = WASP_HULL_VISUAL_DIR16_REMAP[dir16];
-    if (remapped !== undefined && remapped >= 0 && remapped <= 15) {
+    const remapped = remapVisualDir(dir16, WASP_HULL_DIRECTION_REMAP_PROFILE);
+    if (remapped >= 0 && remapped <= 15) {
       return remapped as GeneratedHullDir16Index;
     }
   }

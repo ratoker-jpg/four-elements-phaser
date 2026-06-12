@@ -22,31 +22,21 @@ import {
 } from '../assets/generatedHullAssets';
 import { MODULAR_RENDER_SCALE } from './unitRenderConfig';
 
-// ── Direction remap ────────────────────────────────────────────────
+// PR-C: Direction remap types and helper are now in the pure module
+// visualDirectionRemap.ts to avoid circular imports when
+// generatedHullAssets.ts needs to use remapVisualDir.
+export {
+  type DirCount,
+  type DirectionRemapProfile,
+  remapVisualDir,
+  WASP_HULL_DIRECTION_REMAP_PROFILE,
+} from './visualDirectionRemap';
 
-/** Number of authored directions in a sprite family. */
-export type DirCount = 8 | 16;
-
-/**
- * Declares how an authored PNG family faces relative to the logical
- * screen-space direction system.
- *
- * Formula: `visualDir = (logicalDir + facingOffset) mod dirCount`
- *
- * Wasp hull today == `{ dirCount: 16, facingOffset: 4 }`.
- * Smoky turret today == `{ dirCount: 8, facingOffset: 2 }`.
- * A family authored "correctly" (no rotation offset) == `{ dirCount: N, facingOffset: 0 }`.
- *
- * This replaces the per-hull `WASP_HULL_VISUAL_DIR16_REMAP` table with a
- * single integer per PNG family, and makes the turret's remap independent
- * from the hull's (closing audit root cause RC-1/RC-3).
- */
-export interface DirectionRemapProfile {
-  /** Number of authored sprite directions (8 or 16). */
-  dirCount: DirCount;
-  /** Signed rotation offset, applied mod dirCount. */
-  facingOffset: number;
-}
+// Re-import for internal use in this module
+import {
+  type DirectionRemapProfile as DirectionRemapProfileInternal,
+  WASP_HULL_DIRECTION_REMAP_PROFILE as WASP_HULL_DIRECTION_REMAP_PROFILE_INTERNAL,
+} from './visualDirectionRemap';
 
 // ── Socket profile ─────────────────────────────────────────────────
 
@@ -118,7 +108,7 @@ export interface HullVisualProfile {
   /** Sprite origin (e.g. { x: 0.5, y: 0.75 } for generated hulls). */
   origin: { x: number; y: number };
   /** Direction remap for this hull's PNG family. */
-  direction: DirectionRemapProfile;
+  direction: DirectionRemapProfileInternal;
   /** Permanent visual placement offset in screen pixels (e.g. Wasp: { x: -1, y: 12 }). */
   placementOffset: { x: number; y: number };
   /** Declared mount sockets on this hull (at least 'turret_main'). */
@@ -149,7 +139,7 @@ export interface TurretVisualProfile {
   /** Turret pivot in normalized image-local coords. */
   pivot: PivotProfile;
   /** Direction remap for this turret's PNG family. */
-  direction: DirectionRemapProfile;
+  direction: DirectionRemapProfileInternal;
   /** Which socket on the hull this turret mounts to. */
   mountSocketId: string;
   /** Visual recoil hooks (default off — no combat/recoil semantics change). */
@@ -196,7 +186,7 @@ export const WASP_HULL_VISUAL_PROFILE: HullVisualProfile = {
   family: 'generated',
   textureScale: GENERATED_HULL_SCALE,                                          // 0.12
   origin: { x: GENERATED_HULL_ORIGIN_X, y: GENERATED_HULL_ORIGIN_Y },        // {0.5, 0.75}
-  direction: { dirCount: 16, facingOffset: 4 },                               // == WASP_HULL_VISUAL_DIR16_REMAP
+  direction: WASP_HULL_DIRECTION_REMAP_PROFILE_INTERNAL,                        // == WASP_HULL_VISUAL_DIR16_REMAP
   placementOffset: { x: WASP_HULL_OFFSET_X, y: WASP_HULL_OFFSET_Y },         // {-1, 12}
   sockets: [
     {
@@ -234,24 +224,6 @@ export const SMOKY_TURRET_VISUAL_PROFILE: TurretVisualProfile = {
 };
 
 // ── Pure helper functions ──────────────────────────────────────────
-
-/**
- * Apply the declared visual direction remap.
- *
- * Formula: `visualDir = (logicalDir + facingOffset) mod dirCount`
- *
- * Deterministic, pure, no side effects. Replaces the per-hull
- * WASP_HULL_VISUAL_DIR16_REMAP table with a single arithmetic operation
- * per PNG family.
- *
- * The double-modulo handles negative facingOffset values correctly.
- */
-export function remapVisualDir(
-  logicalDir: number,
-  profile: DirectionRemapProfile,
-): number {
-  return ((logicalDir + profile.facingOffset) % profile.dirCount + profile.dirCount) % profile.dirCount;
-}
 
 /**
  * Resolve a hull visual profile by bodyId.
