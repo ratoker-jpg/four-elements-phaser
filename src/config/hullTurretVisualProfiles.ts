@@ -196,7 +196,13 @@ export const WASP_HULL_VISUAL_PROFILE: HullVisualProfile = {
   sockets: [
     {
       id: 'turret_main',
-      normalized: { nx: 0.5, ny: 0.5 },
+      // Calibrated from manual QA: turret ring sits slightly behind body center,
+      // near the red mount point drawn by the blockout procedural renderer.
+      // Blockout mountCategory='rear' places the mount at ~20% from rear edge
+      // (mountOffsetNormalized.x=0.2). On the 512×512 hull PNG, the turret
+      // ring visually appears at ~40% from the rear edge (slightly behind
+      // image center) due to padding and perspective in the generated asset.
+      normalized: { nx: 0.4, ny: 0.5 },
       zHeight: 0.30,   // BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET
     },
   ],
@@ -205,15 +211,19 @@ export const WASP_HULL_VISUAL_PROFILE: HullVisualProfile = {
 
 /**
  * Smoky M0 turret visual profile.
- * All values match existing behavior exactly.
  *
  * direction.facingOffset = 2 in dir8 space is equivalent to the hull's
  * +4 in dir16 space (4 / 2 = 2). This is the turret's own remap value,
  * not borrowed from the hull (closing audit RC-3).
  *
- * pivot.px/py = 0.5/0.5 is a PLACEHOLDER matching today's behavior
- * (image center origin). Denis must confirm the true base-ring pivot
- * position (expected py > 0.5) before PR-E wires this into the renderer.
+ * pivot.px/py: The pivot is the base ring about which the turret rotates.
+ * For a barreled turret like Smoky, the base ring is below/behind the
+ * image center (py > 0.5), with the barrel extending forward from it.
+ * Calibrated from manual QA: base ring is approximately 65% down from
+ * the top edge of the turret image (closing audit RC-6).
+ *
+ * The renderer uses this value ONLY in computeTurretSpriteCenterOffsetForSocket()
+ * to compute the sprite-center offset. The Phaser sprite origin is always (0.5, 0.5).
  */
 export const SMOKY_TURRET_VISUAL_PROFILE: TurretVisualProfile = {
   weaponId: 'smoky',
@@ -221,7 +231,7 @@ export const SMOKY_TURRET_VISUAL_PROFILE: TurretVisualProfile = {
   textureScale: MODULAR_RENDER_SCALE,    // 0.24
   pivot: {
     px: 0.5,
-    py: 0.5,   // PLACEHOLDER — Denis to confirm base-ring py > 0.5 (audit RC-6)
+    py: 0.65,  // Calibrated: base ring ~65% down from top edge (audit RC-6)
   },
   direction: { dirCount: 8, facingOffset: 2 },
   mountSocketId: 'turret_main',

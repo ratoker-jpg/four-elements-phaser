@@ -76,11 +76,11 @@ describe('PR-E2: Wasp+Smoky full pipeline — turret key + attachment offset', (
       turretDisplayHeightPx: attachment.turretDisplayHeightPx,
     });
 
-    // With current placeholder values (socket={0.5,0.5}, pivot={0.5,0.5}),
-    // the offset should be zero
+    // With calibrated values (socket={0.4,0.5}, pivot={0.5,0.65}),
+    // the offset should be non-zero
     expect(offsetResult.offset).not.toBeNull();
-    expect(offsetResult.offset!.x).toBeCloseTo(0);
-    expect(offsetResult.offset!.y).toBeCloseTo(0);
+    expect(offsetResult.offset!.x).toBeCloseTo(-6.144);  // socket shifted back
+    expect(offsetResult.offset!.y).toBeCloseTo(-9.216);  // pivot below center
   });
 
   it('all 8 Smoky turret directions resolve keys and have consistent attachment', () => {
@@ -182,7 +182,7 @@ describe('PR-E2 fixup: Turret sprite origin is always center, pivot used only in
     const profile = resolveTurretVisualProfile('smoky');
     expect(profile).not.toBeNull();
     expect(profile!.pivot.px).toBe(0.5);
-    expect(profile!.pivot.py).toBe(0.5);
+    expect(profile!.pivot.py).toBe(0.65);  // Calibrated: base ring ~65% down
 
     // Convention: the renderer always calls setOrigin(0.5, 0.5).
     // The pivot values are consumed ONLY by computeTurretSpriteCenterOffsetForSocket
@@ -264,10 +264,10 @@ describe('PR-E2: Socket/pivot offset does not double-apply hull placement offset
     // It is purely based on socket/pivot normalized coordinates and display sizes
     const hullPlacementOffset = WASP_HULL_VISUAL_PROFILE.placementOffset;
     if (offsetResult.offset) {
-      // The offset should be near zero for center socket + center pivot
-      // and should NOT equal the hull placement offset
-      expect(Math.abs(offsetResult.offset.x)).toBeLessThan(1);
-      expect(Math.abs(offsetResult.offset.y)).toBeLessThan(1);
+      // With calibrated socket {0.4,0.5} and pivot {0.5,0.65},
+      // the offset is (-6.144, -9.216) — not zero, not the placement offset
+      expect(offsetResult.offset.x).toBeCloseTo(-6.144);
+      expect(offsetResult.offset.y).toBeCloseTo(-9.216);
       // Verify it's different from the placement offset
       expect(offsetResult.offset.x).not.toBeCloseTo(hullPlacementOffset.x);
       expect(offsetResult.offset.y).not.toBeCloseTo(hullPlacementOffset.y);

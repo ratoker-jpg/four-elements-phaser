@@ -36,7 +36,7 @@ describe('resolveHullSocketProfile — Wasp hull', () => {
     const socket = resolveHullSocketProfile('wasp', 'turret_main');
     expect(socket).not.toBeNull();
     expect(socket!.id).toBe('turret_main');
-    expect(socket!.normalized.nx).toBe(0.5);
+    expect(socket!.normalized.nx).toBe(0.4);  // Calibrated: slightly behind center
     expect(socket!.normalized.ny).toBe(0.5);
     expect(socket!.zHeight).toBe(0.30);
   });
@@ -55,7 +55,7 @@ describe('resolveTurretPivotProfile — Smoky turret', () => {
     const pivot = resolveTurretPivotProfile('smoky');
     expect(pivot).not.toBeNull();
     expect(pivot!.px).toBe(0.5);
-    expect(pivot!.py).toBe(0.5); // PLACEHOLDER
+    expect(pivot!.py).toBe(0.65); // Calibrated: base ring ~65% down
   });
 
   it('returns the same pivot data as SMOKY_TURRET_VISUAL_PROFILE.pivot', () => {
@@ -282,24 +282,27 @@ describe('computeTurretSpriteCenterOffsetForSocket — formula correctness', () 
     expect(result.turretCenterToPivotPx).toBeNull();
   });
 
-  it('Wasp+Smoky with current placeholder values: both at center => zero offset', () => {
-    // Both socket and pivot are at {0.5, 0.5} currently
+  it('Wasp+Smoky with calibrated values gives non-zero offset', () => {
+    // Socket at {0.4, 0.5} (slightly behind center), pivot at {0.5, 0.65} (base ring below center)
     const hullDisplayW = 512 * 0.12;  // 61.44
     const hullDisplayH = 512 * 0.12;  // 61.44
     const turretDisplayW = 256 * 0.24;  // 61.44
     const turretDisplayH = 256 * 0.24;  // 61.44
 
     const result = computeTurretSpriteCenterOffsetForSocket({
-      socketNorm: { x: 0.5, y: 0.5 },
+      socketNorm: { x: 0.4, y: 0.5 },
       hullDisplayWidthPx: hullDisplayW,
       hullDisplayHeightPx: hullDisplayH,
-      pivotNorm: { x: 0.5, y: 0.5 },
+      pivotNorm: { x: 0.5, y: 0.65 },
       turretDisplayWidthPx: turretDisplayW,
       turretDisplayHeightPx: turretDisplayH,
     });
+    // hullCenterToSocket = (0.4-0.5)*61.44 = -6.144, (0.5-0.5)*61.44 = 0
+    // turretCenterToPivot = (0.5-0.5)*61.44 = 0, (0.65-0.5)*61.44 = 9.216
+    // offset = (-6.144 - 0, 0 - 9.216) = (-6.144, -9.216)
     expect(result.offset).not.toBeNull();
-    expect(result.offset!.x).toBeCloseTo(0);
-    expect(result.offset!.y).toBeCloseTo(0);
+    expect(result.offset!.x).toBeCloseTo(-6.144);
+    expect(result.offset!.y).toBeCloseTo(-9.216);
   });
 });
 
@@ -372,7 +375,7 @@ describe('resolveTurretAttachmentProfile — Wasp+Smoky', () => {
     expect(profile.socket!.id).toBe('turret_main');
     expect(profile.pivot).not.toBeNull();
     expect(profile.pivot!.px).toBe(0.5);
-    expect(profile.pivot!.py).toBe(0.5);
+    expect(profile.pivot!.py).toBe(0.65);  // Calibrated: base ring ~65% down
   });
 
   it('computes display dimensions from texture scale and source size', () => {
@@ -433,7 +436,7 @@ describe('resolveTurretAttachmentProfile — Wasp+Smoky', () => {
 // ── End-to-end: resolveTurretAttachmentProfile → computeTurretSpriteCenterOffset ─
 
 describe('End-to-end: attachment profile → sprite center offset', () => {
-  it('Wasp+Smoky with placeholder center values gives zero offset', () => {
+  it('Wasp+Smoky with calibrated values gives correct non-zero offset', () => {
     const profile = resolveTurretAttachmentProfile(
       'wasp', 'smoky', 'turret_main',
       512, 512, 256, 256,
@@ -450,10 +453,20 @@ describe('End-to-end: attachment profile → sprite center offset', () => {
       turretDisplayWidthPx: profile.turretDisplayWidthPx,
       turretDisplayHeightPx: profile.turretDisplayHeightPx,
     });
-    // Both at center (0.5, 0.5), so offset should be zero
+    // Socket at {0.4, 0.5}, pivot at {0.5, 0.65}
+    // hullCenterToSocket.x = (0.4-0.5)*61.44 = -6.144
+    // hullCenterToSocket.y = 0
+    // turretCenterToPivot.x = 0
+    // turretCenterToPivot.y = (0.65-0.5)*61.44 = 9.216
+    // offset = (-6.144, -9.216)
     expect(result.offset).not.toBeNull();
-    expect(result.offset!.x).toBeCloseTo(0);
-    expect(result.offset!.y).toBeCloseTo(0);
+    expect(result.offset!.x).toBeCloseTo(-6.144);
+    expect(result.offset!.y).toBeCloseTo(-9.216);
+    // Verify intermediates
+    expect(result.hullCenterToSocketPx!.x).toBeCloseTo(-6.144);
+    expect(result.hullCenterToSocketPx!.y).toBeCloseTo(0);
+    expect(result.turretCenterToPivotPx!.x).toBeCloseTo(0);
+    expect(result.turretCenterToPivotPx!.y).toBeCloseTo(9.216);
   });
 
   it('missing hull socket produces null offset', () => {

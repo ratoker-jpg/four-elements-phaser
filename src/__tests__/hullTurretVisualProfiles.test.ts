@@ -160,7 +160,7 @@ describe('resolveSocketMetadata', () => {
     const socket = resolveSocketMetadata(WASP_HULL_VISUAL_PROFILE, 'turret_main');
     expect(socket).not.toBeNull();
     expect(socket!.id).toBe('turret_main');
-    expect(socket!.normalized.nx).toBe(0.5);
+    expect(socket!.normalized.nx).toBe(0.4);  // Calibrated: slightly behind center
     expect(socket!.normalized.ny).toBe(0.5);
     expect(socket!.zHeight).toBe(0.30);
   });
@@ -186,7 +186,7 @@ describe('resolveTurretPivot', () => {
     const pivot = resolveTurretPivot(SMOKY_TURRET_VISUAL_PROFILE);
     expect(pivot).not.toBeNull();
     expect(pivot!.px).toBe(0.5);
-    expect(pivot!.py).toBe(0.5);  // PLACEHOLDER
+    expect(pivot!.py).toBe(0.65);  // Calibrated: base ring ~65% down
   });
 
   it('returns null when turret profile is null', () => {
