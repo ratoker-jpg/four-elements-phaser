@@ -144,17 +144,25 @@ export function resolveTurretPivotProfile(
 // ── Math helpers ──────────────────────────────────────────────────────
 
 /**
- * Compute the pixel offset from an image's center to a normalized point,
- * given the image's display dimensions in pixels.
+ * Compute the pixel offset from a sprite's origin to a normalized point,
+ * given the image's display dimensions and sprite origin.
  *
- * Formula:
- *   offsetX = (point.x - 0.5) * widthPx
- *   offsetY = (point.y - 0.5) * heightPx
+ * Fixup #4: The offset is relative to the sprite's origin, not (0.5, 0.5).
+ * In Phaser, setOrigin(ox, oy) means the sprite's position (x, y) refers
+ * to the point at (ox, oy) in normalized image coordinates. The offset
+ * from the origin to any normalized point is:
+ *   offsetX = (point.x - originX) * widthPx
+ *   offsetY = (point.y - originY) * heightPx
  *
- * Examples:
+ * Examples (with default origin 0.5, 0.5 — centered sprite):
  *   - {0.5, 0.5} (center) → {0, 0}
  *   - {0, 0} (top-left) → {-width/2, -height/2}
  *   - {1, 1} (bottom-right) → {width/2, height/2}
+ *
+ * Examples (with origin 0.5, 0.75 — generated hull sprite):
+ *   - {0.5, 0.75} (origin point) → {0, 0}
+ *   - {0.5, 0.5} (image center) → {0, -0.25 * heightPx}
+ *   - {0.401352, 0.496649} (socket) → {(0.401352-0.5)*w, (0.496649-0.75)*h}
  *
  * This is a pure, deterministic function. It does not depend on
  * Phaser, DOM, or any runtime state.
@@ -163,27 +171,39 @@ export function computeNormalizedPointOffsetPx(
   point: NormalizedPoint,
   widthPx: number,
   heightPx: number,
+  originX: number = 0.5,
+  originY: number = 0.5,
 ): PixelOffset {
   return {
-    x: (point.x - 0.5) * widthPx,
-    y: (point.y - 0.5) * heightPx,
+    x: (point.x - originX) * widthPx,
+    y: (point.y - originY) * heightPx,
   };
 }
 
 /**
- * Compute the turret sprite center offset needed to place the turret
- * pivot on the hull socket.
+ * Compute the turret sprite position offset needed to place the turret
+ * pivot on the hull socket, accounting for actual sprite origins.
  *
- * Given:
- * - Hull socket normalized coordinates and hull display dimensions
- * - Turret pivot normalized coordinates and turret display dimensions
+ * Fixup #4: The offset must use the ACTUAL sprite origins, not assume
+ * both are centered at (0.5, 0.5). In Phaser, setOrigin(ox, oy) means
+ * the sprite's position (x, y) refers to the point at (ox, oy) in
+ * normalized image coordinates.
  *
- * The formula places the turret pivot point exactly on the hull socket:
- *   turretSpriteCenterOffset = hullCenterToSocket - turretCenterToPivot
+ * The correct invariant for Phaser sprites is:
+ *   hullSpriteOriginWorld + (socketNorm - hullOrigin) * hullDisplaySize
+ *   ==
+ *   turretSpriteOriginWorld + (pivotNorm - turretOrigin) * turretDisplaySize
+ *
+ * Solving for the turret position offset from hull position:
+ *   offsetFromHullPosition = (socketNorm - hullOrigin) * hullDisplaySize
+ *                           - (pivotNorm - turretOrigin) * turretDisplaySize
  *
  * Where:
- *   hullCenterToSocket = (socketNorm - 0.5) * hullDisplaySize
- *   turretCenterToPivot = (pivotNorm - 0.5) * turretDisplaySize
+ *   hullOrigin   = (GENERATED_HULL_ORIGIN_X, GENERATED_HULL_ORIGIN_Y) = (0.5, 0.75)
+ *   turretOrigin = (0.5, 0.5)  — turret sprites are always centered
+ *
+ * For generated hulls: hullOrigin = (0.5, 0.75)
+ * For turret sprites:  turretOrigin = (0.5, 0.5)
  *
  * Returns a TurretSpriteCenterOffsetResult containing the final offset
  * and the intermediate values. Returns null offsets if socket or pivot
@@ -205,35 +225,52 @@ export function computeTurretSpriteCenterOffsetForSocket(params: {
   turretDisplayWidthPx: number;
   /** Turret sprite display height in pixels. */
   turretDisplayHeightPx: number;
+  /** Hull sprite origin X (normalized 0..1). Default 0.5 = centered. */
+  hullOriginX?: number;
+  /** Hull sprite origin Y (normalized 0..1). Default 0.5 = centered. */
+  hullOriginY?: number;
+  /** Turret sprite origin X (normalized 0..1). Default 0.5 = centered. */
+  turretOriginX?: number;
+  /** Turret sprite origin Y (normalized 0..1). Default 0.5 = centered. */
+  turretOriginY?: number;
 }): TurretSpriteCenterOffsetResult {
-  const hullCenterToSocketPx: PixelOffset | null = params.socketNorm
+  const hullOx = params.hullOriginX ?? 0.5;
+  const hullOy = params.hullOriginY ?? 0.5;
+  const turretOx = params.turretOriginX ?? 0.5;
+  const turretOy = params.turretOriginY ?? 0.5;
+
+  const hullOriginToSocketPx: PixelOffset | null = params.socketNorm
     ? computeNormalizedPointOffsetPx(
         params.socketNorm,
         params.hullDisplayWidthPx,
         params.hullDisplayHeightPx,
+        hullOx,
+        hullOy,
       )
     : null;
 
-  const turretCenterToPivotPx: PixelOffset | null = params.pivotNorm
+  const turretOriginToPivotPx: PixelOffset | null = params.pivotNorm
     ? computeNormalizedPointOffsetPx(
         params.pivotNorm,
         params.turretDisplayWidthPx,
         params.turretDisplayHeightPx,
+        turretOx,
+        turretOy,
       )
     : null;
 
   let offset: PixelOffset | null = null;
-  if (hullCenterToSocketPx !== null && turretCenterToPivotPx !== null) {
+  if (hullOriginToSocketPx !== null && turretOriginToPivotPx !== null) {
     offset = {
-      x: hullCenterToSocketPx.x - turretCenterToPivotPx.x,
-      y: hullCenterToSocketPx.y - turretCenterToPivotPx.y,
+      x: hullOriginToSocketPx.x - turretOriginToPivotPx.x,
+      y: hullOriginToSocketPx.y - turretOriginToPivotPx.y,
     };
   }
 
   return {
     offset,
-    hullCenterToSocketPx,
-    turretCenterToPivotPx,
+    hullCenterToSocketPx: hullOriginToSocketPx,
+    turretCenterToPivotPx: turretOriginToPivotPx,
   };
 }
 
