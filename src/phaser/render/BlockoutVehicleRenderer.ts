@@ -666,38 +666,35 @@ export class BlockoutVehicleRenderer {
     const mountWorldX = tilePos.x + mountTileOffset.dx;
     const mountWorldY = tilePos.y + mountTileOffset.dy;
 
-    // ── FIX-OPUS-TURRET-VISUAL-01: Position modular turret sprite ──
-    // When a real turret sprite (Smoky) is active, mount it on the projected
-    // turret mount and apply the same visual placement offset the hull sprite
-    // uses so the turret stays attached to the generated hull body. The
-    // procedural turret box/barrel are skipped below (useTurretSprite).
+    // ── FIX-OPUS-TURRET-VISUAL-01 / 01B: Position modular turret sprite ──
+    // Mount the turret sprite on the generated hull sprite's turret socket so
+    // body + turret read as one attached vehicle. The procedural turret
+    // box/barrel are skipped below (useTurretSprite).
+    //
+    // 01B fix: the first pass positioned the turret at the projected procedural
+    // mount (a tiny, front-shifted box point) and then RE-APPLIED the hull
+    // placement offset on top — double-counting the offset and detaching the
+    // turret from the hull. Instead, reuse the hull sprite's already-resolved
+    // screen position (which already includes recoil impulse + permanent +
+    // debug placement offsets) and lift by the hull origin delta so the turret
+    // centers on the hull body rather than its ground anchor.
     const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
     const useTurretSprite = turretSprite !== undefined;
     if (turretSprite) {
-      const turretMountZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
-      const mountScreen = projectWorldPoint(mountWorldX, mountWorldY, turretMountZ, this.offset);
-      let turretCx = mountScreen.x;
-      let turretCy = mountScreen.y;
-
-      // Track the hull sprite's visual placement offset (permanent + debug)
-      // so the turret moves together with the generated hull.
       if (hullSprite) {
-        const turretHullId = bodyIdToGeneratedHullId(vehicle.bodyId);
-        if (turretHullId) {
-          const placement = getGeneratedHullPlacementOffset(turretHullId);
-          turretCx += placement.offsetX;
-          turretCy += placement.offsetY;
-          const isWaspPlacementForTurret = this.isDevtoolsActive()
-            && isWaspPlacementActive()
-            && turretHullId === 'wasp';
-          if (isWaspPlacementForTurret) {
-            turretCx += getWaspDebugOffsetX();
-            turretCy += getWaspDebugOffsetY();
-          }
-        }
+        // Hull origin is (x, GENERATED_HULL_ORIGIN_Y); its texture centre sits
+        // (originY − 0.5) × displayHeight above the ground anchor. Placing the
+        // centre-origin turret there glues it to the hull's turret socket and
+        // keeps it tracking every hull offset automatically.
+        const socketLift = hullSprite.displayHeight * (GENERATED_HULL_ORIGIN_Y - 0.5);
+        turretSprite.setPosition(hullSprite.x, hullSprite.y - socketLift);
+      } else {
+        // No generated hull sprite (procedural body): fall back to the
+        // projected procedural mount so the turret still sits on the body.
+        const turretMountZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
+        const mountScreen = projectWorldPoint(mountWorldX, mountWorldY, turretMountZ, this.offset);
+        turretSprite.setPosition(mountScreen.x, mountScreen.y);
       }
-
-      turretSprite.setPosition(turretCx, turretCy);
     }
 
     // Faction colors
