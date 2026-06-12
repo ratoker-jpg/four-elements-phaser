@@ -1,0 +1,305 @@
+/**
+ * TURRET-HULL-CONTRACT-PR-B: Read-only visual profile layer for hull/turret attachment.
+ *
+ * Pure TypeScript — no Phaser imports. This module declares the contract types,
+ * static profile data, and pure helper functions that the renderer will eventually
+ * consume. It does NOT change runtime visuals; it reproduces today's exact constants
+ * as typed, testable data.
+ *
+ * Source: docs/project/TURRET_HULL_ATTACHMENT_AUDIT_2026_06_12.md §6, §14
+ *
+ * Profile instances are populated from existing exported constants so that a drift
+ * guard test can assert parity. The renderer is NOT rewired in this PR.
+ */
+
+import type { BodyId, WeaponId } from './blockoutProfiles';
+import {
+  GENERATED_HULL_SCALE,
+  GENERATED_HULL_ORIGIN_X,
+  GENERATED_HULL_ORIGIN_Y,
+  WASP_HULL_OFFSET_X,
+  WASP_HULL_OFFSET_Y,
+} from '../assets/generatedHullAssets';
+import { MODULAR_RENDER_SCALE } from './unitRenderConfig';
+
+// ── Direction remap ────────────────────────────────────────────────
+
+/** Number of authored directions in a sprite family. */
+export type DirCount = 8 | 16;
+
+/**
+ * Declares how an authored PNG family faces relative to the logical
+ * screen-space direction system.
+ *
+ * Formula: `visualDir = (logicalDir + facingOffset) mod dirCount`
+ *
+ * Wasp hull today == `{ dirCount: 16, facingOffset: 4 }`.
+ * Smoky turret today == `{ dirCount: 8, facingOffset: 2 }`.
+ * A family authored "correctly" (no rotation offset) == `{ dirCount: N, facingOffset: 0 }`.
+ *
+ * This replaces the per-hull `WASP_HULL_VISUAL_DIR16_REMAP` table with a
+ * single integer per PNG family, and makes the turret's remap independent
+ * from the hull's (closing audit root cause RC-1/RC-3).
+ */
+export interface DirectionRemapProfile {
+  /** Number of authored sprite directions (8 or 16). */
+  dirCount: DirCount;
+  /** Signed rotation offset, applied mod dirCount. */
+  facingOffset: number;
+}
+
+// ── Socket profile ─────────────────────────────────────────────────
+
+/**
+ * A named mount point in normalized hull-local coordinates.
+ *
+ * Coordinate system:
+ * - `{ nx: 0.5, ny: 0.5 }` = hull logical center.
+ * - nx: 0 = rear edge, 1 = front edge (along body axis).
+ * - ny: 0 = left edge, 1 = right edge (across body axis).
+ *
+ * Normalized coordinates survive scale changes (the exact failure that
+ * produced MODULAR_ANCHOR_CORRECTION and the 0.24→0.12 re-tuning).
+ * The renderer converts them to screen space via the hull's single
+ * composite transform, then projects through the camera contract.
+ */
+export interface SocketProfile {
+  /** Unique socket identifier, e.g. 'turret_main'. */
+  id: string;
+  /** Normalized hull-local position. */
+  normalized: { nx: number; ny: number };
+  /** Height above body top in world Z units (for projection via basisZ). */
+  zHeight: number;
+  /** Optional per-direction override (default: direction-independent). */
+  perDir?: Partial<Record<number, { nx: number; ny: number }>>;
+}
+
+// ── Pivot profile ──────────────────────────────────────────────────
+
+/**
+ * Turret pivot in normalized turret-image-local coordinates.
+ *
+ * This is the point about which the turret visually rotates and which
+ * must coincide with the hull socket. NOT necessarily image center.
+ *
+ * For a barreled turret (e.g. Smoky), the pivot is the base ring,
+ * typically below/behind center (py > 0.5), with the barrel extending
+ * forward of it. Mounting by image center (0.5, 0.5) pushes the whole
+ * turret forward/off by roughly half a barrel length, and that error
+ * rotates with the turret — exactly the symptom reported in audit RC-6.
+ *
+ * The renderer sets the turret sprite origin to (px, py) and positions
+ * the sprite at the socket world point. Then socket == pivot by
+ * construction, at every angle, with no rotating residual error.
+ */
+export interface PivotProfile {
+  /** Normalized X: 0 = left edge of turret image, 1 = right edge. */
+  px: number;
+  /** Normalized Y: 0 = top edge of turret image, 1 = bottom edge. */
+  py: number;
+}
+
+// ── Hull visual profile ────────────────────────────────────────────
+
+/**
+ * Describes how a hull's visual assets are structured, directed, and
+ * where turret sockets are located. Read-only data consumed by the renderer.
+ *
+ * One profile per hull bodyId. Populated from existing constants so that
+ * the profile layer is a no-op until the renderer is rewired (PR-C/PR-E).
+ */
+export interface HullVisualProfile {
+  /** Body identifier this profile describes. */
+  hullId: BodyId;
+  /** Which asset family / key builder to use. */
+  family: 'generated' | 'legacy';
+  /** Sprite texture scale (e.g. GENERATED_HULL_SCALE = 0.12). */
+  textureScale: number;
+  /** Sprite origin (e.g. { x: 0.5, y: 0.75 } for generated hulls). */
+  origin: { x: number; y: number };
+  /** Direction remap for this hull's PNG family. */
+  direction: DirectionRemapProfile;
+  /** Permanent visual placement offset in screen pixels (e.g. Wasp: { x: -1, y: 12 }). */
+  placementOffset: { x: number; y: number };
+  /** Declared mount sockets on this hull (at least 'turret_main'). */
+  sockets: SocketProfile[];
+  /** True when the runtime quantizes to 8 dirs (only even dir16 indices used). */
+  usesEvenDirOnly?: boolean;
+}
+
+// ── Turret visual profile ──────────────────────────────────────────
+
+/**
+ * Describes how a turret's visual assets are structured, directed,
+ * pivoted, and which hull socket they mount to. Read-only data consumed
+ * by the renderer.
+ *
+ * One profile per weaponId. The turret's direction remap is its own
+ * (not borrowed from the hull), closing audit RC-3. The pivot gives the
+ * renderer the turret-side mount point the current code has no slot for,
+ * closing audit RC-6.
+ */
+export interface TurretVisualProfile {
+  /** Weapon identifier this profile describes. */
+  weaponId: WeaponId;
+  /** Which asset family / key builder to use. */
+  family: 'legacy' | 'generated';
+  /** Sprite texture scale (e.g. MODULAR_RENDER_SCALE = 0.24). */
+  textureScale: number;
+  /** Turret pivot in normalized image-local coords. */
+  pivot: PivotProfile;
+  /** Direction remap for this turret's PNG family. */
+  direction: DirectionRemapProfile;
+  /** Which socket on the hull this turret mounts to. */
+  mountSocketId: string;
+  /** Visual recoil hooks (default off — no combat/recoil semantics change). */
+  recoil?: { followsBarrelKickback: boolean; followsTurretKickback: boolean };
+}
+
+// ── Upgrade level profile ──────────────────────────────────────────
+
+/**
+ * Per-upgrade-level visual deltas over M0. Absent fields mean
+ * "identical to M0". This keeps M-levels lean and graceful: missing
+ * higher-tier art never blocks rendering.
+ *
+ * Gameplay/balance scaling stays where it is (m0m3Scaling.ts,
+ * blockoutUpgradeData.ts); this profile is visual only.
+ */
+export interface UpgradeLevelProfile {
+  /** Upgrade tier 0–3 → 'm0'–'m3'. */
+  level: 0 | 1 | 2 | 3;
+  /** Optional per-level texture mod suffix; absent ⇒ reuse M0 art. */
+  textureModSuffix?: 'm0' | 'm1' | 'm2' | 'm3';
+  /** Optional per-level scale multiplier; absent ⇒ 1.0. */
+  scaleMultiplier?: number;
+  /** Optional per-level socket overrides by socket id. */
+  socketOverrides?: Partial<Record<string, { nx: number; ny: number }>>;
+  /** Optional visual indicator (e.g. chevrons/pips). */
+  visualIndicator?: string;
+}
+
+// ── Profile instances (today's constants, no visual change) ─────────
+
+/**
+ * Wasp generated hull visual profile.
+ * All values match existing exported constants exactly.
+ *
+ * direction.facingOffset = 4 is equivalent to WASP_HULL_VISUAL_DIR16_REMAP
+ * (which maps each logical dir16 to (logical + 4) mod 16).
+ *
+ * sockets[0].zHeight = 0.30 matches
+ * BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET = 0.25 + 0.05.
+ */
+export const WASP_HULL_VISUAL_PROFILE: HullVisualProfile = {
+  hullId: 'wasp',
+  family: 'generated',
+  textureScale: GENERATED_HULL_SCALE,                                          // 0.12
+  origin: { x: GENERATED_HULL_ORIGIN_X, y: GENERATED_HULL_ORIGIN_Y },        // {0.5, 0.75}
+  direction: { dirCount: 16, facingOffset: 4 },                               // == WASP_HULL_VISUAL_DIR16_REMAP
+  placementOffset: { x: WASP_HULL_OFFSET_X, y: WASP_HULL_OFFSET_Y },         // {-1, 12}
+  sockets: [
+    {
+      id: 'turret_main',
+      normalized: { nx: 0.5, ny: 0.5 },
+      zHeight: 0.30,   // BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET
+    },
+  ],
+  usesEvenDirOnly: true,
+};
+
+/**
+ * Smoky M0 turret visual profile.
+ * All values match existing behavior exactly.
+ *
+ * direction.facingOffset = 2 in dir8 space is equivalent to the hull's
+ * +4 in dir16 space (4 / 2 = 2). This is the turret's own remap value,
+ * not borrowed from the hull (closing audit RC-3).
+ *
+ * pivot.px/py = 0.5/0.5 is a PLACEHOLDER matching today's behavior
+ * (image center origin). Denis must confirm the true base-ring pivot
+ * position (expected py > 0.5) before PR-E wires this into the renderer.
+ */
+export const SMOKY_TURRET_VISUAL_PROFILE: TurretVisualProfile = {
+  weaponId: 'smoky',
+  family: 'legacy',
+  textureScale: MODULAR_RENDER_SCALE,    // 0.24
+  pivot: {
+    px: 0.5,
+    py: 0.5,   // PLACEHOLDER — Denis to confirm base-ring py > 0.5 (audit RC-6)
+  },
+  direction: { dirCount: 8, facingOffset: 2 },
+  mountSocketId: 'turret_main',
+  recoil: { followsBarrelKickback: false, followsTurretKickback: false },
+};
+
+// ── Pure helper functions ──────────────────────────────────────────
+
+/**
+ * Apply the declared visual direction remap.
+ *
+ * Formula: `visualDir = (logicalDir + facingOffset) mod dirCount`
+ *
+ * Deterministic, pure, no side effects. Replaces the per-hull
+ * WASP_HULL_VISUAL_DIR16_REMAP table with a single arithmetic operation
+ * per PNG family.
+ *
+ * The double-modulo handles negative facingOffset values correctly.
+ */
+export function remapVisualDir(
+  logicalDir: number,
+  profile: DirectionRemapProfile,
+): number {
+  return ((logicalDir + profile.facingOffset) % profile.dirCount + profile.dirCount) % profile.dirCount;
+}
+
+/**
+ * Resolve a hull visual profile by bodyId.
+ *
+ * Returns the typed profile if the hull has one, or null for unsupported
+ * hulls (graceful fallback — the renderer keeps using procedural geometry).
+ */
+export function resolveHullVisualProfile(bodyId: string): HullVisualProfile | null {
+  if (bodyId === 'wasp') return WASP_HULL_VISUAL_PROFILE;
+  return null;
+}
+
+/**
+ * Resolve a turret visual profile by weaponId.
+ *
+ * Returns the typed profile if the weapon has one, or null for unsupported
+ * weapons (graceful fallback — the renderer keeps using procedural turret).
+ */
+export function resolveTurretVisualProfile(weaponId: string): TurretVisualProfile | null {
+  if (weaponId === 'smoky') return SMOKY_TURRET_VISUAL_PROFILE;
+  return null;
+}
+
+/**
+ * Resolve socket metadata from a hull profile by socket id.
+ *
+ * Returns the SocketProfile if found, or null if the hull profile is null
+ * or the socket id does not exist on that hull. Pure, no side effects.
+ */
+export function resolveSocketMetadata(
+  hullProfile: HullVisualProfile | null,
+  socketId: string,
+): SocketProfile | null {
+  if (!hullProfile) return null;
+  return hullProfile.sockets.find(s => s.id === socketId) ?? null;
+}
+
+/**
+ * Resolve turret pivot metadata from a turret profile.
+ *
+ * Returns the PivotProfile if the turret profile exists, or null.
+ * The pivot is read-only and does not depend on renderer state.
+ * It is authored once per turret family (art-truth, Denis-confirmed),
+ * exactly like the facing offset.
+ */
+export function resolveTurretPivot(
+  turretProfile: TurretVisualProfile | null,
+): PivotProfile | null {
+  if (!turretProfile) return null;
+  return turretProfile.pivot;
+}
