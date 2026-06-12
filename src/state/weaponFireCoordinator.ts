@@ -35,6 +35,7 @@ import { getWeaponProfile } from '../config/blockoutWeaponData';
 import { applyBlockoutWeaponDamage } from './blockoutDamage';
 import { clearWeaponPendingStates } from './weaponResources';
 import type { IsoPoint } from '../phaser/render/isometric';
+import { setTurretRestTarget } from './blockoutTurretAim';
 
 // ─── Per-frame weapon resource update (Blocker 1) ────────────────────
 
@@ -332,6 +333,7 @@ export function tryFireWithDamage(
 export function clearTargetAndWeaponState(vehicle: BlockoutVehicleState): void {
   // Clear target
   vehicle.targetVehicleId = null;
+  setTurretRestTarget(vehicle);
 
   // Stop firing state
   if (vehicle.fireHeld || vehicle.isFiring) {

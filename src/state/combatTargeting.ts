@@ -31,6 +31,7 @@ import { findPath, findPathToAdjacent } from './pathfinding';
 import { issueGridMoveCommand, issueGridStopCommand } from './movementStateMachine';
 import { angleFromTo } from './angleMath';
 import { clearWeaponPendingStates } from './weaponResources';
+import { setTurretRestTarget } from './blockoutTurretAim';
 
 // ─── Combat state per vehicle ────────────────────────────────────
 
@@ -89,6 +90,7 @@ export function validateTargetLock(
   const target = vehicles.find(v => v.id === vehicle.targetVehicleId);
   if (!target || target.isDestroyed) {
     vehicle.targetVehicleId = null;
+    setTurretRestTarget(vehicle);
     return false;
   }
 
@@ -143,6 +145,7 @@ export function updateCombatTargeting(
   const target = vehicles.find(v => v.id === vehicle.targetVehicleId);
   if (!target) {
     vehicle.targetVehicleId = null;
+    setTurretRestTarget(vehicle);
     return defaultResult;
   }
 
@@ -279,6 +282,7 @@ export function clearTargetLock(
   reservationMap: TileReservationMap,
 ): void {
   vehicle.targetVehicleId = null;
+  setTurretRestTarget(vehicle);
   stopChase(vehicle, reservationMap);
   // CORE-STEP-08H+: Cancel pending weapon states when target-lock is cleared
   clearWeaponPendingStates(vehicle.weaponRuntime);
@@ -316,6 +320,7 @@ export function updateAllCombatTargeting(
     if (!target) {
       // FIXUP-2 Blocker 3: Target ID is missing/invalid — clear target and stop chase
       vehicle.targetVehicleId = null;
+      setTurretRestTarget(vehicle);
       stopChase(vehicle, reservationMap);
       continue;
     }

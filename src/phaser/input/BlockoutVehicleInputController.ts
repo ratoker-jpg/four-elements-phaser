@@ -51,6 +51,7 @@ import { applyUpgrade } from '../../state/blockoutUpgrades';
 import type { BlockoutUpgradeId } from '../../config/blockoutUpgradeData';
 import { getWeaponConfig, getWeaponMLevelValue } from '../../config/weaponData';
 import { clearTargetLock } from '../../state/combatTargeting';
+import { clearTargetAndWeaponState } from '../../state/weaponFireCoordinator';
 import {
   toggleCalibration as toggleWaspCalibration,
   cycleNextDir16 as waspCalibCycleNext,
@@ -337,7 +338,8 @@ export class BlockoutVehicleInputController {
       if (selected) {
         // ARENA-03H+: Target-lock turret behavior in Arena mode
         if (this.isArenaMode()) {
-          this.updateTurretAimArena(selected, vehicles, delta);
+          // Arena turret aim is centralized in GameScene so selected allies
+          // and enemies share the same target-lock/rest behavior.
         } else {
           // Non-Arena devtools: original mouse-follow behavior
           const turretMountScreen = computeProjectedTurretMountScreen(selected, this.offset);
@@ -359,52 +361,6 @@ export class BlockoutVehicleInputController {
         this.onSelectionChanged?.(null);
       }
     }
-  }
-
-  /**
-   * ARENA-03H+: Update turret aiming in Arena mode using target-lock.
-   *
-   * If the selected ally has a targetVehicleId, compute the turret aim angle
-   * toward that target enemy's position. The turret continues tracking the
-   * target while the ally moves around.
-   *
-   * If the target is destroyed or missing, clear it and hold last angle.
-   * If no target is assigned, hold the last turret angle (do NOT chase mouse).
-   */
-  private updateTurretAimArena(selected: BlockoutVehicleState, vehicles: BlockoutVehicleState[], delta: number): void {
-    // Check if target is still valid
-    if (selected.targetVehicleId) {
-      const target = vehicles.find(v => v.id === selected.targetVehicleId);
-      if (!target || target.isDestroyed) {
-        // Target destroyed or missing — clear target, hold last angle
-        selected.targetVehicleId = null;
-      }
-    }
-
-    if (selected.targetVehicleId) {
-      const target = vehicles.find(v => v.id === selected.targetVehicleId);
-      if (target) {
-        // Compute turret mount screen position (shared source of truth — PROJECTION-01)
-        const turretMountScreen = computeProjectedTurretMountScreen(selected, this.offset);
-        // Compute target body center (world position)
-        const targetCenter = computeBodyWorldCenter(target, this.offset);
-
-        // Turret aims from mount position toward target body center
-        const targetAngle = angleFromTo(turretMountScreen.x, turretMountScreen.y, targetCenter.x, targetCenter.y);
-        selected.turretTargetAngle = targetAngle;
-
-        // CORE-STEP-07H+: Use production weapon config turretTurnSpeed
-        const weaponConfig = getWeaponConfig(selected.weaponId);
-        const effectiveTurretSpeed = weaponConfig
-          ? getWeaponMLevelValue(weaponConfig.turretTurnSpeed, 0)
-          : selected.turretTurnSpeedDeg;
-
-        // Rate-limited rotation
-        const maxDelta = degPerSecToRadPerMs(effectiveTurretSpeed) * delta;
-        selected.turretAngle = rotateTowardAngle(selected.turretAngle, targetAngle, maxDelta);
-      }
-    }
-    // No target: hold last turret angle (do nothing — turret stays where it was)
   }
 
   // ─── Pointer input ───────────────────────────────────────────
@@ -578,7 +534,7 @@ export class BlockoutVehicleInputController {
     if (!this._selectedVehicleId) return;
     const selected = vehicles.find(v => v.id === this._selectedVehicleId);
     if (selected) {
-      selected.targetVehicleId = null;
+      clearTargetAndWeaponState(selected);
     }
   }
 
@@ -628,6 +584,8 @@ export class BlockoutVehicleInputController {
           return;
         }
       }
+      // RMB anywhere other than an enemy is move-only and clears target-lock.
+      clearTargetAndWeaponState(selected);
     }
 
     const screenX = worldPoint.x - this.offset.x;
@@ -852,7 +810,7 @@ export class BlockoutVehicleInputController {
             if (reservationMap) {
               clearTargetLock(selected, reservationMap);
             } else {
-              selected.targetVehicleId = null;
+              clearTargetAndWeaponState(selected);
             }
 
             // Stop firing

@@ -369,6 +369,8 @@ describe('CORE-STEP-01B: LOCALIZED_STRINGS completeness — Pause/HUD/Arena', ()
       'arena_allyLabel', 'arena_enemyLabel', 'arena_deleted',
       'arena_allCleared', 'arena_alliesCleared', 'arena_noAllies',
       'arena_enemiesCleared', 'arena_noEnemies', 'arena_arenaEmptyStatus',
+      'arena_inspection', 'arena_prevBody', 'arena_nextBody',
+      'arena_prevWeapon', 'arena_nextWeapon', 'arena_resetPose',
     ];
     for (const key of requiredArenaKeys) {
       expect(LOCALIZED_STRINGS[key as keyof typeof LOCALIZED_STRINGS]).toBeDefined();

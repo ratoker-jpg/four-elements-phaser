@@ -43,6 +43,7 @@ import {
   getWeaponRangeInfo,
 } from './combatRange';
 import { isTurretAimed } from './combatHitModel';
+import { setTurretRestTarget } from './blockoutTurretAim';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -289,6 +290,7 @@ function handlePassive(enemy: BlockoutVehicleState, options: BlockoutAiOptions):
   // Clear any target the enemy might have
   if (enemy.targetVehicleId !== null) {
     enemy.targetVehicleId = null;
+    setTurretRestTarget(enemy);
   }
   // Ensure not firing
   if (enemy.fireHeld || enemy.isFiring) {
@@ -358,6 +360,7 @@ function handleStationaryShooter(
   if (!nearestAlly) {
     // No ally in range — stop targeting/firing
     enemy.targetVehicleId = null;
+    setTurretRestTarget(enemy);
     if (enemy.fireHeld || enemy.isFiring) {
       stopFiring(enemy);
     }
@@ -407,6 +410,7 @@ function handleChaser(
   if (!nearestAlly) {
     // No ally at all — stop targeting, firing, and movement
     enemy.targetVehicleId = null;
+    setTurretRestTarget(enemy);
     if (enemy.fireHeld || enemy.isFiring) {
       stopFiring(enemy);
     }
@@ -478,6 +482,7 @@ function handleHoldPosition(
   if (distFromHold > holdRadius) {
     // Too far from hold position — return to hold position
     enemy.targetVehicleId = null;
+    setTurretRestTarget(enemy);
     if (enemy.fireHeld || enemy.isFiring) {
       stopFiring(enemy);
     }
@@ -490,6 +495,7 @@ function handleHoldPosition(
   if (!nearestAlly) {
     // No ally in range — stop targeting/firing
     enemy.targetVehicleId = null;
+    setTurretRestTarget(enemy);
     if (enemy.fireHeld || enemy.isFiring) {
       stopFiring(enemy);
     }
@@ -561,6 +567,7 @@ export function updateBlockoutAi(
       const target = vehicles.find(v => v.id === vehicle.targetVehicleId);
       if (!target || target.isDestroyed) {
         vehicle.targetVehicleId = null;
+        setTurretRestTarget(vehicle);
         if (vehicle.fireHeld || vehicle.isFiring) {
           stopFiring(vehicle);
         }

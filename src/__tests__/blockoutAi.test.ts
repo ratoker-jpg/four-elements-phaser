@@ -143,11 +143,14 @@ describe('ARENA-05H+ passive enemy', () => {
   it('does not move or fire', () => {
     const ally = createAlly(5, 5);
     const enemy = createEnemy(8, 8, 'passive');
+    enemy.targetVehicleId = ally.id;
+    enemy.turretTargetAngle = 0;
     const vehicles = [ally, enemy];
 
     updateBlockoutAi(vehicles, makeOptions());
 
     expect(enemy.targetVehicleId).toBeNull();
+    expect(enemy.turretTargetAngle).toBe(enemy.bodyAngle);
     expect(enemy.fireHeld).toBe(false);
     expect(enemy.isFiring).toBe(false);
     expect(enemy.hasMoveTarget).toBe(false);

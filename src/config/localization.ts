@@ -340,6 +340,12 @@ const ARENA_STRINGS = {
   arena_enemiesCleared: 'Враги удалены',
   arena_noEnemies: 'Нет врагов',
   arena_arenaEmptyStatus: 'Арена пуста',
+  arena_inspection: 'Inspection',
+  arena_prevBody: '< Body',
+  arena_nextBody: 'Body >',
+  arena_prevWeapon: '< Weapon',
+  arena_nextWeapon: 'Weapon >',
+  arena_resetPose: 'Reset pose',
 } as const;
 
 // ─── Arena unit composer strings ─────────────────────────────────────

@@ -256,19 +256,22 @@ describe('ARENA-03H+ turret target-lock behavior', () => {
     // (actual angle computation requires projected geometry — tested in integration)
   });
 
-  it('turret should hold last angle when target is cleared', () => {
+  it('turret should return toward body rest when target is cleared', async () => {
+    const { clearTargetAndWeaponState } = await import('../state/weaponFireCoordinator');
     const ally = createBlockoutVehicle('viking', 'thunder', 'cyan', 5, 5, undefined, undefined, 'ally');
     const enemy = createBlockoutVehicle('wasp', 'smoky', 'green', 8, 8, undefined, undefined, 'enemy');
 
     ally.targetVehicleId = enemy.id;
     // Simulate turret rotated toward enemy
     ally.turretAngle = 1.2;
+    ally.bodyAngle = Math.PI / 2;
 
     // Clear target
-    ally.targetVehicleId = null;
+    clearTargetAndWeaponState(ally);
 
-    // Turret holds last angle (no snap to body or mouse)
+    // Turret does not snap, but desired rest is body-parallel.
     expect(ally.turretAngle).toBe(1.2);
+    expect(ally.turretTargetAngle).toBe(ally.bodyAngle);
   });
 
   it('turret should track target continuously while ally moves', () => {

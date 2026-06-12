@@ -58,12 +58,13 @@ import { updateAllWeaponResources, tryFireWithDamage, clearTargetAndWeaponState 
 import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
-import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter } from './render/blockoutVehicleGeometry';
+import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter, computeProjectedTurretMountScreen } from './render/blockoutVehicleGeometry';
 import type { BlockoutVehicleState } from '../state/blockoutVehicleState';
 import { updateBlockoutAi } from '../state/blockoutAi';
 import { updateAllCombatTargeting } from '../state/combatTargeting';
-import { getWeaponConfig, getWeaponMLevelValue } from '../config/weaponData';
-import { degPerSecToRadPerMs } from '../state/angleMath';
+import { angleFromTo } from '../state/angleMath';
+import { rotateTurretToward } from '../state/blockoutTurretAim';
+import { cycleArenaInspectionBody, cycleArenaInspectionWeapon, resetArenaInspectionPose } from '../state/arenaInspection';
 
 
 /**
@@ -457,6 +458,11 @@ export class GameScene extends Phaser.Scene {
             }
           }
         },
+        onInspectPrevBody: () => this.inspectCycleBody(-1),
+        onInspectNextBody: () => this.inspectCycleBody(1),
+        onInspectPrevWeapon: () => this.inspectCycleWeapon(-1),
+        onInspectNextWeapon: () => this.inspectCycleWeapon(1),
+        onInspectResetPose: () => this.inspectResetPose(),
       });
       console.log('[GameScene] ArenaMenu created (primary Arena UX).');
     }
@@ -840,26 +846,6 @@ export class GameScene extends Phaser.Scene {
           );
         },
       });
-      // ARENA-05H+: Rotate enemy turrets toward their AI-set target angle
-      // CORE-STEP-08H+ FIXUP Blocker 4: Use production weapon config turretTurnSpeed at vehicle's M-level
-      for (const vehicle of this.gameState.blockoutVehicles) {
-        if (vehicle.team === 'enemy' && !vehicle.isDestroyed) {
-          const weaponConfig = getWeaponConfig(vehicle.weaponId);
-          // FIXUP: Use vehicle.modificationLevel instead of hardcoded 0
-          const effectiveTurretSpeed = weaponConfig
-            ? getWeaponMLevelValue(weaponConfig.turretTurnSpeed, vehicle.modificationLevel)
-            : vehicle.turretTurnSpeedDeg;
-          const maxDelta = degPerSecToRadPerMs(effectiveTurretSpeed) * delta;
-          const angleDelta = vehicle.turretTargetAngle - vehicle.turretAngle;
-          // Normalize to [-PI, PI]
-          const normalizedDelta = Math.atan2(Math.sin(angleDelta), Math.cos(angleDelta));
-          if (Math.abs(normalizedDelta) <= maxDelta) {
-            vehicle.turretAngle = vehicle.turretTargetAngle;
-          } else {
-            vehicle.turretAngle += Math.sign(normalizedDelta) * maxDelta;
-          }
-        }
-      }
     }
     // CORE-STEP-07H+: Update combat targeting for all vehicles with active target-locks
     // This drives auto-chase, stop-at-range, and turret aim tracking for player allies
@@ -891,6 +877,8 @@ export class GameScene extends Phaser.Scene {
         },
       );
     }
+    // C1: Arena turrets always rotate toward either a valid target or body-parallel rest.
+    this.updateArenaTurretAiming(delta);
     // CORE-STEP-08H+ FIXUP-2: Update weapon resources AFTER combat targeting and AI.
     // Canisters drain/regen, overheat cools, magazines regen, drums reload.
     // Must run after updateAllCombatTargeting so isAutoFiring is set for canister drain.
@@ -1168,6 +1156,62 @@ export class GameScene extends Phaser.Scene {
 
     // Arena mode with no target: do not fire, do not fall back to turret angle or mouse
     return null;
+  }
+
+  /** Update Arena turret aim/rest for allies and enemies using one shared pass. */
+  private updateArenaTurretAiming(delta: number): void {
+    if (!this.arenaMode) return;
+    const vehicles = this.gameState.blockoutVehicles;
+    if (!vehicles) return;
+
+    for (const vehicle of vehicles) {
+      if (vehicle.isDestroyed) continue;
+
+      let desiredAngle = vehicle.bodyAngle;
+
+      if (vehicle.targetVehicleId) {
+        const target = vehicles.find(v => v.id === vehicle.targetVehicleId);
+        if (target && !target.isDestroyed) {
+          const turretMount = computeProjectedTurretMountScreen(vehicle, this._offset as IsoPoint);
+          const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
+          desiredAngle = angleFromTo(turretMount.x, turretMount.y, targetCenter.x, targetCenter.y);
+        } else {
+          clearTargetAndWeaponState(vehicle);
+          desiredAngle = vehicle.bodyAngle;
+        }
+      }
+
+      rotateTurretToward(vehicle, desiredAngle, delta);
+    }
+  }
+
+  private getSelectedArenaAlly(): BlockoutVehicleState | null {
+    const selectedId = this.blockoutVehicleInputController?.selectedVehicleId;
+    if (!selectedId) return null;
+    const selected = this.gameState.blockoutVehicles?.find(v => v.id === selectedId);
+    if (!selected || selected.team !== 'ally') return null;
+    return selected;
+  }
+
+  private inspectCycleBody(direction: -1 | 1): { success: boolean; message: string } {
+    const selected = this.getSelectedArenaAlly();
+    if (!selected) return { success: false, message: 'Select an ally first' };
+    const bodyId = cycleArenaInspectionBody(selected, direction);
+    return { success: true, message: `Body: ${bodyId}` };
+  }
+
+  private inspectCycleWeapon(direction: -1 | 1): { success: boolean; message: string } {
+    const selected = this.getSelectedArenaAlly();
+    if (!selected) return { success: false, message: 'Select an ally first' };
+    const weaponId = cycleArenaInspectionWeapon(selected, direction);
+    return { success: true, message: `Weapon: ${weaponId}` };
+  }
+
+  private inspectResetPose(): { success: boolean; message: string } {
+    const selected = this.getSelectedArenaAlly();
+    if (!selected) return { success: false, message: 'Select an ally first' };
+    resetArenaInspectionPose(selected, this.reservationMap ?? undefined);
+    return { success: true, message: 'Pose reset' };
   }
 
   /**
