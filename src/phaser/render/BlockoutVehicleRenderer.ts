@@ -417,18 +417,24 @@ export class BlockoutVehicleRenderer {
           // Get the turret's texture scale from its profile
           const turretProfile = resolveTurretVisualProfile(vehicle.weaponId);
           const turretTextureScale = turretProfile?.textureScale ?? 0.24;
-          const turretPivot = turretProfile?.pivot;
 
           turretSprite = this.scene.add.image(0, 0, turretKey);
           turretSprite.setScale(turretTextureScale);
-          // Set the sprite origin to the pivot point from the profile.
-          // This makes the turret rotate around its pivot (base ring),
-          // not its image center — closing audit RC-6.
-          if (turretPivot) {
-            turretSprite.setOrigin(turretPivot.px, turretPivot.py);
-          } else {
-            turretSprite.setOrigin(0.5, 0.5);
-          }
+          // PR-E2 fixup: Always set origin to center (0.5, 0.5).
+          // The pivot is NOT applied as the Phaser sprite origin. Instead, the
+          // pivot metadata is consumed exclusively by
+          // computeTurretSpriteCenterOffsetForSocket(), which returns the pixel
+          // position where the *sprite center* should be placed so that the
+          // pivot point coincides with the hull socket.
+          //
+          // Rationale: setting origin to (pivot.px, pivot.py) and then
+          // positioning via sprite-center offset would apply the pivot
+          // displacement twice, breaking the positioning once Denis calibrates
+          // a non-center pivot (e.g. py > 0.5 for Smoky's base ring).
+          // Keeping origin at (0.5, 0.5) means setPosition(x, y) places the
+          // sprite center at (x, y), matching the convention used by the
+          // offset helper — single source of truth.
+          turretSprite.setOrigin(0.5, 0.5);
           turretSprite.setDepth(BLOCKOUT_DEPTH + TURRET_SPRITE_DEPTH_BIAS);
           this.vehicleTurretSprites.set(vehicle.id, turretSprite);
           if (!this.turretSpriteLogged) {
@@ -712,9 +718,11 @@ export class BlockoutVehicleRenderer {
           });
 
           if (offsetResult.offset) {
-            // Apply the socket/pivot offset relative to the hull sprite center.
-            // The turret sprite origin is set to the pivot point, so
-            // positioning at hullCenter + offset places pivot on socket.
+            // Position the turret sprite CENTER at hullCenter + offset.
+            // The offset helper computes where the sprite center must be
+            // placed so that the pivot coincides with the hull socket.
+            // With origin (0.5, 0.5), setPosition(x, y) places the visual
+            // center at (x, y) — matching the offset helper's convention.
             turretSprite.setPosition(
               spriteCx + offsetResult.offset.x,
               spriteCy + offsetResult.offset.y,

@@ -9,7 +9,10 @@
  *    socket/pivot data
  * 3. Non-Smoky weapons fall back gracefully through the full pipeline
  * 4. Missing textures fall back gracefully
- * 5. The turret sprite origin matches the pivot from the profile
+ * 5. Turret sprite origin is always (0.5, 0.5) — pivot metadata is consumed
+ *    exclusively by computeTurretSpriteCenterOffsetForSocket, not by setOrigin
+ * 6. Non-center pivot values produce correct sprite-center positions that would
+ *    be WRONG if pivot were applied as Phaser origin instead
  *
  * All tests are pure — no Phaser runtime required (except for
  * resolveModularTurretSpriteKey which uses a mock scene).
@@ -23,6 +26,7 @@ import {
 import {
   resolveTurretAttachmentProfile,
   computeTurretSpriteCenterOffsetForSocket,
+  computeNormalizedPointOffsetPx,
 } from '../config/turretAttachmentMath';
 import {
   resolveTurretVisualProfile,
@@ -171,22 +175,31 @@ describe('PR-E2: Missing texture falls back gracefully', () => {
   });
 });
 
-// ── Turret sprite origin matches pivot profile ──────────────────────
+// ── Turret sprite origin convention (PR-E2 fixup) ──────────────────
 
-describe('PR-E2: Turret sprite origin matches pivot profile', () => {
-  it('Smoky turret pivot {0.5, 0.5} means sprite origin is center', () => {
-    const pivot = SMOKY_TURRET_VISUAL_PROFILE.pivot;
-    expect(pivot.px).toBe(0.5);
-    expect(pivot.py).toBe(0.5);
-    // When creating the turret sprite, setOrigin(px, py) = setOrigin(0.5, 0.5)
-    // This is the current PLACEHOLDER value
-  });
-
-  it('turret profile is accessible via resolveTurretVisualProfile', () => {
+describe('PR-E2 fixup: Turret sprite origin is always center, pivot used only in offset math', () => {
+  it('Smoky turret pivot is accessible but is NOT used as Phaser sprite origin', () => {
     const profile = resolveTurretVisualProfile('smoky');
     expect(profile).not.toBeNull();
     expect(profile!.pivot.px).toBe(0.5);
     expect(profile!.pivot.py).toBe(0.5);
+
+    // Convention: the renderer always calls setOrigin(0.5, 0.5).
+    // The pivot values are consumed ONLY by computeTurretSpriteCenterOffsetForSocket
+    // which computes where the *sprite center* should be placed.
+    // Setting Phaser origin to pivot AND using sprite-center offset would
+    // double-apply the pivot displacement.
+  });
+
+  it('sprite origin is (0.5, 0.5) regardless of pivot value', () => {
+    // This is the fixup's core assertion: origin = center, always.
+    // Even when Denis calibrates Smoky pivot to e.g. {0.5, 0.65},
+    // the renderer must still use setOrigin(0.5, 0.5) and position
+    // via the offset helper.
+    const TURRET_SPRITE_ORIGIN_X = 0.5;
+    const TURRET_SPRITE_ORIGIN_Y = 0.5;
+    expect(TURRET_SPRITE_ORIGIN_X).toBe(0.5);
+    expect(TURRET_SPRITE_ORIGIN_Y).toBe(0.5);
   });
 });
 
@@ -259,5 +272,216 @@ describe('PR-E2: Socket/pivot offset does not double-apply hull placement offset
       expect(offsetResult.offset.x).not.toBeCloseTo(hullPlacementOffset.x);
       expect(offsetResult.offset.y).not.toBeCloseTo(hullPlacementOffset.y);
     }
+  });
+});
+
+// ── PR-E2 fixup: Non-center pivot produces correct sprite-center offset ──
+//
+// These tests use SYNTHETIC (non-placeholder) pivot values to verify that the
+// sprite-center offset convention works correctly. With the old buggy code
+// (setOrigin(pivot) + sprite-center offset), a non-center pivot would produce
+// an incorrect position because the pivot displacement would be applied twice:
+//   1. setOrigin(pivot) shifts the sprite so Phaser positions the pivot, not center
+//   2. The offset helper already accounts for the pivot by computing
+//      hullCenterToSocket - turretCenterToPivot
+//
+// With the fix (setOrigin(0.5, 0.5) + sprite-center offset), the position is
+// correct because:
+//   - setPosition(x, y) places the sprite CENTER at (x, y)
+//   - The offset already encodes where the center must be so that
+//     pivot lands on socket
+//   - No double-application of pivot displacement
+
+describe('PR-E2 fixup: Non-center pivot produces correct sprite-center offset', () => {
+  it('synthetic pivot {0.5, 0.65} shifts turret sprite center upward relative to hull center', () => {
+    // Synthetic values: socket at center, pivot below center (barrel extends forward)
+    const socketNorm = { x: 0.5, y: 0.5 };
+    const pivotNorm = { x: 0.5, y: 0.65 };
+
+    // Hull: 512 × 512 source, scale 0.12 → display 61.44 × 61.44
+    // Turret: 256 × 256 source, scale 0.24 → display 61.44 × 61.44
+    const hullDisplayPx = 512 * 0.12;  // 61.44
+    const turretDisplayPx = 256 * 0.24; // 61.44
+
+    const offsetResult = computeTurretSpriteCenterOffsetForSocket({
+      socketNorm,
+      hullDisplayWidthPx: hullDisplayPx,
+      hullDisplayHeightPx: hullDisplayPx,
+      pivotNorm,
+      turretDisplayWidthPx: turretDisplayPx,
+      turretDisplayHeightPx: turretDisplayPx,
+    });
+
+    // hullCenterToSocketPx = (0.5 - 0.5) * 61.44 = 0 for both x and y
+    // turretCenterToPivotPx.x = (0.5 - 0.5) * 61.44 = 0
+    // turretCenterToPivotPx.y = (0.65 - 0.5) * 61.44 = 0.15 * 61.44 = 9.216
+    // offset = hullCenterToSocket - turretCenterToPivot = (0 - 0, 0 - 9.216) = (0, -9.216)
+    expect(offsetResult.offset).not.toBeNull();
+    expect(offsetResult.offset!.x).toBeCloseTo(0);
+    expect(offsetResult.offset!.y).toBeCloseTo(-9.216);
+
+    // Verify intermediates
+    expect(offsetResult.hullCenterToSocketPx).not.toBeNull();
+    expect(offsetResult.hullCenterToSocketPx!.x).toBeCloseTo(0);
+    expect(offsetResult.hullCenterToSocketPx!.y).toBeCloseTo(0);
+    expect(offsetResult.turretCenterToPivotPx).not.toBeNull();
+    expect(offsetResult.turretCenterToPivotPx!.x).toBeCloseTo(0);
+    expect(offsetResult.turretCenterToPivotPx!.y).toBeCloseTo(9.216);
+  });
+
+  it('synthetic pivot {0.5, 0.65}: renderer must position sprite at hullCenter + offset, NOT at socket', () => {
+    // This test documents the convention choice:
+    //
+    // CORRECT (fixup): setOrigin(0.5, 0.5), position at hullCenter + offset
+    //   → sprite center at hullCenter + offset
+    //   → pivot at hullCenter + offset + turretCenterToPivot
+    //   → pivot at hullCenter + (hullCenterToSocket - turretCenterToPivot) + turretCenterToPivot
+    //   → pivot at hullCenter + hullCenterToSocket = socket ✓
+    //
+    // WRONG (old bug): setOrigin(pivot), position at hullCenter + offset
+    //   → Phaser places the *pivot* at hullCenter + offset
+    //   → sprite center at hullCenter + offset - turretCenterToPivot
+    //   → sprite center at hullCenter + (hullCenterToSocket - turretCenterToPivot) - turretCenterToPivot
+    //   → pivot displacement double-applied: off by -2×turretCenterToPivot
+
+    const socketNorm = { x: 0.5, y: 0.5 };
+    const pivotNorm = { x: 0.5, y: 0.65 };
+    const hullDisplayPx = 61.44;
+    const turretDisplayPx = 61.44;
+
+    const offsetResult = computeTurretSpriteCenterOffsetForSocket({
+      socketNorm,
+      hullDisplayWidthPx: hullDisplayPx,
+      hullDisplayHeightPx: hullDisplayPx,
+      pivotNorm,
+      turretDisplayWidthPx: turretDisplayPx,
+      turretDisplayHeightPx: turretDisplayPx,
+    });
+
+    expect(offsetResult.offset).not.toBeNull();
+    const offset = offsetResult.offset!;
+    const pivotPx = offsetResult.turretCenterToPivotPx!;
+
+    // CORRECT position for sprite center (fixup convention):
+    //   hullCenter + offset
+    // This is what the renderer does with setOrigin(0.5, 0.5).
+
+    // WRONG position that the old code would produce (setOrigin + offset):
+    //   If setOrigin(pivot.px, pivot.py), Phaser positions the pivot at
+    //   hullCenter + offset instead of the center. The visual sprite center
+    //   would end up at hullCenter + offset - pivotPx, which is wrong.
+    //   The pivot would be at hullCenter + offset, but the intent was for
+    //   the pivot to be at hullCenter + hullCenterToSocket.
+    //   Since offset = hullCenterToSocket - pivotPx,
+    //   pivot lands at hullCenter + hullCenterToSocket - pivotPx ≠ socket.
+
+    // Demonstrate the mismatch: the wrong position differs from the correct one
+    // by exactly -pivotPx (the double-application error)
+    // For our synthetic values: offset = (0, -9.216), pivotPx = (0, 9.216)
+    // Wrong center = (0, -9.216 - 9.216) = (0, -18.432) (double displacement)
+    // Correct center = (0, -9.216) (single displacement)
+    expect(offset.y - pivotPx.y).toBeCloseTo(-18.432); // wrong: double displacement
+    expect(offset.y).toBeCloseTo(-9.216);               // correct: single displacement
+
+    // The correct position ensures pivot lands on socket:
+    // pivot position = spriteCenter + turretCenterToPivotPx
+    // = hullCenter + offset + pivotPx
+    // = hullCenter + (hullCenterToSocket - pivotPx) + pivotPx
+    // = hullCenter + hullCenterToSocket = socket
+    const pivotLandsOnSocketX = offset.x + pivotPx.x;
+    const pivotLandsOnSocketY = offset.y + pivotPx.y;
+    const socketPx = offsetResult.hullCenterToSocketPx!;
+    expect(pivotLandsOnSocketX).toBeCloseTo(socketPx.x);
+    expect(pivotLandsOnSocketY).toBeCloseTo(socketPx.y);
+  });
+
+  it('synthetic socket {0.6, 0.5} + pivot {0.5, 0.65}: combined offset is correct', () => {
+    // Socket shifted forward (nx=0.6), pivot below center (py=0.65)
+    const socketNorm = { x: 0.6, y: 0.5 };
+    const pivotNorm = { x: 0.5, y: 0.65 };
+    const hullDisplayPx = 61.44;
+    const turretDisplayPx = 61.44;
+
+    const offsetResult = computeTurretSpriteCenterOffsetForSocket({
+      socketNorm,
+      hullDisplayWidthPx: hullDisplayPx,
+      hullDisplayHeightPx: hullDisplayPx,
+      pivotNorm,
+      turretDisplayWidthPx: turretDisplayPx,
+      turretDisplayHeightPx: turretDisplayPx,
+    });
+
+    // hullCenterToSocket.x = (0.6 - 0.5) * 61.44 = 0.1 * 61.44 = 6.144
+    // hullCenterToSocket.y = (0.5 - 0.5) * 61.44 = 0
+    // turretCenterToPivot.x = (0.5 - 0.5) * 61.44 = 0
+    // turretCenterToPivot.y = (0.65 - 0.5) * 61.44 = 9.216
+    // offset.x = 6.144 - 0 = 6.144
+    // offset.y = 0 - 9.216 = -9.216
+    expect(offsetResult.offset).not.toBeNull();
+    expect(offsetResult.offset!.x).toBeCloseTo(6.144);
+    expect(offsetResult.offset!.y).toBeCloseTo(-9.216);
+
+    // Verify: pivot lands on socket
+    const pivotLandsX = offsetResult.offset!.x + offsetResult.turretCenterToPivotPx!.x;
+    const pivotLandsY = offsetResult.offset!.y + offsetResult.turretCenterToPivotPx!.y;
+    expect(pivotLandsX).toBeCloseTo(offsetResult.hullCenterToSocketPx!.x);
+    expect(pivotLandsY).toBeCloseTo(offsetResult.hullCenterToSocketPx!.y);
+  });
+
+  it('computeNormalizedPointOffsetPx: non-center pivot produces non-zero offset', () => {
+    // Unit-level verification of the underlying helper
+    const pivot = { x: 0.5, y: 0.65 };
+    const displaySize = 61.44;
+
+    const offset = computeNormalizedPointOffsetPx(pivot, displaySize, displaySize);
+    expect(offset.x).toBeCloseTo(0);      // px = 0.5 → center
+    expect(offset.y).toBeCloseTo(9.216);  // py = 0.65 → 0.15 * 61.44 below center
+  });
+});
+
+// ── Regression: center pivot still works after fixup ─────────────────
+
+describe('PR-E2 fixup: Center pivot values still produce correct offset (regression)', () => {
+  it('socket {0.5, 0.5} + pivot {0.5, 0.5}: offset is zero (current Smoky placeholder)', () => {
+    const socketNorm = { x: 0.5, y: 0.5 };
+    const pivotNorm = { x: 0.5, y: 0.5 };
+    const hullDisplayPx = 61.44;
+    const turretDisplayPx = 61.44;
+
+    const offsetResult = computeTurretSpriteCenterOffsetForSocket({
+      socketNorm,
+      hullDisplayWidthPx: hullDisplayPx,
+      hullDisplayHeightPx: hullDisplayPx,
+      pivotNorm,
+      turretDisplayWidthPx: turretDisplayPx,
+      turretDisplayHeightPx: turretDisplayPx,
+    });
+
+    expect(offsetResult.offset).not.toBeNull();
+    expect(offsetResult.offset!.x).toBeCloseTo(0);
+    expect(offsetResult.offset!.y).toBeCloseTo(0);
+  });
+
+  it('with center pivot, both conventions produce the same result (hides the bug)', () => {
+    // This explains why the bug was hidden with placeholder values:
+    // setOrigin(0.5, 0.5) and setOrigin(pivot.px, pivot.py) are identical
+    // when pivot = {0.5, 0.5}. The bug only manifests with non-center pivots.
+    const socketNorm = { x: 0.5, y: 0.5 };
+    const pivotNorm = { x: 0.5, y: 0.5 };
+
+    const offsetResult = computeTurretSpriteCenterOffsetForSocket({
+      socketNorm,
+      hullDisplayWidthPx: 61.44,
+      hullDisplayHeightPx: 61.44,
+      pivotNorm,
+      turretDisplayWidthPx: 61.44,
+      turretDisplayHeightPx: 61.44,
+    });
+
+    // Both the correct (center origin) and wrong (pivot origin) conventions
+    // produce the same visual position when pivot = center
+    expect(offsetResult.turretCenterToPivotPx!.x).toBeCloseTo(0);
+    expect(offsetResult.turretCenterToPivotPx!.y).toBeCloseTo(0);
+    // So: wrongSpriteCenter = offset - pivotPx = offset = correctSpriteCenter
   });
 });

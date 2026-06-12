@@ -79,9 +79,13 @@ export interface SocketProfile {
  * turret forward/off by roughly half a barrel length, and that error
  * rotates with the turret — exactly the symptom reported in audit RC-6.
  *
- * The renderer sets the turret sprite origin to (px, py) and positions
- * the sprite at the socket world point. Then socket == pivot by
- * construction, at every angle, with no rotating residual error.
+ * Convention (PR-E2 fixup): The renderer always sets the turret sprite
+ * origin to (0.5, 0.5) and positions the sprite CENTER at
+ * hullCenter + offset, where offset = hullCenterToSocket - turretCenterToPivot.
+ * The pivot metadata is consumed exclusively by computeTurretSpriteCenterOffsetForSocket()
+ * to compute the correct sprite-center position. The pivot is NOT applied as
+ * the Phaser sprite origin, because that would double-apply the pivot
+ * displacement when combined with the sprite-center offset.
  */
 export interface PivotProfile {
   /** Normalized X: 0 = left edge of turret image, 1 = right edge. */
