@@ -20,6 +20,14 @@ import {
   GENERATED_ASSET_MANIFEST,
   type GeneratedAssetFamilyName,
 } from './generatedAssetManifest';
+import {
+  DEFAULT_GENERATED_HULL,
+  DEFAULT_GENERATED_HULL_MOD,
+  GENERATED_HULL_FACTIONS,
+  isGeneratedHullSetLoaded,
+  preloadGeneratedHullSet,
+  type GeneratedHullFaction,
+} from './generatedHullAssets';
 
 // ─── Internal helpers ──────────────────────────────────────────────
 
@@ -200,6 +208,52 @@ export const MODULAR_UNIT_PROBE_KEY = 'wasp_m0_hull_cyan_dir0' as const;
  */
 export function isModularUnitsLoaded(scene: Phaser.Scene): boolean {
   return scene.textures.exists(MODULAR_UNIT_PROBE_KEY);
+}
+
+/**
+ * Load the small combat visual set needed by Debug/Arena.
+ *
+ * Standard mode does not call this helper. It deliberately queues only:
+ * - legacy modularUnits (Wasp hull + Smoky turret for four factions)
+ * - generated Wasp M0 hull sets for four factions
+ *
+ * This keeps startup lean and avoids the full hull/turret matrix.
+ */
+export function loadArenaVisualAssets(scene: Phaser.Scene): string[] {
+  const loadedKeys: string[] = [];
+
+  if (!isModularUnitsLoaded(scene)) {
+    loadedKeys.push(...loadGeneratedModularUnitAssets(scene));
+  }
+
+  for (const faction of GENERATED_HULL_FACTIONS) {
+    loadedKeys.push(
+      ...preloadGeneratedHullSet(
+        scene,
+        DEFAULT_GENERATED_HULL,
+        faction as GeneratedHullFaction,
+        DEFAULT_GENERATED_HULL_MOD,
+      ),
+    );
+  }
+
+  return loadedKeys;
+}
+
+/**
+ * Check whether the Debug/Arena combat visual set is available.
+ */
+export function isArenaVisualAssetsLoaded(scene: Phaser.Scene): boolean {
+  if (!isModularUnitsLoaded(scene)) return false;
+
+  return GENERATED_HULL_FACTIONS.every(faction => (
+    isGeneratedHullSetLoaded(
+      scene,
+      DEFAULT_GENERATED_HULL,
+      faction as GeneratedHullFaction,
+      DEFAULT_GENERATED_HULL_MOD,
+    )
+  ));
 }
 
 /**

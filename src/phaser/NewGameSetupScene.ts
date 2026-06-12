@@ -40,7 +40,7 @@ import type { GameSetupConfig, MapMode, GameMode, MapStyle } from '../state/game
 import type { Faction } from '../state/types';
 import type { MapSizeOption } from '../state/generatedMap';
 import { createRandomSeed, generatedMapId, mapSizeToDimensions } from '../state/generatedMap';
-import { loadGeneratedModularUnitAssets, isModularUnitsLoaded } from '../assets/runtimeGeneratedAssets';
+import { loadArenaVisualAssets, isArenaVisualAssetsLoaded } from '../assets/runtimeGeneratedAssets';
 import {
   t,
   FACTION_DISPLAY,
@@ -877,20 +877,20 @@ export class NewGameSetupScene extends Phaser.Scene {
     }
 
     // Debug / Arena mode: try seamless late-loading first
-    if (isModularUnitsLoaded(this)) {
-      // modularUnits already loaded (e.g. from PreloadScene via URL params
+    if (isArenaVisualAssetsLoaded(this)) {
+      // Arena visual assets already loaded (e.g. from PreloadScene via URL params
       // or a previous Debug/Arena session) — start GameScene directly
-      console.log(`[NewGameSetupScene] modularUnits already loaded — starting ${this.selectedGameMode} mode directly.`);
+      console.log(`[NewGameSetupScene] Arena visual assets already loaded — starting ${this.selectedGameMode} mode directly.`);
       this.scene.start('GameScene', config);
       return;
     }
 
-    // Late-load modularUnits before starting GameScene
+    // Late-load Arena visual assets before starting GameScene
     this.isLateLoading = true;
     this.showLateLoadingOverlay();
 
-    console.log(`[NewGameSetupScene] Late-loading modularUnits for ${this.selectedGameMode} mode...`);
-    loadGeneratedModularUnitAssets(this);
+    console.log(`[NewGameSetupScene] Late-loading Arena visual assets for ${this.selectedGameMode} mode...`);
+    loadArenaVisualAssets(this);
 
     // Guard: if loaderror triggers fallback, prevent the complete handler
     // from starting GameScene with incomplete textures (loaderror/complete race).
@@ -898,7 +898,7 @@ export class NewGameSetupScene extends Phaser.Scene {
 
     const onComplete = () => {
       if (didFallback) return;
-      console.log('[NewGameSetupScene] modularUnits late-loading complete.');
+      console.log('[NewGameSetupScene] Arena visual assets late-loading complete.');
       this.hideLateLoadingOverlay();
       this.isLateLoading = false;
       this.scene.start('GameScene', config);

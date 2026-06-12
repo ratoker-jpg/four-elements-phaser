@@ -91,6 +91,21 @@ export interface ArenaMenuCallbacks {
   onDeselectVehicle: () => void;
   /** ARENA-04H+: Clear target on selected vehicle. */
   onClearTarget: () => void;
+  /** C2: Cycle selected ally body backward. */
+  onInspectPrevBody: () => ArenaMenuActionResult;
+  /** C2: Cycle selected ally body forward. */
+  onInspectNextBody: () => ArenaMenuActionResult;
+  /** C2: Cycle selected ally weapon backward. */
+  onInspectPrevWeapon: () => ArenaMenuActionResult;
+  /** C2: Cycle selected ally weapon forward. */
+  onInspectNextWeapon: () => ArenaMenuActionResult;
+  /** C2: Reset selected ally pose/direction. */
+  onInspectResetPose: () => ArenaMenuActionResult;
+}
+
+export interface ArenaMenuActionResult {
+  success: boolean;
+  message: string;
 }
 
 // ─── ArenaMenu class ────────────────────────────────────────────────
@@ -249,6 +264,39 @@ export class ArenaMenu {
       this.toggleHelp();
     }));
     content.appendChild(actionRow3);
+
+    // ── C2: selected-unit inspection controls (Arena/devtools-only panel) ──
+    const inspectionTitle = document.createElement('div');
+    inspectionTitle.textContent = t('arena_inspection');
+    inspectionTitle.style.cssText = `font-weight: 600; font-size: 11px; margin-bottom: 4px; margin-top: 6px; color: ${ARENA_THEME.sectionTitleColor};`;
+    content.appendChild(inspectionTitle);
+
+    const inspectRow1 = document.createElement('div');
+    inspectRow1.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
+    inspectRow1.appendChild(this.createArenaButton(t('arena_prevBody'), ARENA_THEME.secondaryAccent, () => {
+      this.runInspectionAction(this.callbacks?.onInspectPrevBody);
+    }));
+    inspectRow1.appendChild(this.createArenaButton(t('arena_nextBody'), ARENA_THEME.secondaryAccent, () => {
+      this.runInspectionAction(this.callbacks?.onInspectNextBody);
+    }));
+    content.appendChild(inspectRow1);
+
+    const inspectRow2 = document.createElement('div');
+    inspectRow2.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
+    inspectRow2.appendChild(this.createArenaButton(t('arena_prevWeapon'), ARENA_THEME.secondaryAccent, () => {
+      this.runInspectionAction(this.callbacks?.onInspectPrevWeapon);
+    }));
+    inspectRow2.appendChild(this.createArenaButton(t('arena_nextWeapon'), ARENA_THEME.secondaryAccent, () => {
+      this.runInspectionAction(this.callbacks?.onInspectNextWeapon);
+    }));
+    content.appendChild(inspectRow2);
+
+    const inspectRow3 = document.createElement('div');
+    inspectRow3.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px;';
+    inspectRow3.appendChild(this.createArenaButton(t('arena_resetPose'), ARENA_THEME.primaryAccent, () => {
+      this.runInspectionAction(this.callbacks?.onInspectResetPose);
+    }));
+    content.appendChild(inspectRow3);
 
     // ── Vehicle count ────────────────────────────────────────
     this.vehicleCountEl = document.createElement('div');
@@ -753,5 +801,11 @@ export class ArenaMenu {
     });
     btn.addEventListener('click', onClick);
     return btn;
+  }
+
+  private runInspectionAction(action: (() => ArenaMenuActionResult) | undefined): void {
+    if (!action) return;
+    const result = action();
+    this.showStatus(result.message, result.success);
   }
 }

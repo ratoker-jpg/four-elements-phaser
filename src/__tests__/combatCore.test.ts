@@ -781,12 +781,15 @@ describe('FIXUP-2 Blocker 3: missing target id stops chase', () => {
     const attacker = makeVehicle(0, 0, { weaponId: 'smoky' });
     attacker.targetVehicleId = 'nonexistent-id';
     attacker.hasMoveTarget = true;
+    attacker.bodyAngle = Math.PI / 2;
+    attacker.turretTargetAngle = 0;
 
     const reservationMap = new TileReservationMap(64);
     updateAllCombatTargeting([attacker], null as any, reservationMap, { x: 0, y: 0 });
 
     expect(attacker.targetVehicleId).toBeNull();
     expect(attacker.hasMoveTarget).toBe(false);
+    expect(attacker.turretTargetAngle).toBe(attacker.bodyAngle);
   });
 
   it('clears target and stops chase when target id references removed vehicle', () => {
@@ -795,6 +798,8 @@ describe('FIXUP-2 Blocker 3: missing target id stops chase', () => {
     // Simulate: target was in list before but was removed (e.g. entity cleanup)
     attacker.targetVehicleId = oldTarget.id;
     attacker.hasMoveTarget = true;
+    attacker.bodyAngle = Math.PI / 2;
+    attacker.turretTargetAngle = 0;
 
     // Update with only the attacker — target not in the list anymore
     const reservationMap = new TileReservationMap(64);
@@ -802,6 +807,7 @@ describe('FIXUP-2 Blocker 3: missing target id stops chase', () => {
 
     expect(attacker.targetVehicleId).toBeNull();
     expect(attacker.hasMoveTarget).toBe(false);
+    expect(attacker.turretTargetAngle).toBe(attacker.bodyAngle);
   });
 
   it('destroyed target also stops chase (existing behavior preserved)', () => {
@@ -810,12 +816,15 @@ describe('FIXUP-2 Blocker 3: missing target id stops chase', () => {
     target.isDestroyed = true;
     attacker.targetVehicleId = target.id;
     attacker.hasMoveTarget = true;
+    attacker.bodyAngle = Math.PI / 2;
+    attacker.turretTargetAngle = 0;
 
     const reservationMap = new TileReservationMap(64);
     updateAllCombatTargeting([attacker, target], null as any, reservationMap, { x: 0, y: 0 });
 
     expect(attacker.targetVehicleId).toBeNull();
     expect(attacker.hasMoveTarget).toBe(false);
+    expect(attacker.turretTargetAngle).toBe(attacker.bodyAngle);
   });
 });
 
