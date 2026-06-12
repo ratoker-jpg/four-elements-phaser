@@ -70,6 +70,8 @@ import {
   type PlacementOverlayParams,
 } from '../debug/WaspHullPlacementCalibrator';
 import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibrationPanel';
+import { resolveModularTurretSpriteKey } from '../../assets/modularUnitAssets';
+import { MODULAR_RENDER_SCALE } from '../../config/unitRenderConfig';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -83,6 +85,25 @@ const BLOCKOUT_DEPTH = 120;
  * Keep the bias below 1 so inter-vehicle isometric ordering remains stable.
  */
 const HULL_SPRITE_DEPTH_BIAS = -0.5;
+
+/**
+ * FIX-OPUS-TURRET-VISUAL-01:
+ * Modular turret sprite (e.g. Smoky) renders above the hull sprite but below
+ * the per-vehicle graphics overlays (HP bar, selection ring, aim line). This
+ * keeps the stacking hull < turret < overlays so the turret reads as a real
+ * attached turret while UI markers stay visible on top.
+ */
+const TURRET_SPRITE_DEPTH_BIAS = -0.25;
+
+/**
+ * FIX-OPUS-TURRET-VISUAL-01: Render scale for the modular turret sprite.
+ * The legacy Smoky turret PNGs are 256×256 and were displayed at
+ * MODULAR_RENDER_SCALE (0.24) alongside the 256×256 legacy hull. The generated
+ * Wasp hull (512×512 at GENERATED_HULL_SCALE 0.12) displays at the same pixel
+ * size (256·0.24 = 512·0.12 = 61.4px), so reusing MODULAR_RENDER_SCALE keeps
+ * the turret correctly proportioned on the generated hull.
+ */
+const MODULAR_TURRET_SPRITE_SCALE = MODULAR_RENDER_SCALE;
 
 /** Mount point circle radius. */
 const MOUNT_POINT_RADIUS = 3;
@@ -217,6 +238,9 @@ export class BlockoutVehicleRenderer {
 
   /** Generated hull sprite images keyed by blockout vehicle ID. */
   private vehicleHullSprites = new Map<string, Phaser.GameObjects.Image>();
+
+  /** FIX-OPUS-TURRET-VISUAL-01: Modular turret sprite images (Smoky) keyed by vehicle ID. */
+  private vehicleTurretSprites = new Map<string, Phaser.GameObjects.Image>();
 
   /** Direction debug text labels keyed by blockout vehicle ID. */
   private directionDebugLabels = new Map<string, Phaser.GameObjects.Text>();
@@ -371,6 +395,29 @@ export class BlockoutVehicleRenderer {
         }
       }
 
+      // ── FIX-OPUS-TURRET-VISUAL-01: Modular turret sprite lifecycle ──
+      // Prefer a real turret sprite (currently Smoky) over the tiny procedural
+      // turret box. Texture follows the live turretAngle (PR #254 target-lock /
+      // rest state). When unavailable the procedural turret remains as fallback.
+      const turretKey = vehicle.isDestroyed
+        ? null
+        : resolveModularTurretSpriteKey(this.scene, vehicle.weaponId, vehicle.faction, vehicle.turretAngle);
+      let turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+      if (turretKey) {
+        if (!turretSprite) {
+          turretSprite = this.scene.add.image(0, 0, turretKey);
+          turretSprite.setScale(MODULAR_TURRET_SPRITE_SCALE);
+          turretSprite.setOrigin(0.5, 0.5);
+          turretSprite.setDepth(BLOCKOUT_DEPTH + TURRET_SPRITE_DEPTH_BIAS);
+          this.vehicleTurretSprites.set(vehicle.id, turretSprite);
+        } else {
+          turretSprite.setTexture(turretKey);
+        }
+      } else if (turretSprite) {
+        turretSprite.destroy();
+        this.vehicleTurretSprites.delete(vehicle.id);
+      }
+
       // Determine selection/hover state for this vehicle
       const isSelected = vehicle.id === this._selectedVehicleId;
       const isHovered = vehicle.id === this._hoveredVehicleId;
@@ -456,6 +503,14 @@ export class BlockoutVehicleRenderer {
           hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx + HULL_SPRITE_DEPTH_BIAS);
         }
       }
+      // FIX-OPUS-TURRET-VISUAL-01: Also update turret sprite depth (above hull, below overlays)
+      const turretSpriteDepth = this.vehicleTurretSprites.get(vehicle.id);
+      if (turretSpriteDepth) {
+        const orderIdx = depthOrder.get(vehicle.id);
+        if (orderIdx !== undefined) {
+          turretSpriteDepth.setDepth(BLOCKOUT_DEPTH + orderIdx + TURRET_SPRITE_DEPTH_BIAS);
+        }
+      }
       // Also update direction debug label depth
       const dirLabel = this.directionDebugLabels.get(vehicle.id);
       if (dirLabel) {
@@ -500,6 +555,13 @@ export class BlockoutVehicleRenderer {
       if (!activeIds.has(id)) {
         sprite.destroy();
         this.vehicleHullSprites.delete(id);
+      }
+    }
+    // FIX-OPUS-TURRET-VISUAL-01: Clean up stale turret sprites
+    for (const [id, sprite] of this.vehicleTurretSprites) {
+      if (!activeIds.has(id)) {
+        sprite.destroy();
+        this.vehicleTurretSprites.delete(id);
       }
     }
     // Clean up stale direction debug labels
@@ -603,6 +665,40 @@ export class BlockoutVehicleRenderer {
     // Tile-space mount position (shared offset + impulse-shifted body center)
     const mountWorldX = tilePos.x + mountTileOffset.dx;
     const mountWorldY = tilePos.y + mountTileOffset.dy;
+
+    // ── FIX-OPUS-TURRET-VISUAL-01: Position modular turret sprite ──
+    // When a real turret sprite (Smoky) is active, mount it on the projected
+    // turret mount and apply the same visual placement offset the hull sprite
+    // uses so the turret stays attached to the generated hull body. The
+    // procedural turret box/barrel are skipped below (useTurretSprite).
+    const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+    const useTurretSprite = turretSprite !== undefined;
+    if (turretSprite) {
+      const turretMountZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
+      const mountScreen = projectWorldPoint(mountWorldX, mountWorldY, turretMountZ, this.offset);
+      let turretCx = mountScreen.x;
+      let turretCy = mountScreen.y;
+
+      // Track the hull sprite's visual placement offset (permanent + debug)
+      // so the turret moves together with the generated hull.
+      if (hullSprite) {
+        const turretHullId = bodyIdToGeneratedHullId(vehicle.bodyId);
+        if (turretHullId) {
+          const placement = getGeneratedHullPlacementOffset(turretHullId);
+          turretCx += placement.offsetX;
+          turretCy += placement.offsetY;
+          const isWaspPlacementForTurret = this.isDevtoolsActive()
+            && isWaspPlacementActive()
+            && turretHullId === 'wasp';
+          if (isWaspPlacementForTurret) {
+            turretCx += getWaspDebugOffsetX();
+            turretCy += getWaspDebugOffsetY();
+          }
+        }
+      }
+
+      turretSprite.setPosition(turretCx, turretCy);
+    }
 
     // Faction colors
     const bodyColor = FACTION_BODY_COLORS[vehicle.faction] ?? FACTION_BODY_COLORS.cyan;
@@ -820,7 +916,9 @@ export class BlockoutVehicleRenderer {
     }
 
     // ── Mount point circle (debug, on top face) ──────────────────
-    if (this.showMountPoints) {
+    // FIX-OPUS-TURRET-VISUAL-01: Skip the debug mount marker when a turret
+    // sprite covers the mount, so no stray red dot sits on the turret.
+    if (this.showMountPoints && !useTurretSprite) {
       // Place mount point on top face using shared mountTileOffset
       const mountScreen = projectWorldPoint(mountWorldX, mountWorldY, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
 
@@ -976,84 +1074,89 @@ export class BlockoutVehicleRenderer {
     {
       // Turret position on top face (shared mountWorldX/Y from above)
       const turretZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
-
-      // Draw turret as small projected box on top face
-      const turretHeight = BLOCKOUT_TURRET_BOX_HEIGHT;
       const turretCosA = Math.cos(effectiveTurretAngle);
       const turretSinA = Math.sin(effectiveTurretAngle);
-      const turretLocalCorners = [
-        { lx: -turretHalfW, ly: -turretHalfH },
-        { lx: turretHalfW, ly: -turretHalfH },
-        { lx: turretHalfW, ly: turretHalfH },
-        { lx: -turretHalfW, ly: turretHalfH },
-      ];
 
-      // Turret base (on body top)
-      const turretBasePts = turretLocalCorners.map(c => {
-        const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
-        const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
-        return projectWorldPoint(wx, wy, turretZ, this.offset);
-      });
+      // FIX-OPUS-TURRET-VISUAL-01: Only draw the procedural turret box/barrel
+      // when no real turret sprite is mounted. The sprite (Smoky) replaces the
+      // tiny procedural marker; the aim line below still renders when selected.
+      if (!useTurretSprite) {
+        // Draw turret as small projected box on top face
+        const turretHeight = BLOCKOUT_TURRET_BOX_HEIGHT;
+        const turretLocalCorners = [
+          { lx: -turretHalfW, ly: -turretHalfH },
+          { lx: turretHalfW, ly: -turretHalfH },
+          { lx: turretHalfW, ly: turretHalfH },
+          { lx: -turretHalfW, ly: turretHalfH },
+        ];
 
-      // Turret top
-      const turretTopPts = turretLocalCorners.map(c => {
-        const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
-        const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
-        return projectWorldPoint(wx, wy, turretZ + turretHeight, this.offset);
-      });
+        // Turret base (on body top)
+        const turretBasePts = turretLocalCorners.map(c => {
+          const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
+          const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
+          return projectWorldPoint(wx, wy, turretZ, this.offset);
+        });
 
-      // Barrel screen positions from shared geometry (PROJECTION-01 fixup #3).
-      // No local recomputation — barrelTipScreen and barrelStartScreen are the
-      // single source of truth used by both renderer and fire/damage logic,
-      // including body recoil impulse, barrel Z, and all recoil offsets.
+        // Turret top
+        const turretTopPts = turretLocalCorners.map(c => {
+          const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
+          const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
+          return projectWorldPoint(wx, wy, turretZ + turretHeight, this.offset);
+        });
 
-      // Turret side face (left: base[3]→base[0] → top[3]→top[0])
-      g.fillStyle(turretColor, 0.7);
-      g.beginPath();
-      g.moveTo(turretBasePts[3].x, turretBasePts[3].y);
-      g.lineTo(turretBasePts[0].x, turretBasePts[0].y);
-      g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
-      g.lineTo(turretTopPts[3].x, turretTopPts[3].y);
-      g.closePath();
-      g.fillPath();
+        // Barrel screen positions from shared geometry (PROJECTION-01 fixup #3).
+        // No local recomputation — barrelTipScreen and barrelStartScreen are the
+        // single source of truth used by both renderer and fire/damage logic,
+        // including body recoil impulse, barrel Z, and all recoil offsets.
 
-      // Turret side face (right: base[0]→base[1] → top[0]→top[1])
-      g.fillStyle(turretColor, 0.6);
-      g.beginPath();
-      g.moveTo(turretBasePts[0].x, turretBasePts[0].y);
-      g.lineTo(turretBasePts[1].x, turretBasePts[1].y);
-      g.lineTo(turretTopPts[1].x, turretTopPts[1].y);
-      g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
-      g.closePath();
-      g.fillPath();
+        // Turret side face (left: base[3]→base[0] → top[3]→top[0])
+        g.fillStyle(turretColor, 0.7);
+        g.beginPath();
+        g.moveTo(turretBasePts[3].x, turretBasePts[3].y);
+        g.lineTo(turretBasePts[0].x, turretBasePts[0].y);
+        g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
+        g.lineTo(turretTopPts[3].x, turretTopPts[3].y);
+        g.closePath();
+        g.fillPath();
 
-      // Turret top face
-      g.fillStyle(turretColor, 1);
-      g.beginPath();
-      g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
-      for (let i = 1; i < turretTopPts.length; i++) {
-        g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+        // Turret side face (right: base[0]→base[1] → top[0]→top[1])
+        g.fillStyle(turretColor, 0.6);
+        g.beginPath();
+        g.moveTo(turretBasePts[0].x, turretBasePts[0].y);
+        g.lineTo(turretBasePts[1].x, turretBasePts[1].y);
+        g.lineTo(turretTopPts[1].x, turretTopPts[1].y);
+        g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
+        g.closePath();
+        g.fillPath();
+
+        // Turret top face
+        g.fillStyle(turretColor, 1);
+        g.beginPath();
+        g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
+        for (let i = 1; i < turretTopPts.length; i++) {
+          g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+        }
+        g.closePath();
+        g.fillPath();
+
+        // Turret outline
+        const turretOutlineWidth = isSelected ? 2 : 1;
+        g.lineStyle(turretOutlineWidth, TURRET_OUTLINE_COLOR, 1);
+        g.beginPath();
+        g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
+        for (let i = 1; i < turretTopPts.length; i++) {
+          g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+        }
+        g.closePath();
+        g.strokePath();
+
+        // Barrel line (using shared barrelStartScreen/barrelTipScreen — PROJECTION-01 fixup #3)
+        g.lineStyle(barrelWidth, BARREL_COLOR, 1);
+        g.beginPath();
+        g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
+        g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
+        g.strokePath();
       }
-      g.closePath();
-      g.fillPath();
-
-      // Turret outline
-      const turretOutlineWidth = isSelected ? 2 : 1;
-      g.lineStyle(turretOutlineWidth, TURRET_OUTLINE_COLOR, 1);
-      g.beginPath();
-      g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
-      for (let i = 1; i < turretTopPts.length; i++) {
-        g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
-      }
-      g.closePath();
-      g.strokePath();
-
-      // Barrel line (using shared barrelStartScreen/barrelTipScreen — PROJECTION-01 fixup #3)
-      g.lineStyle(barrelWidth, BARREL_COLOR, 1);
-      g.beginPath();
-      g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
-      g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
-      g.strokePath();
 
       // ── Aim line for selected vehicle ─────────────────────────────
       if (isSelected) {
@@ -1305,6 +1408,12 @@ export class BlockoutVehicleRenderer {
       sprite.destroy();
     }
     this.vehicleHullSprites.clear();
+
+    // FIX-OPUS-TURRET-VISUAL-01: Clean up turret sprites
+    for (const [, sprite] of this.vehicleTurretSprites) {
+      sprite.destroy();
+    }
+    this.vehicleTurretSprites.clear();
 
     for (const [, label] of this.directionDebugLabels) {
       label.destroy();
