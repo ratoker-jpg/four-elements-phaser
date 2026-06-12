@@ -2,6 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   GENERATED_ASSET_MANIFEST,
 } from '../assets/generatedAssetManifest';
+import {
+  DEFAULT_GENERATED_HULL,
+  DEFAULT_GENERATED_HULL_MOD,
+  GENERATED_HULL_FACTIONS,
+  getGeneratedHullTextureKey,
+} from '../assets/generatedHullAssets';
 
 // We test the loader helper without importing Phaser by mocking the scene.
 // runtimeGeneratedAssets uses scene.load.image()/spritesheet() which are Phaser APIs.
@@ -42,6 +48,9 @@ function createMockScene() {
       spritesheet(key: string, path: string, frameConfig: { frameWidth: number; frameHeight: number }) {
         loadSpritesheetCalls.push({ key, path, frameConfig });
       },
+    },
+    textures: {
+      exists: (_key: string) => false,
     },
   };
 
@@ -523,6 +532,77 @@ describe('MENU-02: isModularUnitsLoaded', () => {
 // as a raw string. Since vitest runs in Node, we use globalThis to access
 // the file system without importing 'fs'/'path' (which would require @types/node).
 
+describe('MENU-02: Arena visual asset loading', () => {
+  it('loads modularUnits plus Wasp generated hull sets for Arena', async () => {
+    const { loadArenaVisualAssets } = await import('../assets/runtimeGeneratedAssets');
+    const mock = createMockScene();
+
+    try {
+      const loadedKeys = loadArenaVisualAssets(mock.scene as any);
+
+      expect(loadedKeys).toHaveLength(128);
+      expect(mock.loadImageCalls).toHaveLength(128);
+      expect(loadedKeys).toContain('wasp_m0_hull_cyan_dir0');
+      expect(loadedKeys).toContain('smoky_m0_turret_cyan_dir0');
+      expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
+      expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
+    } finally {
+      mock.restore();
+    }
+  });
+
+  it('loads missing generated hull sets even when modularUnits are already loaded', async () => {
+    const { loadArenaVisualAssets, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
+    const mock = createMockScene();
+    mock.scene.textures.exists = (key: string) => key === MODULAR_UNIT_PROBE_KEY;
+
+    try {
+      const loadedKeys = loadArenaVisualAssets(mock.scene as any);
+
+      expect(loadedKeys).toHaveLength(64);
+      expect(loadedKeys).not.toContain('wasp_m0_hull_cyan_dir0');
+      expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
+      expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'purple', 'm0', 15));
+    } finally {
+      mock.restore();
+    }
+  });
+
+  it('does not consider Arena visuals loaded when generated Wasp hulls are missing', async () => {
+    const { isArenaVisualAssetsLoaded, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
+
+    const mockScene = {
+      textures: {
+        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY,
+      },
+    };
+
+    expect(isArenaVisualAssetsLoaded(mockScene as any)).toBe(false);
+  });
+
+  it('considers Arena visuals loaded only when modularUnits and all Wasp factions are present', async () => {
+    const { isArenaVisualAssetsLoaded, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
+    const generatedProbeKeys = new Set(
+      GENERATED_HULL_FACTIONS.map(faction => (
+        getGeneratedHullTextureKey(
+          DEFAULT_GENERATED_HULL,
+          faction,
+          DEFAULT_GENERATED_HULL_MOD,
+          0,
+        )
+      )),
+    );
+
+    const mockScene = {
+      textures: {
+        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY || generatedProbeKeys.has(key),
+      },
+    };
+
+    expect(isArenaVisualAssetsLoaded(mockScene as any)).toBe(true);
+  });
+});
+
 describe('PreloadScene integration', () => {
   it('exports all generated loader functions', async () => {
     const runtimeMod = await import('../assets/runtimeGeneratedAssets');
@@ -546,6 +626,10 @@ describe('PreloadScene integration', () => {
     expect(typeof runtimeMod.MODULAR_UNIT_PROBE_KEY).toBe('string');
     expect(runtimeMod.isModularUnitsLoaded).toBeDefined();
     expect(typeof runtimeMod.isModularUnitsLoaded).toBe('function');
+    expect(runtimeMod.loadArenaVisualAssets).toBeDefined();
+    expect(typeof runtimeMod.loadArenaVisualAssets).toBe('function');
+    expect(runtimeMod.isArenaVisualAssetsLoaded).toBeDefined();
+    expect(typeof runtimeMod.isArenaVisualAssetsLoaded).toBe('function');
   });
 
   it('PreloadScene uses generated loader instead of manual building loading', async () => {
