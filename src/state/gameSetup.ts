@@ -99,9 +99,11 @@ export const FACTION_CSS_COLORS: Record<Faction, string> = {
   purple: '#cc66ff',
 };
 
-/** Available maps for map selection UI. QA Arena is NOT exposed here — it is dev-only. */
+/** Available maps for map selection UI. QA Arena is NOT exposed here — it is dev-only.
+ *  FIX-A2-MAP-CLEANUP-01: customMap1 ("Map 1") removed from visible selectable
+ *  options. It remains as internal fallback in getMapDataById(). Use Sand / Classic
+ *  map style with a generated map for calibration instead. */
 export const MAP_LIST: ReadonlyArray<{ id: string; name: string; mode: MapMode }> = [
-  { id: 'customMap1', name: 'Map 1', mode: 'fixed' },
   { id: GENERATED_MAP_ID_PREFIX, name: 'Generated', mode: 'generated' },
 ];
 
@@ -180,6 +182,12 @@ export function getMapDisplayName(config: GameSetupConfig): string {
   // Generated map
   if (config.mapMode === 'generated') {
     return generatedMapName(config.seed, config.mapSize);
+  }
+
+  // FIX-A2-MAP-CLEANUP-01: customMap1 is no longer in MAP_LIST but may
+  // still appear in saved games or internal fallback paths.
+  if (config.mapId === 'customMap1') {
+    return 'Sand Classic (legacy)';
   }
 
   // Fixed map — look up name from MAP_LIST

@@ -99,14 +99,13 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
   });
 
   describe('MAP_LIST', () => {
-    it('contains at least two maps (fixed + generated)', () => {
-      expect(MAP_LIST.length).toBeGreaterThanOrEqual(2);
+    it('contains at least one map (generated)', () => {
+      expect(MAP_LIST.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('first map has id and name', () => {
-      const firstMap = MAP_LIST[0];
-      expect(firstMap.id).toBe('customMap1');
-      expect(firstMap.name).toBe('Map 1');
+    it('does not contain legacy customMap1 / Map 1 (FIX-A2-MAP-CLEANUP-01)', () => {
+      const legacy = MAP_LIST.find(m => m.id === 'customMap1');
+      expect(legacy).toBeUndefined();
     });
 
     it('includes a generated map option', () => {
@@ -279,7 +278,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
   // ── Fix 1: getMapDisplayName — readable map names ──────────────
 
   describe('getMapDisplayName', () => {
-    it('fixed customMap1 config displays as "Map 1"', () => {
+    it('fixed customMap1 config displays as "Sand Classic (legacy)" (FIX-A2-MAP-CLEANUP-01)', () => {
       const config: GameSetupConfig = {
         faction: 'cyan',
         mapId: 'customMap1',
@@ -290,7 +289,7 @@ describe('ARCH-14B/16A: gameSetup helpers', () => {
         mapStyle: 'sand',
         resourceStyle: 'legacy',
       };
-      expect(getMapDisplayName(config)).toBe('Map 1');
+      expect(getMapDisplayName(config)).toBe('Sand Classic (legacy)');
     });
 
     it('generated config display name includes size and seed', () => {
