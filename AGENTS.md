@@ -47,6 +47,7 @@ docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
+docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
 ```
@@ -218,86 +219,4 @@ Forbidden to copy as implementation:
 - old Canvas renderer
 - old Phaser adapter/bridge
 - old GameWorld
-- old systems implementation
-- old pathfinding implementation
-- old E2E tests
-- old devtools/editor implementation
-- old migration scaffolding
-- renderer feature flags
-```
-
----
-
-## Development workflow
-
-Use this flow:
-
-```text
-1. Product idea / direction
-2. GPT checks fit and risks
-3. Roadmap or scoped plan
-4. Huge/system audit when architecture/gameplay/runtime is involved
-5. High+/High implementation PR sequence
-6. GPT reviews PR diff, changed files and validation
-7. Denis decides merge
-8. Docs updated when roadmap/current state changes
-```
-
-If scope expands, stop and report.
-
-After two failed attempts, stop and change approach.
-
----
-
-## PR rules
-
-Every runtime PR should include:
-
-```text
-- goal
-- files changed
-- implementation/model details
-- what is intentionally not implemented
-- validation commands/results
-- manual QA if visual/runtime
-- rollback plan if relevant
-- next step
-```
-
-Docs-only PRs must state clearly:
-
-```text
-No code, assets, gameplay, runtime behavior or dependency changes.
-```
-
-Hard review checks:
-
-```text
-- no copied old source code
-- no Canvas/bridge/fallback
-- no hidden architecture decisions
-- no broad "while here" changes
-- no implementation outside accepted roadmap/audit
-- no placeholder terrain replacing approved asset visuals
-- no mass asset generation without visual approval
-- no top-down visual assumptions after CAMERA-00
-```
-
----
-
-## Stop conditions
-
-Stop immediately if:
-
-```text
-- old TypeScript code is copied
-- GameScene starts owning economy/pathfinding/construction rules
-- a bridge/fallback renderer appears
-- PR becomes too large to review in one pass
-- terrain is flat-color placeholder instead of approved assets
-- Phaser API confusion repeats
-- agent says "we will clean it later"
-- docs/current state are stale
-- the task needs a new roadmap/audit but tries to skip it
-- the same approach failed twice
 ```
