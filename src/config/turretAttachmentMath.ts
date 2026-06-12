@@ -97,6 +97,35 @@ export function resolveHullSocketProfile(
 }
 
 /**
+ * Resolve the normalized socket position for a specific direction.
+ *
+ * Checks the socket's perDir overrides first (direction-specific projected
+ * positions from Codex projection recovery). Falls back to the base
+ * normalized position if no perDir entry exists for the given direction.
+ *
+ * This is important because the hull mount point appears at different
+ * normalized positions in each sprite frame due to orthographic projection.
+ * Using a single center {0.5, 0.5} for all directions misplaces the
+ * turret relative to the actual mount.
+ *
+ * Returns null if the hull/socket is unsupported.
+ * Pure, no side effects.
+ */
+export function resolveSocketNormForDir(
+  hullId: string,
+  socketId: string,
+  dir16: number,
+): NormalizedPoint | null {
+  const socketProfile = resolveHullSocketProfile(hullId, socketId);
+  if (!socketProfile) return null;
+  const perDirEntry = socketProfile.perDir?.[dir16];
+  if (perDirEntry) {
+    return { x: perDirEntry.nx, y: perDirEntry.ny };
+  }
+  return { x: socketProfile.normalized.nx, y: socketProfile.normalized.ny };
+}
+
+/**
  * Resolve turret pivot profile by weaponId.
  *
  * Combines turret profile lookup and pivot resolution into

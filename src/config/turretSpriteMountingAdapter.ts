@@ -19,7 +19,7 @@ import { bodyAngleToDir8, mapRuntimeDir8ToGeneratedDir16 } from '../assets/gener
 import { resolveTurretPivotForDir } from './directionalTurretProfiles';
 import type { DirectionalPoint2D } from './directionalTurretProfiles';
 import type { SocketProfile } from './hullTurretVisualProfiles';
-import { resolveHullSocketProfile } from './turretAttachmentMath';
+import { resolveHullSocketProfile, resolveSocketNormForDir } from './turretAttachmentMath';
 import {
   computeTurretSpriteCenterOffsetForSocket,
   type PixelOffset,
@@ -168,13 +168,14 @@ export function resolveTurretSpriteMountingData(params: {
   // Resolve directional pivot for this weapon/level/direction
   const directionalPivot = resolveTurretPivotForDir(weaponId, modificationLevel, dir16);
 
-  // Resolve hull socket
+  // Resolve hull socket (direction-independent base, for contract check)
   const socketProfile = resolveHullSocketProfile(bodyId, 'turret_main');
 
-  // Compute mounting offset via attachment math
-  const socketNorm = socketProfile
-    ? { x: socketProfile.normalized.nx, y: socketProfile.normalized.ny }
-    : null;
+  // Resolve direction-specific socket position.
+  // The socket position varies per hull direction because the orthographic
+  // projection shifts the mount point's apparent position in each sprite frame.
+  // Without perDir, the turret pivot will not land on the hull socket.
+  const socketNorm = resolveSocketNormForDir(bodyId, 'turret_main', dir16);
 
   // If no directional pivot available, try using legacy center (0.5, 0.5)
   // This handles the case where the weapon has a texture but no directional profile
@@ -205,6 +206,7 @@ export function resolveTurretSpriteMountingData(params: {
   const useRealTurretSprite =
     directionalPivot !== null &&
     socketProfile !== null &&
+    socketNorm !== null &&
     offsetFromHullCenter !== null;
 
   return {
