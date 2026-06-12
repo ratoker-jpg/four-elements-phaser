@@ -48,11 +48,11 @@ export class PreloadScene extends Phaser.Scene {
     // --- Modular combat images (PHASER4-LOAD-02: devtools/arena only) ---
     if (isDevtoolsEnabled()) {
       loadArenaVisualAssets(this);
-      console.log('[PreloadScene] Arena visual assets loading enabled (devtools/arena mode).');
+      console.log('[PreloadScene] modularUnits loading enabled (devtools/arena mode).');
 
       // Includes Wasp M0 generated hulls without preloading the full hull matrix.
     } else {
-      console.log('[PreloadScene] Arena visual assets loading skipped (standard mode).');
+      console.log('[PreloadScene] modularUnits loading skipped (standard mode).');
     }
 
     // Loading progress — update visual bar + log milestones
