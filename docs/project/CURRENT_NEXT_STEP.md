@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: Core Mechanics implementation cycle closed — no active implementation roadmap  
+Status: Fix backlog collection active — no implementation yet  
 Project: Four Elements Phaser  
 Date: 2026-06-12
 
@@ -24,11 +24,12 @@ Core Mechanics System Audit: CLOSED / IMPLEMENTED.
 
 Default next action:
 - Do not start new implementation by inertia.
-- Pick the next product direction or fix/polish direction.
-- Create/update roadmap/audit before code.
+- Use the current fix backlog process for visual/Arena/debug bugs.
+- Review/accept docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md.
+- After that, run GLM audit on the fix backlog before code.
 ```
 
-Do not start implementation without explicit Denis/GPT task assignment and an accepted roadmap/audit for the active direction.
+Do not start implementation without explicit Denis/GPT task assignment and an accepted roadmap/backlog + audit for the active direction.
 
 ---
 
@@ -37,10 +38,10 @@ Do not start implementation without explicit Denis/GPT task assignment and an ac
 Denis selected the following immediate docs/planning sequence before returning to visual/runtime bugfix implementation:
 
 ```text
-1. AI execution workflow docs PR.
-2. CODEMAP docs PR.
-3. Collect current bug/polish findings into a scoped fix roadmap/backlog.
-4. Run GLM audit on that fix roadmap/backlog.
+1. AI execution workflow docs PR.                                      DONE
+2. CODEMAP docs PR.                                                    DONE
+3. Collect current bug/polish findings into a scoped fix roadmap/backlog. THIS STEP
+4. Run GLM audit on that fix roadmap/backlog.                           NEXT AFTER ACCEPTANCE
 5. Split the accepted audit into High / High+ implementation steps.
 6. Implement steps through Claude/Opus or Codex depending on task type and available limits.
 7. Use GLM mainly for patch application / validation / PR delivery when Claude cannot push.
@@ -55,6 +56,36 @@ This does not reopen closed roadmaps by inertia.
 This creates a new scoped fix roadmap/backlog process for current bugs/polish.
 Claude/Opus and Codex should be reserved for high-value code implementation, not routine audits.
 GLM can be used for low-cost audits and PR delivery.
+```
+
+---
+
+## Current fix backlog doc
+
+Current draft/accepted fix backlog target:
+
+```text
+docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
+```
+
+This backlog currently covers owner-reported visual/Arena/debug bugs and workflow corrections, including:
+
+```text
+- manual QA through real menus instead of query-flag-only acceptance;
+- Debug / Отладка menu cleanup;
+- Sand Classic kept as calibration map;
+- Arena placement preview and center-of-cell clarity;
+- body + weapon visual calibration;
+- turret rest / target-lock behavior;
+- Arena body/weapon inspection controls;
+- dev grid overlay deferred while Sand Classic is sufficient.
+```
+
+Next after this backlog doc is accepted:
+
+```text
+Run GLM audit on docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md.
+Do not implement yet.
 ```
 
 ---
@@ -106,16 +137,15 @@ docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
 ```text
 NO ACTIVE IMPLEMENTATION ROADMAP.
 CORE MECHANICS CYCLE CLOSED.
-DOCS/PLANNING SEQUENCE ACTIVE BEFORE NEXT BUGFIX IMPLEMENTATION.
+FIX BACKLOG / GLM AUDIT SEQUENCE ACTIVE BEFORE NEXT BUGFIX IMPLEMENTATION.
 ```
 
 Allowed immediate work:
 
 ```text
-- review docs workflow PRs
-- create CODEMAP.md
-- collect bug/polish findings into a scoped fix roadmap/backlog
-- prepare GLM audit for that fix roadmap/backlog
+- review/merge fix backlog docs PR
+- run GLM audit on the accepted fix backlog
+- split accepted audit into High / High+ steps
 - review existing open PRs, if any
 - manual QA of closed cycles and current previews
 ```
@@ -150,20 +180,19 @@ STEP 08H+ — Weapons / Bodies / M0-M3 / Animation Feel — COMPLETE
 
 ## Recommended next planning options
 
-Pick one direction, then create a roadmap/audit before implementation:
-
-```text
-1. Core Mechanics manual QA + polish/fix backlog audit.
-2. Normal Game player loop roadmap: onboarding, goals, victory/loss, progression.
-3. Production visual/world-space roadmap using CAMERA_PROJECTION_CONTRACT.md.
-4. Final asset integration roadmap for units/buildings/tanks.
-5. Arena combat balance/readability roadmap.
-```
-
-Current owner-selected path is a variant of option 1:
+Current owner-selected path is:
 
 ```text
 workflow docs -> CODEMAP -> fix roadmap/backlog -> GLM audit -> scoped High/High+ implementation steps
+```
+
+Other future options remain available only after this bugfix/polish direction is paused or closed:
+
+```text
+1. Normal Game player loop roadmap: onboarding, goals, victory/loss, progression.
+2. Production visual/world-space roadmap using CAMERA_PROJECTION_CONTRACT.md.
+3. Final asset integration roadmap for units/buildings/tanks.
+4. Arena combat balance/readability roadmap.
 ```
 
 ---
@@ -193,8 +222,15 @@ docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
 docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md
+docs/project/CODEMAP.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
+```
+
+For this current bugfix/polish direction, also read:
+
+```text
+docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
 ```
 
 Closed references:
