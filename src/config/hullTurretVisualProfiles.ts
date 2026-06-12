@@ -85,18 +85,24 @@ export interface SocketProfile {
  * PR-B/C/D/E1 code. It will be removed once the renderer is fully
  * rewired to use directional profiles (PR-E2+).
  *
- * This is the point about which the turret visually rotates and which
- * must coincide with the hull socket. NOT necessarily image center.
+ * Pivot values describe the turret base/pivot point (the rotation ring)
+ * in normalized sprite-space coordinates (0..1). For a barreled turret
+ * (e.g. Smoky), the pivot is the base ring, typically below/behind
+ * center (py > 0.5), with the barrel extending forward of it.
  *
- * For a barreled turret (e.g. Smoky), the pivot is the base ring,
- * typically below/behind center (py > 0.5), with the barrel extending
- * forward of it. Mounting by image center (0.5, 0.5) pushes the whole
- * turret forward/off by roughly half a barrel length, and that error
- * rotates with the turret — exactly the symptom reported in audit RC-6.
- *
- * The renderer sets the turret sprite origin to (px, py) and positions
- * the sprite at the socket world point. Then socket == pivot by
- * construction, at every angle, with no rotating residual error.
+ * IMPORTANT — how pivot values must be consumed:
+ * - Pivot values must be used by socket/pivot attachment math
+ *   (computeTurretSpriteCenterOffsetForSocket in turretAttachmentMath.ts)
+ *   to compute the pixel offset that places the turret pivot on the hull socket.
+ * - Future renderer code should prefer directional pivot data from
+ *   directionalTurretProfiles.ts via resolveTurretPivotForDir().
+ * - Pivot values must NOT automatically become Phaser sprite origin.
+ *   The Phaser sprite origin should remain centered: setOrigin(0.5, 0.5).
+ *   The attachment math produces a pixel offset that is applied to the
+ *   centered sprite position — it does NOT re-originate the sprite.
+ * - Mounting by image center (0.5, 0.5) without offset math pushes the
+ *   whole turret forward/off by roughly half a barrel length, and that
+ *   error rotates with the turret — exactly the symptom in audit RC-6.
  */
 export interface PivotProfile {
   /** Normalized X: 0 = left edge of turret image, 1 = right edge. */
@@ -291,8 +297,12 @@ export function resolveSocketMetadata(
  *
  * Returns the PivotProfile if the turret profile exists, or null.
  * The pivot is read-only and does not depend on renderer state.
- * It is authored once per turret family (art-truth, Denis-confirmed),
- * exactly like the facing offset.
+ *
+ * IMPORTANT: the returned pivot values must be consumed through
+ * attachment/offset math (turretAttachmentMath.ts), NOT used directly
+ * as Phaser sprite origin. The Phaser sprite origin should remain
+ * centered (0.5, 0.5); the attachment math computes the pixel offset
+ * that places the turret pivot on the hull socket.
  *
  * This legacy resolver is retained as a fallback for existing code that
  * has not yet been wired to the directional profile system.
