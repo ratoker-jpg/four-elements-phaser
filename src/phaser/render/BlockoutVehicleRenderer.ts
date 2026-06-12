@@ -410,6 +410,7 @@ export class BlockoutVehicleRenderer {
         bodyId: vehicle.bodyId,
         modificationLevel: vehicle.modificationLevel,
         turretAngle: vehicle.turretAngle,
+        bodyAngle: vehicle.bodyAngle,
         sourceSizes: { hullSourceWidthPx: 512, hullSourceHeightPx: 512, turretSourceWidthPx: 256, turretSourceHeightPx: 256 },
         scaleFactors: { hullScale: GENERATED_HULL_SCALE, turretScale: MODULAR_RENDER_SCALE },
       });

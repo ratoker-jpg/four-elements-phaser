@@ -13,6 +13,8 @@
  * 9. Wasp socket perDir overrides used for direction-dependent socket positions
  * 10. hullSocketWorld == turretPivotWorld invariant holds for all directions
  * 11. Old center socket {0.5,0.5} produces different (wrong) offset vs perDir
+ * 12. Socket direction follows hull/body direction (fixup #3 direction split)
+ * 13. Pivot direction follows turret direction (fixup #3 direction split)
  *
  * All tests are pure — no Phaser runtime required.
  */
@@ -21,6 +23,7 @@ import { describe, it, expect } from 'vitest';
 import {
   resolveTurretSpriteMountingData,
   turretAngleToDir16,
+  bodyAngleToHullVisualDir16,
   type SpriteSourceSizes,
   type SpriteScaleFactors,
 } from '../config/turretSpriteMountingAdapter';
@@ -50,7 +53,8 @@ describe('resolveTurretSpriteMountingData — uses directional Smoky pivot', () 
       weaponId: 'smoky',
       bodyId: 'wasp',
       modificationLevel: 0,
-      turretAngle: 0, // East → dir8=0 → dir16=0
+      turretAngle: 0, // East → turretDir16=0
+      bodyAngle: 0,   // East → hullVisualDir16=4 (Wasp facingOffset=4)
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -70,6 +74,7 @@ describe('resolveTurretSpriteMountingData — uses directional Smoky pivot', () 
       bodyId: 'wasp',
       modificationLevel: 2,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -86,6 +91,7 @@ describe('resolveTurretSpriteMountingData — uses directional Smoky pivot', () 
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -102,6 +108,7 @@ describe('resolveTurretSpriteMountingData — uses directional Smoky pivot', () 
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -159,28 +166,68 @@ describe('turretAngleToDir16 — deterministic direction conversion', () => {
   });
 });
 
+// ── Test: bodyAngleToHullVisualDir16 — hull direction conversion ──────
+
+describe('bodyAngleToHullVisualDir16 — hull visual direction conversion', () => {
+  it('Wasp: bodyAngle=0 (E) → hullVisualDir16=4 (facingOffset=4)', () => {
+    expect(bodyAngleToHullVisualDir16(0, 'wasp')).toBe(4);
+  });
+
+  it('Wasp: bodyAngle=PI/2 (S) → hullVisualDir16=8', () => {
+    expect(bodyAngleToHullVisualDir16(Math.PI / 2, 'wasp')).toBe(8);
+  });
+
+  it('Wasp: bodyAngle=PI (W) → hullVisualDir16=12', () => {
+    expect(bodyAngleToHullVisualDir16(Math.PI, 'wasp')).toBe(12);
+  });
+
+  it('Wasp: bodyAngle=-PI/2 (N) → hullVisualDir16=0', () => {
+    expect(bodyAngleToHullVisualDir16(-Math.PI / 2, 'wasp')).toBe(0);
+  });
+
+  it('Unknown hull: no visual remap, returns logical dir16', () => {
+    // hornet has no facingOffset, so hullVisualDir16 == logical dir16
+    expect(bodyAngleToHullVisualDir16(0, 'hornet')).toBe(0);
+    expect(bodyAngleToHullVisualDir16(Math.PI, 'hornet')).toBe(8);
+  });
+
+  it('is deterministic: same input always produces same output', () => {
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2 - Math.PI;
+      const a = bodyAngleToHullVisualDir16(angle, 'wasp');
+      const b = bodyAngleToHullVisualDir16(angle, 'wasp');
+      expect(a).toBe(b);
+    }
+  });
+
+  it('Wasp hullVisualDir16 differs from turretAngleToDir16 for same angle', () => {
+    // This proves the direction split is meaningful for Wasp:
+    // turretAngleToDir16(0) = 0, but bodyAngleToHullVisualDir16(0, 'wasp') = 4
+    expect(turretAngleToDir16(0)).toBe(0);
+    expect(bodyAngleToHullVisualDir16(0, 'wasp')).toBe(4);
+    expect(turretAngleToDir16(0)).not.toBe(bodyAngleToHullVisualDir16(0, 'wasp'));
+  });
+});
+
 // ── Test 3: Missing directional pivot falls back gracefully ──────────
 
 describe('resolveTurretSpriteMountingData — missing directional pivot => procedural fallback', () => {
   it('thunder (no directional profile): useRealTurretSprite=false even with texture key', () => {
-    // Thunder has no directional profile, so pivot will be null.
-    // Without directional pivot, the full contract is incomplete —
-    // the turret would be incorrectly positioned, so real sprite is NOT used.
     const result = resolveTurretSpriteMountingData({
-      textureKey: 'some_thunder_key', // hypothetical — even if texture existed
+      textureKey: 'some_thunder_key',
       weaponId: 'thunder',
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
 
     expect(result.directionalPivot).toBeNull();
     expect(result.offsetFromHullCenter).toBeNull();
-    // Missing directional pivot => incomplete contract => procedural fallback
     expect(result.useRealTurretSprite).toBe(false);
-    expect(result.textureKey).toBeNull(); // cleared because contract incomplete
+    expect(result.textureKey).toBeNull();
   });
 
   it('Smoky level 4 (invalid): directional pivot is null => procedural fallback', () => {
@@ -190,6 +237,7 @@ describe('resolveTurretSpriteMountingData — missing directional pivot => proce
       bodyId: 'wasp',
       modificationLevel: 4,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -210,6 +258,7 @@ describe('resolveTurretSpriteMountingData — null texture key fallback', () => 
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -231,6 +280,7 @@ describe('resolveTurretSpriteMountingData — non-Smoky procedural fallback', ()
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -245,6 +295,7 @@ describe('resolveTurretSpriteMountingData — non-Smoky procedural fallback', ()
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -263,18 +314,12 @@ describe('resolveTurretSpriteMountingData — Phaser origin convention', () => {
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
 
-    // The offset is a pixel displacement from hull center.
-    // The consumer (renderer) should:
-    //   turretSprite.setOrigin(0.5, 0.5)   ← centered origin, ALWAYS
-    //   turretSprite.setPosition(hullSprite.x + offset.x, hullSprite.y + offset.y)
-    // NOT:
-    //   turretSprite.setOrigin(pivotNorm.x, pivotNorm.y)  ← FORBIDDEN
     expect(result.offsetFromHullCenter).not.toBeNull();
-    // Verify the offset is in pixel space (small numbers, not 0..1 normalized)
     expect(typeof result.offsetFromHullCenter!.x).toBe('number');
     expect(typeof result.offsetFromHullCenter!.y).toBe('number');
   });
@@ -286,18 +331,15 @@ describe('resolveTurretSpriteMountingData — Phaser origin convention', () => {
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
 
-    // directionalPivot is 0..1 normalized — for attachment math only
     expect(result.directionalPivot!.x).toBeGreaterThanOrEqual(0);
     expect(result.directionalPivot!.x).toBeLessThanOrEqual(1);
     expect(result.directionalPivot!.y).toBeGreaterThanOrEqual(0);
     expect(result.directionalPivot!.y).toBeLessThanOrEqual(1);
-
-    // offsetFromHullCenter is in pixel space — for positioning only
-    // These are in different coordinate spaces — confirming they are NOT interchangeable
     expect(result.offsetFromHullCenter).not.toBeNull();
   });
 });
@@ -312,16 +354,15 @@ describe('resolveTurretSpriteMountingData — socket profile resolution', () => 
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
 
     expect(result.socketProfile).not.toBeNull();
     expect(result.socketProfile!.id).toBe('turret_main');
-    // Base normalized is still 0.5,0.5 (center placeholder)
     expect(result.socketProfile!.normalized.nx).toBe(0.5);
     expect(result.socketProfile!.normalized.ny).toBe(0.5);
-    // But perDir overrides exist for all 16 directions
     expect(result.socketProfile!.perDir).toBeDefined();
     expect(Object.keys(result.socketProfile!.perDir!).length).toBe(16);
   });
@@ -333,13 +374,13 @@ describe('resolveTurretSpriteMountingData — socket profile resolution', () => 
       bodyId: 'hornet',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
 
     expect(result.socketProfile).toBeNull();
     expect(result.offsetFromHullCenter).toBeNull();
-    // Missing socket profile => incomplete contract => procedural fallback
     expect(result.useRealTurretSprite).toBe(false);
   });
 });
@@ -354,6 +395,7 @@ describe('resolveTurretSpriteMountingData — direction-dependent offsets', () =
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -364,13 +406,13 @@ describe('resolveTurretSpriteMountingData — direction-dependent offsets', () =
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: Math.PI,
+      bodyAngle: Math.PI,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
 
     expect(eastResult.offsetFromHullCenter).not.toBeNull();
     expect(westResult.offsetFromHullCenter).not.toBeNull();
-    // Offsets should differ because pivots differ
     const differs =
       Math.abs(eastResult.offsetFromHullCenter!.x - westResult.offsetFromHullCenter!.x) > 0.001 ||
       Math.abs(eastResult.offsetFromHullCenter!.y - westResult.offsetFromHullCenter!.y) > 0.001;
@@ -388,6 +430,7 @@ describe('resolveTurretSpriteMountingData — full contract required for real sp
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -406,6 +449,7 @@ describe('resolveTurretSpriteMountingData — full contract required for real sp
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -415,13 +459,13 @@ describe('resolveTurretSpriteMountingData — full contract required for real sp
   });
 
   it('missing socket/profile => procedural fallback (even with texture + pivot)', () => {
-    // Smoky has directional pivot, but 'hornet' hull has no socket profile
     const result = resolveTurretSpriteMountingData({
       textureKey: 'smoky_m0_turret_cyan_dir2',
       weaponId: 'smoky',
       bodyId: 'hornet',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -437,6 +481,7 @@ describe('resolveTurretSpriteMountingData — full contract required for real sp
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -452,6 +497,7 @@ describe('resolveTurretSpriteMountingData — full contract required for real sp
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -466,15 +512,13 @@ describe('resolveTurretSpriteMountingData — full contract required for real sp
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
 
-    // The result is meant for: turretSprite.setOrigin(0.5, 0.5) + setPosition(center + offset)
-    // NOT: setOrigin(pivot.x, pivot.y)
     expect(result.useRealTurretSprite).toBe(true);
     expect(result.offsetFromHullCenter).not.toBeNull();
-    // offset is pixel displacement, not 0..1 normalized origin values
     expect(typeof result.offsetFromHullCenter!.x).toBe('number');
     expect(typeof result.offsetFromHullCenter!.y).toBe('number');
   });
@@ -490,6 +534,7 @@ describe('resolveTurretSpriteMountingData — pure, no Phaser', () => {
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -505,6 +550,7 @@ describe('resolveTurretSpriteMountingData — pure, no Phaser', () => {
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -515,6 +561,7 @@ describe('resolveTurretSpriteMountingData — pure, no Phaser', () => {
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -529,10 +576,8 @@ describe('resolveSocketNormForDir — per-direction Wasp socket', () => {
   it('Wasp dir0 (E) socket uses perDir override, not base {0.5, 0.5}', () => {
     const norm = resolveSocketNormForDir('wasp', 'turret_main', 0);
     expect(norm).not.toBeNull();
-    // Codex projection: dir00 E = { nx: 0.401352, ny: 0.496649 }
     expect(norm!.x).toBeCloseTo(0.401352, 5);
     expect(norm!.y).toBeCloseTo(0.496649, 5);
-    // NOT the old center placeholder
     expect(norm!.x).not.toBeCloseTo(0.5, 2);
   });
 
@@ -565,7 +610,6 @@ describe('resolveSocketNormForDir — per-direction Wasp socket', () => {
   it('Wasp socket varies significantly across directions', () => {
     const east = resolveSocketNormForDir('wasp', 'turret_main', 0)!;
     const west = resolveSocketNormForDir('wasp', 'turret_main', 8)!;
-    // Socket X shifts from ~0.40 (E) to ~0.60 (W) — a significant variation
     const xDiff = Math.abs(east.x - west.x);
     expect(xDiff).toBeGreaterThan(0.1);
   });
@@ -574,13 +618,14 @@ describe('resolveSocketNormForDir — per-direction Wasp socket', () => {
 // ── Test: Contract invariant: hullSocketWorld == turretPivotWorld ────
 
 describe('resolveTurretSpriteMountingData — hullSocketWorld == turretPivotWorld invariant', () => {
-  it('Wasp+Smoky M0 dir0 (E): offset places turret pivot on hull socket', () => {
+  it('Wasp+Smoky M0 body=E turret=E: offset places turret pivot on hull socket', () => {
     const result = resolveTurretSpriteMountingData({
       textureKey: 'smoky_m0_turret_cyan_dir2',
       weaponId: 'smoky',
       bodyId: 'wasp',
       modificationLevel: 0,
-      turretAngle: 0, // dir16=0 (E)
+      turretAngle: 0,   // turretDir16=0
+      bodyAngle: 0,      // hullVisualDir16=4
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -589,23 +634,17 @@ describe('resolveTurretSpriteMountingData — hullSocketWorld == turretPivotWorl
     expect(result.offsetFromHullCenter).not.toBeNull();
     expect(result.directionalPivot).not.toBeNull();
 
-    // Compute hull center to socket and turret center to pivot separately
-    const hullDisplayW = 512 * 0.12;  // 61.44
-    const hullDisplayH = 512 * 0.12;  // 61.44
-    const turretDisplayW = 256 * 0.24; // 61.44
-    const turretDisplayH = 256 * 0.24; // 61.44
+    const hullDisplayW = 512 * 0.12;
+    const hullDisplayH = 512 * 0.12;
+    const turretDisplayW = 256 * 0.24;
+    const turretDisplayH = 256 * 0.24;
 
-    // Socket position for dir0 from perDir
-    const socketNorm = resolveSocketNormForDir('wasp', 'turret_main', 0)!;
+    const socketNorm = resolveSocketNormForDir('wasp', 'turret_main', result.hullVisualDir16)!;
     const hullCenterToSocket = computeNormalizedPointOffsetPx(socketNorm, hullDisplayW, hullDisplayH);
 
-    // Pivot position for dir0
     const pivotNorm = { x: result.directionalPivot!.x, y: result.directionalPivot!.y };
     const turretCenterToPivot = computeNormalizedPointOffsetPx(pivotNorm, turretDisplayW, turretDisplayH);
 
-    // The offset should equal: hullCenterToSocket - turretCenterToPivot
-    // This ensures: turretSpriteCenter + turretCenterToPivot = hullSpriteCenter + hullCenterToSocket
-    // i.e. turretPivotWorld == hullSocketWorld
     const expectedOffset = {
       x: hullCenterToSocket.x - turretCenterToPivot.x,
       y: hullCenterToSocket.y - turretCenterToPivot.y,
@@ -615,13 +654,14 @@ describe('resolveTurretSpriteMountingData — hullSocketWorld == turretPivotWorl
     expect(result.offsetFromHullCenter!.y).toBeCloseTo(expectedOffset.y, 10);
   });
 
-  it('Wasp+Smoky M0 dir4 (S): offset places turret pivot on hull socket', () => {
+  it('Wasp+Smoky M0 body=S turret=S: offset places turret pivot on hull socket', () => {
     const result = resolveTurretSpriteMountingData({
       textureKey: 'smoky_m0_turret_cyan_dir4',
       weaponId: 'smoky',
       bodyId: 'wasp',
       modificationLevel: 0,
-      turretAngle: Math.PI / 2, // dir16=4 (S)
+      turretAngle: Math.PI / 2, // turretDir16=4
+      bodyAngle: Math.PI / 2,   // hullVisualDir16=8
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -635,7 +675,7 @@ describe('resolveTurretSpriteMountingData — hullSocketWorld == turretPivotWorl
     const turretDisplayW = 256 * 0.24;
     const turretDisplayH = 256 * 0.24;
 
-    const socketNorm = resolveSocketNormForDir('wasp', 'turret_main', 4)!;
+    const socketNorm = resolveSocketNormForDir('wasp', 'turret_main', result.hullVisualDir16)!;
     const hullCenterToSocket = computeNormalizedPointOffsetPx(socketNorm, hullDisplayW, hullDisplayH);
     const pivotNorm = { x: result.directionalPivot!.x, y: result.directionalPivot!.y };
     const turretCenterToPivot = computeNormalizedPointOffsetPx(pivotNorm, turretDisplayW, turretDisplayH);
@@ -649,13 +689,14 @@ describe('resolveTurretSpriteMountingData — hullSocketWorld == turretPivotWorl
     expect(result.offsetFromHullCenter!.y).toBeCloseTo(expectedOffset.y, 10);
   });
 
-  it('Wasp+Smoky M0 dir8 (W): offset places turret pivot on hull socket', () => {
+  it('Wasp+Smoky M0 body=W turret=W: offset places turret pivot on hull socket', () => {
     const result = resolveTurretSpriteMountingData({
       textureKey: 'smoky_m0_turret_cyan_dir6',
       weaponId: 'smoky',
       bodyId: 'wasp',
       modificationLevel: 0,
-      turretAngle: Math.PI, // dir16=8 (W)
+      turretAngle: Math.PI,  // turretDir16=8
+      bodyAngle: Math.PI,    // hullVisualDir16=12
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
@@ -669,7 +710,7 @@ describe('resolveTurretSpriteMountingData — hullSocketWorld == turretPivotWorl
     const turretDisplayW = 256 * 0.24;
     const turretDisplayH = 256 * 0.24;
 
-    const socketNorm = resolveSocketNormForDir('wasp', 'turret_main', 8)!;
+    const socketNorm = resolveSocketNormForDir('wasp', 'turret_main', result.hullVisualDir16)!;
     const hullCenterToSocket = computeNormalizedPointOffsetPx(socketNorm, hullDisplayW, hullDisplayH);
     const pivotNorm = { x: result.directionalPivot!.x, y: result.directionalPivot!.y };
     const turretCenterToPivot = computeNormalizedPointOffsetPx(pivotNorm, turretDisplayW, turretDisplayH);
@@ -690,18 +731,16 @@ describe('resolveTurretSpriteMountingData — hullSocketWorld == turretPivotWorl
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
 
     expect(result.offsetFromHullCenter).not.toBeNull();
-    // Reversed offset would NOT satisfy the invariant
     const reversedOffset = {
       x: -result.offsetFromHullCenter!.x,
       y: -result.offsetFromHullCenter!.y,
     };
-    // The reversed offset must differ from the correct offset
-    // (unless offset happens to be exactly zero, which it isn't)
     const differs =
       Math.abs(reversedOffset.x - result.offsetFromHullCenter!.x) > 0.001 ||
       Math.abs(reversedOffset.y - result.offsetFromHullCenter!.y) > 0.001;
@@ -715,13 +754,13 @@ describe('resolveTurretSpriteMountingData — hullSocketWorld == turretPivotWorl
       bodyId: 'wasp',
       modificationLevel: 0,
       turretAngle: 0,
+      bodyAngle: 0,
       sourceSizes: WASP_SMOKY_SIZES,
       scaleFactors: WASP_SMOKY_SCALES,
     });
 
     expect(result.offsetFromHullCenter).not.toBeNull();
 
-    // Compute what the offset would be with the old center socket {0.5, 0.5}
     const hullDisplayW = 512 * 0.12;
     const hullDisplayH = 512 * 0.12;
     const turretDisplayW = 256 * 0.24;
@@ -737,11 +776,277 @@ describe('resolveTurretSpriteMountingData — hullSocketWorld == turretPivotWorl
       y: oldHullCenterToSocket.y - turretCenterToPivot.y,
     };
 
-    // The new offset (with perDir) must differ from the old offset (center socket)
-    // because the perDir socket for dir0 is {0.401, 0.497}, not {0.5, 0.5}
     const differs =
       Math.abs(oldOffset.x - result.offsetFromHullCenter!.x) > 0.001 ||
       Math.abs(oldOffset.y - result.offsetFromHullCenter!.y) > 0.001;
     expect(differs).toBe(true);
+  });
+});
+
+// ── Fixup #3: Direction split tests ──────────────────────────────────
+
+describe('resolveTurretSpriteMountingData — fixup #3: hull socket dir follows hull, turret pivot dir follows turret', () => {
+  // Test 1: When bodyAngle === turretAngle, mounting still works
+  it('when bodyAngle === turretAngle, mounting works correctly', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir2',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      bodyAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(true);
+    expect(result.turretDir16).toBe(0);   // E logical dir16
+    expect(result.hullVisualDir16).toBe(4); // Wasp visual dir16 for E
+  });
+
+  // Test 2: When bodyAngle !== turretAngle, socket uses hull/body direction, not turret direction
+  it('when bodyAngle !== turretAngle, socket uses hull direction (not turret direction)', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir4',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: Math.PI / 2,  // S → turretDir16=4
+      bodyAngle: 0,               // E → hullVisualDir16=4 (Wasp)
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(true);
+    expect(result.turretDir16).toBe(4);
+    expect(result.hullVisualDir16).toBe(4);
+
+    // The socket is looked up at hullVisualDir16=4, which is the socket for the
+    // displayed hull frame when the hull faces East
+    const socketNorm = resolveSocketNormForDir('wasp', 'turret_main', result.hullVisualDir16)!;
+    // dir4 socket: { nx: 0.401352, ny: 0.422228 }
+    expect(socketNorm.x).toBeCloseTo(0.401352, 5);
+    expect(socketNorm.y).toBeCloseTo(0.422228, 5);
+  });
+
+  // Test 3: When hull direction changes but turret direction stays the same:
+  //   socket changes, pivot stays the same
+  it('hull direction changes, turret same → socket changes, pivot stays same', () => {
+    const resultA = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir2',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,          // turretDir16=0 (E)
+      bodyAngle: 0,             // hullVisualDir16=4 (Wasp E)
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    const resultB = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir2',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,                  // turretDir16=0 (E) — SAME
+      bodyAngle: Math.PI / 2,          // hullVisualDir16=8 (Wasp S) — DIFFERENT
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    // Pivot stays the same (same turretDir16=0)
+    expect(resultA.turretDir16).toBe(resultB.turretDir16);
+    expect(resultA.directionalPivot).not.toBeNull();
+    expect(resultB.directionalPivot).not.toBeNull();
+    expect(resultA.directionalPivot!.x).toBeCloseTo(resultB.directionalPivot!.x, 10);
+    expect(resultA.directionalPivot!.y).toBeCloseTo(resultB.directionalPivot!.y, 10);
+
+    // Socket changes (different hullVisualDir16)
+    expect(resultA.hullVisualDir16).not.toBe(resultB.hullVisualDir16);
+    const socketA = resolveSocketNormForDir('wasp', 'turret_main', resultA.hullVisualDir16)!;
+    const socketB = resolveSocketNormForDir('wasp', 'turret_main', resultB.hullVisualDir16)!;
+    const socketDiffers =
+      Math.abs(socketA.x - socketB.x) > 0.001 ||
+      Math.abs(socketA.y - socketB.y) > 0.001;
+    expect(socketDiffers).toBe(true);
+  });
+
+  // Test 4: When turret direction changes but hull direction stays the same:
+  //   pivot changes, socket stays the same
+  it('turret direction changes, hull same → pivot changes, socket stays same', () => {
+    const resultA = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir2',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,          // turretDir16=0 (E)
+      bodyAngle: 0,             // hullVisualDir16=4 (Wasp E)
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    const resultB = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir4',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: Math.PI / 2, // turretDir16=4 (S) — DIFFERENT
+      bodyAngle: 0,              // hullVisualDir16=4 (Wasp E) — SAME
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    // Socket stays the same (same hullVisualDir16)
+    expect(resultA.hullVisualDir16).toBe(resultB.hullVisualDir16);
+    const socketA = resolveSocketNormForDir('wasp', 'turret_main', resultA.hullVisualDir16)!;
+    const socketB = resolveSocketNormForDir('wasp', 'turret_main', resultB.hullVisualDir16)!;
+    expect(socketA.x).toBeCloseTo(socketB.x, 10);
+    expect(socketA.y).toBeCloseTo(socketB.y, 10);
+
+    // Pivot changes (different turretDir16)
+    expect(resultA.turretDir16).not.toBe(resultB.turretDir16);
+    expect(resultA.directionalPivot).not.toBeNull();
+    expect(resultB.directionalPivot).not.toBeNull();
+    const pivotDiffers =
+      Math.abs(resultA.directionalPivot!.x - resultB.directionalPivot!.x) > 0.001 ||
+      Math.abs(resultA.directionalPivot!.y - resultB.directionalPivot!.y) > 0.001;
+    expect(pivotDiffers).toBe(true);
+  });
+
+  // Test 5: hullSocketWorld === turretPivotWorld invariant holds after applying offset
+  //         even when bodyAngle !== turretAngle
+  it('hullSocketWorld === turretPivotWorld invariant holds when bodyAngle !== turretAngle', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir4',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: Math.PI / 2, // turretDir16=4
+      bodyAngle: 0,              // hullVisualDir16=4 (Wasp E)
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(true);
+
+    const hullDisplayW = 512 * 0.12;
+    const hullDisplayH = 512 * 0.12;
+    const turretDisplayW = 256 * 0.24;
+    const turretDisplayH = 256 * 0.24;
+
+    const socketNorm = resolveSocketNormForDir('wasp', 'turret_main', result.hullVisualDir16)!;
+    const hullCenterToSocket = computeNormalizedPointOffsetPx(socketNorm, hullDisplayW, hullDisplayH);
+
+    const pivotNorm = { x: result.directionalPivot!.x, y: result.directionalPivot!.y };
+    const turretCenterToPivot = computeNormalizedPointOffsetPx(pivotNorm, turretDisplayW, turretDisplayH);
+
+    const expectedOffset = {
+      x: hullCenterToSocket.x - turretCenterToPivot.x,
+      y: hullCenterToSocket.y - turretCenterToPivot.y,
+    };
+
+    expect(result.offsetFromHullCenter!.x).toBeCloseTo(expectedOffset.x, 10);
+    expect(result.offsetFromHullCenter!.y).toBeCloseTo(expectedOffset.y, 10);
+  });
+
+  // Test 6: Missing texture / pivot / socket / offset still falls back to procedural
+  it('missing pivot with bodyAngle !== turretAngle still falls back to procedural', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'some_thunder_key',
+      weaponId: 'thunder',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: Math.PI / 2,
+      bodyAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(false);
+    expect(result.offsetFromHullCenter).toBeNull();
+  });
+
+  // Test 7: Non-Smoky still falls back to procedural
+  it('non-Smoky with bodyAngle !== turretAngle still falls back to procedural', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: null,
+      weaponId: 'thunder',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: Math.PI / 2,
+      bodyAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(false);
+  });
+
+  // Test 8: Phaser origin remains centered — setOrigin(0.5, 0.5), never set origin to pivot
+  it('offset is position adjustment only, never used as sprite origin (even with split dirs)', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir4',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: Math.PI / 2,
+      bodyAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(true);
+    expect(result.offsetFromHullCenter).not.toBeNull();
+    expect(typeof result.offsetFromHullCenter!.x).toBe('number');
+    expect(typeof result.offsetFromHullCenter!.y).toBe('number');
+    expect(result.directionalPivot!.x).toBeGreaterThan(0);
+    expect(result.directionalPivot!.x).toBeLessThan(1);
+  });
+
+  // Extra: Verify turretDir16 and hullVisualDir16 are independently set
+  it('turretDir16 and hullVisualDir16 are independently computed from their respective angles', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir6',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: Math.PI,      // W → turretDir16=8
+      bodyAngle: -Math.PI / 2,   // N → hullVisualDir16=0 (Wasp)
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.turretDir16).toBe(8);
+    expect(result.hullVisualDir16).toBe(0);
+    expect(result.turretDir16).not.toBe(result.hullVisualDir16);
+  });
+
+  // Extra: Verify that using turretAngle for socket lookup (the OLD bug)
+  // would produce a different (wrong) socket position
+  it('using turret dir for socket lookup would produce WRONG socket (regression guard)', () => {
+    // Use angles where turretDir16 !== hullVisualDir16 to expose the old bug:
+    // hull faces S (bodyAngle=PI/2 → hullVisualDir16=8)
+    // turret faces E (turretAngle=0 → turretDir16=0)
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir2',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,             // turretDir16=0
+      bodyAngle: Math.PI / 2,     // hullVisualDir16=8
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    // Correct socket: hullVisualDir16=8 → Wasp socket for dir8
+    const correctSocket = resolveSocketNormForDir('wasp', 'turret_main', result.hullVisualDir16)!;
+    // Wrong socket (old bug): turretDir16=0 → Wasp socket for dir0
+    const wrongSocket = resolveSocketNormForDir('wasp', 'turret_main', result.turretDir16)!;
+
+    // dir16=8 socket vs dir16=0 socket — these are very different
+    const socketsDiffer =
+      Math.abs(correctSocket.x - wrongSocket.x) > 0.01 ||
+      Math.abs(correctSocket.y - wrongSocket.y) > 0.01;
+    expect(socketsDiffer).toBe(true);
   });
 });

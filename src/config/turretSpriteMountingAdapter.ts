@@ -7,6 +7,12 @@
  * It is pure TypeScript — no Phaser imports, no runtime state. The renderer
  * consumes the result to position the turret sprite image.
  *
+ * Direction split (fixup #3):
+ * - Turret pivot direction (turretDir16) comes from turretAngle.
+ * - Hull socket direction (hullVisualDir16) comes from bodyAngle
+ *   and must match the generated hull texture frame actually displayed.
+ * - These are separate because the turret can rotate independently from the hull.
+ *
  * Convention:
  * - Phaser sprite origin remains centered: setOrigin(0.5, 0.5)
  * - Pivot values are consumed through attachment/offset math
@@ -15,7 +21,12 @@
  * Source: PR #262 directional Smoky profile data + turretAttachmentMath.ts
  */
 
-import { bodyAngleToDir8, mapRuntimeDir8ToGeneratedDir16 } from '../assets/generatedHullAssets';
+import {
+  bodyAngleToDir8,
+  mapRuntimeDir8ToGeneratedDir16,
+  applyHullVisualDir16Remap,
+  bodyIdToGeneratedHullId,
+} from '../assets/generatedHullAssets';
 import { resolveTurretPivotForDir } from './directionalTurretProfiles';
 import type { DirectionalPoint2D } from './directionalTurretProfiles';
 import type { SocketProfile } from './hullTurretVisualProfiles';
@@ -64,8 +75,11 @@ export interface TurretSpriteMountingData {
   /** The hull socket profile used (null if no profile). */
   socketProfile: SocketProfile | null;
 
-  /** The dir16 index used for directional pivot lookup. */
-  dir16: number;
+  /** The turret dir16 index used for directional pivot lookup (from turretAngle). */
+  turretDir16: number;
+
+  /** The hull visual dir16 index used for socket lookup (from bodyAngle, matches displayed hull frame). */
+  hullVisualDir16: number;
 
   /** Whether a real turret sprite should be rendered (vs procedural fallback). */
   useRealTurretSprite: boolean;
@@ -92,6 +106,31 @@ export function turretAngleToDir16(turretAngle: number): number {
   return mapRuntimeDir8ToGeneratedDir16(dir8);
 }
 
+/**
+ * Convert a body angle (radians, screen-space) to a hull visual dir16 index
+ * for use with resolveSocketNormForDir.
+ *
+ * Pipeline mirrors the generated hull sprite resolution:
+ * 1. Quantize bodyAngle to logical dir8 via bodyAngleToDir8
+ * 2. Double dir8 to get logical dir16
+ * 3. Apply hull-specific visual direction remap (e.g. Wasp facingOffset=4)
+ *
+ * The result is the visual dir16 of the hull texture frame actually displayed.
+ * This must be used for socket lookups because the perDir socket data
+ * is keyed by visual frame index.
+ *
+ * Deterministic: same input always produces the same output.
+ */
+export function bodyAngleToHullVisualDir16(bodyAngle: number, bodyId: string): number {
+  const dir8 = bodyAngleToDir8(bodyAngle);
+  const logicalDir16 = mapRuntimeDir8ToGeneratedDir16(dir8);
+  const hullId = bodyIdToGeneratedHullId(bodyId);
+  if (hullId) {
+    return applyHullVisualDir16Remap(hullId, logicalDir16);
+  }
+  return logicalDir16;
+}
+
 // ── Main resolver ────────────────────────────────────────────────────
 
 /**
@@ -100,8 +139,15 @@ export function turretAngleToDir16(turretAngle: number): number {
  * This is the main pure adapter function that the renderer calls.
  * It combines:
  * 1. Turret sprite key resolution (via resolveModularTurretSpriteKey concept)
- * 2. Directional pivot resolution (via resolveTurretPivotForDir)
- * 3. Socket/pivot attachment math (via computeTurretSpriteCenterOffsetForSocket)
+ * 2. Directional pivot resolution (via resolveTurretPivotForDir) — from turretAngle
+ * 3. Socket resolution (via resolveSocketNormForDir) — from bodyAngle
+ * 4. Socket/pivot attachment math (via computeTurretSpriteCenterOffsetForSocket)
+ *
+ * Direction split (fixup #3):
+ * - turretDir16 is derived from turretAngle and used for pivot lookup.
+ * - hullVisualDir16 is derived from bodyAngle (matching the displayed hull
+ *   texture frame) and used for socket lookup.
+ * - The turret can rotate independently from the hull, so these MUST be separate.
  *
  * The textureKey is provided by the caller (from resolveModularTurretSpriteKey)
  * because that function requires a Phaser Scene for texture existence check.
@@ -133,8 +179,11 @@ export function resolveTurretSpriteMountingData(params: {
   bodyId: string;
   /** Upgrade modification level (0-3). */
   modificationLevel: number;
-  /** Turret angle in radians (screen-space). */
+  /** Turret angle in radians (screen-space). Used for turret pivot direction. */
   turretAngle: number;
+  /** Body/hull angle in radians (screen-space). Used for hull socket direction.
+   *  Must match the hull sprite's visual direction (bodyAngle). */
+  bodyAngle: number;
   /** Sprite source sizes. */
   sourceSizes: SpriteSourceSizes;
   /** Sprite scale factors. */
@@ -146,6 +195,7 @@ export function resolveTurretSpriteMountingData(params: {
     bodyId,
     modificationLevel,
     turretAngle,
+    bodyAngle,
     sourceSizes,
     scaleFactors,
   } = params;
@@ -157,28 +207,32 @@ export function resolveTurretSpriteMountingData(params: {
       offsetFromHullCenter: null,
       directionalPivot: null,
       socketProfile: null,
-      dir16: 0,
+      turretDir16: 0,
+      hullVisualDir16: 0,
       useRealTurretSprite: false,
     };
   }
 
-  // Resolve dir16 for directional pivot lookup
-  const dir16 = turretAngleToDir16(turretAngle);
+  // ── Direction split (fixup #3) ──────────────────────────────────
+  // Turret pivot direction comes from turretAngle.
+  // Hull socket direction comes from bodyAngle, matching the displayed
+  // hull texture frame (including hull-specific visual remap).
+  const turretDir16 = turretAngleToDir16(turretAngle);
+  const hullVisualDir16 = bodyAngleToHullVisualDir16(bodyAngle, bodyId);
 
-  // Resolve directional pivot for this weapon/level/direction
-  const directionalPivot = resolveTurretPivotForDir(weaponId, modificationLevel, dir16);
+  // Resolve directional pivot for this weapon/level/direction (from turret dir)
+  const directionalPivot = resolveTurretPivotForDir(weaponId, modificationLevel, turretDir16);
 
   // Resolve hull socket (direction-independent base, for contract check)
   const socketProfile = resolveHullSocketProfile(bodyId, 'turret_main');
 
-  // Resolve direction-specific socket position.
+  // Resolve direction-specific socket position (from hull visual dir).
   // The socket position varies per hull direction because the orthographic
   // projection shifts the mount point's apparent position in each sprite frame.
-  // Without perDir, the turret pivot will not land on the hull socket.
-  const socketNorm = resolveSocketNormForDir(bodyId, 'turret_main', dir16);
+  // Uses hullVisualDir16 (from bodyAngle), NOT turretDir16.
+  const socketNorm = resolveSocketNormForDir(bodyId, 'turret_main', hullVisualDir16);
 
-  // If no directional pivot available, try using legacy center (0.5, 0.5)
-  // This handles the case where the weapon has a texture but no directional profile
+  // If no directional pivot available, pivot is null — contract incomplete
   const pivotNorm = directionalPivot
     ? { x: directionalPivot.x, y: directionalPivot.y }
     : null;
@@ -214,7 +268,8 @@ export function resolveTurretSpriteMountingData(params: {
     offsetFromHullCenter: useRealTurretSprite ? offsetFromHullCenter : null,
     directionalPivot: useRealTurretSprite ? directionalPivot : null,
     socketProfile: useRealTurretSprite ? socketProfile : null,
-    dir16,
+    turretDir16,
+    hullVisualDir16,
     useRealTurretSprite,
   };
 }
