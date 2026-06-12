@@ -1221,3 +1221,299 @@ describe('resolveTurretSpriteMountingData — fixup #3+#4: hull socket dir follo
     expect(socketsDiffer).toBe(true);
   });
 });
+
+// ── Test: Fixup #5 — Generated 512px/16-dir turret assets ─────────────
+
+import {
+  getGeneratedTurretTextureKey,
+  getGeneratedTurretAssetPath,
+  GENERATED_TURRET_SOURCE_WIDTH,
+  GENERATED_TURRET_SOURCE_HEIGHT,
+  GENERATED_TURRET_SCALE,
+  GENERATED_TURRET_ORIGIN_X,
+  GENERATED_TURRET_ORIGIN_Y,
+  weaponIdToGeneratedTurretId,
+  modificationLevelToTurretMod,
+  resolveGeneratedTurretFaction,
+  GENERATED_TURRET_FACTIONS,
+  type GeneratedTurretDir16Index,
+} from '../assets/generatedTurretAssets';
+import { DIR16_SUFFIXES } from '../config/directionalTurretProfiles';
+
+const GENERATED_WASP_SMOKY_SIZES: SpriteSourceSizes = {
+  hullSourceWidthPx: 512,
+  hullSourceHeightPx: 512,
+  turretSourceWidthPx: GENERATED_TURRET_SOURCE_WIDTH,   // 512
+  turretSourceHeightPx: GENERATED_TURRET_SOURCE_HEIGHT, // 512
+};
+
+const GENERATED_WASP_SMOKY_SCALES: SpriteScaleFactors = {
+  hullScale: 0.12,
+  turretScale: GENERATED_TURRET_SCALE,  // 0.12
+};
+
+describe('Fixup #5: Generated Smoky turret asset resolver', () => {
+  // 1. Resolver test: generated Smoky dir16 key/path resolves for dir0..dir15
+  it('generates texture keys for all 16 directions (dir0..dir15)', () => {
+    for (let dir16 = 0; dir16 < 16; dir16++) {
+      const key = getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', dir16 as GeneratedTurretDir16Index);
+      expect(key).toMatch(/^generated_turret_smoky_cyan_m0_dir\d{2}$/);
+      expect(key).toContain(`dir${String(dir16).padStart(2, '0')}`);
+    }
+  });
+
+  it('generates asset paths for all 16 directions', () => {
+    for (let dir16 = 0; dir16 < 16; dir16++) {
+      const path = getGeneratedTurretAssetPath('smoky', 'cyan', 'm0', dir16 as GeneratedTurretDir16Index);
+      expect(path).toMatch(/^assets\/units\/turrets\/smoky_m0\/cyan\//);
+      expect(path).toContain(`dir${String(dir16).padStart(2, '0')}`);
+      expect(path).toContain(DIR16_SUFFIXES[dir16]);
+      expect(path).toMatch(/\.png$/);
+    }
+  });
+
+  it('generates keys for all factions', () => {
+    for (const faction of GENERATED_TURRET_FACTIONS) {
+      const key = getGeneratedTurretTextureKey('smoky', faction, 'm0', 0);
+      expect(key).toContain(faction);
+    }
+  });
+
+  it('weaponIdToGeneratedTurretId returns correct turret ID for smoky', () => {
+    expect(weaponIdToGeneratedTurretId('smoky')).toBe('smoky');
+    expect(weaponIdToGeneratedTurretId('thunder')).toBeNull();
+    expect(weaponIdToGeneratedTurretId('railgun')).toBeNull();
+  });
+
+  it('modificationLevelToTurretMod returns m0 for all levels (only M0 assets exist)', () => {
+    expect(modificationLevelToTurretMod(0)).toBe('m0');
+    expect(modificationLevelToTurretMod(1)).toBe('m0');
+    expect(modificationLevelToTurretMod(2)).toBe('m0');
+    expect(modificationLevelToTurretMod(3)).toBe('m0');
+  });
+
+  it('resolveGeneratedTurretFaction returns valid faction or cyan fallback', () => {
+    expect(resolveGeneratedTurretFaction('cyan')).toBe('cyan');
+    expect(resolveGeneratedTurretFaction('green')).toBe('green');
+    expect(resolveGeneratedTurretFaction()).toBe('cyan');
+  });
+
+  // 2. Adapter test: generated Smoky path uses 512×512 source size, not 256
+  it('GENERATED_TURRET_SOURCE_WIDTH/HEIGHT is 512, not 256', () => {
+    expect(GENERATED_TURRET_SOURCE_WIDTH).toBe(512);
+    expect(GENERATED_TURRET_SOURCE_HEIGHT).toBe(512);
+    expect(GENERATED_TURRET_SOURCE_WIDTH).not.toBe(256);
+    expect(GENERATED_TURRET_SOURCE_HEIGHT).not.toBe(256);
+  });
+
+  it('adapter with generated turret sizes produces valid offset', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'generated_turret_smoky_cyan_m0_dir04',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      bodyAngle: 0,
+      sourceSizes: GENERATED_WASP_SMOKY_SIZES,
+      scaleFactors: GENERATED_WASP_SMOKY_SCALES,
+      origins: WASP_SMOKY_ORIGINS,
+    });
+
+    expect(result.useRealTurretSprite).toBe(true);
+    expect(result.offsetFromHullCenter).not.toBeNull();
+  });
+
+  it('adapter with generated 512 sizes produces DIFFERENT offset than legacy 256 sizes', () => {
+    const resultLegacy = resolveTurretSpriteMountingData({
+      textureKey: 'test_key',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      bodyAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,        // turretSourceWidthPx: 256
+      scaleFactors: WASP_SMOKY_SCALES,       // turretScale: 0.24
+      origins: WASP_SMOKY_ORIGINS,
+    });
+
+    const resultGenerated = resolveTurretSpriteMountingData({
+      textureKey: 'test_key',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      bodyAngle: 0,
+      sourceSizes: GENERATED_WASP_SMOKY_SIZES, // turretSourceWidthPx: 512
+      scaleFactors: GENERATED_WASP_SMOKY_SCALES, // turretScale: 0.12
+      origins: WASP_SMOKY_ORIGINS,
+    });
+
+    // Both should produce valid results
+    expect(resultLegacy.offsetFromHullCenter).not.toBeNull();
+    expect(resultGenerated.offsetFromHullCenter).not.toBeNull();
+
+    // The display sizes are the same: 256*0.24 = 61.44 vs 512*0.12 = 61.44
+    // So the offsets should be the same for same normalized pivot/socket
+    // This is because 256 * 0.24 == 512 * 0.12 == 61.44
+    expect(resultLegacy.offsetFromHullCenter!.x).toBeCloseTo(resultGenerated.offsetFromHullCenter!.x, 10);
+    expect(resultLegacy.offsetFromHullCenter!.y).toBeCloseTo(resultGenerated.offsetFromHullCenter!.y, 10);
+  });
+
+  // 3. Texture/pivot identity test: if texture dir is dirN, pivot lookup uses the same dirN
+  it('turretVisualDir16 is consistent between texture key and pivot lookup', () => {
+    // turretAngle=0 (E) → logicalDir8=0 → logicalDir16=0 → visualDir16=(0+4)%16=4
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'generated_turret_smoky_cyan_m0_dir04',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      bodyAngle: 0,
+      sourceSizes: GENERATED_WASP_SMOKY_SIZES,
+      scaleFactors: GENERATED_WASP_SMOKY_SCALES,
+      origins: WASP_SMOKY_ORIGINS,
+    });
+
+    // The turretVisualDir16 should be 4, matching the texture key suffix dir04
+    expect(result.turretVisualDir16).toBe(4);
+
+    // The directional pivot should be for dir16=4 (not dir0)
+    expect(result.directionalPivot).not.toBeNull();
+  });
+
+  it('texture/pivot identity holds for all 8 main directions', () => {
+    const angles = [
+      { angle: 0, name: 'E' },
+      { angle: Math.PI / 4, name: 'SE' },
+      { angle: Math.PI / 2, name: 'S' },
+      { angle: 3 * Math.PI / 4, name: 'SW' },
+      { angle: Math.PI, name: 'W' },
+      { angle: -3 * Math.PI / 4, name: 'NW' },
+      { angle: -Math.PI / 2, name: 'N' },
+      { angle: -Math.PI / 4, name: 'NE' },
+    ];
+
+    for (const { angle } of angles) {
+      const visualDir16 = turretAngleToVisualDir16(angle, 'smoky');
+      const dirPadded = String(visualDir16).padStart(2, '0');
+
+      // The generated turret texture key for this direction should contain
+      // the same visualDir16
+      const expectedKey = `generated_turret_smoky_cyan_m0_dir${dirPadded}`;
+
+      // Verify the resolver would produce the correct key
+      // (actual resolveGeneratedTurretKey requires Phaser Scene, so we test the key builder)
+      const key = getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', visualDir16 as GeneratedTurretDir16Index);
+      expect(key).toBe(expectedKey);
+
+      // Verify the visual dir16 produces a valid pivot lookup
+      // (pivot data exists for all 16 dirs in directionalTurretProfiles)
+    }
+  });
+
+  // 4. Regression test: legacy 8-dir Smoky resolver is not used by PR #263 real-sprite path
+  it('generated turret key uses generated_turret_ prefix, not legacy smoky_m0_turret_ prefix', () => {
+    const generatedKey = getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', 0);
+    const legacyKey = 'smoky_m0_turret_cyan_dir0';
+
+    expect(generatedKey).toMatch(/^generated_turret_/);
+    expect(generatedKey).not.toBe(legacyKey);
+    expect(legacyKey).toMatch(/^smoky_m0_turret_/);
+    expect(generatedKey).not.toMatch(/^smoky_m0_turret_/);
+  });
+
+  it('generated turret key has 16-dir indices (dir00..dir15), not 8-dir (dir0..dir7)', () => {
+    const keyDir0 = getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', 0);
+    const keyDir15 = getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', 15);
+
+    // Generated keys use padded dirNN format (dir00, dir15)
+    expect(keyDir0).toContain('dir00');
+    expect(keyDir15).toContain('dir15');
+
+    // Legacy keys use unpadded dirN format (dir0, dir7)
+    expect('smoky_m0_turret_cyan_dir0').toContain('dir0');
+    expect('smoky_m0_turret_cyan_dir0').not.toContain('dir00');
+  });
+
+  // 5. Fallback test: missing generated texture => procedural fallback
+  it('null textureKey => procedural fallback (useRealTurretSprite=false)', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: null,
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      bodyAngle: 0,
+      sourceSizes: GENERATED_WASP_SMOKY_SIZES,
+      scaleFactors: GENERATED_WASP_SMOKY_SCALES,
+      origins: WASP_SMOKY_ORIGINS,
+    });
+
+    expect(result.useRealTurretSprite).toBe(false);
+    expect(result.textureKey).toBeNull();
+    expect(result.offsetFromHullCenter).toBeNull();
+  });
+
+  it('non-Smoky weapon => null from weaponIdToGeneratedTurretId => procedural fallback', () => {
+    expect(weaponIdToGeneratedTurretId('thunder')).toBeNull();
+    expect(weaponIdToGeneratedTurretId('flamethrower')).toBeNull();
+    expect(weaponIdToGeneratedTurretId('')).toBeNull();
+  });
+
+  // 6. Generated turret origin matches turret standard (0.5, 0.5)
+  it('GENERATED_TURRET_ORIGIN is (0.5, 0.5) — standard centered turret origin', () => {
+    expect(GENERATED_TURRET_ORIGIN_X).toBe(0.5);
+    expect(GENERATED_TURRET_ORIGIN_Y).toBe(0.5);
+  });
+
+  // 7. hullSocketWorld == turretPivotWorld invariant with generated 512×512 sizes
+  it('attachment invariant holds with generated 512×512 turret source size', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'generated_turret_smoky_cyan_m0_dir04',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      bodyAngle: 0,
+      sourceSizes: GENERATED_WASP_SMOKY_SIZES,
+      scaleFactors: GENERATED_WASP_SMOKY_SCALES,
+      origins: WASP_SMOKY_ORIGINS,
+    });
+
+    expect(result.useRealTurretSprite).toBe(true);
+    expect(result.directionalPivot).not.toBeNull();
+    expect(result.offsetFromHullCenter).not.toBeNull();
+
+    // Verify invariant: socket position in hull space == pivot position in turret space
+    const socketNorm = resolveSocketNormForDir('wasp', 'turret_main', result.hullVisualDir16);
+    expect(socketNorm).not.toBeNull();
+
+    const hullDisplayW = GENERATED_WASP_SMOKY_SIZES.hullSourceWidthPx * GENERATED_WASP_SMOKY_SCALES.hullScale;
+    const hullDisplayH = GENERATED_WASP_SMOKY_SIZES.hullSourceHeightPx * GENERATED_WASP_SMOKY_SCALES.hullScale;
+    const turretDisplayW = GENERATED_WASP_SMOKY_SIZES.turretSourceWidthPx * GENERATED_WASP_SMOKY_SCALES.turretScale;
+    const turretDisplayH = GENERATED_WASP_SMOKY_SIZES.turretSourceHeightPx * GENERATED_WASP_SMOKY_SCALES.turretScale;
+
+    // Hull socket offset from hull origin
+    const socketFromHullOrigin = computeNormalizedPointOffsetPx(
+      socketNorm!,
+      hullDisplayW, hullDisplayH,
+      WASP_SMOKY_ORIGINS.hullOriginX, WASP_SMOKY_ORIGINS.hullOriginY,
+    );
+
+    // Turret pivot offset from turret origin
+    const pivotNorm = { x: result.directionalPivot!.x, y: result.directionalPivot!.y };
+    const pivotFromTurretOrigin = computeNormalizedPointOffsetPx(
+      pivotNorm,
+      turretDisplayW, turretDisplayH,
+      WASP_SMOKY_ORIGINS.turretOriginX, WASP_SMOKY_ORIGINS.turretOriginY,
+    );
+
+    // The offset should equal: socketFromHullOrigin - pivotFromTurretOrigin
+    expect(result.offsetFromHullCenter!.x).toBeCloseTo(
+      socketFromHullOrigin.x - pivotFromTurretOrigin.x, 10,
+    );
+    expect(result.offsetFromHullCenter!.y).toBeCloseTo(
+      socketFromHullOrigin.y - pivotFromTurretOrigin.y, 10,
+    );
+  });
+});

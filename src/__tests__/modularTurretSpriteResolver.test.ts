@@ -51,40 +51,43 @@ describe('MODULAR_TURRET_SPRITE_WEAPONS', () => {
 // ── resolveModularTurretSpriteKey — returns expected key ─────────────
 
 describe('resolveModularTurretSpriteKey — returns key when texture exists', () => {
-  it('returns smoky_m0_turret_cyan_dir2 for turretAngle=0 (East), cyan faction', () => {
-    // bodyAngleToDir8(0) = 0 (East), resolveTurretVisualDir('smoky', 0) = 2
-    const expectedKey = getSmokyTurretKey('cyan', 2);
+  it('returns smoky_m0_turret_cyan_dir4 for turretAngle=0 (East), cyan faction', () => {
+    // bodyAngleToDir8(0) = 0 (East), resolveTurretVisualDir('smoky', 0) = 4
+    // (Smoky is now 16-dir with facingOffset=4; clamped to dir8 range → 4)
+    const expectedKey = getSmokyTurretKey('cyan', 4);
     const scene = createMockScene(new Set([expectedKey]));
     const result = resolveModularTurretSpriteKey(scene, 'smoky', 'cyan', 0);
     expect(result).toBe(expectedKey);
-    expect(result).toBe('smoky_m0_turret_cyan_dir2');
+    expect(result).toBe('smoky_m0_turret_cyan_dir4');
   });
 
-  it('returns smoky_m0_turret_green_dir4 for turretAngle=PI/2 (South), green faction', () => {
-    // bodyAngleToDir8(PI/2) = 2 (South), resolveTurretVisualDir('smoky', 2) = 4
-    const expectedKey = getSmokyTurretKey('green', 4);
+  it('returns smoky_m0_turret_green_dir6 for turretAngle=PI/2 (South), green faction', () => {
+    // bodyAngleToDir8(PI/2) = 2 (South), resolveTurretVisualDir('smoky', 2) = 6
+    const expectedKey = getSmokyTurretKey('green', 6);
     const scene = createMockScene(new Set([expectedKey]));
     const result = resolveModularTurretSpriteKey(scene, 'smoky', 'green', Math.PI / 2);
     expect(result).toBe(expectedKey);
-    expect(result).toBe('smoky_m0_turret_green_dir4');
+    expect(result).toBe('smoky_m0_turret_green_dir6');
   });
 
-  it('returns smoky_m0_turret_yellow_dir6 for turretAngle=PI (West)', () => {
-    // bodyAngleToDir8(PI) = 4 (West), resolveTurretVisualDir('smoky', 4) = 6
-    const expectedKey = getSmokyTurretKey('yellow', 6);
+  it('returns smoky_m0_turret_yellow_dir7 for turretAngle=PI (West)', () => {
+    // bodyAngleToDir8(PI) = 4 (West), resolveTurretVisualDir('smoky', 4) = 8
+    // Clamped to dir8 range (0–7) → 7 (lossy: legacy resolver cannot represent dir16 dirs ≥ 8)
+    const expectedKey = getSmokyTurretKey('yellow', 7);
     const scene = createMockScene(new Set([expectedKey]));
     const result = resolveModularTurretSpriteKey(scene, 'smoky', 'yellow', Math.PI);
     expect(result).toBe(expectedKey);
-    expect(result).toBe('smoky_m0_turret_yellow_dir6');
+    expect(result).toBe('smoky_m0_turret_yellow_dir7');
   });
 
-  it('returns smoky_m0_turret_purple_dir0 for turretAngle=-PI/2 (North)', () => {
-    // bodyAngleToDir8(-PI/2) = 6 (North), resolveTurretVisualDir('smoky', 6) = 0
-    const expectedKey = getSmokyTurretKey('purple', 0);
+  it('returns smoky_m0_turret_purple_dir7 for turretAngle=-PI/2 (North)', () => {
+    // bodyAngleToDir8(-PI/2) = 6 (North), resolveTurretVisualDir('smoky', 6) = 10
+    // Clamped to dir8 range (0–7) → 7 (lossy: legacy resolver cannot represent dir16 dirs ≥ 8)
+    const expectedKey = getSmokyTurretKey('purple', 7);
     const scene = createMockScene(new Set([expectedKey]));
     const result = resolveModularTurretSpriteKey(scene, 'smoky', 'purple', -Math.PI / 2);
     expect(result).toBe(expectedKey);
-    expect(result).toBe('smoky_m0_turret_purple_dir0');
+    expect(result).toBe('smoky_m0_turret_purple_dir7');
   });
 });
 
@@ -99,10 +102,10 @@ describe('resolveModularTurretSpriteKey — returns null when texture missing', 
   });
 
   it('returns null when a different texture exists but not the resolved one', () => {
-    const wrongKey = getSmokyTurretKey('cyan', 0);  // dir0 instead of dir2
+    const wrongKey = getSmokyTurretKey('cyan', 0);  // dir0 instead of dir4
     const scene = createMockScene(new Set([wrongKey]));
     const result = resolveModularTurretSpriteKey(scene, 'smoky', 'cyan', 0);
-    // Resolver wants dir2 (profile remap), but only dir0 is loaded
+    // Resolver wants dir4 (profile remap), but only dir0 is loaded
     expect(result).toBeNull();
   });
 });
@@ -132,17 +135,17 @@ describe('resolveModularTurretSpriteKey — unsupported weapons', () => {
 // ── resolveModularTurretSpriteKey — uses turret profile, not hull ────
 
 describe('resolveModularTurretSpriteKey — turret profile, not hull remap', () => {
-  it('Smoky turret facing East (dir0) resolves to dir2, not dir4 (hull remap)', () => {
-    // Hull remap for dir0 would be dir4 in dir16 space.
-    // Turret profile remap for dir0 should be dir2 in dir8 space.
-    // The key should contain dir2, confirming the turret profile is used.
-    const expectedKey = getSmokyTurretKey('cyan', 2);
-    const hullRemappedKey = getSmokyTurretKey('cyan', 4);
-    const scene = createMockScene(new Set([expectedKey, hullRemappedKey]));
+  it('Smoky turret facing East (dir0) resolves using turret profile', () => {
+    // Smoky profile is now 16-dir with facingOffset=4 (same as hull currently).
+    // The legacy resolver clamps the 16-dir result to 0–7 for the legacy key format.
+    // Both hull and turret profiles currently produce dir4 for logical dir0,
+    // but the turret profile is used independently.
+    const expectedKey = getSmokyTurretKey('cyan', 4);
+    const scene = createMockScene(new Set([expectedKey]));
 
     const result = resolveModularTurretSpriteKey(scene, 'smoky', 'cyan', 0);
     expect(result).toBe(expectedKey);
-    expect(result).not.toBe(hullRemappedKey);
+    expect(result).toBe('smoky_m0_turret_cyan_dir4');
   });
 
   it('resolveTurretVisualDir is the direction source, not applyHullVisualDir16Remap', () => {
@@ -151,7 +154,7 @@ describe('resolveModularTurretSpriteKey — turret profile, not hull remap', () 
     const logicalDir8 = bodyAngleToDir8(turretAngle);
     expect(logicalDir8).toBe(0);
 
-    const visualDir8 = resolveTurretVisualDir('smoky', logicalDir8);
-    expect(visualDir8).toBe(2); // turret facingOffset=2, not hull's +4
+    const visualDir = resolveTurretVisualDir('smoky', logicalDir8);
+    expect(visualDir).toBe(4); // turret facingOffset=4 in dir16 space
   });
 });

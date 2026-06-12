@@ -8,6 +8,12 @@ import {
   GENERATED_HULL_FACTIONS,
   getGeneratedHullTextureKey,
 } from '../assets/generatedHullAssets';
+import {
+  GENERATED_TURRET_IDS,
+  GENERATED_TURRET_FACTIONS,
+  GENERATED_TURRET_MODS,
+  getGeneratedTurretTextureKey,
+} from '../assets/generatedTurretAssets';
 
 // We test the loader helper without importing Phaser by mocking the scene.
 // runtimeGeneratedAssets uses scene.load.image()/spritesheet() which are Phaser APIs.
@@ -540,12 +546,17 @@ describe('MENU-02: Arena visual asset loading', () => {
     try {
       const loadedKeys = loadArenaVisualAssets(mock.scene as any);
 
-      expect(loadedKeys).toHaveLength(128);
-      expect(mock.loadImageCalls).toHaveLength(128);
+      // FIXUP-5: Now includes generated turret sets (4 factions × 16 dirs = 64 additional)
+      // Total: 64 (modularUnits) + 64 (generated hulls) + 64 (generated turrets) = 192
+      expect(loadedKeys).toHaveLength(192);
+      expect(mock.loadImageCalls).toHaveLength(192);
       expect(loadedKeys).toContain('wasp_m0_hull_cyan_dir0');
       expect(loadedKeys).toContain('smoky_m0_turret_cyan_dir0');
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
+      // FIXUP-5: Also includes generated turret keys
+      expect(loadedKeys).toContain(getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', 0));
+      expect(loadedKeys).toContain(getGeneratedTurretTextureKey('smoky', 'purple', 'm0', 15));
     } finally {
       mock.restore();
     }
@@ -559,10 +570,14 @@ describe('MENU-02: Arena visual asset loading', () => {
     try {
       const loadedKeys = loadArenaVisualAssets(mock.scene as any);
 
-      expect(loadedKeys).toHaveLength(64);
+      // FIXUP-5: Now includes generated turret sets too
+      // 64 (generated hulls) + 64 (generated turrets) = 128 (modularUnits already loaded)
+      expect(loadedKeys).toHaveLength(128);
       expect(loadedKeys).not.toContain('wasp_m0_hull_cyan_dir0');
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'purple', 'm0', 15));
+      // FIXUP-5: Also includes generated turret keys
+      expect(loadedKeys).toContain(getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', 0));
     } finally {
       mock.restore();
     }
@@ -580,9 +595,9 @@ describe('MENU-02: Arena visual asset loading', () => {
     expect(isArenaVisualAssetsLoaded(mockScene as any)).toBe(false);
   });
 
-  it('considers Arena visuals loaded only when modularUnits and all Wasp factions are present', async () => {
+  it('considers Arena visuals loaded only when modularUnits, all Wasp factions, and generated turrets are present', async () => {
     const { isArenaVisualAssetsLoaded, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
-    const generatedProbeKeys = new Set(
+    const generatedHullProbeKeys = new Set(
       GENERATED_HULL_FACTIONS.map(faction => (
         getGeneratedHullTextureKey(
           DEFAULT_GENERATED_HULL,
@@ -592,10 +607,21 @@ describe('MENU-02: Arena visual asset loading', () => {
         )
       )),
     );
+    // FIXUP-5: Also need generated turret probe keys
+    const generatedTurretProbeKeys = new Set<string>();
+    for (const weapon of GENERATED_TURRET_IDS) {
+      for (const faction of GENERATED_TURRET_FACTIONS) {
+        for (const mod of GENERATED_TURRET_MODS) {
+          generatedTurretProbeKeys.add(getGeneratedTurretTextureKey(weapon, faction, mod, 0));
+        }
+      }
+    }
+
+    const allProbeKeys = new Set([...generatedHullProbeKeys, ...generatedTurretProbeKeys]);
 
     const mockScene = {
       textures: {
-        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY || generatedProbeKeys.has(key),
+        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY || allProbeKeys.has(key),
       },
     };
 

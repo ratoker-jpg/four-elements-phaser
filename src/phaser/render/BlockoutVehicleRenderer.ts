@@ -70,10 +70,16 @@ import {
   type PlacementOverlayParams,
 } from '../debug/WaspHullPlacementCalibrator';
 import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibrationPanel';
-import { resolveModularTurretSpriteKey } from '../../assets/modularUnitAssets';
-import { MODULAR_RENDER_SCALE } from '../../config/unitRenderConfig';
+import {
+  resolveGeneratedTurretKey,
+  GENERATED_TURRET_SOURCE_WIDTH,
+  GENERATED_TURRET_SOURCE_HEIGHT,
+  GENERATED_TURRET_SCALE,
+} from '../../assets/generatedTurretAssets';
+// MODULAR_RENDER_SCALE no longer used for turret sprites — generated turret uses GENERATED_TURRET_SCALE
 import {
   resolveTurretSpriteMountingData,
+  turretAngleToVisualDir16,
 } from '../../config/turretSpriteMountingAdapter';
 
 
@@ -390,13 +396,17 @@ export class BlockoutVehicleRenderer {
         }
       }
 
-      // ── TURRET-HULL-CONTRACT-PR-F2: Turret sprite lifecycle ──────
-      // Resolve turret sprite key using profile-based resolver.
+      // ── TURRET-HULL-CONTRACT-PR-F2 / FIXUP-5: Turret sprite lifecycle ──
+      // Resolve turret sprite key using generated 16-dir/512px resolver.
       // Only attempt when a generated hull sprite is active (Wasp+Smoky path).
+      // FIXUP-5: Uses resolveGeneratedTurretKey (16-dir, 512×512) instead of
+      // the legacy resolveModularTurretSpriteKey (8-dir, 256×256).
       let turretKey: string | null = null;
       if (useGeneratedHull) {
-        turretKey = resolveModularTurretSpriteKey(
-          this.scene, vehicle.weaponId, vehicle.faction, vehicle.turretAngle,
+        const turretVisualDir16 = turretAngleToVisualDir16(vehicle.turretAngle, vehicle.weaponId);
+        turretKey = resolveGeneratedTurretKey(
+          this.scene, vehicle.weaponId, vehicle.faction, vehicle.modificationLevel,
+          turretVisualDir16,
         );
       }
 
@@ -404,6 +414,9 @@ export class BlockoutVehicleRenderer {
       // sprite can be shown. The adapter checks the full contract:
       // texture key + directional pivot + socket profile + computed offset.
       // If any piece is missing, useRealTurretSprite is false.
+      //
+      // FIXUP-5: Turret source dimensions are now 512×512 (generated),
+      // and turret scale is GENERATED_TURRET_SCALE (0.12) matching hull scale.
       const mountingData = resolveTurretSpriteMountingData({
         textureKey: turretKey,
         weaponId: vehicle.weaponId,
@@ -411,8 +424,13 @@ export class BlockoutVehicleRenderer {
         modificationLevel: vehicle.modificationLevel,
         turretAngle: vehicle.turretAngle,
         bodyAngle: vehicle.bodyAngle,
-        sourceSizes: { hullSourceWidthPx: 512, hullSourceHeightPx: 512, turretSourceWidthPx: 256, turretSourceHeightPx: 256 },
-        scaleFactors: { hullScale: GENERATED_HULL_SCALE, turretScale: MODULAR_RENDER_SCALE },
+        sourceSizes: {
+          hullSourceWidthPx: 512,
+          hullSourceHeightPx: 512,
+          turretSourceWidthPx: GENERATED_TURRET_SOURCE_WIDTH,
+          turretSourceHeightPx: GENERATED_TURRET_SOURCE_HEIGHT,
+        },
+        scaleFactors: { hullScale: GENERATED_HULL_SCALE, turretScale: GENERATED_TURRET_SCALE },
       });
 
       let turretSprite = this.vehicleTurretSprites.get(vehicle.id);
@@ -421,7 +439,7 @@ export class BlockoutVehicleRenderer {
         const resolvedKey = mountingData.textureKey;
         if (!turretSprite) {
           turretSprite = this.scene.add.image(0, 0, resolvedKey);
-          turretSprite.setScale(MODULAR_RENDER_SCALE);
+          turretSprite.setScale(GENERATED_TURRET_SCALE);
           turretSprite.setOrigin(0.5, 0.5); // IMPORTANT: origin stays centered, never set to pivot
           turretSprite.setDepth(BLOCKOUT_DEPTH + TURRET_SPRITE_DEPTH_BIAS);
           this.vehicleTurretSprites.set(vehicle.id, turretSprite);

@@ -33,7 +33,7 @@ import {
   WASP_HULL_OFFSET_Y,
   WASP_HULL_VISUAL_DIR16_REMAP,
 } from '../assets/generatedHullAssets';
-import { MODULAR_RENDER_SCALE } from '../config/unitRenderConfig';
+import { GENERATED_TURRET_SCALE } from '../assets/generatedTurretAssets';
 
 // ── Profile resolution tests ───────────────────────────────────────
 
@@ -57,7 +57,7 @@ describe('resolveTurretVisualProfile', () => {
     const profile = resolveTurretVisualProfile('smoky');
     expect(profile).not.toBeNull();
     expect(profile!.weaponId).toBe('smoky');
-    expect(profile!.family).toBe('legacy');
+    expect(profile!.family).toBe('generated');
   });
 
   it('returns null for an unsupported weapon', () => {
@@ -81,20 +81,20 @@ describe('remapVisualDir — Wasp hull parity with WASP_HULL_VISUAL_DIR16_REMAP'
 });
 
 describe('remapVisualDir — Smoky turret cardinal directions', () => {
-  it('maps East (0) → dir2 (Smoky facingOffset=2)', () => {
-    expect(remapVisualDir(0, SMOKY_TURRET_VISUAL_PROFILE.direction)).toBe(2);
+  it('maps East (0) → dir4 (Smoky facingOffset=4 in dir16 space)', () => {
+    expect(remapVisualDir(0, SMOKY_TURRET_VISUAL_PROFILE.direction)).toBe(4);
   });
 
-  it('maps South (2) → dir4', () => {
-    expect(remapVisualDir(2, SMOKY_TURRET_VISUAL_PROFILE.direction)).toBe(4);
+  it('maps South (2) → dir6', () => {
+    expect(remapVisualDir(2, SMOKY_TURRET_VISUAL_PROFILE.direction)).toBe(6);
   });
 
-  it('maps West (4) → dir6', () => {
-    expect(remapVisualDir(4, SMOKY_TURRET_VISUAL_PROFILE.direction)).toBe(6);
+  it('maps West (4) → dir8', () => {
+    expect(remapVisualDir(4, SMOKY_TURRET_VISUAL_PROFILE.direction)).toBe(8);
   });
 
-  it('maps North (6) → dir0 (wraps)', () => {
-    expect(remapVisualDir(6, SMOKY_TURRET_VISUAL_PROFILE.direction)).toBe(0);
+  it('maps North (6) → dir10 (wraps)', () => {
+    expect(remapVisualDir(6, SMOKY_TURRET_VISUAL_PROFILE.direction)).toBe(10);
   });
 });
 
@@ -103,19 +103,18 @@ describe('remapVisualDir — Smoky turret cardinal directions', () => {
 describe('remapVisualDir — hull and turret offsets are independent', () => {
   it('a synthetic profile with different facingOffset produces a different result', () => {
     const hullRemap = WASP_HULL_VISUAL_PROFILE.direction;  // {16, 4}
-    const turretRemap = SMOKY_TURRET_VISUAL_PROFILE.direction;  // {8, 2}
+    const turretRemap = SMOKY_TURRET_VISUAL_PROFILE.direction;  // {16, 4}
 
-    // Same logical direction 0 produces different visual dirs for hull vs turret
-    // (they have different dirCounts so direct comparison isn't meaningful,
-    // but the facing offsets are independently declared)
+    // Hull and turret currently share the same direction profile parameters,
+    // but they are independently declared — changing one must not affect the other.
     expect(hullRemap.facingOffset).toBe(4);
-    expect(turretRemap.facingOffset).toBe(2);
-    expect(hullRemap.dirCount).not.toBe(turretRemap.dirCount);
+    expect(turretRemap.facingOffset).toBe(4);
+    expect(hullRemap.dirCount).toBe(turretRemap.dirCount);
 
-    // A hypothetical second turret with offset=0 would differ from Smoky's +2
-    const noOffset: DirectionRemapProfile = { dirCount: 8, facingOffset: 0 };
+    // A hypothetical second turret with offset=0 would differ from Smoky's +4
+    const noOffset: DirectionRemapProfile = { dirCount: 16, facingOffset: 0 };
     expect(remapVisualDir(0, noOffset)).toBe(0);
-    expect(remapVisualDir(0, turretRemap)).toBe(2);  // Smoky adds +2
+    expect(remapVisualDir(0, turretRemap)).toBe(4);  // Smoky adds +4
   });
 });
 
@@ -217,8 +216,8 @@ describe('Profile constants parity with existing exports', () => {
     expect(WASP_HULL_VISUAL_PROFILE.placementOffset.y).toBe(WASP_HULL_OFFSET_Y);
   });
 
-  it('Smoky turret profile matches MODULAR_RENDER_SCALE', () => {
-    expect(SMOKY_TURRET_VISUAL_PROFILE.textureScale).toBe(MODULAR_RENDER_SCALE);
+  it('Smoky turret profile matches GENERATED_TURRET_SCALE', () => {
+    expect(SMOKY_TURRET_VISUAL_PROFILE.textureScale).toBe(GENERATED_TURRET_SCALE);
   });
 
   it('Wasp direction remap reproduces WASP_HULL_VISUAL_DIR16_REMAP for all 16 dirs', () => {
@@ -266,25 +265,25 @@ describe('PR-C re-exported WASP_HULL_DIRECTION_REMAP_PROFILE', () => {
 // ── PR-D: Turret visual direction resolver tests ───────────────────
 
 describe('resolveTurretVisualDir — Smoky turret profile remap', () => {
-  it('maps logical E (dir0) → visual dir2', () => {
-    expect(resolveTurretVisualDir('smoky', 0)).toBe(2);
+  it('maps logical E (dir0) → visual dir4', () => {
+    expect(resolveTurretVisualDir('smoky', 0)).toBe(4);
   });
 
-  it('maps logical S (dir2) → visual dir4', () => {
-    expect(resolveTurretVisualDir('smoky', 2)).toBe(4);
+  it('maps logical S (dir2) → visual dir6', () => {
+    expect(resolveTurretVisualDir('smoky', 2)).toBe(6);
   });
 
-  it('maps logical W (dir4) → visual dir6', () => {
-    expect(resolveTurretVisualDir('smoky', 4)).toBe(6);
+  it('maps logical W (dir4) → visual dir8', () => {
+    expect(resolveTurretVisualDir('smoky', 4)).toBe(8);
   });
 
-  it('maps logical N (dir6) → visual dir0 (wraps)', () => {
-    expect(resolveTurretVisualDir('smoky', 6)).toBe(0);
+  it('maps logical N (dir6) → visual dir10 (wraps)', () => {
+    expect(resolveTurretVisualDir('smoky', 6)).toBe(10);
   });
 
   it('maps all 8 logical dirs to expected visual dirs', () => {
-    // Smoky facingOffset=2 in dir8 space: visual = (logical + 2) % 8
-    const expected = [2, 3, 4, 5, 6, 7, 0, 1];
+    // Smoky facingOffset=4 in dir16 space: visual = (logical + 4) % 16
+    const expected = [4, 5, 6, 7, 8, 9, 10, 11];
     for (let logical = 0; logical < 8; logical++) {
       expect(resolveTurretVisualDir('smoky', logical)).toBe(expected[logical]);
     }
@@ -306,13 +305,16 @@ describe('resolveTurretVisualDir — unsupported weapons return null', () => {
 });
 
 describe('resolveTurretVisualDir — uses turret profile, not hull remap', () => {
-  it('Smoky dir0 returns 2 (turret facingOffset=2), not 4 (hull facingOffset=4)', () => {
+  it('Smoky dir0 uses turret profile (currently same as hull, but independently declared)', () => {
     const turretResult = resolveTurretVisualDir('smoky', 0);
     const hullResult = remapVisualDir(0, WASP_HULL_VISUAL_PROFILE.direction);
-    expect(turretResult).toBe(2);
-    // Hull remap would produce 4 (in dir16 space), confirming they are different
+    // Both profiles currently share {dirCount: 16, facingOffset: 4}, so results match.
+    // The important invariant is that resolveTurretVisualDir reads the turret profile,
+    // not the hull profile — verified by checking the profile directly.
+    expect(SMOKY_TURRET_VISUAL_PROFILE.direction).toEqual({ dirCount: 16, facingOffset: 4 });
+    expect(WASP_HULL_VISUAL_PROFILE.direction).toEqual({ dirCount: 16, facingOffset: 4 });
+    expect(turretResult).toBe(4);
     expect(hullResult).toBe(4);
-    expect(turretResult).not.toBe(hullResult);
   });
 });
 
@@ -321,12 +323,12 @@ describe('resolveTurretVisualDir — no Phaser/runtime state required', () => {
     const a = resolveTurretVisualDir('smoky', 0);
     const b = resolveTurretVisualDir('smoky', 0);
     expect(a).toBe(b);
-    expect(a).toBe(2);
+    expect(a).toBe(4);
   });
 
   it('does not depend on any scene or texture manager', () => {
     // Pure function — no scene parameter needed
     const result = resolveTurretVisualDir('smoky', 2);
-    expect(result).toBe(4);
+    expect(result).toBe(6);
   });
 });

@@ -45,7 +45,7 @@ import {
 import { resolveTurretPivotForDir } from './directionalTurretProfiles';
 import type { DirectionalPoint2D } from './directionalTurretProfiles';
 import type { SocketProfile } from './hullTurretVisualProfiles';
-import { resolveTurretVisualDir } from './hullTurretVisualProfiles';
+import { resolveTurretVisualDir, resolveTurretVisualProfile } from './hullTurretVisualProfiles';
 import { resolveHullSocketProfile, resolveSocketNormForDir } from './turretAttachmentMath';
 import {
   computeTurretSpriteCenterOffsetForSocket,
@@ -60,9 +60,9 @@ export interface SpriteSourceSizes {
   hullSourceWidthPx: number;
   /** Hull sprite source height (e.g. 512 for generated hulls). */
   hullSourceHeightPx: number;
-  /** Turret sprite source width (e.g. 256 for Smoky turret sprites). */
+  /** Turret sprite source width (e.g. 512 for generated Smoky turret sprites). */
   turretSourceWidthPx: number;
-  /** Turret sprite source height (e.g. 256 for Smoky turret sprites). */
+  /** Turret sprite source height (e.g. 512 for generated Smoky turret sprites). */
   turretSourceHeightPx: number;
 }
 
@@ -70,7 +70,7 @@ export interface SpriteSourceSizes {
 export interface SpriteScaleFactors {
   /** Hull sprite scale factor (e.g. 0.12 for generated hulls). */
   hullScale: number;
-  /** Turret sprite scale factor (e.g. 0.24 for Smoky turret). */
+  /** Turret sprite scale factor (e.g. 0.12 for generated Smoky turret at 512px). */
   turretScale: number;
 }
 
@@ -151,19 +151,24 @@ export function turretAngleToDir16(turretAngle: number): number {
 
 /**
  * Convert a turret angle (radians, screen-space) to the visual dir16 index
- * that matches the displayed Smoky texture direction.
+ * that matches the displayed turret texture direction.
  *
  * Fixup #4: The pivot must be looked up at the dir16 that corresponds
  * to the VISIBLE texture, not the raw logical direction.
  *
- * Pipeline:
- * 1. Quantize turretAngle to logical dir8 via bodyAngleToDir8
- * 2. Apply turret-specific visual direction remap (e.g. Smoky facingOffset=2)
- *    to get the visual dir8 — this is the texture index of the displayed sprite
- * 3. Convert visual dir8 to visual dir16 (visualDir8 * 2)
+ * Fixup #5: The pipeline now handles both 8-dir (legacy) and 16-dir
+ * (generated) turret profiles correctly:
  *
- * For Smoky: visualDir8 = (logicalDir8 + 2) % 8, visualDir16 = visualDir8 * 2.
- * Example: turretAngle=0 (E) → logicalDir8=0 → visualDir8=2 → visualDir16=4
+ * For 8-dir profiles (legacy, e.g. old Smoky):
+ *   Pipeline: logicalDir8 → visualDir8 (remap in dir8) → visualDir16 (* 2)
+ *   Example: logicalDir8=0 → visualDir8=(0+2)%8=2 → visualDir16=2*2=4
+ *
+ * For 16-dir profiles (generated, e.g. new Smoky):
+ *   Pipeline: logicalDir8 → logicalDir16 (* 2) → visualDir16 (remap in dir16)
+ *   Example: logicalDir8=0 → logicalDir16=0 → visualDir16=(0+4)%16=4
+ *
+ * Both pipelines produce the same visualDir16 for Smoky, confirming the
+ * facingOffset conversion from 8-dir (2) to 16-dir (4) is correct.
  *
  * This visual dir16 must be used for pivot lookup because the directional
  * profile data was generated from the same camera/rendering pipeline as
@@ -176,9 +181,19 @@ export function turretAngleToDir16(turretAngle: number): number {
  */
 export function turretAngleToVisualDir16(turretAngle: number, weaponId: string): number {
   const logicalDir8 = bodyAngleToDir8(turretAngle);
+  const profile = resolveTurretVisualProfile(weaponId);
+
+  if (profile && profile.direction.dirCount === 16) {
+    // Generated 16-dir turret: remap in dir16 space
+    // logicalDir8 → logicalDir16 (even indices) → visualDir16 (remap with facingOffset)
+    const logicalDir16 = logicalDir8 * 2;
+    const visualDir16 = (logicalDir16 + profile.direction.facingOffset) % 16;
+    return ((visualDir16 % 16) + 16) % 16;
+  }
+
+  // Legacy 8-dir turret: remap in dir8 space, then convert to dir16
   const visualDir8 = resolveTurretVisualDir(weaponId, logicalDir8);
   if (visualDir8 !== null) {
-    // Convert visual dir8 to visual dir16
     return ((visualDir8 * 2) % 16 + 16) % 16;
   }
   // Fallback: no visual profile, use logical dir16

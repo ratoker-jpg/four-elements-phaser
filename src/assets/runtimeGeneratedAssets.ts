@@ -28,6 +28,15 @@ import {
   preloadGeneratedHullSet,
   type GeneratedHullFaction,
 } from './generatedHullAssets';
+import {
+  GENERATED_TURRET_IDS,
+  GENERATED_TURRET_FACTIONS,
+  GENERATED_TURRET_MODS,
+  isGeneratedTurretSetLoaded,
+  preloadGeneratedTurretSet,
+  type GeneratedTurretFaction,
+  type GeneratedTurretMod,
+} from './generatedTurretAssets';
 
 // ─── Internal helpers ──────────────────────────────────────────────
 
@@ -216,6 +225,7 @@ export function isModularUnitsLoaded(scene: Phaser.Scene): boolean {
  * Standard mode does not call this helper. It deliberately queues only:
  * - legacy modularUnits (Wasp hull + Smoky turret for four factions)
  * - generated Wasp M0 hull sets for four factions
+ * - generated Smoky M0 turret sets for four factions (FIXUP-5)
  *
  * This keeps startup lean and avoids the full hull/turret matrix.
  */
@@ -237,16 +247,33 @@ export function loadArenaVisualAssets(scene: Phaser.Scene): string[] {
     );
   }
 
+  // FIXUP-5: Also load generated 16-dir/512px turret assets
+  for (const weapon of GENERATED_TURRET_IDS) {
+    for (const faction of GENERATED_TURRET_FACTIONS) {
+      for (const mod of GENERATED_TURRET_MODS) {
+        loadedKeys.push(
+          ...preloadGeneratedTurretSet(
+            scene,
+            weapon,
+            faction as GeneratedTurretFaction,
+            mod as GeneratedTurretMod,
+          ),
+        );
+      }
+    }
+  }
+
   return loadedKeys;
 }
 
 /**
  * Check whether the Debug/Arena combat visual set is available.
+ * FIXUP-5: Also checks generated turret assets.
  */
 export function isArenaVisualAssetsLoaded(scene: Phaser.Scene): boolean {
   if (!isModularUnitsLoaded(scene)) return false;
 
-  return GENERATED_HULL_FACTIONS.every(faction => (
+  const hullsLoaded = GENERATED_HULL_FACTIONS.every(faction => (
     isGeneratedHullSetLoaded(
       scene,
       DEFAULT_GENERATED_HULL,
@@ -254,6 +281,21 @@ export function isArenaVisualAssetsLoaded(scene: Phaser.Scene): boolean {
       DEFAULT_GENERATED_HULL_MOD,
     )
   ));
+
+  const turretsLoaded = GENERATED_TURRET_IDS.every(weapon =>
+    GENERATED_TURRET_FACTIONS.every(faction =>
+      GENERATED_TURRET_MODS.every(mod =>
+        isGeneratedTurretSetLoaded(
+          scene,
+          weapon,
+          faction as GeneratedTurretFaction,
+          mod as GeneratedTurretMod,
+        )
+      )
+    )
+  );
+
+  return hullsLoaded && turretsLoaded;
 }
 
 /**

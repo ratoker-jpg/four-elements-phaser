@@ -26,7 +26,7 @@ import {
   WASP_HULL_OFFSET_X,
   WASP_HULL_OFFSET_Y,
 } from '../assets/generatedHullAssets';
-import { MODULAR_RENDER_SCALE } from './unitRenderConfig';
+import { GENERATED_TURRET_SCALE } from '../assets/generatedTurretAssets';
 
 // PR-C: Direction remap types and helper are now in the pure module
 // visualDirectionRemap.ts to avoid circular imports when
@@ -246,30 +246,33 @@ export const WASP_HULL_VISUAL_PROFILE: HullVisualProfile = {
 
 /**
  * Smoky M0 turret visual profile.
- * All values match existing behavior exactly.
  *
- * direction.facingOffset = 2 in dir8 space is equivalent to the hull's
- * +4 in dir16 space (4 / 2 = 2). This is the turret's own remap value,
- * not borrowed from the hull (closing audit RC-3).
+ * FIXUP-5: Upgraded from legacy 8-dir/256px to generated 16-dir/512px.
+ * The generated turret sprites are at 512×512 with 16 directions,
+ * matching the directional pivot data from directionalTurretProfiles.ts.
  *
- * pivot.px/py = 0.5/0.5 is a LEGACY PLACEHOLDER matching today's behavior
- * (image center origin). The directional profile data from PR-F1 shows the
- * true per-direction pivot positions, which differ from (0.5, 0.5) for every
- * direction. Use resolveTurretPivotForDir('smoky', level, dir) for
- * projection-recovered directional pivot data.
+ * direction.facingOffset = 4 in dir16 space. This is the turret's own
+ * remap value, equivalent to the legacy facingOffset=2 in dir8 space
+ * (2 * 2 = 4 when doubling direction resolution). This is NOT borrowed
+ * from the hull (closing audit RC-3).
  *
- * This legacy pivot is retained as a fallback for existing code that has
- * not yet been wired to the directional profile system.
+ * textureScale = GENERATED_TURRET_SCALE (0.12) for 512×512 sprites,
+ * replacing the legacy MODULAR_RENDER_SCALE (0.24) for 256×256 sprites.
+ *
+ * pivot.px/py = 0.5/0.5 is a LEGACY PLACEHOLDER. The directional profile
+ * data from PR-F1 shows the true per-direction pivot positions. Use
+ * resolveTurretPivotForDir('smoky', level, dir) for projection-recovered
+ * directional pivot data.
  */
 export const SMOKY_TURRET_VISUAL_PROFILE: TurretVisualProfile = {
   weaponId: 'smoky',
-  family: 'legacy',
-  textureScale: MODULAR_RENDER_SCALE,    // 0.24
+  family: 'generated',
+  textureScale: GENERATED_TURRET_SCALE,   // 0.12 (was MODULAR_RENDER_SCALE 0.24 for 256px)
   pivot: {
     px: 0.5,
     py: 0.5,   // LEGACY PLACEHOLDER — use resolveTurretPivotForDir for directional data
   },
-  direction: { dirCount: 8, facingOffset: 2 },
+  direction: { dirCount: 16, facingOffset: 4 },
   mountSocketId: 'turret_main',
   recoil: { followsBarrelKickback: false, followsTurretKickback: false },
 };

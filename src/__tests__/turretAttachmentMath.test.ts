@@ -28,6 +28,7 @@ import {
   WASP_HULL_VISUAL_PROFILE,
   SMOKY_TURRET_VISUAL_PROFILE,
 } from '../config/hullTurretVisualProfiles';
+import { GENERATED_TURRET_SCALE, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT } from '../assets/generatedTurretAssets';
 
 // ── Test 1: Wasp hull socket profile resolves ────────────────────────
 
@@ -286,8 +287,8 @@ describe('computeTurretSpriteCenterOffsetForSocket — formula correctness', () 
     // Both socket and pivot are at {0.5, 0.5} currently
     const hullDisplayW = 512 * 0.12;  // 61.44
     const hullDisplayH = 512 * 0.12;  // 61.44
-    const turretDisplayW = 256 * 0.24;  // 61.44
-    const turretDisplayH = 256 * 0.24;  // 61.44
+    const turretDisplayW = 512 * 0.12;  // 61.44 (generated turret: 512x512 at GENERATED_TURRET_SCALE)
+    const turretDisplayH = 512 * 0.12;  // 61.44
 
     const result = computeTurretSpriteCenterOffsetForSocket({
       socketNorm: { x: 0.5, y: 0.5 },
@@ -339,7 +340,7 @@ describe('Pure helpers — no Phaser runtime required', () => {
   it('resolveTurretAttachmentProfile works without any scene or DOM', () => {
     const profile = resolveTurretAttachmentProfile(
       'wasp', 'smoky', 'turret_main',
-      512, 512, 256, 256,
+      512, 512, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT,
     );
     expect(profile.socket).not.toBeNull();
     expect(profile.pivot).not.toBeNull();
@@ -366,7 +367,7 @@ describe('resolveTurretAttachmentProfile — Wasp+Smoky', () => {
   it('resolves socket and pivot for Wasp+Smoky+turret_main', () => {
     const profile = resolveTurretAttachmentProfile(
       'wasp', 'smoky', 'turret_main',
-      512, 512, 256, 256,
+      512, 512, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT,
     );
     expect(profile.socket).not.toBeNull();
     expect(profile.socket!.id).toBe('turret_main');
@@ -378,20 +379,20 @@ describe('resolveTurretAttachmentProfile — Wasp+Smoky', () => {
   it('computes display dimensions from texture scale and source size', () => {
     const profile = resolveTurretAttachmentProfile(
       'wasp', 'smoky', 'turret_main',
-      512, 512, 256, 256,
+      512, 512, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT,
     );
     // Wasp: textureScale = 0.12, source 512x512 → display 61.44 x 61.44
     expect(profile.hullDisplayWidthPx).toBeCloseTo(512 * 0.12);
     expect(profile.hullDisplayHeightPx).toBeCloseTo(512 * 0.12);
-    // Smoky: textureScale = 0.24, source 256x256 → display 61.44 x 61.44
-    expect(profile.turretDisplayWidthPx).toBeCloseTo(256 * 0.24);
-    expect(profile.turretDisplayHeightPx).toBeCloseTo(256 * 0.24);
+    // Smoky: textureScale = GENERATED_TURRET_SCALE (0.12), source 512x512 → display 61.44 x 61.44
+    expect(profile.turretDisplayWidthPx).toBeCloseTo(GENERATED_TURRET_SOURCE_WIDTH * GENERATED_TURRET_SCALE);
+    expect(profile.turretDisplayHeightPx).toBeCloseTo(GENERATED_TURRET_SOURCE_HEIGHT * GENERATED_TURRET_SCALE);
   });
 
   it('returns null socket for unknown hull', () => {
     const profile = resolveTurretAttachmentProfile(
       'hornet', 'smoky', 'turret_main',
-      512, 512, 256, 256,
+      512, 512, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT,
     );
     expect(profile.socket).toBeNull();
     expect(profile.pivot).not.toBeNull(); // Smoky still resolves
@@ -400,7 +401,7 @@ describe('resolveTurretAttachmentProfile — Wasp+Smoky', () => {
   it('returns null pivot for unknown turret', () => {
     const profile = resolveTurretAttachmentProfile(
       'wasp', 'thunder', 'turret_main',
-      512, 512, 256, 256,
+      512, 512, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT,
     );
     expect(profile.socket).not.toBeNull(); // Wasp still resolves
     expect(profile.pivot).toBeNull();
@@ -409,7 +410,7 @@ describe('resolveTurretAttachmentProfile — Wasp+Smoky', () => {
   it('returns null socket and pivot for unknown hull+weapon', () => {
     const profile = resolveTurretAttachmentProfile(
       'nonexistent', 'nonexistent', 'turret_main',
-      512, 512, 256, 256,
+      512, 512, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT,
     );
     expect(profile.socket).toBeNull();
     expect(profile.pivot).toBeNull();
@@ -423,7 +424,7 @@ describe('resolveTurretAttachmentProfile — Wasp+Smoky', () => {
   it('returns null socket for wrong socketId on Wasp', () => {
     const profile = resolveTurretAttachmentProfile(
       'wasp', 'smoky', 'side_mount',
-      512, 512, 256, 256,
+      512, 512, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT,
     );
     expect(profile.socket).toBeNull();
     expect(profile.pivot).not.toBeNull(); // Smoky pivot still resolves
@@ -436,7 +437,7 @@ describe('End-to-end: attachment profile → sprite center offset', () => {
   it('Wasp+Smoky with placeholder center values gives zero offset', () => {
     const profile = resolveTurretAttachmentProfile(
       'wasp', 'smoky', 'turret_main',
-      512, 512, 256, 256,
+      512, 512, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT,
     );
     const result = computeTurretSpriteCenterOffsetForSocket({
       socketNorm: profile.socket
@@ -459,7 +460,7 @@ describe('End-to-end: attachment profile → sprite center offset', () => {
   it('missing hull socket produces null offset', () => {
     const profile = resolveTurretAttachmentProfile(
       'hornet', 'smoky', 'turret_main',
-      512, 512, 256, 256,
+      512, 512, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT,
     );
     const result = computeTurretSpriteCenterOffsetForSocket({
       socketNorm: profile.socket
@@ -480,7 +481,7 @@ describe('End-to-end: attachment profile → sprite center offset', () => {
   it('missing turret pivot produces null offset', () => {
     const profile = resolveTurretAttachmentProfile(
       'wasp', 'thunder', 'turret_main',
-      512, 512, 256, 256,
+      512, 512, GENERATED_TURRET_SOURCE_WIDTH, GENERATED_TURRET_SOURCE_HEIGHT,
     );
     const result = computeTurretSpriteCenterOffsetForSocket({
       socketNorm: profile.socket
