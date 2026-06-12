@@ -22,6 +22,7 @@ import {
   resolveTurretVisualProfile,
   resolveSocketMetadata,
   resolveTurretPivot,
+  resolveTurretVisualDir,
   type DirectionRemapProfile,
 } from '../config/hullTurretVisualProfiles';
 import {
@@ -259,5 +260,73 @@ describe('PR-C re-exported WASP_HULL_DIRECTION_REMAP_PROFILE', () => {
       const expected = WASP_HULL_VISUAL_DIR16_REMAP[logical];
       expect(remapVisualDir(logical, WASP_HULL_DIRECTION_REMAP_PROFILE)).toBe(expected);
     }
+  });
+});
+
+// ── PR-D: Turret visual direction resolver tests ───────────────────
+
+describe('resolveTurretVisualDir — Smoky turret profile remap', () => {
+  it('maps logical E (dir0) → visual dir2', () => {
+    expect(resolveTurretVisualDir('smoky', 0)).toBe(2);
+  });
+
+  it('maps logical S (dir2) → visual dir4', () => {
+    expect(resolveTurretVisualDir('smoky', 2)).toBe(4);
+  });
+
+  it('maps logical W (dir4) → visual dir6', () => {
+    expect(resolveTurretVisualDir('smoky', 4)).toBe(6);
+  });
+
+  it('maps logical N (dir6) → visual dir0 (wraps)', () => {
+    expect(resolveTurretVisualDir('smoky', 6)).toBe(0);
+  });
+
+  it('maps all 8 logical dirs to expected visual dirs', () => {
+    // Smoky facingOffset=2 in dir8 space: visual = (logical + 2) % 8
+    const expected = [2, 3, 4, 5, 6, 7, 0, 1];
+    for (let logical = 0; logical < 8; logical++) {
+      expect(resolveTurretVisualDir('smoky', logical)).toBe(expected[logical]);
+    }
+  });
+});
+
+describe('resolveTurretVisualDir — unsupported weapons return null', () => {
+  it('returns null for thunder', () => {
+    expect(resolveTurretVisualDir('thunder', 0)).toBeNull();
+  });
+
+  it('returns null for railgun', () => {
+    expect(resolveTurretVisualDir('railgun', 0)).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(resolveTurretVisualDir('', 0)).toBeNull();
+  });
+});
+
+describe('resolveTurretVisualDir — uses turret profile, not hull remap', () => {
+  it('Smoky dir0 returns 2 (turret facingOffset=2), not 4 (hull facingOffset=4)', () => {
+    const turretResult = resolveTurretVisualDir('smoky', 0);
+    const hullResult = remapVisualDir(0, WASP_HULL_VISUAL_PROFILE.direction);
+    expect(turretResult).toBe(2);
+    // Hull remap would produce 4 (in dir16 space), confirming they are different
+    expect(hullResult).toBe(4);
+    expect(turretResult).not.toBe(hullResult);
+  });
+});
+
+describe('resolveTurretVisualDir — no Phaser/runtime state required', () => {
+  it('returns the same result on repeated calls (pure)', () => {
+    const a = resolveTurretVisualDir('smoky', 0);
+    const b = resolveTurretVisualDir('smoky', 0);
+    expect(a).toBe(b);
+    expect(a).toBe(2);
+  });
+
+  it('does not depend on any scene or texture manager', () => {
+    // Pure function — no scene parameter needed
+    const result = resolveTurretVisualDir('smoky', 2);
+    expect(result).toBe(4);
   });
 });

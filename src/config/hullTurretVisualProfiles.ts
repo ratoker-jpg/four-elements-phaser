@@ -35,6 +35,7 @@ export {
 // Re-import for internal use in this module
 import {
   type DirectionRemapProfile as DirectionRemapProfileInternal,
+  remapVisualDir as remapVisualDirInternal,
   WASP_HULL_DIRECTION_REMAP_PROFILE as WASP_HULL_DIRECTION_REMAP_PROFILE_INTERNAL,
 } from './visualDirectionRemap';
 
@@ -274,4 +275,35 @@ export function resolveTurretPivot(
 ): PivotProfile | null {
   if (!turretProfile) return null;
   return turretProfile.pivot;
+}
+
+// ── PR-D: Turret visual direction resolver ─────────────────────────
+
+/**
+ * Resolve the visual direction for a turret weapon, using its own profile.
+ *
+ * Takes a weaponId and a logical dir8 (0–7, from bodyAngleToDir8 or
+ * equivalent quantization), looks up the turret's DirectionRemapProfile,
+ * and applies remapVisualDir to get the visual dir8.
+ *
+ * Returns the visual dir8 if the weapon has a profile, or null for
+ * unsupported weapons (graceful fallback — the renderer keeps using
+ * procedural geometry or raw direction).
+ *
+ * This is the turret-specific equivalent of the hull direction pipeline:
+ *   hull: logicalDir16 → remapVisualDir(logicalDir16, hullProfile.direction)
+ *   turret: logicalDir8 → remapVisualDir(logicalDir8, turretProfile.direction)
+ *
+ * The turret direction is its own, NOT borrowed from the hull profile.
+ * This closes audit root cause RC-3 (turret remap hardcodes 'wasp').
+ *
+ * Pure, no side effects, no Phaser imports.
+ */
+export function resolveTurretVisualDir(
+  weaponId: string,
+  logicalDir8: number,
+): number | null {
+  const profile = resolveTurretVisualProfile(weaponId);
+  if (!profile) return null;
+  return remapVisualDirInternal(logicalDir8, profile.direction);
 }
