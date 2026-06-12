@@ -19,6 +19,7 @@ Use together with:
 - `docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md`
 - `docs/project/CODEMAP.md`
 - `docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md`
+- `docs/project/STRONG_MODEL_EXPERIMENTS_2026_06_12.md`
 
 ---
 
@@ -65,8 +66,10 @@ This is the root cause of Arena placement confusion.
 
 Important dependency:
 
-- B1 placement center alignment must be fixed and visually accepted before B2 body + weapon visual calibration.
+- B1 placement center alignment must be fixed before B2 body + weapon visual calibration.
 - Otherwise turret/body mount offsets are calibrated against the wrong coordinate baseline.
+
+In the strong-model experiment, this dependency remains active as an internal checkpoint: B1 must be solved before B2 work continues.
 
 ---
 
@@ -89,7 +92,7 @@ Important dependency:
 
 A1 from the audit is considered mostly covered by existing merged workflow docs. Do not create a separate A1 PR unless real menu routes are broken.
 
-Accepted next sequence:
+Base accepted sequence:
 
 1. `A2 — FIX-A2-MAP-CLEANUP-01`: Debug mode map cleanup / keep Sand Classic
 2. `B1 — FIX-B1-PLACEMENT-CENTER-01`: Arena placement center alignment
@@ -100,7 +103,60 @@ Accepted next sequence:
 
 Dependency rule:
 
-- Do not start B2 before B1 is merged and Denis visually confirms placement on Sand Classic.
+- Do not start B2 before B1 is resolved and accepted as the coordinate baseline.
+
+---
+
+## Strong-model experiment after A2
+
+After A2 is merged and accepted, Denis/GPT selected one controlled strong-model experiment:
+
+```text
+EXPERIMENT-OPUS-B1B2-01
+```
+
+Goal:
+
+```text
+Test whether Claude/Opus 4.8 can safely handle a bundled High+ implementation package.
+```
+
+Bundle:
+
+```text
+B1 — Arena placement center alignment
+B2 — Arena body + weapon visual calibration
+```
+
+Executor routing:
+
+```text
+Primary: Claude/Opus 4.8
+Alternative: Codex GPT-5.5
+GLM: patch apply / validation / PR delivery only if needed
+```
+
+This is an experiment, not a permanent new default.
+
+If the experiment fails or the diff becomes too broad/fragile:
+
+```text
+Return to separate B1 -> B2 -> C1 -> C2 implementation steps.
+```
+
+If it succeeds:
+
+```text
+Allow larger High+ bundles for Claude/Opus and Codex experiments, still with strict checkpoints and merge gates.
+```
+
+Do not bundle B2 with C1 as the first experiment. B2 is renderer/visual calibration; C1 is behavior/target-lock/combat-adjacent logic.
+
+The detailed experiment rules are recorded in:
+
+```text
+docs/project/STRONG_MODEL_EXPERIMENTS_2026_06_12.md
+```
 
 ---
 
@@ -110,6 +166,7 @@ Dependency rule:
 
 - Classification: High
 - Risk: Low
+- Status: done after PR #251 is merged/accepted.
 - Executor: GLM
 - Goal: remove legacy Map 1 from visible Debug/New Game options; keep Sand Classic visible.
 - Likely files: `src/state/gameSetup.ts`, possibly `src/phaser/NewGameSetupScene.ts`, directly related tests.
@@ -119,7 +176,7 @@ Dependency rule:
 
 - Classification: High+
 - Risk: Medium
-- Executor: Claude/Opus or Codex; Codex preferred if visual screenshots help.
+- Executor: Claude/Opus or Codex; included as first checkpoint in `EXPERIMENT-OPUS-B1B2-01`.
 - Goal: final vehicle spawn matches selected tile center and placement preview.
 - Likely files: `src/state/blockoutVehicleState.ts`, `src/phaser/GameScene.ts`, possibly comments/naming in `src/phaser/render/blockoutVehicleGeometry.ts`.
 - Do not touch: movement/pathfinding/occupancy/combat/economy/save-load/assets/Wasp offsets.
@@ -128,7 +185,7 @@ Dependency rule:
 
 - Classification: High+
 - Risk: High
-- Executor: Codex preferred; Claude/Opus fallback; GLM must not implement.
+- Executor: Claude/Opus primary for the first experiment; Codex alternative/preferred if screenshot-driven QA is needed; GLM must not implement.
 - Goal: body+weapon render as coherent tank; turret visible, attached, depth-correct, not detached.
 - Likely files: `src/phaser/render/BlockoutVehicleRenderer.ts`; maybe targeted asset-key/preload/config files only if justified.
 - Do not touch: movement, combat damage/hit model, economy, save-load, Wasp offsets, PNG/assets, full matrix preload.
@@ -141,6 +198,7 @@ Dependency rule:
 - Goal: turret rests parallel to body without valid target; attack target makes turret track enemy; move-only/stop/target loss clears lock and returns turret to rest.
 - Likely files: `src/phaser/input/BlockoutVehicleInputController.ts`, `src/state/combatTargeting.ts`, `src/state/blockoutAi.ts`, `src/state/blockoutVehicleState.ts`.
 - Do not touch: weapon fire coordinator, combat hit model, damage, economy, renderer unless absolutely necessary, assets.
+- Do not include in `EXPERIMENT-OPUS-B1B2-01`.
 
 ### C2 — Arena body/weapon inspection controls
 
@@ -150,6 +208,33 @@ Dependency rule:
 - Goal: Arena/devtools-only UI controls to cycle selected unit body/weapon and reset pose/direction.
 - Likely files: `src/phaser/ui/ArenaMenu.ts`, possible Arena unit composer/dev state helpers.
 - Do not touch: renderer calibration, combat logic, movement, assets.
+- Do not include in `EXPERIMENT-OPUS-B1B2-01`.
+
+---
+
+## Strong-model experiment gates
+
+For `EXPERIMENT-OPUS-B1B2-01`, the executor must follow these internal checkpoints:
+
+1. Diagnose B1 first.
+2. Fix B1 placement center alignment first.
+3. Stop if B1 causes Wasp placement regression.
+4. Continue to B2 only after the coordinate baseline is coherent.
+5. Stop and recommend split if the diff becomes too broad.
+6. Do not implement C1/C2.
+
+Hard boundaries:
+
+```text
+- no C1 turret rest / target-lock behavior
+- no combat damage / hit model / weapon fire behavior
+- no movement / pathfinding / occupancy rewrites
+- no economy / save-load / bot / strategic AI
+- no generated hull PNG edits
+- no full hull/turret matrix preload
+- no broad map generation changes
+- no new gameplay features outside the accepted fix backlog
+```
 
 ---
 
@@ -183,18 +268,38 @@ Manual QA acceptance must use real menu flows:
 
 Query flags may still be used for automation/smoke/dev shortcuts, but not as final manual acceptance evidence.
 
+For placement and visual calibration, use Sand Classic as the main calibration map while it remains sufficient.
+
 ---
 
 ## Recommended next task
 
-Next task:
+Current docs task:
 
-- `FIX-A2-MAP-CLEANUP-01 — Debug mode map cleanup / keep Sand Classic`
+```text
+DOCS-STRONG-MODEL-EXPERIMENTS-01 — Record strong-model experiment policy
+```
 
-Executor:
+After that docs PR is merged, next implementation task:
 
-- GLM
+```text
+EXPERIMENT-OPUS-B1B2-01 — Arena placement center alignment + body/weapon visual calibration
+```
 
-Reason:
+Recommended primary executor:
 
-- Low-risk config/UI cleanup. It does not need Claude/Opus or Codex limits.
+```text
+Claude/Opus 4.8
+```
+
+Alternative executor:
+
+```text
+Codex GPT-5.5
+```
+
+GLM role:
+
+```text
+patch apply / validation / PR delivery only if needed
+```
