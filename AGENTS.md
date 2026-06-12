@@ -16,7 +16,7 @@ The old repository `ratoker-jpg/four-elements-next` is donor/reference/specifica
 
 ## Current operational state
 
-There is currently **no active implementation roadmap**.
+There is currently **no broad active implementation roadmap**.
 
 Closed / accepted cycles:
 
@@ -26,15 +26,18 @@ BLOCKOUT-MVP roadmap slice: CLOSED.
 CAMERA-00 projection contract: IMPLEMENTED / ACCEPTED.
 PROJECTION-01 ground-plane retrofit: IMPLEMENTED / ACCEPTED.
 Arena Sandbox roadmap/audit cycle: CLOSED after PR #184.
+Core Mechanics roadmap: CLOSED after PR #207.
 ```
 
-Default next action:
+Current active process:
 
 ```text
-Choose the next product direction and create a new roadmap audit before implementation.
+Scoped fix backlog / visual calibration process.
+Use the accepted fix backlog and accepted fix backlog audit.
+Next default implementation step: A2 — Debug mode map cleanup / keep Sand Classic.
 ```
 
-Do not continue old VISUAL, BLOCKOUT, CAMERA, PROJECTION or ARENA tasks by inertia.
+Do not continue old VISUAL, BLOCKOUT, CAMERA, PROJECTION, ARENA, or CORE MECHANICS tasks by inertia.
 
 ---
 
@@ -49,11 +52,15 @@ docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
 docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md
 docs/project/CODEMAP.md
+docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
+docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
 ```
 
 Use `docs/project/CODEMAP.md` as the routing map for source files. Do not scan the whole repository unless CODEMAP is insufficient.
+
+For the current bugfix direction, use `docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md` as the accepted implementation order and decision record. Do not reconstruct the audit from memory.
 
 Historical / closed roadmap docs:
 
@@ -73,7 +80,7 @@ Closed docs are still useful as references, but they are not active implementati
 ## Current roadmap model
 
 ```text
-roadmap first -> huge/system audit second -> implementation after accepted audit
+roadmap/backlog first -> audit/design second -> implementation after accepted audit
 ```
 
 Implementation steps should be scoped High+/High unless Denis explicitly approves a smaller docs-only or fixup step.
@@ -82,9 +89,48 @@ No code PR should start without:
 
 ```text
 1. owner-approved direction
-2. roadmap or scoped plan
+2. roadmap/backlog or scoped plan
 3. accepted audit/design when architecture/gameplay/runtime is involved
 4. strict task scope
+```
+
+For the current fix backlog, the accepted sequence is:
+
+```text
+A2 — Debug mode map cleanup / keep Sand Classic
+B1 — Arena placement center alignment
+B2 — Arena body + weapon visual calibration
+C1 — Turret rest / target-lock behavior
+C2 — Arena body/weapon inspection controls
+D  — Dev grid overlay deferred unless Sand Classic is insufficient
+```
+
+Dependency rule:
+
+```text
+Do not start B2 before B1 is merged and Denis visually confirms placement on Sand Classic.
+```
+
+---
+
+## Multi-agent execution model
+
+Use the current workflow from `docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md`:
+
+```text
+GPT = coordinator / task writer / PR reviewer
+GLM = audit, patch application, validation, PR delivery, Telegram notification
+Claude/Opus = strong code executor; if push is blocked, provide patch handoff
+Codex = strong code executor with direct PR ability and screenshot-driven visual QA when available
+Denis = final manual / visual QA and merge decision
+```
+
+Current cost discipline:
+
+```text
+Do not spend Claude/Opus or Codex limits on routine audits, docs cleanup, or PR delivery.
+Use GLM for low-risk audits and patch/PR plumbing.
+Reserve Claude/Opus and Codex for High+ code implementation.
 ```
 
 ---
@@ -109,7 +155,7 @@ It includes:
 
 Do not add more Arena features by inertia.
 
-Deferred Arena work requires a new roadmap/audit:
+Deferred Arena work requires a new roadmap/audit unless it is explicitly part of the accepted fix backlog:
 
 ```text
 - Arena save/load setups
@@ -146,6 +192,16 @@ Rules:
 - Do not draw ground-space concepts as top-down screen circles.
 ```
 
+Manual visual QA for the current fix backlog must use real menu flows:
+
+```text
+Standard
+Debug / Отладка
+Arena / Арена
+```
+
+Query flags may be used for automation/smoke/dev shortcuts, but not as final manual acceptance evidence.
+
 ---
 
 ## Non-negotiable decisions
@@ -177,8 +233,9 @@ Rules:
 - Mass asset generation directly into repo without visual approval
 - Fixing bad art by code-only patches
 - Four-biome system now
-- Copying StarCraft assets/UI exactly
 ```
+
+Note: Sand Classic is currently kept as a calibration map for the accepted fix backlog. This does not reopen sand terrain as the primary production visual direction.
 
 ---
 
