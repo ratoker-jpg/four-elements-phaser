@@ -77,6 +77,13 @@ import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibration
 /** Depth for blockout vehicles (above terrain, coexisting with entities). */
 const BLOCKOUT_DEPTH = 120;
 
+/**
+ * EXPERIMENT-OPUS-B1B2-01 / B2:
+ * Generated hull PNGs are hull-only. Turret/barrel graphics must render above them.
+ * Keep the bias below 1 so inter-vehicle isometric ordering remains stable.
+ */
+const HULL_SPRITE_DEPTH_BIAS = -0.5;
+
 /** Mount point circle radius. */
 const MOUNT_POINT_RADIUS = 3;
 
@@ -344,7 +351,7 @@ export class BlockoutVehicleRenderer {
           hullSprite = this.scene.add.image(0, 0, hullKey);
           hullSprite.setScale(GENERATED_HULL_SCALE);
           hullSprite.setOrigin(GENERATED_HULL_ORIGIN_X, GENERATED_HULL_ORIGIN_Y);
-          hullSprite.setDepth(BLOCKOUT_DEPTH);
+          hullSprite.setDepth(BLOCKOUT_DEPTH + HULL_SPRITE_DEPTH_BIAS);
           this.vehicleHullSprites.set(vehicle.id, hullSprite);
           if (!this.generatedHullLogged) {
             console.log(`[BlockoutVehicleRenderer] Using generated hull sprite for ${vehicle.bodyId}+${vehicle.weaponId}`);
@@ -446,7 +453,7 @@ export class BlockoutVehicleRenderer {
       if (hullSprite) {
         const orderIdx = depthOrder.get(vehicle.id);
         if (orderIdx !== undefined) {
-          hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx);
+          hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx + HULL_SPRITE_DEPTH_BIAS);
         }
       }
       // Also update direction debug label depth
@@ -572,7 +579,7 @@ export class BlockoutVehicleRenderer {
       }
 
       hullSprite.setPosition(spriteCx, spriteCy);
-      hullSprite.setDepth(BLOCKOUT_DEPTH); // will be updated by depth sorting below
+      hullSprite.setDepth(BLOCKOUT_DEPTH + HULL_SPRITE_DEPTH_BIAS); // will be updated by depth sorting below
     }
 
     // ── Shared projected geometry (single source of truth) ────────

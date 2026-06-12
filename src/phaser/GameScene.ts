@@ -1098,11 +1098,12 @@ export class GameScene extends Phaser.Scene {
     this.placementMarker.clear();
     this.placementMarker.setVisible(true);
 
-    // Project the 4 corners of the tile diamond using camera projection contract
-    const topCorner = projectGroundPoint(tx, ty, this._offset);
-    const rightCorner = projectGroundPoint(tx + 1, ty, this._offset);
-    const bottomCorner = projectGroundPoint(tx + 1, ty + 1, this._offset);
-    const leftCorner = projectGroundPoint(tx, ty + 1, this._offset);
+    // EXPERIMENT-OPUS-B1B2-01 / B1: Diamond centered on (tx, ty) tile center,
+    // aligned with the same baseline used by spawn/terrain/selection.
+    const topCorner = projectGroundPoint(tx - 0.5, ty - 0.5, this._offset);
+    const rightCorner = projectGroundPoint(tx + 0.5, ty - 0.5, this._offset);
+    const bottomCorner = projectGroundPoint(tx + 0.5, ty + 0.5, this._offset);
+    const leftCorner = projectGroundPoint(tx - 0.5, ty + 0.5, this._offset);
 
     // Draw the projected diamond outline
     const color = valid ? 0x64c8ff : 0xff5050; // cyan for valid, red for invalid
@@ -1121,8 +1122,8 @@ export class GameScene extends Phaser.Scene {
     this.placementMarker.fillStyle(color, 0.12);
     this.placementMarker.fillPath();
 
-    // Draw crosshair at center
-    const center = projectGroundPoint(tx + 0.5, ty + 0.5, this._offset);
+    // EXPERIMENT-OPUS-B1B2-01 / B1: Crosshair at tile center (tx, ty)
+    const center = projectGroundPoint(tx, ty, this._offset);
     this.placementMarker.lineStyle(1, color, alpha * 0.7);
     this.placementMarker.beginPath();
     this.placementMarker.moveTo(center.x - 6, center.y);
