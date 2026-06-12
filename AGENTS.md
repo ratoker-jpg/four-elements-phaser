@@ -33,8 +33,9 @@ Current active process:
 
 ```text
 Scoped fix backlog / visual calibration process.
-Use the accepted fix backlog and accepted fix backlog audit.
-Next default implementation step: A2 — Debug mode map cleanup / keep Sand Classic.
+Use the accepted fix backlog, accepted fix backlog audit, and strong-model experiment plan.
+A2 map cleanup is complete after PR #251.
+Next default implementation direction after docs acceptance: EXPERIMENT-OPUS-B1B2-01.
 ```
 
 Do not continue old VISUAL, BLOCKOUT, CAMERA, PROJECTION, ARENA, or CORE MECHANICS tasks by inertia.
@@ -54,6 +55,7 @@ docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md
 docs/project/CODEMAP.md
 docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
 docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md
+docs/project/STRONG_MODEL_EXPERIMENTS_2026_06_12.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
 ```
@@ -61,6 +63,8 @@ docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
 Use `docs/project/CODEMAP.md` as the routing map for source files. Do not scan the whole repository unless CODEMAP is insufficient.
 
 For the current bugfix direction, use `docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md` as the accepted implementation order and decision record. Do not reconstruct the audit from memory.
+
+For the current strong-model experiment, use `docs/project/STRONG_MODEL_EXPERIMENTS_2026_06_12.md`. Do not treat bundled High+ work as a permanent new default unless the experiment succeeds and Denis/GPT explicitly accepts the change.
 
 Historical / closed roadmap docs:
 
@@ -94,10 +98,10 @@ No code PR should start without:
 4. strict task scope
 ```
 
-For the current fix backlog, the accepted sequence is:
+For the current fix backlog, the base accepted sequence is:
 
 ```text
-A2 — Debug mode map cleanup / keep Sand Classic
+A2 — Debug mode map cleanup / keep Sand Classic          DONE
 B1 — Arena placement center alignment
 B2 — Arena body + weapon visual calibration
 C1 — Turret rest / target-lock behavior
@@ -105,11 +109,25 @@ C2 — Arena body/weapon inspection controls
 D  — Dev grid overlay deferred unless Sand Classic is insufficient
 ```
 
-Dependency rule:
+After A2, a controlled strong-model experiment is active:
 
 ```text
-Do not start B2 before B1 is merged and Denis visually confirms placement on Sand Classic.
+EXPERIMENT-OPUS-B1B2-01:
+- Bundle B1 + B2 in one High+ strong-model implementation test.
+- Primary executor: Claude/Opus 4.8.
+- Alternative executor: Codex GPT-5.5.
+- GLM: patch apply / validation / PR delivery only if needed.
 ```
+
+Experiment dependency rule:
+
+```text
+B1 placement center alignment must be solved first as an internal checkpoint.
+Continue to B2 only after the coordinate baseline is coherent.
+Do not implement C1/C2 inside the B1+B2 experiment.
+```
+
+If the experiment fails or the diff becomes too broad, revert to separate B1 -> B2 -> C1 -> C2 implementation steps.
 
 ---
 
@@ -131,6 +149,15 @@ Current cost discipline:
 Do not spend Claude/Opus or Codex limits on routine audits, docs cleanup, or PR delivery.
 Use GLM for low-risk audits and patch/PR plumbing.
 Reserve Claude/Opus and Codex for High+ code implementation.
+```
+
+Strong-model experiment discipline:
+
+```text
+Claude/Opus and Codex may be tested on larger High+ bundles only when an experiment doc says so.
+The first accepted experiment is EXPERIMENT-OPUS-B1B2-01.
+Keep internal checkpoints and strict merge gates.
+Do not let GLM implement high-risk renderer/behavior bundles.
 ```
 
 ---
