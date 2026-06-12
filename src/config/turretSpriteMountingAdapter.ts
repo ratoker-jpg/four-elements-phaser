@@ -108,8 +108,11 @@ export function turretAngleToDir16(turretAngle: number): number {
  * This adapter is pure and does not depend on Phaser.
  *
  * If textureKey is null, the result signals procedural fallback.
- * If directional pivot is not available for the weapon/level, offset falls
- * back to legacy center-center (0,0) offset.
+ * If any required contract piece is missing (directional pivot, socket profile,
+ * or computed offset), useRealTurretSprite is false — no real sprite is
+ * rendered, and the procedural turret fallback is used instead.
+ * This ensures a real turret sprite is only shown when the full attachment
+ * contract data exists.
  *
  * The offset is relative to the hull sprite's visual center (the position
  * where the hull sprite is drawn). The turret sprite should be positioned at:
@@ -193,12 +196,23 @@ export function resolveTurretSpriteMountingData(params: {
     turretDisplayHeightPx,
   });
 
+  // Real turret sprite requires the FULL attachment contract:
+  // texture + directional pivot + socket profile + computed offset.
+  // If any piece is missing, the turret would be incorrectly positioned
+  // (e.g. centered on hull without proper offset), so we fall back to
+  // the procedural turret rendering instead.
+  const offsetFromHullCenter = offsetResult.offset;
+  const useRealTurretSprite =
+    directionalPivot !== null &&
+    socketProfile !== null &&
+    offsetFromHullCenter !== null;
+
   return {
-    textureKey,
-    offsetFromHullCenter: offsetResult.offset,
-    directionalPivot,
-    socketProfile,
+    textureKey: useRealTurretSprite ? textureKey : null,
+    offsetFromHullCenter: useRealTurretSprite ? offsetFromHullCenter : null,
+    directionalPivot: useRealTurretSprite ? directionalPivot : null,
+    socketProfile: useRealTurretSprite ? socketProfile : null,
     dir16,
-    useRealTurretSprite: true,
+    useRealTurretSprite,
   };
 }

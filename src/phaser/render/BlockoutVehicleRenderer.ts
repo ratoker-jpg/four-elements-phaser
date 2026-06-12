@@ -400,11 +400,26 @@ export class BlockoutVehicleRenderer {
         );
       }
 
+      // Resolve mounting data FIRST — this determines whether a real turret
+      // sprite can be shown. The adapter checks the full contract:
+      // texture key + directional pivot + socket profile + computed offset.
+      // If any piece is missing, useRealTurretSprite is false.
+      const mountingData = resolveTurretSpriteMountingData({
+        textureKey: turretKey,
+        weaponId: vehicle.weaponId,
+        bodyId: vehicle.bodyId,
+        modificationLevel: vehicle.modificationLevel,
+        turretAngle: vehicle.turretAngle,
+        sourceSizes: { hullSourceWidthPx: 512, hullSourceHeightPx: 512, turretSourceWidthPx: 256, turretSourceHeightPx: 256 },
+        scaleFactors: { hullScale: GENERATED_HULL_SCALE, turretScale: MODULAR_RENDER_SCALE },
+      });
+
       let turretSprite = this.vehicleTurretSprites.get(vehicle.id);
-      if (turretKey !== null) {
-        // Real turret sprite is available — create or update
+      if (mountingData.useRealTurretSprite && mountingData.textureKey !== null) {
+        // Full contract exists — create or update real turret sprite
+        const resolvedKey = mountingData.textureKey;
         if (!turretSprite) {
-          turretSprite = this.scene.add.image(0, 0, turretKey);
+          turretSprite = this.scene.add.image(0, 0, resolvedKey);
           turretSprite.setScale(MODULAR_RENDER_SCALE);
           turretSprite.setOrigin(0.5, 0.5); // IMPORTANT: origin stays centered, never set to pivot
           turretSprite.setDepth(BLOCKOUT_DEPTH + TURRET_SPRITE_DEPTH_BIAS);
@@ -414,20 +429,10 @@ export class BlockoutVehicleRenderer {
             this.turretSpriteLogged = true;
           }
         } else {
-          turretSprite.setTexture(turretKey);
+          turretSprite.setTexture(resolvedKey);
         }
 
-        // Position turret sprite relative to hull sprite using directional mounting data
-        const mountingData = resolveTurretSpriteMountingData({
-          textureKey: turretKey,
-          weaponId: vehicle.weaponId,
-          bodyId: vehicle.bodyId,
-          modificationLevel: vehicle.modificationLevel,
-          turretAngle: vehicle.turretAngle,
-          sourceSizes: { hullSourceWidthPx: 512, hullSourceHeightPx: 512, turretSourceWidthPx: 256, turretSourceHeightPx: 256 },
-          scaleFactors: { hullScale: GENERATED_HULL_SCALE, turretScale: MODULAR_RENDER_SCALE },
-        });
-
+        // Position turret sprite relative to hull sprite using mounting offset
         if (hullSprite && mountingData.offsetFromHullCenter) {
           // Apply hull placement offset (same as hull sprite uses)
           const hullId = bodyIdToGeneratedHullId(vehicle.bodyId);
@@ -459,12 +464,9 @@ export class BlockoutVehicleRenderer {
             hullCx + mountingData.offsetFromHullCenter.x,
             hullCy + mountingData.offsetFromHullCenter.y,
           );
-        } else if (hullSprite) {
-          // No mounting offset computed — fall back to hull center position
-          turretSprite.setPosition(hullSprite.x, hullSprite.y);
         }
       } else {
-        // No real turret sprite — destroy if exists, use procedural fallback
+        // No full contract — destroy real turret sprite if it exists, use procedural fallback
         if (turretSprite) {
           turretSprite.destroy();
           this.vehicleTurretSprites.delete(vehicle.id);

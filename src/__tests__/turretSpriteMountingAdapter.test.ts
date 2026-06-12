@@ -4,11 +4,13 @@
  * These tests verify:
  * 1. Adapter uses directional Smoky pivot, not legacy pivot
  * 2. Direction conversion from turretAngle/dir8 to dir16 is deterministic
- * 3. Missing directional pivot falls back gracefully
- * 4. Missing texture key falls back gracefully (procedural)
- * 5. Non-Smoky weapon remains procedural fallback (no texture key)
- * 6. Phaser origin convention remains centered, not pivot-origin
- * 7. Existing PR-B/C/D/E1/F1 tests stay green
+ * 3. Missing directional pivot => procedural fallback (useRealTurretSprite=false)
+ * 4. Missing texture key => procedural fallback
+ * 5. Missing socket profile => procedural fallback
+ * 6. Real turret sprite ONLY when full contract data exists (texture + pivot + socket + offset)
+ * 7. Non-Smoky weapon remains procedural fallback
+ * 8. Phaser origin convention remains centered, not pivot-origin
+ * 9. Existing PR-B/C/D/E1/F1 tests stay green
  *
  * All tests are pure — no Phaser runtime required.
  */
@@ -156,9 +158,11 @@ describe('turretAngleToDir16 — deterministic direction conversion', () => {
 
 // ── Test 3: Missing directional pivot falls back gracefully ──────────
 
-describe('resolveTurretSpriteMountingData — missing directional pivot fallback', () => {
-  it('thunder (no directional profile): offset is null but texture key can still be set', () => {
-    // Thunder has no directional profile, so pivot will be null
+describe('resolveTurretSpriteMountingData — missing directional pivot => procedural fallback', () => {
+  it('thunder (no directional profile): useRealTurretSprite=false even with texture key', () => {
+    // Thunder has no directional profile, so pivot will be null.
+    // Without directional pivot, the full contract is incomplete —
+    // the turret would be incorrectly positioned, so real sprite is NOT used.
     const result = resolveTurretSpriteMountingData({
       textureKey: 'some_thunder_key', // hypothetical — even if texture existed
       weaponId: 'thunder',
@@ -170,13 +174,13 @@ describe('resolveTurretSpriteMountingData — missing directional pivot fallback
     });
 
     expect(result.directionalPivot).toBeNull();
-    // No offset can be computed without a pivot
     expect(result.offsetFromHullCenter).toBeNull();
-    // But the adapter still signals a real turret sprite if texture exists
-    expect(result.useRealTurretSprite).toBe(true);
+    // Missing directional pivot => incomplete contract => procedural fallback
+    expect(result.useRealTurretSprite).toBe(false);
+    expect(result.textureKey).toBeNull(); // cleared because contract incomplete
   });
 
-  it('Smoky level 4 (invalid): directional pivot is null', () => {
+  it('Smoky level 4 (invalid): directional pivot is null => procedural fallback', () => {
     const result = resolveTurretSpriteMountingData({
       textureKey: 'some_key',
       weaponId: 'smoky',
@@ -189,6 +193,7 @@ describe('resolveTurretSpriteMountingData — missing directional pivot fallback
 
     expect(result.directionalPivot).toBeNull();
     expect(result.offsetFromHullCenter).toBeNull();
+    expect(result.useRealTurretSprite).toBe(false);
   });
 });
 
@@ -314,7 +319,7 @@ describe('resolveTurretSpriteMountingData — socket profile resolution', () => 
     expect(result.socketProfile!.normalized.ny).toBe(0.5);
   });
 
-  it('unknown hull → socketProfile is null → offset is null', () => {
+  it('unknown hull → socketProfile is null → useRealTurretSprite=false (missing socket)', () => {
     const result = resolveTurretSpriteMountingData({
       textureKey: 'smoky_m0_turret_cyan_dir2',
       weaponId: 'smoky',
@@ -327,6 +332,8 @@ describe('resolveTurretSpriteMountingData — socket profile resolution', () => 
 
     expect(result.socketProfile).toBeNull();
     expect(result.offsetFromHullCenter).toBeNull();
+    // Missing socket profile => incomplete contract => procedural fallback
+    expect(result.useRealTurretSprite).toBe(false);
   });
 });
 
@@ -361,6 +368,108 @@ describe('resolveTurretSpriteMountingData — direction-dependent offsets', () =
       Math.abs(eastResult.offsetFromHullCenter!.x - westResult.offsetFromHullCenter!.x) > 0.001 ||
       Math.abs(eastResult.offsetFromHullCenter!.y - westResult.offsetFromHullCenter!.y) > 0.001;
     expect(differs).toBe(true);
+  });
+});
+
+// ── Test: Full contract requirement ──────────────────────────────────
+
+describe('resolveTurretSpriteMountingData — full contract required for real sprite', () => {
+  it('valid Wasp+Smoky + texture + directional pivot + socket => real sprite active', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir2',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(true);
+    expect(result.textureKey).not.toBeNull();
+    expect(result.directionalPivot).not.toBeNull();
+    expect(result.socketProfile).not.toBeNull();
+    expect(result.offsetFromHullCenter).not.toBeNull();
+  });
+
+  it('missing directional pivot => procedural fallback (even with texture + socket)', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'some_thunder_key',
+      weaponId: 'thunder',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(false);
+    expect(result.directionalPivot).toBeNull();
+  });
+
+  it('missing socket/profile => procedural fallback (even with texture + pivot)', () => {
+    // Smoky has directional pivot, but 'hornet' hull has no socket profile
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir2',
+      weaponId: 'smoky',
+      bodyId: 'hornet',
+      modificationLevel: 0,
+      turretAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(false);
+    expect(result.socketProfile).toBeNull();
+  });
+
+  it('missing texture key => procedural fallback', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: null,
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(false);
+    expect(result.textureKey).toBeNull();
+  });
+
+  it('non-Smoky weapon => procedural fallback', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: null,
+      weaponId: 'thunder',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    expect(result.useRealTurretSprite).toBe(false);
+  });
+
+  it('origin convention: offset is a position adjustment, never used as origin', () => {
+    const result = resolveTurretSpriteMountingData({
+      textureKey: 'smoky_m0_turret_cyan_dir2',
+      weaponId: 'smoky',
+      bodyId: 'wasp',
+      modificationLevel: 0,
+      turretAngle: 0,
+      sourceSizes: WASP_SMOKY_SIZES,
+      scaleFactors: WASP_SMOKY_SCALES,
+    });
+
+    // The result is meant for: turretSprite.setOrigin(0.5, 0.5) + setPosition(center + offset)
+    // NOT: setOrigin(pivot.x, pivot.y)
+    expect(result.useRealTurretSprite).toBe(true);
+    expect(result.offsetFromHullCenter).not.toBeNull();
+    // offset is pixel displacement, not 0..1 normalized origin values
+    expect(typeof result.offsetFromHullCenter!.x).toBe('number');
+    expect(typeof result.offsetFromHullCenter!.y).toBe('number');
   });
 });
 
