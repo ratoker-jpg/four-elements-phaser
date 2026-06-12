@@ -17,6 +17,7 @@ import {
   WASP_HULL_VISUAL_PROFILE,
   SMOKY_TURRET_VISUAL_PROFILE,
   remapVisualDir,
+  WASP_HULL_DIRECTION_REMAP_PROFILE,
   resolveHullVisualProfile,
   resolveTurretVisualProfile,
   resolveSocketMetadata,
@@ -242,6 +243,21 @@ describe('Wasp hull usesEvenDirOnly invariant', () => {
     for (let logical = 0; logical < 16; logical += 2) {
       const result = remapVisualDir(logical, profile);
       expect(result % 2).toBe(0);
+    }
+  });
+});
+
+// ── PR-C: re-exported profile parity ───────────────────────────────
+
+describe('PR-C re-exported WASP_HULL_DIRECTION_REMAP_PROFILE', () => {
+  it('matches WASP_HULL_VISUAL_PROFILE.direction', () => {
+    expect(WASP_HULL_DIRECTION_REMAP_PROFILE).toEqual(WASP_HULL_VISUAL_PROFILE.direction);
+  });
+
+  it('reproduces WASP_HULL_VISUAL_DIR16_REMAP for all 16 dirs', () => {
+    for (let logical = 0; logical < 16; logical++) {
+      const expected = WASP_HULL_VISUAL_DIR16_REMAP[logical];
+      expect(remapVisualDir(logical, WASP_HULL_DIRECTION_REMAP_PROFILE)).toBe(expected);
     }
   });
 });
