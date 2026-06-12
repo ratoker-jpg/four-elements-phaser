@@ -59,6 +59,46 @@ export type GeneratedTurretDir16Index = GeneratedHullDir16Index;
 /** Re-export hull direction definitions for turret use. */
 export const GENERATED_TURRET_DIRECTIONS_16 = GENERATED_HULL_DIRECTIONS_16;
 
+// ─── Asset basis binding ────────────────────────────────────────
+
+/**
+ * Asset-basis identifier for the generated Smoky turret PNGs that the
+ * renderer actually loads today.
+ *
+ * IMPORTANT — why this exists (PR #263 root cause):
+ * The PNGs under public/assets/units/turrets/smoky_m0/ were produced in
+ * fixup #5 by upscaling/interpolating the legacy 8-dir / 256px Smoky art
+ * up to 512×512 / 16-dir (see the fixup #5 commit message). They are
+ * NOT true v12 projection renders. Their measured geometry differs:
+ * the visible turret rotates around a FIXED image-space center
+ * (≈ {0.499, 0.455}) in every frame, instead of the wobbling per-direction
+ * ellipse that the v12 projection pivot data describes.
+ *
+ * Because of that, the directional pivot profile consumed by the mounting
+ * adapter MUST be the profile whose `assetBasis` equals this constant
+ * (the placeholder-image-measured profile), NOT the v12-projection profile.
+ * Binding the pivot lookup to this basis is what keeps the turret pivot on
+ * the hull socket. Mixing a v12-projection pivot with these placeholder
+ * PNGs is exactly the detached-turret bug.
+ *
+ * When true v12 512×512 / 16-dir renders are produced, swap the PNGs and
+ * change this constant to the v12 basis so the adapter binds to the
+ * matching v12 pivot profile instead.
+ */
+export const GENERATED_TURRET_ASSET_BASIS = 'smoky-placeholder-upscaled-512-dir16' as const;
+
+/**
+ * Resolve the asset-basis identifier for the generated turret textures of a
+ * given weapon, or null if the weapon has no generated turret assets.
+ *
+ * The mounting adapter uses this to bind directional pivot lookup to the
+ * actual texture family the renderer loads (asset-basis binding), so the
+ * pivot coordinates always match the visible sprite geometry.
+ */
+export function getGeneratedTurretAssetBasis(weaponId: string): string | null {
+  return weaponIdToGeneratedTurretId(weaponId) ? GENERATED_TURRET_ASSET_BASIS : null;
+}
+
 // ─── Source dimensions ──────────────────────────────────────────
 
 /** Source width of generated turret sprites in pixels. */

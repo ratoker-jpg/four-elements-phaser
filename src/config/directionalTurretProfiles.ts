@@ -115,11 +115,43 @@ export interface DirectionalTurretMarkerProfile {
   confidence: 'high' | 'low';
   /** Human-readable reason for the confidence level. */
   confidenceReason: string;
+  /**
+   * Asset-basis identifier this profile's coordinates were measured against.
+   *
+   * This MUST match the basis of the turret texture family the renderer
+   * actually loads (see getGeneratedTurretAssetBasis in generatedTurretAssets.ts).
+   * Pivot/muzzle coordinates are only valid for the exact PNG family they were
+   * derived from: a v12-projection profile is invalid for placeholder-upscaled
+   * PNGs and vice versa. The mounting adapter binds pivot lookup to the texture
+   * resolver's basis to prevent that mismatch (PR #263 root cause).
+   */
+  assetBasis: string;
+  /** Source PNG width these coordinates are normalized against (e.g. 512). */
+  sourceWidthPx: number;
+  /** Source PNG height these coordinates are normalized against (e.g. 512). */
+  sourceHeightPx: number;
+  /** Number of sprite directions this profile covers (e.g. 16). */
+  dirCount: number;
   /** Per-direction pivot data (16 entries for dir16). */
   pivots: DirectionalPivotProfile[];
   /** Per-direction muzzle data (16 entries for dir16, each with one or more muzzles). */
   muzzles: DirectionalMuzzleProfile[][];
 }
+
+// ── Asset-basis identifiers ────────────────────────────────────────
+
+/**
+ * Basis id for true v12 projection-recovered Smoky turret coordinates.
+ * Valid ONLY for real v12 512×512 / 16-dir renders (not currently shipped).
+ */
+export const SMOKY_V12_PROJECTION_BASIS = 'smoky-v12-projection-512-dir16' as const;
+
+/**
+ * Basis id for the placeholder Smoky turret PNGs currently shipped
+ * (upscaled/interpolated from legacy 8-dir / 256px art in fixup #5).
+ * Must equal GENERATED_TURRET_ASSET_BASIS in generatedTurretAssets.ts.
+ */
+export const SMOKY_PLACEHOLDER_BASIS = 'smoky-placeholder-upscaled-512-dir16' as const;
 
 // ── Direction normalization helper ─────────────────────────────────
 
@@ -164,6 +196,10 @@ export const SMOKY_M01_DIRECTIONAL_PROFILE: DirectionalTurretMarkerProfile = {
   upgradeLevels: [0, 1],
   confidence: 'high',
   confidenceReason: 'Uses recovered v12 turret centering, fixed ortho fit, and final filename direction remap.',
+  assetBasis: SMOKY_V12_PROJECTION_BASIS,
+  sourceWidthPx: 512,
+  sourceHeightPx: 512,
+  dirCount: DIR16_COUNT,
   pivots: [
     { dirIndex: 0,  dirSuffix: 'E',    position: { x: 0.206668, y: 0.464846 } },
     { dirIndex: 1,  dirSuffix: 'ESE',  position: { x: 0.188539, y: 0.419468 } },
@@ -241,6 +277,10 @@ export const SMOKY_M23_DIRECTIONAL_PROFILE: DirectionalTurretMarkerProfile = {
   upgradeLevels: [2, 3],
   confidence: 'high',
   confidenceReason: 'Uses recovered v12 turret centering, fixed ortho fit, and final filename direction remap.',
+  assetBasis: SMOKY_V12_PROJECTION_BASIS,
+  sourceWidthPx: 512,
+  sourceHeightPx: 512,
+  dirCount: DIR16_COUNT,
   pivots: [
     { dirIndex: 0,  dirSuffix: 'E',    position: { x: 0.206668, y: 0.481365 } },
     { dirIndex: 1,  dirSuffix: 'ESE',  position: { x: 0.18852,  y: 0.435986 } },
@@ -295,17 +335,98 @@ export const SMOKY_M23_DIRECTIONAL_PROFILE: DirectionalTurretMarkerProfile = {
   ],
 };
 
+// ── Smoky placeholder (image-measured) profile data ────────────────
+
+/**
+ * Measured rotation-center pivot for the shipped placeholder Smoky PNGs.
+ *
+ * MEASUREMENT METHOD (not eye-picked, not v12-projected):
+ * Overlapped the alpha masks of all 16 direction frames
+ * (public/assets/units/turrets/smoky_m0/<faction>/...). The region covered
+ * in ≥14 of 16 frames is the turret base ring (the barrel sweeps away per
+ * direction; the base stays). Its centroid is the visible rotation center.
+ * Result was identical across all four factions:
+ *   base-overlap centroid = (255.5, 232.8) px on the 512×512 canvas
+ *                         = (0.4991, 0.4548) normalized.
+ * Independent cross-check (algebraic circle-fit of the per-direction barrel
+ * tips) gave the same x = 0.499.
+ *
+ * Unlike the v12 projection profile, the placeholder PNGs rotate the barrel
+ * around a FIXED image-space center, so this pivot is direction-INDEPENDENT:
+ * every direction uses the same {x, y}. Using the v12 wobbling-ellipse pivot
+ * with these PNGs misplaces the turret by ~18px, flipping sides as the turret
+ * turns — the detached-turret symptom reported in PR #263 manual QA.
+ */
+const SMOKY_PLACEHOLDER_PIVOT: DirectionalPoint2D = { x: 0.4991, y: 0.4548 };
+
+/** Build a constant-pivot, no-muzzle dir16 placeholder profile. */
+function buildSmokyPlaceholderProfile(
+  sourceFile: string,
+  upgradeLevels: number[],
+): DirectionalTurretMarkerProfile {
+  return {
+    weaponId: 'smoky',
+    sourceFile,
+    upgradeLevels,
+    confidence: 'high',
+    confidenceReason:
+      'Placeholder-image-measured: rotation center from alpha-overlap of the shipped 512×512/16-dir placeholder PNGs (direction-independent). NOT a v12 projection.',
+    assetBasis: SMOKY_PLACEHOLDER_BASIS,
+    sourceWidthPx: 512,
+    sourceHeightPx: 512,
+    dirCount: DIR16_COUNT,
+    pivots: DIR16_SUFFIXES.map((dirSuffix, dirIndex) => ({
+      dirIndex,
+      dirSuffix,
+      position: { ...SMOKY_PLACEHOLDER_PIVOT },
+    })),
+    // Muzzle tips are NOT reliably recoverable from the placeholder upscales
+    // and are not consumed by the runtime attachment path, so they are left
+    // unmeasured (empty) rather than fabricated. Wire real muzzle data when
+    // true v12 renders replace these placeholders.
+    muzzles: DIR16_SUFFIXES.map(() => []),
+  };
+}
+
+/**
+ * Smoky M0/M1 placeholder profile — matches the shipped placeholder PNGs.
+ * This is the profile the runtime mounting adapter binds to (via asset basis).
+ */
+export const SMOKY_M01_PLACEHOLDER_PROFILE: DirectionalTurretMarkerProfile =
+  buildSmokyPlaceholderProfile('Smoky_01.3ds (placeholder upscale)', [0, 1]);
+
+/**
+ * Smoky M2/M3 placeholder profile — matches the shipped placeholder PNGs.
+ * Only M0 PNGs exist today (M1-M3 fall back to M0 art), so the same measured
+ * rotation center applies until per-tier renders are produced.
+ */
+export const SMOKY_M23_PLACEHOLDER_PROFILE: DirectionalTurretMarkerProfile =
+  buildSmokyPlaceholderProfile('Smoky_23.3ds (placeholder upscale)', [2, 3]);
+
 // ── Profile registry ───────────────────────────────────────────────
 
 /**
- * All available directional turret marker profiles.
+ * Default directional turret marker profiles (v12 projection basis).
  *
  * Indexed by weaponId for fast lookup. Multiple profiles per weapon
- * are distinguished by upgrade level.
+ * are distinguished by upgrade level. These are kept as the reference
+ * v12 data; the legacy basis-agnostic resolvers below resolve from this
+ * set for backward compatibility.
  */
 const DIRECTIONAL_PROFILES: ReadonlyArray<DirectionalTurretMarkerProfile> = [
   SMOKY_M01_DIRECTIONAL_PROFILE,
   SMOKY_M23_DIRECTIONAL_PROFILE,
+] as const;
+
+/**
+ * All directional turret marker profiles across every asset basis.
+ * Used by the basis-aware resolvers so the renderer can bind pivot lookup
+ * to the exact texture family it loads.
+ */
+const ALL_DIRECTIONAL_PROFILES: ReadonlyArray<DirectionalTurretMarkerProfile> = [
+  ...DIRECTIONAL_PROFILES,
+  SMOKY_M01_PLACEHOLDER_PROFILE,
+  SMOKY_M23_PLACEHOLDER_PROFILE,
 ] as const;
 
 // ── Resolver helpers ───────────────────────────────────────────────
@@ -380,4 +501,57 @@ export function resolveTurretMuzzlesForDir(
   const normalized = normalizeDir16(dir);
   const muzzles = profile.muzzles[normalized];
   return muzzles ?? null;
+}
+
+// ── Basis-aware resolvers (asset-family bound) ─────────────────────
+
+/**
+ * Resolve the directional profile for a weapon/level whose `assetBasis`
+ * matches the given basis id.
+ *
+ * This is the binding that prevents the PR #263 detached-turret bug: the
+ * renderer must look up pivot data from the SAME asset family it draws the
+ * texture from. Passing the texture resolver's basis here guarantees the
+ * returned pivot coordinates are valid for the visible sprite geometry.
+ *
+ * Returns null when no profile matches the weapon, level, AND basis —
+ * which the adapter treats as "no real-sprite contract" → procedural fallback.
+ *
+ * Pure, no side effects, no Phaser imports.
+ */
+export function resolveDirectionalProfileForBasis(
+  weaponId: string,
+  upgradeLevel: number,
+  assetBasis: string,
+): DirectionalTurretMarkerProfile | null {
+  const profile = ALL_DIRECTIONAL_PROFILES.find(
+    p =>
+      p.weaponId === weaponId &&
+      p.upgradeLevels.includes(upgradeLevel) &&
+      p.assetBasis === assetBasis,
+  );
+  return profile ?? null;
+}
+
+/**
+ * Resolve the turret pivot for a weapon/level/direction, bound to the asset
+ * basis of the texture family actually being rendered.
+ *
+ * Mirrors resolveTurretPivotForDir but only returns pivot data measured
+ * against the matching asset basis. Returns null (→ procedural fallback) when
+ * no basis-matched profile exists for the weapon/level.
+ *
+ * Pure, no side effects, no Phaser imports.
+ */
+export function resolveTurretPivotForDirByBasis(
+  weaponId: string,
+  upgradeLevel: number,
+  dir: number,
+  assetBasis: string,
+): DirectionalPoint2D | null {
+  const profile = resolveDirectionalProfileForBasis(weaponId, upgradeLevel, assetBasis);
+  if (!profile) return null;
+  const normalized = normalizeDir16(dir);
+  const pivot = profile.pivots.find(p => p.dirIndex === normalized);
+  return pivot?.position ?? null;
 }

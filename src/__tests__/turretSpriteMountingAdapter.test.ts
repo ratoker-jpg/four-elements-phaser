@@ -95,7 +95,7 @@ describe('resolveTurretSpriteMountingData — uses directional Smoky pivot', () 
     expect(result.directionalPivot).not.toBeNull();
   });
 
-  it('Directional pivot differs from legacy center (0.5, 0.5)', () => {
+  it('Directional pivot is the placeholder-measured rotation center, not naive center (0.5, 0.5)', () => {
     const result = resolveTurretSpriteMountingData({
       textureKey: 'smoky_m0_turret_cyan_dir2',
       weaponId: 'smoky',
@@ -108,8 +108,11 @@ describe('resolveTurretSpriteMountingData — uses directional Smoky pivot', () 
       origins: WASP_SMOKY_ORIGINS,
     });
 
-    // Directional pivot is NOT the legacy placeholder (0.5, 0.5)
-    expect(result.directionalPivot!.x).not.toBeCloseTo(0.5, 2);
+    // The placeholder PNGs rotate the barrel around a fixed center measured at
+    // (0.4991, 0.4548). x is near-center (turret is horizontally centered) but
+    // y is clearly above center — so the pivot is NOT the naive (0.5, 0.5).
+    expect(result.directionalPivot!.x).toBeCloseTo(0.4991, 4);
+    expect(result.directionalPivot!.y).toBeCloseTo(0.4548, 4);
     expect(result.directionalPivot!.y).not.toBeCloseTo(0.5, 2);
   });
 
@@ -1030,8 +1033,13 @@ describe('resolveTurretSpriteMountingData — fixup #3+#4: hull socket dir follo
   });
 
   // Test 4: When turret direction changes but hull direction stays the same:
-  //   pivot changes, socket stays the same
-  it('turret direction changes, hull same → pivot changes, socket stays same', () => {
+  //   texture dir changes, socket stays the same.
+  // NOTE: with the placeholder asset family the visible turret rotates around
+  // a FIXED image-space center, so the measured pivot is direction-independent
+  // (same {x,y} for every turret direction). What changes is turretVisualDir16
+  // (the texture frame). Attachment stays correct precisely because the pivot
+  // is constant — the turret never detaches as the barrel sweeps.
+  it('turret direction changes, hull same → texture dir changes, socket + constant pivot stay same', () => {
     const resultA = resolveTurretSpriteMountingData({
       textureKey: 'smoky_m0_turret_cyan_dir2',
       weaponId: 'smoky',
@@ -1063,14 +1071,14 @@ describe('resolveTurretSpriteMountingData — fixup #3+#4: hull socket dir follo
     expect(socketA.x).toBeCloseTo(socketB.x, 10);
     expect(socketA.y).toBeCloseTo(socketB.y, 10);
 
-    // Pivot changes (different turretVisualDir16)
+    // Texture direction changes (different turretVisualDir16)
     expect(resultA.turretVisualDir16).not.toBe(resultB.turretVisualDir16);
     expect(resultA.directionalPivot).not.toBeNull();
     expect(resultB.directionalPivot).not.toBeNull();
-    const pivotDiffers =
-      Math.abs(resultA.directionalPivot!.x - resultB.directionalPivot!.x) > 0.001 ||
-      Math.abs(resultA.directionalPivot!.y - resultB.directionalPivot!.y) > 0.001;
-    expect(pivotDiffers).toBe(true);
+    // Placeholder pivot is direction-independent: it stays the same so the
+    // turret remains attached to the socket through the full barrel sweep.
+    expect(resultA.directionalPivot!.x).toBeCloseTo(resultB.directionalPivot!.x, 10);
+    expect(resultA.directionalPivot!.y).toBeCloseTo(resultB.directionalPivot!.y, 10);
   });
 
   // Test 5: hullSocketWorld === turretPivotWorld invariant holds after applying offset

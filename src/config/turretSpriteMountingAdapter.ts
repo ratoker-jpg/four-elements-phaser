@@ -42,8 +42,9 @@ import {
   GENERATED_HULL_ORIGIN_X,
   GENERATED_HULL_ORIGIN_Y,
 } from '../assets/generatedHullAssets';
-import { resolveTurretPivotForDir } from './directionalTurretProfiles';
+import { resolveTurretPivotForDirByBasis } from './directionalTurretProfiles';
 import type { DirectionalPoint2D } from './directionalTurretProfiles';
+import { getGeneratedTurretAssetBasis } from '../assets/generatedTurretAssets';
 import type { SocketProfile } from './hullTurretVisualProfiles';
 import { resolveTurretVisualDir, resolveTurretVisualProfile } from './hullTurretVisualProfiles';
 import { resolveHullSocketProfile, resolveSocketNormForDir } from './turretAttachmentMath';
@@ -322,9 +323,18 @@ export function resolveTurretSpriteMountingData(params: {
   const turretVisualDir16 = turretAngleToVisualDir16(turretAngle, weaponId);
   const hullVisualDir16 = bodyAngleToHullVisualDir16(bodyAngle, bodyId);
 
-  // Resolve directional pivot for this weapon/level/direction
-  // using the VISIBLE texture dir (fixup #4)
-  const directionalPivot = resolveTurretPivotForDir(weaponId, modificationLevel, turretVisualDir16);
+  // Resolve directional pivot for this weapon/level/direction using the
+  // VISIBLE texture dir (fixup #4), BOUND to the asset basis of the texture
+  // family the renderer actually loads (PR #263 fix). The pivot profile and
+  // the texture must come from the same asset family, otherwise the pivot
+  // coordinates do not match the visible sprite and the turret detaches.
+  // getGeneratedTurretAssetBasis returns the basis of the shipped generated
+  // turret PNGs; resolveTurretPivotForDirByBasis only returns a pivot whose
+  // profile.assetBasis equals it (else null → procedural fallback).
+  const assetBasis = getGeneratedTurretAssetBasis(weaponId);
+  const directionalPivot = assetBasis
+    ? resolveTurretPivotForDirByBasis(weaponId, modificationLevel, turretVisualDir16, assetBasis)
+    : null;
 
   // Resolve hull socket (direction-independent base, for contract check)
   const socketProfile = resolveHullSocketProfile(bodyId, 'turret_main');

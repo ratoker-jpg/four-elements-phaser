@@ -18,7 +18,8 @@
     "test:process-art-assets": "node tools/test_process_art_assets.mjs",
     "test:art-sample-viewer": "node tools/test_art_sample_viewer.mjs",
     "view:art-sample": "echo 'Open http://localhost:5173/task/art-sample/index.html after running npm run dev'",
-    "qa:smoke": "node tools/qa_smoke.mjs"
+    "qa:smoke": "node tools/qa_smoke.mjs",
+    "qa:turret-assets": "node tools/check_turret_asset_basis.mjs"
   },
   "dependencies": {
     "phaser": "4.1.0"
