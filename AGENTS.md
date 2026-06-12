@@ -48,9 +48,12 @@ docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
 docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md
+docs/project/CODEMAP.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
 ```
+
+Use `docs/project/CODEMAP.md` as the routing map for source files. Do not scan the whole repository unless CODEMAP is insufficient.
 
 Historical / closed roadmap docs:
 
