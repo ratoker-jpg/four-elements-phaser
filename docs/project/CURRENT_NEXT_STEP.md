@@ -2,7 +2,7 @@
 
 Status: Core Mechanics implementation cycle closed — no active implementation roadmap  
 Project: Four Elements Phaser  
-Date: 2026-06-04
+Date: 2026-06-12
 
 ---
 
@@ -24,11 +24,38 @@ Core Mechanics System Audit: CLOSED / IMPLEMENTED.
 
 Default next action:
 - Do not start new implementation by inertia.
-- Pick the next product direction.
-- Create a new roadmap/audit before code.
+- Pick the next product direction or fix/polish direction.
+- Create/update roadmap/audit before code.
 ```
 
-Do not start implementation without explicit Denis/GPT task assignment and an accepted roadmap/audit for the new direction.
+Do not start implementation without explicit Denis/GPT task assignment and an accepted roadmap/audit for the active direction.
+
+---
+
+## Owner-selected immediate sequence
+
+Denis selected the following immediate docs/planning sequence before returning to visual/runtime bugfix implementation:
+
+```text
+1. AI execution workflow docs PR.
+2. CODEMAP docs PR.
+3. Collect current bug/polish findings into a scoped fix roadmap/backlog.
+4. Run GLM audit on that fix roadmap/backlog.
+5. Split the accepted audit into High / High+ implementation steps.
+6. Implement steps through Claude/Opus or Codex depending on task type and available limits.
+7. Use GLM mainly for patch application / validation / PR delivery when Claude cannot push.
+8. GPT reviews PRs before merge recommendation.
+9. Denis performs final visual/manual QA and decides merge/no-merge.
+```
+
+Important:
+
+```text
+This does not reopen closed roadmaps by inertia.
+This creates a new scoped fix roadmap/backlog process for current bugs/polish.
+Claude/Opus and Codex should be reserved for high-value code implementation, not routine audits.
+GLM can be used for low-cost audits and PR delivery.
+```
 
 ---
 
@@ -79,16 +106,18 @@ docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
 ```text
 NO ACTIVE IMPLEMENTATION ROADMAP.
 CORE MECHANICS CYCLE CLOSED.
+DOCS/PLANNING SEQUENCE ACTIVE BEFORE NEXT BUGFIX IMPLEMENTATION.
 ```
 
 Allowed immediate work:
 
 ```text
-- review this docs closure PR
-- manual QA of the closed Core Mechanics cycle
-- collect bug/polish findings into a backlog
-- prepare the next roadmap/audit for a new direction
+- review docs workflow PRs
+- create CODEMAP.md
+- collect bug/polish findings into a scoped fix roadmap/backlog
+- prepare GLM audit for that fix roadmap/backlog
 - review existing open PRs, if any
+- manual QA of closed cycles and current previews
 ```
 
 Do not start by default:
@@ -96,9 +125,10 @@ Do not start by default:
 ```text
 - more Core Mechanics implementation by inertia
 - Arena save/load/waves/strategic AI without a new roadmap/audit
-- production visual/world-space work without a new roadmap/audit
+- production visual/world-space work without a new roadmap/audit or fix backlog audit
 - TankViewer/final asset pipeline without a separate pipeline audit
 - economy/progression/victory systems without a new roadmap/audit
+- burning Claude/Opus or Codex limits on routine audit/PR delivery work
 ```
 
 ---
@@ -130,6 +160,12 @@ Pick one direction, then create a roadmap/audit before implementation:
 5. Arena combat balance/readability roadmap.
 ```
 
+Current owner-selected path is a variant of option 1:
+
+```text
+workflow docs -> CODEMAP -> fix roadmap/backlog -> GLM audit -> scoped High/High+ implementation steps
+```
+
 ---
 
 ## Validation baseline for future implementation PRs
@@ -156,6 +192,7 @@ docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/GLM_EXECUTOR_RULES.md
+docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/CORE_MECHANICS_CLOSURE_REPORT_2026_06_04.md
 ```
