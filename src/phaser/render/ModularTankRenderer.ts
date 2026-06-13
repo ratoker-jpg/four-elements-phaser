@@ -163,8 +163,11 @@ export class ModularTankRenderer {
       hullOriginY = MODULAR_TANK_HULL_ORIGIN.y;
     }
 
-    // Turret texture: unchanged — always legacy Smoky turret
+    // Turret texture: use legacy Smoky turret key if available; skip if not loaded
+    // (legacy modularUnits family is disabled — turret textures may not be loaded
+    // until generated turret assets are wired in a future PR)
     const turretKey = getSmokyTurretKey(faction, turretDir);
+    const turretTextureExists = this.scene.textures.exists(turretKey);
 
     const tileAnchor = tileToScreen(entity.tx, entity.ty);
     const anchorWorldX = tileAnchor.x + this.offset.x;
@@ -197,14 +200,14 @@ export class ModularTankRenderer {
     const turretMountOff = applyScaleTransform(MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir]);
     const turretWorldX = anchorWorldX + turretMountOff.x;
     const turretWorldY = anchorWorldY + turretMountOff.y;
-    const turret = this.scene.add.image(
-      turretWorldX,
-      turretWorldY,
-      turretKey,
-    );
-    turret.setScale(MODULAR_TANK_SCALE);
-    turret.setOrigin(MODULAR_TANK_TURRET_ORIGIN.x, MODULAR_TANK_TURRET_ORIGIN.y);
-    turret.setDepth(baseDepth + 1);
+    const turret = turretTextureExists
+      ? this.scene.add.image(turretWorldX, turretWorldY, turretKey)
+      : null;
+    if (turret) {
+      turret.setScale(MODULAR_TANK_SCALE);
+      turret.setOrigin(MODULAR_TANK_TURRET_ORIGIN.x, MODULAR_TANK_TURRET_ORIGIN.y);
+      turret.setDepth(baseDepth + 1);
+    }
 
     // Store references for live tuner repositioning and direction swaps
     this.hull = hull;
@@ -274,6 +277,7 @@ export class ModularTankRenderer {
    * Change the turret direction of the modular tank.
    * Changes turret texture ONLY. Turret mount position stays the same
    * (it depends on bodyDir, not turretDir).
+   * No-op if turret texture is not available (legacy modularUnits disabled).
    */
   setTurretDir(dir: ModularTankDirection): void {
     if (!this.turret) return;
@@ -281,7 +285,10 @@ export class ModularTankRenderer {
     tunerState.turretDir = dir;
 
     // Turret texture follows turretDir; position stays (depends on bodyDir)
-    this.turret.setTexture(getSmokyTurretKey(this.faction, dir));
+    const turretKey = getSmokyTurretKey(this.faction, dir);
+    if (this.scene.textures.exists(turretKey)) {
+      this.turret.setTexture(turretKey);
+    }
 
     // Update overlay text to reflect new turretDir (positions unchanged)
     this.updateVisuals();
@@ -293,7 +300,7 @@ export class ModularTankRenderer {
    * Called by GameScene after keyboard offset adjustments or direction changes.
    */
   updateVisuals(): void {
-    if (!this.hull || !this.turret || !this.anchorWorld) return;
+    if (!this.hull || !this.anchorWorld) return;
 
     const ax = this.anchorWorld.x;
     const ay = this.anchorWorld.y;
@@ -317,7 +324,9 @@ export class ModularTankRenderer {
     const turretMountOff = applyScaleTransform(MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir]);
     const turretX = ax + turretMountOff.x;
     const turretY = ay + turretMountOff.y;
-    this.turret.setPosition(turretX, turretY);
+    if (this.turret) {
+      this.turret.setPosition(turretX, turretY);
+    }
 
     this.debugOverlay?.rebuild({
       hullWorldX: hullX,

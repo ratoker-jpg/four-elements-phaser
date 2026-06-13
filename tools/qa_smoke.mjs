@@ -67,7 +67,7 @@ const SMOKE_RUNS = [
       '[GameScene] All asset textures verified.',
       '[GameScene] State-driven scene ready.',
       '[GameScene] Faction: cyan',
-      '[PreloadScene] modularUnits loading enabled (devtools/arena mode).',
+      '[PreloadScene] generated hull sets loaded: wasp/<all factions>/m0 (16 dirs each).',
       '[GameScene] Harvester animation ready.',
     ],
     screenshotFile: 'qa-smoke-devtools.png',
