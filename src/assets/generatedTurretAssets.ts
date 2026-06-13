@@ -118,14 +118,13 @@ export const GENERATED_TURRET_ORIGIN_Y = 0.5;
 /**
  * Render scale for generated turret sprites.
  *
- * FIXUP-5: Generated turret sprites (512x512) must be scaled to match
- * the visual size of the turret on the hull. The hull scale is 0.12
- * for 512x512 sprites. Using the same scale for turrets maintains
- * consistent proportional sizing.
+ * VISUAL-QA: Smoky placeholder 512×512 turret sprites are intentionally
+ * slightly smaller than generated hull sprites. Denis visual QA requested
+ * ~15% reduction from the previous 0.12 scale.
  *
- * TODO: Visual QA — may need tuning per turret weapon.
+ * Keep this data-only scale separate from hull socket math.
  */
-export const GENERATED_TURRET_SCALE = 0.12;
+export const GENERATED_TURRET_SCALE = 0.102;
 
 // ─── Weapon-to-turret-id resolver ───────────────────────────────
 

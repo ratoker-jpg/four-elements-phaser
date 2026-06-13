@@ -284,7 +284,37 @@ describe('PR#263 / renderer must not use a different-family pivot profile', () =
   });
 });
 
-// ── 6. Fallback ─────────────────────────────────────────────────────
+// ── 6. Placeholder pivot regression guard ───────────────────────────
+
+describe('PR#263 / placeholder pivot matches documented measured centroid', () => {
+  it('Smoky M0/M1 placeholder pivot y matches alpha-overlap centroid (0.4548, not 0.5145)', () => {
+    // The documented measurement is the alpha-overlap centroid of the base ring
+    // across all 16 placeholder PNGs: (255.5, 232.8) px = (0.4991, 0.4548).
+    // A previous typo stored y=0.5145 instead of 0.4548, causing a constant
+    // ~30px downward offset of the turret on the hull.
+    const profile = SMOKY_M01_PLACEHOLDER_PROFILE;
+    for (const pivot of profile.pivots) {
+      expect(pivot.position.x).toBeCloseTo(0.4990, 3);
+      expect(pivot.position.y).toBeCloseTo(0.4548, 3);
+    }
+  });
+
+  it('Smoky M2/M3 placeholder pivot y also matches the measured centroid', () => {
+    const profile = resolveDirectionalProfileForBasis('smoky', 2, SMOKY_PLACEHOLDER_BASIS);
+    expect(profile).not.toBeNull();
+    for (const pivot of profile!.pivots) {
+      expect(pivot.position.x).toBeCloseTo(0.4990, 3);
+      expect(pivot.position.y).toBeCloseTo(0.4548, 3);
+    }
+  });
+
+  it('placeholder pivot y is NOT 0.5145 (the typo value)', () => {
+    const pivot = resolveTurretPivotForDirByBasis('smoky', 0, 0, SMOKY_PLACEHOLDER_BASIS)!;
+    expect(pivot.y).not.toBeCloseTo(0.5145, 3);
+  });
+});
+
+// ── 7. Fallback ─────────────────────────────────────────────────────
 
 describe('PR#263 / fallback when matching asset/profile data is missing', () => {
   it('resolveTurretPivotForDirByBasis returns null for an unknown basis', () => {

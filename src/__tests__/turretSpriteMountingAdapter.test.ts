@@ -112,7 +112,7 @@ describe('resolveTurretSpriteMountingData — uses directional Smoky pivot', () 
     // (0.4991, 0.4548). x is near-center (turret is horizontally centered) but
     // y is clearly above center — so the pivot is NOT the naive (0.5, 0.5).
     expect(result.directionalPivot!.x).toBeCloseTo(0.4990, 4);
-    expect(result.directionalPivot!.y).toBeCloseTo(0.5145, 4);
+    expect(result.directionalPivot!.y).toBeCloseTo(0.4548, 4);
     expect(result.directionalPivot!.y).not.toBeCloseTo(0.5, 2);
   });
 
@@ -1360,11 +1360,12 @@ describe('Fixup #5: Generated Smoky turret asset resolver', () => {
     expect(resultLegacy.offsetFromHullCenter).not.toBeNull();
     expect(resultGenerated.offsetFromHullCenter).not.toBeNull();
 
-    // The display sizes are the same: 256*0.24 = 61.44 vs 512*0.12 = 61.44
-    // So the offsets should be the same for same normalized pivot/socket
-    // This is because 256 * 0.24 == 512 * 0.12 == 61.44
-    expect(resultLegacy.offsetFromHullCenter!.x).toBeCloseTo(resultGenerated.offsetFromHullCenter!.x, 10);
-    expect(resultLegacy.offsetFromHullCenter!.y).toBeCloseTo(resultGenerated.offsetFromHullCenter!.y, 10);
+    // The display sizes differ: 256*0.24 = 61.44 vs 512*0.102 = 52.224
+    // Since the turret scale was reduced by ~15% (visual QA), the offsets
+    // now differ because the turret display size is smaller.
+    // The y-offset should differ because the pivot y (0.4548) is far from
+    // the turret origin (0.5), and the display height changed significantly.
+    expect(resultLegacy.offsetFromHullCenter!.y).not.toBeCloseTo(resultGenerated.offsetFromHullCenter!.y, 1);
   });
 
   // 3. Texture/pivot identity test: if texture dir is dirN, pivot lookup uses the same dirN

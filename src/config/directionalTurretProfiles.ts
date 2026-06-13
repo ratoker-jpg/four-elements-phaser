@@ -357,7 +357,7 @@ export const SMOKY_M23_DIRECTIONAL_PROFILE: DirectionalTurretMarkerProfile = {
  * with these PNGs misplaces the turret by ~18px, flipping sides as the turret
  * turns — the detached-turret symptom reported in PR #263 manual QA.
  */
-const SMOKY_PLACEHOLDER_PIVOT: DirectionalPoint2D = { x: 0.4990, y: 0.5145 };
+const SMOKY_PLACEHOLDER_PIVOT: DirectionalPoint2D = { x: 0.4990, y: 0.4548 };
 
 /** Build a constant-pivot, no-muzzle dir16 placeholder profile. */
 function buildSmokyPlaceholderProfile(
