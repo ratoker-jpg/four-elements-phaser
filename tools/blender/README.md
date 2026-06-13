@@ -34,6 +34,25 @@ blender --background --python tools/blender/render_tank_sprite.py -- \
     --name wasp_m0_hull
 ```
 
+**Turret-socket projection (single physical socket → per-dir output):**
+
+If the imported scene contains an Empty whose name starts with `socket_`
+(e.g. `socket_turret_main`) placed at the turret ring centre in **model
+space**, the script projects that single 3D marker into every rendered
+direction using the exact render camera (`world_to_camera_view`) and writes
+the resulting normalized `nx/ny` into each manifest entry under `sockets`,
+plus a top-level `socketProjection` block.
+
+This is the contract source for the runtime hull `SocketProfile.perDir` table:
+one physical socket in model space, per-direction 2D coordinates produced
+**only** as projection output — never hand-tuned. See
+`docs/project/TURRET_HULL_SOCKET_PROJECTION_AUDIT_2026_06_13.md`. If no
+`socket_*` Empty is present, the manifest simply omits projected sockets.
+
+> Important: project the socket with the **same** tool + `--resolution` +
+> `--orthographic-scale` that produced the shipped runtime PNGs, or the
+> projected coordinates will not match the shipped hull pixels.
+
 **Arguments:**
 
 | Argument | Required | Default | Description |

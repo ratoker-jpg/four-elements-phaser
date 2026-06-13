@@ -302,6 +302,65 @@ def render_frame(output_path):
     bpy.ops.render.render(write_still=True)
 
 
+# ─── Socket projection (TURRET-HULL-CONTRACT socket pipeline) ─────────
+#
+# The mount socket is ONE physical point in the hull model, authored once
+# as an Empty whose name starts with "socket_" (e.g. "socket_turret_main").
+# For every rendered direction we project that single 3D marker into the
+# sprite frame using the EXACT render camera (Blender's own world_to_camera_view,
+# which honours the active ortho_scale, resolution, and camera pose). The 16
+# per-direction nx/ny values are therefore *generated projection output* of a
+# single model-space socket — never hand-tuned per direction.
+#
+# This is the deterministic stage the runtime profile's perDir socket table is
+# meant to consume. See docs/project/TURRET_HULL_SOCKET_PROJECTION_AUDIT_2026_06_13.md.
+
+
+def collect_socket_markers():
+    """Return all scene objects whose name marks them as mount sockets.
+
+    A socket marker is any object (typically an Empty) whose name starts with
+    'socket_'. The suffix after 'socket_' is the socket id (e.g.
+    'socket_turret_main' -> socket id 'turret_main').
+    """
+    return [obj for obj in bpy.data.objects if obj.name.lower().startswith('socket_')]
+
+
+def _rotate_point_z(loc, angle_rad):
+    """Rotate a 3D point about the world Z axis (matches the mesh rotation).
+
+    rotate_model_to_direction() sets each mesh's rotation_euler to (0, 0, angle)
+    about its object origin at the world origin, so a vertex at rest position p
+    appears at Rz(angle) * p. A socket marker authored in the same rest frame
+    must track the hull identically, hence the same Z rotation of its rest
+    location. (Empties are not meshes, so rotate_model_to_direction does not
+    move them; we rotate their rest position here instead.)
+    """
+    c = math.cos(angle_rad)
+    s = math.sin(angle_rad)
+    x, y, z = loc
+    return (x * c - y * s, x * s + y * c, z)
+
+
+def project_marker_to_sprite_norm(scene, cam_obj, world_loc):
+    """Project a world-space point to normalized sprite coordinates (0..1).
+
+    Uses Blender's own camera projection so the result matches the rendered
+    pixels exactly for the active orthographic camera and resolution. Returns
+    (nx, ny) where:
+      - nx = 0 left edge, 1 right edge of the sprite canvas;
+      - ny = 0 TOP edge, 1 BOTTOM edge (sprite-space, top-down).
+    Blender's world_to_camera_view returns y with origin at the bottom, so we
+    flip it to the sprite convention the runtime uses.
+    """
+    import mathutils
+    from bpy_extras.object_utils import world_to_camera_view
+    co = world_to_camera_view(scene, cam_obj, mathutils.Vector(world_loc))
+    nx = float(co.x)
+    ny = 1.0 - float(co.y)
+    return nx, ny
+
+
 def parse_args():
     """Parse command-line arguments passed after '--' in Blender CLI."""
     argv = sys.argv
@@ -397,7 +456,7 @@ def main():
     setup_render_settings(output_dir, args['resolution'], args['resolution'])
 
     print("[render_tank_sprite] Setting up isometric camera...")
-    setup_camera(args['orthographic_scale'])
+    cam_obj = setup_camera(args['orthographic_scale'])
 
     # ── Import model ──────────────────────────────────────────────────
     if model_path:
@@ -435,11 +494,26 @@ def main():
     print(f"[render_tank_sprite] Rendering {num_dirs} directions for {name} ({faction})...")
     print(f"[render_tank_sprite] Direction convention: dir0=E (screen-right)")
 
+    # ── Capture socket markers (single physical sockets in model space) ──
+    scene = bpy.context.scene
+    socket_markers = collect_socket_markers()
+    # Rest (unrotated) location of each marker; rotated per-direction below.
+    socket_rest = {m.name: tuple(m.location) for m in socket_markers}
+    if socket_markers:
+        ids = ', '.join(sorted(socket_rest.keys()))
+        print(f"[render_tank_sprite] Found {len(socket_markers)} socket marker(s): {ids}")
+        print("[render_tank_sprite] Per-direction sockets will be PROJECTED (not hand-tuned).")
+    else:
+        print("[render_tank_sprite] No 'socket_*' markers in scene; manifest omits projected sockets.")
+        print("[render_tank_sprite] To generate projection-backed sockets, add one Empty named")
+        print("[render_tank_sprite]   e.g. 'socket_turret_main' at the turret ring centre in the model.")
+
     manifest_entries = []
 
     for dir_idx in range(num_dirs):
         step = 360.0 / num_dirs
         angle_deg = ROTATION_OFFSET_DEG + dir_idx * step
+        angle_rad = math.radians(angle_deg)
         dir_name = dir_names[dir_idx] if dir_names and dir_idx < len(dir_names) else f'dir{dir_idx}'
 
         # Rotate model
@@ -453,19 +527,37 @@ def main():
         render_frame(output_path)
 
         # Record for manifest
-        manifest_entries.append({
+        entry = {
             'key': f"{name}_{faction}_dir{dir_idx}",
             'direction': dir_idx,
             'directionName': dir_name,
             'angleDeg': angle_deg,
             'filename': filename,
-        })
+        }
+
+        # ── Project each socket marker into THIS frame's sprite space ──
+        # The marker rotates with the hull (same Z rotation as the mesh), then
+        # is projected through the exact render camera. Output is normalized
+        # nx/ny matching the runtime SocketProfile.perDir convention.
+        if socket_markers:
+            sockets_norm = {}
+            for marker in socket_markers:
+                socket_id = marker.name[len('socket_'):] or marker.name
+                world_loc = _rotate_point_z(socket_rest[marker.name], angle_rad)
+                nx, ny = project_marker_to_sprite_norm(scene, cam_obj, world_loc)
+                sockets_norm[socket_id] = {'nx': round(nx, 6), 'ny': round(ny, 6)}
+            entry['sockets'] = sockets_norm
+
+        manifest_entries.append(entry)
 
         print(f"  Rendered dir{dir_idx} ({dir_name}, {angle_deg:.1f} deg) -> {output_path}")
+        if socket_markers:
+            for sid, p in entry['sockets'].items():
+                print(f"    socket {sid}: nx={p['nx']:.6f} ny={p['ny']:.6f} (projected)")
 
     # ── Write manifest ────────────────────────────────────────────────
     manifest = {
-        'version': 3,
+        'version': 4,
         'pipeline': 'tankviewer-blender-isometric',
         'name': name,
         'faction': faction,
@@ -473,6 +565,15 @@ def main():
         'directionConvention': 'E=0, SE=1, S=2, SW=3, W=4, NW=5, N=6, NE=7',
         'rotationOffsetDeg': ROTATION_OFFSET_DEG,
         'resolution': args['resolution'],
+        'orthographicScale': args['orthographic_scale'],
+        # Describes how the per-entry `sockets` were produced so the runtime can
+        # treat them as projection output, not hand-tuned constants.
+        'socketProjection': {
+            'method': 'blender-world_to_camera_view',
+            'space': 'normalized-sprite (nx: 0=left,1=right; ny: 0=top,1=bottom)',
+            'markerSource': 'single Empty named socket_<id> in hull model space',
+            'socketIds': sorted({m.name[len('socket_'):] or m.name for m in socket_markers}),
+        },
         'entries': manifest_entries,
     }
 
