@@ -184,7 +184,9 @@ export function loadGeneratedCivilUnitAssets(
 /**
  * Convenience: load modularUnits family from the generated manifest.
  *
- * This replaces the loadModularUnitAssets() call from modularUnitAssets.ts.
+ * @deprecated Legacy modularUnits family is now disabled (legacy PNGs removed).
+ * Use `preloadGeneratedHullSet()` from `generatedHullAssets.ts` instead.
+ * This function returns an empty array because the family is disabled.
  */
 export function loadGeneratedModularUnitAssets(
   scene: Phaser.Scene,
@@ -193,18 +195,22 @@ export function loadGeneratedModularUnitAssets(
 }
 
 /**
- * Representative modularUnit key used for checking whether combat
- * assets have been loaded. MENU-02: This avoids importing the full
- * manifest key list at call sites that just need a boolean check.
+ * Representative generated hull key used for checking whether combat
+ * hull assets have been loaded. Updated from legacy `wasp_m0_hull_cyan_dir0`
+ * because the legacy modularUnits family is now disabled.
+ *
+ * MENU-02: This avoids importing the full key list at call sites that
+ * just need a boolean check.
  */
-export const MODULAR_UNIT_PROBE_KEY = 'wasp_m0_hull_cyan_dir0' as const;
+export const MODULAR_UNIT_PROBE_KEY = 'generated_hull_wasp_cyan_m0_dir00' as const;
 
 /**
  * Check whether modularUnit combat assets have been loaded.
- * MENU-02: Uses a single representative texture key probe instead of
- * iterating all 64 keys. If the probe key exists in the TextureManager,
- * we assume the full modularUnits family was loaded (by PreloadScene
- * via URL params or by late-loading via NewGameSetupScene).
+ *
+ * Now checks for the generated hull probe key instead of the legacy
+ * modularUnits family key. If the generated hull probe key exists in
+ * the TextureManager, we assume generated hull assets were loaded
+ * (by PreloadScene via URL params or by late-loading via NewGameSetupScene).
  */
 export function isModularUnitsLoaded(scene: Phaser.Scene): boolean {
   return scene.textures.exists(MODULAR_UNIT_PROBE_KEY);
@@ -214,17 +220,17 @@ export function isModularUnitsLoaded(scene: Phaser.Scene): boolean {
  * Load the small combat visual set needed by Debug/Arena.
  *
  * Standard mode does not call this helper. It deliberately queues only:
- * - legacy modularUnits (Wasp hull + Smoky turret for four factions)
  * - generated Wasp M0 hull sets for four factions
  *
- * This keeps startup lean and avoids the full hull/turret matrix.
+ * Legacy modularUnits family is disabled (PNGs removed). Generated turret
+ * assets are not yet available — ModularTankRenderer skips turret when
+ * texture is absent.
  */
 export function loadArenaVisualAssets(scene: Phaser.Scene): string[] {
   const loadedKeys: string[] = [];
 
-  if (!isModularUnitsLoaded(scene)) {
-    loadedKeys.push(...loadGeneratedModularUnitAssets(scene));
-  }
+  // Legacy modularUnits family is disabled — skip entirely.
+  // Generated hull sets are loaded below instead.
 
   for (const faction of GENERATED_HULL_FACTIONS) {
     loadedKeys.push(
@@ -242,10 +248,10 @@ export function loadArenaVisualAssets(scene: Phaser.Scene): string[] {
 
 /**
  * Check whether the Debug/Arena combat visual set is available.
+ * Checks that generated hull sets for all factions are loaded.
+ * (isModularUnitsLoaded now checks for the generated hull probe key.)
  */
 export function isArenaVisualAssetsLoaded(scene: Phaser.Scene): boolean {
-  if (!isModularUnitsLoaded(scene)) return false;
-
   return GENERATED_HULL_FACTIONS.every(faction => (
     isGeneratedHullSetLoaded(
       scene,

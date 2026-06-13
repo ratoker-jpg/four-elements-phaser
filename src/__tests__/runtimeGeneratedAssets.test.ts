@@ -151,9 +151,9 @@ describe('GENERATED_ASSET_MANIFEST', () => {
     expect(GENERATED_ASSET_MANIFEST.families.civilUnits.frameConfig?.endFrame).toBe(63);
   });
 
-  it('modularUnits family has loadType image and enabled true', () => {
+  it('modularUnits family has loadType image and is disabled (legacy PNGs removed)', () => {
     expect(GENERATED_ASSET_MANIFEST.families.modularUnits.loadType).toBe('image');
-    expect(GENERATED_ASSET_MANIFEST.families.modularUnits.enabled).toBe(true);
+    expect(GENERATED_ASSET_MANIFEST.families.modularUnits.enabled).toBe(false);
   });
 
   it('terrain family has loadType image and enabled true', () => {
@@ -440,62 +440,44 @@ describe('loadGeneratedModularUnitAssets', () => {
     return mod;
   }
 
-  it('loads modularUnits image keys exactly once each', async () => {
+  it('returns empty array because modularUnits family is disabled', async () => {
     const { loadGeneratedModularUnitAssets } = await importLoader();
     const mock = createMockScene();
 
     try {
       const loadedKeys = loadGeneratedModularUnitAssets(mock.scene as any);
 
-      // 4 factions × 8 dirs × 2 parts = 64
-      expect(loadedKeys).toHaveLength(64);
-      expect(mock.loadImageCalls).toHaveLength(64);
-
-      // Each key should appear exactly once
-      const keyCounts = new Map<string, number>();
-      for (const call of mock.loadImageCalls) {
-        keyCounts.set(call.key, (keyCounts.get(call.key) ?? 0) + 1);
-      }
-      for (const [, count] of keyCounts) {
-        expect(count).toBe(1);
-      }
+      // Family is disabled — no keys loaded
+      expect(loadedKeys).toHaveLength(0);
+      expect(mock.loadImageCalls).toHaveLength(0);
     } finally {
       mock.restore();
     }
   });
 
-  it('includes wasp_m0_hull_cyan_dir0 key (legacy compatibility)', async () => {
-    const { loadGeneratedModularUnitAssets } = await importLoader();
-    const mock = createMockScene();
-
-    try {
-      const loadedKeys = loadGeneratedModularUnitAssets(mock.scene as any);
-      expect(loadedKeys).toContain('wasp_m0_hull_cyan_dir0');
-      expect(loadedKeys).toContain('smoky_m0_turret_cyan_dir0');
-      expect(loadedKeys).toContain('wasp_m0_hull_purple_dir7');
-      expect(loadedKeys).toContain('smoky_m0_turret_purple_dir7');
-    } finally {
-      mock.restore();
-    }
+  it('was a 64-key family before disabling (legacy compatibility)', async () => {
+    // Verify the family still has its 64 keys in the manifest, just disabled
+    expect(GENERATED_ASSET_MANIFEST.families.modularUnits.keys).toHaveLength(64);
+    expect(GENERATED_ASSET_MANIFEST.families.modularUnits.enabled).toBe(false);
   });
 });
 
 // ─── MENU-02: isModularUnitsLoaded tests ────────────────────────────
 
 describe('MENU-02: isModularUnitsLoaded', () => {
-  it('MODULAR_UNIT_PROBE_KEY is a valid modularUnits key', async () => {
+  it('MODULAR_UNIT_PROBE_KEY is a generated hull key (not legacy modular key)', async () => {
     const { MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
 
-    // The probe key must be an actual key in the modularUnits family
-    expect(GENERATED_ASSET_MANIFEST.families.modularUnits.keys).toContain(MODULAR_UNIT_PROBE_KEY);
+    // Probe key is now a generated hull key (legacy family is disabled)
+    expect(MODULAR_UNIT_PROBE_KEY).toBe('generated_hull_wasp_cyan_m0_dir00');
   });
 
-  it('returns true when probe key texture exists', async () => {
-    const { isModularUnitsLoaded } = await import('../assets/runtimeGeneratedAssets');
+  it('returns true when generated hull probe key texture exists', async () => {
+    const { isModularUnitsLoaded, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
 
     const mockScene = {
       textures: {
-        exists: (key: string) => key === 'wasp_m0_hull_cyan_dir0',
+        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY,
       },
     };
 
@@ -533,17 +515,16 @@ describe('MENU-02: isModularUnitsLoaded', () => {
 // the file system without importing 'fs'/'path' (which would require @types/node).
 
 describe('MENU-02: Arena visual asset loading', () => {
-  it('loads modularUnits plus Wasp generated hull sets for Arena', async () => {
+  it('loads generated Wasp hull sets for Arena (legacy modularUnits disabled)', async () => {
     const { loadArenaVisualAssets } = await import('../assets/runtimeGeneratedAssets');
     const mock = createMockScene();
 
     try {
       const loadedKeys = loadArenaVisualAssets(mock.scene as any);
 
-      expect(loadedKeys).toHaveLength(128);
-      expect(mock.loadImageCalls).toHaveLength(128);
-      expect(loadedKeys).toContain('wasp_m0_hull_cyan_dir0');
-      expect(loadedKeys).toContain('smoky_m0_turret_cyan_dir0');
+      // 4 factions × 16 dirs = 64 generated hull keys (no legacy modularUnits)
+      expect(loadedKeys).toHaveLength(64);
+      expect(mock.loadImageCalls).toHaveLength(64);
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
     } finally {
@@ -551,17 +532,23 @@ describe('MENU-02: Arena visual asset loading', () => {
     }
   });
 
-  it('loads missing generated hull sets even when modularUnits are already loaded', async () => {
-    const { loadArenaVisualAssets, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
+  it('skips already-loaded generated hull sets', async () => {
+    const { loadArenaVisualAssets } = await import('../assets/runtimeGeneratedAssets');
     const mock = createMockScene();
-    mock.scene.textures.exists = (key: string) => key === MODULAR_UNIT_PROBE_KEY;
+    // Simulate cyan hull set already loaded
+    const cyanKeys = new Set<string>();
+    for (let i = 0; i < 16; i++) {
+      cyanKeys.add(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', i as any));
+    }
+    mock.scene.textures.exists = (key: string) => cyanKeys.has(key);
 
     try {
       const loadedKeys = loadArenaVisualAssets(mock.scene as any);
 
-      expect(loadedKeys).toHaveLength(64);
-      expect(loadedKeys).not.toContain('wasp_m0_hull_cyan_dir0');
-      expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
+      // Only 3 factions × 16 dirs = 48 (cyan already loaded)
+      expect(loadedKeys).toHaveLength(48);
+      expect(loadedKeys).not.toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
+      expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'purple', 'm0', 15));
     } finally {
       mock.restore();
@@ -710,21 +697,15 @@ describe('PreloadScene integration', () => {
     }
   });
 
-  it('PreloadScene uses generated modularUnits loader for all modular images', async () => {
+  it('PreloadScene uses generated modularUnits loader (disabled family, returns empty)', async () => {
     const { loadGeneratedModularUnitAssets } = await import('../assets/runtimeGeneratedAssets');
     const mock = createMockScene();
 
     try {
       const loadedKeys = loadGeneratedModularUnitAssets(mock.scene as any);
 
-      // Must load all 64 modular unit images
-      expect(loadedKeys).toHaveLength(64);
-
-      // Must include sample keys matching legacy getWaspHullKey/getSmokyTurretKey
-      expect(loadedKeys).toContain('wasp_m0_hull_cyan_dir0');
-      expect(loadedKeys).toContain('smoky_m0_turret_cyan_dir0');
-      expect(loadedKeys).toContain('wasp_m0_hull_purple_dir7');
-      expect(loadedKeys).toContain('smoky_m0_turret_purple_dir7');
+      // Family is disabled — no keys loaded (legacy PNGs removed)
+      expect(loadedKeys).toHaveLength(0);
     } finally {
       mock.restore();
     }

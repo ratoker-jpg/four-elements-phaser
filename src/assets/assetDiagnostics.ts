@@ -227,6 +227,7 @@ export function buildAssetDiagnostics(): AssetDiagnosticEntry[] {
   }
 
   // ── Modular Units ──
+  // Legacy modularUnits family is disabled (PNGs removed). Mark as 'manifest-only'.
   for (const key of GENERATED_ASSET_MANIFEST.families.modularUnits.keys) {
     const faction = extractFactionFromModularKey(key);
     entries.push({
@@ -235,8 +236,8 @@ export function buildAssetDiagnostics(): AssetDiagnosticEntry[] {
       family: 'modularUnits',
       faction,
       loadType: 'image',
-      status: 'expected',
-      note: 'Modular unit hull/turret — loaded and rendered by ModularTankRenderer.',
+      status: 'manifest-only',
+      note: 'Legacy modular unit key — family disabled (PNGs removed from assets/units/chassis/wasp_m0/ and assets/units/weapons/smoky_m0/). Use generated hull/turret resolvers instead.',
     });
   }
 

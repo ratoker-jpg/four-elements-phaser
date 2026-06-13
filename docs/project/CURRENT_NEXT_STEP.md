@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: A2 merged — strong model experiment next  
+Status: Wasp+Smoky attachment recovery is paused at projection-source decision  
 Project: Four Elements Phaser  
-Date: 2026-06-12
+Date: 2026-06-13
 
 ---
 
@@ -19,214 +19,112 @@ What should GPT/GLM/Codex/Claude do next by default?
 ## Current answer
 
 ```text
-Core Mechanics Roadmap: CLOSED / IMPLEMENTED.
-Core Mechanics System Audit: CLOSED / IMPLEMENTED.
-
-Current active process:
-- Use the accepted fix backlog and accepted fix backlog audit.
-- Do not reopen old roadmap queues by inertia.
-- A2 map cleanup is merged/accepted.
-- Next planned step is the controlled strong-model experiment: EXPERIMENT-OPUS-B1B2-01.
+PR #263 is HOLD / DO NOT MERGE.
+Do not continue blind renderer offset/formula fixes.
+Do not hand-calibrate Wasp socket perDir values as production source.
+The next decision is Wasp socket projection recovery, not runtime implementation.
 ```
 
-Active source docs for this process:
+Read first:
 
 ```text
-docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
-docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md
-docs/project/STRONG_MODEL_EXPERIMENTS_2026_06_12.md
-```
-
-Do not start implementation without explicit Denis/GPT task assignment and the active accepted backlog/audit/experiment docs.
-
----
-
-## Owner-selected sequence
-
-Denis selected this planning and implementation sequence before returning to visual/runtime bugfix implementation:
-
-```text
-1. AI execution workflow docs PR.                                      DONE
-2. CODEMAP docs PR.                                                    DONE
-3. Collect current bug/polish findings into a scoped fix roadmap.       DONE
-4. Run GLM audit on that fix roadmap/backlog.                           DONE
-5. Record accepted audit decisions in docs.                             DONE
-6. A2: Debug mode map cleanup / keep Sand Classic.                      DONE
-7. Record strong-model experiment policy.                               CURRENT DOCS STEP
-8. EXPERIMENT-OPUS-B1B2-01: B1+B2 bundled implementation test.          NEXT AFTER DOCS
-9. C1: Turret rest / target-lock behavior.                              AFTER B1+B2 ACCEPTED
-10. C2: Arena body/weapon inspection controls.                          AFTER C1 OR NEXT BUNDLE DECISION
-```
-
-Important:
-
-```text
-This does not reopen closed roadmaps by inertia.
-This is a scoped fix roadmap/backlog process for current bugs/polish.
-Claude/Opus and Codex are reserved for high-value code implementation, not routine audits.
-GLM remains useful for low-cost audits, patch application, validation, PR delivery, and Telegram notification.
+docs/project/TURRET_HULL_SOCKET_RECOVERY_HANDOFF_2026_06_13.md
+docs/project/TURRET_HULL_ATTACHMENT_AUDIT_2026_06_12.md
+docs/project/CAMERA_PROJECTION_CONTRACT.md
+docs/project/GLM_EXECUTOR_RULES.md
 ```
 
 ---
 
-## Accepted fix backlog docs
+## Active issue
 
-Current accepted fix backlog:
+Runtime debug in PR #263 proved:
 
 ```text
-docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
+computed hull socket world point == computed turret pivot world point
 ```
 
-Accepted audit / implementation sequence:
+Therefore renderer math is not the current blocker. The remaining blocker is Wasp socket profile data.
+
+---
+
+## Current PR state
 
 ```text
-docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md
+PR #263 — TURRET-HULL-CONTRACT-PR-F2: wire directional Smoky turret rendering
+URL: https://github.com/ratoker-jpg/four-elements-phaser/pull/263
+Branch: turret-hull-contract-pr-f2
+Status: HOLD / DO NOT MERGE
 ```
 
-Strong-model experiment plan:
+Useful contents of PR #263:
 
 ```text
-docs/project/STRONG_MODEL_EXPERIMENTS_2026_06_12.md
+- real Smoky M0 512x512 16-dir assets for 4 factions;
+- generated turret resolver/pathing;
+- renderer wiring for Wasp+Smoky;
+- turret anchor debug overlay;
+- Wasp socket calibration/debug tool;
+- qa:turret-assets validation.
 ```
 
-Base accepted sequence from the audit:
+Do not merge because Wasp+Smoky manual visual QA still failed and Wasp socket data is not projection-backed.
+
+---
+
+## Confirmed facts
 
 ```text
-A2 — Debug mode map cleanup / keep Sand Classic                 DONE
-B1 — Arena placement center alignment
-B2 — Arena body + weapon visual calibration
-C1 — Turret rest / target-lock behavior
-C2 — Arena body/weapon inspection controls
-D  — Dev grid overlay deferred unless Sand Classic is insufficient
+Do not change renderer math next.
+Do not change origins/scales next.
+Do not change Smoky pivot next.
 ```
 
-Experiment override after A2:
+Denis found this visual runtime reference for current Wasp dir04:
 
-```text
-Run EXPERIMENT-OPUS-B1B2-01:
-- bundle B1 + B2 into one controlled High+ strong-model implementation test;
-- primary executor: Claude/Opus 4.8;
-- alternative executor: Codex GPT-5.5;
-- GLM: patch apply / validation / PR delivery only if needed.
+```ts
+dir04: { nx: 0.506821, ny: 0.326525 }
 ```
 
-Dependency rule:
+This is a sanity check only. It is not production source-of-truth.
+
+The correct physical Wasp socket source was visually confirmed in Blender:
 
 ```text
-Do not start B2-style visual calibration without first resolving the B1 placement baseline.
-In the experiment, B1 must be completed first as an internal checkpoint before B2 work continues.
-Do not start C1/C2 inside the B1+B2 experiment.
+socket source = center of object mount
 ```
 
 ---
 
-## Immediate next task
+## Next decision
+
+GPT/Denis must choose the next projection recovery path before implementation.
 
 ```text
-DOCS-STRONG-MODEL-EXPERIMENTS-01 — Record strong-model experiment policy
+Path A — recover/match current shipped Wasp PNG generator.
+Path B — re-baseline Wasp through Blender and generate Wasp PNGs + socket projection together.
 ```
 
-Executor:
+No agent should choose A or B by inertia.
+
+---
+
+## Do not start by default
 
 ```text
-GPT / docs-only PR
-```
-
-After this docs PR is merged, the next implementation task is:
-
-```text
-EXPERIMENT-OPUS-B1B2-01 — Arena placement center alignment + body/weapon visual calibration
-```
-
-Recommended primary executor:
-
-```text
-Claude/Opus 4.8
-```
-
-Alternative executor:
-
-```text
-Codex GPT-5.5
+- do not merge PR #263;
+- do not keep adding offset/origin/math fixups to #263;
+- do not let GLM plan the asset/socket pipeline;
+- do not update Wasp socket runtime data from manual calibration alone;
+- do not render all hulls/weapons in one broad task;
+- do not commit 3D source files to this game repo;
+- do not touch public/assets/units/hulls unless an explicit Wasp re-baseline asset PR is approved;
+- do not change combat, movement, economy, pathfinding, save-load, bot/AI, or mapgen as part of this work.
 ```
 
 ---
 
-## Active mode
-
-```text
-FIX BACKLOG AUDIT ACCEPTED.
-A2 MAP CLEANUP COMPLETE.
-STRONG MODEL EXPERIMENT POLICY IS BEING RECORDED.
-NO C1/C2 IMPLEMENTATION UNTIL B1+B2 RESULT IS REVIEWED.
-```
-
-Allowed immediate work:
-
-```text
-- finish/merge the docs-only strong model experiment PR
-- prepare EXPERIMENT-OPUS-B1B2-01 prompt after docs merge
-- review open PRs, if any
-- manual QA of real menu routes and Sand Classic availability
-```
-
-Do not start by default:
-
-```text
-- C1 turret behavior before B1+B2 is accepted
-- C2 inspection controls before C1 or an explicit new bundle decision
-- Arena save/load/waves/strategic AI without a new roadmap/audit
-- production visual/world-space work outside the accepted fix backlog
-- TankViewer/final asset pipeline without a separate pipeline audit
-- economy/progression/victory systems without a new roadmap/audit
-- burning Claude/Opus or Codex limits on routine audit/PR delivery work
-```
-
----
-
-## Strong-model experiment gates
-
-For `EXPERIMENT-OPUS-B1B2-01`, the executor must follow internal checkpoints:
-
-```text
-1. Diagnose B1 first.
-2. Fix B1 placement center alignment first.
-3. Stop if B1 causes Wasp placement regression.
-4. Continue to B2 only after the coordinate baseline is coherent.
-5. Stop and recommend split if the diff becomes too broad.
-6. Do not implement C1/C2.
-```
-
-Acceptance requires:
-
-```text
-- reviewable diff
-- no forbidden systems touched
-- npm run typecheck
-- npm run test
-- npm run build
-- npm run qa:smoke
-- manual QA through real menu flows
-- Sand Classic placement/calibration check
-- GPT PR review
-- Denis visual acceptance before merge
-```
-
-If the experiment fails:
-
-```text
-Revert to separate B1 -> B2 -> C1 -> C2 implementation steps.
-```
-
-If it succeeds:
-
-```text
-Allow larger High+ bundles for Claude/Opus and Codex experiments, still with strict checkpoints and merge gates.
-```
-
----
-
-## Validation baseline for future implementation PRs
+## Validation baseline
 
 Future implementation PRs should keep using:
 
@@ -237,30 +135,10 @@ npm run build
 npm run qa:smoke
 ```
 
-If any command cannot run, the PR body must state why.
-
-Visual/runtime PRs also need:
+Turret asset/runtime PRs also need:
 
 ```text
-- preview URL
-- GPT PR review
-- Denis visual QA before merge
+npm run qa:turret-assets
 ```
 
----
-
-## Required source docs for future planning
-
-Before new roadmap/task work, read:
-
-```text
-docs/project/PROJECT_STATE.md
-docs/project/CURRENT_NEXT_STEP.md
-docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md
-docs/project/CODEMAP.md
-docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
-docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md
-docs/project/STRONG_MODEL_EXPERIMENTS_2026_06_12.md
-docs/project/GLM_EXECUTOR_RULES.md
-docs/project/CAMERA_PROJECTION_CONTRACT.md
-```
+Manual visual QA is mandatory for Wasp+Smoky attachment.

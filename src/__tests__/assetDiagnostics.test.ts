@@ -80,12 +80,13 @@ describe('ARCH-17A/17B: assetDiagnostics', () => {
       }
     });
 
-    it('modular-units category has entries for all factions', () => {
+    it('modular-units category has entries for all factions (marked manifest-only)', () => {
       const entries = buildAssetDiagnostics();
       const modular = entries.filter(e => e.category === 'modular-units');
       // 4 factions × 16 keys (8 hull + 8 turret) = 64
       expect(modular.length).toBe(64);
-      expect(modular.every(e => e.status === 'expected')).toBe(true);
+      // All marked manifest-only (family disabled — legacy PNGs removed)
+      expect(modular.every(e => e.status === 'manifest-only')).toBe(true);
     });
 
     it('buildings category has entries for all factions plus placeholder', () => {
