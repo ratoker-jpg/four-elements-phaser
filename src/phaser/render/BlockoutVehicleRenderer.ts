@@ -110,6 +110,15 @@ const HULL_SPRITE_DEPTH_BIAS = -0.5;
  */
 const TURRET_SPRITE_DEPTH_BIAS = 0.5;
 
+/**
+ * TURRET-HULL-CONTRACT-PR-F2:
+ * Depth for the ?turretAnchorDebug overlay. Must sit above hull sprites,
+ * turret sprites, selection rings, and HP/name labels so the anchor markers
+ * are always readable in a single screenshot. Far above any per-vehicle
+ * depth (BLOCKOUT_DEPTH + orderIdx) used for isometric sorting.
+ */
+const ANCHOR_DEBUG_DEPTH = 10000;
+
 /** Mount point circle radius. */
 const MOUNT_POINT_RADIUS = 3;
 
@@ -261,6 +270,14 @@ export class BlockoutVehicleRenderer {
   /** TURRET-HULL-CONTRACT-PR-F2: ?turretAnchorDebug overlay — red "turret pivot" labels. */
   private anchorTurretLabels = new Map<string, Phaser.GameObjects.Text>();
 
+  /** TURRET-HULL-CONTRACT-PR-F2: ?turretAnchorDebug overlay — delta / "socket == pivot" labels. */
+  private anchorDeltaLabels = new Map<string, Phaser.GameObjects.Text>();
+
+  /** TURRET-HULL-CONTRACT-PR-F2: Dedicated high-depth graphics layer for the
+   *  anchor markers. Drawn ABOVE hull/turret/rings/labels (own graphics object,
+   *  not the per-vehicle graphics that the turret sprite renders on top of). */
+  private anchorGraphics: Phaser.GameObjects.Graphics | null = null;
+
   /** TURRET-HULL-CONTRACT-PR-F2: ?turretAnchorDebug — vehicles whose diagnostic row was logged. */
   private anchorLoggedVehicles = new Set<string>();
 
@@ -358,6 +375,18 @@ export class BlockoutVehicleRenderer {
    */
   syncFromState(vehicles: BlockoutVehicleState[]): void {
     const activeIds = new Set<string>();
+
+    // TURRET-HULL-CONTRACT-PR-F2: prepare the dedicated high-depth anchor
+    // diagnostic layer once per frame. Cleared here, drawn per-vehicle in
+    // drawTurretAnchorDiagnostic (called from renderVehicle). Kept on its own
+    // graphics object so the markers are never occluded by the turret sprite.
+    if (this.turretAnchorDebug && this.isDevtoolsActive()) {
+      if (!this.anchorGraphics) {
+        this.anchorGraphics = this.scene.add.graphics();
+        this.anchorGraphics.setDepth(ANCHOR_DEBUG_DEPTH);
+      }
+      this.anchorGraphics.clear();
+    }
 
     for (const vehicle of vehicles) {
       activeIds.add(vehicle.id);
@@ -683,6 +712,12 @@ export class BlockoutVehicleRenderer {
       if (!activeIds.has(id)) {
         label.destroy();
         this.anchorTurretLabels.delete(id);
+      }
+    }
+    for (const [id, label] of this.anchorDeltaLabels) {
+      if (!activeIds.has(id)) {
+        label.destroy();
+        this.anchorDeltaLabels.delete(id);
       }
     }
     // Clean up stale direction debug labels
@@ -1488,7 +1523,7 @@ export class BlockoutVehicleRenderer {
     // the LIVE sprite transforms, so the screen shows whether the two
     // anchors actually coincide. See drawTurretAnchorDiagnostic.
     if (this.turretAnchorDebug && this.isDevtoolsActive()) {
-      this.drawTurretAnchorDiagnostic(g, vehicle);
+      this.drawTurretAnchorDiagnostic(vehicle);
     }
   }
 
@@ -1504,25 +1539,25 @@ export class BlockoutVehicleRenderer {
    * - pivotNorm from the directional turret profile actually used;
    * - generated turret asset basis.
    *
-   * Green cross + "hull socket" label marks the hull socket world point.
-   * Red cross + "turret pivot" label marks the turret pivot world point.
-   * When the two differ, a magenta line connects them. A compact console
-   * row is logged once per vehicle so the exact numbers can be inspected.
+   * Green filled circle + "hull socket" label marks the hull socket world
+   * point; red filled circle + "turret pivot" label marks the turret pivot
+   * world point. Both get crosshairs and high-contrast outlines and are drawn
+   * on a dedicated high-depth layer so they are never hidden by the turret
+   * sprite. When the anchors overlap a combined marker + "socket == pivot"
+   * label is shown; when they differ a thick magenta delta line + "Δ=…px"
+   * label is shown. A compact console row is logged once per vehicle.
    */
-  private drawTurretAnchorDiagnostic(
-    g: Phaser.GameObjects.Graphics,
-    vehicle: BlockoutVehicleState,
-  ): void {
+  private drawTurretAnchorDiagnostic(vehicle: BlockoutVehicleState): void {
+    const g = this.anchorGraphics;
     const hullSprite = this.vehicleHullSprites.get(vehicle.id);
     const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
     const md = this.lastMountingData.get(vehicle.id);
 
     // Only meaningful when a real turret sprite + full mounting contract exists.
-    if (!hullSprite || !turretSprite || !md || !md.directionalPivot) {
-      const hl = this.anchorHullLabels.get(vehicle.id);
-      const tl = this.anchorTurretLabels.get(vehicle.id);
-      if (hl) hl.setVisible(false);
-      if (tl) tl.setVisible(false);
+    if (!g || !hullSprite || !turretSprite || !md || !md.directionalPivot) {
+      this.anchorHullLabels.get(vehicle.id)?.setVisible(false);
+      this.anchorTurretLabels.get(vehicle.id)?.setVisible(false);
+      this.anchorDeltaLabels.get(vehicle.id)?.setVisible(false);
       return;
     }
 
@@ -1549,61 +1584,92 @@ export class BlockoutVehicleRenderer {
     });
 
     const { hullSocketWorld, turretPivotWorld, deltaX, deltaY, distance } = diag;
+    const overlap = distance <= 3;
 
-    // Connecting line first (under the crosses) when the anchors diverge.
-    if (distance > 0.5) {
-      g.lineStyle(1.5, 0xff00ff, 0.9);
+    const CROSS_ARM = 12;
+    const DOT_R = 6;
+
+    // Draws a crosshair (black underlay + colored overlay) and a filled,
+    // outlined dot at (x, y). High contrast against any background.
+    const drawMarker = (x: number, y: number, fill: number, outline: number): void => {
+      g.lineStyle(3, 0x000000, 0.9);
+      g.lineBetween(x - CROSS_ARM, y, x + CROSS_ARM, y);
+      g.lineBetween(x, y - CROSS_ARM, x, y + CROSS_ARM);
+      g.lineStyle(1.5, fill, 1);
+      g.lineBetween(x - CROSS_ARM, y, x + CROSS_ARM, y);
+      g.lineBetween(x, y - CROSS_ARM, x, y + CROSS_ARM);
+      g.fillStyle(fill, 1);
+      g.fillCircle(x, y, DOT_R);
+      g.lineStyle(2, outline, 1);
+      g.strokeCircle(x, y, DOT_R);
+    };
+
+    if (overlap) {
+      // Combined marker: green dot, red core, white ring — unambiguous overlap.
+      drawMarker(hullSocketWorld.x, hullSocketWorld.y, 0x00ff66, 0x000000);
+      g.fillStyle(0xff3344, 1);
+      g.fillCircle(hullSocketWorld.x, hullSocketWorld.y, 3);
+      g.lineStyle(2, 0xffffff, 1);
+      g.strokeCircle(hullSocketWorld.x, hullSocketWorld.y, DOT_R + 4);
+    } else {
+      // Thick magenta delta line first (under the markers).
+      g.lineStyle(4, 0xff00ff, 0.95);
       g.lineBetween(hullSocketWorld.x, hullSocketWorld.y, turretPivotWorld.x, turretPivotWorld.y);
+      drawMarker(hullSocketWorld.x, hullSocketWorld.y, 0x00ff66, 0xffffff); // green / white outline
+      drawMarker(turretPivotWorld.x, turretPivotWorld.y, 0xff3344, 0x000000); // red / black outline
     }
 
-    // Hull socket — green cross.
-    const arm = 7;
-    g.lineStyle(2, 0x00ff66, 1);
-    g.lineBetween(hullSocketWorld.x - arm, hullSocketWorld.y, hullSocketWorld.x + arm, hullSocketWorld.y);
-    g.lineBetween(hullSocketWorld.x, hullSocketWorld.y - arm, hullSocketWorld.x, hullSocketWorld.y + arm);
-    g.fillStyle(0x00ff66, 1);
-    g.fillCircle(hullSocketWorld.x, hullSocketWorld.y, 2);
+    // ── Labels — offset AWAY from the marker so they never cover the points.
+    const mkLabel = (
+      map: Map<string, Phaser.GameObjects.Text>,
+      color: string,
+      originX: number,
+      originY: number,
+    ): Phaser.GameObjects.Text => {
+      let label = map.get(vehicle.id);
+      if (!label) {
+        label = this.scene.add.text(0, 0, '', {
+          fontSize: '9px',
+          fontFamily: 'monospace',
+          color,
+          backgroundColor: '#000000cc',
+          padding: { x: 3, y: 1 },
+        });
+        label.setOrigin(originX, originY);
+        label.setDepth(ANCHOR_DEBUG_DEPTH + 1);
+        map.set(vehicle.id, label);
+      }
+      return label;
+    };
 
-    // Turret pivot — red cross.
-    g.lineStyle(2, 0xff3344, 1);
-    g.lineBetween(turretPivotWorld.x - arm, turretPivotWorld.y, turretPivotWorld.x + arm, turretPivotWorld.y);
-    g.lineBetween(turretPivotWorld.x, turretPivotWorld.y - arm, turretPivotWorld.x, turretPivotWorld.y + arm);
-    g.fillStyle(0xff3344, 1);
-    g.fillCircle(turretPivotWorld.x, turretPivotWorld.y, 2);
+    const OFF = CROSS_ARM + 6;
+    const hullLabel = mkLabel(this.anchorHullLabels, '#00ff66', 1, 1);
+    const turretLabel = mkLabel(this.anchorTurretLabels, '#ff6677', 0, 0);
+    const deltaLabel = mkLabel(this.anchorDeltaLabels, '#ff66ff', 0.5, 1);
 
-    // Labels.
-    let hullLabel = this.anchorHullLabels.get(vehicle.id);
-    if (!hullLabel) {
-      hullLabel = this.scene.add.text(0, 0, 'hull socket', {
-        fontSize: '8px',
-        fontFamily: 'monospace',
-        color: '#00ff66',
-        backgroundColor: '#000000aa',
-        padding: { x: 2, y: 1 },
-      });
-      hullLabel.setOrigin(0.5, 1);
-      hullLabel.setDepth(BLOCKOUT_DEPTH + 30);
-      this.anchorHullLabels.set(vehicle.id, hullLabel);
+    if (overlap) {
+      // Single combined-marker — show only the combined label, hide the rest.
+      hullLabel.setVisible(false);
+      turretLabel.setVisible(false);
+      deltaLabel.setText(`socket == pivot  Δ=${distance.toFixed(2)}px`);
+      deltaLabel.setPosition(hullSocketWorld.x, hullSocketWorld.y - DOT_R - 8);
+      deltaLabel.setVisible(true);
+    } else {
+      hullLabel.setText('hull socket');
+      hullLabel.setPosition(hullSocketWorld.x - OFF, hullSocketWorld.y - OFF);
+      hullLabel.setVisible(true);
+
+      turretLabel.setText('turret pivot');
+      turretLabel.setPosition(turretPivotWorld.x + OFF, turretPivotWorld.y + OFF);
+      turretLabel.setVisible(true);
+
+      deltaLabel.setText(`Δ=${distance.toFixed(2)}px`);
+      deltaLabel.setPosition(
+        (hullSocketWorld.x + turretPivotWorld.x) / 2,
+        (hullSocketWorld.y + turretPivotWorld.y) / 2 - 4,
+      );
+      deltaLabel.setVisible(true);
     }
-    hullLabel.setPosition(hullSocketWorld.x, hullSocketWorld.y - arm - 2);
-    hullLabel.setVisible(true);
-
-    let turretLabel = this.anchorTurretLabels.get(vehicle.id);
-    if (!turretLabel) {
-      turretLabel = this.scene.add.text(0, 0, 'turret pivot', {
-        fontSize: '8px',
-        fontFamily: 'monospace',
-        color: '#ff6677',
-        backgroundColor: '#000000aa',
-        padding: { x: 2, y: 1 },
-      });
-      turretLabel.setOrigin(0.5, 0);
-      turretLabel.setDepth(BLOCKOUT_DEPTH + 30);
-      this.anchorTurretLabels.set(vehicle.id, turretLabel);
-    }
-    turretLabel.setText(distance > 0.5 ? `turret pivot Δ=${distance.toFixed(1)}px` : 'turret pivot');
-    turretLabel.setPosition(turretPivotWorld.x, turretPivotWorld.y + arm + 2);
-    turretLabel.setVisible(true);
 
     // Compact console diagnostic row, once per vehicle.
     if (!this.anchorLoggedVehicles.has(vehicle.id)) {
@@ -1667,6 +1733,14 @@ export class BlockoutVehicleRenderer {
       label.destroy();
     }
     this.anchorTurretLabels.clear();
+    for (const [, label] of this.anchorDeltaLabels) {
+      label.destroy();
+    }
+    this.anchorDeltaLabels.clear();
+    if (this.anchorGraphics) {
+      this.anchorGraphics.destroy();
+      this.anchorGraphics = null;
+    }
     this.lastMountingData.clear();
     this.anchorLoggedVehicles.clear();
 
