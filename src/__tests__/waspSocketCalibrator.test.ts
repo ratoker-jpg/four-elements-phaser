@@ -34,9 +34,9 @@ describe('WaspSocketCalibrator', () => {
   });
 
   it('seeds pixel values from the profile normalized socket for a direction', () => {
-    ensureSeededForDir(4, 0.401352, 0.422228, 'generated_hull_wasp_cyan_m0_dir04');
-    expect(getSocketPixelX()).toBeCloseTo(0.401352 * 512, 6);
-    expect(getSocketPixelY()).toBeCloseTo(0.422228 * 512, 6);
+    ensureSeededForDir(4, 0.500000, 0.305253, 'generated_hull_wasp_cyan_m0_dir04');
+    expect(getSocketPixelX()).toBeCloseTo(0.500000 * 512, 6);
+    expect(getSocketPixelY()).toBeCloseTo(0.305253 * 512, 6);
     expect(getSeededDir16()).toBe(4);
   });
 
@@ -77,9 +77,9 @@ describe('WaspSocketCalibrator', () => {
   });
 
   it('builds a copy-ready perDir line from the live snapshot', () => {
-    ensureSeededForDir(4, 0.401352, 0.422228, 'generated_hull_wasp_cyan_m0_dir04');
+    ensureSeededForDir(4, 0.500000, 0.305253, 'generated_hull_wasp_cyan_m0_dir04');
     const line = buildCopyReadyLine(buildSocketCalibrationSnapshot());
-    expect(line).toBe('dir04: { nx: 0.401352, ny: 0.422228 },');
+    expect(line).toBe('dir04: { nx: 0.500000, ny: 0.305253 },');
   });
 
   it('reflects nudges in the snapshot and copy-ready line', () => {

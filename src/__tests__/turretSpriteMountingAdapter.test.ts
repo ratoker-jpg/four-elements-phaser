@@ -653,30 +653,30 @@ describe('resolveSocketNormForDir — per-direction Wasp socket', () => {
   it('Wasp dir0 (E) socket uses perDir override, not base {0.5, 0.5}', () => {
     const norm = resolveSocketNormForDir('wasp', 'turret_main', 0);
     expect(norm).not.toBeNull();
-    expect(norm!.x).toBeCloseTo(0.401352, 5);
-    expect(norm!.y).toBeCloseTo(0.496649, 5);
+    expect(norm!.x).toBeCloseTo(0.360491, 5);
+    expect(norm!.y).toBeCloseTo(0.357876, 5);
     expect(norm!.x).not.toBeCloseTo(0.5, 2);
   });
 
-  it('Wasp dir8 (W) socket uses perDir override { nx: 0.598648, ny: 0.422228 }', () => {
+  it('Wasp dir8 (W) socket uses perDir override { nx: 0.639509, ny: 0.357876 }', () => {
     const norm = resolveSocketNormForDir('wasp', 'turret_main', 8);
     expect(norm).not.toBeNull();
-    expect(norm!.x).toBeCloseTo(0.598648, 5);
-    expect(norm!.y).toBeCloseTo(0.422228, 5);
+    expect(norm!.x).toBeCloseTo(0.639509, 5);
+    expect(norm!.y).toBeCloseTo(0.357876, 5);
   });
 
-  it('Wasp dir6 (SW) socket is at center nx=0.5', () => {
-    const norm = resolveSocketNormForDir('wasp', 'turret_main', 6);
+  it('Wasp dir4 (S) socket is at center nx=0.5', () => {
+    const norm = resolveSocketNormForDir('wasp', 'turret_main', 4);
     expect(norm).not.toBeNull();
     expect(norm!.x).toBeCloseTo(0.5, 5);
-    expect(norm!.y).toBeCloseTo(0.406815, 5);
+    expect(norm!.y).toBeCloseTo(0.305253, 5);
   });
 
-  it('Wasp dir14 (NE) socket is at center nx=0.5', () => {
-    const norm = resolveSocketNormForDir('wasp', 'turret_main', 14);
+  it('Wasp dir12 (N) socket is at center nx=0.5', () => {
+    const norm = resolveSocketNormForDir('wasp', 'turret_main', 12);
     expect(norm).not.toBeNull();
     expect(norm!.x).toBeCloseTo(0.5, 5);
-    expect(norm!.y).toBeCloseTo(0.512063, 5);
+    expect(norm!.y).toBeCloseTo(0.410500, 5);
   });
 
   it('unknown hull returns null', () => {
@@ -983,9 +983,9 @@ describe('resolveTurretSpriteMountingData — fixup #3+#4: hull socket dir follo
     // The socket is looked up at hullVisualDir16=4, which is the socket for the
     // displayed hull frame when the hull faces East
     const socketNorm = resolveSocketNormForDir('wasp', 'turret_main', result.hullVisualDir16)!;
-    // dir4 socket: { nx: 0.401352, ny: 0.422228 }
-    expect(socketNorm.x).toBeCloseTo(0.401352, 5);
-    expect(socketNorm.y).toBeCloseTo(0.422228, 5);
+    // dir4 socket: { nx: 0.500000, ny: 0.305253 }
+    expect(socketNorm.x).toBeCloseTo(0.500000, 5);
+    expect(socketNorm.y).toBeCloseTo(0.305253, 5);
   });
 
   // Test 3: When hull direction changes but turret direction stays the same:

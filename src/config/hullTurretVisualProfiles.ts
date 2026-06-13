@@ -202,6 +202,13 @@ export interface UpgradeLevelProfile {
  *
  * sockets[0].zHeight = 0.30 matches
  * BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET = 0.25 + 0.05.
+ *
+ * sockets[0].perDir:
+ * - values are projection-backed raw/no+52 candidates;
+ * - stored keys are runtime visual dir16;
+ * - value for runtime dir d comes from projection dir (d + 2) mod 16;
+ * - still candidate data pending final visual acceptance / F3C;
+ * - do not add +52 postprocess shift.
  */
 export const WASP_HULL_VISUAL_PROFILE: HullVisualProfile = {
   hullId: 'wasp',
@@ -213,31 +220,25 @@ export const WASP_HULL_VISUAL_PROFILE: HullVisualProfile = {
   sockets: [
     {
       id: 'turret_main',
-      // Base normalized position: center placeholder.
-      // Per-direction overrides come from Codex projection recovery
-      // (projected_socket_profile_candidates.json). These are LOW confidence
-      // because the recovered hull exporter used a manual current Blender scene.
-      // The original manifest was not found. Do NOT treat these as final
-      // hand-approved values — they are projection candidates only.
-      normalized: { nx: 0.5, ny: 0.5 },
+      normalized: { nx: 0.5, ny: 0.5 },   // fallback for missing perDir entry
       zHeight: 0.30,   // BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET
       perDir: {
-        0:  { nx: 0.401352, ny: 0.496649 },  // dir00 E  — projection candidate, low confidence
-        1:  { nx: 0.371111, ny: 0.479577 },  // dir01 ESE — projection candidate, low confidence
-        2:  { nx: 0.360491, ny: 0.459439 },  // dir02 SE  — projection candidate, low confidence
-        3:  { nx: 0.371111, ny: 0.439301 },  // dir03 SSE — projection candidate, low confidence
-        4:  { nx: 0.401352, ny: 0.422228 },  // dir04 S   — projection candidate, low confidence
-        5:  { nx: 0.446612, ny: 0.410821 },  // dir05 SSW — projection candidate, low confidence
-        6:  { nx: 0.5,      ny: 0.406815 },  // dir06 SW  — projection candidate, low confidence
-        7:  { nx: 0.553388, ny: 0.410821 },  // dir07 WSW — projection candidate, low confidence
-        8:  { nx: 0.598648, ny: 0.422228 },  // dir08 W   — projection candidate, low confidence
-        9:  { nx: 0.628889, ny: 0.439301 },  // dir09 WNW — projection candidate, low confidence
-        10: { nx: 0.639509, ny: 0.459439 },  // dir10 NW  — projection candidate, low confidence
-        11: { nx: 0.628889, ny: 0.479577 },  // dir11 NNW — projection candidate, low confidence
-        12: { nx: 0.598648, ny: 0.496649 },  // dir12 N   — projection candidate, low confidence
-        13: { nx: 0.553388, ny: 0.508057 },  // dir13 NNE — projection candidate, low confidence
-        14: { nx: 0.5,      ny: 0.512063 },  // dir14 NE  — projection candidate, low confidence
-        15: { nx: 0.446612, ny: 0.508057 },  // dir15 ENE — projection candidate, low confidence
+        0:  { nx: 0.360491, ny: 0.357876 },  // runtime visual dir00 -> projection dir02 raw
+        1:  { nx: 0.371110, ny: 0.337738 },  // runtime visual dir01 -> projection dir03 raw
+        2:  { nx: 0.401352, ny: 0.320666 },  // runtime visual dir02 -> projection dir04 raw
+        3:  { nx: 0.446612, ny: 0.309258 },  // runtime visual dir03 -> projection dir05 raw
+        4:  { nx: 0.500000, ny: 0.305253 },  // runtime visual dir04 -> projection dir06 raw
+        5:  { nx: 0.553387, ny: 0.309258 },  // runtime visual dir05 -> projection dir07 raw
+        6:  { nx: 0.598647, ny: 0.320666 },  // runtime visual dir06 -> projection dir08 raw
+        7:  { nx: 0.628889, ny: 0.337738 },  // runtime visual dir07 -> projection dir09 raw
+        8:  { nx: 0.639509, ny: 0.357876 },  // runtime visual dir08 -> projection dir10 raw
+        9:  { nx: 0.628889, ny: 0.378015 },  // runtime visual dir09 -> projection dir11 raw
+        10: { nx: 0.598647, ny: 0.395087 },  // runtime visual dir10 -> projection dir12 raw
+        11: { nx: 0.553387, ny: 0.406494 },  // runtime visual dir11 -> projection dir13 raw
+        12: { nx: 0.500000, ny: 0.410500 },  // runtime visual dir12 -> projection dir14 raw
+        13: { nx: 0.446612, ny: 0.406494 },  // runtime visual dir13 -> projection dir15 raw
+        14: { nx: 0.401352, ny: 0.395087 },  // runtime visual dir14 -> projection dir00 raw
+        15: { nx: 0.371110, ny: 0.378015 },  // runtime visual dir15 -> projection dir01 raw
       },
     },
   ],
