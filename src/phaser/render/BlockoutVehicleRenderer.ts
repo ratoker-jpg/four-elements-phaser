@@ -72,6 +72,7 @@ import {
 import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibrationPanel';
 import {
   resolveGeneratedTurretKey,
+  getGeneratedTurretAssetBasis,
   GENERATED_TURRET_SOURCE_WIDTH,
   GENERATED_TURRET_SOURCE_HEIGHT,
   GENERATED_TURRET_SCALE,
@@ -80,7 +81,13 @@ import {
 import {
   resolveTurretSpriteMountingData,
   turretAngleToVisualDir16,
+  type TurretSpriteMountingData,
 } from '../../config/turretSpriteMountingAdapter';
+import { resolveSocketNormForDir } from '../../config/turretAttachmentMath';
+import {
+  isTurretAnchorDebugEnabled,
+  computeAnchorDiagnostic,
+} from '../debug/turretAnchorDiagnostic';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -242,6 +249,23 @@ export class BlockoutVehicleRenderer {
 
   /** TURRET-HULL-CONTRACT-PR-F2: Whether turret sprite log has been emitted (once). */
   private turretSpriteLogged = false;
+
+  /** TURRET-HULL-CONTRACT-PR-F2: Last resolved turret mounting data per vehicle.
+   *  Captured in syncFromState so the anchor diagnostic (drawn in renderVehicle,
+   *  after g.clear) can reuse the EXACT same runtime values the renderer used. */
+  private lastMountingData = new Map<string, TurretSpriteMountingData>();
+
+  /** TURRET-HULL-CONTRACT-PR-F2: ?turretAnchorDebug overlay — green "hull socket" labels. */
+  private anchorHullLabels = new Map<string, Phaser.GameObjects.Text>();
+
+  /** TURRET-HULL-CONTRACT-PR-F2: ?turretAnchorDebug overlay — red "turret pivot" labels. */
+  private anchorTurretLabels = new Map<string, Phaser.GameObjects.Text>();
+
+  /** TURRET-HULL-CONTRACT-PR-F2: ?turretAnchorDebug — vehicles whose diagnostic row was logged. */
+  private anchorLoggedVehicles = new Set<string>();
+
+  /** TURRET-HULL-CONTRACT-PR-F2: Whether ?turretAnchorDebug=1 is active (read once). */
+  private readonly turretAnchorDebug = isTurretAnchorDebugEnabled();
 
   /** Direction debug text labels keyed by blockout vehicle ID. */
   private directionDebugLabels = new Map<string, Phaser.GameObjects.Text>();
@@ -432,6 +456,10 @@ export class BlockoutVehicleRenderer {
         },
         scaleFactors: { hullScale: GENERATED_HULL_SCALE, turretScale: GENERATED_TURRET_SCALE },
       });
+
+      // TURRET-HULL-CONTRACT-PR-F2: capture mounting data for the anchor
+      // diagnostic overlay (drawn later in renderVehicle).
+      this.lastMountingData.set(vehicle.id, mountingData);
 
       let turretSprite = this.vehicleTurretSprites.get(vehicle.id);
       if (mountingData.useRealTurretSprite && mountingData.textureKey !== null) {
@@ -636,6 +664,25 @@ export class BlockoutVehicleRenderer {
       if (!activeIds.has(id)) {
         sprite.destroy();
         this.vehicleTurretSprites.delete(id);
+      }
+    }
+    // TURRET-HULL-CONTRACT-PR-F2: Clean up stale mounting data + anchor overlay
+    for (const id of this.lastMountingData.keys()) {
+      if (!activeIds.has(id)) this.lastMountingData.delete(id);
+    }
+    for (const id of this.anchorLoggedVehicles) {
+      if (!activeIds.has(id)) this.anchorLoggedVehicles.delete(id);
+    }
+    for (const [id, label] of this.anchorHullLabels) {
+      if (!activeIds.has(id)) {
+        label.destroy();
+        this.anchorHullLabels.delete(id);
+      }
+    }
+    for (const [id, label] of this.anchorTurretLabels) {
+      if (!activeIds.has(id)) {
+        label.destroy();
+        this.anchorTurretLabels.delete(id);
       }
     }
     // Clean up stale direction debug labels
@@ -1434,6 +1481,157 @@ export class BlockoutVehicleRenderer {
         placeLabel.setVisible(false);
       }
     }
+
+    // ── TURRET-HULL-CONTRACT-PR-F2: turret/hull anchor diagnostic ──
+    // ?turretAnchorDebug=1 (Arena/devtools only). Draws the computed hull
+    // socket world point (green) and turret pivot world point (red) using
+    // the LIVE sprite transforms, so the screen shows whether the two
+    // anchors actually coincide. See drawTurretAnchorDiagnostic.
+    if (this.turretAnchorDebug && this.isDevtoolsActive()) {
+      this.drawTurretAnchorDiagnostic(g, vehicle);
+    }
+  }
+
+  // ─── TURRET-HULL-CONTRACT-PR-F2: anchor diagnostic ───────────────
+
+  /**
+   * Draw the turret/hull anchor diagnostic for one vehicle.
+   *
+   * Uses the EXACT runtime values the renderer used:
+   * - live hull sprite x/y, origin, displaySize, texture key;
+   * - live turret sprite x/y, origin, displaySize, texture key;
+   * - socketNorm resolved for the hull visual dir16 actually displayed;
+   * - pivotNorm from the directional turret profile actually used;
+   * - generated turret asset basis.
+   *
+   * Green cross + "hull socket" label marks the hull socket world point.
+   * Red cross + "turret pivot" label marks the turret pivot world point.
+   * When the two differ, a magenta line connects them. A compact console
+   * row is logged once per vehicle so the exact numbers can be inspected.
+   */
+  private drawTurretAnchorDiagnostic(
+    g: Phaser.GameObjects.Graphics,
+    vehicle: BlockoutVehicleState,
+  ): void {
+    const hullSprite = this.vehicleHullSprites.get(vehicle.id);
+    const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+    const md = this.lastMountingData.get(vehicle.id);
+
+    // Only meaningful when a real turret sprite + full mounting contract exists.
+    if (!hullSprite || !turretSprite || !md || !md.directionalPivot) {
+      const hl = this.anchorHullLabels.get(vehicle.id);
+      const tl = this.anchorTurretLabels.get(vehicle.id);
+      if (hl) hl.setVisible(false);
+      if (tl) tl.setVisible(false);
+      return;
+    }
+
+    // socketNorm for the hull frame actually displayed (same dir the adapter used).
+    const socketNorm = resolveSocketNormForDir(vehicle.bodyId, 'turret_main', md.hullVisualDir16);
+    const pivotNorm = { x: md.directionalPivot.x, y: md.directionalPivot.y };
+    if (!socketNorm) return;
+
+    const diag = computeAnchorDiagnostic({
+      hullSpriteX: hullSprite.x,
+      hullSpriteY: hullSprite.y,
+      hullOriginX: hullSprite.originX,
+      hullOriginY: hullSprite.originY,
+      hullDisplayWidthPx: hullSprite.displayWidth,
+      hullDisplayHeightPx: hullSprite.displayHeight,
+      socketNorm,
+      turretSpriteX: turretSprite.x,
+      turretSpriteY: turretSprite.y,
+      turretOriginX: turretSprite.originX,
+      turretOriginY: turretSprite.originY,
+      turretDisplayWidthPx: turretSprite.displayWidth,
+      turretDisplayHeightPx: turretSprite.displayHeight,
+      pivotNorm,
+    });
+
+    const { hullSocketWorld, turretPivotWorld, deltaX, deltaY, distance } = diag;
+
+    // Connecting line first (under the crosses) when the anchors diverge.
+    if (distance > 0.5) {
+      g.lineStyle(1.5, 0xff00ff, 0.9);
+      g.lineBetween(hullSocketWorld.x, hullSocketWorld.y, turretPivotWorld.x, turretPivotWorld.y);
+    }
+
+    // Hull socket — green cross.
+    const arm = 7;
+    g.lineStyle(2, 0x00ff66, 1);
+    g.lineBetween(hullSocketWorld.x - arm, hullSocketWorld.y, hullSocketWorld.x + arm, hullSocketWorld.y);
+    g.lineBetween(hullSocketWorld.x, hullSocketWorld.y - arm, hullSocketWorld.x, hullSocketWorld.y + arm);
+    g.fillStyle(0x00ff66, 1);
+    g.fillCircle(hullSocketWorld.x, hullSocketWorld.y, 2);
+
+    // Turret pivot — red cross.
+    g.lineStyle(2, 0xff3344, 1);
+    g.lineBetween(turretPivotWorld.x - arm, turretPivotWorld.y, turretPivotWorld.x + arm, turretPivotWorld.y);
+    g.lineBetween(turretPivotWorld.x, turretPivotWorld.y - arm, turretPivotWorld.x, turretPivotWorld.y + arm);
+    g.fillStyle(0xff3344, 1);
+    g.fillCircle(turretPivotWorld.x, turretPivotWorld.y, 2);
+
+    // Labels.
+    let hullLabel = this.anchorHullLabels.get(vehicle.id);
+    if (!hullLabel) {
+      hullLabel = this.scene.add.text(0, 0, 'hull socket', {
+        fontSize: '8px',
+        fontFamily: 'monospace',
+        color: '#00ff66',
+        backgroundColor: '#000000aa',
+        padding: { x: 2, y: 1 },
+      });
+      hullLabel.setOrigin(0.5, 1);
+      hullLabel.setDepth(BLOCKOUT_DEPTH + 30);
+      this.anchorHullLabels.set(vehicle.id, hullLabel);
+    }
+    hullLabel.setPosition(hullSocketWorld.x, hullSocketWorld.y - arm - 2);
+    hullLabel.setVisible(true);
+
+    let turretLabel = this.anchorTurretLabels.get(vehicle.id);
+    if (!turretLabel) {
+      turretLabel = this.scene.add.text(0, 0, 'turret pivot', {
+        fontSize: '8px',
+        fontFamily: 'monospace',
+        color: '#ff6677',
+        backgroundColor: '#000000aa',
+        padding: { x: 2, y: 1 },
+      });
+      turretLabel.setOrigin(0.5, 0);
+      turretLabel.setDepth(BLOCKOUT_DEPTH + 30);
+      this.anchorTurretLabels.set(vehicle.id, turretLabel);
+    }
+    turretLabel.setText(distance > 0.5 ? `turret pivot Δ=${distance.toFixed(1)}px` : 'turret pivot');
+    turretLabel.setPosition(turretPivotWorld.x, turretPivotWorld.y + arm + 2);
+    turretLabel.setVisible(true);
+
+    // Compact console diagnostic row, once per vehicle.
+    if (!this.anchorLoggedVehicles.has(vehicle.id)) {
+      this.anchorLoggedVehicles.add(vehicle.id);
+      const r3 = (n: number) => Math.round(n * 1000) / 1000;
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      console.log('[turretAnchorDebug]', {
+        vehicleId: vehicle.id,
+        bodyAngle: r3(vehicle.bodyAngle),
+        turretAngle: r3(vehicle.turretAngle),
+        hullVisualDir16: md.hullVisualDir16,
+        turretDir16: md.turretVisualDir16,
+        hullTextureKey: hullSprite.texture.key,
+        turretTextureKey: turretSprite.texture.key,
+        hullOrigin: { x: hullSprite.originX, y: hullSprite.originY },
+        turretOrigin: { x: turretSprite.originX, y: turretSprite.originY },
+        hullDisplaySize: { w: r2(hullSprite.displayWidth), h: r2(hullSprite.displayHeight) },
+        turretDisplaySize: { w: r2(turretSprite.displayWidth), h: r2(turretSprite.displayHeight) },
+        socketNorm: { x: r3(socketNorm.x), y: r3(socketNorm.y) },
+        pivotNorm: { x: r3(pivotNorm.x), y: r3(pivotNorm.y) },
+        turretAssetBasis: getGeneratedTurretAssetBasis(vehicle.weaponId),
+        hullSocketWorld: { x: r2(hullSocketWorld.x), y: r2(hullSocketWorld.y) },
+        turretPivotWorld: { x: r2(turretPivotWorld.x), y: r2(turretPivotWorld.y) },
+        deltaX: r2(deltaX),
+        deltaY: r2(deltaY),
+        distance: r2(distance),
+      });
+    }
   }
 
   // ─── Cleanup ─────────────────────────────────────────────────────
@@ -1459,6 +1657,18 @@ export class BlockoutVehicleRenderer {
       sprite.destroy();
     }
     this.vehicleTurretSprites.clear();
+
+    // TURRET-HULL-CONTRACT-PR-F2: Destroy anchor diagnostic overlay
+    for (const [, label] of this.anchorHullLabels) {
+      label.destroy();
+    }
+    this.anchorHullLabels.clear();
+    for (const [, label] of this.anchorTurretLabels) {
+      label.destroy();
+    }
+    this.anchorTurretLabels.clear();
+    this.lastMountingData.clear();
+    this.anchorLoggedVehicles.clear();
 
     for (const [, label] of this.directionDebugLabels) {
       label.destroy();
