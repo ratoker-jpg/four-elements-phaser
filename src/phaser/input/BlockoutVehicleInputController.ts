@@ -65,7 +65,7 @@ import {
   installConsoleAPI as waspCalibInstallConsole,
   getDir16Label,
 } from '../debug/WaspHullDirectionCalibrator';
-import { resolveHullDirectionDiagnostic } from '../../assets/generatedHullAssets';
+import { resolveHullDirectionDiagnostic, bodyIdToGeneratedHullId } from '../../assets/generatedHullAssets';
 import {
   togglePlacement as toggleWaspPlacement,
   isPlacementActive as isWaspPlacementActiveCheck,
@@ -78,6 +78,12 @@ import {
   printPlacementValues as waspPlacePrintValues,
   installPlacementConsoleAPI as waspPlaceInstallConsole,
 } from '../debug/WaspHullPlacementCalibrator';
+import {
+  isTurretSocketCalibrateEnabled,
+  moveSocketBy as waspSocketMoveBy,
+  resetSocketCalibration as waspSocketReset,
+  logSocketCalibrationValues as waspSocketLogValues,
+} from '../debug/WaspSocketCalibrator';
 
 // Turret size constants are now in blockoutVehicleGeometry (BLOCKOUT_TURRET_SIZE_W/H).
 // No local duplicate needed — computeProjectedBarrelTipScreen uses the shared source.
@@ -643,6 +649,52 @@ export class BlockoutVehicleInputController {
    */
   private onKeydown(event: KeyboardEvent): void {
     if (!this.isDevtoolsActive()) return;
+
+    // ── TURRET-HULL-CONTRACT-PR-F2: ?turretSocketCalibrate — socket nudge ──
+    // Arrow keys move the Wasp turret-socket calibration marker (in 512-canvas
+    // px). Plain = 1px, Shift = 5px, Alt = 0.25px. Only active for a selected
+    // Wasp+Smoky while the calibration flag is on. The keys are consumed
+    // (preventDefault + stopPropagation) so the camera does not pan; camera
+    // arrow-pan is additionally suppressed via the isDebugOverlayActive
+    // predicate while the flag is on. Calibration changes nothing persisted.
+    if (isTurretSocketCalibrateEnabled() && this._selectedVehicleId) {
+      const isArrow = event.code === 'ArrowLeft' || event.code === 'ArrowRight'
+        || event.code === 'ArrowUp' || event.code === 'ArrowDown';
+      if (isArrow) {
+        const vehicles = this.getGameState().blockoutVehicles;
+        const selected = vehicles?.find(v => v.id === this._selectedVehicleId);
+        if (selected
+            && bodyIdToGeneratedHullId(selected.bodyId) === 'wasp'
+            && selected.weaponId === 'smoky') {
+          const step = event.altKey ? 0.25 : event.shiftKey ? 5 : 1;
+          let dx = 0;
+          let dy = 0;
+          if (event.code === 'ArrowLeft') dx = -step;
+          if (event.code === 'ArrowRight') dx = step;
+          if (event.code === 'ArrowUp') dy = -step;
+          if (event.code === 'ArrowDown') dy = step;
+          waspSocketMoveBy(dx, dy);
+          waspSocketLogValues();
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
+      // Backspace/Delete resets the marker to the profile socket for this dir.
+      if ((event.code === 'Backspace' || event.code === 'Delete')) {
+        const vehicles = this.getGameState().blockoutVehicles;
+        const selected = vehicles?.find(v => v.id === this._selectedVehicleId);
+        if (selected
+            && bodyIdToGeneratedHullId(selected.bodyId) === 'wasp'
+            && selected.weaponId === 'smoky') {
+          waspSocketReset();
+          console.log('[WaspSocketCalibrate] reset to profile socket for current dir');
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
+    }
 
     // ── PIM-HULL-WASP-ANCHOR-MAP-01 fixup v2: Alt+U = toggle placement calibration ──
     // This MUST be processed BEFORE upgrade hotkeys because U/I/O/P are all

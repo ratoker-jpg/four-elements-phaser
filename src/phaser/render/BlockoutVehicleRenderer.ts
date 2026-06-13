@@ -88,6 +88,13 @@ import {
   isTurretAnchorDebugEnabled,
   computeAnchorDiagnostic,
 } from '../debug/turretAnchorDiagnostic';
+import {
+  isTurretSocketCalibrateEnabled,
+  ensureSeededForDir as seedSocketCalibration,
+  getSocketNormalized as getCalibratedSocketNorm,
+  buildSocketCalibrationSnapshot,
+  buildSocketCalibrationOverlayText,
+} from '../debug/WaspSocketCalibrator';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -284,6 +291,16 @@ export class BlockoutVehicleRenderer {
   /** TURRET-HULL-CONTRACT-PR-F2: Whether ?turretAnchorDebug=1 is active (read once). */
   private readonly turretAnchorDebug = isTurretAnchorDebugEnabled();
 
+  /** TURRET-HULL-CONTRACT-PR-F2: Whether ?turretSocketCalibrate=1 is active (read once). */
+  private readonly socketCalibrate = isTurretSocketCalibrateEnabled();
+
+  /** TURRET-HULL-CONTRACT-PR-F2: Dedicated high-depth graphics layer for the
+   *  socket calibration marker (drawn above hull/turret sprites). */
+  private socketCalibGraphics: Phaser.GameObjects.Graphics | null = null;
+
+  /** TURRET-HULL-CONTRACT-PR-F2: Camera-fixed on-screen socket calibration value panel. */
+  private socketCalibLabel: Phaser.GameObjects.Text | null = null;
+
   /** Direction debug text labels keyed by blockout vehicle ID. */
   private directionDebugLabels = new Map<string, Phaser.GameObjects.Text>();
 
@@ -386,6 +403,17 @@ export class BlockoutVehicleRenderer {
         this.anchorGraphics.setDepth(ANCHOR_DEBUG_DEPTH);
       }
       this.anchorGraphics.clear();
+    }
+
+    // TURRET-HULL-CONTRACT-PR-F2: prepare the dedicated high-depth socket
+    // calibration layer once per frame. Cleared here, drawn per-vehicle in
+    // drawTurretSocketCalibration (called from renderVehicle).
+    if (this.socketCalibrate && this.isDevtoolsActive()) {
+      if (!this.socketCalibGraphics) {
+        this.socketCalibGraphics = this.scene.add.graphics();
+        this.socketCalibGraphics.setDepth(ANCHOR_DEBUG_DEPTH);
+      }
+      this.socketCalibGraphics.clear();
     }
 
     for (const vehicle of vehicles) {
@@ -1525,6 +1553,97 @@ export class BlockoutVehicleRenderer {
     if (this.turretAnchorDebug && this.isDevtoolsActive()) {
       this.drawTurretAnchorDiagnostic(vehicle);
     }
+
+    // ── TURRET-HULL-CONTRACT-PR-F2: turret socket calibration ──
+    // ?turretSocketCalibrate=1 (Arena/devtools only). For the selected
+    // Wasp+Smoky, draws a movable socket marker, keeps the turret pivot
+    // attached to the calibrated socket, and shows the corrected nx/ny.
+    if (this.socketCalibrate && this.isDevtoolsActive()) {
+      this.drawTurretSocketCalibration(vehicle);
+    }
+  }
+
+  // ─── TURRET-HULL-CONTRACT-PR-F2: socket calibration ──────────────
+
+  /**
+   * Draw the Wasp turret-socket calibration tool for the selected vehicle.
+   *
+   * Only active for the selected Wasp+Smoky. Seeds the calibration marker
+   * from the current profile socket for the displayed direction, then:
+   * - re-derives the calibrated socket world point from the LIVE hull sprite
+   *   transform (same math as the anchor diagnostic — no new math);
+   * - re-attaches the turret sprite so its pivot sits on the calibrated
+   *   socket (item 6 — visual confirmation that the turret sits on the hull);
+   * - draws a bright marker at the calibrated socket;
+   * - renders an on-screen value panel (dir16, texture key, pixel, nx, ny).
+   *
+   * Nothing is persisted. The turret re-attachment only happens while the
+   * calibration flag is active, so normal rendering is unchanged.
+   */
+  private drawTurretSocketCalibration(vehicle: BlockoutVehicleState): void {
+    const g = this.socketCalibGraphics;
+    const hullSprite = this.vehicleHullSprites.get(vehicle.id);
+    const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+    const md = this.lastMountingData.get(vehicle.id);
+
+    const isSelectedWaspSmoky =
+      vehicle.id === this._selectedVehicleId
+      && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp'
+      && vehicle.weaponId === 'smoky';
+
+    if (!g || !isSelectedWaspSmoky || !hullSprite || !turretSprite || !md || !md.directionalPivot) {
+      if (this.socketCalibLabel) this.socketCalibLabel.setVisible(false);
+      return;
+    }
+
+    // Profile socket for the displayed direction — used only to seed the
+    // marker once per direction (manual adjustments are preserved after).
+    const profileSocket = resolveSocketNormForDir(vehicle.bodyId, 'turret_main', md.hullVisualDir16);
+    if (!profileSocket) {
+      if (this.socketCalibLabel) this.socketCalibLabel.setVisible(false);
+      return;
+    }
+    seedSocketCalibration(md.hullVisualDir16, profileSocket.x, profileSocket.y, hullSprite.texture.key);
+
+    // Calibrated socket world point from the live hull sprite transform.
+    const socketNorm = getCalibratedSocketNorm();
+    const socketWorldX = hullSprite.x + (socketNorm.nx - hullSprite.originX) * hullSprite.displayWidth;
+    const socketWorldY = hullSprite.y + (socketNorm.ny - hullSprite.originY) * hullSprite.displayHeight;
+
+    // Item 6: re-attach the turret pivot to the calibrated socket. Uses the
+    // SAME attachment invariant as the renderer/diagnostic, just with the
+    // calibrated socket instead of the profile socket.
+    const pivotNorm = md.directionalPivot;
+    turretSprite.x = socketWorldX - (pivotNorm.x - turretSprite.originX) * turretSprite.displayWidth;
+    turretSprite.y = socketWorldY - (pivotNorm.y - turretSprite.originY) * turretSprite.displayHeight;
+
+    // Bright movable marker at the calibrated socket.
+    const ARM = 14;
+    g.lineStyle(3, 0x000000, 0.9);
+    g.lineBetween(socketWorldX - ARM, socketWorldY, socketWorldX + ARM, socketWorldY);
+    g.lineBetween(socketWorldX, socketWorldY - ARM, socketWorldX, socketWorldY + ARM);
+    g.lineStyle(2, 0xffcc00, 1);
+    g.lineBetween(socketWorldX - ARM, socketWorldY, socketWorldX + ARM, socketWorldY);
+    g.lineBetween(socketWorldX, socketWorldY - ARM, socketWorldX, socketWorldY + ARM);
+    g.fillStyle(0xffcc00, 1);
+    g.fillCircle(socketWorldX, socketWorldY, 5);
+    g.lineStyle(2, 0x000000, 1);
+    g.strokeCircle(socketWorldX, socketWorldY, 5);
+
+    // Camera-fixed value panel (item 4 fields + copy-ready line).
+    if (!this.socketCalibLabel) {
+      this.socketCalibLabel = this.scene.add.text(8, 8, '', {
+        fontSize: '11px',
+        fontFamily: 'monospace',
+        color: '#ffe066',
+        backgroundColor: '#000000dd',
+        padding: { x: 6, y: 4 },
+      });
+      this.socketCalibLabel.setScrollFactor(0);
+      this.socketCalibLabel.setDepth(ANCHOR_DEBUG_DEPTH + 1);
+    }
+    this.socketCalibLabel.setText(buildSocketCalibrationOverlayText(buildSocketCalibrationSnapshot()));
+    this.socketCalibLabel.setVisible(true);
   }
 
   // ─── TURRET-HULL-CONTRACT-PR-F2: anchor diagnostic ───────────────
@@ -1740,6 +1859,15 @@ export class BlockoutVehicleRenderer {
     if (this.anchorGraphics) {
       this.anchorGraphics.destroy();
       this.anchorGraphics = null;
+    }
+    // TURRET-HULL-CONTRACT-PR-F2: Destroy socket calibration overlay
+    if (this.socketCalibGraphics) {
+      this.socketCalibGraphics.destroy();
+      this.socketCalibGraphics = null;
+    }
+    if (this.socketCalibLabel) {
+      this.socketCalibLabel.destroy();
+      this.socketCalibLabel = null;
     }
     this.lastMountingData.clear();
     this.anchorLoggedVehicles.clear();

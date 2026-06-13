@@ -32,6 +32,7 @@ import {
   type ClickTarget,
   type CursorFeedbackState,
 } from '../../state/commandRouter';
+import { isTurretSocketCalibrateEnabled } from '../debug/WaspSocketCalibrator';
 
 /**
  * GameInputController — extracts input handling and command dispatch from GameScene.
@@ -193,7 +194,11 @@ export class GameInputController {
     // CORE-STEP-05H+: Wire CameraControls debug overlay predicate so
     // arrow keys pan camera only when debug overlay is NOT active.
     if (deps.cameraControls) {
-      deps.cameraControls.isDebugOverlayActive = () => this.entityRenderer.isDebugOverlayVisible();
+      // TURRET-HULL-CONTRACT-PR-F2: also suppress camera arrow-pan while the
+      // Wasp socket calibration flag is on, so arrow keys move the socket
+      // marker instead of panning the camera.
+      deps.cameraControls.isDebugOverlayActive = () =>
+        this.entityRenderer.isDebugOverlayVisible() || isTurretSocketCalibrateEnabled();
     }
   }
 
