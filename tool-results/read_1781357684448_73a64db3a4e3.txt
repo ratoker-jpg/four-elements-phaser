@@ -1,0 +1,1057 @@
+     1→/**
+     2→ * Dry-run test for TankViewer pipeline manifest and path planning.
+     3→ *
+     4→ * UNIT-ASSET-PIPELINE-01: Validates that the pipeline output path
+     5→ * conventions are correct, the Firebird -> Flamethrower mapping works,
+     6→ * and the manifest structure matches expectations.
+     7→ *
+     8→ * This test does NOT require Blender or source assets to be present.
+     9→ * It only validates the path planning logic.
+    10→ *
+    11→ * The path planning constants are duplicated here from
+    12→ * tools/tankviewer/validate_source_assets.mjs to avoid importing
+    13→ * a .mjs file without type declarations into TypeScript tests.
+    14→ */
+    15→
+    16→import { describe, it, expect } from 'vitest';
+    17→
+    18→// ─── Pipeline constants (duplicated from validate_source_assets.mjs) ──
+    19→
+    20→const HULLS = ['wasp', 'hornet', 'hunter', 'viking', 'dictator', 'titan', 'mammoth'];
+    21→const TURRETS = ['smoky', 'firebird', 'freeze', 'isida', 'railgun', 'ricochet', 'thunder', 'twins', 'vulcan', 'hammer', 'striker'];
+    22→const M_LEVELS = [0, 1, 2, 3];
+    23→
+    24→const TURRET_NAME_MAP: Record<string, string> = {
+    25→  firebird: 'flamethrower',
+    26→};
+    27→
+    28→/**
+    29→ * Generate pipeline output path planning for a hull.
+    30→ */
+    31→function planHullOutputPaths(hullName: string, mLevel: number, faction: string, directions: number) {
+    32→  const paths = [];
+    33→  for (let dir = 0; dir < directions; dir++) {
+    34→    const key = `${hullName}_m${mLevel}_hull_${faction}_dir${dir}`;
+    35→    const outputSubdir = `tankviewer/hulls/${hullName}/m${mLevel}`;
+    36→    const filename = `${hullName}_m${mLevel}_hull_${faction}_dir${dir}.png`;
+    37→    paths.push({ key, outputSubdir, filename });
+    38→  }
+    39→  return paths;
+    40→}
+    41→
+    42→/**
+    43→ * Generate pipeline output path planning for a turret.
+    44→ */
+    45→function planTurretOutputPaths(turretName: string, mLevel: number, faction: string, directions: number) {
+    46→  const paths = [];
+    47→  const gameName = TURRET_NAME_MAP[turretName] || turretName;
+    48→  for (let dir = 0; dir < directions; dir++) {
+    49→    const key = `${gameName}_m${mLevel}_turret_${faction}_dir${dir}`;
+    50→    const outputSubdir = `tankviewer/turrets/${gameName}/m${mLevel}`;
+    51→    const filename = `${gameName}_m${mLevel}_turret_${faction}_dir${dir}.png`;
+    52→    paths.push({ key, outputSubdir, filename });
+    53→  }
+    54→  return paths;
+    55→}
+    56→
+    57→/**
+    58→ * Generate a full pipeline output path plan.
+    59→ */
+    60→function generatePathPlan(directions = 16, factions = ['cyan']) {
+    61→  const plan: Record<string, unknown> = {
+    62→    version: 2,
+    63→    pipeline: 'tankviewer-blender-isometric',
+    64→    directions,
+    65→    factions,
+    66→    nameMapping: TURRET_NAME_MAP,
+    67→    pilotTarget: {
+    68→      hull: 'wasp',
+    69→      mLevel: 0,
+    70→      turret: 'smoky',
+    71→      faction: 'cyan',
+    72→      directions,
+    73→    },
+    74→    hulls: {} as Record<string, Record<string, Record<string, ReturnType<typeof planHullOutputPaths>>>>,
+    75→    turrets: {} as Record<string, Record<string, unknown>>,
+    76→  };
+    77→
+    78→  for (const hull of HULLS) {
+    79→    (plan.hulls as Record<string, Record<string, Record<string, ReturnType<typeof planHullOutputPaths>>>>)[hull] = {};
+    80→    for (const m of M_LEVELS) {
+    81→      (plan.hulls as Record<string, Record<string, Record<string, ReturnType<typeof planHullOutputPaths>>>>)[hull][`m${m}`] = {};
+    82→      for (const faction of factions) {
+    83→        (plan.hulls as Record<string, Record<string, Record<string, ReturnType<typeof planHullOutputPaths>>>>)[hull][`m${m}`][faction] =
+    84→          planHullOutputPaths(hull, m, faction, directions);
+    85→      }
+    86→    }
+    87→  }
+    88→
+    89→  for (const turret of TURRETS) {
+    90→    const gameName = TURRET_NAME_MAP[turret] || turret;
+    91→    (plan.turrets as Record<string, Record<string, unknown>>)[turret] = { gameName };
+    92→    for (const m of M_LEVELS) {
+    93→      ((plan.turrets as Record<string, Record<string, unknown>>)[turret] as Record<string, Record<string, ReturnType<typeof planTurretOutputPaths>>>)[`m${m}`] = {};
+    94→      for (const faction of factions) {
+    95→        ((plan.turrets as Record<string, Record<string, unknown>>)[turret] as Record<string, Record<string, ReturnType<typeof planTurretOutputPaths>>>)[`m${m}`][faction] =
+    96→          planTurretOutputPaths(turret, m, faction, directions);
+    97→      }
+    98→    }
+    99→  }
+   100→
+   101→  return plan;
+   102→}
+   103→
+   104→// ─── Path plan tests ─────────────────────────────────────────────────
+   105→
+   106→describe('TankViewer path plan generation', () => {
+   107→  it('generates a path plan with correct version and pipeline', () => {
+   108→    const plan = generatePathPlan();
+   109→    expect(plan.version).toBe(2);
+   110→    expect(plan.pipeline).toBe('tankviewer-blender-isometric');
+   111→  });
+   112→
+   113→  it('includes the Firebird -> Flamethrower name mapping', () => {
+   114→    const plan = generatePathPlan();
+   115→    const mapping = plan.nameMapping as Record<string, string>;
+   116→    expect(mapping.firebird).toBe('flamethrower');
+   117→  });
+   118→
+   119→  it('includes all 7 hulls', () => {
+   120→    const plan = generatePathPlan();
+   121→    const hulls = plan.hulls as Record<string, unknown>;
+   122→    for (const hull of HULLS) {
+   123→      expect(hulls[hull]).toBeDefined();
+   124→    }
+   125→  });
+   126→
+   127→  it('includes all 11 turrets', () => {
+   128→    const plan = generatePathPlan();
+   129→    const turrets = plan.turrets as Record<string, unknown>;
+   130→    for (const turret of TURRETS) {
+   131→      expect(turrets[turret]).toBeDefined();
+   132→    }
+   133→  });
+   134→
+   135→  it('includes all 4 M-levels for each hull', () => {
+   136→    const plan = generatePathPlan();
+   137→    const hulls = plan.hulls as Record<string, Record<string, unknown>>;
+   138→    for (const hull of Object.keys(hulls)) {
+   139→      for (const m of ['m0', 'm1', 'm2', 'm3']) {
+   140→        expect(hulls[hull][m]).toBeDefined();
+   141→      }
+   142→    }
+   143→  });
+   144→
+   145→  it('generates correct number of paths per hull/mLevel/faction', () => {
+   146→    const plan = generatePathPlan(16, ['cyan']);
+   147→    const hulls = plan.hulls as Record<string, Record<string, Record<string, Array<{ key: string }>>>>;
+   148→    const waspM0Cyan = hulls.wasp.m0.cyan;
+   149→    expect(waspM0Cyan).toHaveLength(16);
+   150→  });
+   151→
+   152→  it('generates correct key naming for hull paths', () => {
+   153→    const plan = generatePathPlan(16, ['cyan']);
+   154→    const hulls = plan.hulls as Record<string, Record<string, Record<string, Array<{ key: string }>>>>;
+   155→    const waspM0Cyan = hulls.wasp.m0.cyan;
+   156→    expect(waspM0Cyan[0].key).toBe('wasp_m0_hull_cyan_dir0');
+   157→    expect(waspM0Cyan[15].key).toBe('wasp_m0_hull_cyan_dir15');
+   158→  });
+   159→
+   160→  it('generates correct output subdir for hull paths', () => {
+   161→    const plan = generatePathPlan(16, ['cyan']);
+   162→    const hulls = plan.hulls as Record<string, Record<string, Record<string, Array<{ outputSubdir: string }>>>>;
+   163→    const waspM0Cyan = hulls.wasp.m0.cyan;
+   164→    expect(waspM0Cyan[0].outputSubdir).toBe('tankviewer/hulls/wasp/m0');
+   165→  });
+   166→
+   167→  it('uses Flamethrower (not Firebird) in turret output paths', () => {
+   168→    const plan = generatePathPlan(16, ['cyan']);
+   169→    const turrets = plan.turrets as Record<string, Record<string, Record<string, Array<{ key: string; filename: string; outputSubdir: string }>>>>;
+   170→    const firebirdM0Cyan = turrets.firebird.m0.cyan;
+   171→    expect(firebirdM0Cyan[0].key).toContain('flamethrower');
+   172→    expect(firebirdM0Cyan[0].filename).toContain('flamethrower');
+   173→    expect(firebirdM0Cyan[0].outputSubdir).toContain('flamethrower');
+   174→  });
+   175→
+   176→  it('uses source name (Firebird) for turret game name mapping', () => {
+   177→    const plan = generatePathPlan(16, ['cyan']);
+   178→    const turrets = plan.turrets as Record<string, { gameName: string }>;
+   179→    expect(turrets.firebird.gameName).toBe('flamethrower');
+   180→  });
+   181→
+   182→  it('generates correct turret key naming', () => {
+   183→    const plan = generatePathPlan(16, ['cyan']);
+   184→    const turrets = plan.turrets as Record<string, Record<string, Record<string, Array<{ key: string }>>>>;
+   185→    const smokyM0Cyan = turrets.smoky.m0.cyan;
+   186→    expect(smokyM0Cyan[0].key).toBe('smoky_m0_turret_cyan_dir0');
+   187→    expect(smokyM0Cyan[15].key).toBe('smoky_m0_turret_cyan_dir15');
+   188→  });
+   189→
+   190→  it('generates paths for all requested factions', () => {
+   191→    const plan = generatePathPlan(16, ['cyan', 'green']);
+   192→    const hulls = plan.hulls as Record<string, Record<string, Record<string, Array<{ key: string }>>>>;
+   193→    const waspM0 = hulls.wasp.m0;
+   194→    expect(waspM0.cyan).toHaveLength(16);
+   195→    expect(waspM0.green).toHaveLength(16);
+   196→  });
+   197→
+   198→  it('pilot target is Wasp M0 + Smoky M0 + cyan', () => {
+   199→    const plan = generatePathPlan(16, ['cyan']);
+   200→    const pilot = plan.pilotTarget as { hull: string; mLevel: number; turret: string; faction: string };
+   201→    expect(pilot.hull).toBe('wasp');
+   202→    expect(pilot.mLevel).toBe(0);
+   203→    expect(pilot.turret).toBe('smoky');
+   204→    expect(pilot.faction).toBe('cyan');
+   205→  });
+   206→});
+   207→
+   208→// ─── Camera projection contract consistency tests ────────────────────
+   209→
+   210→describe('TankViewer camera projection contract constants', () => {
+   211→  // These constants must match src/config/cameraProjectionContract.ts
+   212→  const TILE_W = 76;
+   213→  const TILE_H = 38;
+   214→
+   215→  it('basisX is derived from tile dimensions', () => {
+   216→    expect(TILE_W / 2).toBe(38);
+   217→    expect(TILE_H / 2).toBe(19);
+   218→  });
+   219→
+   220→  it('basisY x-component is negative of basisX x-component', () => {
+   221→    expect(-TILE_W / 2).toBe(-38);
+   222→  });
+   223→
+   224→  it('vertical stretch factor matches contract', () => {
+   225→    const basisZy = -60;
+   226→    const stretchFactor = Math.abs(basisZy) / (TILE_H / 2);
+   227→    // 60 / 19 ≈ 3.158
+   228→    expect(stretchFactor).toBeCloseTo(3.158, 1);
+   229→  });
+   230→
+   231→  it('16 directions give 22.5 degree steps', () => {
+   232→    const step = 360 / 16;
+   233→    expect(step).toBe(22.5);
+   234→  });
+   235→
+   236→  it('direction angles are consistent', () => {
+   237→    const numDirs = 16;
+   238→    const angles = Array.from({ length: numDirs }, (_, i) => i * (360 / numDirs));
+   239→    expect(angles[0]).toBe(0);
+   240→    expect(angles[4]).toBe(90);
+   241→    expect(angles[8]).toBe(180);
+   242→    expect(angles[12]).toBe(270);
+   243→    expect(angles[15]).toBe(337.5);
+   244→  });
+   245→});
+   246→
+   247→// ─── Direction convention consistency tests ──────────────────────────
+   248→
+   249→describe('TankViewer direction convention', () => {
+   250→  /**
+   251→   * Canonical 8-direction naming: E=0, SE=1, S=2, SW=3, W=4, NW=5, N=6, NE=7
+   252→   * Must match src/state/updateGameState directionFromDelta() and Blender
+   253→   * render_tank_sprite.py DIRECTION_NAMES_8 / DIRECTION_NAMES_16.
+   254→   */
+   255→  const DIRECTION_NAMES_8 = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'] as const;
+   256→  const DIRECTION_NAMES_16 = [
+   257→    'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW',
+   258→    'W', 'WNW', 'NW', 'NNW', 'N', 'NNE', 'NE', 'ENE',
+   259→  ] as const;
+   260→
+   261→  it('8-dir: dir0 = E (screen-right), not N', () => {
+   262→    expect(DIRECTION_NAMES_8[0]).toBe('E');
+   263→  });
+   264→
+   265→  it('8-dir: dir6 = N (screen-up in isometric)', () => {
+   266→    expect(DIRECTION_NAMES_8[6]).toBe('N');
+   267→  });
+   268→
+   269→  it('8-dir: dir2 = S (screen-down in isometric)', () => {
+   270→    expect(DIRECTION_NAMES_8[2]).toBe('S');
+   271→  });
+   272→
+   273→  it('8-dir names match directionFromDelta convention', () => {
+   274→    // directionFromDelta(1, -1) = 0 = E
+   275→    // directionFromDelta(1, 0) = 1 = SE
+   276→    // directionFromDelta(1, 1) = 2 = S
+   277→    // directionFromDelta(0, 1) = 3 = SW
+   278→    // directionFromDelta(-1, 1) = 4 = W
+   279→    // directionFromDelta(-1, 0) = 5 = NW
+   280→    // directionFromDelta(-1, -1) = 6 = N
+   281→    // directionFromDelta(0, -1) = 7 = NE
+   282→    expect(DIRECTION_NAMES_8).toHaveLength(8);
+   283→    expect(DIRECTION_NAMES_8[0]).toBe('E');
+   284→    expect(DIRECTION_NAMES_8[1]).toBe('SE');
+   285→    expect(DIRECTION_NAMES_8[2]).toBe('S');
+   286→    expect(DIRECTION_NAMES_8[3]).toBe('SW');
+   287→    expect(DIRECTION_NAMES_8[4]).toBe('W');
+   288→    expect(DIRECTION_NAMES_8[5]).toBe('NW');
+   289→    expect(DIRECTION_NAMES_8[6]).toBe('N');
+   290→    expect(DIRECTION_NAMES_8[7]).toBe('NE');
+   291→  });
+   292→
+   293→  it('16-dir: dir0 = E, dir2 = SE, dir4 = S, dir8 = W, dir12 = N', () => {
+   294→    expect(DIRECTION_NAMES_16[0]).toBe('E');
+   295→    expect(DIRECTION_NAMES_16[2]).toBe('SE');
+   296→    expect(DIRECTION_NAMES_16[4]).toBe('S');
+   297→    expect(DIRECTION_NAMES_16[8]).toBe('W');
+   298→    expect(DIRECTION_NAMES_16[12]).toBe('N');
+   299→  });
+   300→
+   301→  it('16-dir: even indices match 8-dir names', () => {
+   302→    for (let i = 0; i < 8; i++) {
+   303→      expect(DIRECTION_NAMES_16[i * 2]).toBe(DIRECTION_NAMES_8[i]);
+   304→    }
+   305→  });
+   306→
+   307→  it('16-dir: odd indices are intercardinal sub-directions', () => {
+   308→    expect(DIRECTION_NAMES_16[1]).toBe('ESE');
+   309→    expect(DIRECTION_NAMES_16[3]).toBe('SSE');
+   310→    expect(DIRECTION_NAMES_16[5]).toBe('SSW');
+   311→    expect(DIRECTION_NAMES_16[7]).toBe('WSW');
+   312→    expect(DIRECTION_NAMES_16[9]).toBe('WNW');
+   313→    expect(DIRECTION_NAMES_16[11]).toBe('NNW');
+   314→    expect(DIRECTION_NAMES_16[13]).toBe('NNE');
+   315→    expect(DIRECTION_NAMES_16[15]).toBe('ENE');
+   316→  });
+   317→
+   318→  it('16-dir has exactly 16 entries', () => {
+   319→    expect(DIRECTION_NAMES_16).toHaveLength(16);
+   320→  });
+   321→});
+   322→
+   323→// ─── Auto-fit normalize scale tests ─────────────────────────────────
+   324→
+   325→describe('TankViewer web exporter auto-fit normalize scale', () => {
+   326→  /**
+   327→   * Pure helper matching the computeNormalizeScale() function in
+   328→   * tools/tankviewer-web-exporter/index.html.
+   329→   * Duplicated here to avoid importing browser-only code into Node tests.
+   330→   */
+   331→  function computeNormalizeScale(size: { x: number; y: number; z: number }, targetSize: number): number {
+   332→    const maxDim = Math.max(size.x, size.y, size.z);
+   333→    if (maxDim <= 0 || !isFinite(maxDim)) return 1; // degenerate model
+   334→    return targetSize / maxDim;
+   335→  }
+   336→
+   337→  it('computes positive finite scale for Wasp bbox 264x462x181 with target 3.0', () => {
+   338→    const scale = computeNormalizeScale({ x: 264, y: 462, z: 181.5 }, 3.0);
+   339→    expect(scale).toBeGreaterThan(0);
+   340→    expect(isFinite(scale)).toBe(true);
+   341→  });
+   342→
+   343→  it('normalizes Wasp bbox so max dimension matches target size', () => {
+   344→    const size = { x: 264, y: 462, z: 181.5 };
+   345→    const targetSize = 3.0;
+   346→    const scale = computeNormalizeScale(size, targetSize);
+   347→    const finalMaxDim = Math.max(size.x * scale, size.y * scale, size.z * scale);
+   348→    expect(finalMaxDim).toBeCloseTo(targetSize, 6);
+   349→  });
+   350→
+   351→  it('Wasp Y axis (462) is the max dimension, so Y * scale = target', () => {
+   352→    const size = { x: 264, y: 462, z: 181.5 };
+   353→    const targetSize = 3.0;
+   354→    const scale = computeNormalizeScale(size, targetSize);
+   355→    expect(size.y * scale).toBeCloseTo(targetSize, 6);
+   356→    expect(size.x * scale).toBeLessThan(targetSize);
+   357→    expect(size.z * scale).toBeLessThan(targetSize);
+   358→  });
+   359→
+   360→  it('returns 1 for degenerate zero-size model', () => {
+   361→    const scale = computeNormalizeScale({ x: 0, y: 0, z: 0 }, 3.0);
+   362→    expect(scale).toBe(1);
+   363→  });
+   364→
+   365→  it('returns 1 for negative-size model', () => {
+   366→    const scale = computeNormalizeScale({ x: -1, y: -1, z: -1 }, 3.0);
+   367→    expect(scale).toBe(1);
+   368→  });
+   369→
+   370→  it('returns 1 for NaN dimensions', () => {
+   371→    const scale = computeNormalizeScale({ x: NaN, y: NaN, z: NaN }, 3.0);
+   372→    expect(scale).toBe(1);
+   373→  });
+   374→
+   375→  it('returns 1 for Infinity dimensions', () => {
+   376→    const scale = computeNormalizeScale({ x: Infinity, y: 10, z: 10 }, 3.0);
+   377→    expect(scale).toBe(1);
+   378→  });
+   379→
+   380→  it('handles uniform cube model', () => {
+   381→    const scale = computeNormalizeScale({ x: 100, y: 100, z: 100 }, 2.5);
+   382→    expect(scale).toBeCloseTo(0.025, 6);
+   383→    expect(100 * scale).toBeCloseTo(2.5, 6);
+   384→  });
+   385→
+   386→  it('handles very small model (0.001 units)', () => {
+   387→    const scale = computeNormalizeScale({ x: 0.001, y: 0.001, z: 0.001 }, 3.0);
+   388→    expect(scale).toBe(3000);
+   389→    expect(0.001 * scale).toBeCloseTo(3.0, 6);
+   390→  });
+   391→
+   392→  it('different target sizes produce proportional scales', () => {
+   393→    const size = { x: 264, y: 462, z: 181.5 };
+   394→    const scale3 = computeNormalizeScale(size, 3.0);
+   395→    const scale5 = computeNormalizeScale(size, 5.0);
+   396→    expect(scale5 / scale3).toBeCloseTo(5.0 / 3.0, 6);
+   397→  });
+   398→});
+   399→
+   400→// ─── Auto-fit centering transform tests (Option B: wrapper group) ────
+   401→
+   402→describe('TankViewer web exporter auto-fit centering transform', () => {
+   403→  /**
+   404→   * Simulates the Option B wrapper-group transform used in
+   405→   * tools/tankviewer-web-exporter/index.html:
+   406→   *   child.position = -center
+   407→   *   wrapper.scale = (normalizeScale, normalizeScale * zScale, normalizeScale)
+   408→   *   Final world vertex = normalizeScale * (V_original - center)
+   409→   *
+   410→   * These tests verify the math without Three.js at runtime.
+   411→   */
+   412→  function computeNormalizeScale(size: { x: number; y: number; z: number }, targetSize: number): number {
+   413→    const maxDim = Math.max(size.x, size.y, size.z);
+   414→    if (maxDim <= 0 || !isFinite(maxDim)) return 1;
+   415→    return targetSize / maxDim;
+   416→  }
+   417→
+   418→  /**
+   419→   * Simulate the wrapper-group transform for an axis-aligned bbox.
+   420→   * Returns the final bbox { min, max } and derived properties.
+   421→   */
+   422→  function simulateWrapperTransform(
+   423→    bboxMin: [number, number, number],
+   424→    bboxMax: [number, number, number],
+   425→    targetSize: number,
+   426→    zScale: number = 1.0,
+   427→  ) {
+   428→    // Original size
+   429→    const sizeX = bboxMax[0] - bboxMin[0];
+   430→    const sizeY = bboxMax[1] - bboxMin[1];
+   431→    const sizeZ = bboxMax[2] - bboxMin[2];
+   432→    const normalizeScale = computeNormalizeScale({ x: sizeX, y: sizeY, z: sizeZ }, targetSize);
+   433→
+   434→    // Center of original bbox
+   435→    const cx = (bboxMin[0] + bboxMax[0]) / 2;
+   436→    const cy = (bboxMin[1] + bboxMax[1]) / 2;
+   437→    const cz = (bboxMin[2] + bboxMax[2]) / 2;
+   438→
+   439→    // Option B: final world vertex = wrapper.scale * (V - center)
+   440→    // wrapper.scale = (normalizeScale, normalizeScale * zScale, normalizeScale)
+   441→    // child.position = (-cx, -cy, -cz)
+   442→    // For each original vertex V, world = (normalizeScale * (V.x - cx),
+   443→    //                                       normalizeScale * zScale * (V.y - cy),
+   444→    //                                       normalizeScale * (V.z - cz))
+   445→    //
+   446→    // Since bbox is axis-aligned, the extreme vertices are the 8 corners.
+   447→    // For each axis, the min corner stays min and max corner stays max after
+   448→    // the centering (V - center is symmetric), so:
+   449→    //   finalMin.x = normalizeScale * (bboxMin.x - cx)
+   450→    //   finalMax.x = normalizeScale * (bboxMax.x - cx)
+   451→    //   etc.
+   452→
+   453→    const finalMinX = normalizeScale * (bboxMin[0] - cx);
+   454→    const finalMaxX = normalizeScale * (bboxMax[0] - cx);
+   455→    const finalMinY = normalizeScale * zScale * (bboxMin[1] - cy);
+   456→    const finalMaxY = normalizeScale * zScale * (bboxMax[1] - cy);
+   457→    const finalMinZ = normalizeScale * (bboxMin[2] - cz);
+   458→    const finalMaxZ = normalizeScale * (bboxMax[2] - cz);
+   459→
+   460→    const finalCenterX = (finalMinX + finalMaxX) / 2;
+   461→    const finalCenterY = (finalMinY + finalMaxY) / 2;
+   462→    const finalCenterZ = (finalMinZ + finalMaxZ) / 2;
+   463→
+   464→    const finalSizeX = finalMaxX - finalMinX;
+   465→    const finalSizeY = finalMaxY - finalMinY;
+   466→    const finalSizeZ = finalMaxZ - finalMinZ;
+   467→
+   468→    return {
+   469→      normalizeScale,
+   470→      finalBbox: {
+   471→        min: [finalMinX, finalMinY, finalMinZ] as [number, number, number],
+   472→        max: [finalMaxX, finalMaxY, finalMaxZ] as [number, number, number],
+   473→      },
+   474→      finalCenter: [finalCenterX, finalCenterY, finalCenterZ] as [number, number, number],
+   475→      finalSize: [finalSizeX, finalSizeY, finalSizeZ] as [number, number, number],
+   476→      finalMaxDim: Math.max(finalSizeX, finalSizeY, finalSizeZ),
+   477→    };
+   478→  }
+   479→
+   480→  // ─── Wasp-specific tests ──────────────────────────────────────────
+   481→
+   482→  it('Wasp bbox: final center is at origin after wrapper transform', () => {
+   483→    const result = simulateWrapperTransform(
+   484→      [992.38, 379.92, -40.71],
+   485→      [1256.38, 841.92, 140.79],
+   486→      3.0,
+   487→    );
+   488→    expect(result.finalCenter[0]).toBeCloseTo(0, 6);
+   489→    expect(result.finalCenter[1]).toBeCloseTo(0, 6);
+   490→    expect(result.finalCenter[2]).toBeCloseTo(0, 6);
+   491→  });
+   492→
+   493→  it('Wasp bbox: final max dimension equals target size', () => {
+   494→    const result = simulateWrapperTransform(
+   495→      [992.38, 379.92, -40.71],
+   496→      [1256.38, 841.92, 140.79],
+   497→      3.0,
+   498→    );
+   499→    expect(result.finalMaxDim).toBeCloseTo(3.0, 4);
+   500→  });
+   501→
+   502→  it('Wasp bbox: final bbox is inside orthoScale=4 frustum with margin', () => {
+   503→    const result = simulateWrapperTransform(
+   504→      [992.38, 379.92, -40.71],
+   505→      [1256.38, 841.92, 140.79],
+   506→      3.0,
+   507→    );
+   508→    const orthoScale = 4.0;
+   509→    // All final min/max should be within [-orthoScale, orthoScale]
+   510→    expect(result.finalBbox.min[0]).toBeGreaterThan(-orthoScale);
+   511→    expect(result.finalBbox.max[0]).toBeLessThan(orthoScale);
+   512→    expect(result.finalBbox.min[1]).toBeGreaterThan(-orthoScale);
+   513→    expect(result.finalBbox.max[1]).toBeLessThan(orthoScale);
+   514→    expect(result.finalBbox.min[2]).toBeGreaterThan(-orthoScale);
+   515→    expect(result.finalBbox.max[2]).toBeLessThan(orthoScale);
+   516→  });
+   517→
+   518→  it('Wasp bbox: final bbox min/max symmetric around origin', () => {
+   519→    const result = simulateWrapperTransform(
+   520→      [992.38, 379.92, -40.71],
+   521→      [1256.38, 841.92, 140.79],
+   522→      3.0,
+   523→    );
+   524→    // Since center is at origin, min and max should be symmetric
+   525→    expect(result.finalBbox.min[0]).toBeCloseTo(-result.finalBbox.max[0], 4);
+   526→    expect(result.finalBbox.min[1]).toBeCloseTo(-result.finalBbox.max[1], 4);
+   527→    expect(result.finalBbox.min[2]).toBeCloseTo(-result.finalBbox.max[2], 4);
+   528→  });
+   529→
+   530→  it('Wasp bbox with zScale=1.5: Y axis is stretched but center stays at origin', () => {
+   531→    const result = simulateWrapperTransform(
+   532→      [992.38, 379.92, -40.71],
+   533→      [1256.38, 841.92, 140.79],
+   534→      3.0,
+   535→      1.5,
+   536→    );
+   537→    expect(result.finalCenter[0]).toBeCloseTo(0, 6);
+   538→    expect(result.finalCenter[1]).toBeCloseTo(0, 6);
+   539→    expect(result.finalCenter[2]).toBeCloseTo(0, 6);
+   540→    // Y dimension should be 1.5x the non-zScaled Y
+   541→    const resultNoZ = simulateWrapperTransform(
+   542→      [992.38, 379.92, -40.71],
+   543→      [1256.38, 841.92, 140.79],
+   544→      3.0,
+   545→      1.0,
+   546→    );
+   547→    expect(result.finalSize[1]).toBeCloseTo(resultNoZ.finalSize[1] * 1.5, 4);
+   548→  });
+   549→
+   550→  // ─── Degenerate / edge case tests ─────────────────────────────────
+   551→
+   552→  it('degenerate zero-size bbox: normalizeScale=1, center at origin', () => {
+   553→    const result = simulateWrapperTransform([0, 0, 0], [0, 0, 0], 3.0);
+   554→    expect(result.normalizeScale).toBe(1);
+   555→    expect(result.finalCenter[0]).toBeCloseTo(0, 6);
+   556→    expect(result.finalCenter[1]).toBeCloseTo(0, 6);
+   557→    expect(result.finalCenter[2]).toBeCloseTo(0, 6);
+   558→  });
+   559→
+   560→  it('off-center model: center at origin after transform', () => {
+   561→    // Model with bbox from (1000, 1000, 1000) to (1010, 1020, 1005)
+   562→    // Center is at (1005, 1010, 1002.5)
+   563→    const result = simulateWrapperTransform(
+   564→      [1000, 1000, 1000],
+   565→      [1010, 1020, 1005],
+   566→      3.0,
+   567→    );
+   568→    expect(result.finalCenter[0]).toBeCloseTo(0, 6);
+   569→    expect(result.finalCenter[1]).toBeCloseTo(0, 6);
+   570→    expect(result.finalCenter[2]).toBeCloseTo(0, 6);
+   571→  });
+   572→
+   573→  it('off-center model: final max dimension matches target', () => {
+   574→    const result = simulateWrapperTransform(
+   575→      [1000, 1000, 1000],
+   576→      [1010, 1020, 1005],
+   577→      3.0,
+   578→    );
+   579→    // Max dimension is 20 (Y axis), so after normalization max dim = 3.0
+   580→    expect(result.finalMaxDim).toBeCloseTo(3.0, 4);
+   581→  });
+   582→
+   583→  // ─── Bug regression test: OLD buggy transform ──────────────────────
+   584→
+   585→  it('REGRESSION: wrapper transform center is at origin, unlike old buggy transform', () => {
+   586→    // The old (buggy) transform did: position = -center, then scale on same object
+   587→    // In Three.js: worldVertex = scale * V + (-center)
+   588→    //   = scale * V - center
+   589→    // For Wasp center ≈ (1124, 611, 50):
+   590→    //   worldCenter = scale * center - center = center * (scale - 1)
+   591→    //   ≈ (1124 * -0.9935) ≈ -1117 — far from origin!
+   592→
+   593→    const bboxMin = [992.38, 379.92, -40.71] as [number, number, number];
+   594→    const bboxMax = [1256.38, 841.92, 140.79] as [number, number, number];
+   595→    const cx = (bboxMin[0] + bboxMax[0]) / 2; // ≈ 1124.38
+   596→    const cy = (bboxMin[1] + bboxMax[1]) / 2; // ≈ 610.92
+   597→    const cz = (bboxMin[2] + bboxMax[2]) / 2; // ≈ 50.04
+   598→
+   599→    const sizeX = bboxMax[0] - bboxMin[0]; // 264
+   600→    const sizeY = bboxMax[1] - bboxMin[1]; // 462
+   601→    const sizeZ = bboxMax[2] - bboxMin[2]; // 181.5
+   602→    const maxDim = Math.max(sizeX, sizeY, sizeZ); // 462
+   603→    const normalizeScale = 3.0 / maxDim;
+   604→
+   605→    // Old buggy center: center * (normalizeScale - 1)
+   606→    const buggyCenterX = cx * (normalizeScale - 1);
+   607→    const buggyCenterY = cy * (normalizeScale - 1);
+   608→    const buggyCenterZ = cz * (normalizeScale - 1);
+   609→
+   610→    // The buggy center is FAR from origin
+   611→    const buggyDistance = Math.sqrt(buggyCenterX ** 2 + buggyCenterY ** 2 + buggyCenterZ ** 2);
+   612→    expect(buggyDistance).toBeGreaterThan(100); // Buggy center is hundreds of units away
+   613→
+   614→    // The correct (wrapper) center is at origin
+   615→    const result = simulateWrapperTransform(bboxMin, bboxMax, 3.0);
+   616→    const correctDistance = Math.sqrt(
+   617→      result.finalCenter[0] ** 2 + result.finalCenter[1] ** 2 + result.finalCenter[2] ** 2,
+   618→    );
+   619→    expect(correctDistance).toBeCloseTo(0, 4);
+   620→  });
+   621→});
+   622→
+   623→// ─── Config.xml parsing tests ────────────────────────────────────────
+   624→
+   625→describe('TankViewer web exporter config.xml parsing', () => {
+   626→  /**
+   627→   * Pure helpers matching the parseConfigXml() and inference functions in
+   628→   * tools/tankviewer-web-exporter/index.html.
+   629→   * Duplicated here to avoid importing browser-only code into Node tests.
+   630→   * We use a minimal XML parser (no DOMParser in Node) to test the logic.
+   631→   */
+   632→
+   633→  /**
+   634→   * Infer asset name from model file path.
+   635→   * e.g. "hulls/Wasp_0123.3ds" → "Wasp"
+   636→   */
+   637→  function inferAssetName(filePath: string, _kind: string): string {
+   638→    if (!filePath) return '';
+   639→    const basename = filePath.split('/').pop()!.replace(/\.[^.]+$/, '');
+   640→    const name = basename.replace(/_\d{1,4}$/, '');
+   641→    return name.charAt(0).toUpperCase() + name.slice(1);
+   642→  }
+   643→
+   644→  /**
+   645→   * Infer M-level from details/lightmap filename suffix.
+   646→   * e.g. "Wasp_0_details.png" → 0, "Wasp_2_lightmap.jpg" → 2
+   647→   */
+   648→  function inferMLevel(filePath: string): number {
+   649→    if (!filePath) return 0;
+   650→    const match = filePath.match(/_(\d)_(?:details|lightmap)/i);
+   651→    if (match) return parseInt(match[1]);
+   652→    const match2 = filePath.match(/_(\d)\.[^.]+$/);
+   653→    if (match2 && parseInt(match2[1]) <= 3) return parseInt(match2[1]);
+   654→    return 0;
+   655→  }
+   656→
+   657→  /**
+   658→   * Get expected filename from a path.
+   659→   */
+   660→  function getExpectedFilename(filePath: string): string {
+   661→    if (!filePath) return '';
+   662→    return filePath.split('/').pop()!;
+   663→  }
+   664→
+   665→  /**
+   666→   * Parse config.xml text using a simple regex-based extractor.
+   667→   * This mirrors the DOMParser-based parseConfigXml in the browser,
+   668→   * but works in Node without a DOM.
+   669→   */
+   670→  function parseConfigXmlSimple(xmlText: string) {
+   671→    // Extract camera-radius
+   672→    // Real TankViewer config.xml uses <config>; fallback to <root> for synthetic tests
+   673→    const rootMatch = xmlText.match(/<(?:config|root)[^>]*camera-radius="([^"]*)"[^>]*>/);
+   674→    const cameraRadius = rootMatch ? parseFloat(rootMatch[1]) || 750 : 750;
+   675→
+   676→    // Extract hull model entries
+   677→    const hulls: Array<{
+   678→      file: string;
+   679→      details: string;
+   680→      lightmap: string;
+   681→      assetName: string;
+   682→      mLevel: number;
+   683→      kind: string;
+   684→    }> = [];
+   685→    const hullModelRegex = /<model\s+([^>]*)\/>/g;
+   686→    const hullsSection = xmlText.match(/<hulls>([\s\S]*?)<\/hulls>/)?.[1] || '';
+   687→    let match;
+   688→    while ((match = hullModelRegex.exec(hullsSection)) !== null) {
+   689→      const attrs = match[1];
+   690→      const fileMatch = attrs.match(/file="([^"]*)"/);
+   691→      const detailsMatch = attrs.match(/details="([^"]*)"/);
+   692→      const lightmapMatch = attrs.match(/lightmap="([^"]*)"/);
+   693→      const entry = {
+   694→        file: fileMatch?.[1] || '',
+   695→        details: detailsMatch?.[1] || '',
+   696→        lightmap: lightmapMatch?.[1] || '',
+   697→        assetName: '',
+   698→        mLevel: 0,
+   699→        kind: 'hull',
+   700→      };
+   701→      entry.assetName = inferAssetName(entry.file, 'hull');
+   702→      entry.mLevel = inferMLevel(entry.details || entry.lightmap);
+   703→      hulls.push(entry);
+   704→    }
+   705→
+   706→    // Extract turret model entries
+   707→    const turrets: Array<{
+   708→      file: string;
+   709→      details: string;
+   710→      lightmap: string;
+   711→      assetName: string;
+   712→      mLevel: number;
+   713→      kind: string;
+   714→    }> = [];
+   715→    const turretsSection = xmlText.match(/<turrets>([\s\S]*?)<\/turrets>/)?.[1] || '';
+   716→    const turretModelRegex = /<model\s+([^>]*)\/>/g;
+   717→    while ((match = turretModelRegex.exec(turretsSection)) !== null) {
+   718→      const attrs = match[1];
+   719→      const fileMatch = attrs.match(/file="([^"]*)"/);
+   720→      const detailsMatch = attrs.match(/details="([^"]*)"/);
+   721→      const lightmapMatch = attrs.match(/lightmap="([^"]*)"/);
+   722→      const entry = {
+   723→        file: fileMatch?.[1] || '',
+   724→        details: detailsMatch?.[1] || '',
+   725→        lightmap: lightmapMatch?.[1] || '',
+   726→        assetName: '',
+   727→        mLevel: 0,
+   728→        kind: 'turret',
+   729→      };
+   730→      entry.assetName = inferAssetName(entry.file, 'turret');
+   731→      entry.mLevel = inferMLevel(entry.details || entry.lightmap);
+   732→      turrets.push(entry);
+   733→    }
+   734→
+   735→    return { cameraRadius, hulls, turrets, colormaps: [] };
+   736→  }
+   737→
+   738→  // Sample config.xml matching real TankViewer structure (uses <config> root)
+   739→  const SAMPLE_CONFIG_XML = `<?xml version="1.0" encoding="utf-8"?>
+   740→<config camera-radius="750">
+   741→  <hulls>
+   742→    <model file="hulls/Wasp_0123.3ds" lightmap="hulls/Wasp_0_lightmap.jpg" details="hulls/Wasp_0_details.png"/>
+   743→    <model file="hulls/Wasp_1123.3ds" lightmap="hulls/Wasp_1_lightmap.jpg" details="hulls/Wasp_1_details.png"/>
+   744→    <model file="hulls/Dictator_012.3ds" lightmap="hulls/Dictator_0_lightmap.jpg" details="hulls/Dictator_0_details.png"/>
+   745→    <model file="hulls/Dictator_3.3ds" lightmap="hulls/Dictator_3_lightmap.jpg" details="hulls/Dictator_3_details.png"/>
+   746→  </hulls>
+   747→  <turrets>
+   748→    <model file="turrets/Smoky_01.3ds" lightmap="turrets/Smoky_0_lightmap.jpg" details="turrets/Smoky_0_details.png"/>
+   749→    <model file="turrets/Smoky_23.3ds" lightmap="turrets/Smoky_2_lightmap.jpg" details="turrets/Smoky_2_details.png"/>
+   750→    <model file="turrets/Twins_2.3ds" lightmap="turrets/Twins_0_lightmap.jpg" details="turrets/Twins_0_details.png"/>
+   751→    <model file="turrets/Twins_3.3ds" lightmap="turrets/Twins_3_lightmap.jpg" details="turrets/Twins_3_details.png"/>
+   752→    <model file="turrets/Firebird_012.3ds" lightmap="turrets/Firebird_0_lightmap.jpg" details="turrets/Firebird_0_details.png"/>
+   753→    <model file="turrets/Firebird_3.3ds" lightmap="turrets/Firebird_3_lightmap.jpg" details="turrets/Firebird_3_details.png"/>
+   754→  </turrets>
+   755→  <colormaps>
+   756→    <colormap name="cyan" file="colormaps/cyan.png"/>
+   757→  </colormaps>
+   758→</config>`;
+   759→
+   760→  // ─── Camera radius ──────────────────────────────────────────────
+   761→
+   762→  it('parses camera-radius from <config> root element', () => {
+   763→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   764→    expect(config.cameraRadius).toBe(750);
+   765→  });
+   766→
+   767→  it('parses camera-radius from <root> element (fallback)', () => {
+   768→    const xml = '<root camera-radius="500"><hulls></hulls><turrets></turrets></root>';
+   769→    const config = parseConfigXmlSimple(xml);
+   770→    expect(config.cameraRadius).toBe(500);
+   771→  });
+   772→
+   773→  it('defaults camera-radius to 750 when attribute is missing', () => {
+   774→    const xml = '<config><hulls></hulls><turrets></turrets></config>';
+   775→    const config = parseConfigXmlSimple(xml);
+   776→    expect(config.cameraRadius).toBe(750);
+   777→  });
+   778→
+   779→  // ─── Hull model entries ─────────────────────────────────────────
+   780→
+   781→  it('parses correct number of hull model entries', () => {
+   782→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   783→    expect(config.hulls).toHaveLength(4); // 2 Wasp + 2 Dictator
+   784→  });
+   785→
+   786→  it('parses hull model file path', () => {
+   787→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   788→    expect(config.hulls[0].file).toBe('hulls/Wasp_0123.3ds');
+   789→  });
+   790→
+   791→  it('parses hull details path', () => {
+   792→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   793→    expect(config.hulls[0].details).toBe('hulls/Wasp_0_details.png');
+   794→  });
+   795→
+   796→  it('parses hull lightmap path', () => {
+   797→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   798→    expect(config.hulls[0].lightmap).toBe('hulls/Wasp_0_lightmap.jpg');
+   799→  });
+   800→
+   801→  it('infers hull asset name from model file', () => {
+   802→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   803→    expect(config.hulls[0].assetName).toBe('Wasp');
+   804→    expect(config.hulls[2].assetName).toBe('Dictator');
+   805→  });
+   806→
+   807→  it('infers hull M-level from details suffix', () => {
+   808→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   809→    expect(config.hulls[0].mLevel).toBe(0);
+   810→    expect(config.hulls[1].mLevel).toBe(1);
+   811→  });
+   812→
+   813→  it('sets hull kind to "hull"', () => {
+   814→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   815→    expect(config.hulls[0].kind).toBe('hull');
+   816→  });
+   817→
+   818→  // ─── Turret model entries ───────────────────────────────────────
+   819→
+   820→  it('parses correct number of turret model entries', () => {
+   821→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   822→    expect(config.turrets).toHaveLength(6); // 2 Smoky + 2 Twins + 2 Firebird
+   823→  });
+   824→
+   825→  it('parses turret model file path', () => {
+   826→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   827→    expect(config.turrets[0].file).toBe('turrets/Smoky_01.3ds');
+   828→  });
+   829→
+   830→  it('infers turret asset name from model file', () => {
+   831→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   832→    expect(config.turrets[0].assetName).toBe('Smoky');
+   833→    expect(config.turrets[4].assetName).toBe('Firebird');
+   834→  });
+   835→
+   836→  it('infers turret M-level from details suffix', () => {
+   837→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   838→    expect(config.turrets[0].mLevel).toBe(0);
+   839→  });
+   840→
+   841→  it('sets turret kind to "turret"', () => {
+   842→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   843→    expect(config.turrets[0].kind).toBe('turret');
+   844→  });
+   845→
+   846→  // ─── Inference helpers ──────────────────────────────────────────
+   847→
+   848→  it('inferAssetName: strips trailing _#### (4-digit suffix)', () => {
+   849→    expect(inferAssetName('hulls/Wasp_0123.3ds', 'hull')).toBe('Wasp');
+   850→  });
+   851→
+   852→  it('inferAssetName: strips trailing _### (3-digit suffix)', () => {
+   853→    expect(inferAssetName('turrets/Firebird_012.3ds', 'turret')).toBe('Firebird');
+   854→    expect(inferAssetName('hulls/Dictator_012.3ds', 'hull')).toBe('Dictator');
+   855→  });
+   856→
+   857→  it('inferAssetName: strips trailing _## (2-digit suffix)', () => {
+   858→    expect(inferAssetName('turrets/Smoky_01.3ds', 'turret')).toBe('Smoky');
+   859→    expect(inferAssetName('turrets/Smoky_23.3ds', 'turret')).toBe('Smoky');
+   860→  });
+   861→
+   862→  it('inferAssetName: strips trailing _# (1-digit suffix)', () => {
+   863→    expect(inferAssetName('turrets/Twins_2.3ds', 'turret')).toBe('Twins');
+   864→    expect(inferAssetName('turrets/Twins_3.3ds', 'turret')).toBe('Twins');
+   865→    expect(inferAssetName('hulls/Dictator_3.3ds', 'hull')).toBe('Dictator');
+   866→    expect(inferAssetName('turrets/Firebird_3.3ds', 'turret')).toBe('Firebird');
+   867→  });
+   868→
+   869→  it('inferAssetName: handles path without directory prefix', () => {
+   870→    expect(inferAssetName('Wasp_0123.3ds', 'hull')).toBe('Wasp');
+   871→  });
+   872→
+   873→  it('inferAssetName: returns empty string for empty path', () => {
+   874→    expect(inferAssetName('', 'hull')).toBe('');
+   875→  });
+   876→
+   877→  it('inferMLevel: extracts M-level from _0_details pattern', () => {
+   878→    expect(inferMLevel('hulls/Wasp_0_details.png')).toBe(0);
+   879→    expect(inferMLevel('hulls/Wasp_1_details.png')).toBe(1);
+   880→    expect(inferMLevel('hulls/Wasp_2_details.png')).toBe(2);
+   881→    expect(inferMLevel('hulls/Wasp_3_details.png')).toBe(3);
+   882→  });
+   883→
+   884→  it('inferMLevel: extracts M-level from _0_lightmap pattern', () => {
+   885→    expect(inferMLevel('hulls/Wasp_0_lightmap.jpg')).toBe(0);
+   886→    expect(inferMLevel('hulls/Wasp_3_lightmap.jpg')).toBe(3);
+   887→  });
+   888→
+   889→  it('inferMLevel: defaults to 0 for unrecognized pattern', () => {
+   890→    expect(inferMLevel('hulls/Wasp_details.png')).toBe(0);
+   891→    expect(inferMLevel('')).toBe(0);
+   892→  });
+   893→
+   894→  it('getExpectedFilename: extracts last path component', () => {
+   895→    expect(getExpectedFilename('hulls/Wasp_0123.3ds')).toBe('Wasp_0123.3ds');
+   896→    expect(getExpectedFilename('hulls/Wasp_0_details.png')).toBe('Wasp_0_details.png');
+   897→    expect(getExpectedFilename('')).toBe('');
+   898→    expect(getExpectedFilename('simple.3ds')).toBe('simple.3ds');
+   899→  });
+   900→
+   901→  // ─── Grouping / selection ───────────────────────────────────────
+   902→
+   903→  it('groups hull entries by asset name', () => {
+   904→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   905→    const waspEntries = config.hulls.filter(e => e.assetName === 'Wasp');
+   906→    expect(waspEntries).toHaveLength(2); // M0 and M1
+   907→    expect(waspEntries[0].mLevel).toBe(0);
+   908→    expect(waspEntries[1].mLevel).toBe(1);
+   909→  });
+   910→
+   911→  it('finds unique hull asset names', () => {
+   912→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   913→    const names = [...new Set(config.hulls.map(e => e.assetName))].sort();
+   914→    expect(names).toEqual(['Dictator', 'Wasp']);
+   915→  });
+   916→
+   917→  it('finds unique turret asset names', () => {
+   918→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   919→    const names = [...new Set(config.turrets.map(e => e.assetName))].sort();
+   920→    expect(names).toEqual(['Firebird', 'Smoky', 'Twins']);
+   921→  });
+   922→
+   923→  it('finds specific entry by kind + asset + mLevel', () => {
+   924→    const config = parseConfigXmlSimple(SAMPLE_CONFIG_XML);
+   925→    const entry = config.hulls.find(e => e.assetName === 'Wasp' && e.mLevel === 1);
+   926→    expect(entry).toBeDefined();
+   927→    expect(entry!.file).toBe('hulls/Wasp_1123.3ds');
+   928→    expect(entry!.details).toBe('hulls/Wasp_1_details.png');
+   929→    expect(entry!.lightmap).toBe('hulls/Wasp_1_lightmap.jpg');
+   930→  });
+   931→});
+   932→
+   933→// ─── Manifest sourceConfig fields tests ──────────────────────────────
+   934→
+   935→describe('TankViewer web exporter manifest sourceConfig fields', () => {
+   936→  it('sourceConfig is enabled when config entry is selected', () => {
+   937→    const selectedConfigEntry = {
+   938→      file: 'hulls/Wasp_0123.3ds',
+   939→      details: 'hulls/Wasp_0_details.png',
+   940→      lightmap: 'hulls/Wasp_0_lightmap.jpg',
+   941→      assetName: 'Wasp',
+   942→      mLevel: 0,
+   943→      kind: 'hull',
+   944→    };
+   945→    const parsedConfig = { cameraRadius: 750, hulls: [], turrets: [], colormaps: [] };
+   946→
+   947→    const sourceConfig = selectedConfigEntry ? {
+   948→      enabled: true,
+   949→      cameraRadius: parsedConfig.cameraRadius,
+   950→      configModelFile: selectedConfigEntry.file || null,
+   951→      configDetailsFile: selectedConfigEntry.details || null,
+   952→      configLightmapFile: selectedConfigEntry.lightmap || null,
+   953→    } : { enabled: false };
+   954→
+   955→    expect(sourceConfig.enabled).toBe(true);
+   956→    expect(sourceConfig.cameraRadius).toBe(750);
+   957→    expect(sourceConfig.configModelFile).toBe('hulls/Wasp_0123.3ds');
+   958→    expect(sourceConfig.configDetailsFile).toBe('hulls/Wasp_0_details.png');
+   959→    expect(sourceConfig.configLightmapFile).toBe('hulls/Wasp_0_lightmap.jpg');
+   960→  });
+   961→
+   962→  it('sourceConfig is disabled when no config entry is selected', () => {
+   963→    const selectedConfigEntry = null;
+   964→    const sourceConfig = selectedConfigEntry ? {
+   965→      enabled: true,
+   966→    } : { enabled: false };
+   967→
+   968→    expect(sourceConfig.enabled).toBe(false);
+   969→  });
+   970→
+   971→  it('sourceConfig handles turret entry', () => {
+   972→    const selectedConfigEntry = {
+   973→      file: 'turrets/Smoky_0123.3ds',
+   974→      details: 'turrets/Smoky_0_details.png',
+   975→      lightmap: 'turrets/Smoky_0_lightmap.jpg',
+   976→      assetName: 'Smoky',
+   977→      mLevel: 0,
+   978→      kind: 'turret',
+   979→    };
+   980→    const parsedConfig = { cameraRadius: 750, hulls: [], turrets: [], colormaps: [] };
+   981→
+   982→    const sourceConfig = selectedConfigEntry ? {
+   983→      enabled: true,
+   984→      cameraRadius: parsedConfig.cameraRadius,
+   985→      configModelFile: selectedConfigEntry.file || null,
+   986→      configDetailsFile: selectedConfigEntry.details || null,
+   987→      configLightmapFile: selectedConfigEntry.lightmap || null,
+   988→    } : { enabled: false };
+   989→
+   990→    expect(sourceConfig.enabled).toBe(true);
+   991→    expect(sourceConfig.configModelFile).toBe('turrets/Smoky_0123.3ds');
+   992→  });
+   993→
+   994→  it('sourceConfig handles missing optional fields as null', () => {
+   995→    const selectedConfigEntry = {
+   996→      file: 'hulls/Test_0123.3ds',
+   997→      details: '',  // No details
+   998→      lightmap: '', // No lightmap
+   999→      assetName: 'Test',
+  1000→      mLevel: 0,
+  1001→      kind: 'hull',
+  1002→    };
+  1003→    const parsedConfig = { cameraRadius: 750, hulls: [], turrets: [], colormaps: [] };
+  1004→
+  1005→    const sourceConfig = {
+  1006→      enabled: true,
+  1007→      cameraRadius: parsedConfig.cameraRadius,
+  1008→      configModelFile: selectedConfigEntry.file || null,
+  1009→      configDetailsFile: selectedConfigEntry.details || null,
+  1010→      configLightmapFile: selectedConfigEntry.lightmap || null,
+  1011→    };
+  1012→
+  1013→    expect(sourceConfig.configModelFile).toBe('hulls/Test_0123.3ds');
+  1014→    expect(sourceConfig.configDetailsFile).toBeNull();
+  1015→    expect(sourceConfig.configLightmapFile).toBeNull();
+  1016→  });
+  1017→});
+  1018→
+  1019→// ─── File validation tests ───────────────────────────────────────────
+  1020→
+  1021→describe('TankViewer web exporter file validation', () => {
+  1022→  function getExpectedFilename(filePath: string): string {
+  1023→    if (!filePath) return '';
+  1024→    return filePath.split('/').pop()!;
+  1025→  }
+  1026→
+  1027→  it('matching filename passes validation', () => {
+  1028→    const actual = 'Wasp_0123.3ds';
+  1029→    const expected = getExpectedFilename('hulls/Wasp_0123.3ds');
+  1030→    expect(actual).toBe(expected);
+  1031→  });
+  1032→
+  1033→  it('mismatched filename fails validation', () => {
+  1034→    const actual = 'Hornet_0123.3ds';
+  1035→    const expected = getExpectedFilename('hulls/Wasp_0123.3ds');
+  1036→    expect(actual).not.toBe(expected);
+  1037→  });
+  1038→
+  1039→  it('different M-level texture fails validation', () => {
+  1040→    const actual = 'Wasp_1_details.png';
+  1041→    const expected = getExpectedFilename('hulls/Wasp_0_details.png');
+  1042→    expect(actual).not.toBe(expected);
+  1043→  });
+  1044→
+  1045→  it('correct M-level lightmap passes validation', () => {
+  1046→    const actual = 'Wasp_0_lightmap.jpg';
+  1047→    const expected = getExpectedFilename('hulls/Wasp_0_lightmap.jpg');
+  1048→    expect(actual).toBe(expected);
+  1049→  });
+  1050→
+  1051→  it('empty expected filename means no validation needed', () => {
+  1052→    const expected = getExpectedFilename('');
+  1053→    expect(expected).toBe('');
+  1054→    // When expected is empty, no validation warning is needed
+  1055→  });
+  1056→});
+  1057→

@@ -1,0 +1,800 @@
+     1→# TURRET_HULL_ATTACHMENT_AUDIT_2026_06_12.md
+     2→
+     3→Task: TURRET-HULL-ASSET-CONTRACT-AUDIT-01
+     4→Mode: AUDIT / DESIGN ONLY — no implementation, no code, no patch, no PR.
+     5→Project: Four Elements Phaser
+     6→Repo: `ratoker-jpg/four-elements-phaser`
+     7→Date: 2026-06-12
+     8→Status: design proposal for review (GPT / Denis). Not an accepted implementation queue.
+     9→
+    10→---
+    11→
+    12→## 0. How to read this document
+    13→
+    14→This is an audit and a **proposed contract**. It does not change runtime
+    15→behavior. It answers one question:
+    16→
+    17→> How should generated hulls and modular turrets be authored, described,
+    18→> loaded, attached, directed, upgraded, and rendered so the renderer can
+    19→> attach any supported turret to any supported hull predictably — without a
+    20→> new manual AI calibration patch every time?
+    21→
+    22→It honors the hard constraints in the task:
+    23→
+    24→- No PNG/asset editing proposed as the first solution.
+    25→- No full hull/turret matrix preload proposed.
+    26→- No change to gameplay angle semantics.
+    27→- No change to combat / target-lock / rest behavior.
+    28→- Standard mode stays lean; Arena loads a small curated set.
+    29→- Generated hulls and modular turrets stay graceful-fallback capable.
+    30→- Manual visual acceptance by Denis remains required for final alignment.
+    31→
+    32→All file references are to the state of `main` after PR #254, plus the open
+    33→PR #255 (`FIX-OPUS-TURRET-VISUAL-01` + `01B`), which is the immediate subject
+    34→of this audit.
+    35→
+    36→> **Manual QA update (2026-06-12, Denis):** PR #255 + 01B **still does not
+    37→> visually pass.** The Smoky turret is now *visible*, but it does **not sit /
+    38→> align like a properly attached weapon** on the Wasp hull; direction and mount
+    39→> still feel wrong. This is the **second** calibration pass to fail visual QA
+    40→> on the same pair. This audit treats that as decisive evidence that the
+    41→> current asset *convention layer* is insufficient (see §3.6 and §13), and
+    42→> deliberately does **not** propose another remap/offset patch as the answer.
+    43→
+    44→---
+    45→
+    46→## 1. Executive summary
+    47→
+    48→The Arena render path has **two parallel, ad-hoc visual calibration systems**
+    49→(direction and mount) that are re-derived independently per asset family. There
+    50→is no single declared contract that says "this PNG family faces this way" or
+    51→"this hull exposes a turret socket here." As a result:
+    52→
+    53→- Hull direction needs an empirical remap (`WASP_HULL_VISUAL_DIR16_REMAP`,
+    54→  `+4` dir16). This remap is **Wasp-only and hardcoded**.
+    55→- The Smoky turret sprite (PR #255) had to **re-borrow the Wasp hull remap**
+    56→  to face correctly, and currently hardcodes `'wasp'` regardless of the real
+    57→  hull. That is the direct cause of the 01B "wrong visual dir" finding.
+    58→- The turret has **no real socket**. PR #255 glues the turret sprite to the
+    59→  hull sprite's center with a derived `socketLift`, while the procedural
+    60→  mount uses a different formula (`MOUNT_FRACTION_MAP`), and the legacy
+    61→  static path uses a third (`MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR`
+    62→  hand-tuned per-dir table). The 01B "double-counted hull placement offset"
+    63→  finding came from two of these systems both adding the hull offset.
+    64→
+    65→These are not bugs in PR #255 specifically; PR #255 is a reasonable tactical
+    66→fix. They are **symptoms of a missing contract**. Every new hull, turret,
+    67→weapon, or mod tier will reproduce the same two calibration problems
+    68→(facing offset + socket offset) and demand another hand-tuned constant.
+    69→
+    70→**Recommendation (detail in §13):** **do not merge PR #255/01B** — it failed
+    71→visual QA twice and a third small patch would not fix it (the limitation is
+    72→structural, not a wrong constant). **Keep it open as a non-merging reference**
+    73→(option 2) whose reusable parts — the turret resolver, sprite lifecycle, and
+    74→tests — fold into the contract slices; close it (option 3) the moment there is
+    75→any risk of it being merged by inertia. Then adopt the contract below. The
+    76→first contract slice (§14) is a **read-only data layer** that reproduces
+    77→today's exact numbers, so it ships with zero visual change and full test
+    78→coverage.
+    79→
+    80→The contract's core idea is three small declarative profiles plus one rule:
+    81→
+    82→1. **HullVisualProfile** — scale, origin, direction count, a single
+    83→   `assetFacingOffset`, placement offset, and a socket list.
+    84→2. **TurretVisualProfile** — scale, origin, direction count, a single
+    85→   `assetFacingOffset`, target socket id, recoil hooks.
+    86→3. **SocketProfile** — a named mount point in **normalized hull-local
+    87→   coordinates** (the `mountOffsetNormalized` field that already exists in
+    88→   `BodyProfile` but is currently ignored), plus a z-height.
+    89→4. **One rule:** the renderer computes the hull's composite transform **once**
+    90→   (anchor + permanent + debug + recoil), then derives every socket and the
+    91→   turret from that single transform. Turrets never re-derive hull offsets.
+    92→
+    93→---
+    94→
+    95→## 2. Current state map
+    96→
+    97→### 2.1 Two render paths for the same assets
+    98→
+    99→| Path | File | Used by | Direction model | Mount model |
+   100→|---|---|---|---|---|
+   101→| Arena / blockout | `BlockoutVehicleRenderer.ts` + `blockoutVehicleGeometry.ts` | Controllable Arena vehicles | continuous `bodyAngle`/`turretAngle` → dir8 → dir16 → Wasp remap | procedural `MOUNT_FRACTION_MAP`, plus PR #255 turret-sprite "glue to hull center" |
+   102→| Legacy / static | `ModularTankRenderer.ts` | Debug static Wasp+Smoky entity | discrete `entity.dir` / `entity.turretDir` | hand-tuned `MODULAR_TANK_*_BY_BODY_DIR` per-dir pixel tables |
+   103→
+   104→CODEMAP (§11) already warns these are distinct and that controllable Arena
+   105→vehicles must not be routed through `ModularTankRenderer`. They nevertheless
+   106→**share the same PNG assets** and **disagree on how those PNGs face and mount**.
+   107→
+   108→### 2.2 Asset families
+   109→
+   110→| Family | Key builder | Dirs | Matrix | Loaded when |
+   111→|---|---|---|---|---|
+   112→| Generated hull | `getGeneratedHullTextureKey` → `generated_hull_<hull>_<faction>_<mod>_dirNN` | 16 | 7 hull × 4 faction × 4 mod × 16 dir = **1792** | Arena: Wasp m0 only (4×16=64) |
+   113→| Legacy modular hull | `getWaspHullKey` → `wasp_m0_hull_<faction>_dir<0-7>` | 8 | wasp m0 only, 4×8=32 | Arena visual set |
+   114→| Legacy modular turret (Smoky) | `getSmokyTurretKey` → `smoky_m0_turret_<faction>_dir<0-7>` | 8 | smoky m0 only, 4×8=32 | Arena visual set |
+   115→
+   116→There is **no generated-turret family**. Turrets only exist as the legacy
+   117→8-dir Smoky set. There is no turret-per-mod and no turret-per-hull family.
+   118→
+   119→### 2.3 Preload policy (today)
+   120→
+   121→`PreloadScene` → standard mode skips combat assets entirely. Devtools/Arena
+   122→calls `loadArenaVisualAssets`, which loads the legacy modular set (Wasp hull +
+   123→Smoky turret, 64 images) + generated Wasp m0 hull set (4 factions × 16 = 64).
+   124→No full matrix. This is healthy and should be preserved.
+   125→
+   126→### 2.4 Where the turret actually is (PR #255)
+   127→
+   128→The Smoky sprite is **not** placed at the procedural mount. It is placed at:
+   129→
+   130→```
+   131→turretSprite.position = (hullSprite.x, hullSprite.y - socketLift)
+   132→socketLift = hullSprite.displayHeight * (GENERATED_HULL_ORIGIN_Y - 0.5)
+   133→```
+   134→
+   135→i.e. it is glued to the hull sprite's texture center, inheriting the hull's
+   136→permanent + debug + recoil offsets automatically. The procedural
+   137→`mountWorldX/Y` (from `MOUNT_FRACTION_MAP`) is used only for the **fallback**
+   138→(no generated hull) and for the aim line / fire origin. So the visual turret
+   139→and the logical barrel/fire origin sit at **two different points**.
+   140→
+   141→---
+   142→
+   143→## 3. Root causes of the recent Wasp+Smoky issues
+   144→
+   145→PR #255 found two manual-QA defects in its first pass (01), fixed in 01B:
+   146→**wrong turret visual direction** and **wrong mount (double-counted hull
+   147→offset)**. The deeper causes:
+   148→
+   149→### RC-1 — No declared "asset facing offset"
+   150→
+   151→Each PNG family bakes an unknown rotation offset from its authoring tool
+   152→(the Three.js / TankViewer exporter `ROTATION_OFFSET_DEG`). Today this offset
+   153→is rediscovered empirically per family:
+   154→
+   155→- Hull: discovered as `WASP_HULL_VISUAL_DIR16_REMAP` (`+4` dir16).
+   156→- Turret (01): used **raw** `turretAngle` → no offset → a quarter-turn off.
+   157→- Turret (01B): reused the **hull's** offset (`applyHullVisualDir16Remap('wasp', …)`)
+   158→  → correct **only because Smoky was authored in the same convention as Wasp**.
+   159→
+   160→There is no single place that says "Smoky faces `+N`." The fix worked by
+   161→coincidence of shared authoring, and **hardcodes `'wasp'`** — see RC-3.
+   162→
+   163→### RC-2 — No socket; mount is re-derived three ways
+   164→
+   165→"Where does the turret sit on the hull?" has three competing answers
+   166→(procedural fraction, hand-tuned per-dir table, glue-to-center). When the
+   167→turret sprite was added, the offset stack (anchor → permanent placement →
+   168→debug → recoil → hull-origin lift) had to be reconstructed for the turret.
+   169→The 01 pass reconstructed it **on top of** a mount that already included the
+   170→hull placement offset → double count. 01B fixed it by gluing to the hull
+   171→sprite instead — correct, but it means **only "hull center" is a valid mount**.
+   172→A real off-center turret (rear-mount Mammoth, front-mount Wasp) cannot be
+   173→expressed.
+   174→
+   175→### RC-3 — The turret remap ignores the actual hull
+   176→
+   177→`resolveModularTurretSpriteKey` calls `applyHullVisualDir16Remap('wasp', …)`
+   178→with a literal `'wasp'`. Today every Arena hull is Wasp, so it works. The
+   179→moment a second hull ships with a **different** `assetFacingOffset`, the
+   180→turret will face one way and the hull another. This is the contract gap that
+   181→will reproduce the 01 defect for the next hull.
+   182→
+   183→### RC-4 — Inconsistent remap across the two render paths
+   184→
+   185→`ModularTankRenderer.setBodyDir` resolves the generated hull via
+   186→`mapRuntimeDir8ToGeneratedDir16(dir)` **without** `applyHullVisualDir16Remap`.
+   187→The Arena path **does** apply it. So the same generated Wasp PNG faces
+   188→differently in the static debug path vs the Arena path. Whichever was
+   189→calibrated, the other is wrong.
+   190→
+   191→### RC-6 — No turret pivot convention; legacy mount calibration was dropped
+   192→
+   193→This is the root cause the second QA pass exposes, and the reason another
+   194→offset patch will not work.
+   195→
+   196→1. **Turret pivot ≠ image center.** PR #255 sets the turret sprite origin to
+   197→   `(0.5, 0.5)` — the PNG's geometric center. A barreled turret does not rotate
+   198→   about, or mount at, its image center: its **pivot** (the ring it turns on,
+   199→   the point that should coincide with the hull mount) sits toward the
+   200→   rear-center of the turret base, with the barrel extending forward of it.
+   201→   Mounting by image center pushes the whole turret forward/off by roughly half
+   202→   a barrel length, and that error **rotates with the turret**, so it reads as
+   203→   "floating / wrong attachment" differently at every angle — exactly the
+   204→   reported symptom. No single `{x,y}` offset can correct an error that rotates.
+   205→2. **The legacy mount calibration was discarded.** The Smoky PNGs were authored
+   206→   against the **legacy** `wasp_m0_hull`, and the legacy path mounts them with a
+   207→   per-direction table (`MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR`, e.g. dir2 =
+   208→   `{x:-6, y:-18}`) — i.e. **forward and up**, not at hull center. PR #255
+   209→   mounts the same PNG at the **generated** hull's center + `socketLift`,
+   210→   throwing away that calibration. So even with a correct facing, the turret
+   211→   lands at the wrong place on the body.
+   212→
+   213→Together: the turret needs (a) a declared **pivot** in its own image-local
+   214→space and (b) a declared **hull socket** to mount that pivot onto. Neither
+   215→exists today, so both render paths fake it differently and neither matches the
+   216→art's authored intent. This is a missing-convention problem, not a tuning
+   217→problem.
+   218→
+   219→### RC-5 — 16-dir authored, only 8 ever shown
+   220→
+   221→`bodyAngleToDir8` quantizes to 8 sectors, then `mapRuntimeDir8ToGeneratedDir16`
+   222→doubles to even dir16 indices only. The 8 odd half-direction hull PNGs
+   223→(`ESE, SSE, …`) are **never displayed**. We pay matrix cost (and authoring +
+   224→load cost) for frames the runtime cannot select. Either go true 16-dir at the
+   225→angle-quantization step, or stop authoring/loading the odd frames.
+   226→
+   227→### 3.6 Verdict — are the current asset conventions sufficient?
+   228→
+   229→The manual preference is: *do not keep stacking calibration patches unless the
+   230→audit proves the current asset conventions are already sufficient.* The audit
+   231→**cannot** prove that. Evidence:
+   232→
+   233→- Two successive, well-scoped calibration passes (01 then 01B) both failed
+   234→  Denis visual QA on the **same** pair. A convention that were sufficient would
+   235→  have produced alignment from a single declared value, not an oscillating hunt.
+   236→- The remaining misalignment (RC-6) is of a kind a scalar offset **cannot**
+   237→  fix: a wrong pivot produces an error that **rotates with the turret**, and a
+   238→  dropped per-dir mount table produces a per-direction error. Both are missing
+   239→  *metadata*, not mis-tuned numbers.
+   240→
+   241→Important distinction: the **PNG art is probably fine** — each family is
+   242→internally consistent. What is insufficient is the **convention/metadata layer
+   243→around the art**: there is no declared hull socket, no declared turret pivot,
+   244→and no declared per-family facing offset. So the conclusion is **not** "re-cut
+   245→the PNGs" (that would violate the no-PNG-first constraint and is likely
+   246→unnecessary). The conclusion is: **the metadata contract is missing; build it,
+   247→and stop patching.** This is exactly what §5–§7 specify.
+   248→
+   249→---
+   250→
+   251→## 4. Direction convention table
+   252→
+   253→All gameplay angles are **continuous radians in screen space** (X right, Y
+   254→down), per `bodyAngleToDir8` and `directionFromDelta`. **This must not change.**
+   255→
+   256→| Layer | Symbol / source | Type | Convention | Remap applied? |
+   257→|---|---|---|---|---|
+   258→| Gameplay body | `vehicle.bodyAngle` | continuous rad | screen-space: E=0, SE=+π/4, S=+π/2, W=±π, N=−π/2 | none (source of truth) |
+   259→| Gameplay turret | `vehicle.turretAngle` | continuous rad | same as bodyAngle | none (source of truth) |
+   260→| Procedural body draw | `BlockoutVehicleRenderer` box | rad → tile-space rotation | uses `bodyAngle` directly; rotation done in tile space per projection contract | none (geometric, correct by construction) |
+   261→| Procedural turret/barrel draw | `blockoutVehicleGeometry` | rad → tile-space | uses `effectiveTurretAngle` (turretAngle − recoil) directly | none (geometric) |
+   262→| Generated hull sprite | `resolveGeneratedHullKey` | rad → dir8 → dir16 → remap | `bodyAngleToDir8` (8) → `×2` (even dir16) → `applyHullVisualDir16Remap` (Wasp `+4`) | **yes, Wasp-only** |
+   263→| Legacy modular turret — Arena (PR #255) | `resolveModularTurretSpriteKey` | rad → dir8 → dir16 → remap → ÷2 | `bodyAngleToDir8(turretAngle)` → `×2` → `applyHullVisualDir16Remap('wasp')` → `>>1` to dir8 | **yes, hardcoded Wasp** |
+   264→| Legacy modular turret — static | `ModularTankRenderer.setTurretDir` | discrete dir8 | `entity.turretDir` used directly as PNG dir | **none** |
+   265→| Legacy modular hull — static | `ModularTankRenderer.setBodyDir` | discrete dir8 → dir16 | `mapRuntimeDir8ToGeneratedDir16` only | **none (inconsistent w/ Arena, RC-4)** |
+   266→| Asset granularity | — | — | generated hull = 16-dir PNGs (only 8 used, RC-5); legacy hull/turret = 8-dir PNGs | — |
+   267→
+   268→**Key reading:** the only thing that varies between "correct" and "wrong" is a
+   269→single integer rotation offset per PNG family (`assetFacingOffset`). Today that
+   270→integer is encoded as a 16-row table for Wasp hull, as a borrowed literal for
+   271→the turret, and as `0` everywhere else.
+   272→
+   273→---
+   274→
+   275→## 5. Mount / socket convention proposal
+   276→
+   277→### 5.1 Where remaps and mounts live today
+   278→
+   279→| Concern | Encoded in | Form |
+   280→|---|---|---|
+   281→| Hull facing remap | `generatedHullAssets.WASP_HULL_VISUAL_DIR16_REMAP` | 16-entry table, Wasp-only |
+   282→| Turret facing remap | `modularUnitAssets.resolveModularTurretSpriteKey` | borrows hull remap, literal `'wasp'` |
+   283→| Hull permanent placement | `getGeneratedHullPlacementOffset` | per-hull `{x,y}` screen px, Wasp-only |
+   284→| Hull debug placement | `WaspHullPlacementCalibrator` | runtime `{x,y}` screen px, Wasp-only |
+   285→| Procedural mount | `blockoutVehicleGeometry.MOUNT_FRACTION_MAP` | fraction of bodyWidth by `MountCategory` |
+   286→| Static mount | `worldConfig.MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR` | 8 hand-tuned `{x,y}` px |
+   287→| Turret sprite mount | `BlockoutVehicleRenderer` (PR #255) | glue to hull center + `socketLift` |
+   288→| Declared-but-unused | `BodyProfile.mountOffsetNormalized` | normalized `{x,y}` in body rect — **never read by renderer** |
+   289→
+   290→So mounts are duplicated, implicit, and inconsistent (audit Q3 = **yes, all
+   291→three**). There is **no formal socket coordinate system** (audit Q5): the mount
+   292→is derived from procedural geometry in Arena and from per-dir tables in the
+   293→static path.
+   294→
+   295→### 5.2 Proposed: a formal, hull-local socket
+   296→
+   297→Author sockets in **normalized hull-local coordinates** (the existing,
+   298→currently-ignored `mountOffsetNormalized` semantics), promoted to a first-class
+   299→`SocketProfile`, plus a z-height. This is the **hybrid** answer to audit Q6:
+   300→
+   301→- Authoring/storage space = **normalized hull-image-local** `{nx, ny}` in
+   302→  `[0..1]` relative to the hull sprite's untransformed footprint, where the
+   303→  hull's logical center is the reference. Normalized because it survives scale
+   304→  changes (the exact failure that produced `MODULAR_ANCHOR_CORRECTION` and the
+   305→  0.24→0.12 re-tuning).
+   306→- Rendering space = **world/tile-space**, derived by the renderer from the
+   307→  hull's single composite transform (per the §7 rule), then projected through
+   308→  the camera contract. Never authored in screen-space px.
+   309→- Per-dir overrides = **optional** and rare. A socket is normally
+   310→  direction-independent in hull-local space; the renderer rotates it by
+   311→  `bodyAngle` in tile space. A per-dir override map is allowed only for hulls
+   312→  whose art genuinely moves the mount per frame (escape hatch, default empty).
+   313→
+   314→Why not the alternatives, explicitly:
+   315→
+   316→- Pure **projected screen-space px** offsets → exactly today's brittle tables;
+   317→  they break on every scale/origin change. Rejected as the storage form.
+   318→- Pure **world/tile** offsets → fine as the derived form, but authoring in
+   319→  tiles divorces the socket from the art it must visually sit on. Use as the
+   320→  computed intermediate, not the authored value.
+   321→- **Per-dir metadata** as the default → 8–16× the data and the source of the
+   322→  static path's hand-tuning pain. Allowed only as an override.
+   323→
+   324→### 5.3 Turret origin / pivot convention (the RC-6 fix)
+   325→
+   326→A socket answers "where on the hull." It is only half the mount. The other
+   327→half is "**which point of the turret image** lands on that socket" — the
+   328→turret **pivot**. Today this is implicitly `(0.5, 0.5)` (image center), which
+   329→is wrong for a barreled turret (RC-6).
+   330→
+   331→Proposed convention, mirroring the socket:
+   332→
+   333→- Each turret declares `pivotNormalized {px, py}` in `[0..1]` of its own
+   334→  untransformed image — the point about which the turret visually rotates and
+   335→  which must coincide with the hull socket. For Smoky this is **not** the image
+   336→  center; it is the base ring, typically below/behind center
+   337→  (`py > 0.5`, the barrel extending toward the top of the frame).
+   338→- The renderer sets the turret sprite **origin to the pivot** (`px, py`) and
+   339→  positions the sprite **at the socket world point**. Then `socket == pivot` by
+   340→  construction, at every angle, with no rotating residual error.
+   341→- The pivot is authored once per turret family (art-truth, Denis-confirmed),
+   342→  exactly like the facing offset — and like the facing offset, it then never
+   343→  needs re-deriving per hull pairing.
+   344→
+   345→This is why §13 rejects another offset patch: the current code has **no slot**
+   346→for a pivot distinct from the sprite origin, so no `{x,y}` constant can encode
+   347→the rotating error RC-6 describes.
+   348→
+   349→---
+   350→
+   351→## 6. Proposed data schema
+   352→
+   353→All types are **pure TypeScript, Phaser-free**, living next to
+   354→`blockoutProfiles.ts` (state/config layer). They are **descriptive**, read by
+   355→the renderer; they do not contain rendering logic.
+   356→
+   357→```ts
+   358→// ── Direction remap, as ONE integer, not a table ───────────────────
+   359→/** Number of authored directions in a sprite family. */
+   360→export type DirCount = 8 | 16;
+   361→
+   362→/**
+   363→ * Declares how an authored PNG family faces relative to the logical
+   364→ * screen-space direction system. Replaces WASP_HULL_VISUAL_DIR16_REMAP.
+   365→ *
+   366→ * visualDir = (logicalDir + facingOffset) mod dirCount
+   367→ *
+   368→ * Wasp hull today == { dirCount: 16, facingOffset: 4 }.
+   369→ * A family authored "correctly" == { dirCount: N, facingOffset: 0 }.
+   370→ */
+   371→export interface DirectionRemapProfile {
+   372→  dirCount: DirCount;
+   373→  facingOffset: number; // signed, applied mod dirCount
+   374→}
+   375→
+   376→// ── Socket: a named mount point in normalized hull-local space ──────
+   377→export interface SocketProfile {
+   378→  id: string;                       // e.g. 'turret_main'
+   379→  /** Normalized hull-local position; {0.5,0.5} = hull logical center. */
+   380→  normalized: { nx: number; ny: number };
+   381→  /** Height above body top in world Z units (for projection). */
+   382→  zHeight: number;
+   383→  /** Optional rare per-direction override (default: none). */
+   384→  perDir?: Partial<Record<number, { nx: number; ny: number }>>;
+   385→}
+   386→
+   387→// ── Hull visual profile ─────────────────────────────────────────────
+   388→export interface HullVisualProfile {
+   389→  hullId: BodyId;
+   390→  family: 'generated' | 'legacy';   // which key builder + path
+   391→  textureScale: number;             // GENERATED_HULL_SCALE today
+   392→  origin: { x: number; y: number }; // sprite origin (0.5, 0.75 today)
+   393→  direction: DirectionRemapProfile; // {16, 4} for wasp today
+   394→  /** Permanent visual placement offset, screen px (Wasp: {-1, 12}). */
+   395→  placementOffset: { x: number; y: number };
+   396→  sockets: SocketProfile[];         // at least 'turret_main'
+   397→  /** True when the runtime may only pick even dir16 (RC-5 flag). */
+   398→  usesEvenDirOnly?: boolean;
+   399→}
+   400→
+   401→// ── Turret visual profile ───────────────────────────────────────────
+   402→export interface TurretVisualProfile {
+   403→  weaponId: WeaponId;
+   404→  family: 'legacy' | 'generated';
+   405→  textureScale: number;             // MODULAR_RENDER_SCALE today
+   406→  /**
+   407→   * Turret pivot in normalized turret-image-local coords (RC-6, §5.3).
+   408→   * This IS the sprite origin the renderer applies, and it is the point that
+   409→   * coincides with the hull socket. NOT necessarily image center.
+   410→   * PR #255's implicit (0.5,0.5) is the bug; Smoky's true pivot is the base
+   411→   * ring (py > 0.5), to be Denis-confirmed.
+   412→   */
+   413→  pivotNormalized: { px: number; py: number };
+   414→  direction: DirectionRemapProfile; // smoky == { 8, +2 } (the ÷2 of wasp +4)
+   415→  mountSocketId: string;            // 'turret_main'
+   416→  /** Visual recoil hooks (default off; see §7). */
+   417→  recoil?: { followsBarrelKickback: boolean; followsTurretKickback: boolean };
+   418→}
+   419→
+   420→// ── Upgrade level (M0..M3) ──────────────────────────────────────────
+   421→export interface UpgradeLevelProfile {
+   422→  level: 0 | 1 | 2 | 3;             // → 'm0'..'m3'
+   423→  /** Optional per-level visual deltas; absent => identical to M0. */
+   424→  textureModSuffix?: 'm0' | 'm1' | 'm2' | 'm3';
+   425→  scaleMultiplier?: number;
+   426→  socketOverrides?: Partial<Record<string, { nx: number; ny: number }>>;
+   427→  visualIndicator?: string;         // reuse UpgradeProfile.visualIndicator
+   428→}
+   429→```
+   430→
+   431→Concrete Wasp + Smoky instantiation (today's numbers, no change):
+   432→
+   433→```ts
+   434→const WASP_HULL: HullVisualProfile = {
+   435→  hullId: 'wasp', family: 'generated',
+   436→  textureScale: 0.12, origin: { x: 0.5, y: 0.75 },
+   437→  direction: { dirCount: 16, facingOffset: 4 },   // == WASP_HULL_VISUAL_DIR16_REMAP
+   438→  placementOffset: { x: -1, y: 12 },              // == getGeneratedHullPlacementOffset('wasp')
+   439→  sockets: [{ id: 'turret_main', normalized: { nx: 0.5, ny: 0.5 }, zHeight: 0.30 }],
+   440→  usesEvenDirOnly: true,
+   441→};
+   442→
+   443→const SMOKY_TURRET: TurretVisualProfile = {
+   444→  weaponId: 'smoky', family: 'legacy',
+   445→  textureScale: 0.24,
+   446→  pivotNormalized: { px: 0.5, py: 0.5 /* PLACEHOLDER — Denis to confirm base-ring py>0.5 (RC-6) */ },
+   447→  direction: { dirCount: 8, facingOffset: 2 },    // == 01B remap, but explicit & per-turret
+   448→  mountSocketId: 'turret_main',
+   449→  recoil: { followsBarrelKickback: false, followsTurretKickback: false },
+   450→};
+   451→```
+   452→
+   453→Crucially `facingOffset: 2` now lives on the **turret**, derived from the
+   454→turret's own authoring, not borrowed from `'wasp'` (RC-3 closed); and
+   455→`pivotNormalized` gives the renderer the turret-side mount point the current
+   456→code has no slot for (RC-6 closed). `pivotNormalized.py` is the one value the
+   457→audit cannot finalize from code — it is an art-truth measurement that needs
+   458→Denis (or a one-time calibration sweep). It is authored **once per turret**,
+   459→not once per hull pairing.
+   460→
+   461→---
+   462→
+   463→## 7. Proposed renderer flow
+   464→
+   465→One rule: **compute the hull composite transform once; derive everything from
+   466→it.** Pseudocode (replacing the scattered offset math in
+   467→`BlockoutVehicleRenderer.renderVehicle` + the PR #255 glue):
+   468→
+   469→```text
+   470→function renderVehicle(vehicle):
+   471→    hp = lookupHullVisualProfile(vehicle.bodyId)        # graceful: null => procedural
+   472→    if hp == null: drawProceduralBody(); drawProceduralTurret(); return
+   473→
+   474→    # 1. Single composite hull transform (screen space)
+   475→    base   = worldToScreen(vehicle.worldX, vehicle.worldY, offset)
+   476→    recoil = backwardImpulse(vehicle.bodyAngle, vehicle.recoilBodyOffset)
+   477→    perm   = hp.placementOffset
+   478→    debug  = devtoolsActive ? waspDebugOffset() : {0,0}     # gated, unchanged
+   479→    hullPos = base + recoil + perm + debug
+   480→    hullDir = remap(bodyAngleToLogicalDir(vehicle.bodyAngle, hp.direction.dirCount),
+   481→                    hp.direction)
+   482→    drawHullSprite(hp, hullDir, hullPos)
+   483→
+   484→    # 2. Socket world position, derived from the SAME transform
+   485→    socket = hp.sockets['turret_main']
+   486→    socketScreen = hullPos + normalizedToScreenOffset(socket, hp, vehicle.bodyAngle)
+   487→    socketScreen.y -= socket.zHeight * basisZ            # height via projection contract
+   488→
+   489→    # 3. Turret: own profile, own facing offset, own PIVOT, mounted at socket
+   490→    tp = lookupTurretVisualProfile(vehicle.weaponId)     # graceful: null => procedural turret
+   491→    if tp != null and turretTextureLoaded(tp, vehicle):
+   492→        turretDir = remap(turretAngleToLogicalDir(vehicle.turretAngle, tp.direction.dirCount),
+   493→                          tp.direction)
+   494→        turretSprite.setOrigin(tp.pivotNormalized.px, tp.pivotNormalized.py)  # RC-6
+   495→        turretSprite.setPosition(socketScreen)            # pivot lands ON socket, every angle
+   496→        skipProceduralTurret = true
+   497→    # 4. Aim line / fire origin stay on the shared projected geometry (unchanged)
+   498→```
+   499→
+   500→Properties:
+   501→
+   502→- The turret never re-reads `placementOffset`, `recoilBodyOffset`, or the
+   503→  hull origin — it reads the **socket**, which is already in the composite
+   504→  frame. Double-counting (the 01 defect) becomes structurally impossible.
+   505→- `facingOffset` is per-family, so hull and turret can differ. RC-3/RC-4 closed
+   506→  by construction once both paths call the same `remap`.
+   507→- Sockets are off-center capable (`nx/ny ≠ 0.5`), so front/rear-mount hulls
+   508→  work without new code — only data.
+   509→- Procedural body/turret remain the **fallback** when no profile/texture is
+   510→  found. Graceful fallback preserved.
+   511→- `zHeight` and the height term use the camera projection contract `basisZ`;
+   512→  no top-down assumptions.
+   513→
+   514→Recoil policy (audit Q7): body recoil shifts the **composite transform**, so
+   515→hull + socket + turret + barrel all move together (already true via gluing;
+   516→made explicit here). Barrel kickback and turret-angle kickback affect the
+   517→**procedural barrel and the fire origin only**, unless a turret opts in via
+   518→`recoil.followsTurretKickback`. Default off keeps the sprite turret stable and
+   519→matches today's behavior. **No combat/recoil semantics change** — these are
+   520→read-only visual hooks.
+   521→
+   522→---
+   523→
+   524→## 8. Proposed preload policy
+   525→
+   526→Keep the current lean policy. Do **not** introduce a full matrix.
+   527→
+   528→- Standard mode: unchanged — no combat assets.
+   529→- Arena/devtools: replace the hardcoded `loadArenaVisualAssets` body with a
+   530→  **declared visual bundle** — a small list of `(HullVisualProfile,
+   531→  UpgradeLevelProfile, factions)` and `(TurretVisualProfile, factions)` to
+   532→  load. Today's bundle = `{ wasp m0 × 4 factions } + { smoky m0 × 4 factions }`,
+   533→  i.e. byte-for-byte the same set.
+   534→- On-demand: `preloadGeneratedHullSet` and a parallel
+   535→  `preloadModularTurretSet` load exactly one hull/turret family set when a
+   536→  not-yet-loaded combo is first requested (e.g. a future curated Arena roster
+   537→  adds Hornet or Thunder). Probe-key guard prevents duplicate loads.
+   538→- Resolvers already return `null` when a texture is not loaded → procedural
+   539→  fallback. So an under-provisioned bundle degrades gracefully instead of
+   540→  erroring.
+   541→- RC-5 option: if `usesEvenDirOnly`, the hull loader may skip the 8 odd dir16
+   542→  PNGs, halving hull load/footprint with **zero visual change** (the runtime
+   543→  never selects them). This is a load-list change, not a PNG edit.
+   544→
+   545→---
+   546→
+   547→## 9. M0 / M1 / M2 / M3 upgrade model
+   548→
+   549→Today: `modificationLevel (0..3)` → `modificationLevelToMod` → `'m0'..'m3'` →
+   550→baked into the **hull** texture key. Hull PNGs exist per mod (the 1792 matrix);
+   551→the **turret** (Smoky) has only `m0` and no mod dimension. `blockoutUpgradeData`
+   552→and `UpgradeProfile.visualIndicator` exist but are not wired to sprite swaps.
+   553→
+   554→Proposed: represent M0–M3 as an `UpgradeLevelProfile` **delta over M0**, not a
+   555→separate matrix axis to fully populate.
+   556→
+   557→- Hull: `textureModSuffix` selects the mod PNG when authored; **absent ⇒ reuse
+   558→  M0 art** + an optional additive `visualIndicator` overlay (chevrons/pips).
+   559→  This means a hull can ship M0 art only and still show M1–M3 progression via
+   560→  indicator, with no missing-texture errors.
+   561→- Turret: same. Smoky stays `m0` art at all levels until per-mod turret art
+   562→  exists; the level shows via `visualIndicator`. No turret matrix required.
+   563→- Socket may shift per level via `socketOverrides` (e.g. a bigger M3 turret
+   564→  sits slightly back) — data only.
+   565→- Gameplay/balance scaling stays where it is (`m0m3Scaling.ts`,
+   566→  `blockoutUpgradeData.ts`); this profile is **visual only**.
+   567→
+   568→This keeps M-levels lean and graceful: missing higher-tier art never blocks
+   569→rendering.
+   570→
+   571→---
+   572→
+   573→## 10. Testing strategy
+   574→
+   575→Automatable without Phaser (pure resolvers), audit Q12:
+   576→
+   577→1. **Facing-offset parity (regression lock).** For Wasp hull and Smoky turret,
+   578→   assert the new `remap(logicalDir, profile)` returns exactly the same
+   579→   texture dir as today's `WASP_HULL_VISUAL_DIR16_REMAP` /
+   580→   `resolveModularTurretSpriteKey`. This guarantees the contract refactor is
+   581→   visually identical to current accepted output.
+   582→2. **Cardinal anchor tests.** Keep PR #255's four-cardinal assertions
+   583→   (E/S/W/N → expected Smoky dir) and add the hull equivalents.
+   584→3. **Hull≠turret offset divergence.** A synthetic second hull with
+   585→   `facingOffset` ≠ Wasp's must produce a turret dir that follows the
+   586→   **turret** profile, not the hull — the test that would have caught RC-3.
+   587→4. **Socket + pivot math.** `normalizedToScreenOffset` for socket `{0.5,0.5}`
+   588→   must equal the current `socketLift` result for Wasp (parity); for an
+   589→   off-center socket it must move predictably and **not** double-apply
+   590→   `placementOffset` (the test that would have caught the 01 double-count). For
+   591→   the turret pivot (RC-6): assert that with `pivotNormalized = origin`, the
+   592→   pivot lands on the socket for a full angle sweep with **zero per-angle
+   593→   residual** — the invariant a wrong image-center origin violates.
+   594→5. **Graceful fallback.** Unknown hull/weapon, or unloaded texture → resolver
+   595→   returns `null` → procedural path chosen. (Extends existing
+   596→   `modularTurretSprite.test.ts` cases.)
+   597→6. **Even-dir-only invariant.** `usesEvenDirOnly` hull never resolves an odd
+   598→   dir16 across a full angle sweep.
+   599→7. **Both-paths consistency (RC-4).** Same hull+angle resolves to the same
+   600→   texture key in the Arena resolver and the static resolver.
+   601→8. **Preload bundle = curated set.** Assert the declared Arena bundle expands
+   602→   to exactly the current 128-key set (no accidental matrix growth) — a guard
+   603→   test against the "full matrix" anti-goal.
+   604→
+   605→Existing tests to keep green: `blockoutVehicleGeometry.test.ts`,
+   606→`blockoutTurretAim.test.ts`, `blockoutSelectionAim.test.ts`,
+   607→`arenaInspection.test.ts`, `combatCore.test.ts`, plus full
+   608→`typecheck / test / build / qa:smoke`.
+   609→
+   610→### Still requires Denis visual QA (audit Q13)
+   611→
+   612→Automation locks **consistency**, not **art truth**. Denis must still confirm,
+   613→through real menu flows (Standard / Debug / Arena):
+   614→
+   615→- The authored `facingOffset` is actually correct for each **new** hull/turret
+   616→  (the PNG faces where the number claims) — this is the irreducible art-truth
+   617→  check that produced `+4`/`+2` in the first place.
+   618→- The socket `{nx, ny, zHeight}` visually sits where the turret should mount.
+   619→- Per-mod art (when introduced) and `visualIndicator` read clearly.
+   620→- Recoil/idle/target-lock/rest still look right with the sprite turret.
+   621→
+   622→---
+   623→
+   624→## 11. Migration plan (small PR sequence)
+   625→
+   626→Each step is independently shippable, test-locked, and visually a no-op until
+   627→the explicit "enable new art" step.
+   628→
+   629→- **PR-A (this doc).** Accept the contract. Docs only.
+   630→- **PR-B — read-only profile layer (the §14 first slice).** Add the four
+   631→  profile types + Wasp/Smoky instances populated from **existing constants**,
+   632→  plus adapter functions. Renderer still uses current code; adapters are
+   633→  asserted equal to today's values (test #1, #4-parity). Zero visual change.
+   634→- **PR-C — route hull direction through the profile.** Replace
+   635→  `applyHullVisualDir16Remap` internals with `remap(dir, profile.direction)`.
+   636→  Behavior identical for Wasp (`{16,+4}`). Closes RC-1 storage.
+   637→- **PR-D — route turret direction through the turret profile.** Replace the
+   638→  hardcoded `applyHullVisualDir16Remap('wasp', …)` in
+   639→  `resolveModularTurretSpriteKey` with the Smoky profile's own
+   640→  `{8,+2}`. Closes RC-3. Supersedes the ad-hoc part of PR #255.
+   641→- **PR-E — socket + pivot turret mount.** Replace the PR #255 glue with
+   642→  `normalizedToScreenOffset(socket, …)` and set the turret sprite **origin to
+   643→  `pivotNormalized`** (RC-6). This is the step that actually fixes the
+   644→  still-failing alignment: it needs the Denis-confirmed Smoky `pivotNormalized`
+   645→  and (optionally) the legacy per-dir mount values folded into the socket.
+   646→  Closes RC-2 + RC-6; enables off-center mounts. **Denis visual QA required.**
+   647→- **PR-F — reconcile the static path (RC-4)** or formally retire
+   648→  `ModularTankRenderer` as render path (keep as calibration-only), per Denis.
+   649→- **PR-G — declared preload bundle** (§8); assert == current curated set.
+   650→- **PR-H — prove generality.** Add **one** second curated hull or turret
+   651→  (e.g. Thunder turret or Hornet hull) authored purely as data + its small
+   652→  loaded set. This is the acceptance test for the whole contract: a new combo
+   653→  with **no new calibration code**. Denis visual QA on the new combo only.
+   654→
+   655→Order rationale: data first (no risk), then direction (pure functions, fully
+   656→testable), then mount (the riskier geometry), then generality last.
+   657→
+   658→---
+   659→
+   660→## 12. Risks and open questions
+   661→
+   662→- **Art-truth still manual.** The contract removes *re-deriving* the offset in
+   663→  code, not *discovering* it for new art. Each new family still needs one
+   664→  Denis-blessed `facingOffset`. That is acceptable and expected (constraint:
+   665→  "manual visual acceptance remains required").
+   666→- **Smoky `+2` is a coincidence.** It equals the Wasp hull `+4` halved only
+   667→  because Smoky and Wasp share an authoring convention. The profile must store
+   668→  it as the **turret's own** value so the coincidence is harmless if it breaks.
+   669→- **`zHeight` calibration.** Today the turret sprite ignores Z (glued in screen
+   670→  space). Introducing `zHeight` must reproduce the current look at default
+   671→  before any nonzero value is used — keep `zHeight` parity-tested.
+   672→- **Even-dir-only vs true 16-dir.** Decide whether hulls should become true
+   673→  16-direction at the quantization step (smoother turning, uses all art) or
+   674→  stay 8-dir and drop odd frames from load. This is a gameplay-feel + asset
+   675→  decision for Denis, not forced by the contract.
+   676→- **Static path fate (RC-4).** Keep reconciled, or demote
+   677→  `ModularTankRenderer` to calibration-only? Needs an owner decision.
+   678→- **`mountOffsetNormalized` reuse.** The `BodyProfile` field is currently
+   679→  unused; confirm no hidden consumer before repurposing it as the socket
+   680→  source.
+   681→- **Faction fallback.** Resolvers fall back to `cyan` for unknown factions;
+   682→  keep this, but a test should assert green/yellow/purple resolve directly.
+   683→
+   684→---
+   685→
+   686→## 13. Clear recommendation — what to do with PR #255
+   687→
+   688→The three options posed:
+   689→
+   690→1. merge as a temporary tactical improvement;
+   691→2. keep open but not merged;
+   692→3. close / replace with a contract-based implementation.
+   693→
+   694→**Recommendation: option 2 — keep PR #255 open but do NOT merge it.** Flip to
+   695→option 3 (close) if there is any chance it gets merged by inertia.
+   696→
+   697→**Option 1 (merge) is rejected.** The PR failed Denis visual QA twice. Merging
+   698→it would ship a turret that is visible but visibly mis-attached, and project
+   699→rules (`AI_EXECUTION_WORKFLOW` §12, `CURRENT_NEXT_STEP` "Denis visual
+   700→acceptance before merge") forbid merging a visual PR that failed visual QA. A
+   701→third small patch will not rescue it: RC-6 is a **rotating** error (wrong
+   702→pivot) plus a **per-direction** error (dropped legacy mount table), neither of
+   703→which a scalar offset can fix. Continuing here is exactly the "stacking
+   704→calibration patches" the owner asked to stop.
+   705→
+   706→**Why option 2 over option 3.** PR #255 contains genuinely reusable,
+   707→contract-aligned scaffolding that we do not want to rewrite from scratch:
+   708→
+   709→- `resolveModularTurretSpriteKey` + the `MODULAR_TURRET_SPRITE_WEAPONS` gate
+   710→  (graceful null-fallback) → becomes the body of the profile-driven turret
+   711→  resolver in **PR-D**.
+   712→- The turret-sprite **lifecycle** in `BlockoutVehicleRenderer`
+   713→  (`vehicleTurretSprites` map, depth band, cleanup, "skip procedural when
+   714→  sprite active") → reused almost verbatim by **PR-E**.
+   715→- `modularTurretSprite.test.ts` (7 tests) → converted into the parity/locks of
+   716→  §10 tests #1–#3.
+   717→
+   718→Keeping it open preserves that as a labeled reference branch and an honest
+   719→record that the tactical route was tried and rejected. **Condition:** mark the
+   720→PR clearly — *"Superseded by TURRET-HULL-ASSET-CONTRACT; do not merge; salvage
+   721→resolver + lifecycle + tests into PR-D/PR-E"* — and **freeze** all new per-case
+   722→calibration (no new `WASP_*` constants, no hardcoded `'wasp'`, no per-dir mount
+   723→tables) from now on.
+   724→
+   725→**When to pick option 3 instead.** If the team cannot reliably prevent a
+   726→merge-by-inertia, or if review prefers a clean slate, **close** PR #255 and
+   727→cherry-pick the three salvage items above into the contract slices. The
+   728→engineering outcome is identical; option 3 is purely the safer bookkeeping
+   729→choice.
+   730→
+   731→In one line: **#255 proved the asset conventions are not yet sufficient — that
+   732→is its value. It should be the last hand-written calibration patch, not the
+   733→first of more.** The contract turns the next ten such patches into reviewed,
+   734→tested data.
+   735→
+   736→---
+   737→
+   738→## 14. First implementation slice proposal (smallest safe PR)
+   739→
+   740→**PR-B — "visual profile read-only layer"** — the smallest step that creates
+   741→the contract surface with **zero behavior change**:
+   742→
+   743→Scope:
+   744→
+   745→- New pure-TS file (state/config layer, no Phaser): the four profile types from
+   746→  §6 + a `WASP_HULL` / `SMOKY_TURRET` instance populated **only** from existing
+   747→  exported constants (`GENERATED_HULL_SCALE`, `GENERATED_HULL_ORIGIN_*`,
+   748→  `WASP_HULL_VISUAL_DIR16_REMAP`, `getGeneratedHullPlacementOffset`,
+   749→  `MODULAR_RENDER_SCALE`, the 01B `+2`).
+   750→- A `remap(logicalDir, DirectionRemapProfile)` helper:
+   751→  `(logicalDir + facingOffset) mod dirCount`.
+   752→- Adapter shims: `hullVisualProfile(bodyId)` / `turretVisualProfile(weaponId)`
+   753→  returning `null` for unsupported ids (graceful).
+   754→- **No renderer rewiring.** Renderer and resolvers are untouched.
+   755→
+   756→Tests (the value of the slice):
+   757→
+   758→- `remap(logical, {16,4})` reproduces every row of
+   759→  `WASP_HULL_VISUAL_DIR16_REMAP`.
+   760→- `remap(logical, {8,2})` reproduces `resolveModularTurretSpriteKey`'s four
+   761→  cardinal results.
+   762→- Profile constants equal the live exported constants (drift guard).
+   763→
+   764→Why this first:
+   765→
+   766→- Risk ≈ 0 (adds code, changes nothing).
+   767→- It is the dependency for PR-C/D/E and forces the offsets to be written down
+   768→  in one place, which is the entire point of the audit.
+   769→- It is fully unit-testable without Phaser, so it can be validated cheaply
+   770→  (GLM-runnable), reserving strong-model/Denis time for PR-E/PR-H where the
+   771→  geometry and art-truth actually change.
+   772→
+   773→Validation baseline for PR-B: `npm run typecheck && npm run test &&
+   774→npm run build && npm run qa:smoke`; docs/PR body states "no runtime behavior,
+   775→asset, or preload change — read-only data layer + tests."
+   776→
+   777→---
+   778→
+   779→## 15. Audit question → section index
+   780→
+   781→| # | Question | Answered in |
+   782→|---|---|---|
+   783→| 1 | Direction conventions (body/turret/procedural/hull/turret/8v16) | §4 |
+   784→| 2 | Where visual dir remaps are encoded | §3 RC-1/RC-3, §5.1 |
+   785→| 3 | Hull/turret remaps duplicated/implicit/inconsistent? | §3 RC-3/RC-4, §5.1 (yes, all three) |
+   786→| 4 | Current mount/socket model | §2.1, §5.1 |
+   787→| 5 | Formal socket coord system? | §5.1 (no — derived) |
+   788→| 6 | Where sockets should be authored | §5.2 (normalized hull-local hybrid) + §5.3 (turret pivot) |
+   789→| 7 | Recoil/permanent/debug offsets on hull+turret | §7 |
+   790→| 8 | M0–M3 representation | §9 |
+   791→| 9 | Turret independent/overlay/socket-mounted | §5.2–§5.3, §6, §7 (socket-mounted modular w/ pivot) |
+   792→| 10 | Future weapons beyond Smoky w/o full matrix | §8 |
+   793→| 11 | Data schema (hull/turret/socket/remap/upgrade) | §6 |
+   794→| 12 | What to test automatically | §10 |
+   795→| 13 | What still needs Denis QA | §10 |
+   796→| 14 | Safest migration path | §11 |
+   797→| — | Are current asset conventions sufficient? | §3.6 (no) |
+   798→| — | PR #255: merge / keep open / close? | §13 (keep open, do not merge — option 2) |
+   799→| — | First implementation slice | §14 |
+   800→

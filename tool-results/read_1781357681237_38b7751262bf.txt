@@ -1,0 +1,1332 @@
+     1→/**
+     2→ * BlockoutVehicleRenderer — renders blockout vehicles as pseudo-isometric
+     3→ * Phaser Graphics primitives following the camera projection contract.
+     4→ *
+     5→ * PROJECTION-01: Ground-plane retrofit.
+     6→ * - Bodies rendered as pseudo-isometric boxes (base + side + top face)
+     7→ * - Selection/hover rings are projected ground-plane ellipses
+     8→ * - Move target markers use projected ground-plane diamonds
+     9→ * - Vehicle shadows rendered as projected ground-plane ellipses
+    10→ * - Range indicators use projected ground-plane circles
+    11→ * - Turret sits visually on top plane using basisZ
+    12→ *
+    13→ * Uses no PNG assets, no asset manifest, no texture loading.
+    14→ * Only active when devtools/arena mode is on.
+    15→ */
+    16→
+    17→import Phaser from 'phaser';
+    18→import type { IsoPoint } from './isometric';
+    19→import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
+    20→import {
+    21→  computeBodyWorldCenter,
+    22→  computeProjectedBlockoutVehicleGeometry,
+    23→  BLOCKOUT_VEHICLE_BODY_Z,
+    24→  BLOCKOUT_TURRET_Z_OFFSET,
+    25→  BLOCKOUT_TURRET_BOX_HEIGHT,
+    26→} from './blockoutVehicleGeometry';
+    27→import {
+    28→  drawProjectedGroundRing,
+    29→  drawProjectedGroundDiamond,
+    30→  drawProjectedShadow,
+    31→  drawProjectedBox,
+    32→  drawProjectedCrosshair,
+    33→} from './projectedGroundPrimitives';
+    34→import { projectWorldPoint, unprojectScreenToGround, PROJ_TILE_W } from '../../config/cameraProjectionContract';
+    35→import { getWeaponProfile } from '../../config/blockoutWeaponData';
+    36→import { getWeaponConfig } from '../../config/weaponData';
+    37→import { sortByDepth, type DepthSortable } from './depthSorting';
+    38→import { getTrackAnimationState } from '../../state/trackAnimation';
+    39→import {
+    40→  resolveGeneratedHullKey,
+    41→  resolveGeneratedHullKeyForced,
+    42→  resolveHullDirectionDiagnostic,
+    43→  bodyIdToGeneratedHullId,
+    44→  GENERATED_HULL_DIRECTIONS_16,
+    45→  getGeneratedHullTextureKey,
+    46→  resolveGeneratedHullFaction,
+    47→  modificationLevelToMod,
+    48→  GENERATED_HULL_SCALE,
+    49→  GENERATED_HULL_ORIGIN_X,
+    50→  GENERATED_HULL_ORIGIN_Y,
+    51→  getGeneratedHullPlacementOffset,
+    52→  directionDebugEnabled,
+    53→  toggleDirectionDebug as toggleDirDebug,
+    54→  type GeneratedHullDir16Index,
+    55→} from '../../assets/generatedHullAssets';
+    56→import {
+    57→  isCalibrationActive,
+    58→  getForcedVisualDir16,
+    59→  isOverrideActive,
+    60→  isOverlayVisible as isCalibOverlayVisible,
+    61→  buildCalibrationOverlayText,
+    62→  type CalibrationOverlayParams,
+    63→} from '../debug/WaspHullDirectionCalibrator';
+    64→import {
+    65→  isPlacementActive as isWaspPlacementActive,
+    66→  isPlacementOverlayVisible as isWaspPlacementOverlayVisible,
+    67→  getDebugOffsetX as getWaspDebugOffsetX,
+    68→  getDebugOffsetY as getWaspDebugOffsetY,
+    69→  buildPlacementOverlayText,
+    70→  type PlacementOverlayParams,
+    71→} from '../debug/WaspHullPlacementCalibrator';
+    72→import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibrationPanel';
+    73→
+    74→
+    75→// ─── Visual constants ──────────────────────────────────────────────
+    76→
+    77→/** Depth for blockout vehicles (above terrain, coexisting with entities). */
+    78→const BLOCKOUT_DEPTH = 120;
+    79→
+    80→/**
+    81→ * EXPERIMENT-OPUS-B1B2-01 / B2:
+    82→ * Generated hull PNGs are hull-only. Turret/barrel graphics must render above them.
+    83→ * Keep the bias below 1 so inter-vehicle isometric ordering remains stable.
+    84→ */
+    85→const HULL_SPRITE_DEPTH_BIAS = -0.5;
+    86→
+    87→/** Mount point circle radius. */
+    88→const MOUNT_POINT_RADIUS = 3;
+    89→
+    90→// ─── Faction colors ────────────────────────────────────────────────
+    91→
+    92→/** Body fill color per faction. */
+    93→const FACTION_BODY_COLORS: Record<string, number> = {
+    94→  cyan: 0x00cccc,
+    95→  green: 0x44cc44,
+    96→  yellow: 0xcccc00,
+    97→  purple: 0xaa44cc,
+    98→};
+    99→
+   100→/** Turret fill color per faction (slightly brighter than body). */
+   101→const FACTION_TURRET_COLORS: Record<string, number> = {
+   102→  cyan: 0x33eeee,
+   103→  green: 0x66ee66,
+   104→  yellow: 0xeeee33,
+   105→  purple: 0xcc66ee,
+   106→};
+   107→
+   108→/** Outline color (dark stroke for body). */
+   109→const BODY_OUTLINE_COLOR = 0x222222;
+   110→const TURRET_OUTLINE_COLOR = 0x333333;
+   111→
+   112→/** Barrel line color. */
+   113→const BARREL_COLOR = 0x555555;
+   114→
+   115→/** Mount point circle color (debug only). */
+   116→const MOUNT_POINT_COLOR = 0xff0000;
+   117→
+   118→/** Debug label color. */
+   119→const DEBUG_LABEL_COLOR = '#ffffff';
+   120→
+   121→// ─── Z-level constants are now in blockoutVehicleGeometry (PROJECTION-01 fixup #2)
+   122→// BLOCKOUT_VEHICLE_BODY_Z, BLOCKOUT_TURRET_Z_OFFSET, BLOCKOUT_TURRET_BOX_HEIGHT,
+   123→// BLOCKOUT_BARREL_Z — do not duplicate here.
+   124→
+   125→// ─── Selection / hover visual constants ────────────────────────────
+   126→
+   127→/** Selection highlight ring color (bright gold). */
+   128→const SELECTION_RING_COLOR = 0xffd700;
+   129→
+   130→/** Selection highlight ring line width. */
+   131→const SELECTION_RING_WIDTH = 2.5;
+   132→
+   133→/** Selection ring radius in world/tile units. PROJECTION-01. */
+   134→const SELECTION_RING_WORLD_RADIUS = 0.65;
+   135→
+   136→/** BLOCKOUT-10H+: Direction arrow length in pixels (extends from selection ring edge). */
+   137→const DIRECTION_ARROW_LENGTH = 12;
+   138→
+   139→/** BLOCKOUT-10H+: Direction arrow head size in pixels. */
+   140→const DIRECTION_ARROW_HEAD = 5;
+   141→
+   142→/** Hover marker ring color (subtle white). */
+   143→const HOVER_RING_COLOR = 0xffffff;
+   144→
+   145→/** Hover marker ring alpha. */
+   146→const HOVER_RING_ALPHA = 0.3;
+   147→
+   148→/** Hover ring radius in world/tile units. PROJECTION-01. */
+   149→const HOVER_RING_WORLD_RADIUS = 0.5;
+   150→
+   151→/** Aim line color for selected vehicle. */
+   152→const AIM_LINE_COLOR = 0xff4444;
+   153→
+   154→/** Aim line alpha. */
+   155→const AIM_LINE_ALPHA = 0.6;
+   156→
+   157→/** Aim line length in pixels (from turret center). */
+   158→const AIM_LINE_LENGTH = 120;
+   159→
+   160→/** Aim line dash segment length. */
+   161→const AIM_LINE_DASH = 8;
+   162→
+   163→/** Aim line gap length. */
+   164→const AIM_LINE_GAP = 5;
+   165→
+   166→// ─── Movement target visual constants ───────────────────────────────
+   167→
+   168→/** Move target marker color. BLOCKOUT-04H+. */
+   169→const MOVE_TARGET_COLOR = 0x44ff44;
+   170→
+   171→/** Move target marker alpha. */
+   172→const MOVE_TARGET_ALPHA = 0.7;
+   173→
+   174→/** Move target diamond half-size in world/tile units. PROJECTION-01. */
+   175→const MOVE_TARGET_DIAMOND_HALF_SIZE = 0.2;
+   176→
+   177→/** Move target crosshair arm length in world/tile units. PROJECTION-01. */
+   178→const MOVE_TARGET_CROSSHAIR_ARM = 0.15;
+   179→
+   180→/** Move line color from vehicle to target. BLOCKOUT-04H+. */
+   181→const MOVE_LINE_COLOR = 0x44ff44;
+   182→
+   183→/** Move line alpha. */
+   184→const MOVE_LINE_ALPHA = 0.3;
+   185→
+   186→// ─── Shadow constants ──────────────────────────────────────────────
+   187→
+   188→/** Shadow world radius as fraction of vehicle half-size. */
+   189→const SHADOW_RADIUS_FRACTION = 0.7;
+   190→
+   191→// ─── Renderer ──────────────────────────────────────────────────────
+   192→
+   193→export class BlockoutVehicleRenderer {
+   194→  private scene: Phaser.Scene;
+   195→  private offset: IsoPoint;
+   196→
+   197→  /** Graphics objects keyed by blockout vehicle ID. */
+   198→  private vehicleGraphics = new Map<string, Phaser.GameObjects.Graphics>();
+   199→
+   200→  /** Debug text labels keyed by blockout vehicle ID. */
+   201→  private debugLabels = new Map<string, Phaser.GameObjects.Text>();
+   202→
+   203→  /** Whether debug labels are shown. */
+   204→  private showDebugLabels = true;
+   205→
+   206→  /** Whether mount points are shown. */
+   207→  private showMountPoints = true;
+   208→
+   209→  /** Currently selected vehicle ID (set from BlockoutVehicleInputController). */
+   210→  private _selectedVehicleId: string | null = null;
+   211→
+   212→  /** Currently hovered vehicle ID (set from BlockoutVehicleInputController). */
+   213→  private _hoveredVehicleId: string | null = null;
+   214→
+   215→  /** ARENA-03H+: Currently targeted vehicle ID (for target indicator rendering). */
+   216→  private _targetedVehicleId: string | null = null;
+   217→
+   218→  /** Generated hull sprite images keyed by blockout vehicle ID. */
+   219→  private vehicleHullSprites = new Map<string, Phaser.GameObjects.Image>();
+   220→
+   221→  /** Direction debug text labels keyed by blockout vehicle ID. */
+   222→  private directionDebugLabels = new Map<string, Phaser.GameObjects.Text>();
+   223→
+   224→  /** PIM-HULL-WASP-DIR-MAP-01: Calibration overlay text labels keyed by blockout vehicle ID. */
+   225→  private calibrationLabels = new Map<string, Phaser.GameObjects.Text>();
+   226→
+   227→  /** PIM-HULL-WASP-ANCHOR-MAP-01: Placement calibration overlay text labels. */
+   228→  private placementLabels = new Map<string, Phaser.GameObjects.Text>();
+   229→
+   230→  /** PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: On-screen calibration button panel. */
+   231→  private placementPanel: WaspPlacementCalibrationPanel | null = null;
+   232→
+   233→  /** Whether generated hull sprites have been logged (once). */
+   234→  private generatedHullLogged = false;
+   235→
+   236→  /** Whether blockout fallback has been logged (once). */
+   237→  private blockoutFallbackLogged = false;
+   238→
+   239→  /** PIM-HULL-WASP-DIR-MAP-01: Whether devtools/arena mode is active.
+   240→   *  Calibration overlay and forced direction are gated to devtools mode only. */
+   241→  private isDevtoolsActive: () => boolean;
+   242→
+   243→  constructor(scene: Phaser.Scene, offset: IsoPoint, isDevtoolsActive?: () => boolean) {
+   244→    this.scene = scene;
+   245→    this.offset = offset;
+   246→    this.isDevtoolsActive = isDevtoolsActive ?? (() => false);
+   247→  }
+   248→
+   249→  // ─── Selection state ───────────────────────────────────────────
+   250→
+   251→  /** Set the currently selected blockout vehicle ID. */
+   252→  setSelectedVehicleId(id: string | null): void {
+   253→    this._selectedVehicleId = id;
+   254→  }
+   255→
+   256→  /** Set the currently hovered blockout vehicle ID. */
+   257→  setHoveredVehicleId(id: string | null): void {
+   258→    this._hoveredVehicleId = id;
+   259→  }
+   260→
+   261→  /** ARENA-03H+: Set the currently targeted vehicle ID (enemy target indicator). */
+   262→  setTargetedVehicleId(id: string | null): void {
+   263→    this._targetedVehicleId = id;
+   264→  }
+   265→
+   266→  // ─── Toggle methods ──────────────────────────────────────────────
+   267→
+   268→  /** Toggle debug labels visibility. Returns new state. */
+   269→  toggleDebugLabels(): boolean {
+   270→    this.showDebugLabels = !this.showDebugLabels;
+   271→    for (const [, label] of this.debugLabels) {
+   272→      label.setVisible(this.showDebugLabels);
+   273→    }
+   274→    return this.showDebugLabels;
+   275→  }
+   276→
+   277→  /** Toggle mount point circles visibility. Returns new state. */
+   278→  toggleMountPoints(): boolean {
+   279→    this.showMountPoints = !this.showMountPoints;
+   280→    return this.showMountPoints;
+   281→  }
+   282→
+   283→  /** Whether debug labels are currently visible. */
+   284→  isDebugLabelsVisible(): boolean {
+   285→    return this.showDebugLabels;
+   286→  }
+   287→
+   288→  /** Whether mount points are currently visible. */
+   289→  isMountPointsVisible(): boolean {
+   290→    return this.showMountPoints;
+   291→  }
+   292→
+   293→  /** Toggle the direction debug overlay. Returns new state. */
+   294→  toggleDirectionDebug(): boolean {
+   295→    const newState = toggleDirDebug();
+   296→    if (!newState) {
+   297→      for (const [, label] of this.directionDebugLabels) {
+   298→        label.setVisible(false);
+   299→      }
+   300→    }
+   301→    return newState;
+   302→  }
+   303→
+   304→  // ─── Frame sync ──────────────────────────────────────────────────
+   305→
+   306→  /**
+   307→   * Sync blockout vehicle rendering from the current blockout vehicle state.
+   308→   * Called each frame. Destroys stale graphics, creates new ones for new vehicles.
+   309→   */
+   310→  syncFromState(vehicles: BlockoutVehicleState[]): void {
+   311→    const activeIds = new Set<string>();
+   312→
+   313→    for (const vehicle of vehicles) {
+   314→      activeIds.add(vehicle.id);
+   315→
+   316→      let g = this.vehicleGraphics.get(vehicle.id);
+   317→      if (!g) {
+   318→        g = this.scene.add.graphics();
+   319→        g.setDepth(BLOCKOUT_DEPTH);
+   320→        this.vehicleGraphics.set(vehicle.id, g);
+   321→      }
+   322→
+   323→      // Check for generated hull sprite
+   324→      // PIM-HULL-WASP-DIR-MAP-01: When calibration is active and vehicle is Wasp,
+   325→      // use the forced visual dir16 instead of the normal pipeline.
+   326→      // Arena/devtools-only: forced direction is gated to devtools mode.
+   327→      const isWaspCalibrating = this.isDevtoolsActive()
+   328→        && isCalibrationActive()
+   329→        && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp'
+   330→        && isOverrideActive();
+   331→
+   332→      let hullKey: string | null;
+   333→      if (isWaspCalibrating) {
+   334→        const forcedDir16 = getForcedVisualDir16() as GeneratedHullDir16Index;
+   335→        hullKey = resolveGeneratedHullKeyForced(
+   336→          this.scene, vehicle.bodyId, vehicle.faction,
+   337→          vehicle.modificationLevel, forcedDir16,
+   338→        );
+   339→      } else {
+   340→        hullKey = resolveGeneratedHullKey(
+   341→          this.scene, vehicle.bodyId, vehicle.faction,
+   342→          vehicle.modificationLevel, vehicle.bodyAngle,
+   343→        );
+   344→      }
+   345→      const useGeneratedHull = hullKey !== null;
+   346→
+   347→      // Manage hull sprite lifecycle
+   348→      let hullSprite = this.vehicleHullSprites.get(vehicle.id);
+   349→      if (useGeneratedHull && hullKey) {
+   350→        if (!hullSprite) {
+   351→          hullSprite = this.scene.add.image(0, 0, hullKey);
+   352→          hullSprite.setScale(GENERATED_HULL_SCALE);
+   353→          hullSprite.setOrigin(GENERATED_HULL_ORIGIN_X, GENERATED_HULL_ORIGIN_Y);
+   354→          hullSprite.setDepth(BLOCKOUT_DEPTH + HULL_SPRITE_DEPTH_BIAS);
+   355→          this.vehicleHullSprites.set(vehicle.id, hullSprite);
+   356→          if (!this.generatedHullLogged) {
+   357→            console.log(`[BlockoutVehicleRenderer] Using generated hull sprite for ${vehicle.bodyId}+${vehicle.weaponId}`);
+   358→            this.generatedHullLogged = true;
+   359→          }
+   360→        } else {
+   361→          hullSprite.setTexture(hullKey);
+   362→        }
+   363→      } else {
+   364→        if (hullSprite) {
+   365→          hullSprite.destroy();
+   366→          this.vehicleHullSprites.delete(vehicle.id);
+   367→        }
+   368→        if (!this.blockoutFallbackLogged) {
+   369→          console.log(`[BlockoutVehicleRenderer] No generated hull for ${vehicle.bodyId} — blockout fallback`);
+   370→          this.blockoutFallbackLogged = true;
+   371→        }
+   372→      }
+   373→
+   374→      // Determine selection/hover state for this vehicle
+   375→      const isSelected = vehicle.id === this._selectedVehicleId;
+   376→      const isHovered = vehicle.id === this._hoveredVehicleId;
+   377→
+   378→      // Redraw this vehicle
+   379→      this.renderVehicle(g, vehicle, isSelected, isHovered);
+   380→
+   381→      // Debug label
+   382→      let label = this.debugLabels.get(vehicle.id);
+   383→      if (!label && this.showDebugLabels) {
+   384→        label = this.scene.add.text(0, 0, '', {
+   385→          fontSize: '9px',
+   386→          color: DEBUG_LABEL_COLOR,
+   387→          backgroundColor: '#00000088',
+   388→          padding: { x: 2, y: 1 },
+   389→        });
+   390→        label.setDepth(BLOCKOUT_DEPTH + 1);
+   391→        label.setOrigin(0.5, 1);
+   392→        this.debugLabels.set(vehicle.id, label);
+   393→      }
+   394→
+   395→      if (label) {
+   396→        const bodyCenter = computeBodyWorldCenter(vehicle, this.offset);
+   397→
+   398→        const selectedMarker = isSelected ? ' [SEL]' : '';
+   399→        const speedMarker = vehicle.speed > 1 ? ` v=${Math.round(vehicle.speed)}` : '';
+   400→        const hpMarker = vehicle.isDestroyed ? ' [DEAD]' : ` hp=${vehicle.hp}/${vehicle.maxHp}`;
+   401→        label.setText(`${vehicle.bodyId}+${vehicle.weaponId}${selectedMarker}${hpMarker}${speedMarker}`);
+   402→
+   403→        // Position label above top face (body center + Z offset)
+   404→        const labelZ = vehicle.isDestroyed ? 0 : BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.1;
+   405→        const tilePos = unprojectScreenToGround(bodyCenter.x, bodyCenter.y, this.offset);
+   406→        const labelPos = projectWorldPoint(tilePos.x, tilePos.y, labelZ, this.offset);
+   407→        label.setPosition(labelPos.x, labelPos.y);
+   408→        label.setVisible(this.showDebugLabels);
+   409→      }
+   410→    }
+   411→
+   412→    // ── CORE-STEP-06H+: Depth sorting ─────────────────────────────
+   413→    // Sort all vehicles by isometric depth for correct occlusion.
+   414→    // Vehicles with lower screen Y (further from camera) are drawn first.
+   415→    const depthSortables: DepthSortable[] = vehicles
+   416→      .filter(v => !v.isDestroyed && activeIds.has(v.id))
+   417→      .map(v => ({
+   418→        id: v.id,
+   419→        type: 'unit' as const,
+   420→        tx: v.tx,
+   421→        ty: v.ty,
+   422→        offsetX: this.offset.x,
+   423→        offsetY: this.offset.y,
+   424→      }));
+   425→    const depthOrder = new Map<string, number>();
+   426→    if (depthSortables.length > 0) {
+   427→      const sorted = sortByDepth(depthSortables);
+   428→      for (let i = 0; i < sorted.length; i++) {
+   429→        depthOrder.set(sorted[i].sortable.id, i);
+   430→      }
+   431→    }
+   432→
+   433→    // Apply depth to each vehicle's graphics object
+   434→    for (const vehicle of vehicles) {
+   435→      const g = this.vehicleGraphics.get(vehicle.id);
+   436→      if (g) {
+   437→        const orderIdx = depthOrder.get(vehicle.id);
+   438→        if (orderIdx !== undefined) {
+   439→          // Use BLOCKOUT_DEPTH as base + sorted order for isometric correctness
+   440→          g.setDepth(BLOCKOUT_DEPTH + orderIdx);
+   441→        }
+   442→      }
+   443→      // Also update debug label depth
+   444→      const label = this.debugLabels.get(vehicle.id);
+   445→      if (label) {
+   446→        const orderIdx = depthOrder.get(vehicle.id);
+   447→        if (orderIdx !== undefined) {
+   448→          label.setDepth(BLOCKOUT_DEPTH + orderIdx + 1);
+   449→        }
+   450→      }
+   451→      // Also update hull sprite depth
+   452→      const hullSprite = this.vehicleHullSprites.get(vehicle.id);
+   453→      if (hullSprite) {
+   454→        const orderIdx = depthOrder.get(vehicle.id);
+   455→        if (orderIdx !== undefined) {
+   456→          hullSprite.setDepth(BLOCKOUT_DEPTH + orderIdx + HULL_SPRITE_DEPTH_BIAS);
+   457→        }
+   458→      }
+   459→      // Also update direction debug label depth
+   460→      const dirLabel = this.directionDebugLabels.get(vehicle.id);
+   461→      if (dirLabel) {
+   462→        const orderIdx = depthOrder.get(vehicle.id);
+   463→        if (orderIdx !== undefined) {
+   464→          dirLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 10);
+   465→        }
+   466→      }
+   467→      // Also update calibration label depth
+   468→      const calibLabel = this.calibrationLabels.get(vehicle.id);
+   469→      if (calibLabel) {
+   470→        const orderIdx = depthOrder.get(vehicle.id);
+   471→        if (orderIdx !== undefined) {
+   472→          calibLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 20);
+   473→        }
+   474→      }
+   475→      // Also update placement label depth
+   476→      const placeLabel = this.placementLabels.get(vehicle.id);
+   477→      if (placeLabel) {
+   478→        const orderIdx = depthOrder.get(vehicle.id);
+   479→        if (orderIdx !== undefined) {
+   480→          placeLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 25);
+   481→        }
+   482→      }
+   483→    }
+   484→
+   485→    // Clean up stale vehicles
+   486→    for (const [id, g] of this.vehicleGraphics) {
+   487→      if (!activeIds.has(id)) {
+   488→        g.destroy();
+   489→        this.vehicleGraphics.delete(id);
+   490→      }
+   491→    }
+   492→    for (const [id, label] of this.debugLabels) {
+   493→      if (!activeIds.has(id)) {
+   494→        label.destroy();
+   495→        this.debugLabels.delete(id);
+   496→      }
+   497→    }
+   498→    // Clean up stale hull sprites
+   499→    for (const [id, sprite] of this.vehicleHullSprites) {
+   500→      if (!activeIds.has(id)) {
+   501→        sprite.destroy();
+   502→        this.vehicleHullSprites.delete(id);
+   503→      }
+   504→    }
+   505→    // Clean up stale direction debug labels
+   506→    for (const [id, label] of this.directionDebugLabels) {
+   507→      if (!activeIds.has(id)) {
+   508→        label.destroy();
+   509→        this.directionDebugLabels.delete(id);
+   510→      }
+   511→    }
+   512→    // Clean up stale calibration labels
+   513→    for (const [id, label] of this.calibrationLabels) {
+   514→      if (!activeIds.has(id)) {
+   515→        label.destroy();
+   516→        this.calibrationLabels.delete(id);
+   517→      }
+   518→    }
+   519→    // Clean up stale placement labels
+   520→    for (const [id, label] of this.placementLabels) {
+   521→      if (!activeIds.has(id)) {
+   522→        label.destroy();
+   523→        this.placementLabels.delete(id);
+   524→      }
+   525→    }
+   526→
+   527→    // ── PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: On-screen calibration button panel ──
+   528→    // Show the panel when placement calibration is active for a Wasp, hide otherwise.
+   529→    // The panel is a fixed-screen UI that doesn't move with vehicles.
+   530→    const shouldShowPanel = this.isDevtoolsActive() && isWaspPlacementActive();
+   531→    if (shouldShowPanel && !this.placementPanel) {
+   532→      this.placementPanel = new WaspPlacementCalibrationPanel(this.scene);
+   533→      this.placementPanel.show();
+   534→    } else if (!shouldShowPanel && this.placementPanel) {
+   535→      this.placementPanel.hide();
+   536→      this.placementPanel = null;
+   537→    }
+   538→  }
+   539→
+   540→  // ─── Vehicle rendering ──────────────────────────────────────────
+   541→
+   542→  private renderVehicle(g: Phaser.GameObjects.Graphics, vehicle: BlockoutVehicleState, isSelected: boolean, isHovered: boolean): void {
+   543→    g.clear();
+   544→
+   545→    // If using generated hull sprite, skip blockout body rendering but keep overlays
+   546→    const hullSprite = this.vehicleHullSprites.get(vehicle.id);
+   547→    const skipBlockoutBody = hullSprite !== undefined;
+   548→
+   549→    // Position hull sprite at vehicle center
+   550→    if (hullSprite) {
+   551→      const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
+   552→      const bodyAngle = vehicle.bodyAngle;
+   553→      const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
+   554→      const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
+   555→      let spriteCx = vehicle.worldX + this.offset.x + bodyImpulseX;
+   556→      let spriteCy = vehicle.worldY + this.offset.y + bodyImpulseY;
+   557→
+   558→      // PIM-HULL-WASP-ANCHOR-MAP-01: Apply debug placement offset for Wasp
+   559→      // Arena/devtools-only: this offset is purely visual, affects sprite position only.
+   560→      // Selection ring, movement, pathfinding are all unchanged.
+   561→      const isWaspPlacement = this.isDevtoolsActive()
+   562→        && isWaspPlacementActive()
+   563→        && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp';
+   564→      if (isWaspPlacement) {
+   565→        spriteCx += getWaspDebugOffsetX();
+   566→        spriteCy += getWaspDebugOffsetY();
+   567→      }
+   568→
+   569→      // PIM-WASP-SCALE-PLACEMENT-01: Apply per-hull placement offset.
+   570→      // This is a permanent runtime offset (not the debug calibration offset)
+   571→      // that centers the hull sprite correctly within the tile footprint
+   572→      // after the scale reduction from 0.24 to 0.12.
+   573→      // Only applies to hulls with generated sprites.
+   574→      const hullId = bodyIdToGeneratedHullId(vehicle.bodyId);
+   575→      if (hullId) {
+   576→        const placement = getGeneratedHullPlacementOffset(hullId);
+   577→        spriteCx += placement.offsetX;
+   578→        spriteCy += placement.offsetY;
+   579→      }
+   580→
+   581→      hullSprite.setPosition(spriteCx, spriteCy);
+   582→      hullSprite.setDepth(BLOCKOUT_DEPTH + HULL_SPRITE_DEPTH_BIAS); // will be updated by depth sorting below
+   583→    }
+   584→
+   585→    // ── Shared projected geometry (single source of truth) ────────
+   586→    const geom = computeProjectedBlockoutVehicleGeometry(vehicle, this.offset);
+   587→    const { halfW, halfH, mountTileOffset, turretHalfW, turretHalfH,
+   588→            effectiveBarrelLength, effectiveTurretAngle, barrelZ,
+   589→            barrelTipScreen, barrelStartScreen } = geom;
+   590→
+   591→    const bodyAngle = vehicle.bodyAngle;
+   592→
+   593→    // BLOCKOUT-04H+: Use continuous worldX/worldY + offset for position
+   594→    // BLOCKOUT-05H+: Include recoil body impulse offset (shifts body backward)
+   595→    const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
+   596→    const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
+   597→    const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
+   598→    const cx = vehicle.worldX + this.offset.x + bodyImpulseX;
+   599→    const cy = vehicle.worldY + this.offset.y + bodyImpulseY;
+   600→
+   601→    // Tile-space body center (with impulse for visual rendering)
+   602→    const tilePos = unprojectScreenToGround(cx, cy, this.offset);
+   603→    // Tile-space mount position (shared offset + impulse-shifted body center)
+   604→    const mountWorldX = tilePos.x + mountTileOffset.dx;
+   605→    const mountWorldY = tilePos.y + mountTileOffset.dy;
+   606→
+   607→    // Faction colors
+   608→    const bodyColor = FACTION_BODY_COLORS[vehicle.faction] ?? FACTION_BODY_COLORS.cyan;
+   609→    const turretColor = FACTION_TURRET_COLORS[vehicle.faction] ?? FACTION_TURRET_COLORS.cyan;
+   610→
+   611→    // Barrel width from weapon profile
+   612→    const wpProfile = getWeaponProfile(vehicle.weaponId);
+   613→    const barrelWidth = wpProfile ? wpProfile.blockoutBarrelWidth : 2;
+   614→
+   615→    // ── Movement target marker (selected vehicle only) ──────────
+   616→    if (isSelected && vehicle.hasMoveTarget) {
+   617→      const targetScreenX = vehicle.targetWorldX + this.offset.x;
+   618→      const targetScreenY = vehicle.targetWorldY + this.offset.y;
+   619→
+   620→      // Thin line from vehicle to target
+   621→      g.lineStyle(1, MOVE_LINE_COLOR, MOVE_LINE_ALPHA);
+   622→      g.beginPath();
+   623→      g.moveTo(cx, cy);
+   624→      g.lineTo(targetScreenX, targetScreenY);
+   625→      g.strokePath();
+   626→
+   627→      // Projected ground diamond at target
+   628→      g.lineStyle(1.5, MOVE_TARGET_COLOR, MOVE_TARGET_ALPHA);
+   629→      drawProjectedGroundDiamond(g, targetScreenX, targetScreenY, MOVE_TARGET_DIAMOND_HALF_SIZE, this.offset);
+   630→
+   631→      // Projected crosshair
+   632→      drawProjectedCrosshair(g, targetScreenX, targetScreenY, MOVE_TARGET_CROSSHAIR_ARM, this.offset);
+   633→    }
+   634→
+   635→    // ── Selection highlight ring (projected ground-plane) ────────
+   636→    if (isSelected) {
+   637→      const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 800) / 800 * Math.PI * 2);
+   638→      const alpha = 0.6 + 0.4 * pulse;
+   639→
+   640→      g.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
+   641→      drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
+   642→
+   643→      // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity
+   644→      // Use screen-space arrow from body center along body angle
+   645→      // Approximate ring edge in screen space for arrow placement
+   646→      const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38; // approximate pixel distance
+   647→      const arrowBaseX = cx + Math.cos(bodyAngle) * ringEdgeDist;
+   648→      const arrowBaseY = cy + Math.sin(bodyAngle) * ringEdgeDist;
+   649→      const arrowTipX = cx + Math.cos(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
+   650→      const arrowTipY = cy + Math.sin(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
+   651→
+   652→      // Arrow shaft
+   653→      g.lineStyle(2, SELECTION_RING_COLOR, alpha);
+   654→      g.beginPath();
+   655→      g.moveTo(arrowBaseX, arrowBaseY);
+   656→      g.lineTo(arrowTipX, arrowTipY);
+   657→      g.strokePath();
+   658→
+   659→      // Arrow head
+   660→      const headAngle1 = bodyAngle + Math.PI * 0.8;
+   661→      const headAngle2 = bodyAngle - Math.PI * 0.8;
+   662→      g.beginPath();
+   663→      g.moveTo(arrowTipX, arrowTipY);
+   664→      g.lineTo(arrowTipX + Math.cos(headAngle1) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle1) * DIRECTION_ARROW_HEAD);
+   665→      g.strokePath();
+   666→      g.beginPath();
+   667→      g.moveTo(arrowTipX, arrowTipY);
+   668→      g.lineTo(arrowTipX + Math.cos(headAngle2) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle2) * DIRECTION_ARROW_HEAD);
+   669→      g.strokePath();
+   670→    }
+   671→
+   672→    // ── Hover marker (projected ground-plane) ────────────────────
+   673→    if (isHovered && !isSelected) {
+   674→      g.lineStyle(1.5, HOVER_RING_COLOR, HOVER_RING_ALPHA);
+   675→      drawProjectedGroundRing(g, cx, cy, HOVER_RING_WORLD_RADIUS, this.offset, 20);
+   676→    }
+   677→
+   678→    // ── ARENA-03H+: Target indicator (enemy being targeted by selected ally) ──
+   679→    const isTargeted = vehicle.id === this._targetedVehicleId;
+   680→    if (isTargeted && !isSelected) {
+   681→      const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 600) / 600 * Math.PI * 2);
+   682→      const alpha = 0.5 + 0.5 * pulse;
+   683→      g.lineStyle(2, 0xff4444, alpha); // Red targeting ring
+   684→      drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
+   685→
+   686→      // Small crosshair in center
+   687→      const crossSize = 0.12;
+   688→      g.lineStyle(1.5, 0xff4444, alpha);
+   689→      drawProjectedCrosshair(g, cx, cy, crossSize, this.offset);
+   690→    }
+   691→
+   692→    // ── CORE-STEP-07H+: Target-lock status indicator on attacker ──
+   693→    // Show a small colored dot above the turret when this vehicle has an active target-lock
+   694→    if (vehicle.targetVehicleId && !vehicle.isDestroyed) {
+   695→      // Target-lock active: show yellow dot above turret
+   696→      const lockIndicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.3;
+   697→      const tilePosLocal = unprojectScreenToGround(cx, cy, this.offset);
+   698→      const lockPos = projectWorldPoint(tilePosLocal.x, tilePosLocal.y, lockIndicatorZ, this.offset);
+   699→      g.fillStyle(0xffcc00, 0.9); // Yellow target-lock indicator
+   700→      g.fillCircle(lockPos.x, lockPos.y, 3);
+   701→    }
+   702→
+   703→    // ── ARENA-03H+: Enemy team indicator (small red diamond above HP bar) ──
+   704→    if (vehicle.team === 'enemy' && !vehicle.isDestroyed) {
+   705→      const indicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.2;
+   706→      const indicatorPos = projectWorldPoint(tilePos.x, tilePos.y, indicatorZ, this.offset);
+   707→      const indicatorSize = 0.08;
+   708→      g.lineStyle(1, 0xff4444, 0.7);
+   709→      drawProjectedGroundDiamond(g, indicatorPos.x, indicatorPos.y, indicatorSize, this.offset);
+   710→    }
+   711→
+   712→    // ── BLOCKOUT-07H+: Destroyed vehicle rendering ────────────────
+   713→    if (vehicle.isDestroyed) {
+   714→      // Dimmed flat body on ground (no height)
+   715→      const cosA = Math.cos(bodyAngle);
+   716→      const sinA = Math.sin(bodyAngle);
+   717→      const localCorners = [
+   718→        { lx: -halfW, ly: -halfH },
+   719→        { lx: halfW, ly: -halfH },
+   720→        { lx: halfW, ly: halfH },
+   721→        { lx: -halfW, ly: halfH },
+   722→      ];
+   723→      const basePts = localCorners.map(c => {
+   724→        const wx = tilePos.x + c.lx * cosA - c.ly * sinA;
+   725→        const wy = tilePos.y + c.lx * sinA + c.ly * cosA;
+   726→        return projectWorldPoint(wx, wy, 0, this.offset);
+   727→      });
+   728→
+   729→      g.fillStyle(bodyColor, 0.3);
+   730→      g.beginPath();
+   731→      g.moveTo(basePts[0].x, basePts[0].y);
+   732→      for (let i = 1; i < basePts.length; i++) {
+   733→        g.lineTo(basePts[i].x, basePts[i].y);
+   734→      }
+   735→      g.closePath();
+   736→      g.fillPath();
+   737→
+   738→      g.lineStyle(1, BODY_OUTLINE_COLOR, 0.5);
+   739→      g.beginPath();
+   740→      g.moveTo(basePts[0].x, basePts[0].y);
+   741→      for (let i = 1; i < basePts.length; i++) {
+   742→        g.lineTo(basePts[i].x, basePts[i].y);
+   743→      }
+   744→      g.closePath();
+   745→      g.strokePath();
+   746→
+   747→      // X marker over body (use tile-unit size for consistency)
+   748→      g.lineStyle(2, 0xff0000, 0.8);
+   749→      const xSize = Math.min(halfW, halfH) * PROJ_TILE_W / 2 - 2;
+   750→      g.beginPath();
+   751→      g.moveTo(cx - xSize, cy - xSize);
+   752→      g.lineTo(cx + xSize, cy + xSize);
+   753→      g.strokePath();
+   754→      g.beginPath();
+   755→      g.moveTo(cx + xSize, cy - xSize);
+   756→      g.lineTo(cx - xSize, cy + xSize);
+   757→      g.strokePath();
+   758→
+   759→      // No turret/barrel or HP bar for destroyed vehicles
+   760→      return;
+   761→    }
+   762→
+   763→    // ── Vehicle shadow (projected ground-plane) ──────────────────
+   764→    // ── Pseudo-isometric body (base + side + top) ────────────────
+   765→    if (!skipBlockoutBody) {
+   766→      const shadowRadius = Math.max(halfW, halfH) * SHADOW_RADIUS_FRACTION;
+   767→      drawProjectedShadow(g, cx, cy, shadowRadius, this.offset);
+   768→
+   769→      // Derive side color (darker than body) and top color (brighter)
+   770→      const sideR = ((bodyColor >> 16) & 0xff) * 0.6;
+   771→      const sideG = ((bodyColor >> 8) & 0xff) * 0.6;
+   772→      const sideB = (bodyColor & 0xff) * 0.6;
+   773→      const sideColor = (Math.floor(sideR) << 16) | (Math.floor(sideG) << 8) | Math.floor(sideB);
+   774→
+   775→      const topR = Math.min(255, ((bodyColor >> 16) & 0xff) * 1.2);
+   776→      const topG = Math.min(255, ((bodyColor >> 8) & 0xff) * 1.2);
+   777→      const topB = Math.min(255, (bodyColor & 0xff) * 1.2);
+   778→      const topColor = (Math.floor(topR) << 16) | (Math.floor(topG) << 8) | Math.floor(topB);
+   779→
+   780→      drawProjectedBox(
+   781→        g, cx, cy, halfW, halfH, BLOCKOUT_VEHICLE_BODY_Z,
+   782→        this.offset, bodyAngle,
+   783→        bodyColor, sideColor, topColor, BODY_OUTLINE_COLOR,
+   784→        0.3, 0.75, 1.0,
+   785→      );
+   786→    }
+   787→
+   788→    // ── CORE-STEP-08H+ FIXUP Blocker 5: Track animation indicators ──
+   789→    // Blockout/procedural visualization: show track activity as small
+   790→    // colored lines at the sides of the body. Active when moving/turning.
+   791→    {
+   792→      const trackAnim = getTrackAnimationState(vehicle);
+   793→      if (trackAnim.isMoving || trackAnim.isTurningInPlace) {
+   794→        // Track color: slightly different from body to indicate movement
+   795→        const trackColor = 0x888888;
+   796→        const trackAlpha = 0.6;
+   797→
+   798→        // Left track marker (perpendicular to body angle, left side)
+   799→        const perpAngle = bodyAngle - Math.PI / 2;
+   800→        const trackOffset = halfH * 0.8; // Offset from center to track position
+   801→        const trackLen = halfW * 0.3;
+   802→
+   803→        // Left track
+   804→        const ltx = cx + Math.cos(perpAngle) * trackOffset;
+   805→        const lty = cy + Math.sin(perpAngle) * trackOffset;
+   806→        g.lineStyle(2, trackColor, trackAlpha);
+   807→        g.beginPath();
+   808→        g.moveTo(ltx - Math.cos(bodyAngle) * trackLen, lty - Math.sin(bodyAngle) * trackLen);
+   809→        g.lineTo(ltx + Math.cos(bodyAngle) * trackLen, lty + Math.sin(bodyAngle) * trackLen);
+   810→        g.strokePath();
+   811→
+   812→        // Right track
+   813→        const rtx = cx - Math.cos(perpAngle) * trackOffset;
+   814→        const rty = cy - Math.sin(perpAngle) * trackOffset;
+   815→        g.beginPath();
+   816→        g.moveTo(rtx - Math.cos(bodyAngle) * trackLen, rty - Math.sin(bodyAngle) * trackLen);
+   817→        g.lineTo(rtx + Math.cos(bodyAngle) * trackLen, rty + Math.sin(bodyAngle) * trackLen);
+   818→        g.strokePath();
+   819→      }
+   820→    }
+   821→
+   822→    // ── Mount point circle (debug, on top face) ──────────────────
+   823→    if (this.showMountPoints) {
+   824→      // Place mount point on top face using shared mountTileOffset
+   825→      const mountScreen = projectWorldPoint(mountWorldX, mountWorldY, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
+   826→
+   827→      g.fillStyle(MOUNT_POINT_COLOR, 0.7);
+   828→      g.fillCircle(mountScreen.x, mountScreen.y, MOUNT_POINT_RADIUS);
+   829→      g.lineStyle(1, 0xff0000, 1);
+   830→      g.strokeCircle(mountScreen.x, mountScreen.y, MOUNT_POINT_RADIUS);
+   831→    }
+   832→
+   833→    // ── BLOCKOUT-07H+: HP bar above vehicle ──────────────────────
+   834→    {
+   835→      const hpBarZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.15;
+   836→      const hpBarPos = projectWorldPoint(tilePos.x, tilePos.y, hpBarZ, this.offset);
+   837→
+   838→      const hpRatio = vehicle.maxHp > 0 ? vehicle.hp / vehicle.maxHp : 0;
+   839→      const barWidth = halfW * PROJ_TILE_W + 4;
+   840→      const barHeight = 3;
+   841→      const barY = hpBarPos.y - 4;
+   842→
+   843→      // Background (dark)
+   844→      g.fillStyle(0x333333, 0.7);
+   845→      g.fillRect(hpBarPos.x - barWidth / 2, barY, barWidth, barHeight);
+   846→
+   847→      // HP fill (green > 60%, yellow 30-60%, red < 30%)
+   848→      let hpColor = 0x44ff44;
+   849→      if (hpRatio < 0.3) {
+   850→        hpColor = 0xff4444;
+   851→      } else if (hpRatio < 0.6) {
+   852→        hpColor = 0xffcc00;
+   853→      }
+   854→      const fillWidth = barWidth * Math.max(0, hpRatio);
+   855→      g.fillStyle(hpColor, 0.9);
+   856→      g.fillRect(hpBarPos.x - barWidth / 2, barY, fillWidth, barHeight);
+   857→
+   858→      // ── CORE-STEP-08H+ FIXUP Blocker 5: Weapon resource bars ──
+   859→      // Show canister charge bar, overheat heat gauge, magazine stock
+   860→      // below the HP bar as thin colored bars. Blockout/procedural only.
+   861→      const rt = vehicle.weaponRuntime;
+   862→      let resourceBarY = barY + barHeight + 1; // Just below HP bar
+   863→      const resourceBarHeight = 2;
+   864→
+   865→      // Canister bar (blue, Flamethrower/Freeze/Isida)
+   866→      if (rt.canister) {
+   867→        const cfg = getWeaponConfig(vehicle.weaponId); // already imported
+   868→        const capacity = cfg?.canister
+   869→          ? (cfg.canister.capacity[vehicle.modificationLevel] ?? cfg.canister.capacity[0])
+   870→          : 100;
+   871→        const canisterRatio = capacity > 0 ? rt.canister.current / capacity : 0;
+   872→        const canisterColor = rt.canister.isEmpty ? 0xff4444 : 0x4488ff; // Red if empty, blue otherwise
+   873→
+   874→        g.fillStyle(0x333333, 0.5);
+   875→        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+   876→        g.fillStyle(canisterColor, 0.8);
+   877→        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, canisterRatio), resourceBarHeight);
+   878→        resourceBarY += resourceBarHeight + 1;
+   879→      }
+   880→
+   881→      // Overheat bar (orange/red, Vulcan)
+   882→      if (rt.overheat) {
+   883→        const cfg = getWeaponConfig(vehicle.weaponId);
+   884→        const maxHeat = cfg?.overheat?.maxHeat ?? 100;
+   885→        const heatRatio = maxHeat > 0 ? rt.overheat.heat / maxHeat : 0;
+   886→        const heatColor = rt.overheat.isOverheated ? 0xff2222 : 0xff8800; // Red if overheated, orange otherwise
+   887→
+   888→        g.fillStyle(0x333333, 0.5);
+   889→        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+   890→        g.fillStyle(heatColor, 0.8);
+   891→        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, heatRatio), resourceBarHeight);
+   892→        resourceBarY += resourceBarHeight + 1;
+   893→      }
+   894→
+   895→      // Magazine bar (yellow, Ricochet)
+   896→      if (rt.magazine) {
+   897→        const cfg = getWeaponConfig(vehicle.weaponId);
+   898→        const stockSize = cfg?.magazine
+   899→          ? (cfg.magazine.stockSize[vehicle.modificationLevel] ?? cfg.magazine.stockSize[0])
+   900→          : 5;
+   901→        const magRatio = stockSize > 0 ? rt.magazine.currentStock / stockSize : 0;
+   902→        const magColor = rt.magazine.isEmpty ? 0xff4444 : 0xcccc00; // Red if empty, yellow otherwise
+   903→
+   904→        g.fillStyle(0x333333, 0.5);
+   905→        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+   906→        g.fillStyle(magColor, 0.8);
+   907→        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * Math.max(0, magRatio), resourceBarHeight);
+   908→        resourceBarY += resourceBarHeight + 1;
+   909→      }
+   910→
+   911→      // Drum reload indicator (purple, Hammer) — thin bar showing reload progress
+   912→      if (rt.drum && rt.drum.isReloading) {
+   913→        const cfg = getWeaponConfig(vehicle.weaponId);
+   914→        const reloadMs = cfg?.drum
+   915→          ? (cfg.drum.reloadMs[vehicle.modificationLevel] ?? cfg.drum.reloadMs[0])
+   916→          : 3000;
+   917→        const nowMs = this.scene.time.now;
+   918→        const elapsed = nowMs - rt.drum.reloadStartedAt;
+   919→        const reloadRatio = reloadMs > 0 ? Math.min(1, elapsed / reloadMs) : 0;
+   920→
+   921→        g.fillStyle(0x333333, 0.5);
+   922→        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+   923→        g.fillStyle(0xaa44ff, 0.8); // Purple for drum reload
+   924→        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * reloadRatio, resourceBarHeight);
+   925→      }
+   926→
+   927→      // Wind-up indicator (cyan charge, Railgun) — thin pulsing line while charging
+   928→      if (rt.windUp && rt.windUp.isCharging) {
+   929→        const cfg = getWeaponConfig(vehicle.weaponId);
+   930→        const windUpMs = cfg?.windUp
+   931→          ? (cfg.windUp[vehicle.modificationLevel] ?? cfg.windUp[0])
+   932→          : 1500;
+   933→        const nowMs = this.scene.time.now;
+   934→        const elapsed = nowMs - rt.windUp.startedAt;
+   935→        const chargeRatio = windUpMs > 0 ? Math.min(1, elapsed / windUpMs) : 0;
+   936→
+   937→        g.fillStyle(0x333333, 0.5);
+   938→        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth, resourceBarHeight);
+   939→        g.fillStyle(0x00ffff, 0.9); // Cyan for wind-up
+   940→        g.fillRect(hpBarPos.x - barWidth / 2, resourceBarY, barWidth * chargeRatio, resourceBarHeight);
+   941→      }
+   942→    }
+   943→
+   944→    // ── BLOCKOUT-07H+: Damage flash ──────────────────────────────
+   945→    {
+   946→      const nowMs = this.scene.time.now;
+   947→      if (nowMs < vehicle.damageFlashUntil) {
+   948→        // White overlay on top face
+   949→        const cosA = Math.cos(bodyAngle);
+   950→        const sinA = Math.sin(bodyAngle);
+   951→        const localCorners = [
+   952→          { lx: -halfW, ly: -halfH },
+   953→          { lx: halfW, ly: -halfH },
+   954→          { lx: halfW, ly: halfH },
+   955→          { lx: -halfW, ly: halfH },
+   956→        ];
+   957→        const topPts = localCorners.map(c => {
+   958→          const wx = tilePos.x + c.lx * cosA - c.ly * sinA;
+   959→          const wy = tilePos.y + c.lx * sinA + c.ly * cosA;
+   960→          return projectWorldPoint(wx, wy, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
+   961→        });
+   962→        g.fillStyle(0xffffff, 0.4);
+   963→        g.beginPath();
+   964→        g.moveTo(topPts[0].x, topPts[0].y);
+   965→        for (let i = 1; i < topPts.length; i++) {
+   966→          g.lineTo(topPts[i].x, topPts[i].y);
+   967→        }
+   968→        g.closePath();
+   969→        g.fillPath();
+   970→      }
+   971→    }
+   972→
+   973→    // ── Turret + Barrel (on top face, using basisZ) ──────────────
+   974→    // Uses shared mountTileOffset from computeProjectedBlockoutVehicleGeometry
+   975→    // to ensure visual mount equals logical mount used by input/fire/damage.
+   976→    {
+   977→      // Turret position on top face (shared mountWorldX/Y from above)
+   978→      const turretZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
+   979→
+   980→      // Draw turret as small projected box on top face
+   981→      const turretHeight = BLOCKOUT_TURRET_BOX_HEIGHT;
+   982→      const turretCosA = Math.cos(effectiveTurretAngle);
+   983→      const turretSinA = Math.sin(effectiveTurretAngle);
+   984→      const turretLocalCorners = [
+   985→        { lx: -turretHalfW, ly: -turretHalfH },
+   986→        { lx: turretHalfW, ly: -turretHalfH },
+   987→        { lx: turretHalfW, ly: turretHalfH },
+   988→        { lx: -turretHalfW, ly: turretHalfH },
+   989→      ];
+   990→
+   991→      // Turret base (on body top)
+   992→      const turretBasePts = turretLocalCorners.map(c => {
+   993→        const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
+   994→        const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
+   995→        return projectWorldPoint(wx, wy, turretZ, this.offset);
+   996→      });
+   997→
+   998→      // Turret top
+   999→      const turretTopPts = turretLocalCorners.map(c => {
+  1000→        const wx = mountWorldX + c.lx * turretCosA - c.ly * turretSinA;
+  1001→        const wy = mountWorldY + c.lx * turretSinA + c.ly * turretCosA;
+  1002→        return projectWorldPoint(wx, wy, turretZ + turretHeight, this.offset);
+  1003→      });
+  1004→
+  1005→      // Barrel screen positions from shared geometry (PROJECTION-01 fixup #3).
+  1006→      // No local recomputation — barrelTipScreen and barrelStartScreen are the
+  1007→      // single source of truth used by both renderer and fire/damage logic,
+  1008→      // including body recoil impulse, barrel Z, and all recoil offsets.
+  1009→
+  1010→      // Turret side face (left: base[3]→base[0] → top[3]→top[0])
+  1011→      g.fillStyle(turretColor, 0.7);
+  1012→      g.beginPath();
+  1013→      g.moveTo(turretBasePts[3].x, turretBasePts[3].y);
+  1014→      g.lineTo(turretBasePts[0].x, turretBasePts[0].y);
+  1015→      g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
+  1016→      g.lineTo(turretTopPts[3].x, turretTopPts[3].y);
+  1017→      g.closePath();
+  1018→      g.fillPath();
+  1019→
+  1020→      // Turret side face (right: base[0]→base[1] → top[0]→top[1])
+  1021→      g.fillStyle(turretColor, 0.6);
+  1022→      g.beginPath();
+  1023→      g.moveTo(turretBasePts[0].x, turretBasePts[0].y);
+  1024→      g.lineTo(turretBasePts[1].x, turretBasePts[1].y);
+  1025→      g.lineTo(turretTopPts[1].x, turretTopPts[1].y);
+  1026→      g.lineTo(turretTopPts[0].x, turretTopPts[0].y);
+  1027→      g.closePath();
+  1028→      g.fillPath();
+  1029→
+  1030→      // Turret top face
+  1031→      g.fillStyle(turretColor, 1);
+  1032→      g.beginPath();
+  1033→      g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
+  1034→      for (let i = 1; i < turretTopPts.length; i++) {
+  1035→        g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+  1036→      }
+  1037→      g.closePath();
+  1038→      g.fillPath();
+  1039→
+  1040→      // Turret outline
+  1041→      const turretOutlineWidth = isSelected ? 2 : 1;
+  1042→      g.lineStyle(turretOutlineWidth, TURRET_OUTLINE_COLOR, 1);
+  1043→      g.beginPath();
+  1044→      g.moveTo(turretTopPts[0].x, turretTopPts[0].y);
+  1045→      for (let i = 1; i < turretTopPts.length; i++) {
+  1046→        g.lineTo(turretTopPts[i].x, turretTopPts[i].y);
+  1047→      }
+  1048→      g.closePath();
+  1049→      g.strokePath();
+  1050→
+  1051→      // Barrel line (using shared barrelStartScreen/barrelTipScreen — PROJECTION-01 fixup #3)
+  1052→      g.lineStyle(barrelWidth, BARREL_COLOR, 1);
+  1053→      g.beginPath();
+  1054→      g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
+  1055→      g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
+  1056→      g.strokePath();
+  1057→
+  1058→      // ── Aim line for selected vehicle ─────────────────────────────
+  1059→      if (isSelected) {
+  1060→        g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
+  1061→        const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
+  1062→        // Aim starts at shared barrel tip (PROJECTION-01 fixup #3)
+  1063→        const aimStart = barrelTipScreen;
+  1064→        const aimEndWorld = {
+  1065→          x: mountWorldX + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretCosA,
+  1066→          y: mountWorldY + (turretHalfW + effectiveBarrelLength + aimTileLength) * turretSinA,
+  1067→        };
+  1068→        const aimEnd = projectWorldPoint(aimEndWorld.x, aimEndWorld.y, barrelZ, this.offset);
+  1069→
+  1070→        // Draw dashed aim line
+  1071→        const dashLen = AIM_LINE_DASH;
+  1072→        const gapLen = AIM_LINE_GAP;
+  1073→        const dx = aimEnd.x - aimStart.x;
+  1074→        const dy = aimEnd.y - aimStart.y;
+  1075→        const totalLen = Math.sqrt(dx * dx + dy * dy);
+  1076→        const ux = dx / totalLen;
+  1077→        const uy = dy / totalLen;
+  1078→
+  1079→        let pos = 0;
+  1080→        while (pos < totalLen) {
+  1081→          const segEnd = Math.min(pos + dashLen, totalLen);
+  1082→          g.beginPath();
+  1083→          g.moveTo(aimStart.x + ux * pos, aimStart.y + uy * pos);
+  1084→          g.lineTo(aimStart.x + ux * segEnd, aimStart.y + uy * segEnd);
+  1085→          g.strokePath();
+  1086→          pos = segEnd + gapLen;
+  1087→        }
+  1088→      }
+  1089→    }
+  1090→
+  1091→    // ── Direction debug overlay (dev-only, Wasp-only focus) ──────────
+  1092→    if (directionDebugEnabled) {
+  1093→      const diag = resolveHullDirectionDiagnostic(
+  1094→        vehicle.bodyId, vehicle.faction,
+  1095→        vehicle.modificationLevel, vehicle.bodyAngle,
+  1096→      );
+  1097→      const diagZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.4;
+  1098→      const diagPos = projectWorldPoint(tilePos.x, tilePos.y, diagZ, this.offset);
+  1099→      const diagText = [
+  1100→        `${vehicle.bodyId} angle=${diag.bodyAngleDeg}°`,
+  1101→        `dir8=${diag.dir8} dir16=${diag.logicalDir16}→${diag.visualDir16}`,
+  1102→        `${diag.compassSuffix} ${diag.textureKey.split('_').slice(-2).join('_')}`,
+  1103→      ].join('\n');
+  1104→
+  1105→      let diagLabel = this.directionDebugLabels.get(vehicle.id);
+  1106→      if (!diagLabel) {
+  1107→        diagLabel = this.scene.add.text(0, 0, '', {
+  1108→          fontSize: '8px',
+  1109→          color: '#ffcc00',
+  1110→          backgroundColor: '#000000cc',
+  1111→          padding: { x: 2, y: 1 },
+  1112→        });
+  1113→        diagLabel.setDepth(BLOCKOUT_DEPTH + 10);
+  1114→        diagLabel.setOrigin(0.5, 1);
+  1115→        this.directionDebugLabels.set(vehicle.id, diagLabel);
+  1116→      }
+  1117→      diagLabel.setText(diagText);
+  1118→      diagLabel.setPosition(diagPos.x, diagPos.y);
+  1119→      diagLabel.setVisible(true);
+  1120→    }
+  1121→
+  1122→    // ── PIM-HULL-WASP-DIR-MAP-01: Calibration overlay (Wasp-only, dev-only) ──
+  1123→    // Arena/devtools-only: calibration overlay is explicitly gated to devtools mode.
+  1124→    // Must never render in Standard gameplay.
+  1125→    if (this.isDevtoolsActive() && isCalibrationActive() && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp') {
+  1126→      const calibZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.6;
+  1127→      const calibPos = projectWorldPoint(tilePos.x, tilePos.y, calibZ, this.offset);
+  1128→
+  1129→      // Compute diagnostic values for the overlay
+  1130→      const diag = resolveHullDirectionDiagnostic(
+  1131→        vehicle.bodyId, vehicle.faction,
+  1132→        vehicle.modificationLevel, vehicle.bodyAngle,
+  1133→      );
+  1134→      const forcedDir16 = getForcedVisualDir16();
+  1135→      const isForced = isOverrideActive();
+  1136→
+  1137→      // Determine the texture key actually being used
+  1138→      let actualTextureKey: string;
+  1139→      if (isForced && forcedDir16 !== null) {
+  1140→        const hullId = bodyIdToGeneratedHullId(vehicle.bodyId);
+  1141→        const hullFaction = resolveGeneratedHullFaction(vehicle.faction);
+  1142→        const mod = modificationLevelToMod(vehicle.modificationLevel);
+  1143→        actualTextureKey = hullId
+  1144→          ? getGeneratedHullTextureKey(hullId, hullFaction, mod, forcedDir16 as GeneratedHullDir16Index)
+  1145→          : diag.textureKey;
+  1146→      } else {
+  1147→        actualTextureKey = diag.textureKey;
+  1148→      }
+  1149→
+  1150→      const overlayParams: CalibrationOverlayParams = {
+  1151→        hullId: diag.hullId,
+  1152→        bodyAngleDeg: diag.bodyAngleDeg,
+  1153→        dir8: diag.dir8,
+  1154→        logicalDir16: diag.logicalDir16,
+  1155→        normalVisualDir16: diag.visualDir16,
+  1156→        forcedDir16,
+  1157→        compassSuffix: isForced && forcedDir16 !== null
+  1158→          ? (GENERATED_HULL_DIRECTIONS_16[forcedDir16]?.suffix ?? '?')
+  1159→          : diag.compassSuffix,
+  1160→        textureKey: actualTextureKey,
+  1161→        isOverrideActive: isForced,
+  1162→      };
+  1163→
+  1164→      const calibText = buildCalibrationOverlayText(overlayParams);
+  1165→      const showCalibLabel = isCalibOverlayVisible();
+  1166→
+  1167→      let calibLabel = this.calibrationLabels.get(vehicle.id);
+  1168→      if (!calibLabel) {
+  1169→        calibLabel = this.scene.add.text(0, 0, '', {
+  1170→          fontSize: '9px',
+  1171→          fontFamily: 'monospace',
+  1172→          color: '#00ffcc',
+  1173→          backgroundColor: '#000000dd',
+  1174→          padding: { x: 4, y: 2 },
+  1175→        });
+  1176→        calibLabel.setDepth(BLOCKOUT_DEPTH + 20);
+  1177→        calibLabel.setOrigin(0.5, 0); // anchor top-center, positioned above vehicle
+  1178→        this.calibrationLabels.set(vehicle.id, calibLabel);
+  1179→      }
+  1180→      calibLabel.setText(calibText);
+  1181→      calibLabel.setPosition(calibPos.x, calibPos.y - 60); // position above the direction debug label
+  1182→      calibLabel.setVisible(showCalibLabel);
+  1183→    } else {
+  1184→      // Hide calibration label for non-Wasp or when calibration is off
+  1185→      const calibLabel = this.calibrationLabels.get(vehicle.id);
+  1186→      if (calibLabel) {
+  1187→        calibLabel.setVisible(false);
+  1188→      }
+  1189→    }
+  1190→
+  1191→    // ── PIM-HULL-WASP-ANCHOR-MAP-01: Placement calibration overlay (Wasp-only, dev-only) ──
+  1192→    // Arena/devtools-only: placement overlay is explicitly gated to devtools mode.
+  1193→    // Must never render in Standard gameplay.
+  1194→    // Visual language reused from ModularTankDebugOverlay: green diamond, gold crosshair,
+  1195→    // cyan X marker, white connecting line, red crosshair.
+  1196→    if (this.isDevtoolsActive() && isWaspPlacementActive() && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp') {
+  1197→      // ── Positions (projected isometric coordinates) ──
+  1198→      // Tile anchor (ax, ay): body screen center = selection ring center
+  1199→      const ax = cx;
+  1200→      const ay = cy;
+  1201→
+  1202→      // Hull origin (hullX, hullY): hull sprite's current position (includes debug offset)
+  1203→      const hullSpriteObj = this.vehicleHullSprites.get(vehicle.id);
+  1204→      const hullX = hullSpriteObj ? hullSpriteObj.x : cx;
+  1205→      const hullY = hullSpriteObj ? hullSpriteObj.y : cy;
+  1206→
+  1207→      // Turret origin (turretX, turretY): projected turret mount screen position
+  1208→      const turretScreenPos = projectWorldPoint(mountWorldX, mountWorldY, BLOCKOUT_VEHICLE_BODY_Z, this.offset);
+  1209→      const turretX = turretScreenPos.x;
+  1210→      const turretY = turretScreenPos.y;
+  1211→
+  1212→      // ── Tile footprint diamond (green, projected ground-plane) ──
+  1213→      g.lineStyle(2, 0x7cff7c, 0.95);
+  1214→      drawProjectedGroundDiamond(g, cx, cy, 0.5, this.offset);
+  1215→
+  1216→      // ── Logical tile anchor crosshair (gold circle + lines) ──
+  1217→      g.lineStyle(2, 0xffd54f, 0.95);
+  1218→      g.strokeCircle(ax, ay, 7);
+  1219→      g.lineBetween(ax - 10, ay, ax + 10, ay);
+  1220→      g.lineBetween(ax, ay - 10, ax, ay + 10);
+  1221→
+  1222→      // ── Hull sprite origin marker (cyan circle + X pattern) ──
+  1223→      g.lineStyle(2, 0x26c6da, 0.95);
+  1224→      g.strokeCircle(hullX, hullY, 6);
+  1225→      g.lineBetween(hullX - 8, hullY - 8, hullX + 8, hullY + 8);
+  1226→      g.lineBetween(hullX - 8, hullY + 8, hullX + 8, hullY - 8);
+  1227→
+  1228→      // ── Connecting line from hull origin to turret origin (white) ──
+  1229→      g.lineStyle(2, 0xffffff, 0.9);
+  1230→      g.lineBetween(hullX, hullY, turretX, turretY);
+  1231→
+  1232→      // ── Turret sprite/mount origin marker (red crosshair + circle) ──
+  1233→      g.lineStyle(2, 0xff6b6b, 0.95);
+  1234→      g.strokeCircle(turretX, turretY, 6);
+  1235→      g.lineBetween(turretX - 8, turretY, turretX + 8, turretY);
+  1236→      g.lineBetween(turretX, turretY - 8, turretX, turretY + 8);
+  1237→
+  1238→      // ── Placement overlay text (compact debug panel, ModularTankDebugOverlay style) ──
+  1239→      const diag = resolveHullDirectionDiagnostic(
+  1240→        vehicle.bodyId, vehicle.faction,
+  1241→        vehicle.modificationLevel, vehicle.bodyAngle,
+  1242→      );
+  1243→
+  1244→      const overlayParams: PlacementOverlayParams = {
+  1245→        hullId: diag.hullId,
+  1246→        vehicleId: vehicle.id,
+  1247→        bodyId: vehicle.bodyId,
+  1248→        offsetX: getWaspDebugOffsetX(),
+  1249→        offsetY: getWaspDebugOffsetY(),
+  1250→        scale: GENERATED_HULL_SCALE,
+  1251→        originX: GENERATED_HULL_ORIGIN_X,
+  1252→        originY: GENERATED_HULL_ORIGIN_Y,
+  1253→        textureKey: diag.textureKey,
+  1254→        tileX: tilePos.x,
+  1255→        tileY: tilePos.y,
+  1256→        isPlacementActive: true,
+  1257→        hullScreenX: hullX,
+  1258→        hullScreenY: hullY,
+  1259→        turretScreenX: turretX,
+  1260→        turretScreenY: turretY,
+  1261→      };
+  1262→
+  1263→      const placeText = buildPlacementOverlayText(overlayParams);
+  1264→      const showPlaceLabel = isWaspPlacementOverlayVisible();
+  1265→
+  1266→      let placeLabel = this.placementLabels.get(vehicle.id);
+  1267→      if (!placeLabel) {
+  1268→        placeLabel = this.scene.add.text(0, 0, '', {
+  1269→          fontFamily: 'monospace',
+  1270→          fontSize: '10px',
+  1271→          color: '#f4f7fb',
+  1272→          backgroundColor: 'rgba(16, 18, 28, 0.76)',
+  1273→          padding: { x: 4, y: 3 },
+  1274→        });
+  1275→        placeLabel.setDepth(BLOCKOUT_DEPTH + 25);
+  1276→        this.placementLabels.set(vehicle.id, placeLabel);
+  1277→      }
+  1278→      placeLabel.setText(placeText);
+  1279→      // Position like ModularTankDebugOverlay: hullX+30, hullY+28
+  1280→      placeLabel.setPosition(hullX + 30, hullY + 28);
+  1281→      placeLabel.setVisible(showPlaceLabel);
+  1282→    } else {
+  1283→      // Hide placement label for non-Wasp or when placement calibration is off
+  1284→      const placeLabel = this.placementLabels.get(vehicle.id);
+  1285→      if (placeLabel) {
+  1286→        placeLabel.setVisible(false);
+  1287→      }
+  1288→    }
+  1289→  }
+  1290→
+  1291→  // ─── Cleanup ─────────────────────────────────────────────────────
+  1292→
+  1293→  destroy(): void {
+  1294→    for (const [, g] of this.vehicleGraphics) {
+  1295→      g.destroy();
+  1296→    }
+  1297→    this.vehicleGraphics.clear();
+  1298→
+  1299→    for (const [, label] of this.debugLabels) {
+  1300→      label.destroy();
+  1301→    }
+  1302→    this.debugLabels.clear();
+  1303→
+  1304→    for (const [, sprite] of this.vehicleHullSprites) {
+  1305→      sprite.destroy();
+  1306→    }
+  1307→    this.vehicleHullSprites.clear();
+  1308→
+  1309→    for (const [, label] of this.directionDebugLabels) {
+  1310→      label.destroy();
+  1311→    }
+  1312→    this.directionDebugLabels.clear();
+  1313→
+  1314→    for (const [, label] of this.calibrationLabels) {
+  1315→      label.destroy();
+  1316→    }
+  1317→    this.calibrationLabels.clear();
+  1318→
+  1319→    for (const [, label] of this.placementLabels) {
+  1320→      label.destroy();
+  1321→    }
+  1322→    this.placementLabels.clear();
+  1323→
+  1324→    // PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: Clean up calibration button panel
+  1325→    if (this.placementPanel) {
+  1326→      this.placementPanel.destroy();
+  1327→      this.placementPanel = null;
+  1328→    }
+  1329→
+  1330→  }
+  1331→}
+  1332→
