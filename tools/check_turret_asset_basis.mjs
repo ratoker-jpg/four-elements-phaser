@@ -28,7 +28,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Keep in sync with directionalTurretProfiles.ts SMOKY_PLACEHOLDER_PIVOT and
 // generatedTurretAssets.ts GENERATED_TURRET_SOURCE_*.
-const EXPECTED_PIVOT = { x: 0.4991, y: 0.4548 };
+const EXPECTED_PIVOT = { x: 0.4990, y: 0.5145 };
 const EXPECTED_SIZE = 512;
 const PIVOT_TOLERANCE_NORM = 0.02; // 2% of canvas (~10px) — measurement noise budget
 
@@ -119,7 +119,7 @@ for (const faction of FACTIONS) {
   const bboxes = [];
 
   for (let dir = 0; dir < 16; dir++) {
-    const rel = `public/assets/units/turrets/smoky_m0/${faction}/smoky_m0_turret_${faction}_dir${String(dir).padStart(2, '0')}_${SUFFIXES[dir]}.png`;
+    const rel = `public/assets/units/turrets/smoky/${faction}/m0/smoky_${faction}_m0_turret_dir${String(dir).padStart(2, '0')}_${SUFFIXES[dir]}.png`;
     const img = decodePngAlpha(readFileSync(resolve(ROOT, rel)));
     check(img.width === EXPECTED_SIZE && img.height === EXPECTED_SIZE,
       `${rel}: size ${img.width}x${img.height} != ${EXPECTED_SIZE}`);

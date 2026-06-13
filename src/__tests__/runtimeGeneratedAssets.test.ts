@@ -539,7 +539,7 @@ describe('MENU-02: isModularUnitsLoaded', () => {
 // the file system without importing 'fs'/'path' (which would require @types/node).
 
 describe('MENU-02: Arena visual asset loading', () => {
-  it('loads modularUnits plus Wasp generated hull sets for Arena', async () => {
+  it('loads generated hull and turret sets for Arena without legacy modularUnits', async () => {
     const { loadArenaVisualAssets } = await import('../assets/runtimeGeneratedAssets');
     const mock = createMockScene();
 
@@ -548,10 +548,10 @@ describe('MENU-02: Arena visual asset loading', () => {
 
       // FIXUP-5: Now includes generated turret sets (4 factions × 16 dirs = 64 additional)
       // Total: 64 (modularUnits) + 64 (generated hulls) + 64 (generated turrets) = 192
-      expect(loadedKeys).toHaveLength(192);
-      expect(mock.loadImageCalls).toHaveLength(192);
-      expect(loadedKeys).toContain('wasp_m0_hull_cyan_dir0');
-      expect(loadedKeys).toContain('smoky_m0_turret_cyan_dir0');
+      expect(loadedKeys).toHaveLength(128);
+      expect(mock.loadImageCalls).toHaveLength(128);
+      expect(loadedKeys).not.toContain('wasp_m0_hull_cyan_dir0');
+      expect(loadedKeys).not.toContain('smoky_m0_turret_cyan_dir0');
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
       // FIXUP-5: Also includes generated turret keys
@@ -562,7 +562,7 @@ describe('MENU-02: Arena visual asset loading', () => {
     }
   });
 
-  it('loads missing generated hull sets even when modularUnits are already loaded', async () => {
+  it('still loads generated hull and turret sets when the legacy modularUnits probe key exists', async () => {
     const { loadArenaVisualAssets, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
     const mock = createMockScene();
     mock.scene.textures.exists = (key: string) => key === MODULAR_UNIT_PROBE_KEY;
@@ -584,19 +584,19 @@ describe('MENU-02: Arena visual asset loading', () => {
   });
 
   it('does not consider Arena visuals loaded when generated Wasp hulls are missing', async () => {
-    const { isArenaVisualAssetsLoaded, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
+    const { isArenaVisualAssetsLoaded } = await import('../assets/runtimeGeneratedAssets');
 
     const mockScene = {
       textures: {
-        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY,
+        exists: (_key: string) => false,
       },
     };
 
     expect(isArenaVisualAssetsLoaded(mockScene as any)).toBe(false);
   });
 
-  it('considers Arena visuals loaded only when modularUnits, all Wasp factions, and generated turrets are present', async () => {
-    const { isArenaVisualAssetsLoaded, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
+  it('considers Arena visuals loaded only when all generated hulls and generated turrets are present', async () => {
+    const { isArenaVisualAssetsLoaded } = await import('../assets/runtimeGeneratedAssets');
     const generatedHullProbeKeys = new Set(
       GENERATED_HULL_FACTIONS.map(faction => (
         getGeneratedHullTextureKey(
@@ -621,7 +621,7 @@ describe('MENU-02: Arena visual asset loading', () => {
 
     const mockScene = {
       textures: {
-        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY || allProbeKeys.has(key),
+        exists: (key: string) => allProbeKeys.has(key),
       },
     };
 

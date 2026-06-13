@@ -6,7 +6,7 @@
  * 512x512 / 16-dir turret assets.
  *
  * The generated turret sprites live under:
- *   public/assets/units/turrets/<weapon>/<mod>/<faction>/<weapon>_<mod>_turret_<faction>_dirNN_<DIR>.png
+ *   public/assets/units/turrets/<weapon>/<faction>/<mod>/<weapon>_<faction>_<mod>_turret_dirNN_<DIR>.png
  *
  * Each PNG is 512x512 RGBA with a transparent background.
  *
@@ -66,7 +66,7 @@ export const GENERATED_TURRET_DIRECTIONS_16 = GENERATED_HULL_DIRECTIONS_16;
  * renderer actually loads today.
  *
  * IMPORTANT — why this exists (PR #263 root cause):
- * The PNGs under public/assets/units/turrets/smoky_m0/ were produced in
+ * The PNGs under public/assets/units/turrets/smoky/<faction>/m0/ were produced in
  * fixup #5 by upscaling/interpolating the legacy 8-dir / 256px Smoky art
  * up to 512×512 / 16-dir (see the fixup #5 commit message). They are
  * NOT true v12 projection renders. Their measured geometry differs:
@@ -85,7 +85,7 @@ export const GENERATED_TURRET_DIRECTIONS_16 = GENERATED_HULL_DIRECTIONS_16;
  * change this constant to the v12 basis so the adapter binds to the
  * matching v12 pivot profile instead.
  */
-export const GENERATED_TURRET_ASSET_BASIS = 'smoky-placeholder-upscaled-512-dir16' as const;
+export const GENERATED_TURRET_ASSET_BASIS = 'smoky-real-generated-512-dir16' as const;
 
 /**
  * Resolve the asset-basis identifier for the generated turret textures of a
@@ -195,9 +195,9 @@ export function getGeneratedTurretTextureKey(
 /**
  * Build the Phaser asset path for a generated turret sprite.
  *
- * Format: `assets/units/turrets/<weapon>_<mod>/<faction>/<weapon>_<mod>_turret_<faction>_dirNN_<DIR>.png`
+ * Format: `assets/units/turrets/<weapon>/<faction>/<mod>/<weapon>_<faction>_<mod>_turret_dirNN_<DIR>.png`
  *
- * Example: `assets/units/turrets/smoky_m0/cyan/smoky_m0_turret_cyan_dir00_E.png`
+ * Example: `assets/units/turrets/smoky/cyan/m0/smoky_cyan_m0_turret_dir00_E.png`
  *
  * This path is relative to the Phaser loader base path (typically `public/`).
  */
@@ -209,7 +209,7 @@ export function getGeneratedTurretAssetPath(
 ): string {
   const dirPadded = String(dir16).padStart(2, '0');
   const dirSuffix = GENERATED_HULL_DIRECTIONS_16[dir16].suffix;
-  return `assets/units/turrets/${weapon}_${mod}/${faction}/${weapon}_${mod}_turret_${faction}_dir${dirPadded}_${dirSuffix}.png`;
+  return `assets/units/turrets/${weapon}/${faction}/${mod}/${weapon}_${faction}_${mod}_turret_dir${dirPadded}_${dirSuffix}.png`;
 }
 
 // ─── On-demand loader ───────────────────────────────────────────

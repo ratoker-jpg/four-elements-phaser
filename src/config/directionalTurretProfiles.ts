@@ -151,7 +151,7 @@ export const SMOKY_V12_PROJECTION_BASIS = 'smoky-v12-projection-512-dir16' as co
  * (upscaled/interpolated from legacy 8-dir / 256px art in fixup #5).
  * Must equal GENERATED_TURRET_ASSET_BASIS in generatedTurretAssets.ts.
  */
-export const SMOKY_PLACEHOLDER_BASIS = 'smoky-placeholder-upscaled-512-dir16' as const;
+export const SMOKY_PLACEHOLDER_BASIS = 'smoky-real-generated-512-dir16' as const;
 
 // ── Direction normalization helper ─────────────────────────────────
 
@@ -342,7 +342,7 @@ export const SMOKY_M23_DIRECTIONAL_PROFILE: DirectionalTurretMarkerProfile = {
  *
  * MEASUREMENT METHOD (not eye-picked, not v12-projected):
  * Overlapped the alpha masks of all 16 direction frames
- * (public/assets/units/turrets/smoky_m0/<faction>/...). The region covered
+ * (public/assets/units/turrets/smoky/<faction>/m0/...). The region covered
  * in ≥14 of 16 frames is the turret base ring (the barrel sweeps away per
  * direction; the base stays). Its centroid is the visible rotation center.
  * Result was identical across all four factions:
@@ -357,7 +357,7 @@ export const SMOKY_M23_DIRECTIONAL_PROFILE: DirectionalTurretMarkerProfile = {
  * with these PNGs misplaces the turret by ~18px, flipping sides as the turret
  * turns — the detached-turret symptom reported in PR #263 manual QA.
  */
-const SMOKY_PLACEHOLDER_PIVOT: DirectionalPoint2D = { x: 0.4991, y: 0.4548 };
+const SMOKY_PLACEHOLDER_PIVOT: DirectionalPoint2D = { x: 0.4990, y: 0.5145 };
 
 /** Build a constant-pivot, no-muzzle dir16 placeholder profile. */
 function buildSmokyPlaceholderProfile(

@@ -223,18 +223,14 @@ export function isModularUnitsLoaded(scene: Phaser.Scene): boolean {
  * Load the small combat visual set needed by Debug/Arena.
  *
  * Standard mode does not call this helper. It deliberately queues only:
- * - legacy modularUnits (Wasp hull + Smoky turret for four factions)
  * - generated Wasp M0 hull sets for four factions
- * - generated Smoky M0 turret sets for four factions (FIXUP-5)
+ * - generated Smoky M0 turret sets for four factions
  *
- * This keeps startup lean and avoids the full hull/turret matrix.
+ * The legacy modularUnits manifest points at deleted `chassis/wasp_m0` and
+ * `weapons/smoky_m0` paths on main, so Arena must not queue that family.
  */
 export function loadArenaVisualAssets(scene: Phaser.Scene): string[] {
   const loadedKeys: string[] = [];
-
-  if (!isModularUnitsLoaded(scene)) {
-    loadedKeys.push(...loadGeneratedModularUnitAssets(scene));
-  }
 
   for (const faction of GENERATED_HULL_FACTIONS) {
     loadedKeys.push(
@@ -268,11 +264,9 @@ export function loadArenaVisualAssets(scene: Phaser.Scene): string[] {
 
 /**
  * Check whether the Debug/Arena combat visual set is available.
- * FIXUP-5: Also checks generated turret assets.
+ * FIXUP-5: Checks generated hull and generated turret assets only.
  */
 export function isArenaVisualAssetsLoaded(scene: Phaser.Scene): boolean {
-  if (!isModularUnitsLoaded(scene)) return false;
-
   const hullsLoaded = GENERATED_HULL_FACTIONS.every(faction => (
     isGeneratedHullSetLoaded(
       scene,

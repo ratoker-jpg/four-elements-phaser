@@ -111,8 +111,8 @@ describe('resolveTurretSpriteMountingData — uses directional Smoky pivot', () 
     // The placeholder PNGs rotate the barrel around a fixed center measured at
     // (0.4991, 0.4548). x is near-center (turret is horizontally centered) but
     // y is clearly above center — so the pivot is NOT the naive (0.5, 0.5).
-    expect(result.directionalPivot!.x).toBeCloseTo(0.4991, 4);
-    expect(result.directionalPivot!.y).toBeCloseTo(0.4548, 4);
+    expect(result.directionalPivot!.x).toBeCloseTo(0.4990, 4);
+    expect(result.directionalPivot!.y).toBeCloseTo(0.5145, 4);
     expect(result.directionalPivot!.y).not.toBeCloseTo(0.5, 2);
   });
 
@@ -1273,7 +1273,7 @@ describe('Fixup #5: Generated Smoky turret asset resolver', () => {
   it('generates asset paths for all 16 directions', () => {
     for (let dir16 = 0; dir16 < 16; dir16++) {
       const path = getGeneratedTurretAssetPath('smoky', 'cyan', 'm0', dir16 as GeneratedTurretDir16Index);
-      expect(path).toMatch(/^assets\/units\/turrets\/smoky_m0\/cyan\//);
+      expect(path).toMatch(/^assets\/units\/turrets\/smoky\/cyan\/m0\//);
       expect(path).toContain(`dir${String(dir16).padStart(2, '0')}`);
       expect(path).toContain(DIR16_SUFFIXES[dir16]);
       expect(path).toMatch(/\.png$/);

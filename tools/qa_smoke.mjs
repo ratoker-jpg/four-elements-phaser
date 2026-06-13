@@ -24,11 +24,14 @@ import { fileURLToPath } from 'node:url';
 
 // ─── Configuration ──────────────────────────────────────────────────
 
+const PREVIEW_HOST = '127.0.0.1';
 const PREVIEW_PORT = 4173;
+const PREVIEW_READY_TIMEOUT_MS = 30_000;
 const READINESS_TIMEOUT_MS = 30_000;
 const DOM_ASSERT_TIMEOUT_MS = 10_000;
 const REPORTS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '_reports');
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const NPM_COMMAND = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 /** File extensions whose failed requests should cause a test failure. */
 const FAIL_ON_EXTENSIONS = ['.js', '.css', '.json', '.png', '.jpg', '.webp'];
@@ -47,7 +50,7 @@ const IGNORED_WARNING_PATTERNS = [
 const SMOKE_RUNS = [
   {
     name: 'standard',
-    url: `http://localhost:${PREVIEW_PORT}?skipMenu`,
+    url: `http://${PREVIEW_HOST}:${PREVIEW_PORT}?skipMenu`,
     requiredMarkers: [
       '[PreloadScene] All assets loaded.',
       '[GameScene] All asset textures verified.',
@@ -61,7 +64,7 @@ const SMOKE_RUNS = [
   },
   {
     name: 'devtools',
-    url: `http://localhost:${PREVIEW_PORT}?skipMenu&devtools=1&arena=1`,
+    url: `http://${PREVIEW_HOST}:${PREVIEW_PORT}?skipMenu&devtools=1&arena=1`,
     requiredMarkers: [
       '[PreloadScene] All assets loaded.',
       '[GameScene] All asset textures verified.',
@@ -293,18 +296,28 @@ async function main() {
   }
 
   // ── Step 2: Start preview server ───────────────────────────────
-  const previewUrl = `http://localhost:${PREVIEW_PORT}?skipMenu`;
+  const previewUrl = `http://${PREVIEW_HOST}:${PREVIEW_PORT}?skipMenu`;
   console.log(`[qa_smoke] Starting vite preview on port ${PREVIEW_PORT}...`);
   let previewProcess;
   try {
     const { spawn } = await import('node:child_process');
-    previewProcess = spawn('npx', ['vite', 'preview', '--port', String(PREVIEW_PORT), '--strictPort'], {
-      cwd: PROJECT_ROOT,
-      stdio: 'pipe',
-    });
+    const previewArgs = ['exec', 'vite', 'preview', '--', '--host', PREVIEW_HOST, '--port', String(PREVIEW_PORT), '--strictPort'];
+    previewProcess = process.platform === 'win32'
+      ? spawn(
+        process.env.ComSpec || 'cmd.exe',
+        ['/d', '/s', '/c', `npm.cmd ${previewArgs.join(' ')}`],
+        {
+          cwd: PROJECT_ROOT,
+          stdio: 'pipe',
+        },
+      )
+      : spawn(NPM_COMMAND, previewArgs, {
+        cwd: PROJECT_ROOT,
+        stdio: 'pipe',
+      });
 
     // Wait for server to be ready
-    await waitForServer(previewUrl, 10_000);
+    await waitForServer(previewUrl, PREVIEW_READY_TIMEOUT_MS);
     console.log('[qa_smoke] Preview server ready.');
   } catch (err) {
     console.error('[qa_smoke] Failed to start preview server:', err.message);
