@@ -12,3 +12,10 @@ art/source/tankviewer/
 
 # TankViewer generated sprite output (mass output, not committed)
 art/generated/tankviewer/
+
+# Agent/tool artifacts — never commit
+.telegram-notify.json
+tool-results/
+upload/
+skills/
+download/
