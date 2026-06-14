@@ -13,6 +13,8 @@ Opus is used when system understanding matters more than mechanical patching.
 
 Opus should produce durable audits and architecture plans that can guide many implementation steps.
 
+Opus must not waste premium model budget on mechanical inventory that cheaper models, Graphify, grep, scripts, or narrow range reads can do.
+
 ---
 
 ## Primary role
@@ -21,6 +23,7 @@ Use Opus for:
 
 ```text
 - broad architecture audits;
+- final architecture synthesis from prepared facts inventory;
 - cleanup plans across stale docs/source/assets;
 - modular vehicle runtime integration design;
 - identifying legacy systems that must be archived/deprecated;
@@ -29,6 +32,8 @@ Use Opus for:
 ```
 
 Opus is not the default PR plumber.
+
+Opus is also not the default file reader / grep worker.
 
 ---
 
@@ -43,6 +48,7 @@ docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
 docs/project/AI_GRAPHIFY_WORKFLOW.md
+docs/project/AI_AUDIT_BUDGET_RULES.md
 docs/project/OPUS_ARCHITECT_AUDIT_RULES.md
 ```
 
@@ -52,7 +58,7 @@ For visual/world-space/rendering/asset work, also read:
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 ```
 
-For modular vehicle work, also read the active modular vehicle roadmap after it exists.
+For modular vehicle work, also read the active modular vehicle roadmap and accepted modular vehicle system audit after they exist.
 
 ---
 
@@ -60,11 +66,18 @@ For modular vehicle work, also read the active modular vehicle roadmap after it 
 
 If a fresh Graphify artifact is available, use it before broad source reading.
 
-Read:
+Read or parse the available graph output, for example:
 
 ```text
 graphify-out/GRAPH_REPORT.md
+graphify-out/graph.json
+graphify-out/analysis.json
+graphify-out/*callflow*.html
 ```
+
+Not every artifact contains every file. Use what exists.
+
+Do not paste `graph.json` into the model context. Parse it with scripts or CLI and return only compact summaries.
 
 Then query or inspect graph output to narrow the source files to open.
 
@@ -72,9 +85,68 @@ Do not start by reading dozens of repo files one-by-one when graph context is av
 
 ---
 
+## Budget discipline for audits
+
+For broad audits, Opus must operate as architect / synthesizer, not as the only worker doing every grep and file read.
+
+Preferred flow:
+
+```text
+Phase A — facts inventory
+- use Graphify summaries, grep/ripgrep, scripts, and cheap subagents if available;
+- collect file:line facts only;
+- no architecture recommendations;
+- no full reading of large files;
+- compact output.
+
+Phase B — Opus synthesis
+- use the facts inventory, context digest, and selected file ranges;
+- produce architecture recommendation, cleanup order, implementation plan, validation, non-goals.
+```
+
+If the environment supports subagent model selection:
+
+```text
+- use Haiku/Sonnet or equivalent cheaper models for search, grep, inventory, file:line extraction;
+- reserve Opus for final synthesis, hard tradeoffs, and cohesive High+ refactors.
+```
+
+If the environment does not support cheaper subagents:
+
+```text
+- avoid Opus subagents for mechanical inventory;
+- do the inventory with grep/ranges/scripts;
+- ask GPT/Denis for a smaller facts inventory first if needed.
+```
+
+Hard budget rules:
+
+```text
+- do not read files over 400 lines fully unless explicitly justified;
+- for files over 400 lines, use grep/ripgrep first, then read only relevant ranges;
+- do not read large JSON/graphs into context; parse them and summarize;
+- do not ask subagents to return long prose;
+- subagent inventory output target: <=120 lines each;
+- subagent tool-call target: <=25 calls each;
+- if expected work exceeds roughly 200k tokens, stop and propose a two-phase plan first;
+- avoid arbitrary "1000+ lines" audit targets unless Denis/GPT explicitly asks for that cost.
+```
+
+Large-file rule:
+
+```text
+Use:
+rg -> line ranges -> narrow reads -> file:line facts.
+
+Avoid:
+read full BlockoutVehicleRenderer.ts / GameScene.ts / large UI files / many governance docs into Opus context.
+```
+
+---
+
 ## Audit output quality bar
 
-A useful Opus audit should be long enough and concrete enough to guide implementation without re-auditing each step.
+A useful Opus audit should be concrete enough to guide implementation without re-auditing each step.
 
 Expected output:
 
@@ -93,7 +165,19 @@ Expected output:
 - open questions.
 ```
 
-Target: one broad reusable audit, often 1000+ lines when the direction is large.
+Target: one broad reusable audit when the direction is large, but no artificial line-count target.
+
+Prefer:
+
+```text
+clear file:line evidence + compact recommendations
+```
+
+over:
+
+```text
+long prose without evidence
+```
 
 ---
 
@@ -113,6 +197,8 @@ Opus implementation is appropriate when:
 - validation boundaries are still explicit.
 ```
 
+Even for implementation, Opus should not spend budget on broad file reading after an accepted audit exists. Use the accepted audit and targeted ranges.
+
 ---
 
 ## Strict non-goals
@@ -127,7 +213,8 @@ Unless explicitly scoped, Opus must not:
 - preload all modular assets at startup;
 - change camera projection rules;
 - merge PRs;
-- treat closed roadmaps as active implementation queues.
+- treat closed roadmaps as active implementation queues;
+- run premium-model subagents for routine search/inventory when cheaper routing is available.
 ```
 
 ---
