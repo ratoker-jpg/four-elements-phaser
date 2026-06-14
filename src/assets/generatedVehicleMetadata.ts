@@ -198,3 +198,35 @@ export function validateVehicleAssetMetadata(
 
   return errors;
 }
+
+// ─── Pilot metadata constants (RUNTIME-02A) ──────────────────────
+
+/**
+ * Confirmed turret image size: 512×512 RGBA.
+ * Verified from the actual Smoky cyan m0 pilot PNGs.
+ */
+export const TURRET_IMAGE_SIZE: ImageSize = { width: 512, height: 512 };
+
+/**
+ * Smoky cyan m0 turret pilot metadata.
+ *
+ * imageSize confirmed from actual PNGs (512×512 RGBA).
+ * pivot at (0.5, 0.5) = image center, verified from the staging
+ * manifest runtime02a_smoky_cyan_m0_pivot_subset.json where
+ * anchorNorm is consistently (0.5, 0.5) for all 16 directions.
+ *
+ * This is the first turret metadata entry with confirmed dimensions.
+ * Future turrets should follow the same pattern once their PNGs
+ * are imported and dimensions verified.
+ */
+export const SMOKY_CYAN_M0_TURRET_METADATA: GeneratedVehicleAssetMetadata = {
+  family: 'turret',
+  id: 'smoky',
+  faction: 'cyan',
+  mod: 'm0',
+  dirCount: 16,
+  imageSize: TURRET_IMAGE_SIZE,
+  pivot: { nx: 0.5, ny: 0.5 },
+  keyPrefix: 'generated_turret_smoky_cyan_m0',
+  pathPrefix: 'assets/units/turrets/smoky/cyan/m0',
+};
