@@ -21,14 +21,13 @@
  *   - Uses on-demand loading of the pilot set only (16 hull + 16 turret),
  *     never a broad preload.
  *
- * Controls (only while the harness is open):
- *   B — cycle hull body direction (dir8)
- *   N — cycle turret direction (dir16)
- *   G — toggle the DIAGNOSTIC zHeight projection (default OFF)
- *   M — reset to defaults
- *
- * Lifecycle: created by GameScene when devtools is active; toggled by the
- * `9` hotkey; destroy() on scene shutdown.
+ * CONTROL SURFACE (MODULAR-PROOF-01 fixup):
+ *   This harness has NO gameplay/debug keyboard controls of its own. All
+ *   interaction is via the devtools UI panel (GeneratedVehicleProofPanel),
+ *   which calls the public methods below. This avoids conflicts with the
+ *   existing gameplay/debug hotkeys (B/N/G/M etc. are NOT used here).
+ *   The `9` hotkey remains only as an optional open/close shortcut and the
+ *   panel exposes an equivalent Open/Close button.
  */
 
 import Phaser from 'phaser';
@@ -62,6 +61,20 @@ const TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   color: '#d4e4ff',
 };
 
+// ─── Public state snapshot (consumed by the devtools panel) ─────────
+
+export interface GeneratedVehicleProofHarnessState {
+  active: boolean;
+  bodyDir8: number;
+  turretDir16: number;
+  zHeightDiagnostic: boolean;
+  markersVisible: boolean;
+  hullVisualDir16: number | null;
+  turretVisualDir16: number | null;
+  available: boolean | null;
+  reason: string | null;
+}
+
 // ─── Harness ────────────────────────────────────────────────────────
 
 export class GeneratedVehicleProofHarness {
@@ -72,6 +85,7 @@ export class GeneratedVehicleProofHarness {
   private bodyDir8 = 0; // 0..7
   private turretDir16 = 0; // 0..15
   private zHeightDiagnostic = false;
+  private markersVisible = true;
 
   // Render objects
   private backdrop: Phaser.GameObjects.Rectangle | null = null;
@@ -82,36 +96,116 @@ export class GeneratedVehicleProofHarness {
   private helpText: Phaser.GameObjects.Text | null = null;
   private legendText: Phaser.GameObjects.Text | null = null;
 
-  private boundKeydown: (event: KeyboardEvent) => void;
   private assetsRequested = false;
+  private lastResult: GeneratedVehiclePreviewResult | null = null;
+  private onStateChange: (() => void) | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    this.boundKeydown = (event: KeyboardEvent) => this.handleKeydown(event);
-    this.scene.input.keyboard?.on('keydown', this.boundKeydown);
   }
 
   get active(): boolean {
     return this._active;
   }
 
-  /** Toggle the harness open/closed. */
+  /** Set the panel notification callback (called after any state change). */
+  setOnStateChange(cb: (() => void) | null): void {
+    this.onStateChange = cb;
+  }
+
+  /** Current harness state snapshot for the devtools panel readout. */
+  getState(): GeneratedVehicleProofHarnessState {
+    return {
+      active: this._active,
+      bodyDir8: this.bodyDir8,
+      turretDir16: this.turretDir16,
+      zHeightDiagnostic: this.zHeightDiagnostic,
+      markersVisible: this.markersVisible,
+      hullVisualDir16: this.lastResult?.hullVisualDir16 ?? null,
+      turretVisualDir16: this.lastResult?.turretVisualDir16 ?? null,
+      available: this.lastResult?.available ?? null,
+      reason: this.lastResult?.reason ?? null,
+    };
+  }
+
+  /** Toggle the harness open/closed (UI button or `9` shortcut). */
   toggle(): void {
-    this._active = !this._active;
     if (this._active) {
-      this.ensureAssetsLoaded();
-      this.build();
-      this.refresh();
+      this.close();
     } else {
-      this.teardown();
+      this.open();
     }
-    console.log(`[GeneratedVehicleProofHarness] ${this._active ? 'ON' : 'OFF'}`);
+  }
+
+  /** Open the harness overlay. */
+  open(): void {
+    if (this._active) return;
+    this._active = true;
+    this.ensureAssetsLoaded();
+    this.build();
+    this.refresh();
+    console.log('[GeneratedVehicleProofHarness] ON');
+    this.onStateChange?.();
+  }
+
+  /** Close the harness overlay. */
+  close(): void {
+    if (!this._active) return;
+    this._active = false;
+    this.teardown();
+    console.log('[GeneratedVehicleProofHarness] OFF');
+    this.onStateChange?.();
   }
 
   /** Destroy all resources. Call on scene shutdown. */
   destroy(): void {
-    this.scene.input.keyboard?.off('keydown', this.boundKeydown);
     this.teardown();
+    this.onStateChange = null;
+  }
+
+  // ─── UI-driven controls (called by GeneratedVehicleProofPanel) ────
+
+  /** Cycle the hull body direction (dir8) by delta (UI button). */
+  cycleBodyDir(delta: number): void {
+    if (!this._active) return;
+    this.bodyDir8 = (((this.bodyDir8 + delta) % 8) + 8) % 8;
+    this.refresh();
+    this.onStateChange?.();
+  }
+
+  /** Cycle the turret direction (dir16) by delta (UI button). */
+  cycleTurretDir(delta: number): void {
+    if (!this._active) return;
+    this.turretDir16 = (((this.turretDir16 + delta) % 16) + 16) % 16;
+    this.refresh();
+    this.onStateChange?.();
+  }
+
+  /** Toggle the DIAGNOSTIC zHeight projection (UI button). Default OFF. */
+  toggleZHeightDiagnostic(): void {
+    if (!this._active) return;
+    this.zHeightDiagnostic = !this.zHeightDiagnostic;
+    this.refresh();
+    this.onStateChange?.();
+  }
+
+  /** Toggle the visibility of markers + text labels (UI button). */
+  toggleMarkers(): void {
+    if (!this._active) return;
+    this.markersVisible = !this.markersVisible;
+    this.applyMarkersVisibility();
+    this.onStateChange?.();
+  }
+
+  /** Reset body/turret direction, zHeight diagnostic, and markers (UI button). */
+  reset(): void {
+    if (!this._active) return;
+    this.bodyDir8 = 0;
+    this.turretDir16 = 0;
+    this.zHeightDiagnostic = false;
+    this.markersVisible = true;
+    this.refresh();
+    this.onStateChange?.();
   }
 
   // ─── Asset loading (on-demand, pilot set only) ────────────────────
@@ -131,7 +225,10 @@ export class GeneratedVehicleProofHarness {
     if (queued.length > 0 && !this.assetsRequested) {
       this.assetsRequested = true;
       this.scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
-        if (this._active) this.refresh();
+        if (this._active) {
+          this.refresh();
+          this.onStateChange?.();
+        }
       });
       this.scene.load.start();
     }
@@ -164,8 +261,8 @@ export class GeneratedVehicleProofHarness {
     this.helpText = this.scene.add
       .text(
         16,
-        h - 72,
-        'MODULAR-PROOF-01 harness  |  B: body dir  N: turret dir  G: zHeight diag  M: reset  9: close',
+        h - 52,
+        'MODULAR-PROOF-01 harness  |  controls: use the Proof Harness devtools panel (mouse).  9: close',
         { ...TEXT_STYLE, color: '#8ab4ff' },
       )
       .setScrollFactor(0)
@@ -174,7 +271,7 @@ export class GeneratedVehicleProofHarness {
     this.legendText = this.scene.add
       .text(
         16,
-        h - 50,
+        h - 34,
         'markers — magenta: hull socket  green: turret pivot  blue: hull origin/bbox  yellow: turret origin/bbox  lilac: ground anchor',
         { ...TEXT_STYLE, color: '#8ab4ff' },
       )
@@ -222,10 +319,18 @@ export class GeneratedVehicleProofHarness {
       zHeightDiagnostic: { enabled: this.zHeightDiagnostic, basisZScreenY: basisZ.y },
       textureExists: (key: string) => this.scene.textures.exists(key),
     });
+    this.lastResult = result;
 
     this.drawSprites(result);
     this.drawMarkers(result);
     this.drawLabels(result);
+    this.applyMarkersVisibility();
+  }
+
+  private applyMarkersVisibility(): void {
+    this.markers?.setVisible(this.markersVisible);
+    this.labelText?.setVisible(this.markersVisible);
+    this.legendText?.setVisible(this.markersVisible);
   }
 
   private drawSprites(result: GeneratedVehiclePreviewResult): void {
@@ -352,33 +457,5 @@ export class GeneratedVehicleProofHarness {
     g.lineTo(p.x - r, p.y);
     g.closePath();
     g.strokePath();
-  }
-
-  // ─── Input ────────────────────────────────────────────────────────
-
-  private handleKeydown(event: KeyboardEvent): void {
-    if (!this._active) return;
-    switch (event.code) {
-      case 'KeyB':
-        this.bodyDir8 = (this.bodyDir8 + 1) % 8;
-        this.refresh();
-        break;
-      case 'KeyN':
-        this.turretDir16 = (this.turretDir16 + 1) % 16;
-        this.refresh();
-        break;
-      case 'KeyG':
-        this.zHeightDiagnostic = !this.zHeightDiagnostic;
-        this.refresh();
-        break;
-      case 'KeyM':
-        this.bodyDir8 = 0;
-        this.turretDir16 = 0;
-        this.zHeightDiagnostic = false;
-        this.refresh();
-        break;
-      default:
-        break;
-    }
   }
 }

@@ -32,14 +32,21 @@ The failed live integration remains quarantined. No Arena live vehicle rendering
 | File | Change |
 |------|--------|
 | `src/phaser/render/generatedVehiclePreviewComposition.ts` | **NEW.** Pure composition module — no Phaser, no asset loading, no state mutation. Computes sprite positions + marker positions for the harness. |
-| `src/phaser/dev/GeneratedVehicleProofHarness.ts` | **NEW.** Devtools-only Phaser overlay that renders hull + turret + markers + labels at fixed screen coordinates, isolated from Arena world-space. |
+| `src/phaser/dev/GeneratedVehicleProofHarness.ts` | **NEW.** Devtools-only Phaser overlay that renders hull + turret + markers + labels at fixed screen coordinates, isolated from Arena world-space. **Controlled via the devtools UI panel — no gameplay/debug keyboard controls.** |
+| `src/phaser/dev/GeneratedVehicleProofPanel.ts` | **NEW (fixup).** Devtools DOM control panel (AssetPreviewPanel style) with mouse buttons for open/close, body/turret dir, zHeight diagnostic, markers, reset, plus a live state readout. |
 | `src/__tests__/generatedVehiclePreviewComposition.test.ts` | **NEW.** 17 tests for the pure composition contract. |
-| `src/phaser/GameScene.ts` | Instantiate the harness when devtools is active; pass to input controller; destroy on shutdown. |
-| `src/phaser/input/GameInputController.ts` | Add the `9` toggle hotkey (mirrors the existing `0` asset-preview pattern). |
+| `src/phaser/GameScene.ts` | Instantiate the harness + panel when devtools is active; wire panel ↔ harness; show the panel; destroy both on shutdown. |
+| `src/phaser/input/GameInputController.ts` | Add the optional `9` open/close hotkey (mirrors the existing `0` asset-preview pattern). |
 | `docs/project/MODULAR_PROOF_01_GENERATED_VEHICLE_ATTACHMENT_HARNESS_REPORT_2026_06_14.md` | **NEW.** This report. |
 
 The quarantine flag `ENABLE_PILOT_GENERATED_TURRET_COMPOSITION = false`
 (`BlockoutVehicleRenderer.ts:111`) was **not** touched.
+
+**MODULAR-PROOF-01 fixup (PR #277):** the harness's original `B`/`N`/`G`/`M`
+keyboard controls were **removed** because they conflicted with existing
+gameplay/debug hotkeys. The harness now has **no keyboard controls of its own**;
+all interaction is via the new mouse-driven devtools panel. The fix was **not**
+done by suppressing gameplay hotkeys. The composition math is unchanged.
 
 ---
 
@@ -47,19 +54,24 @@ The quarantine flag `ENABLE_PILOT_GENERATED_TURRET_COMPOSITION = false`
 
 - **Where it lives:** `src/phaser/dev/GeneratedVehicleProofHarness.ts` (Phaser overlay)
   + `src/phaser/render/generatedVehiclePreviewComposition.ts` (pure math).
-- **How to open:** start in devtools/arena mode (e.g. `?skipMenu&devtools=1&arena=1`),
-  then press **`9`** to toggle the harness. This follows the existing devtools hotkey
-  surface (asset preview is `0`); **no new query-string flag was added.**
-- **Controls (only while the harness is open):**
-  - `B` — cycle hull body direction (dir8, 8 orientations)
-  - `N` — cycle turret direction (dir16, all 16)
-  - `G` — toggle the **DIAGNOSTIC** zHeight projection (default OFF)
-  - `M` — reset to defaults
-  - `9` — close the harness
+- **How to open:** start in devtools/arena mode (e.g. `?skipMenu&devtools=1&arena=1`).
+  A small **"Proof Harness"** panel is docked top-right. Click **"Open Harness"**
+  (or press the optional `9` shortcut). **No new query-string flag was added.**
+- **Controls — all via mouse on the devtools panel (no gameplay hotkeys):**
+  - **Open / Close Harness** — builds/tears down the overlay.
+  - **Hull body dir ◀ prev / next ▶** — cycle the hull body direction (dir8).
+  - **Turret dir ◀ prev / next ▶** — cycle the turret direction (dir16, all 16).
+  - **zHeight diag** — toggle the **DIAGNOSTIC** zHeight projection (default OFF).
+  - **markers** — toggle the markers + text labels visibility.
+  - **Reset** — restore body/turret dir 0, zHeight off, markers on.
+  - The panel shows a **live readout**: body dir8, turret dir16, hull/turret
+    visual dir16, zHeight state, markers state, and availability/reason.
+  - `9` remains only as an optional open/close shortcut; the UI button does the same.
 
-The harness draws a full-screen backdrop and renders at fixed screen coordinates
-(`scrollFactor 0`), so it is fully isolated from the Arena camera and live vehicles.
-Closing it restores the normal Arena view unchanged.
+The previous `B`/`N`/`G`/`M` keyboard controls were **removed** (they collided with
+gameplay/debug hotkeys). The harness draws a full-screen backdrop and renders at fixed
+screen coordinates (`scrollFactor 0`), fully isolated from the Arena camera and live
+vehicles. Closing it restores the normal Arena view unchanged.
 
 ---
 
@@ -124,20 +136,24 @@ diagnostic just projects it through the camera contract `basisZ` for comparison.
 
 ## 7. Visual QA — what Denis must check (screenshots)
 
-Open the harness (`9`) in devtools/arena and capture:
+Open the harness from the docked **"Proof Harness"** panel (click **Open Harness**) in
+devtools/arena and capture, using the panel **buttons** (mouse only — no hotkeys needed):
 
 1. **Default view (dir 0 body, dir 0 turret, zHeight OFF):** does the magenta **socket**
    marker sit on the Wasp hull's **visible turret ring**?
 2. Does the green **pivot** marker sit on the Smoky turret's **rotation axis**?
 3. Do socket and pivot **coincide** (markers overlap) with zHeight OFF?
-4. **Step the turret** through all 16 directions (`N`): does the pivot marker stay on the
-   turret's rotation axis in every frame?
-5. **Step the hull body** through its 8 orientations (`B`): does the socket marker stay on
-   the hull turret ring?
-6. **Toggle zHeight (`G`):** does applying zHeight **improve** seating, or does it **lift the
-   turret off** the ring (double-count)? Capture both ON and OFF for the same direction.
-7. **Close the harness (`9`):** confirm the Arena falls back to the normal procedural view
-   unchanged.
+4. **Step the turret** through all 16 directions (**Turret dir next ▶**): does the pivot
+   marker stay on the turret's rotation axis in every frame?
+5. **Step the hull body** through its 8 orientations (**Hull body dir next ▶**): does the
+   socket marker stay on the hull turret ring?
+6. **Toggle zHeight** (**zHeight diag** button): does applying zHeight **improve** seating,
+   or does it **lift the turret off** the ring (double-count)? Capture both ON and OFF for
+   the same direction.
+7. **Close the harness** (**Close Harness** button or `9`): confirm the Arena falls back to
+   the normal procedural view unchanged.
+8. Confirm clicking the panel buttons **never** triggers gameplay/build/produce commands and
+   there are **no** keyboard-hotkey conflicts.
 
 Suggested capture set: dir 0/4/8/12 body × dir 0/4/8/12 turret, plus one zHeight ON/OFF pair.
 

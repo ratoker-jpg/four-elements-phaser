@@ -41,6 +41,7 @@ import { projectGroundPoint } from '../config/cameraProjectionContract';
 import { AssetPreviewTool } from './dev/AssetPreviewTool';
 import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
 import { GeneratedVehicleProofHarness } from './dev/GeneratedVehicleProofHarness';
+import { GeneratedVehicleProofPanel } from './dev/GeneratedVehicleProofPanel';
 import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
 import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputController';
 import { BlockoutWeaponVfxRenderer } from './render/BlockoutWeaponVfxRenderer';
@@ -159,6 +160,7 @@ export class GameScene extends Phaser.Scene {
   // MODULAR-PROOF-01: Isolated generated vehicle attachment proof harness
   // (devtools-only; does NOT integrate with live Arena vehicle rendering).
   private generatedVehicleProofHarness: GeneratedVehicleProofHarness | null = null;
+  private generatedVehicleProofPanel: GeneratedVehicleProofPanel | null = null;
 
   // BLOCKOUT-02H: Blockout vehicle renderer (only when devtools is active)
   private blockoutVehicleRenderer: BlockoutVehicleRenderer | null = null;
@@ -562,7 +564,18 @@ export class GameScene extends Phaser.Scene {
     // vehicle rendering in the live Arena.
     if (this.devtoolsActive) {
       this.generatedVehicleProofHarness = new GeneratedVehicleProofHarness(this);
-      console.log('[GameScene] Generated vehicle proof harness enabled (toggle: 9).');
+      // MODULAR-PROOF-01 fixup: control via a devtools UI panel (mouse), not
+      // gameplay hotkeys. The docked panel is shown so it can open/close the
+      // harness without a hotkey; `9` remains an optional open/close shortcut.
+      this.generatedVehicleProofPanel = new GeneratedVehicleProofPanel();
+      this.generatedVehicleProofPanel.create({
+        getHarness: () => this.generatedVehicleProofHarness,
+      });
+      this.generatedVehicleProofHarness.setOnStateChange(
+        () => this.generatedVehicleProofPanel?.refresh(),
+      );
+      this.generatedVehicleProofPanel.show();
+      console.log('[GameScene] Generated vehicle proof harness enabled (panel + toggle: 9).');
     }
 
     // BLOCKOUT-02H: Create blockout vehicle renderer and spawn initial set if devtools is active
@@ -1308,6 +1321,8 @@ export class GameScene extends Phaser.Scene {
     this.assetPreviewTool = null;
     this.generatedVehicleProofHarness?.destroy();
     this.generatedVehicleProofHarness = null;
+    this.generatedVehicleProofPanel?.destroy();
+    this.generatedVehicleProofPanel = null;
     this.blockoutVehicleInputController?.destroy();
     this.blockoutVehicleInputController = null;
     this.blockoutVehicleRenderer?.destroy();
