@@ -10,7 +10,9 @@ Updated: 2026-06-14
 ## Current mode
 
 ```text
-NO RUNTIME IMPLEMENTATION UNTIL THE NEW CLEANUP + MODULAR VEHICLE ROADMAP/AUDIT IS ACCEPTED.
+MODULAR-RUNTIME-01 IMPLEMENTATION IS ACTIVE.
+The cleanup + modular vehicle roadmap/audit is accepted.
+ASSET-IMPORT-01 (PR #278) merged — modular cyan assets are now in the repo.
 ```
 
 Current direction:
@@ -20,8 +22,13 @@ Graphify-first AI workflow
 +
 documentation/source-of-truth cleanup
 +
-modular vehicle asset runtime integration planning
+modular cyan vehicle runtime integration (MODULAR-RUNTIME-01)
 ```
+
+ASSET-IMPORT-01 was an approved asset-only exception, already merged as PR #278.
+The modular cyan hull/turret PNGs, metadata manifests, root manifest, and the
+generated registry now live in the repo. MODULAR-RUNTIME-01 is the active
+implementation step (clean modular generated vehicle renderer path).
 
 Closed / accepted cycles:
 
@@ -156,11 +163,16 @@ Do not commit graph output by default.
 ## Active next work
 
 ```text
-1. Merge/accept docs-only Graphify + AI governance + modular roadmap update.
-2. Run Graphify GitHub Actions workflow on the target branch/main.
-3. Give Graphify artifact + roadmap to Opus for one broad cleanup + modular runtime system audit.
-4. Commit the Opus audit as a durable project doc.
-5. Execute High/High+ steps through GLM or Opus according to audit and GPT routing.
+1. [DONE] Docs-only Graphify + AI governance + modular roadmap update.
+2. [DONE] Opus cleanup + modular runtime system audit committed.
+3. [DONE] ASSET-IMPORT-01 (PR #278) — modular cyan assets imported into repo.
+4. [ACTIVE] MODULAR-RUNTIME-01 — clean modular generated vehicle renderer:
+   - typed ModularVehicleVisual model (independent hull/turret + hullMod/turretMod);
+   - metadata-driven composition (socket/pivot from export manifests, no offset tables);
+   - lazy loader (max 32 PNG per selected visual);
+   - GeneratedModularVehicleRenderer + Arena/devtools selector;
+   - safe fallback; no combat/movement/economy/mapgen/save-load changes.
+5. [NEXT] After runtime QA, broaden Arena modular QA + reconcile legacy px-offset stack.
 ```
 
 ---
