@@ -2,40 +2,104 @@
 
 Clean Phaser-first restart of **Four Elements** — browser-playable isometric RTS / civil sandbox.
 
-This repository intentionally starts fresh.
+## Core decisions
 
-## Core decision
+```text
+Engine: Phaser 4
+Runtime: browser / Vite / TypeScript
+Renderer: Phaser-first, WebGL-only
+Repository: ratoker-jpg/four-elements-phaser
+Old repo: ratoker-jpg/four-elements-next is donor/reference/specification only
+```
 
-- **Engine:** Phaser 4.
-- **Project strategy:** new repository.
-- **Copy policy:** approved assets only.
-- **Old repo:** `ratoker-jpg/four-elements-next` is donor/reference/specification only.
-- **Old TypeScript code:** do not copy as implementation.
-- **Renderer:** Phaser-first, no Canvas renderer, no renderer bridge, no fallback renderer.
+Forbidden as implementation sources:
 
-## Goal
+```text
+- old Canvas renderer
+- renderer bridge
+- legacy GameWorld
+- WorldRenderSnapshot
+- dual renderer architecture
+- unapproved old TypeScript runtime code
+```
 
-Build a small, clean vertical slice first:
+## Current work model
 
-1. real sand terrain;
-2. HQ/resources/harvester visible;
-3. camera pan/zoom;
-4. harvester gather/deliver loop;
-5. resource counter;
-6. one constructible building;
-7. visual feedback: dust, inertia, gather/deliver/construction pulses.
+The project is documentation/roadmap gated.
 
-Combat, editor, save/load, enemy AI and advanced economy are intentionally out of scope until the civil loop is playable and feels good.
+```text
+roadmap -> broad audit/design when needed -> High/High+ implementation steps -> PR review -> merge decision
+```
 
-## Required reading before implementation
+GPT is the project lead/coordinator. GLM, Opus, Codex and browser GPT have separate roles described in the project docs.
 
-- `AGENTS.md`
-- `docs/PROJECT_CHARTER.md`
-- `docs/ROADMAP.md`
-- `docs/AI_WORKFLOW.md`
-- `docs/ASSET_POLICY.md`
-- `docs/PR1_TASK.md`
+## Required reading before project work
+
+Read current source-of-truth docs instead of stale top-level legacy docs:
+
+```text
+AGENTS.md
+docs/project/PROJECT_STATE.md
+docs/project/CURRENT_NEXT_STEP.md
+docs/project/GPT_WORKFLOW.md
+docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
+docs/project/AI_GRAPHIFY_WORKFLOW.md
+docs/project/CAMERA_PROJECTION_CONTRACT.md
+```
+
+For agent-specific work:
+
+```text
+GPT:   docs/project/GPT_PROJECT_LEAD_INSTRUCTIONS.md
+GLM:   docs/project/GLM_EXECUTOR_RULES.md
+Opus:  docs/project/OPUS_ARCHITECT_AUDIT_RULES.md
+Codex: docs/project/CODEX_LOCAL_AUDITOR_RULES.md
+```
+
+## Graphify workflow
+
+Repository-wide AI context should be generated in GitHub, not manually on Denis's machine.
+
+Use the GitHub Actions workflow:
+
+```text
+Graphify Project Graph
+```
+
+The workflow uploads `graphify-out/**` as an artifact. Do not commit generated graph outputs by default.
+
+## Current direction
+
+As of 2026-06-14, the next direction is:
+
+```text
+cleanup + modular vehicle asset runtime
+```
+
+Accepted modular runtime model:
+
+```text
+hull sprite separately
++
+turret sprite separately
++
+socket/pivot metadata
+```
+
+Rejected model:
+
+```text
+combined hull x turret production matrix
+```
+
+See:
+
+```text
+docs/project/MODULAR_VEHICLE_ASSET_RUNTIME_ROADMAP_2026_06_14.md
+```
 
 ## Development rule
 
-No implementation PR starts without a narrow task contract, acceptance checklist, validation plan, manual QA steps and rollback plan.
+No implementation PR starts without a current roadmap/audit or explicit accepted task scope.
+
+No new URL debug-mode sprawl. Use Arena/debug UI surfaces for manual visual QA controls.
