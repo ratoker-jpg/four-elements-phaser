@@ -1,5 +1,5 @@
 /**
- * GeneratedModularVehicleRenderer — MODULAR-RUNTIME-01.
+ * GeneratedModularVehicleRenderer — MODULAR-ALL-FACTIONS-01C.
  *
  * The clean modular generated vehicle renderer path. It draws a hybrid
  * modular vehicle (independent hull + turret sprites) from a typed
@@ -18,6 +18,15 @@
  * later; the composition is engine-agnostic and independent of where the
  * anchor comes from.
  *
+ * MODULAR-ALL-FACTIONS-01C adds:
+ *   - tile overlay (2:1 isometric diamond, devtools-only);
+ *   - preview calibration controls (modelScale, hullScale, turretScale,
+ *     hullOffset, turretOffset);
+ *   - expanded left debug overlay with calibration data.
+ *
+ * Calibration values are devtools-only. They are never persisted or applied
+ * to production metadata/config.
+ *
  * Fallback: when a texture or metadata is missing the renderer draws a
  * labelled blockout box instead of crashing, and exposes the reason.
  */
@@ -26,8 +35,10 @@ import Phaser from 'phaser';
 import {
   composeModularVehicle,
   MODULAR_VEHICLE_DISPLAY_SCALE,
+  MODULAR_FRAME_SIZE,
   getHullVisualScaleMultiplier,
   type ModularRenderPlan,
+  type ScreenPoint,
 } from '../../modular/modularVehicleComposition';
 import {
   requestModularVehicleSet,
@@ -38,6 +49,12 @@ import {
   DEFAULT_MODULAR_VEHICLE_VISUAL,
   type ModularVehicleVisual,
 } from '../../modular/modularVehicleVisual';
+import {
+  DEFAULT_MODULAR_PREVIEW_CALIBRATION,
+  type ModularPreviewCalibration,
+  effectiveHullScale,
+  effectiveTurretScale,
+} from '../../modular/modularPreviewCalibration';
 import type { GeneratedModularDir16 } from '../../assets/generatedModularVehicleAssets.generated';
 
 const OVERLAY_DEPTH = 21000;
@@ -46,12 +63,22 @@ const BACKDROP_ALPHA = 0.96;
 const COLOR_SOCKET = 0xff3da1; // magenta — hull socket
 const COLOR_PIVOT = 0x3dff8b; // green — turret pivot
 const COLOR_FALLBACK = 0xff7043;
+const COLOR_TILE = 0x4488ff; // blue — isometric tile outline
+const COLOR_TILE_FILL = 0x2244aa; // darker blue — tile fill
+const COLOR_TILE_CENTER = 0xffcc44; // gold — tile center cross
+const COLOR_TILE_LABEL = 0x6699cc; // light blue — tile corner labels
 
 const TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   fontFamily: 'monospace',
   fontSize: '12px',
   color: '#d4e4ff',
 };
+
+// Tile overlay constants (from CAMERA_PROJECTION_CONTRACT.md)
+const TILE_W = 76;
+const TILE_H = 38;
+const BASIS_X: ScreenPoint = { x: TILE_W / 2, y: TILE_H / 2 };    // {38, 19}
+const BASIS_Y: ScreenPoint = { x: -TILE_W / 2, y: TILE_H / 2 };   // {-38, 19}
 
 export interface ModularRendererState {
   active: boolean;
@@ -63,6 +90,7 @@ export interface ModularRendererState {
   setLoaded: boolean;
   queuedCount: number | null;
   markersVisible: boolean;
+  calibration: ModularPreviewCalibration;
 }
 
 export class GeneratedModularVehicleRenderer {
@@ -73,18 +101,30 @@ export class GeneratedModularVehicleRenderer {
   private hullDir16: GeneratedModularDir16 = 0;
   private turretDir16: GeneratedModularDir16 = 0;
   private markersVisible = true;
+  private calibration: ModularPreviewCalibration = { ...DEFAULT_MODULAR_PREVIEW_CALIBRATION };
 
   private backdrop: Phaser.GameObjects.Rectangle | null = null;
   private hullSprite: Phaser.GameObjects.Image | null = null;
   private turretSprite: Phaser.GameObjects.Image | null = null;
   private fallbackGfx: Phaser.GameObjects.Graphics | null = null;
   private markers: Phaser.GameObjects.Graphics | null = null;
+  private tileGfx: Phaser.GameObjects.Graphics | null = null;
   private labelText: Phaser.GameObjects.Text | null = null;
 
   private lastPlan: ModularRenderPlan | null = null;
   private lastLoad: ModularLoadDiagnostics | null = null;
   private loadRequested = false;
   private onStateChange: (() => void) | null = null;
+
+  // Calibrated positions stored for diagnostics
+  private _calibratedHullPos: ScreenPoint = { x: 0, y: 0 };
+  private _calibratedTurretPos: ScreenPoint = { x: 0, y: 0 };
+  private _calibratedSocket: ScreenPoint = { x: 0, y: 0 };
+  private _calibratedPivot: ScreenPoint = { x: 0, y: 0 };
+  private _effHullScale = 0;
+  private _effTurretScale = 0;
+  private _hullDisplaySize = 0;
+  private _turretDisplaySize = 0;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -109,11 +149,16 @@ export class GeneratedModularVehicleRenderer {
       setLoaded: isModularVehicleSetLoaded(this.scene, this.visual),
       queuedCount: this.lastLoad?.queuedCount ?? null,
       markersVisible: this.markersVisible,
+      calibration: { ...this.calibration },
     };
   }
 
   getLastLoadDiagnostics(): ModularLoadDiagnostics | null {
     return this.lastLoad;
+  }
+
+  getCalibration(): ModularPreviewCalibration {
+    return { ...this.calibration };
   }
 
   toggle(): void {
@@ -195,6 +240,35 @@ export class GeneratedModularVehicleRenderer {
     }
   }
 
+  // ─── Calibration controls ────────────────────────────────────────
+
+  /** Set calibration state (devtools-only, does not persist). */
+  setCalibration(cal: ModularPreviewCalibration): void {
+    this.calibration = { ...cal };
+    if (this._active) {
+      this.refresh();
+      this.onStateChange?.();
+    }
+  }
+
+  /** Reset calibration to defaults (does not reset visual/dirs). */
+  resetCalibration(): void {
+    this.calibration = { ...DEFAULT_MODULAR_PREVIEW_CALIBRATION };
+    if (this._active) {
+      this.refresh();
+      this.onStateChange?.();
+    }
+  }
+
+  /** Toggle the isometric tile overlay on/off. */
+  toggleTile(): void {
+    this.calibration.showTile = !this.calibration.showTile;
+    if (this._active) {
+      this.refresh();
+      this.onStateChange?.();
+    }
+  }
+
   // ─── Asset loading (on-demand, 32 PNG max) ────────────────────────
 
   private ensureAssetsLoaded(): void {
@@ -226,6 +300,11 @@ export class GeneratedModularVehicleRenderer {
       .setDepth(OVERLAY_DEPTH)
       .setInteractive();
 
+    this.tileGfx = this.scene.add
+      .graphics()
+      .setScrollFactor(0)
+      .setDepth(OVERLAY_DEPTH + 1);
+
     this.fallbackGfx = this.scene.add
       .graphics()
       .setScrollFactor(0)
@@ -249,12 +328,23 @@ export class GeneratedModularVehicleRenderer {
     this.turretSprite = null;
     this.fallbackGfx?.destroy();
     this.fallbackGfx = null;
+    this.tileGfx?.destroy();
+    this.tileGfx = null;
     this.markers?.destroy();
     this.markers = null;
     this.labelText?.destroy();
     this.labelText = null;
     this.backdrop?.destroy();
     this.backdrop = null;
+  }
+
+  // ─── Preview anchor ───────────────────────────────────────────────
+
+  private getPreviewAnchor(): ScreenPoint {
+    return {
+      x: this.scene.scale.width * 0.5,
+      y: this.scene.scale.height * 0.55,
+    };
   }
 
   // ─── Refresh ──────────────────────────────────────────────────────
@@ -264,10 +354,7 @@ export class GeneratedModularVehicleRenderer {
       return;
     }
 
-    const anchor = {
-      x: this.scene.scale.width * 0.5,
-      y: this.scene.scale.height * 0.55,
-    };
+    const anchor = this.getPreviewAnchor();
 
     const plan = composeModularVehicle({
       visual: this.visual,
@@ -279,15 +366,150 @@ export class GeneratedModularVehicleRenderer {
     });
     this.lastPlan = plan;
 
-    this.drawSprites(plan);
-    this.drawFallback(plan);
-    this.drawMarkers(plan);
-    this.drawLabels(plan);
+    // Draw tile overlay first (behind everything).
+    this.drawTileOverlay(anchor);
+
+    // Draw sprites with calibration applied.
+    this.drawSpritesWithCalibration(plan);
+
+    this.drawFallback();
+    this.drawMarkers();
+    this.drawLabels(plan, anchor);
     this.applyMarkersVisibility();
   }
 
-  private drawSprites(plan: ModularRenderPlan): void {
-    // Hull.
+  // ─── Tile overlay ─────────────────────────────────────────────────
+
+  private drawTileOverlay(center: ScreenPoint): void {
+    const g = this.tileGfx;
+    if (!g) return;
+    g.clear();
+
+    if (!this.calibration.showTile) return;
+
+    const halfW = 0.5;
+    const cx = center.x;
+    const cy = center.y;
+
+    // Isometric diamond: project the 4 corners of a 1x1 world-space tile.
+    const nw: ScreenPoint = {
+      x: cx + (-halfW) * BASIS_X.x + (-halfW) * BASIS_Y.x,
+      y: cy + (-halfW) * BASIS_X.y + (-halfW) * BASIS_Y.y,
+    };
+    const ne: ScreenPoint = {
+      x: cx + halfW * BASIS_X.x + (-halfW) * BASIS_Y.x,
+      y: cy + halfW * BASIS_X.y + (-halfW) * BASIS_Y.y,
+    };
+    const se: ScreenPoint = {
+      x: cx + halfW * BASIS_X.x + halfW * BASIS_Y.x,
+      y: cy + halfW * BASIS_X.y + halfW * BASIS_Y.y,
+    };
+    const sw: ScreenPoint = {
+      x: cx + (-halfW) * BASIS_X.x + halfW * BASIS_Y.x,
+      y: cy + (-halfW) * BASIS_X.y + halfW * BASIS_Y.y,
+    };
+
+    // Fill tile using a polygon path.
+    g.fillStyle(COLOR_TILE_FILL, 0.25);
+    g.beginPath();
+    g.moveTo(nw.x, nw.y);
+    g.lineTo(ne.x, ne.y);
+    g.lineTo(se.x, se.y);
+    g.lineTo(sw.x, sw.y);
+    g.closePath();
+    g.fillPath();
+
+    // Stroke tile outline.
+    g.lineStyle(1.5, COLOR_TILE, 0.7);
+    g.beginPath();
+    g.moveTo(nw.x, nw.y);
+    g.lineTo(ne.x, ne.y);
+    g.lineTo(se.x, se.y);
+    g.lineTo(sw.x, sw.y);
+    g.closePath();
+    g.strokePath();
+
+    // Center cross marker.
+    const crossSize = 6;
+    g.lineStyle(1, COLOR_TILE_CENTER, 0.8);
+    g.beginPath();
+    g.moveTo(cx - crossSize, cy);
+    g.lineTo(cx + crossSize, cy);
+    g.moveTo(cx, cy - crossSize);
+    g.lineTo(cx, cy + crossSize);
+    g.strokePath();
+
+    // Corner markers (small circles at N/E/S/W).
+    if (this.markersVisible) {
+      g.lineStyle(0, 0, 0);
+      const cornerR = 3;
+      const corners = [nw, ne, se, sw];
+      for (const c of corners) {
+        g.fillStyle(COLOR_TILE_LABEL, 0.6);
+        g.fillCircle(c.x, c.y, cornerR);
+      }
+    }
+  }
+
+  // ─── Sprites with calibration ─────────────────────────────────────
+
+  private drawSpritesWithCalibration(plan: ModularRenderPlan): void {
+    const cal = this.calibration;
+    const hullScaleMultiplier = getHullVisualScaleMultiplier(this.visual.hullId);
+
+    const effHullScale = effectiveHullScale(
+      MODULAR_VEHICLE_DISPLAY_SCALE, hullScaleMultiplier, cal,
+    );
+    const effTurretScale = effectiveTurretScale(
+      MODULAR_VEHICLE_DISPLAY_SCALE, cal,
+    );
+
+    const hullDisplaySize = MODULAR_FRAME_SIZE * effHullScale;
+    const turretDisplaySize = MODULAR_FRAME_SIZE * effTurretScale;
+
+    // Hull position: base plan position + hull offset.
+    const hullPos: ScreenPoint = {
+      x: plan.hull.position.x + cal.hullOffsetX,
+      y: plan.hull.position.y + cal.hullOffsetY,
+    };
+
+    // Recompute socket position with calibrated hull display size.
+    const socketOffsetX = (plan.socketScreen.x - plan.hull.position.x);
+    const socketOffsetY = (plan.socketScreen.y - plan.hull.position.y);
+    const baseHullDisplaySize = plan.hull.displaySize;
+    const socketScaleRatio = baseHullDisplaySize > 0 ? hullDisplaySize / baseHullDisplaySize : 1;
+    const calibratedSocket: ScreenPoint = {
+      x: hullPos.x + socketOffsetX * socketScaleRatio,
+      y: hullPos.y + socketOffsetY * socketScaleRatio,
+    };
+
+    // Turret position: adjust for calibrated socket + turret offset.
+    const turretDelta: ScreenPoint = {
+      x: plan.turret.position.x - plan.socketScreen.x,
+      y: plan.turret.position.y - plan.socketScreen.y,
+    };
+    const turretPos: ScreenPoint = {
+      x: calibratedSocket.x + turretDelta.x + cal.turretOffsetX,
+      y: calibratedSocket.y + turretDelta.y + cal.turretOffsetY,
+    };
+
+    // Calibrated pivot position.
+    const calibratedPivot: ScreenPoint = {
+      x: turretPos.x + (plan.pivotScreen.x - plan.turret.position.x),
+      y: turretPos.y + (plan.pivotScreen.y - plan.turret.position.y),
+    };
+
+    // Store for diagnostics.
+    this._calibratedHullPos = hullPos;
+    this._calibratedTurretPos = turretPos;
+    this._calibratedSocket = calibratedSocket;
+    this._calibratedPivot = calibratedPivot;
+    this._effHullScale = effHullScale;
+    this._effTurretScale = effTurretScale;
+    this._hullDisplaySize = hullDisplaySize;
+    this._turretDisplaySize = turretDisplaySize;
+
+    // Hull sprite.
     if (plan.hull.textureKey && this.scene.textures.exists(plan.hull.textureKey)) {
       if (!this.hullSprite) {
         this.hullSprite = this.scene.add
@@ -299,14 +521,14 @@ export class GeneratedModularVehicleRenderer {
       }
       this.hullSprite
         .setOrigin(plan.hull.origin.x, plan.hull.origin.y)
-        .setScale(plan.hull.scale)
-        .setPosition(plan.hull.position.x, plan.hull.position.y)
+        .setScale(effHullScale)
+        .setPosition(hullPos.x, hullPos.y)
         .setVisible(true);
     } else {
       this.hullSprite?.setVisible(false);
     }
 
-    // Turret.
+    // Turret sprite.
     if (plan.turret.textureKey && this.scene.textures.exists(plan.turret.textureKey)) {
       if (!this.turretSprite) {
         this.turretSprite = this.scene.add
@@ -318,58 +540,68 @@ export class GeneratedModularVehicleRenderer {
       }
       this.turretSprite
         .setOrigin(plan.turret.origin.x, plan.turret.origin.y)
-        .setScale(plan.turret.scale)
-        .setPosition(plan.turret.position.x, plan.turret.position.y)
+        .setScale(effTurretScale)
+        .setPosition(turretPos.x, turretPos.y)
         .setVisible(true);
     } else {
       this.turretSprite?.setVisible(false);
     }
   }
 
-  private drawFallback(plan: ModularRenderPlan): void {
+  private drawFallback(): void {
     const g = this.fallbackGfx!;
     g.clear();
-    // Draw a labelled blockout box for any missing sprite.
-    const half = plan.hull.displaySize * 0.5;
-    if (!plan.hull.textureKey) {
+    const half = this._hullDisplaySize * 0.5;
+    if (this.lastPlan && !this.lastPlan.hull.textureKey) {
       g.lineStyle(2, COLOR_FALLBACK, 1);
       g.strokeRect(
-        plan.hull.position.x - half,
-        plan.hull.position.y - half,
-        plan.hull.displaySize,
-        plan.hull.displaySize,
+        this._calibratedHullPos.x - half,
+        this._calibratedHullPos.y - half,
+        this._hullDisplaySize,
+        this._hullDisplaySize,
       );
     }
-    if (!plan.turret.textureKey) {
-      const th = plan.turret.displaySize * 0.3;
+    if (this.lastPlan && !this.lastPlan.turret.textureKey) {
+      const th = this._turretDisplaySize * 0.3;
       g.lineStyle(2, COLOR_FALLBACK, 1);
       g.strokeRect(
-        plan.turret.position.x - th,
-        plan.turret.position.y - th,
+        this._calibratedTurretPos.x - th,
+        this._calibratedTurretPos.y - th,
         th * 2,
         th * 2,
       );
     }
   }
 
-  private drawMarkers(plan: ModularRenderPlan): void {
+  private drawMarkers(): void {
     const g = this.markers!;
     g.clear();
-    // Socket (magenta) and pivot (green) — should coincide.
     g.lineStyle(2, COLOR_SOCKET, 1);
-    g.strokeCircle(plan.socketScreen.x, plan.socketScreen.y, 8);
+    g.strokeCircle(this._calibratedSocket.x, this._calibratedSocket.y, 8);
     g.lineStyle(2, COLOR_PIVOT, 1);
-    g.strokeCircle(plan.pivotScreen.x, plan.pivotScreen.y, 5);
+    g.strokeCircle(this._calibratedPivot.x, this._calibratedPivot.y, 5);
   }
 
-  private drawLabels(plan: ModularRenderPlan): void {
+  private drawLabels(plan: ModularRenderPlan, anchor: ScreenPoint): void {
     const v = this.visual;
+    const cal = this.calibration;
     const hullScaleMultiplier = getHullVisualScaleMultiplier(v.hullId);
-    const hullScaleNote = hullScaleMultiplier !== 1
-      ? `   hull scale: ${hullScaleMultiplier}x (${v.hullId} compensation)`
+    const load = this.lastLoad;
+
+    const socketPivotDx = this._calibratedPivot.x - this._calibratedSocket.x;
+    const socketPivotDy = this._calibratedPivot.y - this._calibratedSocket.y;
+    const socketPivotDelta = Math.abs(socketPivotDx) > 0.5 || Math.abs(socketPivotDy) > 0.5
+      ? `  delta: ${socketPivotDx.toFixed(1)}, ${socketPivotDy.toFixed(1)}`
       : '';
+
+    const halfW = 0.5;
+    const cx = anchor.x;
+    const cy = anchor.y;
+    const tileNW = { x: cx + (-halfW) * BASIS_X.x + (-halfW) * BASIS_Y.x, y: cy + (-halfW) * BASIS_X.y + (-halfW) * BASIS_Y.y };
+    const tileSE = { x: cx + halfW * BASIS_X.x + halfW * BASIS_Y.x, y: cy + halfW * BASIS_X.y + halfW * BASIS_Y.y };
+
     const lines = [
-      'MODULAR-ALL-FACTIONS-01B — generated modular vehicle renderer',
+      'MODULAR-ALL-FACTIONS-01C — preview calibration',
       '',
       `hull:   ${v.hullId} / ${v.hullMod}   dir ${this.hullDir16} (${plan.hullDirSuffix})`,
       `turret: ${v.turretId} / ${v.turretMod}   dir ${this.turretDir16} (${plan.turretDirSuffix})`,
@@ -379,14 +611,36 @@ export class GeneratedModularVehicleRenderer {
         (plan.fallbackReason ? `   fallback: ${plan.fallbackReason}` : ''),
       `hull metadata: ${plan.hullMetadataPresent}   turret metadata: ${plan.turretMetadataPresent}`,
       `set loaded: ${isModularVehicleSetLoaded(this.scene, v)}` +
-        (this.lastLoad ? `   queued: ${this.lastLoad.queuedCount}` : ''),
-      hullScaleNote,
+        (load ? `   queued: ${load.queuedCount}` : ''),
+      '',
+      '--- Tile / Calibration ---',
+      `tile overlay: ${cal.showTile ? 'ON' : 'OFF'}`,
+      `markers: ${this.markersVisible ? 'ON' : 'OFF'}`,
+      `modelScale: ${cal.modelScale.toFixed(2)}`,
+      `hullScale extra: ${cal.hullScale.toFixed(2)}`,
+      `turretScale extra: ${cal.turretScale.toFixed(2)}`,
+      `Dictator/base hull mult: ${hullScaleMultiplier}`,
+      `effective hull scale: ${this._effHullScale.toFixed(4)}`,
+      `effective turret scale: ${this._effTurretScale.toFixed(4)}`,
+      `hullOffset: ${cal.hullOffsetX} / ${cal.hullOffsetY}`,
+      `turretOffset: ${cal.turretOffsetX} / ${cal.turretOffsetY}`,
+      `pixelStep: ${cal.pixelStep}   scaleStep: ${cal.scaleStep}`,
+      '',
+      '--- Positions ---',
+      `preview center: ${anchor.x.toFixed(0)}, ${anchor.y.toFixed(0)}`,
+      `hull pos: ${this._calibratedHullPos.x.toFixed(1)}, ${this._calibratedHullPos.y.toFixed(1)}`,
+      `turret pos: ${this._calibratedTurretPos.x.toFixed(1)}, ${this._calibratedTurretPos.y.toFixed(1)}`,
+      `socket: ${this._calibratedSocket.x.toFixed(1)}, ${this._calibratedSocket.y.toFixed(1)}`,
+      `pivot: ${this._calibratedPivot.x.toFixed(1)}, ${this._calibratedPivot.y.toFixed(1)}`,
+      `socket-pivot${socketPivotDelta}`,
+      `tile NW: ${tileNW.x.toFixed(0)}, ${tileNW.y.toFixed(0)}   SE: ${tileSE.x.toFixed(0)}, ${tileSE.y.toFixed(0)}`,
       '',
       `hull key:   ${plan.hull.textureKey ?? 'null (fallback)'}`,
       `turret key: ${plan.turret.textureKey ?? 'null (fallback)'}`,
       '',
-      'markers — magenta: hull socket   green: turret pivot (should coincide)',
-    ].filter(line => line !== undefined);
+      'calibration is devtools-only',
+      'does not modify metadata/assets',
+    ];
     this.labelText!.setText(lines);
   }
 

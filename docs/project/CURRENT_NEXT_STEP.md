@@ -28,6 +28,7 @@ WASP-M0-ASSET-FIX-02C (PR #284) is merged: Wasp cyan m0 modular hull sprites reg
 MODULAR-RUNTIME-02A (PR #285) is merged: modular hull texture keys use `modular_hull_*` namespace.
 ASSET-IMPORT-02A (PR #286) is merged: all-factions modular vehicle PNG assets imported into repo.
 MODULAR-ALL-FACTIONS-01B connects all-factions runtime/devtools and adds Dictator visual scale compensation.
+MODULAR-ALL-FACTIONS-01C adds preview calibration controls and tile overlay to the Modular Vehicle devtools panel.
 
 Still in force:
 - Do not continue PR #263 / Wasp+Smoky offset recovery by inertia.
@@ -37,9 +38,9 @@ Still in force:
 - Do not use a combined hull×turret production matrix.
 - Do not add new query-string visual test modes.
 
-Next after merge of MODULAR-ALL-FACTIONS-01B:
+Next after merge of MODULAR-ALL-FACTIONS-01C:
 - MODULAR-RUNTIME-02B — Controlled Arena demo unit using GeneratedModularVehicleRenderer
-- or MODULAR-RUNTIME-03 if QA confirms readiness
+  after QA accepts preview placement
 ```
 
 The "do not copy modular_cyan_v1 assets yet" / "do not start runtime implementation
