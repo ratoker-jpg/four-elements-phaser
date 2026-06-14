@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadArenaVisualAssets, loadGeneratedTerrainAndResourceAssets, loadGeneratedIndustrialTerrainAssets, loadGeneratedIndustrialFrameAssets, loadGeneratedIndustrialResourceAssets } from '../assets/runtimeGeneratedAssets';
 import { isDevtoolsEnabled } from '../state/devCommands';
+import { getPilotVehicleLoadDiagnostics } from '../assets/pilotVehicleLazyLoad';
 
 /**
  * PreloadScene — load all runtime-approved assets, then start MainMenuScene.
@@ -50,7 +51,17 @@ export class PreloadScene extends Phaser.Scene {
       loadArenaVisualAssets(this);
       console.log('[PreloadScene] generated hull sets loaded: wasp/<all factions>/m0 (16 dirs each).');
 
+      // RUNTIME-02B: Log pilot vehicle set diagnostics after loading
+      const pilotDiag = getPilotVehicleLoadDiagnostics(this);
+      console.log(
+        `[PreloadScene] Pilot vehicle set diagnostics: ` +
+        `hullSupported=${pilotDiag.hullSupported} hullLoaded=${pilotDiag.hullLoaded} hullKeysPresent=${pilotDiag.hullKeysPresent}/16 ` +
+        `turretSupported=${pilotDiag.turretSupported} turretLoaded=${pilotDiag.turretLoaded} turretKeysPresent=${pilotDiag.turretKeysPresent}/16 ` +
+        `fullyLoaded=${pilotDiag.fullyLoaded}`,
+      );
+
       // Legacy modularUnits family is disabled. Generated hull sets loaded for all factions.
+      // RUNTIME-02B: Pilot turret set (Smoky cyan m0) loaded via loadArenaVisualAssets.
     } else {
       console.log('[PreloadScene] modularUnits loading skipped (standard mode).');
     }
