@@ -1,0 +1,60 @@
+name: Graphify Project Graph
+
+on:
+  workflow_dispatch:
+    inputs:
+      graphify_args:
+        description: "Extra args passed to graphify after the project path"
+        required: false
+        default: ""
+  pull_request:
+    paths:
+      - "AGENTS.md"
+      - "docs/**"
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "vite.config.*"
+      - "tsconfig*.json"
+      - ".github/workflows/graphify.yml"
+
+permissions:
+  contents: read
+
+timeout-minutes: 45
+
+jobs:
+  graphify:
+    name: Build Graphify knowledge graph
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install Graphify
+        run: uv tool install graphifyy
+
+      - name: Build project graph
+        run: |
+          graphify . ${{ inputs.graphify_args }}
+
+      - name: Export callflow HTML if supported
+        continue-on-error: true
+        run: graphify export callflow-html
+
+      - name: Upload Graphify artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: graphify-out-${{ github.sha }}
+          path: |
+            graphify-out/**
+          if-no-files-found: error
+          retention-days: 14
