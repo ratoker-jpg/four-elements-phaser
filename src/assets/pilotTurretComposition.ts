@@ -43,10 +43,11 @@
  *   resolution, ensuring the sprite and its attachment data correspond
  *   to the same authored direction.
  *
- *   socket.zHeight: NOT used for sprite Y placement. The turret sprite
- *   is placed at ground-plane screen Y (same as hull center). This is
- *   explicitly deferred as visual QA risk — the turret may appear to
- *   sit at ground level rather than on top of the hull body.
+ *   socket.zHeight: Exposed in the result as socketZHeight for the renderer
+ *   to apply through projectWorldPoint(). The resolver is pure and does NOT
+ *   project — it only provides the raw zHeight value. The renderer uses
+ *   projectWorldPoint(tileX, tileY, socketZHeight, offset) to compute the
+ *   elevated screen position for the turret mount point.
  */
 
 import {
@@ -112,6 +113,13 @@ export interface PilotTurretCompositionResult {
    * null if the composition could not be computed (missing socket/pivot).
    */
   turretOffsetPx: PixelOffset | null;
+  /**
+   * The socket's zHeight value from the hull visual profile.
+   * The renderer should apply this via projectWorldPoint to elevate
+   * the turret sprite above ground plane.
+   * null if the socket metadata is missing or zHeight is undefined.
+   */
+  socketZHeight: number | null;
 }
 
 // ─── Composition resolver ───────────────────────────────────────
@@ -266,7 +274,10 @@ export function resolvePilotTurretComposition(
     y: socketFromHullSpritePos.y - pivotFromTurretCenter.y,
   };
 
-  // ── Step 8: Check texture existence (using visualDir16) ──
+  // ── Step 8: Expose socket zHeight for renderer projection ──
+  const socketZHeight: number | null = socket.zHeight ?? null;
+
+  // ── Step 9: Check texture existence (using visualDir16) ──
   const turretFaction = resolveGeneratedTurretFaction(faction);
   const mod = modificationLevelToMod(modificationLevel);
   const turretKey = getGeneratedTurretTextureKey(turretId, turretFaction, mod, visualDir16);
@@ -282,6 +293,7 @@ export function resolvePilotTurretComposition(
       logicalDir16,
       visualDir16,
       turretOffsetPx,
+      socketZHeight,
     };
   }
 
@@ -294,6 +306,7 @@ export function resolvePilotTurretComposition(
     logicalDir16,
     visualDir16,
     turretOffsetPx,
+    socketZHeight,
   };
 }
 
@@ -313,5 +326,6 @@ function makeFallbackResult(
     logicalDir16,
     visualDir16: visualDir16 ?? logicalDir16,
     turretOffsetPx: null,
+    socketZHeight: null,
   };
 }

@@ -70,7 +70,7 @@ import {
   type PlacementOverlayParams,
 } from '../debug/WaspHullPlacementCalibrator';
 import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibrationPanel';
-import { resolvePilotTurretComposition } from '../../assets/pilotTurretComposition';
+import { resolvePilotTurretComposition, type PilotTurretCompositionResult } from '../../assets/pilotTurretComposition';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -227,6 +227,9 @@ export class BlockoutVehicleRenderer {
 
   /** RUNTIME-03: Whether generated turret sprites have been logged (once). */
   private generatedTurretLogged = false;
+
+  /** RUNTIME-03A: Last turret composition result per vehicle, used for positioning in renderVehicle(). */
+  private vehicleTurretComp = new Map<string, PilotTurretCompositionResult>();
 
   /** Direction debug text labels keyed by blockout vehicle ID. */
   private directionDebugLabels = new Map<string, Phaser.GameObjects.Text>();
@@ -419,31 +422,11 @@ export class BlockoutVehicleRenderer {
         this.vehicleHasGeneratedTurret.set(vehicle.id, false);
       }
 
-      // Position turret sprite using pivot-on-socket composition:
-      // turretSpritePos = hullSpritePos + turretOffsetPx
-      // where turretOffsetPx is computed so the turret pivot lands on
-      // the hull socket (see pilotTurretComposition.ts for the formula).
-      if (turretSprite && turretComp.turretOffsetPx) {
-        const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
-        const bodyAngleForOffset = vehicle.bodyAngle;
-        const bodyImpulseXForTurret = -Math.cos(bodyAngleForOffset) * recoilBodyOffset;
-        const bodyImpulseYForTurret = -Math.sin(bodyAngleForOffset) * recoilBodyOffset;
-        let hullCx = vehicle.worldX + this.offset.x + bodyImpulseXForTurret;
-        let hullCy = vehicle.worldY + this.offset.y + bodyImpulseYForTurret;
-
-        // Apply per-hull placement offset (same as hull sprite)
-        const hullIdForTurret = bodyIdToGeneratedHullId(vehicle.bodyId);
-        if (hullIdForTurret) {
-          const placement = getGeneratedHullPlacementOffset(hullIdForTurret);
-          hullCx += placement.offsetX;
-          hullCy += placement.offsetY;
-        }
-
-        // Turret position = hull sprite center + computed pivot-on-socket offset
-        const turretCx = hullCx + turretComp.turretOffsetPx.x;
-        const turretCy = hullCy + turretComp.turretOffsetPx.y;
-        turretSprite.setPosition(turretCx, turretCy);
-      }
+      // RUNTIME-03A: Store turret composition for positioning in renderVehicle().
+      // Turret positioning is deferred until after hullSprite.setPosition() so
+      // we can use the actual hull sprite position as the base, and apply
+      // socket.zHeight through projectWorldPoint for correct elevation.
+      this.vehicleTurretComp.set(vehicle.id, turretComp);
 
       // Determine selection/hover state for this vehicle
       const isSelected = vehicle.id === this._selectedVehicleId;
@@ -597,6 +580,12 @@ export class BlockoutVehicleRenderer {
         this.vehicleHasGeneratedTurret.delete(id);
       }
     }
+    // RUNTIME-03A: Clean up stale turret composition data
+    for (const [id] of this.vehicleTurretComp) {
+      if (!activeIds.has(id)) {
+        this.vehicleTurretComp.delete(id);
+      }
+    }
     // Clean up stale direction debug labels
     for (const [id, label] of this.directionDebugLabels) {
       if (!activeIds.has(id)) {
@@ -675,6 +664,37 @@ export class BlockoutVehicleRenderer {
 
       hullSprite.setPosition(spriteCx, spriteCy);
       hullSprite.setDepth(BLOCKOUT_DEPTH + HULL_SPRITE_DEPTH_BIAS); // will be updated by depth sorting below
+    }
+
+    // ── RUNTIME-03A: Position turret sprite using actual hull sprite position ──
+    // The turret must be positioned AFTER the hull sprite has been placed so we
+    // use the actual hullSprite.x/y as the base (not a recomputed value that
+    // could diverge due to debug offsets, calibration, etc.).
+    // Socket zHeight is applied through projectWorldPoint for correct elevation.
+    const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+    const turretComp = this.vehicleTurretComp.get(vehicle.id);
+    if (turretSprite && turretComp?.turretOffsetPx && hullSprite) {
+      // Base position = actual hull sprite position (includes all offsets already applied)
+      const hullSpriteX = hullSprite.x;
+      const hullSpriteY = hullSprite.y;
+
+      // Apply socket zHeight through the existing projection helpers.
+      // The hull sprite is at ground-plane screen position. The turret mount
+      // point is elevated by socket.zHeight above the ground. We compute the
+      // z-height screen delta by projecting the hull's tile position at z=0
+      // and at z=socketZHeight, then taking the Y difference.
+      let zHeightScreenDeltaY = 0;
+      if (turretComp.socketZHeight !== null && turretComp.socketZHeight > 0) {
+        const hullTilePos = unprojectScreenToGround(hullSpriteX, hullSpriteY, this.offset);
+        const groundProj = projectWorldPoint(hullTilePos.x, hullTilePos.y, 0, this.offset);
+        const elevatedProj = projectWorldPoint(hullTilePos.x, hullTilePos.y, turretComp.socketZHeight, this.offset);
+        zHeightScreenDeltaY = elevatedProj.y - groundProj.y;
+      }
+
+      // Turret position = hull sprite position + pivot-on-socket offset + z-height elevation
+      const turretCx = hullSpriteX + turretComp.turretOffsetPx.x;
+      const turretCy = hullSpriteY + turretComp.turretOffsetPx.y + zHeightScreenDeltaY;
+      turretSprite.setPosition(turretCx, turretCy);
     }
 
     // ── Shared projected geometry (single source of truth) ────────
@@ -1414,6 +1434,7 @@ export class BlockoutVehicleRenderer {
     }
     this.vehicleTurretSprites.clear();
     this.vehicleHasGeneratedTurret.clear();
+    this.vehicleTurretComp.clear();
 
     for (const [, label] of this.directionDebugLabels) {
       label.destroy();
