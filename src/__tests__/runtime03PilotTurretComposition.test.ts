@@ -2,7 +2,7 @@
  * RUNTIME-03: Pilot turret composition resolver tests.
  *
  * Tests the pure composition resolver (pilotTurretComposition.ts)
- * and its pivot-on-socket composition formula.
+ * and its pivot-on-socket composition formula with visual direction remap.
  *
  * The resolver is pure: no Phaser imports, no scene reference.
  * All texture checks go through a textureExists callback.
@@ -15,6 +15,7 @@ import {
 import {
   getGeneratedTurretTextureKey,
   turretAngleToDir16,
+  GENERATED_TURRET_SCALE,
 } from '../assets/generatedTurretAssets';
 import {
   bodyIdToGeneratedHullId,
@@ -25,6 +26,10 @@ import {
 import {
   resolveTurretPivotForDir,
 } from '../config/directionalTurretProfiles';
+import {
+  HULL_IMAGE_SIZE,
+  TURRET_IMAGE_SIZE,
+} from '../assets/generatedVehicleMetadata';
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -50,6 +55,121 @@ function makeTextureExistsWithTurretSet(
 
 /** Always-false textureExists callback (no textures available). */
 const textureExistsNever = (_key: string) => false;
+
+// ─── Visual direction remap ──────────────────────────────────────
+
+describe('pilotTurretComposition: visual direction remap', () => {
+  it('Smoky angle 0 resolves to visual dir16 4 (facingOffset=2 in dir8 → dir16Offset=4)', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    // Smoky turret profile: { dirCount: 8, facingOffset: 2 }
+    // dir16Offset = 2 * (16 / 8) = 4
+    // logical dir16 = 0 (angle 0 = E)
+    // visual dir16 = (0 + 4) mod 16 = 4 (S)
+    expect(result.logicalDir16).toBe(0);
+    expect(result.visualDir16).toBe(4);
+  });
+
+  it('Smoky angle PI/2 resolves to visual dir16 8', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, Math.PI / 2,
+      textureExists,
+    );
+
+    // logical dir16 = 4 (PI/2 = S)
+    // visual dir16 = (4 + 4) mod 16 = 8 (W)
+    expect(result.logicalDir16).toBe(4);
+    expect(result.visualDir16).toBe(8);
+  });
+
+  it('Smoky angle PI resolves to visual dir16 12', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, Math.PI,
+      textureExists,
+    );
+
+    // logical dir16 = 8 (PI = W)
+    // visual dir16 = (8 + 4) mod 16 = 12 (N)
+    expect(result.logicalDir16).toBe(8);
+    expect(result.visualDir16).toBe(12);
+  });
+
+  it('texture key uses visual dir16, not logical dir16', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    // For Smoky angle 0: visual dir16 = 4, so texture key should be dir04
+    expect(result.hasGeneratedTurret).toBe(true);
+    expect(result.turretKey).toBe('generated_turret_smoky_cyan_m0_dir04');
+  });
+
+  it('textureExists probes the visual-dir16 key', () => {
+    // Only provide dir04 texture (visual dir16 for Smoky angle 0)
+    const dir04Key = getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', 4 as any);
+    const textureExists = (key: string) => key === dir04Key;
+
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+    expect(result.hasGeneratedTurret).toBe(true);
+    expect(result.turretKey).toBe(dir04Key);
+  });
+
+  it('textureExists with dir00 but not dir04 returns no generated turret for Smoky angle 0', () => {
+    // Only provide dir00 texture (logical dir16, NOT visual)
+    const dir00Key = getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', 0 as any);
+    const textureExists = (key: string) => key === dir00Key;
+
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+    // Visual dir16 is 4, so probing for dir04 — which doesn't exist
+    expect(result.hasGeneratedTurret).toBe(false);
+  });
+
+  it('pivot is resolved for visual dir16, not logical dir16', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    // The pivot should be for visual dir16 = 4 (Smoky M0 dir04 = S position)
+    // Smoky M0 dir04 pivot: { x: 0.39428, y: 0.314321 }
+    // This is different from dir00 pivot: { x: 0.206668, y: 0.464846 }
+    expect(result.turretOffsetPx).not.toBeNull();
+
+    // Verify by computing the offset manually using the dir04 pivot
+    const hullDisplaySize = HULL_IMAGE_SIZE.width * 0.12;
+    const turretDisplaySize = TURRET_IMAGE_SIZE.width * GENERATED_TURRET_SCALE;
+
+    const expectedSocketX = (0.5 - 0.5) * hullDisplaySize;
+    const expectedSocketY = (0.5 - 0.75) * hullDisplaySize;
+
+    // Pivot for visual dir16 = 4 (Smoky M0 dir04/S)
+    const pivotX = 0.39428;
+    const pivotY = 0.314321;
+    const expectedPivotX = (pivotX - 0.5) * turretDisplaySize;
+    const expectedPivotY = (pivotY - 0.5) * turretDisplaySize;
+
+    const expectedOffsetX = expectedSocketX - expectedPivotX;
+    const expectedOffsetY = expectedSocketY - expectedPivotY;
+
+    expect(result.turretOffsetPx!.x).toBeCloseTo(expectedOffsetX, 3);
+    expect(result.turretOffsetPx!.y).toBeCloseTo(expectedOffsetY, 3);
+  });
+});
 
 // ─── Pivot lands on socket ────────────────────────────────────────
 
@@ -78,7 +198,7 @@ describe('pilotTurretComposition: pivot lands on socket', () => {
     // the offset should be non-zero because:
     // - Wasp hull origin is (0.5, 0.75), not (0.5, 0.5)
     // - Socket is at (0.5, 0.5) normalized hull coords
-    // - Smoky M0 dir00 pivot is at (0.206668, 0.464846), not (0.5, 0.5)
+    // - For visual dir16=4, Smoky M0 pivot is at (0.39428, 0.314321), not (0.5, 0.5)
     expect(result.turretOffsetPx).not.toBeNull();
     expect(result.turretOffsetPx!.x).not.toBe(0);
     expect(result.turretOffsetPx!.y).not.toBe(0);
@@ -87,12 +207,12 @@ describe('pilotTurretComposition: pivot lands on socket', () => {
   it('offset changes per turret direction (different pivots)', () => {
     const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
 
-    // East (dir 0)
+    // East (angle 0) → logical dir16=0, visual dir16=4
     const resultEast = resolvePilotTurretComposition(
       'smoky', 'wasp', 'cyan', 0, 0,
       textureExists,
     );
-    // South (dir 4) = PI/2
+    // South (angle PI/2) → logical dir16=4, visual dir16=8
     const resultSouth = resolvePilotTurretComposition(
       'smoky', 'wasp', 'cyan', 0, Math.PI / 2,
       textureExists,
@@ -104,37 +224,38 @@ describe('pilotTurretComposition: pivot lands on socket', () => {
     expect(resultEast.turretOffsetPx!.x).not.toBe(resultSouth.turretOffsetPx!.x);
   });
 
-  it('offset is consistent with manual socket/pivot math', () => {
+  it('offset is consistent with manual socket/pivot math using GENERATED_TURRET_SCALE', () => {
     const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
     const result = resolvePilotTurretComposition(
       'smoky', 'wasp', 'cyan', 0, 0,
       textureExists,
     );
 
-    // Manual computation:
+    // Manual computation using GENERATED_TURRET_SCALE (0.12):
     // Hull: scale=0.12, origin=(0.5,0.75), displaySize=512*0.12=61.44
     // Socket: (0.5, 0.5)
     // socketFromSpritePos.x = (0.5 - 0.5) * 61.44 = 0
     // socketFromSpritePos.y = (0.5 - 0.75) * 61.44 = -15.36
-    // Turret: scale=0.24 (from turret profile), displaySize=512*0.24=122.88
-    // Pivot for Smoky M0 dir00: (0.206668, 0.464846)
-    // pivotFromCenter.x = (0.206668 - 0.5) * 122.88 = -36.050...
-    // pivotFromCenter.y = (0.464846 - 0.5) * 122.88 = -4.317...
-    // offset.x = 0 - (-36.050...) = 36.050...
-    // offset.y = -15.36 - (-4.317...) = -11.043...
+    // Turret: scale=GENERATED_TURRET_SCALE=0.12, displaySize=512*0.12=61.44
+    // Pivot for visual dir16=4 (Smoky M0 dir04/S): (0.39428, 0.314321)
+    // pivotFromCenter.x = (0.39428 - 0.5) * 61.44 = -6.489...
+    // pivotFromCenter.y = (0.314321 - 0.5) * 61.44 = -11.401...
+    // offset.x = 0 - (-6.489...) = 6.489...
+    // offset.y = -15.36 - (-11.401...) = -3.959...
 
     expect(result.turretOffsetPx).not.toBeNull();
     const offset = result.turretOffsetPx!;
 
+    const hullDisplaySize = HULL_IMAGE_SIZE.width * 0.12; // 61.44
+    const turretDisplaySize = TURRET_IMAGE_SIZE.width * GENERATED_TURRET_SCALE; // 61.44
+
     // socketFromSpritePos
-    const hullDisplaySize = 512 * 0.12; // 61.44
     const expectedSocketX = (0.5 - 0.5) * hullDisplaySize; // 0
     const expectedSocketY = (0.5 - 0.75) * hullDisplaySize; // -15.36
 
-    // pivotFromCenter (Smoky M0 dir00 pivot = 0.206668, 0.464846)
-    const turretDisplaySize = 512 * 0.24; // 122.88
-    const expectedPivotX = (0.206668 - 0.5) * turretDisplaySize;
-    const expectedPivotY = (0.464846 - 0.5) * turretDisplaySize;
+    // pivotFromCenter (Smoky M0 visual dir16=4 pivot = 0.39428, 0.314321)
+    const expectedPivotX = (0.39428 - 0.5) * turretDisplaySize;
+    const expectedPivotY = (0.314321 - 0.5) * turretDisplaySize;
 
     const expectedOffsetX = expectedSocketX - expectedPivotX;
     const expectedOffsetY = expectedSocketY - expectedPivotY;
@@ -157,9 +278,13 @@ describe('pilotTurretComposition: null/fallback when texture missing', () => {
   });
 
   it('returns null turretKey when only some textures exist', () => {
+    // Provide dir00-dir03 and dir05-dir15, but NOT dir04
+    // (which is the visual dir16 for Smoky angle 0)
     const partialKeys = new Set<string>();
-    for (let dir = 1; dir < 16; dir++) {
-      partialKeys.add(getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', dir as any));
+    for (let dir = 0; dir < 16; dir++) {
+      if (dir !== 4) {
+        partialKeys.add(getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', dir as any));
+      }
     }
     const textureExists = (key: string) => partialKeys.has(key);
 
@@ -271,6 +396,16 @@ describe('pilotTurretComposition: exactly one textureExists probe', () => {
     );
     expect(textureExistsSpy).not.toHaveBeenCalled();
   });
+
+  it('textureExists receives the visual-dir16 key', () => {
+    const textureExistsSpy = vi.fn().mockReturnValue(true);
+    resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExistsSpy,
+    );
+    // Smoky angle 0: visual dir16 = 4, so the probe should be for dir04
+    expect(textureExistsSpy).toHaveBeenCalledWith('generated_turret_smoky_cyan_m0_dir04');
+  });
 });
 
 // ─── Unsupported weapon/body fallback ─────────────────────────────
@@ -306,7 +441,7 @@ describe('pilotTurretComposition: unsupported weapon/body fallback', () => {
 // ─── Pure placement math ──────────────────────────────────────────
 
 describe('pilotTurretComposition: pure placement math', () => {
-  it('returns correct dir16 for known turret angles', () => {
+  it('returns correct logical dir16 for known turret angles', () => {
     expect(turretAngleToDir16(0)).toBe(0);
     expect(turretAngleToDir16(Math.PI / 2)).toBe(4);
     expect(turretAngleToDir16(Math.PI)).toBe(8);
@@ -316,6 +451,48 @@ describe('pilotTurretComposition: pure placement math', () => {
   it('handles negative angles by normalizing', () => {
     expect(turretAngleToDir16(-Math.PI / 2)).toBe(12);
     expect(turretAngleToDir16(-Math.PI)).toBe(8);
+  });
+});
+
+// ─── Generated turret scale ───────────────────────────────────────
+
+describe('pilotTurretComposition: generated turret scale', () => {
+  it('generated turret scale equals GENERATED_TURRET_SCALE (0.12), not legacy 0.24', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    // GENERATED_TURRET_SCALE is 0.12, NOT the legacy turretProfile.textureScale of 0.24
+    expect(result.scale).toBe(GENERATED_TURRET_SCALE);
+    expect(result.scale).toBe(0.12);
+  });
+
+  it('fallback result also uses GENERATED_TURRET_SCALE', () => {
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExistsNever,
+    );
+
+    expect(result.scale).toBe(GENERATED_TURRET_SCALE);
+    expect(result.scale).toBe(0.12);
+  });
+
+  it('manual math expected values use 512 * GENERATED_TURRET_SCALE, not 512 * 0.24', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    expect(result.turretOffsetPx).not.toBeNull();
+
+    // Turret display size = 512 * GENERATED_TURRET_SCALE = 512 * 0.12 = 61.44
+    // NOT 512 * 0.24 = 122.88
+    const turretDisplaySize = TURRET_IMAGE_SIZE.width * GENERATED_TURRET_SCALE;
+    expect(turretDisplaySize).toBeCloseTo(61.44, 2);
+    expect(turretDisplaySize).not.toBeCloseTo(122.88, 2);
   });
 });
 
@@ -330,10 +507,12 @@ describe('pilotTurretComposition: result structure', () => {
     );
 
     expect(result.hasGeneratedTurret).toBe(true);
-    expect(result.turretKey).toBe('generated_turret_smoky_cyan_m0_dir00');
+    // visual dir16 = 4 for Smoky angle 0
+    expect(result.turretKey).toBe('generated_turret_smoky_cyan_m0_dir04');
     expect(result.originX).toBe(0.5);
     expect(result.originY).toBe(0.5);
-    expect(result.dir16).toBe(0);
+    expect(result.logicalDir16).toBe(0);
+    expect(result.visualDir16).toBe(4);
     expect(result.turretOffsetPx).not.toBeNull();
   });
 
@@ -359,7 +538,8 @@ describe('pilotTurretComposition: result structure', () => {
       textureExists,
     );
 
-    expect(result.turretKey).toBe('generated_turret_smoky_cyan_m3_dir00');
+    // Smoky angle 0: visual dir16 = 4
+    expect(result.turretKey).toBe('generated_turret_smoky_cyan_m3_dir04');
     expect(result.hasGeneratedTurret).toBe(true);
   });
 });

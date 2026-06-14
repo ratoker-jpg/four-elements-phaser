@@ -14,30 +14,34 @@
  *   - No manual per-dir pixel offset table
  *   - Fallback to procedural turret if texture/metadata/hull is missing
  *
- * Composition formula (pivot-on-socket):
+ * Composition formula (pivot-on-socket with visual direction remap):
  *   1. Resolve hull visual profile → hull texture scale, origin, sockets
  *   2. Resolve hull socket metadata → socket normalized position
- *   3. Resolve turret visual profile → turret texture scale, mountSocketId
- *   4. Resolve directional turret pivot for dir16 → pivot normalized position
- *   5. Compute hull socket screen point:
+ *   3. Resolve turret visual profile → turret direction metadata, mountSocketId
+ *   4. Compute visual direction remap:
+ *        logicalDir16 = turretAngleToDir16(turretAngle)
+ *        dir16Offset = turretProfile.direction.facingOffset * (16 / turretProfile.direction.dirCount)
+ *        visualDir16 = (logicalDir16 + dir16Offset) mod 16
+ *      For Smoky: dir8/facingOffset=2 → dir16Offset=4
+ *      So logical dir16 0 (E) → visual dir16 4 (S)
+ *   5. Resolve directional turret pivot for visualDir16 → pivot normalized position
+ *   6. Compute hull socket screen point:
  *        hullSocketPx.x = (socket.nx - hullOrigin.x) * hullDisplayWidthPx
  *        hullSocketPx.y = (socket.ny - hullOrigin.y) * hullDisplayHeightPx
- *      This is the offset from the hull sprite's top-left corner to the
- *      socket point in screen pixels, using the hull origin as the reference.
- *   6. Compute turret center-to-pivot offset:
+ *   7. Compute turret center-to-pivot offset:
  *        turretPivotPx.x = (pivot.x - 0.5) * turretDisplayWidthPx
  *        turretPivotPx.y = (pivot.y - 0.5) * turretDisplayHeightPx
- *      This is the offset from the turret sprite's center to the pivot point,
- *      given that the Phaser sprite origin is always (0.5, 0.5).
- *   7. Place turret sprite center so turret pivot lands on hull socket:
+ *   8. Place turret sprite center so turret pivot lands on hull socket:
  *        turretOffset.x = hullSocketPx.x - turretPivotPx.x
  *        turretOffset.y = hullSocketPx.y - turretPivotPx.y
- *      This offset is added to the hull sprite position to get the turret
- *      sprite position.
  *
  *   The Phaser sprite origin for the turret is always (0.5, 0.5).
  *   The attachment math produces a pixel offset — it does NOT re-originate
  *   the sprite. This follows the PR-E1/PR-B contract exactly.
+ *
+ *   visualDir16 is used for BOTH the texture key lookup and the pivot
+ *   resolution, ensuring the sprite and its attachment data correspond
+ *   to the same authored direction.
  *
  *   socket.zHeight: NOT used for sprite Y placement. The turret sprite
  *   is placed at ground-plane screen Y (same as hull center). This is
@@ -50,6 +54,7 @@ import {
   turretAngleToDir16,
   getGeneratedTurretTextureKey,
   resolveGeneratedTurretFaction,
+  GENERATED_TURRET_SCALE,
   type GeneratedTurretDir16Index,
   type GeneratedTurretId,
 } from './generatedTurretAssets';
@@ -64,21 +69,18 @@ import {
 } from '../config/hullTurretVisualProfiles';
 import {
   resolveTurretPivotForDir,
+  normalizeDir16,
   type DirectionalPoint2D,
 } from '../config/directionalTurretProfiles';
 import {
   type PixelOffset,
 } from '../config/turretAttachmentMath';
+import {
+  HULL_IMAGE_SIZE,
+  TURRET_IMAGE_SIZE,
+} from './generatedVehicleMetadata';
 
 import type { Faction } from '../state/types';
-
-// ─── Source image size constant ──────────────────────────────────
-
-/** Generated turret sprites are 512x512 RGBA (same as hulls). */
-const TURRET_SOURCE_SIZE = 512;
-
-/** Generated hull sprites are 512x512 RGBA. */
-const HULL_SOURCE_SIZE = 512;
 
 // ─── Composition result ─────────────────────────────────────────
 
@@ -100,8 +102,10 @@ export interface PilotTurretCompositionResult {
   originY: number;
   /** Whether a generated turret sprite is available for this vehicle. */
   hasGeneratedTurret: boolean;
-  /** The resolved turret dir16 index, for diagnostics. */
-  dir16: GeneratedTurretDir16Index;
+  /** The resolved logical dir16 index (from turretAngleToDir16), for diagnostics. */
+  logicalDir16: GeneratedTurretDir16Index;
+  /** The visual dir16 index (after applying turret profile direction remap). */
+  visualDir16: GeneratedTurretDir16Index;
   /**
    * Pixel offset from hull sprite center to turret sprite center,
    * computed so that the turret pivot lands on the hull socket.
@@ -178,29 +182,47 @@ export function resolvePilotTurretComposition(
     return makeFallbackResult(0);
   }
 
-  // ── Step 4: Resolve turret direction ──
-  const dir16 = turretAngleToDir16(turretAngle);
+  // ── Step 4: Resolve turret direction with visual direction remap ──
+  // Logical dir16 from the turret angle (raw quantization)
+  const logicalDir16 = turretAngleToDir16(turretAngle);
 
-  // ── Step 5: Resolve directional turret pivot ──
+  // Apply turret visual profile direction remap:
+  //   The turret profile declares { dirCount, facingOffset } which describes
+  //   how the authored sprite directions map to logical directions.
+  //   Convert the profile offset to dir16 space:
+  //     dir16Offset = facingOffset * (16 / dirCount)
+  //   For Smoky: dir8/facingOffset=2 → dir16Offset = 2 * (16/8) = 4
+  //   So logical dir16 0 (E) → visual dir16 4 (S)
+  //
+  //   visualDir16 is used for BOTH the texture key lookup AND the pivot
+  //   resolution, ensuring the sprite and attachment data correspond to
+  //   the same authored direction.
+  let visualDir16: GeneratedTurretDir16Index = logicalDir16;
+  if (turretProfile) {
+    const { dirCount, facingOffset } = turretProfile.direction;
+    const dir16Offset = facingOffset * (16 / dirCount);
+    visualDir16 = normalizeDir16(logicalDir16 + dir16Offset) as GeneratedTurretDir16Index;
+  }
+
+  // ── Step 5: Resolve directional turret pivot for visual dir16 ──
   const pivotNorm: DirectionalPoint2D | null = resolveTurretPivotForDir(
-    weaponId, modificationLevel, dir16,
+    weaponId, modificationLevel, visualDir16,
   );
   if (!pivotNorm) {
-    return makeFallbackResult(dir16);
+    return makeFallbackResult(logicalDir16, visualDir16);
   }
 
   // ── Step 6: Compute display sizes ──
   const hullTextureScale = hullProfile.textureScale;
-  const hullDisplayWidthPx = HULL_SOURCE_SIZE * hullTextureScale;
-  const hullDisplayHeightPx = HULL_SOURCE_SIZE * hullTextureScale;
+  const hullDisplayWidthPx = HULL_IMAGE_SIZE.width * hullTextureScale;
+  const hullDisplayHeightPx = HULL_IMAGE_SIZE.height * hullTextureScale;
 
-  // Turret texture scale: from turret visual profile or fallback to GENERATED_TURRET_SCALE
-  // The turret visual profile stores legacy MODULAR_RENDER_SCALE (0.24), but
-  // generated turret sprites use GENERATED_TURRET_SCALE (0.12). Use the
-  // generated scale since we're composing generated turret sprites.
-  const turretTextureScale = turretProfile?.textureScale ?? 0.12;
-  const turretDisplayWidthPx = TURRET_SOURCE_SIZE * turretTextureScale;
-  const turretDisplayHeightPx = TURRET_SOURCE_SIZE * turretTextureScale;
+  // Generated turret sprites use GENERATED_TURRET_SCALE (0.12), NOT the
+  // legacy turretProfile.textureScale (0.24 = MODULAR_RENDER_SCALE).
+  // The legacy scale is for old-style procedural/texture-atlas turrets.
+  // Generated sprites are 512×512 at 0.12, same scale regime as hulls.
+  const turretDisplayWidthPx = TURRET_IMAGE_SIZE.width * GENERATED_TURRET_SCALE;
+  const turretDisplayHeightPx = TURRET_IMAGE_SIZE.height * GENERATED_TURRET_SCALE;
 
   // ── Step 7: Compute hull socket screen point ──
   // The socket is in normalized hull coordinates where (0.5, 0.5) = hull center.
@@ -244,31 +266,33 @@ export function resolvePilotTurretComposition(
     y: socketFromHullSpritePos.y - pivotFromTurretCenter.y,
   };
 
-  // ── Step 8: Check texture existence ──
+  // ── Step 8: Check texture existence (using visualDir16) ──
   const turretFaction = resolveGeneratedTurretFaction(faction);
   const mod = modificationLevelToMod(modificationLevel);
-  const turretKey = getGeneratedTurretTextureKey(turretId, turretFaction, mod, dir16);
+  const turretKey = getGeneratedTurretTextureKey(turretId, turretFaction, mod, visualDir16);
 
   // Single textureExists probe — no preloading
   if (!textureExists(turretKey)) {
     return {
       turretKey: null,
-      scale: turretTextureScale,
+      scale: GENERATED_TURRET_SCALE,
       originX: 0.5,
       originY: 0.5,
       hasGeneratedTurret: false,
-      dir16,
+      logicalDir16,
+      visualDir16,
       turretOffsetPx,
     };
   }
 
   return {
     turretKey,
-    scale: turretTextureScale,
+    scale: GENERATED_TURRET_SCALE,
     originX: 0.5,
     originY: 0.5,
     hasGeneratedTurret: true,
-    dir16,
+    logicalDir16,
+    visualDir16,
     turretOffsetPx,
   };
 }
@@ -276,14 +300,18 @@ export function resolvePilotTurretComposition(
 // ─── Fallback helper ─────────────────────────────────────────────
 
 /** Create a fallback result when composition cannot be resolved. */
-function makeFallbackResult(dir16: GeneratedTurretDir16Index): PilotTurretCompositionResult {
+function makeFallbackResult(
+  logicalDir16: GeneratedTurretDir16Index,
+  visualDir16?: GeneratedTurretDir16Index,
+): PilotTurretCompositionResult {
   return {
     turretKey: null,
-    scale: 0.12,
+    scale: GENERATED_TURRET_SCALE,
     originX: 0.5,
     originY: 0.5,
     hasGeneratedTurret: false,
-    dir16,
+    logicalDir16,
+    visualDir16: visualDir16 ?? logicalDir16,
     turretOffsetPx: null,
   };
 }
