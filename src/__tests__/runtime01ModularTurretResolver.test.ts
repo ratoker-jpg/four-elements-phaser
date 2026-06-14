@@ -139,12 +139,12 @@ describe('getGeneratedTurretTextureKey uniqueness', () => {
 describe('getGeneratedTurretAssetPath', () => {
   it('builds correct path for smoky/cyan/m0 dir00', () => {
     expect(getGeneratedTurretAssetPath('smoky', 'cyan', 'm0', 0))
-      .toBe('assets/units/turrets/smoky/cyan/m0/smoky_cyan_m0_turret_dir00_E.png');
+      .toBe('assets/units/turrets/smoky/cyan/m0/smoky_cyan_m0_dir00_E.png');
   });
 
   it('builds correct path for firebird/green/m3 dir14', () => {
     expect(getGeneratedTurretAssetPath('firebird', 'green', 'm3', 14))
-      .toBe('assets/units/turrets/firebird/green/m3/firebird_green_m3_turret_dir14_NE.png');
+      .toBe('assets/units/turrets/firebird/green/m3/firebird_green_m3_dir14_NE.png');
   });
 
   it('pads single-digit direction indices with leading zero', () => {
@@ -160,7 +160,7 @@ describe('getGeneratedTurretAssetPath', () => {
   it('includes turret, faction, and mod in path segments', () => {
     const path = getGeneratedTurretAssetPath('vulcan', 'yellow', 'm2', 8);
     expect(path).toContain('vulcan/yellow/m2');
-    expect(path).toContain('vulcan_yellow_m2_turret');
+    expect(path).toContain('vulcan_yellow_m2_dir');
   });
 
   it('uses turrets directory not hulls', () => {

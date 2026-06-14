@@ -7,7 +7,7 @@
  * load one turret+faction+mod set at a time (16 PNGs).
  *
  * The generated turret sprites live under:
- *   public/assets/units/turrets/<turret>/<faction>/<mod>/<turret>_<faction>_<mod>_turret_dirNN_<DIR>.png
+ *   public/assets/units/turrets/<turret>/<faction>/<mod>/<turret>_<faction>_<mod>_dirNN_<DIR>.png
  *
  * Each PNG is 512×512 RGBA with a transparent background.
  *
@@ -210,9 +210,9 @@ export function getGeneratedTurretTextureKey(
 /**
  * Build the Phaser asset path for a generated turret sprite.
  *
- * Format: `assets/units/turrets/<turret>/<faction>/<mod>/<turret>_<faction>_<mod>_turret_dirNN_<DIR>.png`
+ * Format: `assets/units/turrets/<turret>/<faction>/<mod>/<turret>_<faction>_<mod>_dirNN_<DIR>.png`
  *
- * Example: `assets/units/turrets/smoky/cyan/m0/smoky_cyan_m0_turret_dir00_E.png`
+ * Example: `assets/units/turrets/smoky/cyan/m0/smoky_cyan_m0_dir00_E.png`
  *
  * This path is relative to the Phaser loader base path (typically `public/`).
  */
@@ -224,7 +224,7 @@ export function getGeneratedTurretAssetPath(
 ): string {
   const dirPadded = String(dir16).padStart(2, '0');
   const dirSuffix = GENERATED_TURRET_DIRECTIONS_16[dir16].suffix;
-  return `assets/units/turrets/${turret}/${faction}/${mod}/${turret}_${faction}_${mod}_turret_dir${dirPadded}_${dirSuffix}.png`;
+  return `assets/units/turrets/${turret}/${faction}/${mod}/${turret}_${faction}_${mod}_dir${dirPadded}_${dirSuffix}.png`;
 }
 
 // ─── On-demand loader ───────────────────────────────────────────
