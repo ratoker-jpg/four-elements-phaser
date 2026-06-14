@@ -1,16 +1,17 @@
 /**
- * ModularVehicleDevtoolsPanel — MODULAR-ALL-FACTIONS-01B QA/demo selector.
+ * ModularVehicleDevtoolsPanel — MODULAR-ALL-FACTIONS-01C QA/calibration selector.
  *
  * Devtools-only DOM control surface for the GeneratedModularVehicleRenderer.
  * Exposes INDEPENDENT selectors for hullId, turretId, faction, hullMod,
- * turretMod plus hull/turret direction steppers.
+ * turretMod plus hull/turret direction steppers, tile overlay toggle,
+ * and preview calibration controls (modelScale, hullScale, turretScale,
+ * hull/turret offsets, step size).
  *
  * Changing faction changes both hull and turret asset faction.
  * Changing hullId/turretId/hullMod/turretMod changes only that dimension.
  *
- * This is a QA/demo selector, NOT a manual calibration loop: there are no
- * pixel-offset controls. It follows the existing devtools panel style and
- * adds no query-string flags.
+ * Calibration values are devtools-only and never persisted or applied to
+ * production metadata/config.
  */
 
 import type { GeneratedModularVehicleRenderer } from '../render/GeneratedModularVehicleRenderer';
@@ -24,6 +25,12 @@ import {
   type ModularModId,
   type ModularFactionId,
 } from '../../modular/modularVehicleVisual';
+import {
+  DEFAULT_MODULAR_PREVIEW_CALIBRATION,
+  cyclePixelStep,
+  cycleScaleStep,
+  type ModularPreviewCalibration,
+} from '../../modular/modularPreviewCalibration';
 
 export interface ModularVehicleDevtoolsPanelCallbacks {
   getRenderer: () => GeneratedModularVehicleRenderer | null;
@@ -40,6 +47,9 @@ export class ModularVehicleDevtoolsPanel {
   private _collapseLabel: HTMLSpanElement | null = null;
   private _collapsed = false;
 
+  // Calibration state (devtools-only, not persisted)
+  private calibration: ModularPreviewCalibration = { ...DEFAULT_MODULAR_PREVIEW_CALIBRATION };
+
   get visible(): boolean {
     return this._visible;
   }
@@ -55,6 +65,7 @@ export class ModularVehicleDevtoolsPanel {
       top: 8px;
       right: 268px;
       width: 248px;
+      max-height: 95vh;
       background: rgba(12, 16, 30, 0.95);
       border: 1px solid rgba(61, 255, 139, 0.32);
       border-radius: 8px;
@@ -66,6 +77,7 @@ export class ModularVehicleDevtoolsPanel {
       pointer-events: auto;
       user-select: none;
       display: none;
+      overflow: hidden;
     `;
 
     // Header
@@ -87,7 +99,7 @@ export class ModularVehicleDevtoolsPanel {
     title.style.cssText = 'font-weight: 700; font-size: 12px; color: #7be8a8;';
 
     const collapseLabel = document.createElement('span');
-    collapseLabel.textContent = '─';
+    collapseLabel.textContent = '\u2500';
     collapseLabel.style.cssText = 'font-size: 14px; color: #5aa07e;';
     this._collapseLabel = collapseLabel;
 
@@ -95,8 +107,9 @@ export class ModularVehicleDevtoolsPanel {
     header.appendChild(collapseLabel);
     root.appendChild(header);
 
+    // Scrollable content area
     const content = document.createElement('div');
-    content.style.cssText = 'padding: 10px 12px;';
+    content.style.cssText = 'padding: 10px 12px; max-height: 85vh; overflow-y: auto;';
 
     this.openCloseBtn = this.makeButton('Open Preview', '#81c784', () => {
       this.callbacks?.getRenderer()?.toggle();
@@ -106,35 +119,35 @@ export class ModularVehicleDevtoolsPanel {
     this.openCloseBtn.style.marginBottom = '8px';
     content.appendChild(this.openCloseBtn);
 
-    // Faction selector (changes both hull and turret asset color)
+    // Selection section
+    content.appendChild(this.makeSectionLabel('Selection'));
+
     content.appendChild(this.makeRowLabel('Faction (hull + turret)'));
     content.appendChild(
       this.makeButtonRow([
-        this.makeControlButton('◀ faction', () => this.cycleFaction(-1)),
-        this.makeControlButton('faction ▶', () => this.cycleFaction(1)),
+        this.makeControlButton('\u25C0 faction', () => this.cycleFaction(-1)),
+        this.makeControlButton('faction \u25B6', () => this.cycleFaction(1)),
       ]),
     );
 
-    // Hull id selector
-    content.appendChild(this.makeRowLabel('Hull id (independent)'));
+    content.appendChild(this.makeRowLabel('Hull id'));
     content.appendChild(
       this.makeButtonRow([
-        this.makeControlButton('◀ hull', () => this.cycleHull(-1)),
-        this.makeControlButton('hull ▶', () => this.cycleHull(1)),
+        this.makeControlButton('\u25C0 hull', () => this.cycleHull(-1)),
+        this.makeControlButton('hull \u25B6', () => this.cycleHull(1)),
       ]),
     );
 
-    // Turret id selector
-    content.appendChild(this.makeRowLabel('Turret id (independent)'));
+    content.appendChild(this.makeRowLabel('Turret id'));
     content.appendChild(
       this.makeButtonRow([
-        this.makeControlButton('◀ turret', () => this.cycleTurret(-1)),
-        this.makeControlButton('turret ▶', () => this.cycleTurret(1)),
+        this.makeControlButton('\u25C0 turret', () => this.cycleTurret(-1)),
+        this.makeControlButton('turret \u25B6', () => this.cycleTurret(1)),
       ]),
     );
 
-    // Hull mod / turret mod (independent)
-    content.appendChild(this.makeRowLabel('Hull mod / Turret mod (independent)'));
+    // Mods section
+    content.appendChild(this.makeSectionLabel('Mods'));
     content.appendChild(
       this.makeButtonRow([
         this.makeControlButton('hullMod+', () => this.cycleHullMod(1)),
@@ -142,30 +155,97 @@ export class ModularVehicleDevtoolsPanel {
       ]),
     );
 
-    // Directions
-    content.appendChild(this.makeRowLabel('Hull dir / Turret dir (dir16)'));
+    // Direction section
+    content.appendChild(this.makeSectionLabel('Direction'));
     content.appendChild(
       this.makeButtonRow([
-        this.makeControlButton('◀ body', () => this.rendererCall((r) => r.cycleHullDir(-1))),
-        this.makeControlButton('body ▶', () => this.rendererCall((r) => r.cycleHullDir(1))),
+        this.makeControlButton('\u25C0 body', () => this.rendererCall((r) => r.cycleHullDir(-1))),
+        this.makeControlButton('body \u25B6', () => this.rendererCall((r) => r.cycleHullDir(1))),
       ]),
     );
     content.appendChild(
       this.makeButtonRow([
-        this.makeControlButton('◀ turret', () => this.rendererCall((r) => r.cycleTurretDir(-1))),
-        this.makeControlButton('turret ▶', () => this.rendererCall((r) => r.cycleTurretDir(1))),
+        this.makeControlButton('\u25C0 turret', () => this.rendererCall((r) => r.cycleTurretDir(-1))),
+        this.makeControlButton('turret \u25B6', () => this.rendererCall((r) => r.cycleTurretDir(1))),
       ]),
     );
 
-    // Markers + reset
-    content.appendChild(this.makeRowLabel('Diagnostics'));
+    // Overlay section
+    content.appendChild(this.makeSectionLabel('Overlay'));
     content.appendChild(
       this.makeButtonRow([
         this.makeControlButton('markers', () => this.rendererCall((r) => r.toggleMarkers())),
-        this.makeControlButton('Reset', () => this.rendererCall((r) => r.reset())),
+        this.makeControlButton('tile', () => this.toggleTile()),
       ]),
     );
 
+    // Scale section
+    content.appendChild(this.makeSectionLabel('Scale'));
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton('model-', () => this.adjustScale('modelScale', -1)),
+        this.makeControlButton('model+', () => this.adjustScale('modelScale', 1)),
+      ]),
+    );
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton('hull-', () => this.adjustScale('hullScale', -1)),
+        this.makeControlButton('hull+', () => this.adjustScale('hullScale', 1)),
+      ]),
+    );
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton('turret-', () => this.adjustScale('turretScale', -1)),
+        this.makeControlButton('turret+', () => this.adjustScale('turretScale', 1)),
+      ]),
+    );
+
+    // Position section
+    content.appendChild(this.makeSectionLabel('Position'));
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton('hullX-', () => this.adjustOffset('hullOffsetX', -1)),
+        this.makeControlButton('hullX+', () => this.adjustOffset('hullOffsetX', 1)),
+      ]),
+    );
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton('hullY-', () => this.adjustOffset('hullOffsetY', -1)),
+        this.makeControlButton('hullY+', () => this.adjustOffset('hullOffsetY', 1)),
+      ]),
+    );
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton('turretX-', () => this.adjustOffset('turretOffsetX', -1)),
+        this.makeControlButton('turretX+', () => this.adjustOffset('turretOffsetX', 1)),
+      ]),
+    );
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton('turretY-', () => this.adjustOffset('turretOffsetY', -1)),
+        this.makeControlButton('turretY+', () => this.adjustOffset('turretOffsetY', 1)),
+      ]),
+    );
+
+    // Steps section
+    content.appendChild(this.makeSectionLabel('Steps'));
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton('px step', () => this.cyclePxStep()),
+        this.makeControlButton('scale step', () => this.cycleScaleStepAction()),
+      ]),
+    );
+
+    // Reset section
+    content.appendChild(this.makeSectionLabel('Reset'));
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton('reset cal', () => this.resetCalibration(), '#ff9966'),
+        this.makeControlButton('reset sel', () => this.rendererCall((r) => r.reset()), '#81c784'),
+      ]),
+    );
+
+    // Readout
     this.readoutEl = document.createElement('div');
     this.readoutEl.style.cssText = `
       margin-top: 10px;
@@ -206,6 +286,9 @@ export class ModularVehicleDevtoolsPanel {
     if (!renderer || !this.readoutEl) return;
     const s = renderer.getState();
 
+    // Sync calibration state from renderer.
+    this.calibration = { ...s.calibration };
+
     if (this.openCloseBtn) {
       this.openCloseBtn.textContent = s.active ? 'Close Preview' : 'Open Preview';
     }
@@ -215,16 +298,23 @@ export class ModularVehicleDevtoolsPanel {
       btn.style.cursor = s.active ? 'pointer' : 'default';
     }
 
+    const cal = s.calibration;
     const avail =
-      s.available === null ? '—' : s.available ? 'YES' : `NO (${s.fallbackReason ?? '?'})`;
+      s.available === null ? '\u2014' : s.available ? 'YES' : `NO (${s.fallbackReason ?? '?'})`;
     this.readoutEl.textContent = [
       `preview:  ${s.active ? 'OPEN' : 'closed'}`,
       `hull:     ${s.visual.hullId} / ${s.visual.hullMod}`,
       `turret:   ${s.visual.turretId} / ${s.visual.turretMod}`,
       `faction:  ${s.visual.faction}`,
       `dirs:     body ${s.hullDir16}  turret ${s.turretDir16}`,
-      `loaded:   ${s.setLoaded}   queued: ${s.queuedCount ?? '—'}`,
+      `loaded:   ${s.setLoaded}   queued: ${s.queuedCount ?? '\u2014'}`,
       `available:${avail}`,
+      '',
+      `tile: ${cal.showTile ? 'ON' : 'OFF'}  markers: ${s.markersVisible ? 'ON' : 'OFF'}`,
+      `model: ${cal.modelScale.toFixed(2)}  hull: ${cal.hullScale.toFixed(2)}  turret: ${cal.turretScale.toFixed(2)}`,
+      `hullOff: ${cal.hullOffsetX},${cal.hullOffsetY}`,
+      `turretOff: ${cal.turretOffsetX},${cal.turretOffsetY}`,
+      `pxStep: ${cal.pixelStep}  scaleStep: ${cal.scaleStep}`,
     ].join('\n');
   }
 
@@ -285,7 +375,43 @@ export class ModularVehicleDevtoolsPanel {
     });
   }
 
-  // ─── DOM helpers (same pattern as legacy proof panel) ──────────────
+  // ─── Calibration logic ────────────────────────────────────────────
+
+  private pushCalibration(): void {
+    this.rendererCall((r) => r.setCalibration(this.calibration));
+  }
+
+  private toggleTile(): void {
+    this.calibration.showTile = !this.calibration.showTile;
+    this.pushCalibration();
+  }
+
+  private adjustScale(key: 'modelScale' | 'hullScale' | 'turretScale', dir: 1 | -1): void {
+    this.calibration[key] = Math.max(0.1, +(this.calibration[key] + dir * this.calibration.scaleStep).toFixed(4));
+    this.pushCalibration();
+  }
+
+  private adjustOffset(key: 'hullOffsetX' | 'hullOffsetY' | 'turretOffsetX' | 'turretOffsetY', dir: 1 | -1): void {
+    this.calibration[key] = this.calibration[key] + dir * this.calibration.pixelStep;
+    this.pushCalibration();
+  }
+
+  private cyclePxStep(): void {
+    this.calibration.pixelStep = cyclePixelStep(this.calibration.pixelStep);
+    this.pushCalibration();
+  }
+
+  private cycleScaleStepAction(): void {
+    this.calibration.scaleStep = cycleScaleStep(this.calibration.scaleStep);
+    this.pushCalibration();
+  }
+
+  private resetCalibration(): void {
+    this.calibration = { ...DEFAULT_MODULAR_PREVIEW_CALIBRATION };
+    this.rendererCall((r) => r.resetCalibration());
+  }
+
+  // ─── DOM helpers ──────────────────────────────────────────────────
 
   private rendererCall(fn: (r: GeneratedModularVehicleRenderer) => void): void {
     const renderer = this.callbacks?.getRenderer();
@@ -298,19 +424,26 @@ export class ModularVehicleDevtoolsPanel {
     if (!this.content || !this._collapseLabel) return;
     this._collapsed = !this._collapsed;
     this.content.style.display = this._collapsed ? 'none' : 'block';
-    this._collapseLabel.textContent = this._collapsed ? '+' : '─';
+    this._collapseLabel.textContent = this._collapsed ? '+' : '\u2500';
+  }
+
+  private makeSectionLabel(text: string): HTMLDivElement {
+    const el = document.createElement('div');
+    el.textContent = `\u2500\u2500 ${text} \u2500\u2500`;
+    el.style.cssText = 'font-size: 10px; color: #5aa07e; margin: 8px 0 3px; font-weight: 600; border-bottom: 1px solid rgba(61,255,139,0.1); padding-bottom: 2px;';
+    return el;
   }
 
   private makeRowLabel(text: string): HTMLDivElement {
     const el = document.createElement('div');
     el.textContent = text;
-    el.style.cssText = 'font-size: 10px; color: #6f9ad0; margin: 6px 0 3px;';
+    el.style.cssText = 'font-size: 10px; color: #6f9ad0; margin: 4px 0 2px;';
     return el;
   }
 
   private makeButtonRow(buttons: HTMLButtonElement[]): HTMLDivElement {
     const row = document.createElement('div');
-    row.style.cssText = 'display: flex; gap: 6px;';
+    row.style.cssText = 'display: flex; gap: 4px;';
     for (const b of buttons) {
       b.style.flex = '1';
       row.appendChild(b);
@@ -318,8 +451,8 @@ export class ModularVehicleDevtoolsPanel {
     return row;
   }
 
-  private makeControlButton(text: string, onClick: () => void): HTMLButtonElement {
-    const btn = this.makeButton(text, '#80c0ff', onClick);
+  private makeControlButton(text: string, onClick: () => void, color?: string): HTMLButtonElement {
+    const btn = this.makeButton(text, color ?? '#80c0ff', onClick);
     this.controlBtns.push(btn);
     return btn;
   }
@@ -328,12 +461,12 @@ export class ModularVehicleDevtoolsPanel {
     const btn = document.createElement('button');
     btn.textContent = text;
     btn.style.cssText = `
-      padding: 5px 8px;
+      padding: 4px 6px;
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid ${color}55;
       border-radius: 4px;
       color: ${color};
-      font-size: 11px;
+      font-size: 10px;
       cursor: pointer;
       transition: background 0.15s;
     `;
