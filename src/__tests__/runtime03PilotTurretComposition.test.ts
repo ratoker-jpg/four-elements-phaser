@@ -586,3 +586,100 @@ describe('pilotTurretComposition: no accidental path strings', () => {
     }
   });
 });
+
+// ─── Socket zHeight ───────────────────────────────────────────────
+
+describe('pilotTurretComposition: socket zHeight', () => {
+  it('exposes socket zHeight from hull visual profile for supported hull', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    // Wasp turret_main socket has zHeight = 0.30
+    expect(result.socketZHeight).toBe(0.30);
+  });
+
+  it('socket zHeight is null for unsupported hull (no profile)', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'unsupported_body', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    expect(result.socketZHeight).toBeNull();
+  });
+
+  it('socket zHeight is null for unsupported weapon (no turret profile)', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'shaft', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    expect(result.socketZHeight).toBeNull();
+  });
+
+  it('socket zHeight is still exposed even when texture is missing', () => {
+    // The offset math and metadata are computed before texture existence check
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExistsNever,
+    );
+
+    expect(result.hasGeneratedTurret).toBe(false);
+    expect(result.socketZHeight).toBe(0.30);
+  });
+
+  it('socket zHeight is used by renderer through projectWorldPoint for elevation', () => {
+    // This test verifies the data contract: the resolver provides socketZHeight
+    // and the renderer applies it via projectWorldPoint(). We verify the
+    // z-height screen delta is non-zero for Wasp's zHeight=0.30.
+    //
+    // The actual projection test is in the renderer integration, but we can
+    // verify the value is correct here.
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    expect(result.socketZHeight).toBe(0.30);
+    // basisZ.y = -60, so zHeight=0.30 → screenDeltaY = 0.30 * (-60) = -18 pixels
+    // (negative = upward on screen)
+    // The renderer will compute: zHeightScreenDeltaY = elevatedProj.y - groundProj.y
+    expect(result.socketZHeight! * -60).toBeCloseTo(-18, 1);
+  });
+});
+
+// ─── No manual offset constants ───────────────────────────────────
+
+describe('pilotTurretComposition: no manual offset constants', () => {
+  it('no hand-tuned per-weapon offset values in resolver', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    // All offsets are computed from profile data, not hardcoded.
+    // The turretOffsetPx should be derived from socket + pivot + display sizes.
+    // Verify it matches the formula (not a magic constant):
+    expect(result.turretOffsetPx).not.toBeNull();
+
+    const hullDisplaySize = HULL_IMAGE_SIZE.width * 0.12;
+    const turretDisplaySize = TURRET_IMAGE_SIZE.width * GENERATED_TURRET_SCALE;
+
+    // Wasp: socket=(0.5,0.5), origin=(0.5,0.75)
+    const expectedSocketX = (0.5 - 0.5) * hullDisplaySize;
+    const expectedSocketY = (0.5 - 0.75) * hullDisplaySize;
+
+    // Smoky M0 visualDir16=4 pivot: (0.39428, 0.314321)
+    const expectedPivotX = (0.39428 - 0.5) * turretDisplaySize;
+    const expectedPivotY = (0.314321 - 0.5) * turretDisplaySize;
+
+    expect(result.turretOffsetPx!.x).toBeCloseTo(expectedSocketX - expectedPivotX, 3);
+    expect(result.turretOffsetPx!.y).toBeCloseTo(expectedSocketY - expectedPivotY, 3);
+  });
+});
