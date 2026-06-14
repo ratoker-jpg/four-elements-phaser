@@ -1,4 +1,8 @@
 /**
+ * @legacy Wasp/Smoky pilot-era proof harness panel.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * GeneratedVehicleProofPanel — DOM control surface for the MODULAR-PROOF-01
  * generated vehicle attachment proof harness.
  *

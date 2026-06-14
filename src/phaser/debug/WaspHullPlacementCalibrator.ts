@@ -1,4 +1,8 @@
 /**
+ * @legacy Wasp/Smoky pilot-era placement helper.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * WaspHullPlacementCalibrator — Wasp-only hull placement calibration tool.
  *
  * PIM-HULL-WASP-ANCHOR-MAP-01: Provides live offset adjustment for

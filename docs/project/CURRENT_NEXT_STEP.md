@@ -2,7 +2,7 @@
 
 Status: Graphify + AI governance + modular vehicle roadmap is the next default work  
 Project: Four Elements Phaser  
-Updated: 2026-06-14
+Updated: 2026-06-15
 
 ---
 
@@ -20,7 +20,10 @@ What should GPT/GLM/Opus/Codex do next by default?
 
 ```text
 ASSET-IMPORT-01 (PR #278) is merged: modular cyan assets are now in the repo.
-MODULAR-RUNTIME-01 is the active implementation step.
+MODULAR-RUNTIME-01 (PR #279) is merged: clean modular cyan vehicle runtime works.
+ASSET-FIX-02A (PR #280) is merged: Wasp cyan m0 hull sprites fixed.
+LEGACY-WASP-CLEANUP-01A audit is complete: 12 legacy Wasp-only artifacts identified.
+LEGACY-WASP-CLEANUP-01B adds @legacy markers and modular isolation tests.
 
 Still in force:
 - Do not continue PR #263 / Wasp+Smoky offset recovery by inertia.
@@ -30,13 +33,8 @@ Still in force:
 - Do not use a combined hull×turret production matrix.
 - Do not add new query-string visual test modes.
 
-Active step (MODULAR-RUNTIME-01):
-- clean modular generated vehicle renderer path (GeneratedModularVehicleRenderer);
-- typed ModularVehicleVisual with independent hull/turret + hullMod/turretMod;
-- metadata-driven composition from the export socket/pivot manifests;
-- lazy loading capped at 32 PNG per selected visual;
-- Arena/devtools selector for hull/turret/hullMod/turretMod (cyan);
-- safe fallback to blockout when assets/metadata are unavailable.
+Next after merge of 01B:
+- MODULAR-RUNTIME-02: Controlled Arena demo unit using GeneratedModularVehicleRenderer.
 ```
 
 The "do not copy modular_cyan_v1 assets yet" / "do not start runtime implementation

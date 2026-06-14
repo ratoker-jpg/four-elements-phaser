@@ -1,4 +1,8 @@
 /**
+ * @legacy Wasp/Smoky pilot-era placement helper.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * WaspPlacementCalibrationPanel — on-screen button panel for Wasp hull
  * placement calibration.
  *

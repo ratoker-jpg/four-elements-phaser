@@ -1,4 +1,8 @@
 /**
+ * @legacy Wasp/Smoky pilot-era turret composition resolver.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * Pilot turret composition resolver.
  *
  * RUNTIME-03: Pure composition resolver for placing a generated turret
