@@ -1,5 +1,6 @@
 .DS_Store
 .env
+.telegram-notify.json
 _reports
 dist
 node_modules

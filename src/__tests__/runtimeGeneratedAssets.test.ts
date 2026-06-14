@@ -522,9 +522,10 @@ describe('MENU-02: Arena visual asset loading', () => {
     try {
       const loadedKeys = loadArenaVisualAssets(mock.scene as any);
 
-      // 4 factions × 16 dirs = 64 generated hull keys (no legacy modularUnits)
-      expect(loadedKeys).toHaveLength(64);
-      expect(mock.loadImageCalls).toHaveLength(64);
+      // 4 factions × 16 dirs = 64 generated hull keys + 16 pilot turret keys (Smoky cyan m0)
+      // RUNTIME-02B: loadArenaVisualAssets now also loads the pilot turret set
+      expect(loadedKeys).toHaveLength(80);
+      expect(mock.loadImageCalls).toHaveLength(80);
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
     } finally {
@@ -545,8 +546,9 @@ describe('MENU-02: Arena visual asset loading', () => {
     try {
       const loadedKeys = loadArenaVisualAssets(mock.scene as any);
 
-      // Only 3 factions × 16 dirs = 48 (cyan already loaded)
-      expect(loadedKeys).toHaveLength(48);
+      // Only 3 factions × 16 dirs = 48 hull keys (cyan already loaded) + 16 pilot turret keys
+      // RUNTIME-02B: loadArenaVisualAssets also loads the pilot turret set (Smoky cyan m0)
+      expect(loadedKeys).toHaveLength(64);
       expect(loadedKeys).not.toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'purple', 'm0', 15));
@@ -568,7 +570,7 @@ describe('MENU-02: Arena visual asset loading', () => {
   });
 
   it('considers Arena visuals loaded only when modularUnits and all Wasp factions are present', async () => {
-    const { isArenaVisualAssetsLoaded, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
+    const { isArenaVisualAssetsLoaded, MODULAR_UNIT_PROBE_KEY, PILOT_TURRET_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
     const generatedProbeKeys = new Set(
       GENERATED_HULL_FACTIONS.map(faction => (
         getGeneratedHullTextureKey(
@@ -582,7 +584,7 @@ describe('MENU-02: Arena visual asset loading', () => {
 
     const mockScene = {
       textures: {
-        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY || generatedProbeKeys.has(key),
+        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY || generatedProbeKeys.has(key) || key === PILOT_TURRET_PROBE_KEY,
       },
     };
 

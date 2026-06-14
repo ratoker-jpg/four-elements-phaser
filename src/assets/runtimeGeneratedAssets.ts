@@ -28,6 +28,7 @@ import {
   preloadGeneratedHullSet,
   type GeneratedHullFaction,
 } from './generatedHullAssets';
+import { loadPilotTurretSet } from './pilotVehicleLazyLoad';
 
 // ─── Internal helpers ──────────────────────────────────────────────
 
@@ -221,10 +222,18 @@ export function isModularUnitsLoaded(scene: Phaser.Scene): boolean {
  *
  * Standard mode does not call this helper. It deliberately queues only:
  * - generated Wasp M0 hull sets for four factions
+ * - pilot turret set (Smoky cyan m0) via RUNTIME-02B lazy-load
  *
  * Legacy modularUnits family is disabled (PNGs removed). Generated turret
- * assets are not yet available — ModularTankRenderer skips turret when
- * texture is absent.
+ * assets are loaded on demand via the pilot turret loader.
+ *
+ * RUNTIME-02B: After loading hull sets for all factions, the pilot turret
+ * set (Smoky cyan m0, 16 PNG) is loaded via loadPilotTurretSet(). We load
+ * only the turret here — not the full vehicle set — because the hull set
+ * for cyan wasp m0 is already queued by the faction loop above. Loading
+ * the full vehicle set would cause duplicate key queueing since Phaser's
+ * TextureManager.exists() check cannot detect keys queued in the same
+ * preload batch.
  */
 export function loadArenaVisualAssets(scene: Phaser.Scene): string[] {
   const loadedKeys: string[] = [];
@@ -243,16 +252,36 @@ export function loadArenaVisualAssets(scene: Phaser.Scene): string[] {
     );
   }
 
+  // RUNTIME-02B: Load pilot turret set only (Smoky cyan m0, 16 PNG).
+  // The hull set for cyan wasp m0 is already queued above.
+  // We use loadPilotTurretSet (not loadPilotVehicleAssetSet) to avoid
+  // duplicate key queueing in the same preload batch.
+  const pilotTurretKeys = loadPilotTurretSet(scene);
+  loadedKeys.push(...pilotTurretKeys);
+
   return loadedKeys;
 }
 
 /**
+ * Representative pilot turret key used for checking whether the
+ * RUNTIME-02B pilot turret set has been loaded.
+ *
+ * If this key exists in the TextureManager, we assume the pilot
+ * Smoky cyan m0 turret set was loaded by loadArenaVisualAssets().
+ */
+export const PILOT_TURRET_PROBE_KEY = 'generated_turret_smoky_cyan_m0_dir00' as const;
+
+/**
  * Check whether the Debug/Arena combat visual set is available.
- * Checks that generated hull sets for all factions are loaded.
- * (isModularUnitsLoaded now checks for the generated hull probe key.)
+ *
+ * Checks that generated hull sets for all factions are loaded,
+ * AND the pilot turret set (Smoky cyan m0) is loaded.
+ *
+ * RUNTIME-02B: Extended to also verify the pilot turret probe key,
+ * since loadArenaVisualAssets() now loads the pilot turret set.
  */
 export function isArenaVisualAssetsLoaded(scene: Phaser.Scene): boolean {
-  return GENERATED_HULL_FACTIONS.every(faction => (
+  const hullsLoaded = GENERATED_HULL_FACTIONS.every(faction => (
     isGeneratedHullSetLoaded(
       scene,
       DEFAULT_GENERATED_HULL,
@@ -260,6 +289,8 @@ export function isArenaVisualAssetsLoaded(scene: Phaser.Scene): boolean {
       DEFAULT_GENERATED_HULL_MOD,
     )
   ));
+  const pilotTurretLoaded = scene.textures.exists(PILOT_TURRET_PROBE_KEY);
+  return hullsLoaded && pilotTurretLoaded;
 }
 
 /**
