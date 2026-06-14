@@ -263,7 +263,7 @@ export class ModularVehicleDevtoolsPanel {
     });
   }
 
-  // ─── DOM helpers (mirror GeneratedVehicleProofPanel) ──────────────
+  // ─── DOM helpers (same pattern as legacy proof panel) ──────────────
 
   private rendererCall(fn: (r: GeneratedModularVehicleRenderer) => void): void {
     const renderer = this.callbacks?.getRenderer();

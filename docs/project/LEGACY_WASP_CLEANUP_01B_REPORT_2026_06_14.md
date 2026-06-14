@@ -70,14 +70,20 @@ The following modules are NOT marked as legacy because they serve both the old p
 
 **File:** `src/__tests__/legacyWaspIsolation.test.ts`
 
+### Approach
+
+The test reads the raw source text of each modular runtime file (via Vite's `?raw` import) and scans for forbidden legacy identifiers and import paths. This catches both re-exports AND internal references — not just exported symbols.
+
 ### Test Cases
 
 | # | Test | Validates |
 |---|------|-----------|
-| 1 | All modular runtime files are found and readable | Sanity check |
-| 2 | No modular runtime file contains forbidden legacy identifiers | 18 legacy identifiers checked across 8 modular files |
-| 3 | Modular runtime does not import from legacy pilot modules | Import-path regex check for 6 legacy module paths |
+| 1 | All 8 modular runtime source files are loaded as non-empty text | Sanity: raw imports work |
+| 2 | No modular runtime source file contains forbidden legacy identifiers | 16 identifiers checked across 8 files' raw source text |
+| 3 | No modular runtime source file imports from legacy pilot modules | Import-path regex for 8 legacy module paths |
 | 4 | "wasp" hull id is allowed as a generic hull id | Confirms `'wasp'` is OK but `WASP_HULL_VISUAL_PROFILE` is not |
+| 5 | Modular runtime produces valid texture keys without legacy formats | Key format sanity check |
+| 6 | Modular loader queue respects 32 PNG cap without legacy paths | Loader sanity check |
 
 ### Modular Runtime Files Checked
 
@@ -92,7 +98,7 @@ The following modules are NOT marked as legacy because they serve both the old p
 
 ### Forbidden Legacy Identifiers
 
-`WaspHullPlacementCalibrator`, `WASP_HULL_VISUAL_PROFILE`, `WASP_HULL_VISUAL_DIR16_REMAP`, `WASP_HULL_DIRECTION_REMAP_PROFILE`, `applyHullVisualDir16Remap`, `WASP_HULL_OFFSET_X`, `WASP_HULL_OFFSET_Y`, `pilotTurretComposition`, `resolvePilotTurretComposition`, `pilotVehicleLazyLoad`, `PILOT_VEHICLE_REQUEST`, `generatedVehicleMetadata`, `ENABLE_PILOT_GENERATED_TURRET_COMPOSITION`, `GeneratedVehicleProofHarness`, `GeneratedVehicleProofPanel`, `generatedVehiclePreviewComposition`, `composeGeneratedVehiclePreview`, `getGeneratedHullPlacementOffset`
+`WaspHullPlacementCalibrator`, `WASP_HULL_VISUAL_PROFILE`, `WASP_HULL_VISUAL_DIR16_REMAP`, `applyHullVisualDir16Remap`, `WASP_HULL_OFFSET_X`, `WASP_HULL_OFFSET_Y`, `pilotTurretComposition`, `pilotVehicleLazyLoad`, `generatedVehicleMetadata`, `ENABLE_PILOT_GENERATED_TURRET_COMPOSITION`, `GeneratedVehicleProofHarness`, `GeneratedVehicleProofPanel`, `generatedVehiclePreviewComposition`, `composeGeneratedVehiclePreview`, `getGeneratedHullPlacementOffset`, `_hull_dir`
 
 ---
 
@@ -110,11 +116,12 @@ The following modules are NOT marked as legacy because they serve both the old p
 | `src/phaser/render/generatedVehiclePreviewComposition.ts` | Comment only | Added `@legacy` to module JSDoc |
 | `src/phaser/dev/GeneratedVehicleProofHarness.ts` | Comment only | Added `@legacy` to class JSDoc |
 | `src/phaser/dev/GeneratedVehicleProofPanel.ts` | Comment only | Added `@legacy` to class JSDoc |
-| `src/__tests__/legacyWaspIsolation.test.ts` | New file | 4 isolation test cases |
+| `src/phaser/dev/ModularVehicleDevtoolsPanel.ts` | Comment only | Removed legacy class name from comment (isolation test found it) |
+| `src/__tests__/legacyWaspIsolation.test.ts` | New file | 6 isolation test cases |
 | `docs/project/LEGACY_WASP_CLEANUP_01B_REPORT_2026_06_14.md` | New file | This report |
 | `docs/project/CURRENT_NEXT_STEP.md` | Updated | Added 01A/01B completion + next step |
 
-**Total: 10 files with comment-only changes + 1 new test file + 2 doc files**
+**Total: 11 files with comment-only changes + 1 new test file + 2 doc files**
 
 ---
 
