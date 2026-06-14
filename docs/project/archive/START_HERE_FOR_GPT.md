@@ -1,6 +1,6 @@
 # START_HERE_FOR_GPT.md
 
-Status: onboarding file for a new GPT chat  
+Status: **ARCHIVED** — superseded by CURRENT_NEXT_STEP.md + role docs (2026-06-14)  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
 Updated: 2026-06-03

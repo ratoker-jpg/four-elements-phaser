@@ -1,6 +1,6 @@
 # WASP HULL DIRECTION CALIBRATION AID
 
-Status: calibration tool — NOT the final direction fix  
+Status: **ARCHIVED** — superseded by MODULAR_VEHICLE_ASSET_RUNTIME_SYSTEM_AUDIT_2026_06_14.md; calibration aid retained as history (2026-06-14)  
 Task: PIM-HULL-WASP-DIR-MAP-01  
 Date: 2026-06-08  
 Project: Four Elements Phaser  

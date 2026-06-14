@@ -5,7 +5,7 @@ Mode: AUDIT / DESIGN ONLY — no implementation, no code, no patch, no PR.
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
 Date: 2026-06-12
-Status: design proposal for review (GPT / Denis). Not an accepted implementation queue.
+Status: **ARCHIVED** — superseded by MODULAR_VEHICLE_ASSET_RUNTIME_SYSTEM_AUDIT_2026_06_14.md; valuable RC root-cause history retained (2026-06-14)
 
 ---
 

@@ -1,6 +1,6 @@
 # FIX_BACKLOG.md
 
-Status: active backlog / Phase 2 task index  
+Status: **ARCHIVED** — not referenced by any active reading list; superseded by PROJECT_STATE.md (2026-06-14)  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-05-29

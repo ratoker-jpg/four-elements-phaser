@@ -1,6 +1,6 @@
 # NEW_CHAT_HANDOFF_VISUAL.md
 
-Status: active handoff for a new GPT/GLM chat  
+Status: **ARCHIVED** — point-in-time handoff; superseded by active source-of-truth docs (2026-06-14)  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-05-30
