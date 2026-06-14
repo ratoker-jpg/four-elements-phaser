@@ -1,199 +1,169 @@
 # AGENTS.md — Four Elements Phaser
 
-## Project identity
-
-This is a clean Phaser-first restart of Four Elements: browser-playable isometric RTS / civil sandbox.
-
-The active repository is:
-
-```text
-ratoker-jpg/four-elements-phaser
-```
-
-The old repository `ratoker-jpg/four-elements-next` is donor/reference/specification only.
+Status: active root agent instructions  
+Updated: 2026-06-14
 
 ---
 
-## Current operational state
-
-There is currently **no broad active implementation roadmap**.
-
-Closed / accepted cycles:
+## Project identity
 
 ```text
-VISUAL/UI roadmap slice: CLOSED.
-BLOCKOUT-MVP roadmap slice: CLOSED.
-CAMERA-00 projection contract: IMPLEMENTED / ACCEPTED.
-PROJECTION-01 ground-plane retrofit: IMPLEMENTED / ACCEPTED.
-Arena Sandbox roadmap/audit cycle: CLOSED after PR #184.
-Core Mechanics roadmap: CLOSED after PR #207.
+repo: ratoker-jpg/four-elements-phaser
+engine: Phaser 4
+language: TypeScript
+build: Vite
+renderer: Phaser-first / WebGL-only
+camera: fixed isometric / axonometric 2.5D
 ```
 
-Current active process:
+The old repository `ratoker-jpg/four-elements-next` is donor/reference/specification only. Do not copy old runtime implementation by inertia.
+
+---
+
+## Current operating mode
 
 ```text
-Scoped fix backlog / visual calibration process.
-Use the accepted fix backlog, accepted fix backlog audit, and strong-model experiment plan.
-A2 map cleanup is complete after PR #251.
-Next default implementation direction after docs acceptance: EXPERIMENT-OPUS-B1B2-01.
+NO CODE WITHOUT ACCEPTED ROADMAP/AUDIT FOR THE DIRECTION.
 ```
 
-Do not continue old VISUAL, BLOCKOUT, CAMERA, PROJECTION, ARENA, or CORE MECHANICS tasks by inertia.
+Current active direction:
+
+```text
+Graphify-first AI workflow
++
+repo/docs/source cleanup
++
+modular vehicle asset runtime integration planning
+```
+
+The active modular vehicle model is:
+
+```text
+hull sprite separately
++
+turret sprite separately
++
+socket/pivot metadata
+```
+
+The rejected production model is:
+
+```text
+combined hull x turret production matrix
+```
 
 ---
 
 ## Active source-of-truth docs
 
-Read these first for current work:
+Read these first for project work:
 
 ```text
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
-docs/project/GLM_EXECUTOR_RULES.md
-docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md
-docs/project/CODEMAP.md
-docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md
-docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md
-docs/project/STRONG_MODEL_EXPERIMENTS_2026_06_12.md
+docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
+docs/project/AI_GRAPHIFY_WORKFLOW.md
+docs/project/MODULAR_VEHICLE_ASSET_RUNTIME_ROADMAP_2026_06_14.md
+```
+
+For visual/world-space/rendering/asset work, also read:
+
+```text
 docs/project/CAMERA_PROJECTION_CONTRACT.md
-docs/project/ARENA_SANDBOX_CLOSURE_REPORT.md
 ```
 
-Use `docs/project/CODEMAP.md` as the routing map for source files. Do not scan the whole repository unless CODEMAP is insufficient.
-
-For the current bugfix direction, use `docs/project/FIX_BACKLOG_AUDIT_2026_06_12.md` as the accepted implementation order and decision record. Do not reconstruct the audit from memory.
-
-For the current strong-model experiment, use `docs/project/STRONG_MODEL_EXPERIMENTS_2026_06_12.md`. Do not treat bundled High+ work as a permanent new default unless the experiment succeeds and Denis/GPT explicitly accepts the change.
-
-Historical / closed roadmap docs:
+Agent-specific docs:
 
 ```text
-docs/project/VISUAL_ROADMAP.md
-docs/project/VISUAL_SYSTEM_AUDIT.md
-docs/project/BLOCKOUT_MVP_ROADMAP.md
-docs/project/BLOCKOUT_MVP_CLOSURE_REPORT.md
-docs/project/ARENA_SANDBOX_ROADMAP.md
-docs/project/ARENA_SANDBOX_SYSTEM_AUDIT.md
+GPT:   docs/project/GPT_PROJECT_LEAD_INSTRUCTIONS.md
+GLM:   docs/project/GLM_EXECUTOR_RULES.md
+Opus:  docs/project/OPUS_ARCHITECT_AUDIT_RULES.md
+Codex: docs/project/CODEX_LOCAL_AUDITOR_RULES.md
 ```
 
-Closed docs are still useful as references, but they are not active implementation queues unless Denis explicitly reopens them.
+Closed/old roadmap docs are references only. They are not active implementation queues.
 
 ---
 
-## Current roadmap model
+## Tool roles
 
 ```text
-roadmap/backlog first -> audit/design second -> implementation after accepted audit
+GPT   = project lead / task router / PR reviewer / docs keeper
+GLM   = High/High+ executor after accepted audit/roadmap
+Opus  = system architect, broad auditor, complex High+ executor when justified
+Codex = read-only local auditor for Denis's computer-only files/assets
+Denis = product owner and merge decision maker
 ```
 
-Implementation steps should be scoped High+/High unless Denis explicitly approves a smaller docs-only or fixup step.
-
-No code PR should start without:
-
-```text
-1. owner-approved direction
-2. roadmap/backlog or scoped plan
-3. accepted audit/design when architecture/gameplay/runtime is involved
-4. strict task scope
-```
-
-For the current fix backlog, the base accepted sequence is:
-
-```text
-A2 — Debug mode map cleanup / keep Sand Classic          DONE
-B1 — Arena placement center alignment
-B2 — Arena body + weapon visual calibration
-C1 — Turret rest / target-lock behavior
-C2 — Arena body/weapon inspection controls
-D  — Dev grid overlay deferred unless Sand Classic is insufficient
-```
-
-After A2, a controlled strong-model experiment is active:
-
-```text
-EXPERIMENT-OPUS-B1B2-01:
-- Bundle B1 + B2 in one High+ strong-model implementation test.
-- Primary executor: Claude/Opus 4.8.
-- Alternative executor: Codex GPT-5.5.
-- GLM: patch apply / validation / PR delivery only if needed.
-```
-
-Experiment dependency rule:
-
-```text
-B1 placement center alignment must be solved first as an internal checkpoint.
-Continue to B2 only after the coordinate baseline is coherent.
-Do not implement C1/C2 inside the B1+B2 experiment.
-```
-
-If the experiment fails or the diff becomes too broad, revert to separate B1 -> B2 -> C1 -> C2 implementation steps.
+Do not swap these roles silently.
 
 ---
 
-## Multi-agent execution model
+## Graphify-first rule
 
-Use the current workflow from `docs/project/AI_EXECUTION_WORKFLOW_2026_06_12.md`:
+For broad repo reasoning, cleanup audits, architecture audits, and High/High+ planning, use the GitHub Actions Graphify artifact first when available.
 
-```text
-GPT = coordinator / task writer / PR reviewer
-GLM = audit, patch application, validation, PR delivery, Telegram notification
-Claude/Opus = strong code executor; if push is blocked, provide patch handoff
-Codex = strong code executor with direct PR ability and screenshot-driven visual QA when available
-Denis = final manual / visual QA and merge decision
-```
-
-Current cost discipline:
+Workflow:
 
 ```text
-Do not spend Claude/Opus or Codex limits on routine audits, docs cleanup, or PR delivery.
-Use GLM for low-risk audits and patch/PR plumbing.
-Reserve Claude/Opus and Codex for High+ code implementation.
+.github/workflows/graphify.yml
 ```
 
-Strong-model experiment discipline:
+Do not commit `graphify-out/` by default.
 
-```text
-Claude/Opus and Codex may be tested on larger High+ bundles only when an experiment doc says so.
-The first accepted experiment is EXPERIMENT-OPUS-B1B2-01.
-Keep internal checkpoints and strict merge gates.
-Do not let GLM implement high-risk renderer/behavior bundles.
-```
+Do not ask Denis to repeatedly download repo/PRs locally for standard context generation.
 
 ---
 
-## Latest Arena baseline
+## Roadmap/audit model
 
-Arena is now a standalone combat sandbox.
-
-It includes:
+Preferred model:
 
 ```text
-- clean Arena mode with no HQ/base, harvesters, resources, economy HUD or gameplay obstacles
-- ArenaMenu as primary UX
-- manual body + weapon + team unit creation
-- click placement using CAMERA_PROJECTION_CONTRACT.md
-- ally/enemy model
-- allies controllable, enemies target-only
-- turret target-lock in Arena instead of mouse-follow
-- roster/control panel/help/status messages
-- simple enemy behavior modes: passive, stationary_shooter, chaser, hold_position
+roadmap with many steps
+-> one broad durable Opus audit when needed
+-> High/High+ implementation steps
+-> PR review
+-> docs update
 ```
 
-Do not add more Arena features by inertia.
-
-Deferred Arena work requires a new roadmap/audit unless it is explicitly part of the accepted fix backlog:
+Avoid:
 
 ```text
-- Arena save/load setups
-- JSON import/export
-- attack waves
-- strategic AI
-- economy/base-building AI
-- final combat systems
-- final art
-- pathfinding rewrites
-- obstacle return
+1 tiny task -> 1 audit -> 1 tiny task -> 1 audit
+```
+
+Do not do audits for theater. Use audits when the system/direction is genuinely broad or risky.
+
+---
+
+## Current modular vehicle constraints
+
+Local staging facts may exist outside the repo:
+
+```text
+D:\Desktop\Модели\game_asset_staging\modular_cyan_v1\
+```
+
+Known staging summary:
+
+```text
+448 hull PNG
+640 turret PNG
+1088 runtime PNG total
+warnings 0
+```
+
+Rules:
+
+```text
+- do not import the full staging package before cleanup/loader/renderer plan is accepted;
+- do not preload all 1088 PNG at startup;
+- do not use combined hull x turret production matrix;
+- do not manually tune per-PNG offsets as source of truth;
+- use socket/pivot metadata;
+- integrate visual QA through Arena/debug UI, not new URL flag sprawl.
 ```
 
 ---
@@ -209,101 +179,73 @@ docs/project/CAMERA_PROJECTION_CONTRACT.md
 Rules:
 
 ```text
-- The camera is fixed isometric / axonometric 2.5D.
-- It is not top-down.
-- It is not side-view.
-- Pan + zoom are allowed.
-- Rotation is forbidden.
-- Projection formula: screen = origin + x*basisX + y*basisY + z*basisZ.
-- Ground-space markers, selection rings, shadows, ranges and footprints must be projected on the ground plane.
-- Do not draw ground-space concepts as top-down screen circles.
+- fixed isometric / axonometric 2.5D camera;
+- not top-down;
+- not side-view;
+- pan + zoom allowed;
+- camera rotation forbidden;
+- projection formula: screen = origin + x*basisX + y*basisY + z*basisZ;
+- ground markers/rings/shadows/ranges/footprints must be projected onto ground plane;
+- no top-down screen circles for ground-space concepts.
 ```
 
-Manual visual QA for the current fix backlog must use real menu flows:
+---
+
+## Arena/debug UX policy
+
+Manual visual QA should use real project surfaces:
 
 ```text
 Standard
 Debug / Отладка
 Arena / Арена
+ArenaMenu
+Arena debug/inspection panels
 ```
 
-Query flags may be used for automation/smoke/dev shortcuts, but not as final manual acceptance evidence.
+Do not add a new query-string flag for every visual test.
+
+Query flags may exist for automation/smoke/dev shortcuts only. They are not final manual acceptance UX.
 
 ---
 
-## Non-negotiable decisions
+## GitHub-first rule
 
-- Engine: Phaser 4.
-- Repository: `ratoker-jpg/four-elements-phaser`.
-- Copy policy: approved assets only.
-- Old TypeScript/runtime/systems/renderers/tests: reference only, not implementation.
-- No Canvas renderer.
-- No renderer bridge.
-- No `WorldRenderSnapshot`.
-- No legacy `GameWorld`.
-- No dual renderer.
-- No temporary architecture that is expected to be cleaned later.
-- No Rex runtime dependencies without separate audit/approval.
+Repository-level context, validation, graph generation, and PR review preparation should happen in GitHub workflows/artifacts when possible.
 
----
-
-## Explicitly obsolete as active direction
+Local machine work is for:
 
 ```text
-- Phase 2 roadmap as active direction
-- Sand terrain as primary visual direction
-- MAPLIFE #120 continuation
-- MAPLIFE desert decor direction
-- VISUAL implementation queue as active queue
-- BLOCKOUT-MVP implementation queue as active queue
-- Arena Sandbox implementation queue as active queue
-- Mass asset generation directly into repo without visual approval
-- Fixing bad art by code-only patches
-- Four-biome system now
-```
-
-Note: Sand Classic is currently kept as a calibration map for the accepted fix backlog. This does not reopen sand terrain as the primary production visual direction.
-
----
-
-## Architecture rules
-
-- Phaser Scene owns lifecycle and rendering orchestration only.
-- Game state is pure TypeScript where practical.
-- Systems are pure TypeScript where practical.
-- Input creates commands.
-- UI reads state and sends commands.
-- VFX is render-only and event/event-state driven.
-- Game rules must be testable without Phaser where practical.
-- GameScene must remain orchestration-only.
-
-Layer rules:
-
-```text
-State layer: pure TS, no Phaser imports, no DOM.
-Render layer: reads state and renders visuals, does not own gameplay.
-DOM UI: UI/HUD only, no Phaser-specific rendering logic.
+- Blender/export work;
+- local-only asset/file audits;
+- manual visual QA that cannot run in GitHub;
+- explicitly approved emergency reproduction.
 ```
 
 ---
 
-## Old repo usage
-
-Allowed from `four-elements-next` only when explicitly useful:
+## Strict non-goals unless explicitly scoped
 
 ```text
-- approved assets after user approval
-- visual targets
-- gameplay requirements
-- known mistakes
-- docs/roadmap as reference
-- old tests as scenario examples only
+- no combat/movement/economy/mapgen/save-load changes during asset runtime cleanup;
+- no PR #263 continuation by inertia;
+- no final all-faction asset import;
+- no package/runtime dependency for Graphify;
+- no hidden temporary architecture expected to be cleaned later;
+- no Rex runtime dependencies without separate audit/approval;
+- no Canvas renderer;
+- no renderer bridge;
+- no legacy GameWorld;
+- no WorldRenderSnapshot;
+- no dual renderer.
 ```
 
-Forbidden to copy as implementation:
+---
 
-```text
-- old Canvas renderer
-- old Phaser adapter/bridge
-- old GameWorld
-```
+## Documentation hygiene
+
+Active docs must be explicit and few.
+
+Stale docs must be marked closed/historical or archived and removed from required reading lists.
+
+Docs containing obsolete approval phrases such as `Жду Делай` must not be active instructions.
