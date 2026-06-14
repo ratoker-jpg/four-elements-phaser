@@ -24,6 +24,9 @@ MODULAR-RUNTIME-01 (PR #279) is merged: clean modular cyan vehicle runtime works
 ASSET-FIX-02A (PR #280) is merged: Wasp cyan m0 hull sprites fixed.
 LEGACY-WASP-CLEANUP-01A audit is complete: 12 legacy Wasp-only artifacts identified.
 LEGACY-WASP-CLEANUP-01B adds @legacy markers and modular isolation tests.
+WASP-M0-ASSET-FIX-02C (PR #284) is merged: Wasp cyan m0 modular hull sprites regenerated to match the m1 family.
+WASP-M0-POST-02C-AUDIT found the real remaining bug: the legacy arena hull preload and the modular runtime shared the `generated_hull_*` Phaser texture-key namespace, so the legacy `_hull_dir` crop pre-occupied the key and the modular loader skipped the correct PNG (only Wasp m0 was preloaded by the legacy path, so only m0 looked wrong).
+MODULAR-RUNTIME-02A renames modular hull keys to `modular_hull_*`, breaking the collision. No assets/metadata/runtime-behavior changed beyond the key string.
 
 Still in force:
 - Do not continue PR #263 / Wasp+Smoky offset recovery by inertia.
