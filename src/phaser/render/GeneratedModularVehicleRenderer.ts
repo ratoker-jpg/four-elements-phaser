@@ -26,6 +26,7 @@ import Phaser from 'phaser';
 import {
   composeModularVehicle,
   MODULAR_VEHICLE_DISPLAY_SCALE,
+  getHullVisualScaleMultiplier,
   type ModularRenderPlan,
 } from '../../modular/modularVehicleComposition';
 import {
@@ -363,8 +364,12 @@ export class GeneratedModularVehicleRenderer {
 
   private drawLabels(plan: ModularRenderPlan): void {
     const v = this.visual;
+    const hullScaleMultiplier = getHullVisualScaleMultiplier(v.hullId);
+    const hullScaleNote = hullScaleMultiplier !== 1
+      ? `   hull scale: ${hullScaleMultiplier}x (${v.hullId} compensation)`
+      : '';
     const lines = [
-      'MODULAR-RUNTIME-01 — generated modular vehicle renderer',
+      'MODULAR-ALL-FACTIONS-01B — generated modular vehicle renderer',
       '',
       `hull:   ${v.hullId} / ${v.hullMod}   dir ${this.hullDir16} (${plan.hullDirSuffix})`,
       `turret: ${v.turretId} / ${v.turretMod}   dir ${this.turretDir16} (${plan.turretDirSuffix})`,
@@ -375,12 +380,13 @@ export class GeneratedModularVehicleRenderer {
       `hull metadata: ${plan.hullMetadataPresent}   turret metadata: ${plan.turretMetadataPresent}`,
       `set loaded: ${isModularVehicleSetLoaded(this.scene, v)}` +
         (this.lastLoad ? `   queued: ${this.lastLoad.queuedCount}` : ''),
+      hullScaleNote,
       '',
       `hull key:   ${plan.hull.textureKey ?? 'null (fallback)'}`,
       `turret key: ${plan.turret.textureKey ?? 'null (fallback)'}`,
       '',
       'markers — magenta: hull socket   green: turret pivot (should coincide)',
-    ];
+    ].filter(line => line !== undefined);
     this.labelText!.setText(lines);
   }
 

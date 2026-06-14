@@ -25,8 +25,9 @@ ASSET-FIX-02A (PR #280) is merged: Wasp cyan m0 hull sprites fixed.
 LEGACY-WASP-CLEANUP-01A audit is complete: 12 legacy Wasp-only artifacts identified.
 LEGACY-WASP-CLEANUP-01B adds @legacy markers and modular isolation tests.
 WASP-M0-ASSET-FIX-02C (PR #284) is merged: Wasp cyan m0 modular hull sprites regenerated to match the m1 family.
-WASP-M0-POST-02C-AUDIT found the real remaining bug: the legacy arena hull preload and the modular runtime shared the `generated_hull_*` Phaser texture-key namespace, so the legacy `_hull_dir` crop pre-occupied the key and the modular loader skipped the correct PNG (only Wasp m0 was preloaded by the legacy path, so only m0 looked wrong).
-MODULAR-RUNTIME-02A renames modular hull keys to `modular_hull_*`, breaking the collision. No assets/metadata/runtime-behavior changed beyond the key string.
+MODULAR-RUNTIME-02A (PR #285) is merged: modular hull texture keys use `modular_hull_*` namespace.
+ASSET-IMPORT-02A (PR #286) is merged: all-factions modular vehicle PNG assets imported into repo.
+MODULAR-ALL-FACTIONS-01B connects all-factions runtime/devtools and adds Dictator visual scale compensation.
 
 Still in force:
 - Do not continue PR #263 / Wasp+Smoky offset recovery by inertia.
@@ -36,8 +37,9 @@ Still in force:
 - Do not use a combined hull×turret production matrix.
 - Do not add new query-string visual test modes.
 
-Next after merge of 01B:
-- MODULAR-RUNTIME-02: Controlled Arena demo unit using GeneratedModularVehicleRenderer.
+Next after merge of MODULAR-ALL-FACTIONS-01B:
+- MODULAR-RUNTIME-02B — Controlled Arena demo unit using GeneratedModularVehicleRenderer
+- or MODULAR-RUNTIME-03 if QA confirms readiness
 ```
 
 The "do not copy modular_cyan_v1 assets yet" / "do not start runtime implementation

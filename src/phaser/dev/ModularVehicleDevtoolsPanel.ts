@@ -1,9 +1,12 @@
 /**
- * ModularVehicleDevtoolsPanel — MODULAR-RUNTIME-01 QA/demo selector.
+ * ModularVehicleDevtoolsPanel — MODULAR-ALL-FACTIONS-01B QA/demo selector.
  *
  * Devtools-only DOM control surface for the GeneratedModularVehicleRenderer.
- * Exposes INDEPENDENT selectors for hullId, turretId, hullMod, turretMod
- * (faction is cyan-only in V1) plus hull/turret direction steppers.
+ * Exposes INDEPENDENT selectors for hullId, turretId, faction, hullMod,
+ * turretMod plus hull/turret direction steppers.
+ *
+ * Changing faction changes both hull and turret asset faction.
+ * Changing hullId/turretId/hullMod/turretMod changes only that dimension.
  *
  * This is a QA/demo selector, NOT a manual calibration loop: there are no
  * pixel-offset controls. It follows the existing devtools panel style and
@@ -15,9 +18,11 @@ import {
   MODULAR_HULL_IDS,
   MODULAR_TURRET_IDS,
   MODULAR_MOD_IDS,
+  MODULAR_FACTION_IDS,
   type ModularHullId,
   type ModularTurretId,
   type ModularModId,
+  type ModularFactionId,
 } from '../../modular/modularVehicleVisual';
 
 export interface ModularVehicleDevtoolsPanelCallbacks {
@@ -100,6 +105,15 @@ export class ModularVehicleDevtoolsPanel {
     this.openCloseBtn.style.width = '100%';
     this.openCloseBtn.style.marginBottom = '8px';
     content.appendChild(this.openCloseBtn);
+
+    // Faction selector (changes both hull and turret asset color)
+    content.appendChild(this.makeRowLabel('Faction (hull + turret)'));
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton('◀ faction', () => this.cycleFaction(-1)),
+        this.makeControlButton('faction ▶', () => this.cycleFaction(1)),
+      ]),
+    );
 
     // Hull id selector
     content.appendChild(this.makeRowLabel('Hull id (independent)'));
@@ -244,6 +258,14 @@ export class ModularVehicleDevtoolsPanel {
       const cur = r.getState().visual.turretId;
       const next = cycleInList(MODULAR_TURRET_IDS, cur, delta) as ModularTurretId;
       r.patchVisual({ turretId: next });
+    });
+  }
+
+  private cycleFaction(delta: number): void {
+    this.rendererCall((r) => {
+      const cur = r.getState().visual.faction;
+      const next = cycleInList(MODULAR_FACTION_IDS, cur, delta) as ModularFactionId;
+      r.patchVisual({ faction: next });
     });
   }
 
