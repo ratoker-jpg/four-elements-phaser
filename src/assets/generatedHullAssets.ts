@@ -294,6 +294,10 @@ export function bodyIdToGeneratedHullId(bodyId: string): GeneratedHullId | null 
 // Turrets are NOT affected by this remap.
 
 /**
+ * @legacy Wasp/Smoky pilot-era direction remap table.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * Wasp-only calibration MVP. Do not generalize without visual validation.
  *
  * Maps logical dir16 → visual dir16 for Wasp generated hull sprites.
@@ -334,6 +338,10 @@ export const WASP_HULL_VISUAL_DIR16_REMAP: Record<number, number> = {
 };
 
 /**
+ * @legacy Wasp/Smoky pilot-era direction remap helper.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * Apply hull-specific visual dir16 remap.
  *
  * For Wasp: applies the profile-based remap via remapVisualDir +
@@ -532,6 +540,10 @@ export const GENERATED_HULL_ORIGIN_Y = 0.75;
 // position only — selection ring, movement, and turret aim are unchanged.
 
 /**
+ * @legacy Wasp/Smoky pilot-era hull placement offset.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * Wasp-specific hull sprite offset X (screen pixels).
  * Calibrated via manual QA by Denis using the Wasp placement calibration
  * tool (PR #243). At scale 0.12, the Wasp hull sprite needs this X offset
@@ -541,6 +553,10 @@ export const GENERATED_HULL_ORIGIN_Y = 0.75;
 export const WASP_HULL_OFFSET_X = -1;
 
 /**
+ * @legacy Wasp/Smoky pilot-era hull placement offset.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * Wasp-specific hull sprite offset Y (screen pixels).
  * Calibrated via manual QA by Denis using the Wasp placement calibration
  * tool (PR #243). At scale 0.12, the Wasp hull sprite needs this Y offset
@@ -550,6 +566,10 @@ export const WASP_HULL_OFFSET_X = -1;
 export const WASP_HULL_OFFSET_Y = 12;
 
 /**
+ * @legacy Wasp/Smoky pilot-era hull placement offset resolver.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * Get the per-hull placement offset for a generated hull.
  * Returns { offsetX, offsetY } in screen pixels.
  * Currently only Wasp has a calibrated offset; other hulls default to (0, 0).

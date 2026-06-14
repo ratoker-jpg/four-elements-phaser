@@ -1,4 +1,8 @@
 /**
+ * @legacy Wasp/Smoky pilot-era preview composition for the old proof harness.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * MODULAR-PROOF-01: Pure preview composition for the generated vehicle
  * attachment proof harness.
  *

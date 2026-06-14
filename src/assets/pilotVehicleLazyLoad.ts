@@ -1,4 +1,8 @@
 /**
+ * @legacy Wasp/Smoky pilot-era vehicle lazy-load lifecycle.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * Pilot vehicle lazy-load lifecycle + diagnostics.
  *
  * RUNTIME-02B: Wires the existing selected-set loader (preloadVehicleAssetSet)

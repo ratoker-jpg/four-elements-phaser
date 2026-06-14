@@ -194,6 +194,10 @@ export interface UpgradeLevelProfile {
 // ── Profile instances (today's constants, no visual change) ─────────
 
 /**
+ * @legacy Wasp/Smoky pilot-era visual profile.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * Wasp generated hull visual profile.
  * All values match existing exported constants exactly.
  *

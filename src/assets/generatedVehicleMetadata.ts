@@ -1,4 +1,8 @@
 /**
+ * @legacy Wasp/Smoky pilot-era vehicle metadata contract.
+ * Do not import into MODULAR-RUNTIME-* code paths.
+ * The clean modular runtime must use src/modular/* + generated modular manifests.
+ *
  * Typed metadata contract for generated vehicle assets.
  *
  * RUNTIME-01: Defines the metadata schema that describes generated
