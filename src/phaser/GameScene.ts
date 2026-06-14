@@ -42,6 +42,8 @@ import { AssetPreviewTool } from './dev/AssetPreviewTool';
 import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
 import { GeneratedVehicleProofHarness } from './dev/GeneratedVehicleProofHarness';
 import { GeneratedVehicleProofPanel } from './dev/GeneratedVehicleProofPanel';
+import { GeneratedModularVehicleRenderer } from './render/GeneratedModularVehicleRenderer';
+import { ModularVehicleDevtoolsPanel } from './dev/ModularVehicleDevtoolsPanel';
 import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
 import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputController';
 import { BlockoutWeaponVfxRenderer } from './render/BlockoutWeaponVfxRenderer';
@@ -161,6 +163,11 @@ export class GameScene extends Phaser.Scene {
   // (devtools-only; does NOT integrate with live Arena vehicle rendering).
   private generatedVehicleProofHarness: GeneratedVehicleProofHarness | null = null;
   private generatedVehicleProofPanel: GeneratedVehicleProofPanel | null = null;
+
+  // MODULAR-RUNTIME-01: Clean modular generated vehicle renderer + QA selector
+  // (devtools-only; isolated overlay, does NOT alter live Arena combat/movement).
+  private generatedModularVehicleRenderer: GeneratedModularVehicleRenderer | null = null;
+  private modularVehicleDevtoolsPanel: ModularVehicleDevtoolsPanel | null = null;
 
   // BLOCKOUT-02H: Blockout vehicle renderer (only when devtools is active)
   private blockoutVehicleRenderer: BlockoutVehicleRenderer | null = null;
@@ -576,6 +583,23 @@ export class GameScene extends Phaser.Scene {
       );
       this.generatedVehicleProofPanel.show();
       console.log('[GameScene] Generated vehicle proof harness enabled (panel + toggle: 9).');
+    }
+
+    // MODULAR-RUNTIME-01: Create the clean modular generated vehicle renderer
+    // and its QA/demo selector panel if devtools is active. Isolated overlay —
+    // does NOT enable modular rendering in live Arena combat, and adds no URL
+    // flags. Hull/turret/hullMod/turretMod are independently selectable.
+    if (this.devtoolsActive) {
+      this.generatedModularVehicleRenderer = new GeneratedModularVehicleRenderer(this);
+      this.modularVehicleDevtoolsPanel = new ModularVehicleDevtoolsPanel();
+      this.modularVehicleDevtoolsPanel.create({
+        getRenderer: () => this.generatedModularVehicleRenderer,
+      });
+      this.generatedModularVehicleRenderer.setOnStateChange(
+        () => this.modularVehicleDevtoolsPanel?.refresh(),
+      );
+      this.modularVehicleDevtoolsPanel.show();
+      console.log('[GameScene] Modular vehicle renderer + selector enabled (panel).');
     }
 
     // BLOCKOUT-02H: Create blockout vehicle renderer and spawn initial set if devtools is active
@@ -1323,6 +1347,10 @@ export class GameScene extends Phaser.Scene {
     this.generatedVehicleProofHarness = null;
     this.generatedVehicleProofPanel?.destroy();
     this.generatedVehicleProofPanel = null;
+    this.generatedModularVehicleRenderer?.destroy();
+    this.generatedModularVehicleRenderer = null;
+    this.modularVehicleDevtoolsPanel?.destroy();
+    this.modularVehicleDevtoolsPanel = null;
     this.blockoutVehicleInputController?.destroy();
     this.blockoutVehicleInputController = null;
     this.blockoutVehicleRenderer?.destroy();

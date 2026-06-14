@@ -19,18 +19,29 @@ What should GPT/GLM/Opus/Codex do next by default?
 ## Current answer
 
 ```text
-Do not continue PR #263 / Wasp+Smoky offset recovery by inertia.
-Do not start modular vehicle runtime implementation yet.
-Do not copy modular_cyan_v1 assets into repo yet.
-Do not run another small audit per task.
+ASSET-IMPORT-01 (PR #278) is merged: modular cyan assets are now in the repo.
+MODULAR-RUNTIME-01 is the active implementation step.
 
-Next default step:
-1. accept/merge docs-only Graphify + AI governance + modular roadmap update;
-2. run GitHub Actions Graphify workflow;
-3. use the artifact for one broad Opus cleanup + modular runtime system audit;
-4. commit the Opus audit as a durable project doc;
-5. execute High/High+ implementation steps through GLM or Opus according to the accepted audit.
+Still in force:
+- Do not continue PR #263 / Wasp+Smoky offset recovery by inertia.
+- Do not continue PR #274/#275 failed generated turret composition path.
+- Do not re-enable ENABLE_PILOT_GENERATED_TURRET_COMPOSITION.
+- Do not preload the full modular matrix.
+- Do not use a combined hull×turret production matrix.
+- Do not add new query-string visual test modes.
+
+Active step (MODULAR-RUNTIME-01):
+- clean modular generated vehicle renderer path (GeneratedModularVehicleRenderer);
+- typed ModularVehicleVisual with independent hull/turret + hullMod/turretMod;
+- metadata-driven composition from the export socket/pivot manifests;
+- lazy loading capped at 32 PNG per selected visual;
+- Arena/devtools selector for hull/turret/hullMod/turretMod (cyan);
+- safe fallback to blockout when assets/metadata are unavailable.
 ```
+
+The "do not copy modular_cyan_v1 assets yet" / "do not start runtime implementation
+yet" lines below predate PR #278 and are superseded for the asset import and the
+MODULAR-RUNTIME-01 runtime step. The rest of the guardrails still apply.
 
 ---
 

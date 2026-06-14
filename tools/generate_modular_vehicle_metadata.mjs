@@ -1,0 +1,205 @@
+#!/usr/bin/env node
+/**
+ * generate_modular_vehicle_metadata.mjs — MODULAR-RUNTIME-01.
+ *
+ * Build-time generator that transforms the committed modular cyan vehicle
+ * metadata JSON manifests into a compact, typed, zero-fetch TypeScript
+ * constants module consumed by the modular vehicle composition layer.
+ *
+ * It is the principled "metadata-driven, not guessed" source: the socket
+ * and pivot normalized coordinates emitted here are READ from the export
+ * manifests, never hand-tuned.
+ *
+ * Inputs (committed in the repo):
+ *   public/assets/units/metadata/hull_socket_manifest_modular_cyan_v1.json
+ *   public/assets/units/metadata/turret_pivot_manifest_modular_cyan_v1.json
+ *
+ * Output (committed, DO-NOT-EDIT by hand):
+ *   src/assets/generatedModularVehicleMetadata.generated.ts
+ *
+ * The render strategy is `fixed_512_frame` with the socketPixelPolicy
+ * `world_origin_projects_to_frame_center`: by construction every hull
+ * socket and every turret pivot projects to the exact centre (256,256)
+ * of the 512x512 frame, for every direction, hull, turret and mod. The
+ * generator asserts this invariant and records the per-family normalized
+ * socket/pivot plus any per-direction deviation (there is none today, but
+ * the schema supports it forward-compatibly).
+ *
+ * This generator writes ONLY the metadata module. It never touches
+ * generatedAssetManifest.ts (DO-NOT-EDIT) nor the generated registry.
+ */
+
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(__dirname, '..');
+
+const HULL_MANIFEST = join(
+  repoRoot,
+  'public/assets/units/metadata/hull_socket_manifest_modular_cyan_v1.json',
+);
+const TURRET_MANIFEST = join(
+  repoRoot,
+  'public/assets/units/metadata/turret_pivot_manifest_modular_cyan_v1.json',
+);
+const OUT_FILE = join(
+  repoRoot,
+  'src/assets/generatedModularVehicleMetadata.generated.ts',
+);
+
+const round = (n) => Math.round(n * 1e6) / 1e6;
+
+/**
+ * Reduce a family's per-direction normalized anchors into a single
+ * uniform normalized coord (frame-centre policy) plus per-dir overrides
+ * for any direction that deviates from the family default.
+ */
+function reduceFamily(records, pixelKey) {
+  const perDir = {};
+  let imageW = null;
+  let imageH = null;
+  const norms = [];
+
+  for (const sub of records) {
+    const size = sub.imageSize;
+    if (imageW === null) {
+      imageW = size.w;
+      imageH = size.h;
+    } else if (imageW !== size.w || imageH !== size.h) {
+      throw new Error(`Non-uniform imageSize within family at dir ${sub.dir}`);
+    }
+    const px = sub[pixelKey];
+    const nx = round(px.x / size.w);
+    const ny = round(px.y / size.h);
+    perDir[sub.dir] = { nx, ny };
+    norms.push({ nx, ny });
+  }
+
+  // Family default = the first direction's normalized coord.
+  const def = norms[0];
+  // Record only directions that deviate from the default.
+  const overrides = {};
+  for (const [dir, n] of Object.entries(perDir)) {
+    if (n.nx !== def.nx || n.ny !== def.ny) {
+      overrides[dir] = n;
+    }
+  }
+  return { def, overrides, imageSize: { w: imageW, h: imageH } };
+}
+
+function buildFamilyMap(manifest, idKey, modKey, pixelKey) {
+  const out = {};
+  for (const rec of manifest.records) {
+    const id = rec[idKey];
+    const mod = rec[modKey];
+    const key = `${id}_${mod}`;
+    out[key] = {
+      id,
+      mod,
+      renderStrategy: rec.renderStrategy,
+      ...reduceFamily(rec.records, pixelKey),
+    };
+  }
+  return out;
+}
+
+const hullManifest = JSON.parse(readFileSync(HULL_MANIFEST, 'utf8'));
+const turretManifest = JSON.parse(readFileSync(TURRET_MANIFEST, 'utf8'));
+
+const hullMap = buildFamilyMap(hullManifest, 'hull', 'hullMod', 'socketPixel');
+const turretMap = buildFamilyMap(turretManifest, 'turret', 'turretMod', 'pivotPixel');
+
+// Assert the frame-centre invariant the composition relies on.
+const frameCenter = (m) =>
+  Object.values(m).every(
+    (e) =>
+      e.def.nx === 0.5 &&
+      e.def.ny === 0.5 &&
+      Object.keys(e.overrides).length === 0,
+  );
+const socketAllCentered = frameCenter(hullMap);
+const pivotAllCentered = frameCenter(turretMap);
+
+function serializeEntry(e) {
+  const overrides = Object.keys(e.overrides).length
+    ? `, perDir: ${JSON.stringify(e.overrides)}`
+    : '';
+  return `  "${e.id}_${e.mod}": { id: "${e.id}", mod: "${e.mod}", normalized: { nx: ${e.def.nx}, ny: ${e.def.ny} }, imageSize: { w: ${e.imageSize.w}, h: ${e.imageSize.h} }, renderStrategy: "${e.renderStrategy}"${overrides} },`;
+}
+
+const hullEntries = Object.values(hullMap)
+  .sort((a, b) => `${a.id}_${a.mod}`.localeCompare(`${b.id}_${b.mod}`))
+  .map(serializeEntry)
+  .join('\n');
+const turretEntries = Object.values(turretMap)
+  .sort((a, b) => `${a.id}_${a.mod}`.localeCompare(`${b.id}_${b.mod}`))
+  .map(serializeEntry)
+  .join('\n');
+
+const header = `/* eslint-disable */
+// AUTO-GENERATED by tools/generate_modular_vehicle_metadata.mjs (MODULAR-RUNTIME-01).
+// Do NOT edit by hand. Regenerate with: node tools/generate_modular_vehicle_metadata.mjs
+//
+// Source manifests (committed):
+//   public/assets/units/metadata/hull_socket_manifest_modular_cyan_v1.json
+//   public/assets/units/metadata/turret_pivot_manifest_modular_cyan_v1.json
+//
+// Render strategy: fixed_512_frame
+// Socket pixel policy: world_origin_projects_to_frame_center
+// Therefore every hull socket and every turret pivot projects to the exact
+// centre of its 512x512 frame. Composition aligns the turret pivot onto the
+// hull socket with NO per-direction offset tables and NO zHeight hack: the
+// 3D height is already baked into where the sprite content sits in-frame.
+`;
+
+const body = `
+/** A normalized (0..1) anchor in image space. */
+export interface ModularVehicleNormalizedAnchor {
+  nx: number;
+  ny: number;
+}
+
+/** Per-family socket/pivot metadata derived from the export manifests. */
+export interface ModularVehicleFamilyMeta {
+  /** Hull id or turret id. */
+  id: string;
+  /** Modification tier (m0..m3). */
+  mod: string;
+  /** Family-default normalized anchor (frame-centre under the fixed_512 policy). */
+  normalized: ModularVehicleNormalizedAnchor;
+  /** Source image size in pixels. */
+  imageSize: { w: number; h: number };
+  /** Render strategy recorded by the exporter. */
+  renderStrategy: string;
+  /** Optional per-direction overrides (dir16 index -> normalized anchor). */
+  perDir?: Record<string, ModularVehicleNormalizedAnchor>;
+}
+
+/** True when every hull socket projects to frame centre (no offset tables needed). */
+export const MODULAR_HULL_SOCKET_ALL_FRAME_CENTERED = ${socketAllCentered};
+
+/** True when every turret pivot projects to frame centre (no offset tables needed). */
+export const MODULAR_TURRET_PIVOT_ALL_FRAME_CENTERED = ${pivotAllCentered};
+
+/** Hull socket metadata keyed by \`\${hullId}_\${hullMod}\`. */
+export const MODULAR_HULL_SOCKET_META: Record<string, ModularVehicleFamilyMeta> = {
+${hullEntries}
+};
+
+/** Turret pivot metadata keyed by \`\${turretId}_\${turretMod}\`. */
+export const MODULAR_TURRET_PIVOT_META: Record<string, ModularVehicleFamilyMeta> = {
+${turretEntries}
+};
+`;
+
+writeFileSync(OUT_FILE, header + body, 'utf8');
+
+const hullCount = Object.keys(hullMap).length;
+const turretCount = Object.keys(turretMap).length;
+console.log(
+  `[generate_modular_vehicle_metadata] wrote ${OUT_FILE}\n` +
+    `  hull families: ${hullCount}  turret families: ${turretCount}\n` +
+    `  socketAllFrameCentered: ${socketAllCentered}  pivotAllFrameCentered: ${pivotAllCentered}`,
+);
