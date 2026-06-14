@@ -21,13 +21,14 @@ After merging RUNTIME-03 and RUNTIME-03A (PRs #274 and #275), manual Arena QA co
 
 | PR | Title | Status |
 |----|-------|--------|
-| #271 | RUNTIME-01: modular turret resolver | Merged |
-| #272 | RUNTIME-02: Smoky turret assets and lazy-load | Merged |
-| #273 | RUNTIME-03: pilot turret composition integration | Merged (credential leak fixed) |
-| #274 | RUNTIME-03 fixup v3: visual direction remap + GENERATED_TURRET_SCALE | Merged |
-| #275 | RUNTIME-03A: fix pilot turret attachment height and hull anchoring | Merged |
+| #271 | RUNTIME-01: modular turret resolver / metadata contract | Merged |
+| #272 | RUNTIME-02A: cyan Smoky pilot asset intake | Merged |
+| #273 | RUNTIME-02B: pilot lazy-load diagnostics | Merged (credential leak fixed) |
+| #274 | RUNTIME-03: pilot turret composition | Merged |
+| #275 | RUNTIME-03A: turret attachment height / hull anchoring | Merged |
+| #276 | RUNTIME-03B: quarantine failed pilot turret composition | Open |
 
-All five PRs are merged to main. The turret composition code is live but produces incorrect visual results.
+PRs #271–#275 are merged to main. The turret composition code is live but produces incorrect visual results. PR #276 (this quarantine) disables generated turret sprites so the Arena returns to procedural fallback.
 
 ---
 
@@ -114,10 +115,10 @@ The turret composition pipeline needs a **comprehensive Opus-level audit** of th
 
 | Check | Status |
 |-------|--------|
-| `npm run typecheck` | Pending |
-| `npm run test` | Pending |
-| `npm run build` | Pending |
-| `npm run qa:smoke` | Pending |
+| `npm run typecheck` | Pass |
+| `npm run test` | Pass (4446/4446) |
+| `npm run build` | Pass |
+| `npm run qa:smoke` | Pass (standard + devtools) |
 
 ---
 
