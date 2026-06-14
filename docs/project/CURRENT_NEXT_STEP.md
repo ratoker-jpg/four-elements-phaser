@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: Wasp+Smoky attachment recovery is paused at projection-source decision  
+Status: Graphify + AI governance + modular vehicle roadmap is the next default work  
 Project: Four Elements Phaser  
-Date: 2026-06-13
+Updated: 2026-06-14
 
 ---
 
@@ -11,7 +11,7 @@ Date: 2026-06-13
 This file answers one operational question:
 
 ```text
-What should GPT/GLM/Codex/Claude do next by default?
+What should GPT/GLM/Opus/Codex do next by default?
 ```
 
 ---
@@ -19,93 +19,126 @@ What should GPT/GLM/Codex/Claude do next by default?
 ## Current answer
 
 ```text
-PR #263 is HOLD / DO NOT MERGE.
-Do not continue blind renderer offset/formula fixes.
-Do not hand-calibrate Wasp socket perDir values as production source.
-The next decision is Wasp socket projection recovery, not runtime implementation.
+Do not continue PR #263 / Wasp+Smoky offset recovery by inertia.
+Do not start modular vehicle runtime implementation yet.
+Do not copy modular_cyan_v1 assets into repo yet.
+Do not run another small audit per task.
+
+Next default step:
+1. accept/merge docs-only Graphify + AI governance + modular roadmap update;
+2. run GitHub Actions Graphify workflow;
+3. use the artifact for one broad Opus cleanup + modular runtime system audit;
+4. commit the Opus audit as a durable project doc;
+5. execute High/High+ implementation steps through GLM or Opus according to the accepted audit.
 ```
 
-Read first:
+---
+
+## Read first
 
 ```text
-docs/project/TURRET_HULL_SOCKET_RECOVERY_HANDOFF_2026_06_13.md
-docs/project/TURRET_HULL_ATTACHMENT_AUDIT_2026_06_12.md
+AGENTS.md
+docs/project/PROJECT_STATE.md
+docs/project/GPT_WORKFLOW.md
+docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
+docs/project/AI_GRAPHIFY_WORKFLOW.md
+docs/project/MODULAR_VEHICLE_ASSET_RUNTIME_ROADMAP_2026_06_14.md
+```
+
+Agent-specific:
+
+```text
+GPT:   docs/project/GPT_PROJECT_LEAD_INSTRUCTIONS.md
+GLM:   docs/project/GLM_EXECUTOR_RULES.md
+Opus:  docs/project/OPUS_ARCHITECT_AUDIT_RULES.md
+Codex: docs/project/CODEX_LOCAL_AUDITOR_RULES.md
+```
+
+For visual/world-space/rendering/asset tasks:
+
+```text
 docs/project/CAMERA_PROJECTION_CONTRACT.md
-docs/project/GLM_EXECUTOR_RULES.md
 ```
 
 ---
 
-## Active issue
+## Current known asset staging fact
 
-Runtime debug in PR #263 proved:
+Local staging exists outside this repo:
 
 ```text
-computed hull socket world point == computed turret pivot world point
+D:\Desktop\Модели\game_asset_staging\modular_cyan_v1\
 ```
 
-Therefore renderer math is not the current blocker. The remaining blocker is Wasp socket profile data.
+Known summary:
+
+```text
+448 hull PNG
+640 turret PNG
+1088 runtime PNG total
+warnings 0
+hulls and turrets are separate
+metadata/manifest/generated TS draft exist
+```
+
+This does not mean the assets should be imported immediately.
 
 ---
 
-## Current PR state
+## Current priority
 
 ```text
-PR #263 — TURRET-HULL-CONTRACT-PR-F2: wire directional Smoky turret rendering
-URL: https://github.com/ratoker-jpg/four-elements-phaser/pull/263
-Branch: turret-hull-contract-pr-f2
-Status: HOLD / DO NOT MERGE
+Cleanup and integration plan before asset import.
 ```
 
-Useful contents of PR #263:
+Reasons:
 
 ```text
-- real Smoky M0 512x512 16-dir assets for 4 factions;
-- generated turret resolver/pathing;
-- renderer wiring for Wasp+Smoky;
-- turret anchor debug overlay;
-- Wasp socket calibration/debug tool;
-- qa:turret-assets validation.
-```
-
-Do not merge because Wasp+Smoky manual visual QA still failed and Wasp socket data is not projection-backed.
-
----
-
-## Confirmed facts
-
-```text
-Do not change renderer math next.
-Do not change origins/scales next.
-Do not change Smoky pivot next.
-```
-
-Denis found this visual runtime reference for current Wasp dir04:
-
-```ts
-dir04: { nx: 0.506821, ny: 0.326525 }
-```
-
-This is a sanity check only. It is not production source-of-truth.
-
-The correct physical Wasp socket source was visually confirmed in Blender:
-
-```text
-socket source = center of object mount
+- repo has stale docs and old active-looking instructions;
+- legacy asset paths/formulas can conflict with modular runtime;
+- current generated hull pathing may not match staging pathing;
+- manual Wasp/socket offset fixes are not the desired production source;
+- importing 1088 PNG before loader/render proof would make cleanup harder;
+- new debug URL flags would repeat past process drift.
 ```
 
 ---
 
-## Next decision
+## Required next sequence
 
-GPT/Denis must choose the next projection recovery path before implementation.
+### 1. GRAPHIFY-00
+
+Docs/tooling only.
 
 ```text
-Path A — recover/match current shipped Wasp PNG generator.
-Path B — re-baseline Wasp through Blender and generate Wasp PNGs + socket projection together.
+- GitHub Actions Graphify workflow;
+- Graphify workflow doc;
+- AI orchestration rules;
+- GPT/GLM/Opus/Codex role docs;
+- modular vehicle runtime roadmap.
 ```
 
-No agent should choose A or B by inertia.
+### 2. OPUS-AUDIT-00
+
+Use Graphify artifact + roadmap.
+
+Expected output:
+
+```text
+docs/project/MODULAR_VEHICLE_ASSET_RUNTIME_SYSTEM_AUDIT_2026_06_14.md
+```
+
+The audit should cover cleanup and implementation strategy, not just a single step.
+
+### 3. High/High+ implementation
+
+GPT routes each step:
+
+```text
+GLM -> bounded High/High+ implementation after accepted audit
+Opus -> above High+ or cohesive/refactor-heavy implementation
+Codex -> read-only local audit only
+```
 
 ---
 
@@ -113,32 +146,29 @@ No agent should choose A or B by inertia.
 
 ```text
 - do not merge PR #263;
-- do not keep adding offset/origin/math fixups to #263;
-- do not let GLM plan the asset/socket pipeline;
-- do not update Wasp socket runtime data from manual calibration alone;
-- do not render all hulls/weapons in one broad task;
-- do not commit 3D source files to this game repo;
-- do not touch public/assets/units/hulls unless an explicit Wasp re-baseline asset PR is approved;
-- do not change combat, movement, economy, pathfinding, save-load, bot/AI, or mapgen as part of this work.
+- do not build new work on PR #263;
+- do not keep adding offset/origin/math fixups;
+- do not copy modular_cyan_v1 assets yet;
+- do not import all 1088 PNG as first step;
+- do not preload all modular assets;
+- do not use combined hull x turret production matrix;
+- do not add new query-string visual test modes;
+- do not ask Denis to locally download/test repo for standard repo context;
+- do not turn Codex into implementation executor;
+- do not touch combat, movement, economy, pathfinding, save-load, bot/AI, or mapgen as part of docs/tooling/asset-runtime planning.
 ```
 
 ---
 
-## Validation baseline
+## Validation baseline for future implementation PRs
 
-Future implementation PRs should keep using:
+Use when implementation starts:
 
-```text
+```bash
 npm run typecheck
 npm run test
 npm run build
 npm run qa:smoke
 ```
 
-Turret asset/runtime PRs also need:
-
-```text
-npm run qa:turret-assets
-```
-
-Manual visual QA is mandatory for Wasp+Smoky attachment.
+If a command cannot run, report why. Do not claim validation passed if it did not run.
