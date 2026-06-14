@@ -419,25 +419,29 @@ export class BlockoutVehicleRenderer {
         this.vehicleHasGeneratedTurret.set(vehicle.id, false);
       }
 
-      // Position turret sprite at the same screen position as the hull sprite
-      // (same center as the vehicle body). The turret visual offset within the
-      // sprite is handled by the sprite's origin point.
-      if (turretSprite) {
+      // Position turret sprite using pivot-on-socket composition:
+      // turretSpritePos = hullSpritePos + turretOffsetPx
+      // where turretOffsetPx is computed so the turret pivot lands on
+      // the hull socket (see pilotTurretComposition.ts for the formula).
+      if (turretSprite && turretComp.turretOffsetPx) {
         const recoilBodyOffset = vehicle.recoilBodyOffset ?? 0;
         const bodyAngleForOffset = vehicle.bodyAngle;
         const bodyImpulseXForTurret = -Math.cos(bodyAngleForOffset) * recoilBodyOffset;
         const bodyImpulseYForTurret = -Math.sin(bodyAngleForOffset) * recoilBodyOffset;
-        let turretCx = vehicle.worldX + this.offset.x + bodyImpulseXForTurret;
-        let turretCy = vehicle.worldY + this.offset.y + bodyImpulseYForTurret;
+        let hullCx = vehicle.worldX + this.offset.x + bodyImpulseXForTurret;
+        let hullCy = vehicle.worldY + this.offset.y + bodyImpulseYForTurret;
 
         // Apply per-hull placement offset (same as hull sprite)
         const hullIdForTurret = bodyIdToGeneratedHullId(vehicle.bodyId);
         if (hullIdForTurret) {
           const placement = getGeneratedHullPlacementOffset(hullIdForTurret);
-          turretCx += placement.offsetX;
-          turretCy += placement.offsetY;
+          hullCx += placement.offsetX;
+          hullCy += placement.offsetY;
         }
 
+        // Turret position = hull sprite center + computed pivot-on-socket offset
+        const turretCx = hullCx + turretComp.turretOffsetPx.x;
+        const turretCy = hullCy + turretComp.turretOffsetPx.y;
         turretSprite.setPosition(turretCx, turretCy);
       }
 

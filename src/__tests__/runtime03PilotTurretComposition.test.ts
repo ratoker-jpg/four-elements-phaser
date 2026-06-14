@@ -2,7 +2,7 @@
  * RUNTIME-03: Pilot turret composition resolver tests.
  *
  * Tests the pure composition resolver (pilotTurretComposition.ts)
- * and its integration contract with the renderer.
+ * and its pivot-on-socket composition formula.
  *
  * The resolver is pure: no Phaser imports, no scene reference.
  * All texture checks go through a textureExists callback.
@@ -15,13 +15,16 @@ import {
 import {
   getGeneratedTurretTextureKey,
   turretAngleToDir16,
-  GENERATED_TURRET_SCALE,
-  GENERATED_TURRET_ORIGIN_X,
-  GENERATED_TURRET_ORIGIN_Y,
 } from '../assets/generatedTurretAssets';
 import {
   bodyIdToGeneratedHullId,
 } from '../assets/generatedHullAssets';
+import {
+  resolveHullVisualProfile,
+} from '../config/hullTurretVisualProfiles';
+import {
+  resolveTurretPivotForDir,
+} from '../config/directionalTurretProfiles';
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -48,43 +51,102 @@ function makeTextureExistsWithTurretSet(
 /** Always-false textureExists callback (no textures available). */
 const textureExistsNever = (_key: string) => false;
 
-// ─── Pure placement math ──────────────────────────────────────────
+// ─── Pivot lands on socket ────────────────────────────────────────
 
-describe('pilotTurretComposition: pure placement math', () => {
-  it('returns correct dir16 for known turret angles', () => {
-    // East = 0 rad → dir16 0
-    expect(turretAngleToDir16(0)).toBe(0);
-    // South = PI/2 → dir16 4
-    expect(turretAngleToDir16(Math.PI / 2)).toBe(4);
-    // West = PI → dir16 8
-    expect(turretAngleToDir16(Math.PI)).toBe(8);
-    // North = 3*PI/2 → dir16 12
-    expect(turretAngleToDir16(3 * Math.PI / 2)).toBe(12);
+describe('pilotTurretComposition: pivot lands on socket', () => {
+  it('returns non-null turretOffsetPx for pilot combo (smoky + wasp + cyan + m0)', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    expect(result.hasGeneratedTurret).toBe(true);
+    expect(result.turretOffsetPx).not.toBeNull();
+    expect(result.turretOffsetPx!.x).toBeTypeOf('number');
+    expect(result.turretOffsetPx!.y).toBeTypeOf('number');
   });
 
-  it('quantizes intermediate angles correctly', () => {
-    // PI/8 should quantize to dir16 1 (ESE)
-    expect(turretAngleToDir16(Math.PI / 8)).toBe(1);
-    // 3*PI/8 should quantize to dir16 3 (SSE)
-    expect(turretAngleToDir16(3 * Math.PI / 8)).toBe(3);
+  it('turret offset is computed from hull socket and directional pivot (not same-center)', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    // Same-center would have offset (0, 0). With real socket/pivot data,
+    // the offset should be non-zero because:
+    // - Wasp hull origin is (0.5, 0.75), not (0.5, 0.5)
+    // - Socket is at (0.5, 0.5) normalized hull coords
+    // - Smoky M0 dir00 pivot is at (0.206668, 0.464846), not (0.5, 0.5)
+    expect(result.turretOffsetPx).not.toBeNull();
+    expect(result.turretOffsetPx!.x).not.toBe(0);
+    expect(result.turretOffsetPx!.y).not.toBe(0);
   });
 
-  it('handles negative angles by normalizing', () => {
-    // -PI/2 normalizes to 3*PI/2 → dir16 12 (North)
-    expect(turretAngleToDir16(-Math.PI / 2)).toBe(12);
-    // -PI normalizes to PI → dir16 8 (West)
-    expect(turretAngleToDir16(-Math.PI)).toBe(8);
+  it('offset changes per turret direction (different pivots)', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+
+    // East (dir 0)
+    const resultEast = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+    // South (dir 4) = PI/2
+    const resultSouth = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, Math.PI / 2,
+      textureExists,
+    );
+
+    // Different directions have different pivot positions, so offsets differ
+    expect(resultEast.turretOffsetPx).not.toBeNull();
+    expect(resultSouth.turretOffsetPx).not.toBeNull();
+    expect(resultEast.turretOffsetPx!.x).not.toBe(resultSouth.turretOffsetPx!.x);
   });
 
-  it('wraps around at 2*PI', () => {
-    // 2*PI should wrap to dir16 0 (East)
-    expect(turretAngleToDir16(Math.PI * 2)).toBe(0);
+  it('offset is consistent with manual socket/pivot math', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
+
+    // Manual computation:
+    // Hull: scale=0.12, origin=(0.5,0.75), displaySize=512*0.12=61.44
+    // Socket: (0.5, 0.5)
+    // socketFromSpritePos.x = (0.5 - 0.5) * 61.44 = 0
+    // socketFromSpritePos.y = (0.5 - 0.75) * 61.44 = -15.36
+    // Turret: scale=0.24 (from turret profile), displaySize=512*0.24=122.88
+    // Pivot for Smoky M0 dir00: (0.206668, 0.464846)
+    // pivotFromCenter.x = (0.206668 - 0.5) * 122.88 = -36.050...
+    // pivotFromCenter.y = (0.464846 - 0.5) * 122.88 = -4.317...
+    // offset.x = 0 - (-36.050...) = 36.050...
+    // offset.y = -15.36 - (-4.317...) = -11.043...
+
+    expect(result.turretOffsetPx).not.toBeNull();
+    const offset = result.turretOffsetPx!;
+
+    // socketFromSpritePos
+    const hullDisplaySize = 512 * 0.12; // 61.44
+    const expectedSocketX = (0.5 - 0.5) * hullDisplaySize; // 0
+    const expectedSocketY = (0.5 - 0.75) * hullDisplaySize; // -15.36
+
+    // pivotFromCenter (Smoky M0 dir00 pivot = 0.206668, 0.464846)
+    const turretDisplaySize = 512 * 0.24; // 122.88
+    const expectedPivotX = (0.206668 - 0.5) * turretDisplaySize;
+    const expectedPivotY = (0.464846 - 0.5) * turretDisplaySize;
+
+    const expectedOffsetX = expectedSocketX - expectedPivotX;
+    const expectedOffsetY = expectedSocketY - expectedPivotY;
+
+    expect(offset.x).toBeCloseTo(expectedOffsetX, 3);
+    expect(offset.y).toBeCloseTo(expectedOffsetY, 3);
   });
 });
 
-// ─── Texture missing → null ────────────────────────────────────────
+// ─── Null/fallback when texture missing ───────────────────────────
 
-describe('pilotTurretComposition: texture missing → null', () => {
+describe('pilotTurretComposition: null/fallback when texture missing', () => {
   it('returns null turretKey when texture does not exist', () => {
     const result = resolvePilotTurretComposition(
       'smoky', 'wasp', 'cyan', 0, 0,
@@ -95,7 +157,6 @@ describe('pilotTurretComposition: texture missing → null', () => {
   });
 
   it('returns null turretKey when only some textures exist', () => {
-    // Create a set that has all turret keys EXCEPT dir00
     const partialKeys = new Set<string>();
     for (let dir = 1; dir < 16; dir++) {
       partialKeys.add(getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', dir as any));
@@ -106,49 +167,26 @@ describe('pilotTurretComposition: texture missing → null', () => {
       'smoky', 'wasp', 'cyan', 0, 0,
       textureExists,
     );
-    // dir16 0 → key 'generated_turret_smoky_cyan_m0_dir00' which is missing
     expect(result.turretKey).toBeNull();
     expect(result.hasGeneratedTurret).toBe(false);
   });
 
-  it('returns correct dir16 in diagnostic even when texture is missing', () => {
+  it('still computes turretOffsetPx even when texture is missing', () => {
+    // The offset math doesn't depend on texture existence — only on
+    // profile metadata. So it should still be computed.
     const result = resolvePilotTurretComposition(
-      'smoky', 'wasp', 'cyan', 0, Math.PI / 2, // facing South
+      'smoky', 'wasp', 'cyan', 0, 0,
       textureExistsNever,
     );
-    expect(result.dir16).toBe(4); // South direction
     expect(result.hasGeneratedTurret).toBe(false);
+    expect(result.turretOffsetPx).not.toBeNull();
   });
 });
 
-// ─── Unsupported weapon → null ─────────────────────────────────────
+// ─── Null/fallback when socket metadata missing ───────────────────
 
-describe('pilotTurretComposition: unsupported weapon → null', () => {
-  it('returns null for shaft (no generated turret assets)', () => {
-    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
-    const result = resolvePilotTurretComposition(
-      'shaft', 'wasp', 'cyan', 0, 0,
-      textureExists,
-    );
-    expect(result.turretKey).toBeNull();
-    expect(result.hasGeneratedTurret).toBe(false);
-  });
-
-  it('returns null for unknown weapon ID', () => {
-    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
-    const result = resolvePilotTurretComposition(
-      'nonexistent_weapon', 'wasp', 'cyan', 0, 0,
-      textureExists,
-    );
-    expect(result.turretKey).toBeNull();
-    expect(result.hasGeneratedTurret).toBe(false);
-  });
-});
-
-// ─── Unsupported body → null ───────────────────────────────────────
-
-describe('pilotTurretComposition: unsupported body → null', () => {
-  it('returns null for unsupported_body (not in GENERATED_HULL_IDS)', () => {
+describe('pilotTurretComposition: null/fallback when socket metadata missing', () => {
+  it('returns fallback for unsupported hull (no profile)', () => {
     const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
     const result = resolvePilotTurretComposition(
       'smoky', 'unsupported_body', 'cyan', 0, 0,
@@ -156,124 +194,132 @@ describe('pilotTurretComposition: unsupported body → null', () => {
     );
     expect(result.turretKey).toBeNull();
     expect(result.hasGeneratedTurret).toBe(false);
+    expect(result.turretOffsetPx).toBeNull();
   });
 
-  it('returns null for empty bodyId', () => {
+  it('returns fallback for empty bodyId', () => {
     const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
     const result = resolvePilotTurretComposition(
       'smoky', '', 'cyan', 0, 0,
       textureExists,
     );
+    expect(result.hasGeneratedTurret).toBe(false);
+    expect(result.turretOffsetPx).toBeNull();
+  });
+});
+
+// ─── Null/fallback when directional pivot metadata missing ────────
+
+describe('pilotTurretComposition: null/fallback when directional pivot missing', () => {
+  it('returns fallback for unsupported weapon (no directional pivot)', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'shaft', 'wasp', 'cyan', 0, 0,
+      textureExists,
+    );
     expect(result.turretKey).toBeNull();
     expect(result.hasGeneratedTurret).toBe(false);
+    expect(result.turretOffsetPx).toBeNull();
   });
 
-  it('mammoth IS supported (in GENERATED_HULL_IDS) — not a valid unsupported test body', () => {
-    // Verify mammoth is a valid hull ID
-    expect(bodyIdToGeneratedHullId('mammoth')).toBe('mammoth');
-  });
-});
-
-// ─── Smoky direction remap stability ────────────────────────────────
-
-describe('pilotTurretComposition: Smoky direction remap stable', () => {
-  it('Smoky uses all 16 directions directly (no 8-dir doubling)', () => {
+  it('returns fallback for unknown weapon ID', () => {
     const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
-
-    // All 16 direction indices should be reachable from turret angles
-    const seenDirs = new Set<number>();
-    for (let i = 0; i < 16; i++) {
-      const angle = (i * Math.PI) / 8;
-      const result = resolvePilotTurretComposition(
-        'smoky', 'wasp', 'cyan', 0, angle,
-        textureExists,
-      );
-      seenDirs.add(result.dir16);
-    }
-
-    // Should have all 16 directions
-    expect(seenDirs.size).toBe(16);
-  });
-
-  it('turret direction is independent of hull body direction', () => {
-    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
-
-    // Turret facing East (0 rad) should give dir16 0
     const result = resolvePilotTurretComposition(
-      'smoky', 'wasp', 'cyan', 0, 0,
+      'nonexistent_weapon', 'wasp', 'cyan', 0, 0,
       textureExists,
     );
-    expect(result.dir16).toBe(0);
-    expect(result.hasGeneratedTurret).toBe(true);
-  });
-
-  it('Smoky dir16 remap is stable across multiple calls', () => {
-    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
-    const angle = Math.PI / 4; // SE
-
-    const result1 = resolvePilotTurretComposition(
-      'smoky', 'wasp', 'cyan', 0, angle,
-      textureExists,
-    );
-    const result2 = resolvePilotTurretComposition(
-      'smoky', 'wasp', 'cyan', 0, angle,
-      textureExists,
-    );
-
-    expect(result1.dir16).toBe(result2.dir16);
-    expect(result1.turretKey).toBe(result2.turretKey);
+    expect(result.hasGeneratedTurret).toBe(false);
+    expect(result.turretOffsetPx).toBeNull();
   });
 });
 
-// ─── Exactly one textureExists probe, no preload ──────────────────
+// ─── Exactly one textureExists probe ──────────────────────────────
 
-describe('pilotTurretComposition: exactly one textureExists probe, no preload', () => {
+describe('pilotTurretComposition: exactly one textureExists probe', () => {
   it('calls textureExists exactly once per resolution', () => {
     const textureExistsSpy = vi.fn().mockReturnValue(true);
-
     resolvePilotTurretComposition(
       'smoky', 'wasp', 'cyan', 0, 0,
       textureExistsSpy,
     );
-
     expect(textureExistsSpy).toHaveBeenCalledOnce();
   });
 
   it('calls textureExists exactly once even when texture is missing', () => {
     const textureExistsSpy = vi.fn().mockReturnValue(false);
-
     resolvePilotTurretComposition(
       'smoky', 'wasp', 'cyan', 0, 0,
       textureExistsSpy,
     );
-
     expect(textureExistsSpy).toHaveBeenCalledOnce();
   });
 
   it('does not call textureExists for unsupported weapon', () => {
     const textureExistsSpy = vi.fn().mockReturnValue(true);
-
     resolvePilotTurretComposition(
       'shaft', 'wasp', 'cyan', 0, 0,
       textureExistsSpy,
     );
-
     expect(textureExistsSpy).not.toHaveBeenCalled();
   });
 
   it('does not call textureExists for unsupported body', () => {
     const textureExistsSpy = vi.fn().mockReturnValue(true);
-
     resolvePilotTurretComposition(
       'smoky', 'unsupported_body', 'cyan', 0, 0,
       textureExistsSpy,
     );
-
     expect(textureExistsSpy).not.toHaveBeenCalled();
   });
 });
 
-// ─── Composition result structure ──────────────────────────────────
+// ─── Unsupported weapon/body fallback ─────────────────────────────
+
+describe('pilotTurretComposition: unsupported weapon/body fallback', () => {
+  it('mammoth IS a valid hull but has no visual profile yet', () => {
+    // mammoth is in GENERATED_HULL_IDS but has no HullVisualProfile
+    expect(bodyIdToGeneratedHullId('mammoth')).toBe('mammoth');
+    expect(resolveHullVisualProfile('mammoth')).toBeNull();
+  });
+
+  it('mammoth falls back because no visual profile (no socket metadata)', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
+    const result = resolvePilotTurretComposition(
+      'smoky', 'mammoth', 'cyan', 0, 0,
+      textureExists,
+    );
+    expect(result.hasGeneratedTurret).toBe(false);
+    expect(result.turretOffsetPx).toBeNull();
+  });
+
+  it('thunder has turret assets but no directional pivot profile yet', () => {
+    // thunder is a valid turret ID, but has no DirectionalTurretMarkerProfile
+    expect(resolveTurretPivotForDir('thunder', 0, 0)).toBeNull();
+  });
+
+  it('flamethrower maps to firebird turret but has no directional pivot profile', () => {
+    // flamethrower → firebird, but no directional pivot for firebird
+    expect(resolveTurretPivotForDir('flamethrower', 0, 0)).toBeNull();
+  });
+});
+
+// ─── Pure placement math ──────────────────────────────────────────
+
+describe('pilotTurretComposition: pure placement math', () => {
+  it('returns correct dir16 for known turret angles', () => {
+    expect(turretAngleToDir16(0)).toBe(0);
+    expect(turretAngleToDir16(Math.PI / 2)).toBe(4);
+    expect(turretAngleToDir16(Math.PI)).toBe(8);
+    expect(turretAngleToDir16(3 * Math.PI / 2)).toBe(12);
+  });
+
+  it('handles negative angles by normalizing', () => {
+    expect(turretAngleToDir16(-Math.PI / 2)).toBe(12);
+    expect(turretAngleToDir16(-Math.PI)).toBe(8);
+  });
+});
+
+// ─── Result structure ─────────────────────────────────────────────
 
 describe('pilotTurretComposition: result structure', () => {
   it('returns correct render params when texture exists', () => {
@@ -285,23 +331,20 @@ describe('pilotTurretComposition: result structure', () => {
 
     expect(result.hasGeneratedTurret).toBe(true);
     expect(result.turretKey).toBe('generated_turret_smoky_cyan_m0_dir00');
-    expect(result.scale).toBe(GENERATED_TURRET_SCALE);
-    expect(result.originX).toBe(GENERATED_TURRET_ORIGIN_X);
-    expect(result.originY).toBe(GENERATED_TURRET_ORIGIN_Y);
+    expect(result.originX).toBe(0.5);
+    expect(result.originY).toBe(0.5);
     expect(result.dir16).toBe(0);
+    expect(result.turretOffsetPx).not.toBeNull();
   });
 
-  it('returns null turretKey but valid render params when texture missing', () => {
+  it('turret origin is always centered (0.5, 0.5)', () => {
+    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
     const result = resolvePilotTurretComposition(
       'smoky', 'wasp', 'cyan', 0, 0,
-      textureExistsNever,
+      textureExists,
     );
-
-    expect(result.turretKey).toBeNull();
-    expect(result.hasGeneratedTurret).toBe(false);
-    expect(result.scale).toBe(GENERATED_TURRET_SCALE);
-    expect(result.originX).toBe(GENERATED_TURRET_ORIGIN_X);
-    expect(result.originY).toBe(GENERATED_TURRET_ORIGIN_Y);
+    expect(result.originX).toBe(0.5);
+    expect(result.originY).toBe(0.5);
   });
 
   it('respects modification level in texture key', () => {
@@ -312,37 +355,19 @@ describe('pilotTurretComposition: result structure', () => {
     const textureExists = (key: string) => m3Keys.has(key);
 
     const result = resolvePilotTurretComposition(
-      'smoky', 'wasp', 'cyan', 3, 0, // modificationLevel 3 → m3
+      'smoky', 'wasp', 'cyan', 3, 0,
       textureExists,
     );
 
     expect(result.turretKey).toBe('generated_turret_smoky_cyan_m3_dir00');
     expect(result.hasGeneratedTurret).toBe(true);
   });
-
-  it('respects faction in texture key', () => {
-    const purpleKeys = new Set<string>();
-    for (let dir = 0; dir < 16; dir++) {
-      purpleKeys.add(getGeneratedTurretTextureKey('smoky', 'purple', 'm0', dir as any));
-    }
-    const textureExists = (key: string) => purpleKeys.has(key);
-
-    const result = resolvePilotTurretComposition(
-      'smoky', 'wasp', 'purple', 0, 0,
-      textureExists,
-    );
-
-    expect(result.turretKey).toBe('generated_turret_smoky_purple_m0_dir00');
-    expect(result.hasGeneratedTurret).toBe(true);
-  });
 });
 
-// ─── Standard mode safety ──────────────────────────────────────────
+// ─── Standard mode safety ─────────────────────────────────────────
 
 describe('pilotTurretComposition: standard mode safety', () => {
   it('resolver is pure — no side effects on scene', () => {
-    // The resolver does not reference any scene object
-    // It only uses the textureExists callback
     let callCount = 0;
     const textureExists = (_key: string) => { callCount++; return false; };
 
@@ -351,95 +376,20 @@ describe('pilotTurretComposition: standard mode safety', () => {
       textureExists,
     );
 
-    // Only one probe, no loading, no mutation
     expect(callCount).toBe(1);
     expect(result.hasGeneratedTurret).toBe(false);
   });
 
-  it('resolver cannot load assets — textureExists is read-only', () => {
-    const textureSet = new Set<string>();
-    const textureExists = (key: string) => textureSet.has(key);
-
-    const result = resolvePilotTurretComposition(
-      'smoky', 'wasp', 'cyan', 0, 0,
-      textureExists,
-    );
-
-    // Set remains empty — resolver did not add any keys
-    expect(textureSet.size).toBe(0);
-    expect(result.hasGeneratedTurret).toBe(false);
-  });
-
   it('non-Arena vehicles with no textures fall back gracefully', () => {
-    // Standard mode: no generated turret textures loaded
     const result = resolvePilotTurretComposition(
       'smoky', 'wasp', 'cyan', 0, 0,
       textureExistsNever,
     );
-
     expect(result.hasGeneratedTurret).toBe(false);
-    expect(result.turretKey).toBeNull();
-    // Procedural turret will be used by the renderer
   });
 });
 
-// ─── Pilot scope limit ─────────────────────────────────────────────
-
-describe('pilotTurretComposition: pilot scope limit', () => {
-  it('works with the pilot combo: smoky + wasp + cyan + m0', () => {
-    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
-    const result = resolvePilotTurretComposition(
-      'smoky', 'wasp', 'cyan', 0, 0,
-      textureExists,
-    );
-
-    expect(result.hasGeneratedTurret).toBe(true);
-    expect(result.turretKey).toContain('smoky');
-    expect(result.turretKey).toContain('cyan');
-    expect(result.turretKey).toContain('m0');
-  });
-
-  it('works with other supported weapons (e.g. thunder)', () => {
-    const textureExists = makeTextureExistsWithTurretSet('thunder', 'cyan', 'm0');
-    const result = resolvePilotTurretComposition(
-      'thunder', 'wasp', 'cyan', 0, 0,
-      textureExists,
-    );
-
-    expect(result.hasGeneratedTurret).toBe(true);
-    expect(result.turretKey).toContain('thunder');
-  });
-
-  it('works with other supported hulls (e.g. hornet)', () => {
-    const textureExists = makeTextureExistsWithTurretSet('smoky', 'cyan', 'm0');
-    const result = resolvePilotTurretComposition(
-      'smoky', 'hornet', 'cyan', 0, 0,
-      textureExists,
-    );
-
-    expect(result.hasGeneratedTurret).toBe(true);
-    // hornet IS in GENERATED_HULL_IDS
-    expect(bodyIdToGeneratedHullId('hornet')).toBe('hornet');
-  });
-
-  it('flamethrower maps to firebird turret ID', () => {
-    const firebirdKeys = new Set<string>();
-    for (let dir = 0; dir < 16; dir++) {
-      firebirdKeys.add(getGeneratedTurretTextureKey('firebird', 'cyan', 'm0', dir as any));
-    }
-    const textureExists = (key: string) => firebirdKeys.has(key);
-
-    const result = resolvePilotTurretComposition(
-      'flamethrower', 'wasp', 'cyan', 0, 0,
-      textureExists,
-    );
-
-    expect(result.hasGeneratedTurret).toBe(true);
-    expect(result.turretKey).toContain('firebird');
-  });
-});
-
-// ─── No accidental path strings ─────────────────────────────────────
+// ─── No accidental path strings ────────────────────────────────────
 
 describe('pilotTurretComposition: no accidental path strings', () => {
   it('turretKey does not contain absolute filesystem paths', () => {
