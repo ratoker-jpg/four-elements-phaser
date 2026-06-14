@@ -1,9 +1,9 @@
 # CODEMAP.md — Four Elements Phaser
 
-Status: routing map for AI agents  
+Status: reference routing map — not an active instruction queue  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Date: 2026-06-12
+Updated: 2026-06-14
 
 ---
 

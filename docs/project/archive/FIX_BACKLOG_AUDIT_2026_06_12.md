@@ -1,6 +1,6 @@
 # FIX_BACKLOG_AUDIT_2026_06_12.md
 
-Status: ACCEPTED / SOURCE OF TRUTH  
+Status: **ARCHIVED** — competing source-of-truth; superseded by MODULAR_VEHICLE_ASSET_RUNTIME_SYSTEM_AUDIT (2026-06-14)  
 Project: Four Elements Phaser  
 Date: 2026-06-12  
 Origin: GLM audit of `docs/project/FIX_BACKLOG_ROADMAP_2026_06_12.md`  

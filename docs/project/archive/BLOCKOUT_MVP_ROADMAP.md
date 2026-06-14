@@ -1,6 +1,6 @@
 # BLOCKOUT_MVP_ROADMAP.md
 
-Status: active roadmap draft / docs-only planning  
+Status: **ARCHIVED** — BLOCKOUT-MVP cycle closed; see BLOCKOUT_MVP_CLOSURE_REPORT.md (2026-06-14)  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-06-01  

@@ -1,6 +1,6 @@
 # PHASE_1_FREEZE.md
 
-Status: active checkpoint
+Status: **ARCHIVED** — historical checkpoint; not an active instruction (2026-06-14)
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
 Date: 2026-05-29

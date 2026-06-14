@@ -2,7 +2,7 @@
 
 **Date**: 2026-06-08
 **Task**: PIM-HULL-WASP-ANCHOR-MAP-01
-**Status**: Calibration/debug aid only — NOT the final placement fix
+**Status**: **ARCHIVED** — superseded by MODULAR_VEHICLE_ASSET_RUNTIME_SYSTEM_AUDIT_2026_06_14.md; calibration aid retained as history (2026-06-14)
 
 ## Purpose
 

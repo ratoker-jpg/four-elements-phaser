@@ -1,5 +1,7 @@
 # PR1_TASK — Skeleton + terrain + camera + static entities
 
+Status: **ARCHIVED** — historical first-PR task; contains obsolete 'Делай PR1' language (2026-06-14)
+
 ## Task
 
 Create the first implementation PR for the clean Phaser-first restart.

@@ -1,6 +1,6 @@
 # NEW_CHAT_HANDOFF.md
 
-Status: **superseded by NEW_CHAT_HANDOFF_VISUAL.md**  
+Status: **ARCHIVED** — superseded by current active source-of-truth docs (2026-06-14)  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
 Superseded on: 2026-05-30 (VISUAL roadmap/audit direction)

@@ -3,7 +3,7 @@
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-06-13  
-Status: **handoff / stop-point document**  
+Status: **ARCHIVED** — superseded by MODULAR_VEHICLE_ASSET_RUNTIME_SYSTEM_AUDIT_2026_06_14.md; stop-point preserved as history (2026-06-14)  
 Scope: Wasp hull socket + Smoky turret attachment recovery  
 
 ---

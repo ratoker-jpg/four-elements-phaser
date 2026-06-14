@@ -1,6 +1,6 @@
 # FIX_BACKLOG_ROADMAP_2026_06_12.md
 
-Status: draft fix roadmap / backlog for GLM audit  
+Status: **ARCHIVED** — superseded by MODULAR_VEHICLE_ASSET_RUNTIME_SYSTEM_AUDIT (2026-06-14)  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-06-12

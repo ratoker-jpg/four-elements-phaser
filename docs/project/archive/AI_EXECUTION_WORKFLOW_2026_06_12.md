@@ -1,6 +1,6 @@
 # AI_EXECUTION_WORKFLOW_2026_06_12.md
 
-Status: accepted workflow amendment candidate  
+Status: **ARCHIVED** — superseded by AI_ORCHESTRATION_RULES_2026_06_14.md (2026-06-14)  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-06-12

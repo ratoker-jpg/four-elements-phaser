@@ -1,6 +1,6 @@
 # STRONG_MODEL_EXPERIMENTS_2026_06_12.md
 
-Status: ACTIVE EXPERIMENT PLAN  
+Status: **ARCHIVED** — experiment concluded; not an active instruction (2026-06-14)  
 Project: Four Elements Phaser  
 Date: 2026-06-12
 
