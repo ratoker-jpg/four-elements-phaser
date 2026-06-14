@@ -88,6 +88,28 @@ const HULL_SPRITE_DEPTH_BIAS = -0.5;
 /** Mount point circle radius. */
 const MOUNT_POINT_RADIUS = 3;
 
+/**
+ * RUNTIME-03B: Quarantine flag for generated pilot turret composition.
+ *
+ * Manual Arena QA shows the generated Smoky turret does not visually sit on
+ * the Wasp hull — it appears offset/down/front. The composition math may be
+ * correct in isolation but the renderer integration produces wrong screen
+ * positions. Until a proper Opus audit rebuilds the turret-to-hull attachment
+ * pipeline, this flag disables generated turret sprites so the Arena returns
+ * to the stable procedural fallback.
+ *
+ * When false:
+ * - No generated turret sprites are created or updated.
+ * - Any existing turret sprite is destroyed/hidden.
+ * - Procedural turret (box+barrel) renders normally.
+ * - Hull generated sprites, selection rings, HP bars, target-lock, aim line,
+ *   depth sorting all remain unchanged.
+ *
+ * Do NOT re-enable without an Opus-level audit of the modular vehicle renderer.
+ * No magic offsets, no per-dir tuning, no zHeight guessing.
+ */
+const ENABLE_PILOT_GENERATED_TURRET_COMPOSITION = false;
+
 // ─── Faction colors ────────────────────────────────────────────────
 
 /** Body fill color per faction. */
@@ -385,8 +407,11 @@ export class BlockoutVehicleRenderer {
       }
 
       // ── RUNTIME-03: Check for generated turret sprite ──────────
-      // Resolve turret composition using the pure resolver.
-      // The renderer provides the textureExists callback via scene.textures.exists.
+      // RUNTIME-03B: Gated by ENABLE_PILOT_GENERATED_TURRET_COMPOSITION.
+      // When the flag is false, the generated turret composition is resolved
+      // (preserving the pure function for audit) but no sprite is created.
+      // Any existing turret sprite is destroyed so the Arena returns to
+      // procedural fallback.
       const turretComp = resolvePilotTurretComposition(
         vehicle.weaponId,
         vehicle.bodyId,
@@ -396,9 +421,9 @@ export class BlockoutVehicleRenderer {
         (key: string) => this.scene.textures.exists(key),
       );
 
-      // Manage turret sprite lifecycle
+      // Manage turret sprite lifecycle — gated by quarantine flag
       let turretSprite = this.vehicleTurretSprites.get(vehicle.id);
-      if (turretComp.hasGeneratedTurret && turretComp.turretKey) {
+      if (ENABLE_PILOT_GENERATED_TURRET_COMPOSITION && turretComp.hasGeneratedTurret && turretComp.turretKey) {
         if (!turretSprite) {
           turretSprite = this.scene.add.image(0, 0, turretComp.turretKey);
           turretSprite.setScale(turretComp.scale);
@@ -414,7 +439,7 @@ export class BlockoutVehicleRenderer {
           turretSprite.setTexture(turretComp.turretKey);
         }
       } else {
-        // No generated turret: destroy existing sprite if any
+        // No generated turret (or quarantine active): destroy existing sprite if any
         if (turretSprite) {
           turretSprite.destroy();
           this.vehicleTurretSprites.delete(vehicle.id);
@@ -426,6 +451,9 @@ export class BlockoutVehicleRenderer {
       // Turret positioning is deferred until after hullSprite.setPosition() so
       // we can use the actual hull sprite position as the base, and apply
       // socket.zHeight through projectWorldPoint for correct elevation.
+      // RUNTIME-03B: Composition is still stored even when quarantine is active,
+      // so the data is available for audit/diagnostic purposes. The renderer
+      // will simply not position a turret sprite when the flag is false.
       this.vehicleTurretComp.set(vehicle.id, turretComp);
 
       // Determine selection/hover state for this vehicle
