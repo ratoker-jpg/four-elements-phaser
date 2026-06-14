@@ -50,7 +50,7 @@ Actual 3DS export pipeline produces:
 smoky_cyan_m0_dir00_E.png  (without _turret_)
 ```
 
-**Fix applied**: Updated `getGeneratedTurretAssetPath` in `generatedTurretAssets.ts` to match the real export convention. All 4345 tests pass after the fix.
+**Fix applied**: Updated `getGeneratedTurretAssetPath` in `generatedTurretAssets.ts` to match the real export convention. All 4268 tests pass after the fix.
 
 This affects:
 - `src/assets/generatedTurretAssets.ts` (path builder)

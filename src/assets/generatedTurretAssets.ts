@@ -7,7 +7,7 @@
  * load one turret+faction+mod set at a time (16 PNGs).
  *
  * The generated turret sprites live under:
- *   public/assets/units/turrets/<turret>/<faction>/<mod>/<turret>_<faction>_<mod>_turret_dirNN_<DIR>.png
+ *   public/assets/units/turrets/<turret>/<faction>/<mod>/<turret>_<faction>_<mod>_dirNN_<DIR>.png
  *
  * Each PNG is 512×512 RGBA with a transparent background.
  *
