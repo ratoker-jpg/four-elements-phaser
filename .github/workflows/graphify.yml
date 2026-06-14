@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       graphify_args:
-        description: "Extra args passed to graphify after the project path"
+        description: "Extra args passed to graphify extract after the code-only corpus path"
         required: false
         default: ""
   pull_request:
@@ -41,9 +41,50 @@ jobs:
       - name: Install Graphify
         run: uv tool install graphifyy
 
+      - name: Prepare code-only Graphify corpus
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          root = Path('.').resolve()
+          out = root / '.graphify-code-corpus'
+          if out.exists():
+              shutil.rmtree(out)
+          out.mkdir(parents=True, exist_ok=True)
+
+          allowed_suffixes = {
+              '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+              '.py', '.go', '.rs', '.java', '.c', '.cpp', '.rb', '.cs',
+              '.kt', '.scala', '.php',
+          }
+          skipped_parts = {
+              '.git', 'node_modules', 'dist', 'build', 'coverage',
+              'graphify-out', '.graphify-code-corpus',
+          }
+
+          copied = 0
+          for path in root.rglob('*'):
+              if not path.is_file():
+                  continue
+              rel = path.relative_to(root)
+              if any(part in skipped_parts for part in rel.parts):
+                  continue
+              if path.suffix.lower() not in allowed_suffixes:
+                  continue
+              target = out / rel
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(path, target)
+              copied += 1
+
+          print(f'Prepared code-only Graphify corpus with {copied} files at {out}')
+          if copied == 0:
+              raise SystemExit('No code files found for Graphify corpus')
+          PY
+
       - name: Build project graph
         run: |
-          graphify . ${{ inputs.graphify_args }}
+          graphify extract .graphify-code-corpus --out . ${{ inputs.graphify_args }}
 
       - name: Export callflow HTML if supported
         continue-on-error: true
