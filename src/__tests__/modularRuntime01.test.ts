@@ -100,12 +100,14 @@ describe('generated modular registry ids', () => {
 // ─── 2. Key/path builders match package convention ─────────────────
 
 describe('texture key and path builders', () => {
-  it('builds hull keys as generated_hull_<hull>_<faction>_<mod>_dirNN', () => {
+  it('builds hull keys as modular_hull_<hull>_<faction>_<mod>_dirNN', () => {
+    // MODULAR-RUNTIME-02A: modular hull keys use the `modular_hull_` prefix so
+    // they never collide with the legacy `generated_hull_` arena preload.
     expect(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0)).toBe(
-      'generated_hull_wasp_cyan_m0_dir00',
+      'modular_hull_wasp_cyan_m0_dir00',
     );
     expect(getGeneratedHullTextureKey('titan', 'cyan', 'm3', 15)).toBe(
-      'generated_hull_titan_cyan_m3_dir15',
+      'modular_hull_titan_cyan_m3_dir15',
     );
   });
   it('builds turret keys as generated_turret_<turret>_<faction>_<mod>_dirNN', () => {
@@ -206,7 +208,7 @@ describe('lazy loading bounds', () => {
   it('queues exactly 16 hull + 16 turret keys', () => {
     const { scene } = makeScene();
     const diag = requestModularVehicleSet(scene, SAMPLE_VISUAL);
-    const hullKeys = diag.queuedKeys.filter((k) => k.startsWith('generated_hull_'));
+    const hullKeys = diag.queuedKeys.filter((k) => k.startsWith('modular_hull_'));
     const turretKeys = diag.queuedKeys.filter((k) => k.startsWith('generated_turret_'));
     expect(hullKeys.length).toBe(16);
     expect(turretKeys.length).toBe(16);
@@ -231,6 +233,30 @@ describe('lazy loading bounds', () => {
     expect(diag.alreadyAvailableKeys).toContain(
       getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0),
     );
+  });
+
+  it('MODULAR-RUNTIME-02A: queues modular hull keys even when legacy generated_hull_* keys already exist', () => {
+    // Simulate the legacy arena preload (PreloadScene -> loadArenaVisualAssets)
+    // having populated the shared Phaser TextureManager with the legacy
+    // `generated_hull_wasp_cyan_m0_dirNN` keys (the oversized `_hull_dir` crops).
+    // The modular loader must NOT treat those as its own keys, so it must still
+    // queue all 16 `modular_hull_*` keys and load the correct modular PNGs.
+    const legacyKeys = new Set<string>();
+    for (let d = 0; d < 16; d++) {
+      legacyKeys.add(`generated_hull_wasp_cyan_m0_dir${String(d).padStart(2, '0')}`);
+    }
+    const { scene } = makeScene(legacyKeys);
+    const diag = requestModularVehicleSet(scene, SAMPLE_VISUAL);
+
+    const modularHullKeys = diag.queuedKeys.filter((k) => k.startsWith('modular_hull_'));
+    expect(modularHullKeys.length).toBe(16);
+    // The pre-existing legacy keys are not mistaken for available modular keys.
+    expect(diag.alreadyAvailableKeys).not.toContain('generated_hull_wasp_cyan_m0_dir00');
+    // No legacy `_hull_dir` path and no legacy key prefix is queued by the modular loader.
+    for (const k of diag.queuedKeys) {
+      expect(k).not.toContain('_hull_dir');
+      expect(k.startsWith('generated_hull_')).toBe(false);
+    }
   });
 
   it('records the requested set in the ledger', () => {
@@ -307,7 +333,7 @@ describe('fallback diagnostics', () => {
       hullDir16: 0,
       turretDir16: 0,
       anchor: { x: 0, y: 0 },
-      textureExists: (k) => k.startsWith('generated_hull_'),
+      textureExists: (k) => k.startsWith('modular_hull_'),
     });
     expect(plan.fallbackReason).toBe('turret-texture-missing');
     expect(plan.hull.textureKey).not.toBeNull();

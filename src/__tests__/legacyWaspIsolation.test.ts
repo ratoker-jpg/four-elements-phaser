@@ -19,6 +19,8 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Runtime imports for functional checks (last 2 tests)
 import { getGeneratedHullTextureKey, getGeneratedTurretTextureKey } from '../assets/generatedModularVehicleAssets.generated';
+// Legacy hull key builder — imported ONLY to prove the two namespaces diverge.
+import { getGeneratedHullTextureKey as getLegacyHullTextureKey } from '../assets/generatedHullAssets';
 import { requestModularVehicleSet, resetModularLoaderLedger, MAX_MODULAR_VEHICLE_SET_PNG } from '../modular/modularVehicleRuntimeLoader';
 import { DEFAULT_MODULAR_VEHICLE_VISUAL } from '../modular/modularVehicleVisual';
 
@@ -166,7 +168,7 @@ describe('LEGACY-WASP-CLEANUP-01B: modular runtime does not import legacy Wasp h
 
   it('modular runtime produces valid texture keys without legacy key formats', () => {
     const hullKey = getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0);
-    expect(hullKey).toBe('generated_hull_wasp_cyan_m0_dir00');
+    expect(hullKey).toBe('modular_hull_wasp_cyan_m0_dir00');
 
     const turretKey = getGeneratedTurretTextureKey('smoky', 'cyan', 'm0', 0);
     expect(turretKey).toBe('generated_turret_smoky_cyan_m0_dir00');
@@ -175,6 +177,21 @@ describe('LEGACY-WASP-CLEANUP-01B: modular runtime does not import legacy Wasp h
     expect(hullKey).not.toContain('_hull_dir');
     expect(hullKey).not.toContain('WASP');
     expect(turretKey).not.toContain('WASP');
+  });
+
+  it('MODULAR-RUNTIME-02A: modular hull key namespace is disjoint from the legacy generated_hull_ namespace', () => {
+    // The legacy arena preload (generatedHullAssets.ts) loads the oversized
+    // `_hull_dir` crops under the `generated_hull_*` key namespace. The modular
+    // loader must own a DISTINCT namespace so the shared Phaser TextureManager
+    // never lets one loader's texture satisfy the other's `exists()` guard.
+    const modularKey = getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0);
+    const legacyKey = getLegacyHullTextureKey('wasp', 'cyan', 'm0', 0);
+
+    expect(legacyKey).toBe('generated_hull_wasp_cyan_m0_dir00');
+    expect(modularKey).toBe('modular_hull_wasp_cyan_m0_dir00');
+    expect(modularKey).not.toBe(legacyKey);
+    // The modular prefix must not start with the legacy prefix.
+    expect(modularKey.startsWith('generated_hull_')).toBe(false);
   });
 
   it('modular loader queue respects 32 PNG cap without legacy paths', () => {

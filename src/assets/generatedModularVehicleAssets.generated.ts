@@ -34,7 +34,14 @@ export function getGeneratedHullTextureKey(
   mod: GeneratedModularModId,
   dir16: GeneratedModularDir16,
 ): string {
-  return `generated_hull_${hull}_${faction}_${mod}_dir${String(dir16).padStart(2, "0")}`;
+  // MODULAR-RUNTIME-02A: the modular hull key namespace is intentionally
+  // distinct from the legacy arena hull-preload namespace produced by
+  // src/assets/generatedHullAssets.ts. The legacy preload loads the oversized
+  // legacy hull-crop sprites under its own key; sharing that key let the
+  // modular loader's `textures.exists()` guard skip the correct modular PNG.
+  // The `modular_hull_` prefix keeps the two loaders from colliding in the
+  // shared Phaser TextureManager.
+  return `modular_hull_${hull}_${faction}_${mod}_dir${String(dir16).padStart(2, "0")}`;
 }
 
 export function getGeneratedTurretTextureKey(
