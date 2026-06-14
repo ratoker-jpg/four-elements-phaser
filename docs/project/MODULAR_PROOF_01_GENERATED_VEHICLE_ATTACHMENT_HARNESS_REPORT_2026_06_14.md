@@ -123,7 +123,7 @@ Direction remap (matches the existing resolvers, no new tables):
 
 - **Default:** zHeight is **IGNORED**. `zHeightApplied = false`, delta `{0,0}`. The label
   reads `zHeight: IGNORED (default sprite-space composition)`.
-- **Diagnostic toggle (`G`):** applies `deltaY = socket.zHeight * basisZ.y` (`0.30 * -60 = -18px`)
+- **Diagnostic toggle (`zHeight diag` button):** applies `deltaY = socket.zHeight * basisZ.y` (`0.30 * -60 = -18px`)
   to the turret only. The label reads `zHeight: APPLIED (DIAGNOSTIC, deltaY=…)`. This exists
   purely to **demonstrate** whether zHeight helps or double-counts — it is **not** the source
   of truth for sprite-to-sprite attachment and must not be promoted into a runtime fix unless
