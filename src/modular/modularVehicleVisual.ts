@@ -93,12 +93,14 @@ export function isValidModularVehicleVisual(
  * (e.g. "wasp_smoky_cyan_m0"). Returns true if `value` looks like one.
  */
 export function isCombinedPairId(value: string): boolean {
-  const parts = value.split('_');
-  if (parts.length < 2) return false;
-  // A combined pair contains BOTH a hull id and a turret id as tokens.
-  const hasHull = parts.some((p) => isModularHullId(p));
-  const hasTurret = parts.some((p) => isModularTurretId(p));
-  return hasHull && hasTurret;
+  for (const hullId of MODULAR_HULL_IDS) {
+    for (const turretId of MODULAR_TURRET_IDS) {
+      if (value.startsWith(`${hullId}_${turretId}_`)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /**

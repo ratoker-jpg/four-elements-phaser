@@ -55,6 +55,8 @@ export interface ModularLoadDiagnostics {
   alreadyAvailableKeys: string[];
   /** True when the full hull+turret set is available after this call's queue. */
   fullSetRequested: boolean;
+  /** True when this exact set was previously requested and was not re-queued. */
+  alreadyRequested: boolean;
   /** A fallback reason if loading could not proceed. */
   fallbackReason: string | null;
 }
@@ -146,10 +148,12 @@ export function requestModularVehicleSet(
       queuedCount: 0,
       alreadyAvailableKeys: [],
       fullSetRequested: false,
+      alreadyRequested: false,
       fallbackReason: `invalid-visual (${modularVisualDebugLabel(visual)})`,
     };
   }
 
+  const alreadyRequested = requestedSets.has(setId);
   const queuedKeys: string[] = [];
   const alreadyAvailableKeys: string[] = [];
 
@@ -164,7 +168,7 @@ export function requestModularVehicleSet(
     );
     if (scene.textures.exists(hullKey)) {
       alreadyAvailableKeys.push(hullKey);
-    } else {
+    } else if (!alreadyRequested) {
       scene.load.image(
         hullKey,
         getGeneratedHullAssetPath(visual.hullId, visual.faction, visual.hullMod, dir),
@@ -180,7 +184,7 @@ export function requestModularVehicleSet(
     );
     if (scene.textures.exists(turretKey)) {
       alreadyAvailableKeys.push(turretKey);
-    } else {
+    } else if (!alreadyRequested) {
       scene.load.image(
         turretKey,
         getGeneratedTurretAssetPath(
@@ -200,7 +204,9 @@ export function requestModularVehicleSet(
     queuedKeys.length = MAX_MODULAR_VEHICLE_SET_PNG;
   }
 
-  requestedSets.add(setId);
+  if (!alreadyRequested) {
+    requestedSets.add(setId);
+  }
 
   return {
     requested,
@@ -210,6 +216,7 @@ export function requestModularVehicleSet(
     queuedCount: queuedKeys.length,
     alreadyAvailableKeys,
     fullSetRequested: true,
+    alreadyRequested,
     fallbackReason: null,
   };
 }

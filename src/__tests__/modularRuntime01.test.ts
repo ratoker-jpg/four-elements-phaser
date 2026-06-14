@@ -163,8 +163,12 @@ describe('hullMod and turretMod independence', () => {
   });
   it('rejects combined hull×turret pair ids', () => {
     expect(isCombinedPairId('wasp_smoky_cyan_m0')).toBe(true);
+    expect(isCombinedPairId('wasp_vulcan_b_cyan_m0')).toBe(true);
     expect(isCombinedPairId('wasp')).toBe(false);
     expect(isCombinedPairId('smoky')).toBe(false);
+    expect(isCombinedPairId('vulcan_b')).toBe(false);
+    expect(isCombinedPairId('vulcan')).toBe(false);
+    expect(isCombinedPairId('b')).toBe(false);
   });
 });
 
@@ -234,6 +238,31 @@ describe('lazy loading bounds', () => {
     expect(wasModularVehicleSetRequested(SAMPLE_VISUAL)).toBe(false);
     requestModularVehicleSet(scene, SAMPLE_VISUAL);
     expect(wasModularVehicleSetRequested(SAMPLE_VISUAL)).toBe(true);
+  });
+
+  it('does not re-queue the same requested set twice before textures exist', () => {
+    const queued: string[] = [];
+    const scene: ModularLoaderScene = {
+      textures: { exists: vi.fn(() => false) },
+      load: {
+        image: vi.fn((key: string, _path: string) => {
+          queued.push(key);
+          return undefined;
+        }),
+      },
+    };
+
+    const first = requestModularVehicleSet(scene, SAMPLE_VISUAL);
+    const second = requestModularVehicleSet(scene, SAMPLE_VISUAL);
+
+    expect(first.queuedCount).toBe(32);
+    expect(first.alreadyRequested).toBe(false);
+    expect(second.queuedCount).toBe(0);
+    expect(second.queuedKeys).toEqual([]);
+    expect(second.alreadyRequested).toBe(true);
+    expect(second.fullSetRequested).toBe(true);
+    expect(queued.length).toBe(32);
+    expect(scene.load.image).toHaveBeenCalledTimes(32);
   });
 
   it('reports set loaded only when all 32 keys exist', () => {
