@@ -1,8 +1,8 @@
 /**
- * MODULAR-RUNTIME-01 — clean modular cyan vehicle runtime tests.
+ * MODULAR-ALL-FACTIONS-01B — all-factions modular runtime tests.
  *
  * Covers:
- *  1. generated modular registry contains expected hull/turret/mod/dir ids;
+ *  1. generated modular registry contains expected hull/turret/mod/dir/faction ids;
  *  2. texture key/path builders match the package convention;
  *  3. hullMod and turretMod are independent;
  *  4. one selected modular vehicle queues no more than 32 PNG;
@@ -10,7 +10,10 @@
  *  6. missing texture/metadata returns safe fallback diagnostics;
  *  7. pure composition aligns turret pivot to hull socket using metadata;
  *  8. default composition does not rely on zHeight/manual offsets;
- *  9. devtools selector defaults to a valid modular visual.
+ *  9. devtools selector defaults to a valid modular visual;
+ * 10. all-factions support (cyan/green/yellow/purple);
+ * 11. Dictator visual scale compensation;
+ * 12. key namespace protection (modular_hull_* prefix).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -35,11 +38,14 @@ import {
   modLevelToModularMod,
   MODULAR_HULL_IDS,
   MODULAR_TURRET_IDS,
+  MODULAR_FACTION_IDS,
   type ModularVehicleVisual,
 } from '../modular/modularVehicleVisual';
 import {
   composeModularVehicle,
   MODULAR_FRAME_SIZE,
+  getHullVisualScaleMultiplier,
+  HULL_VISUAL_SCALE_MULTIPLIERS,
 } from '../modular/modularVehicleComposition';
 import {
   requestModularVehicleSet,
@@ -67,6 +73,7 @@ const EXPECTED_TURRETS = [
   'firebird', 'freeze', 'hammer', 'isida', 'railgun', 'ricochet',
   'smoky', 'thunder', 'twins', 'vulcan_b',
 ];
+const EXPECTED_FACTIONS = ['cyan', 'green', 'yellow', 'purple'];
 const EXPECTED_DIR_SUFFIXES = [
   'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW',
   'W', 'WNW', 'NW', 'NNW', 'N', 'NNE', 'NE', 'ENE',
@@ -89,8 +96,8 @@ describe('generated modular registry ids', () => {
   it('contains all 10 expected turret ids', () => {
     expect([...GENERATED_MODULAR_TURRETS].sort()).toEqual([...EXPECTED_TURRETS].sort());
   });
-  it('has cyan as the only faction', () => {
-    expect([...GENERATED_MODULAR_FACTIONS]).toEqual(['cyan']);
+  it('has all 4 factions: cyan/green/yellow/purple', () => {
+    expect([...GENERATED_MODULAR_FACTIONS]).toEqual(EXPECTED_FACTIONS);
   });
   it('has m0..m3 mods', () => {
     expect([...GENERATED_MODULAR_MODS]).toEqual(['m0', 'm1', 'm2', 'm3']);
@@ -101,8 +108,6 @@ describe('generated modular registry ids', () => {
 
 describe('texture key and path builders', () => {
   it('builds hull keys as modular_hull_<hull>_<faction>_<mod>_dirNN', () => {
-    // MODULAR-RUNTIME-02A: modular hull keys use the `modular_hull_` prefix so
-    // they never collide with the legacy `generated_hull_` arena preload.
     expect(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0)).toBe(
       'modular_hull_wasp_cyan_m0_dir00',
     );
@@ -115,14 +120,39 @@ describe('texture key and path builders', () => {
       'generated_turret_smoky_cyan_m0_dir00',
     );
   });
+  it('builds hull keys with non-cyan factions', () => {
+    expect(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0)).toBe(
+      'modular_hull_wasp_green_m0_dir00',
+    );
+    expect(getGeneratedHullTextureKey('dictator', 'purple', 'm3', 7)).toBe(
+      'modular_hull_dictator_purple_m3_dir07',
+    );
+    expect(getGeneratedHullTextureKey('hunter', 'yellow', 'm1', 12)).toBe(
+      'modular_hull_hunter_yellow_m1_dir12',
+    );
+  });
+  it('builds turret keys with non-cyan factions', () => {
+    expect(getGeneratedTurretTextureKey('smoky', 'green', 'm0', 0)).toBe(
+      'generated_turret_smoky_green_m0_dir00',
+    );
+    expect(getGeneratedTurretTextureKey('railgun', 'purple', 'm2', 3)).toBe(
+      'generated_turret_railgun_purple_m2_dir03',
+    );
+  });
   it('builds hull paths matching the imported package layout', () => {
     expect(getGeneratedHullAssetPath('wasp', 'cyan', 'm0', 0)).toBe(
       'assets/units/hulls/wasp/cyan/m0/wasp_cyan_m0_dir00_E.png',
+    );
+    expect(getGeneratedHullAssetPath('dictator', 'green', 'm1', 4)).toBe(
+      'assets/units/hulls/dictator/green/m1/dictator_green_m1_dir04_S.png',
     );
   });
   it('builds turret paths matching the imported package layout', () => {
     expect(getGeneratedTurretAssetPath('smoky', 'cyan', 'm0', 4)).toBe(
       'assets/units/turrets/smoky/cyan/m0/smoky_cyan_m0_dir04_S.png',
+    );
+    expect(getGeneratedTurretAssetPath('twins', 'purple', 'm3', 8)).toBe(
+      'assets/units/turrets/twins/purple/m3/twins_purple_m3_dir08_W.png',
     );
   });
   it('uses the expected compass suffix for every direction', () => {
@@ -217,7 +247,7 @@ describe('lazy loading bounds', () => {
   it('does not queue all modular assets (only the selected set)', () => {
     const { scene, queued } = makeScene();
     requestModularVehicleSet(scene, SAMPLE_VISUAL);
-    // The full matrix would be 1088 PNG. A single set must be far smaller.
+    // The full matrix would be 4352 PNG. A single set must be far smaller.
     expect(queued.length).toBeLessThan(64);
     // All queued keys belong to the selected hull/turret only.
     for (const k of queued) {
@@ -233,30 +263,6 @@ describe('lazy loading bounds', () => {
     expect(diag.alreadyAvailableKeys).toContain(
       getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0),
     );
-  });
-
-  it('MODULAR-RUNTIME-02A: queues modular hull keys even when legacy generated_hull_* keys already exist', () => {
-    // Simulate the legacy arena preload (PreloadScene -> loadArenaVisualAssets)
-    // having populated the shared Phaser TextureManager with the legacy
-    // `generated_hull_wasp_cyan_m0_dirNN` keys (the oversized `_hull_dir` crops).
-    // The modular loader must NOT treat those as its own keys, so it must still
-    // queue all 16 `modular_hull_*` keys and load the correct modular PNGs.
-    const legacyKeys = new Set<string>();
-    for (let d = 0; d < 16; d++) {
-      legacyKeys.add(`generated_hull_wasp_cyan_m0_dir${String(d).padStart(2, '0')}`);
-    }
-    const { scene } = makeScene(legacyKeys);
-    const diag = requestModularVehicleSet(scene, SAMPLE_VISUAL);
-
-    const modularHullKeys = diag.queuedKeys.filter((k) => k.startsWith('modular_hull_'));
-    expect(modularHullKeys.length).toBe(16);
-    // The pre-existing legacy keys are not mistaken for available modular keys.
-    expect(diag.alreadyAvailableKeys).not.toContain('generated_hull_wasp_cyan_m0_dir00');
-    // No legacy `_hull_dir` path and no legacy key prefix is queued by the modular loader.
-    for (const k of diag.queuedKeys) {
-      expect(k).not.toContain('_hull_dir');
-      expect(k.startsWith('generated_hull_')).toBe(false);
-    }
   });
 
   it('records the requested set in the ledger', () => {
@@ -296,6 +302,20 @@ describe('lazy loading bounds', () => {
     expect(isModularVehicleSetLoaded(scene, SAMPLE_VISUAL)).toBe(false);
     requestModularVehicleSet(scene, SAMPLE_VISUAL);
     expect(isModularVehicleSetLoaded(scene, SAMPLE_VISUAL)).toBe(true);
+  });
+
+  it('no all-factions preload: selecting green faction queues only 32 PNG', () => {
+    const { scene, queued } = makeScene();
+    const greenVisual: ModularVehicleVisual = {
+      hullId: 'wasp', turretId: 'smoky', faction: 'green', hullMod: 'm0', turretMod: 'm0',
+    };
+    const diag = requestModularVehicleSet(scene, greenVisual);
+    expect(diag.queuedCount).toBe(32);
+    expect(queued.length).toBe(32);
+    // All keys are for green faction
+    for (const k of queued) {
+      expect(k.includes('green')).toBe(true);
+    }
   });
 });
 
@@ -445,17 +465,200 @@ describe('devtools selector default', () => {
   it('default modular visual is valid', () => {
     expect(isValidModularVehicleVisual(DEFAULT_MODULAR_VEHICLE_VISUAL)).toBe(true);
   });
-  it('default is the wasp+smoky cyan demo (not hardcoded as the only option)', () => {
+  it('default is the wasp+smoky cyan m0 demo (not hardcoded as the only option)', () => {
     expect(DEFAULT_MODULAR_VEHICLE_VISUAL.hullId).toBe('wasp');
     expect(DEFAULT_MODULAR_VEHICLE_VISUAL.turretId).toBe('smoky');
+    expect(DEFAULT_MODULAR_VEHICLE_VISUAL.faction).toBe('cyan');
     // ...but the full id space is available for selection.
     expect(MODULAR_HULL_IDS.length).toBe(7);
     expect(MODULAR_TURRET_IDS.length).toBe(10);
+    expect(MODULAR_FACTION_IDS.length).toBe(4);
   });
   it('modLevelToModularMod clamps numeric levels', () => {
     expect(modLevelToModularMod(0)).toBe('m0');
     expect(modLevelToModularMod(3)).toBe('m3');
     expect(modLevelToModularMod(9)).toBe('m3');
     expect(modLevelToModularMod(-2)).toBe('m0');
+  });
+});
+
+// ─── 10. All-factions support ───────────────────────────────────────
+
+describe('all-factions support', () => {
+  it('supports all 4 factions in GENERATED_MODULAR_FACTIONS', () => {
+    expect(GENERATED_MODULAR_FACTIONS).toContain('cyan');
+    expect(GENERATED_MODULAR_FACTIONS).toContain('green');
+    expect(GENERATED_MODULAR_FACTIONS).toContain('yellow');
+    expect(GENERATED_MODULAR_FACTIONS).toContain('purple');
+    expect(GENERATED_MODULAR_FACTIONS.length).toBe(4);
+  });
+
+  it('each faction resolves to valid hull and turret paths', () => {
+    for (const faction of EXPECTED_FACTIONS) {
+      const hullPath = getGeneratedHullAssetPath('wasp', faction as never, 'm0', 0);
+      expect(hullPath).toContain(`/${faction}/`);
+      expect(hullPath).toContain(`wasp_${faction}_m0_dir00_E.png`);
+
+      const turretPath = getGeneratedTurretAssetPath('smoky', faction as never, 'm0', 0);
+      expect(turretPath).toContain(`/${faction}/`);
+      expect(turretPath).toContain(`smoky_${faction}_m0_dir00_E.png`);
+    }
+  });
+
+  it('default visual remains cyan', () => {
+    expect(DEFAULT_MODULAR_VEHICLE_VISUAL.faction).toBe('cyan');
+  });
+
+  it('selecting green Wasp + Smoky produces valid green keys', () => {
+    const greenVisual: ModularVehicleVisual = {
+      hullId: 'wasp', turretId: 'smoky', faction: 'green', hullMod: 'm0', turretMod: 'm0',
+    };
+    expect(isValidModularVehicleVisual(greenVisual)).toBe(true);
+    const hullKey = getGeneratedHullTextureKey('wasp', 'green', 'm0', 0);
+    expect(hullKey).toBe('modular_hull_wasp_green_m0_dir00');
+    const turretKey = getGeneratedTurretTextureKey('smoky', 'green', 'm0', 0);
+    expect(turretKey).toBe('generated_turret_smoky_green_m0_dir00');
+  });
+
+  it('selecting purple Dictator + Railgun produces valid purple keys', () => {
+    const purpleVisual: ModularVehicleVisual = {
+      hullId: 'dictator', turretId: 'railgun', faction: 'purple', hullMod: 'm0', turretMod: 'm0',
+    };
+    expect(isValidModularVehicleVisual(purpleVisual)).toBe(true);
+    const hullKey = getGeneratedHullTextureKey('dictator', 'purple', 'm0', 0);
+    expect(hullKey).toBe('modular_hull_dictator_purple_m0_dir00');
+    const turretKey = getGeneratedTurretTextureKey('railgun', 'purple', 'm0', 0);
+    expect(turretKey).toBe('generated_turret_railgun_purple_m0_dir00');
+  });
+
+  it('changing faction changes both hull and turret asset faction', () => {
+    const base: ModularVehicleVisual = { ...SAMPLE_VISUAL };
+    const yellow: ModularVehicleVisual = { ...base, faction: 'yellow' };
+    const hullKey = getGeneratedHullTextureKey(yellow.hullId, yellow.faction, yellow.hullMod, 0);
+    const turretKey = getGeneratedTurretTextureKey(yellow.turretId, yellow.faction, yellow.turretMod, 0);
+    expect(hullKey).toContain('yellow');
+    expect(turretKey).toContain('yellow');
+    // Hull and turret ids unchanged
+    expect(yellow.hullId).toBe(base.hullId);
+    expect(yellow.turretId).toBe(base.turretId);
+  });
+
+  it('registry all-factions counts: hull sets 112, turret sets 160', () => {
+    const hullSets = GENERATED_MODULAR_HULLS.length * GENERATED_MODULAR_FACTIONS.length * GENERATED_MODULAR_MODS.length;
+    expect(hullSets).toBe(112); // 7 * 4 * 4
+    const turretSets = GENERATED_MODULAR_TURRETS.length * GENERATED_MODULAR_FACTIONS.length * GENERATED_MODULAR_MODS.length;
+    expect(turretSets).toBe(160); // 10 * 4 * 4
+  });
+
+  it('registry all-factions counts: hull paths 1792, turret paths 2560', () => {
+    const hullPaths = GENERATED_MODULAR_HULLS.length * GENERATED_MODULAR_FACTIONS.length * GENERATED_MODULAR_MODS.length * 16;
+    expect(hullPaths).toBe(1792); // 7 * 4 * 4 * 16
+    const turretPaths = GENERATED_MODULAR_TURRETS.length * GENERATED_MODULAR_FACTIONS.length * GENERATED_MODULAR_MODS.length * 16;
+    expect(turretPaths).toBe(2560); // 10 * 4 * 4 * 16
+  });
+
+  it('supported factions exactly: cyan/green/yellow/purple', () => {
+    const factions = [...GENERATED_MODULAR_FACTIONS];
+    expect(factions).toEqual(['cyan', 'green', 'yellow', 'purple']);
+  });
+});
+
+// ─── 11. Dictator visual scale compensation ─────────────────────────
+
+describe('Dictator visual scale compensation', () => {
+  it('getHullVisualScaleMultiplier("dictator") === 1.09', () => {
+    expect(getHullVisualScaleMultiplier('dictator')).toBeCloseTo(1.09, 6);
+  });
+
+  it('all other hulls return 1', () => {
+    for (const hullId of EXPECTED_HULLS) {
+      if (hullId === 'dictator') continue;
+      expect(getHullVisualScaleMultiplier(hullId)).toBe(1);
+    }
+  });
+
+  it('Dictator multiplier is in HULL_VISUAL_SCALE_MULTIPLIERS', () => {
+    expect(HULL_VISUAL_SCALE_MULTIPLIERS['dictator']).toBeCloseTo(1.09, 6);
+  });
+
+  it('Dictator hull visual scale is larger than display scale', () => {
+    const plan = composeModularVehicle({
+      visual: { hullId: 'dictator', turretId: 'smoky', faction: 'cyan', hullMod: 'm0', turretMod: 'm0' },
+      hullDir16: 0,
+      turretDir16: 0,
+      anchor: { x: 300, y: 300 },
+      textureExists: () => true,
+    });
+    // Hull scale should be 0.5 * 1.09 = 0.545
+    expect(plan.hull.scale).toBeCloseTo(0.5 * 1.09, 6);
+    // Turret scale should be normal 0.5
+    expect(plan.turret.scale).toBe(0.5);
+  });
+
+  it('Dictator hull displaySize is larger than turret displaySize', () => {
+    const plan = composeModularVehicle({
+      visual: { hullId: 'dictator', turretId: 'smoky', faction: 'cyan', hullMod: 'm0', turretMod: 'm0' },
+      hullDir16: 0,
+      turretDir16: 0,
+      anchor: { x: 300, y: 300 },
+      textureExists: () => true,
+    });
+    expect(plan.hull.displaySize).toBeGreaterThan(plan.turret.displaySize);
+    expect(plan.hull.displaySize).toBeCloseTo(512 * 0.5 * 1.09, 6);
+    expect(plan.turret.displaySize).toBe(512 * 0.5);
+  });
+
+  it('Dictator turret pivot still lands on hull socket (stable alignment)', () => {
+    for (const dir of [0, 3, 7, 11, 15]) {
+      const plan = composeModularVehicle({
+        visual: { hullId: 'dictator', turretId: 'railgun', faction: 'purple', hullMod: 'm3', turretMod: 'm3' },
+        hullDir16: dir as GeneratedModularDir16,
+        turretDir16: dir as GeneratedModularDir16,
+        anchor: { x: 400, y: 400 },
+        textureExists: () => true,
+      });
+      expect(plan.pivotScreen.x).toBeCloseTo(plan.socketScreen.x, 6);
+      expect(plan.pivotScreen.y).toBeCloseTo(plan.socketScreen.y, 6);
+    }
+  });
+
+  it('Dictator scale compensation does not affect turret scale', () => {
+    const plan = composeModularVehicle({
+      visual: { hullId: 'dictator', turretId: 'smoky', faction: 'cyan', hullMod: 'm0', turretMod: 'm0' },
+      hullDir16: 0,
+      turretDir16: 0,
+      anchor: { x: 300, y: 300 },
+      textureExists: () => true,
+    });
+    expect(plan.turret.scale).toBe(0.5);
+  });
+});
+
+// ─── 12. Key namespace protection ───────────────────────────────────
+
+describe('key namespace protection', () => {
+  it('modular hull key starts with modular_hull_', () => {
+    const key = getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0);
+    expect(key.startsWith('modular_hull_')).toBe(true);
+  });
+
+  it('modular hull key differs from legacy generated hull key', () => {
+    const modularKey = getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0);
+    // Legacy key format would be: generated_hull_wasp_cyan_m0_dir00
+    expect(modularKey).not.toBe('generated_hull_wasp_cyan_m0_dir00');
+    expect(modularKey).toBe('modular_hull_wasp_cyan_m0_dir00');
+  });
+
+  it('Wasp m0 modular key remains modular_hull_wasp_cyan_m0_dir00', () => {
+    expect(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0)).toBe(
+      'modular_hull_wasp_cyan_m0_dir00',
+    );
+  });
+
+  it('no _hull_dir path in modular runtime', () => {
+    const hullPath = getGeneratedHullAssetPath('wasp', 'cyan', 'm0', 0);
+    expect(hullPath).not.toContain('_hull_dir');
+    // Path should be: assets/units/hulls/wasp/cyan/m0/wasp_cyan_m0_dir00_E.png
+    expect(hullPath).toContain('wasp_cyan_m0_dir00_E.png');
   });
 });

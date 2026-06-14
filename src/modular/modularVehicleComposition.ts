@@ -54,6 +54,31 @@ export const MODULAR_VEHICLE_DISPLAY_SCALE = 0.5;
 /** Source frame edge length (px). All modular frames are 512x512. */
 export const MODULAR_FRAME_SIZE = 512;
 
+/**
+ * Per-hull visual scale multipliers for runtime compensation.
+ *
+ * Dictator was rendered/exported at asset-side scale 0.91 to avoid clipping
+ * in the 512×512 frame. Runtime needs a visual-only compensation of 1.09
+ * (≈ 1 / 0.91) so the hull appears at its intended size.
+ *
+ * Rules:
+ *   - only hullId === "dictator" returns 1.09;
+ *   - all other hulls return 1;
+ *   - multiplier affects ONLY hull visual scale;
+ *   - turret visual scale remains unchanged;
+ *   - collision/hitbox/footprint/movement/range are untouched.
+ *   - the multiplier is applied around the hull socket/origin so turret
+ *     pivot alignment remains stable (no manual x/y offset, no zHeight).
+ */
+export const HULL_VISUAL_SCALE_MULTIPLIERS: Record<string, number> = {
+  dictator: 1.09,
+};
+
+/** Returns the visual scale multiplier for a hull id (1.0 for non-dictator). */
+export function getHullVisualScaleMultiplier(hullId: string): number {
+  return HULL_VISUAL_SCALE_MULTIPLIERS[hullId] ?? 1;
+}
+
 export interface ScreenPoint {
   x: number;
   y: number;
@@ -137,14 +162,21 @@ export function composeModularVehicle(
 
   const hullDirSuffix = MODULAR_DIR16_SUFFIXES[hullDir16];
   const turretDirSuffix = MODULAR_DIR16_SUFFIXES[turretDir16];
-  const displaySize = MODULAR_FRAME_SIZE * displayScale;
+
+  // Hull visual scale: apply per-hull multiplier (Dictator = 1.09).
+  // The multiplier is applied around the hull socket/origin so turret pivot
+  // alignment remains stable. Turret scale remains unchanged.
+  const hullScaleMultiplier = getHullVisualScaleMultiplier(visual.hullId);
+  const hullVisualScale = displayScale * hullScaleMultiplier;
+  const hullDisplaySize = MODULAR_FRAME_SIZE * hullVisualScale;
+  const turretDisplaySize = MODULAR_FRAME_SIZE * displayScale;
 
   // Invalid visual: bail to a fully-fallback plan.
   if (!isValidModularVehicleVisual(visual)) {
     return buildFallbackPlan({
       anchor,
       displayScale,
-      displaySize,
+      baseDisplaySize: turretDisplaySize,
       hullDirSuffix,
       turretDirSuffix,
       fallbackReason: 'invalid-visual',
@@ -185,21 +217,21 @@ export function composeModularVehicle(
 
   // Socket screen position = hull centre + normalized socket offset.
   const socketScreen: ScreenPoint = {
-    x: hullCenter.x + (socketNorm.nx - 0.5) * displaySize,
-    y: hullCenter.y + (socketNorm.ny - 0.5) * displaySize,
+    x: hullCenter.x + (socketNorm.nx - 0.5) * hullDisplaySize,
+    y: hullCenter.y + (socketNorm.ny - 0.5) * hullDisplaySize,
   };
 
   // Turret pivot must land on the hull socket. Place the turret centre so
   // that its (pivotNorm) point coincides with socketScreen.
   const turretOrigin: ScreenPoint = { x: 0.5, y: 0.5 };
   const turretCenter: ScreenPoint = {
-    x: socketScreen.x - (pivotNorm.nx - 0.5) * displaySize,
-    y: socketScreen.y - (pivotNorm.ny - 0.5) * displaySize,
+    x: socketScreen.x - (pivotNorm.nx - 0.5) * turretDisplaySize,
+    y: socketScreen.y - (pivotNorm.ny - 0.5) * turretDisplaySize,
   };
   // Pivot screen position computed from the placed turret (equals socket).
   const pivotScreen: ScreenPoint = {
-    x: turretCenter.x + (pivotNorm.nx - 0.5) * displaySize,
-    y: turretCenter.y + (pivotNorm.ny - 0.5) * displaySize,
+    x: turretCenter.x + (pivotNorm.nx - 0.5) * turretDisplaySize,
+    y: turretCenter.y + (pivotNorm.ny - 0.5) * turretDisplaySize,
   };
 
   // Determine fallback reason from availability.
@@ -225,15 +257,15 @@ export function composeModularVehicle(
       textureKey: hullAvailable ? hullKey : null,
       origin: hullOrigin,
       position: hullCenter,
-      scale: displayScale,
-      displaySize,
+      scale: hullVisualScale,
+      displaySize: hullDisplaySize,
     },
     turret: {
       textureKey: turretAvailable ? turretKey : null,
       origin: turretOrigin,
       position: turretCenter,
       scale: displayScale,
-      displaySize,
+      displaySize: turretDisplaySize,
     },
     socketScreen,
     pivotScreen,
@@ -245,7 +277,7 @@ export function composeModularVehicle(
 function buildFallbackPlan(args: {
   anchor: ScreenPoint;
   displayScale: number;
-  displaySize: number;
+  baseDisplaySize: number;
   hullDirSuffix: string;
   turretDirSuffix: string;
   fallbackReason: ModularFallbackReason;
@@ -261,14 +293,14 @@ function buildFallbackPlan(args: {
       origin: center,
       position: { ...args.anchor },
       scale: args.displayScale,
-      displaySize: args.displaySize,
+      displaySize: args.baseDisplaySize,
     },
     turret: {
       textureKey: null,
       origin: center,
       position: { ...args.anchor },
       scale: args.displayScale,
-      displaySize: args.displaySize,
+      displaySize: args.baseDisplaySize,
     },
     socketScreen: { ...args.anchor },
     pivotScreen: { ...args.anchor },
