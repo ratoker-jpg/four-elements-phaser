@@ -1,8 +1,9 @@
 /**
- * ModularVehicleLiveAdapter — MODULAR-RUNTIME-03A calibration-free
- * live modular vehicle adapter for Arena devtools/demo rendering.
+ * ModularVehicleLiveAdapter — MODULAR-RUNTIME-03A+03B calibration-free
+ * live modular vehicle adapter for Arena devtools/demo and normal runtime.
  *
- * Bridges BlockoutVehicleState → ModularVehicleVisual → composeModularVehicle()
+ * Bridges BlockoutVehicleState (Arena) / RenderableEntity (normal runtime)
+ * → ModularVehicleVisual → composeModularVehicle()
  * → world-space Phaser sprite placement.
  *
  * Design principles:
@@ -28,9 +29,13 @@
 
 import Phaser from 'phaser';
 import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
+import type { RenderableEntity } from '../../state/types';
 import {
   blockoutToModularVisual,
 } from '../../modular/blockoutToModularVisual';
+import {
+  normalCombatToModularVisual,
+} from '../../modular/normalCombatToModularVisual';
 import {
   composeModularVehicle,
   type ModularRenderPlan,
@@ -47,7 +52,7 @@ import {
 // ─── Feature flag ──────────────────────────────────────────────────
 
 /**
- * MODULAR-RUNTIME-03A: Kill switch for live modular vehicle rendering.
+ * MODULAR-RUNTIME-03A+03B: Kill switch for live modular vehicle rendering.
  *
  * When false: no modular sprites are created, loaded, or positioned.
  * The legacy BlockoutVehicleRenderer path (generated hull + blockout turret)
@@ -94,6 +99,25 @@ interface ModularSpriteState {
   lastVisual: ModularVehicleVisual | null;
 }
 
+// ─── 03B: Pending normal-runtime entity state for retry ────────────
+
+/**
+ * Stored when placeModularCombat() is called but plan.available !== true.
+ * Used by retryCleanModular() each frame to check whether assets have
+ * loaded and apply the modular plan once they do.
+ */
+interface PendingModularCombat {
+  entityId: string;
+  anchor: ScreenPoint;
+  chassis: string;
+  weapon: string;
+  mod: string;
+  faction: string;
+  dir?: number;
+  turretDir?: number;
+  depth: number;
+}
+
 // ─── Live Adapter class ────────────────────────────────────────────
 
 export class ModularVehicleLiveAdapter {
@@ -105,6 +129,13 @@ export class ModularVehicleLiveAdapter {
 
   /** Base depth for modular sprites (same as BlockoutVehicleRenderer). */
   private baseDepth: number;
+
+  /**
+   * MODULAR-RUNTIME-03B: Pending normal-runtime entity awaiting asset load.
+   * At most one modular-combat entity exists in normal runtime, so this
+   * is a single optional slot (not a Map).
+   */
+  private pendingCombat: PendingModularCombat | null = null;
 
   constructor(scene: Phaser.Scene, offset: { x: number; y: number }, baseDepth: number = 120) {
     this.scene = scene;
@@ -197,6 +228,229 @@ export class ModularVehicleLiveAdapter {
       fallbackReason: plan.fallbackReason ?? 'assets-loading',
     };
   }
+
+  // ─── MODULAR-RUNTIME-03B: Normal runtime integration ──────────────
+
+  /**
+   * Place modular sprites for a normal-runtime modular-combat entity.
+   *
+   * Called from ModularTankRenderer.place() when ENABLE_MODULAR_VEHICLE_RENDER
+   * is on. Returns the result so the renderer knows whether to skip the
+   * legacy hull/turret path.
+   *
+   * Unlike syncVehicle() (Arena per-frame), this is called once at entity
+   * placement time. The anchor is computed from the tile position.
+   *
+   * When assets are not yet loaded, stores the entity info in pendingCombat
+   * so retryCleanModular() can retry each frame until textures arrive.
+   * Returns usedModular:false so the legacy path remains visible.
+   */
+  placeModularCombat(
+    entity: RenderableEntity,
+    anchor: ScreenPoint,
+    chassis: string,
+    weapon: string,
+    mod: string,
+  ): LiveAdapterResult {
+    if (!ENABLE_MODULAR_VEHICLE_RENDER) {
+      return { usedModular: false, plan: null, debugLabel: 'flag-off', fallbackReason: 'flag-off' };
+    }
+
+    // Map RenderableEntity → ModularVehicleVisual + dir16
+    const mapped = normalCombatToModularVisual({
+      chassis,
+      weapon,
+      faction: entity.faction ?? 'cyan',
+      mod,
+      dir: entity.dir,
+      turretDir: entity.turretDir,
+    });
+
+    if (!mapped.visual) {
+      return {
+        usedModular: false,
+        plan: null,
+        debugLabel: `mapping-failed: ${mapped.failReason}`,
+        fallbackReason: `mapping-failed: ${mapped.failReason}`,
+      };
+    }
+
+    // Request lazy-load of the modular vehicle set
+    requestModularVehicleSet(this.scene, mapped.visual);
+
+    // Compose the render plan
+    const plan = composeModularVehicle({
+      visual: mapped.visual,
+      hullDir16: mapped.hullDir16,
+      turretDir16: mapped.turretDir16,
+      anchor,
+      textureExists: (key: string) => this.scene.textures.exists(key),
+    });
+
+    const labelBase = modularVisualDebugLabel(mapped.visual) +
+      ` h:${mapped.hullDir16} t:${mapped.turretDir16}` +
+      ` avail:${plan.available} fb:${plan.fallbackReason ?? 'none'}`;
+
+    // Only apply the plan and claim modular when textures are fully available.
+    if (plan.available) {
+      this.applyPlan(entity.id, plan);
+      // Clear any pending retry — we succeeded
+      this.pendingCombat = null;
+      return {
+        usedModular: true,
+        plan,
+        debugLabel: labelBase,
+        fallbackReason: null,
+      };
+    }
+
+    // Assets not ready — store pending state for retry each frame
+    this.pendingCombat = {
+      entityId: entity.id,
+      anchor,
+      chassis,
+      weapon,
+      mod,
+      faction: entity.faction ?? 'cyan',
+      dir: entity.dir,
+      turretDir: entity.turretDir,
+      depth: 0, // will be set by setNormalRuntimeDepth() after place()
+    };
+
+    // Keep fallback visible — return usedModular:false
+    return {
+      usedModular: false,
+      plan,
+      debugLabel: labelBase,
+      fallbackReason: plan.fallbackReason ?? 'assets-loading',
+    };
+  }
+
+  /**
+   * Set the depth for the pending normal-runtime modular sprite.
+   * Called by ModularTankRenderer.place() after placeModularCombat()
+   * returns usedModular:false, so the retry will use the correct depth.
+   */
+  setPendingDepth(depth: number): void {
+    if (this.pendingCombat) {
+      this.pendingCombat.depth = depth;
+    }
+  }
+
+  /**
+   * MODULAR-RUNTIME-03B: Retry clean modular placement for the pending
+   * normal-runtime modular-combat entity.
+   *
+   * Called each frame from EntityRenderer.syncFromState() while:
+   *   - ENABLE_MODULAR_VEHICLE_RENDER is on
+   *   - pendingCombat is not null (assets were not ready at place time)
+   *
+   * Once plan.available becomes true:
+   *   - Applies the modular plan (creates hull+turret sprites)
+   *   - Sets depth from the stored value
+   *   - Clears pendingCombat
+   *   - Returns true (caller should suppress legacy hull/turret visuals)
+   *
+   * If assets are still loading, returns false — legacy stays visible.
+   * Does not change gameplay state. Does not touch normal combat logic.
+   */
+  retryCleanModular(): boolean {
+    if (!ENABLE_MODULAR_VEHICLE_RENDER || !this.pendingCombat) {
+      return false;
+    }
+
+    const p = this.pendingCombat;
+
+    // Re-map (entity fields don't change between frames for a static entity)
+    const mapped = normalCombatToModularVisual({
+      chassis: p.chassis,
+      weapon: p.weapon,
+      faction: p.faction,
+      mod: p.mod,
+      dir: p.dir,
+      turretDir: p.turretDir,
+    });
+
+    if (!mapped.visual) {
+      // Mapping permanently failed — clear pending, never retry
+      this.pendingCombat = null;
+      return false;
+    }
+
+    // Re-trigger lazy-load (idempotent — requestModularVehicleSet deduplicates)
+    requestModularVehicleSet(this.scene, mapped.visual);
+
+    // Re-compose the plan
+    const plan = composeModularVehicle({
+      visual: mapped.visual,
+      hullDir16: mapped.hullDir16,
+      turretDir16: mapped.turretDir16,
+      anchor: p.anchor,
+      textureExists: (key: string) => this.scene.textures.exists(key),
+    });
+
+    if (!plan.available) {
+      // Still loading — keep pending, legacy stays visible
+      return false;
+    }
+
+    // Assets ready — apply the plan
+    this.applyPlan(p.entityId, plan);
+    this.setNormalRuntimeDepth(p.entityId, p.depth);
+    this.pendingCombat = null;
+    return true;
+  }
+
+  /**
+   * Whether there is a pending normal-runtime modular-combat entity
+   * waiting for asset loading.
+   */
+  hasPendingCombat(): boolean {
+    return this.pendingCombat !== null;
+  }
+
+  /**
+   * Set the absolute depth for a normal-runtime modular sprite.
+   * Unlike setDepth() which adds a depthIndex offset to baseDepth,
+   * this sets the depth directly (normal runtime uses computeDepthValue).
+   */
+  setNormalRuntimeDepth(vehicleId: string, depth: number): void {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    if (!state) return;
+
+    if (state.hullSprite) {
+      state.hullSprite.setDepth(depth - 0.5);
+    }
+    if (state.turretSprite) {
+      state.turretSprite.setDepth(depth - 0.4);
+    }
+  }
+
+  /**
+   * Update direction for a normal-runtime modular sprite.
+   * Called when setBodyDir/setTurretDir changes direction after placement.
+   */
+  updateDirection(
+    vehicleId: string,
+    visual: ModularVehicleVisual,
+    hullDir16: number,
+    turretDir16: number,
+    anchor: ScreenPoint,
+  ): void {
+    const plan = composeModularVehicle({
+      visual,
+      hullDir16: hullDir16 as any,
+      turretDir16: turretDir16 as any,
+      anchor,
+      textureExists: (key: string) => this.scene.textures.exists(key),
+    });
+
+    if (plan.available) {
+      this.applyPlan(vehicleId, plan);
+    }
+  }
+
+  // ─── Shared sprite management ──────────────────────────────────────
 
   /**
    * Apply a ModularRenderPlan to create/update world-space sprites.
@@ -351,5 +605,6 @@ export class ModularVehicleLiveAdapter {
       if (state.turretSprite) state.turretSprite.destroy();
     }
     this.vehicleModularSprites.clear();
+    this.pendingCombat = null;
   }
 }
