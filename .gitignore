@@ -6,6 +6,7 @@ dist
 node_modules
 playwright-report
 test-results
+tool-results/
 worklog.md
 
 # TankViewer source assets (local/uncommitted)

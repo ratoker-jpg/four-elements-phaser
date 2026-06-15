@@ -29,12 +29,13 @@ ASSET-IMPORT-02A (PR #286) is merged: all-factions modular PNG assets are in the
 MODULAR-ALL-FACTIONS-01B (PR #287) is merged: all-factions runtime/devtools + Dictator 1.09 visual scale.
 MODULAR-ALL-FACTIONS-01C (PR #288) is merged: preview calibration controls and tile overlay.
 
+OPUS-AUDIT-RUNTIME-03 (PR #290) is merged: modular full game integration audit/design.
+MODULAR-RUNTIME-03A (PR #292) is merged: calibration-free live modular vehicle adapter for Arena demo.
+MODULAR-RUNTIME-03B (PR #293): route normal runtime vehicles through modular adapter.
+
 Next default work:
-1. Merge/accept docs roadmap:
-   docs/project/MODULAR_RUNTIME_03_FULL_GAME_INTEGRATION_ROADMAP_2026_06_15.md
-2. Then run one broad Opus audit:
-   OPUS-MODULAR-RUNTIME-03-AUDIT
-3. Only after accepted audit, route implementation to GLM as High/High+ work.
+1. QA acceptance of 03B normal runtime modular rendering (manual QA).
+2. MODULAR-RUNTIME-03C: optional cleanup of legacy Wasp/Smoky/proof harness after QA acceptance.
 ```
 
 Still in force:
