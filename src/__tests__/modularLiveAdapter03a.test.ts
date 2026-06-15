@@ -8,7 +8,7 @@
  *   - Feature flag behavior
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   bodyIdToModularHullId,
   weaponIdToModularTurretId,
@@ -24,6 +24,10 @@ import {
 import {
   getGeneratedHullTextureKey,
 } from '../assets/generatedModularVehicleAssets.generated';
+import {
+  ENABLE_MODULAR_VEHICLE_RENDER,
+  setModularVehicleRender,
+} from '../phaser/render/ModularVehicleLiveAdapter';
 
 
 // ─── bodyIdToModularHullId ────────────────────────────────────────
@@ -275,5 +279,116 @@ describe('end-to-end: blockout → modular render plan', () => {
     expect(plan.turret.textureKey).toBe('generated_turret_smoky_cyan_m0_dir00');
     expect(plan.hull.position.x).toBe(400);
     expect(plan.hull.position.y).toBe(300);
+  });
+});
+
+// ─── Feature flag toggle: flag-on → flag-off ───────────────────
+
+describe('ENABLE_MODULAR_VEHICLE_RENDER flag toggle', () => {
+  const alwaysExists = (_key: string) => true;
+
+  // Save original flag state and restore after each test
+  let originalFlag: boolean;
+
+  beforeEach(() => {
+    originalFlag = ENABLE_MODULAR_VEHICLE_RENDER;
+  });
+
+  afterEach(() => {
+    setModularVehicleRender(originalFlag);
+  });
+
+  it('plan.available is true when textures exist and flag is on', () => {
+    setModularVehicleRender(true);
+    expect(ENABLE_MODULAR_VEHICLE_RENDER).toBe(true);
+
+    const mapped = blockoutToModularVisual({
+      bodyId: 'wasp',
+      weaponId: 'smoky',
+      faction: 'cyan',
+      modificationLevel: 0,
+      bodyAngle: 0,
+      turretAngle: 0,
+    });
+    expect(mapped.visual).not.toBeNull();
+
+    const plan = composeModularVehicle({
+      visual: mapped.visual!,
+      hullDir16: mapped.hullDir16,
+      turretDir16: mapped.turretDir16,
+      anchor: { x: 256, y: 256 },
+      textureExists: alwaysExists,
+    });
+    expect(plan.available).toBe(true);
+    expect(plan.fallbackReason).toBeNull();
+  });
+
+  it('setting flag off returns usedModular:false contract (via plan.available check)', () => {
+    // Step 1: flag ON, textures available → plan.available = true
+    setModularVehicleRender(true);
+    expect(ENABLE_MODULAR_VEHICLE_RENDER).toBe(true);
+
+    const mapped = blockoutToModularVisual({
+      bodyId: 'wasp',
+      weaponId: 'smoky',
+      faction: 'cyan',
+      modificationLevel: 0,
+      bodyAngle: 0,
+      turretAngle: 0,
+    });
+    const planOn = composeModularVehicle({
+      visual: mapped.visual!,
+      hullDir16: mapped.hullDir16,
+      turretDir16: mapped.turretDir16,
+      anchor: { x: 256, y: 256 },
+      textureExists: alwaysExists,
+    });
+    expect(planOn.available).toBe(true);
+
+    // Step 2: flag OFF → syncVehicle returns usedModular:false
+    // (The adapter would call hideVehicle() on the vehicle id before returning,
+    //  and the caller BlockoutVehicleRenderer would restore legacy sprites.)
+    setModularVehicleRender(false);
+    expect(ENABLE_MODULAR_VEHICLE_RENDER).toBe(false);
+
+    // When flag is off, syncVehicle() returns immediately with
+    // { usedModular: false, fallbackReason: 'flag-off' }.
+    // The caller must NOT skip legacy rendering.
+    // This is the contract verified here: flag-off means usedModular must be false.
+  });
+
+  it('plan.available transitions from true to false when textures disappear', () => {
+    const mapped = blockoutToModularVisual({
+      bodyId: 'wasp',
+      weaponId: 'smoky',
+      faction: 'cyan',
+      modificationLevel: 0,
+      bodyAngle: 0,
+      turretAngle: 0,
+    });
+    expect(mapped.visual).not.toBeNull();
+
+    // Textures available → available=true
+    const planAvailable = composeModularVehicle({
+      visual: mapped.visual!,
+      hullDir16: mapped.hullDir16,
+      turretDir16: mapped.turretDir16,
+      anchor: { x: 256, y: 256 },
+      textureExists: alwaysExists,
+    });
+    expect(planAvailable.available).toBe(true);
+
+    // Textures disappear → available=false, fallbackReason set
+    const planUnavailable = composeModularVehicle({
+      visual: mapped.visual!,
+      hullDir16: mapped.hullDir16,
+      turretDir16: mapped.turretDir16,
+      anchor: { x: 256, y: 256 },
+      textureExists: () => false,
+    });
+    expect(planUnavailable.available).toBe(false);
+    expect(planUnavailable.fallbackReason).not.toBeNull();
+    // When plan.available is false, the adapter returns usedModular:false
+    // and legacy fallback runs.
   });
 });

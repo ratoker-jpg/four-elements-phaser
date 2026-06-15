@@ -594,6 +594,11 @@ export class GameScene extends Phaser.Scene {
       this.modularVehicleDevtoolsPanel = new ModularVehicleDevtoolsPanel();
       this.modularVehicleDevtoolsPanel.create({
         getRenderer: () => this.generatedModularVehicleRenderer,
+        onLiveRenderToggle: (enabled: boolean) => {
+          if (!enabled) {
+            this.blockoutVehicleRenderer?.clearModularVehicleRender();
+          }
+        },
       });
       this.generatedModularVehicleRenderer.setOnStateChange(
         () => this.modularVehicleDevtoolsPanel?.refresh(),

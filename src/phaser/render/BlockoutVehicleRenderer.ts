@@ -1533,4 +1533,16 @@ export class BlockoutVehicleRenderer {
     this.modularAdapter.destroy();
 
   }
+
+  // ─── MODULAR-RUNTIME-03A: Live modular toggle helpers ─────────────
+
+  /**
+   * Hide all modular sprites immediately when the live render flag is toggled off.
+   * Called from the devtools panel toggle so that modular sprites disappear
+   * before the next syncFromState() frame, preventing them from persisting
+   * over legacy rendering.
+   */
+  clearModularVehicleRender(): void {
+    this.modularAdapter.hideAll();
+  }
 }

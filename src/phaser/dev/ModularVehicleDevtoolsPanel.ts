@@ -38,6 +38,8 @@ import {
 
 export interface ModularVehicleDevtoolsPanelCallbacks {
   getRenderer: () => GeneratedModularVehicleRenderer | null;
+  /** Called when the Live Render (03A) toggle changes state. */
+  onLiveRenderToggle?: (enabled: boolean) => void;
 }
 
 export class ModularVehicleDevtoolsPanel {
@@ -255,7 +257,10 @@ export class ModularVehicleDevtoolsPanel {
     this._liveRenderBtn = this.makeControlButton(
       `Live: ${ENABLE_MODULAR_VEHICLE_RENDER ? 'ON' : 'OFF'}`,
       () => {
-        toggleModularVehicleRender();
+        const newState = toggleModularVehicleRender();
+        // Notify parent (BlockoutVehicleRenderer) so it can hide modular
+        // sprites immediately on toggle-off, before the next sync frame.
+        this.callbacks?.onLiveRenderToggle?.(newState);
         this.refresh();
       },
       ENABLE_MODULAR_VEHICLE_RENDER ? '#44ff88' : '#ff8844',

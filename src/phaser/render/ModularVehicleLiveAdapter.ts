@@ -124,6 +124,9 @@ export class ModularVehicleLiveAdapter {
     /** Whether to skip blockout body rendering. Set by caller based on result. */
   ): LiveAdapterResult {
     if (!ENABLE_MODULAR_VEHICLE_RENDER) {
+      // Flag toggled off: hide any existing modular sprites for this vehicle
+      // so they don't persist over legacy rendering on the next frame.
+      this.hideVehicle(vehicle.id);
       return { usedModular: false, plan: null, debugLabel: 'flag-off', fallbackReason: 'flag-off' };
     }
 
