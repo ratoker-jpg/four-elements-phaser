@@ -31,6 +31,9 @@ import {
   cycleScaleStep,
   type ModularPreviewCalibration,
 } from '../../modular/modularPreviewCalibration';
+import {
+  toggleModularVehicleRender,
+} from '../render/ModularVehicleLiveAdapter';
 
 export interface ModularVehicleDevtoolsPanelCallbacks {
   getRenderer: () => GeneratedModularVehicleRenderer | null;
@@ -242,6 +245,21 @@ export class ModularVehicleDevtoolsPanel {
       this.makeButtonRow([
         this.makeControlButton('reset cal', () => this.resetCalibration(), '#ff9966'),
         this.makeControlButton('reset sel', () => this.rendererCall((r) => r.reset()), '#81c784'),
+      ]),
+    );
+
+    // MODULAR-RUNTIME-03A: Live render toggle
+    content.appendChild(this.makeSectionLabel('Live Render (03A)'));
+    content.appendChild(
+      this.makeButtonRow([
+        this.makeControlButton(
+          'Live: OFF',
+          () => {
+            toggleModularVehicleRender();
+            this.refresh();
+          },
+          '#ff8844',
+        ),
       ]),
     );
 

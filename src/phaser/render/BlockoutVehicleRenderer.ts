@@ -71,6 +71,9 @@ import {
 } from '../debug/WaspHullPlacementCalibrator';
 import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibrationPanel';
 import { resolvePilotTurretComposition, type PilotTurretCompositionResult } from '../../assets/pilotTurretComposition';
+import {
+  ModularVehicleLiveAdapter,
+} from './ModularVehicleLiveAdapter';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -265,6 +268,9 @@ export class BlockoutVehicleRenderer {
   /** PIM-HULL-WASP-ANCHOR-MAP-01 fixup v3: On-screen calibration button panel. */
   private placementPanel: WaspPlacementCalibrationPanel | null = null;
 
+  /** MODULAR-RUNTIME-03A: Live modular vehicle adapter. */
+  private modularAdapter: ModularVehicleLiveAdapter;
+
   /** Whether generated hull sprites have been logged (once). */
   private generatedHullLogged = false;
 
@@ -279,6 +285,7 @@ export class BlockoutVehicleRenderer {
     this.scene = scene;
     this.offset = offset;
     this.isDevtoolsActive = isDevtoolsActive ?? (() => false);
+    this.modularAdapter = new ModularVehicleLiveAdapter(scene, offset, BLOCKOUT_DEPTH);
   }
 
   // ─── Selection state ───────────────────────────────────────────
@@ -355,11 +362,20 @@ export class BlockoutVehicleRenderer {
         this.vehicleGraphics.set(vehicle.id, g);
       }
 
-      // Check for generated hull sprite
+      // ── MODULAR-RUNTIME-03A: Try live modular adapter first ──────────
+      // When the feature flag is on and the adapter succeeds, we hide legacy
+      // hull/turret sprites and let the modular adapter handle positioning.
+      // Overlays (shadow, HP, selection, labels, weapon bars) are still drawn
+      // in renderVehicle() — outside the modular guard.
+      const modularResult = this.modularAdapter.syncVehicle(vehicle);
+      const useModularBody = modularResult.usedModular;
+
+      // Check for generated hull sprite (legacy path — skipped when modular active)
       // PIM-HULL-WASP-DIR-MAP-01: When calibration is active and vehicle is Wasp,
       // use the forced visual dir16 instead of the normal pipeline.
       // Arena/devtools-only: forced direction is gated to devtools mode.
-      const isWaspCalibrating = this.isDevtoolsActive()
+      const isWaspCalibrating = !useModularBody
+        && this.isDevtoolsActive()
         && isCalibrationActive()
         && bodyIdToGeneratedHullId(vehicle.bodyId) === 'wasp'
         && isOverrideActive();
@@ -371,6 +387,8 @@ export class BlockoutVehicleRenderer {
           this.scene, vehicle.bodyId, vehicle.faction,
           vehicle.modificationLevel, forcedDir16,
         );
+      } else if (useModularBody) {
+        hullKey = null; // modular handles its own hull
       } else {
         hullKey = resolveGeneratedHullKey(
           this.scene, vehicle.bodyId, vehicle.faction,
@@ -379,9 +397,15 @@ export class BlockoutVehicleRenderer {
       }
       const useGeneratedHull = hullKey !== null;
 
-      // Manage hull sprite lifecycle
+      // Manage hull sprite lifecycle (hide when modular takes over)
       let hullSprite = this.vehicleHullSprites.get(vehicle.id);
-      if (useGeneratedHull && hullKey) {
+      if (useModularBody) {
+        // Modular active: destroy legacy hull sprite if it exists
+        if (hullSprite) {
+          hullSprite.destroy();
+          this.vehicleHullSprites.delete(vehicle.id);
+        }
+      } else if (useGeneratedHull && hullKey) {
         if (!hullSprite) {
           hullSprite = this.scene.add.image(0, 0, hullKey);
           hullSprite.setScale(GENERATED_HULL_SCALE);
@@ -412,18 +436,28 @@ export class BlockoutVehicleRenderer {
       // (preserving the pure function for audit) but no sprite is created.
       // Any existing turret sprite is destroyed so the Arena returns to
       // procedural fallback.
-      const turretComp = resolvePilotTurretComposition(
-        vehicle.weaponId,
-        vehicle.bodyId,
-        vehicle.faction,
-        vehicle.modificationLevel,
-        vehicle.turretAngle,
-        (key: string) => this.scene.textures.exists(key),
-      );
+      // MODULAR-RUNTIME-03A: When modular is active, skip legacy turret entirely.
+      const turretComp = useModularBody
+        ? { hasGeneratedTurret: false, turretKey: null as string | null, scale: 1, originX: 0.5, originY: 0.5, turretOffsetPx: null as { x: number; y: number } | null, socketZHeight: null as number | null }
+        : resolvePilotTurretComposition(
+            vehicle.weaponId,
+            vehicle.bodyId,
+            vehicle.faction,
+            vehicle.modificationLevel,
+            vehicle.turretAngle,
+            (key: string) => this.scene.textures.exists(key),
+          );
 
-      // Manage turret sprite lifecycle — gated by quarantine flag
+      // Manage turret sprite lifecycle — gated by quarantine flag or modular active
       let turretSprite = this.vehicleTurretSprites.get(vehicle.id);
-      if (ENABLE_PILOT_GENERATED_TURRET_COMPOSITION && turretComp.hasGeneratedTurret && turretComp.turretKey) {
+      if (useModularBody) {
+        // Modular active: destroy legacy turret sprite if it exists
+        if (turretSprite) {
+          turretSprite.destroy();
+          this.vehicleTurretSprites.delete(vehicle.id);
+        }
+        this.vehicleHasGeneratedTurret.set(vehicle.id, false);
+      } else if (ENABLE_PILOT_GENERATED_TURRET_COMPOSITION && turretComp.hasGeneratedTurret && turretComp.turretKey) {
         if (!turretSprite) {
           turretSprite = this.scene.add.image(0, 0, turretComp.turretKey);
           turretSprite.setScale(turretComp.scale);
@@ -454,14 +488,15 @@ export class BlockoutVehicleRenderer {
       // RUNTIME-03B: Composition is still stored even when quarantine is active,
       // so the data is available for audit/diagnostic purposes. The renderer
       // will simply not position a turret sprite when the flag is false.
-      this.vehicleTurretComp.set(vehicle.id, turretComp);
+      // MODULAR-RUNTIME-03A: When modular active, turretComp is a stub.
+      this.vehicleTurretComp.set(vehicle.id, turretComp as PilotTurretCompositionResult);
 
       // Determine selection/hover state for this vehicle
       const isSelected = vehicle.id === this._selectedVehicleId;
       const isHovered = vehicle.id === this._hoveredVehicleId;
 
       // Redraw this vehicle
-      this.renderVehicle(g, vehicle, isSelected, isHovered);
+      this.renderVehicle(g, vehicle, isSelected, isHovered, useModularBody);
 
       // Debug label
       let label = this.debugLabels.get(vehicle.id);
@@ -573,6 +608,11 @@ export class BlockoutVehicleRenderer {
           placeLabel.setDepth(BLOCKOUT_DEPTH + orderIdx + 25);
         }
       }
+      // MODULAR-RUNTIME-03A: Post-sort modular sprite depth resync
+      const modularDepthIdx = depthOrder.get(vehicle.id);
+      if (modularDepthIdx !== undefined) {
+        this.modularAdapter.setDepth(vehicle.id, modularDepthIdx);
+      }
     }
 
     // Clean up stale vehicles
@@ -614,6 +654,12 @@ export class BlockoutVehicleRenderer {
         this.vehicleTurretComp.delete(id);
       }
     }
+    // MODULAR-RUNTIME-03A: Clean up stale modular sprites
+    for (const id of new Set([...this.vehicleHullSprites.keys(), ...this.vehicleTurretSprites.keys()])) {
+      if (!activeIds.has(id)) {
+        this.modularAdapter.removeVehicle(id);
+      }
+    }
     // Clean up stale direction debug labels
     for (const [id, label] of this.directionDebugLabels) {
       if (!activeIds.has(id)) {
@@ -651,12 +697,12 @@ export class BlockoutVehicleRenderer {
 
   // ─── Vehicle rendering ──────────────────────────────────────────
 
-  private renderVehicle(g: Phaser.GameObjects.Graphics, vehicle: BlockoutVehicleState, isSelected: boolean, isHovered: boolean): void {
+  private renderVehicle(g: Phaser.GameObjects.Graphics, vehicle: BlockoutVehicleState, isSelected: boolean, isHovered: boolean, useModularBody: boolean = false): void {
     g.clear();
 
-    // If using generated hull sprite, skip blockout body rendering but keep overlays
+    // If using modular or generated hull sprite, skip blockout body rendering but keep overlays
     const hullSprite = this.vehicleHullSprites.get(vehicle.id);
-    const skipBlockoutBody = hullSprite !== undefined;
+    const skipBlockoutBody = useModularBody || hullSprite !== undefined;
 
     // Position hull sprite at vehicle center
     if (hullSprite) {
@@ -1119,7 +1165,7 @@ export class BlockoutVehicleRenderer {
     // RUNTIME-03: Skip procedural turret (box+barrel) when generated turret sprite is active.
     // The barrel line and aim line are still drawn because they provide gameplay feedback.
     {
-      const hasGenTurret = this.vehicleHasGeneratedTurret.get(vehicle.id) === true;
+      const hasGenTurret = useModularBody || this.vehicleHasGeneratedTurret.get(vehicle.id) === true;
       // Turret position on top face (shared mountWorldX/Y from above)
       const turretZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET;
 
@@ -1484,6 +1530,9 @@ export class BlockoutVehicleRenderer {
       this.placementPanel.destroy();
       this.placementPanel = null;
     }
+
+    // MODULAR-RUNTIME-03A: Clean up modular adapter
+    this.modularAdapter.destroy();
 
   }
 }
