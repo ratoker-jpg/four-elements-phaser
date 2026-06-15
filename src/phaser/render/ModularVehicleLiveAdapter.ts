@@ -48,6 +48,7 @@ import {
 import {
   requestModularVehicleSet,
 } from '../../modular/modularVehicleRuntimeLoader';
+import { resolveModularFaction } from '../../modular/modularFactionResolver';
 
 // ─── Feature flag ──────────────────────────────────────────────────
 
@@ -101,6 +102,25 @@ interface ModularSpriteState {
   lastHullKey: string | null;
   lastTurretKey: string | null;
   lastVisual: ModularVehicleVisual | null;
+  /**
+   * MODULAR-RUNTIME-04B anti-flicker: true once a fully-available modular plan
+   * has been applied for this vehicle. While true and the visual identity is
+   * unchanged, a transiently-unavailable plan (e.g. a freshly-rotated direction
+   * whose sprite frame is still loading) keeps the last good modular sprites
+   * visible instead of reverting to the blockout placeholder.
+   */
+  modularActive: boolean;
+  /** Visual identity (hull/turret/faction/mods) of the active modular sprites. */
+  activeVisualKey: string | null;
+}
+
+/**
+ * Visual identity key for a modular visual. Direction is intentionally excluded
+ * so rotation does not invalidate the sticky-modular hold (only a hull/turret/
+ * faction/mod change does).
+ */
+function modularVisualIdentityKey(visual: ModularVehicleVisual): string {
+  return `${visual.hullId}|${visual.turretId}|${visual.faction}|${visual.hullMod}|${visual.turretMod}`;
 }
 
 // ─── 03B: Pending normal-runtime entity state for retry ────────────
@@ -211,10 +231,13 @@ export class ModularVehicleLiveAdapter {
       ` h:${mapped.hullDir16} t:${mapped.turretDir16}` +
       ` avail:${plan.available} fb:${plan.fallbackReason ?? 'none'}`;
 
+    const visualKey = modularVisualIdentityKey(mapped.visual);
+
     // Only apply the plan and claim modular when textures are fully available.
     // While assets are loading or missing, fall back to legacy rendering.
     if (plan.available) {
       this.applyPlan(vehicle.id, plan);
+      this.markModularActive(vehicle.id, visualKey);
       return {
         usedModular: true,
         plan,
@@ -223,7 +246,21 @@ export class ModularVehicleLiveAdapter {
       };
     }
 
-    // Assets not ready — hide any stale modular sprites but do NOT suppress legacy
+    // MODULAR-RUNTIME-04B anti-flicker: if modular was already active for this
+    // exact visual identity, keep the last good sprites visible instead of
+    // reverting to the blockout placeholder. This prevents the flicker-back seen
+    // when a freshly-rotated direction frame is momentarily still loading.
+    if (this.tryStickyHold(vehicle.id, visualKey)) {
+      return {
+        usedModular: true,
+        plan,
+        debugLabel: `${labelBase} sticky-hold`,
+        fallbackReason: null,
+      };
+    }
+
+    // Assets not ready and no prior modular to hold — hide any stale modular
+    // sprites but do NOT suppress legacy (emergency fallback while loading).
     this.hideVehicle(vehicle.id);
     return {
       usedModular: false,
@@ -231,6 +268,38 @@ export class ModularVehicleLiveAdapter {
       debugLabel: labelBase,
       fallbackReason: plan.fallbackReason ?? 'assets-loading',
     };
+  }
+
+  /** Mark a vehicle's modular sprites active for the given visual identity. */
+  private markModularActive(vehicleId: string, visualKey: string): void {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    if (!state) return;
+    state.modularActive = true;
+    state.activeVisualKey = visualKey;
+  }
+
+  /**
+   * MODULAR-RUNTIME-04B anti-flicker hold. Returns true (and keeps the existing
+   * modular sprites visible) when modular was already active for this exact
+   * visual identity and the last applied textures still exist. A change of
+   * hull/turret/faction/mod (different visualKey) breaks the hold so the new
+   * set can take over cleanly.
+   */
+  private tryStickyHold(vehicleId: string, visualKey: string): boolean {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    if (!state || !state.modularActive || state.activeVisualKey !== visualKey) {
+      return false;
+    }
+    const hullOk = state.lastHullKey !== null && this.scene.textures.exists(state.lastHullKey);
+    const turretOk = state.lastTurretKey !== null && this.scene.textures.exists(state.lastTurretKey);
+    if (!hullOk || !turretOk) {
+      // Previously-applied textures became invalid — release the hold.
+      state.modularActive = false;
+      return false;
+    }
+    if (state.hullSprite) state.hullSprite.setVisible(true);
+    if (state.turretSprite) state.turretSprite.setVisible(true);
+    return true;
   }
 
   // ─── MODULAR-RUNTIME-03B: Normal runtime integration ──────────────
@@ -261,10 +330,11 @@ export class ModularVehicleLiveAdapter {
     }
 
     // Map RenderableEntity → ModularVehicleVisual + dir16
+    const faction = resolveModularFaction(entity.faction, 'normal-runtime-combat');
     const mapped = normalCombatToModularVisual({
       chassis,
       weapon,
-      faction: entity.faction ?? 'cyan',
+      faction,
       mod,
       dir: entity.dir,
       turretDir: entity.turretDir,
@@ -298,12 +368,25 @@ export class ModularVehicleLiveAdapter {
     // Only apply the plan and claim modular when textures are fully available.
     if (plan.available) {
       this.applyPlan(entity.id, plan);
+      this.markModularActive(entity.id, modularVisualIdentityKey(mapped.visual));
       // Clear any pending retry — we succeeded
       this.pendingCombat = null;
       return {
         usedModular: true,
         plan,
         debugLabel: labelBase,
+        fallbackReason: null,
+      };
+    }
+
+    // MODULAR-RUNTIME-04B anti-flicker: hold the last good modular sprites if
+    // this entity already rendered modular with the same visual identity.
+    if (this.tryStickyHold(entity.id, modularVisualIdentityKey(mapped.visual))) {
+      this.pendingCombat = null;
+      return {
+        usedModular: true,
+        plan,
+        debugLabel: `${labelBase} sticky-hold`,
         fallbackReason: null,
       };
     }
@@ -315,7 +398,7 @@ export class ModularVehicleLiveAdapter {
       chassis,
       weapon,
       mod,
-      faction: entity.faction ?? 'cyan',
+      faction,
       dir: entity.dir,
       turretDir: entity.turretDir,
       depth: 0, // will be set by setNormalRuntimeDepth() after place()
@@ -400,6 +483,7 @@ export class ModularVehicleLiveAdapter {
 
     // Assets ready — apply the plan
     this.applyPlan(p.entityId, plan);
+    this.markModularActive(p.entityId, modularVisualIdentityKey(mapped.visual));
     this.setNormalRuntimeDepth(p.entityId, p.depth);
     this.pendingCombat = null;
     return true;
@@ -451,6 +535,7 @@ export class ModularVehicleLiveAdapter {
 
     if (plan.available) {
       this.applyPlan(vehicleId, plan);
+      this.markModularActive(vehicleId, modularVisualIdentityKey(visual));
     }
   }
 
@@ -468,6 +553,8 @@ export class ModularVehicleLiveAdapter {
         lastHullKey: null,
         lastTurretKey: null,
         lastVisual: null,
+        modularActive: false,
+        activeVisualKey: null,
       };
       this.vehicleModularSprites.set(vehicleId, state);
     }

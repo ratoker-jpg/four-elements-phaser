@@ -44,9 +44,24 @@ hull-only preserved.
 Note: PR #294 (03C1 proof-harness cleanup) is open/unmerged; its removal is
 superseded by and folded into 04A. #294 can be closed.
 
+MODULAR-RUNTIME-04B (this PR): unified modular vehicle renderer corrective fix.
+One canonical live modular path is enforced for Arena + normal runtime via the
+existing ModularVehicleLiveAdapter / composeModularVehicle. Adds: (a) sticky
+anti-flicker hold so a vehicle never reverts to the blockout placeholder once
+modular is active and the visual identity is unchanged; (b) production mount-slot
+model front/center/rear (src/modular/modularVehicleMountSlots.ts) applied as a
+composition-offset-only shift along hull facing (metadata untouched); (c)
+diagnostic faction resolver (no silent cyan default) so all four factions use the
+modular path; (d) debug-artifact gate (src/phaser/render/vehicleDebugFlags.ts) —
+green movement line, red dashed aim line, selection-ring arrow, mount-point
+circles, and turret-to-cursor are all OFF by default and only enabled behind
+explicit debug flags. Dictator +9% hull-only preserved; lazy-load 32-PNG budget
+preserved; no assets/metadata regenerated.
+
 Next default work:
-1. Manual QA acceptance of 04A default modular rendering + scale across all
-   hulls/turrets/factions (see MODULAR_RUNTIME_04A report QA plan).
+1. Manual QA acceptance of 04B across all hulls/turrets/factions and the three
+   mount categories (see MODULAR_RUNTIME_04B report QA plan), especially the
+   mount-slot forward magnitude and the no-flicker / no-debug-line checks.
 2. After QA acceptance: optional retirement of remaining legacy Wasp/Smoky
    pilot fallback once modular default is proven stable.
 ```

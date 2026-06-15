@@ -45,6 +45,7 @@ import {
   getTurretPivotAnchor,
   FALLBACK_FRAME_CENTER,
 } from './modularVehicleMetadata';
+import { getMountSlotSocketShift } from './modularVehicleMountSlots';
 import type { ModularVehicleVisual } from './modularVehicleVisual';
 import { isValidModularVehicleVisual } from './modularVehicleVisual';
 
@@ -243,9 +244,22 @@ export function composeModularVehicle(
   const hullCenter: ScreenPoint = { x: anchor.x, y: anchor.y };
 
   // Socket screen position = hull centre + normalized socket offset.
+  //
+  // MODULAR-RUNTIME-04B: apply the production mount-slot semantic shift on top
+  // of the export-derived socket. This moves the turret pivot toward the front
+  // (mammoth/titan), centre (viking/hunter/hornet — zero shift), or rear
+  // (wasp/dictator) of the hull, following the hull's facing direction. It is a
+  // composition-offset-only adjustment: hull sprite, hull metadata, and turret
+  // pivot metadata are all untouched. `center` hulls receive an exact zero shift
+  // so frame-centre-correct hulls are never overcorrected.
+  const mountShift = getMountSlotSocketShift(
+    visual.hullId,
+    hullDir16,
+    hullDisplaySize,
+  );
   const socketScreen: ScreenPoint = {
-    x: hullCenter.x + (socketNorm.nx - 0.5) * hullDisplaySize,
-    y: hullCenter.y + (socketNorm.ny - 0.5) * hullDisplaySize,
+    x: hullCenter.x + (socketNorm.nx - 0.5) * hullDisplaySize + mountShift.dx,
+    y: hullCenter.y + (socketNorm.ny - 0.5) * hullDisplaySize + mountShift.dy,
   };
 
   // Turret pivot must land on the hull socket. Place the turret centre so

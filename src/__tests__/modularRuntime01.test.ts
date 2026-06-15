@@ -410,10 +410,22 @@ describe('metadata-driven composition', () => {
       anchor,
       textureExists: () => true,
     });
-    // Hull centred on the anchor — no Wasp y-offset / zHeight nudge.
+    // Hull centred on the anchor — no Wasp y-offset / zHeight nudge. The
+    // MODULAR-RUNTIME-04B mount-slot layer never moves the hull.
     expect(plan.hull.position).toEqual(anchor);
     expect(plan.hull.origin).toEqual({ x: 0.5, y: 0.5 });
-    // Under the frame-centre policy the turret centre equals the hull centre.
+  });
+
+  it('center-mount hull keeps the turret centre on the hull centre (frame-centre)', () => {
+    const anchor = { x: 200, y: 150 };
+    const plan = composeModularVehicle({
+      // viking is a center-mount hull → zero mount-slot shift.
+      visual: { ...SAMPLE_VISUAL, hullId: 'viking' },
+      hullDir16: 0,
+      turretDir16: 0,
+      anchor,
+      textureExists: () => true,
+    });
     expect(plan.turret.position.x).toBeCloseTo(anchor.x, 6);
     expect(plan.turret.position.y).toBeCloseTo(anchor.y, 6);
   });

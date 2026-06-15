@@ -43,6 +43,7 @@ import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { computeBodyWorldCenter, getBodyPixelSize, computeProjectedTurretMountScreen, computeProjectedBarrelTipScreenAtZ } from '../render/blockoutVehicleGeometry';
 import { setBlockoutVehicleMoveTarget, clearBlockoutVehicleMoveTarget } from '../../state/blockoutMovement';
 import { rotateTowardAngle, angleFromTo, degPerSecToRadPerMs } from '../../state/angleMath';
+import { vehicleDebugOverlays } from '../render/vehicleDebugFlags';
 import { canFireBlockoutWeapon, fireBlockoutWeapon, startFiring, stopFiring, isContinuousWeapon } from '../../state/blockoutWeaponVfx';
 import { applyBlockoutWeaponDamage } from '../../state/blockoutDamage';
 import type { GameState } from '../../state/types';
@@ -340,8 +341,12 @@ export class BlockoutVehicleInputController {
         if (this.isArenaMode()) {
           // Arena turret aim is centralized in GameScene so selected allies
           // and enemies share the same target-lock/rest behavior.
-        } else {
-          // Non-Arena devtools: original mouse-follow behavior
+        } else if (vehicleDebugOverlays.turretCursorAim) {
+          // MODULAR-RUNTIME-04B: turret-to-cursor tracking is no longer a
+          // default behavior. The turret only follows the raw mouse cursor when
+          // the explicit debug/manual-aim flag is enabled. By default the turret
+          // direction comes from vehicle/target/controlled-demo state, never from
+          // raw cursor hover.
           const turretMountScreen = computeProjectedTurretMountScreen(selected, this.offset);
           const targetAngle = angleFromTo(turretMountScreen.x, turretMountScreen.y, this._mouseWorldX, this._mouseWorldY);
           selected.turretTargetAngle = targetAngle;

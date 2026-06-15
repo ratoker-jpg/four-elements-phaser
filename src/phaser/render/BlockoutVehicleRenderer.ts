@@ -32,6 +32,7 @@ import {
   drawProjectedCrosshair,
 } from './projectedGroundPrimitives';
 import { projectWorldPoint, unprojectScreenToGround, PROJ_TILE_W } from '../../config/cameraProjectionContract';
+import { vehicleDebugOverlays } from './vehicleDebugFlags';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import { getWeaponConfig } from '../../config/weaponData';
 import { sortByDepth, type DepthSortable } from './depthSorting';
@@ -229,8 +230,12 @@ export class BlockoutVehicleRenderer {
   /** Whether debug labels are shown. */
   private showDebugLabels = true;
 
-  /** Whether mount points are shown. */
-  private showMountPoints = true;
+  /**
+   * Whether mount points are shown. MODULAR-RUNTIME-04B: default OFF — the red
+   * mount-point circles are a debug artifact and must not appear in the default
+   * view. A debug panel may toggle them on.
+   */
+  private showMountPoints = false;
 
   /** Currently selected vehicle ID (set from BlockoutVehicleInputController). */
   private _selectedVehicleId: string | null = null;
@@ -804,12 +809,16 @@ export class BlockoutVehicleRenderer {
       const targetScreenX = vehicle.targetWorldX + this.offset.x;
       const targetScreenY = vehicle.targetWorldY + this.offset.y;
 
-      // Thin line from vehicle to target
-      g.lineStyle(1, MOVE_LINE_COLOR, MOVE_LINE_ALPHA);
-      g.beginPath();
-      g.moveTo(cx, cy);
-      g.lineTo(targetScreenX, targetScreenY);
-      g.strokePath();
+      // Thin line from vehicle to target.
+      // MODULAR-RUNTIME-04B: gated behind an explicit debug flag (default off)
+      // so the green movement line never shows in default gameplay/Arena view.
+      if (vehicleDebugOverlays.movementLine) {
+        g.lineStyle(1, MOVE_LINE_COLOR, MOVE_LINE_ALPHA);
+        g.beginPath();
+        g.moveTo(cx, cy);
+        g.lineTo(targetScreenX, targetScreenY);
+        g.strokePath();
+      }
 
       // Projected ground diamond at target
       g.lineStyle(1.5, MOVE_TARGET_COLOR, MOVE_TARGET_ALPHA);
@@ -827,7 +836,10 @@ export class BlockoutVehicleRenderer {
       g.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
       drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
 
-      // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity
+      // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity.
+      // MODULAR-RUNTIME-04B: gated behind an explicit debug flag (default off)
+      // so the arrow/marker on the selection ring never shows by default.
+      if (vehicleDebugOverlays.directionArrow) {
       // Use screen-space arrow from body center along body angle
       // Approximate ring edge in screen space for arrow placement
       const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38; // approximate pixel distance
@@ -854,6 +866,7 @@ export class BlockoutVehicleRenderer {
       g.moveTo(arrowTipX, arrowTipY);
       g.lineTo(arrowTipX + Math.cos(headAngle2) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle2) * DIRECTION_ARROW_HEAD);
       g.strokePath();
+      } // end if (vehicleDebugOverlays.directionArrow)
     }
 
     // ── Hover marker (projected ground-plane) ────────────────────
@@ -1250,7 +1263,9 @@ export class BlockoutVehicleRenderer {
       g.strokePath();
 
       // ── Aim line for selected vehicle ─────────────────────────────
-      if (isSelected) {
+      // MODULAR-RUNTIME-04B: gated behind an explicit debug flag (default off)
+      // so the red dashed aim line never shows in default gameplay/Arena view.
+      if (isSelected && vehicleDebugOverlays.aimLine) {
         g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
         const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
         // Aim starts at shared barrel tip (PROJECTION-01 fixup #3)
