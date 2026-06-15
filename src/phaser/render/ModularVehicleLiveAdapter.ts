@@ -82,6 +82,8 @@ export interface LiveAdapterResult {
   plan: ModularRenderPlan | null;
   /** Debug label for diagnostics. */
   debugLabel: string;
+  /** Why modular was not used (null when modular is active). */
+  fallbackReason: string | null;
 }
 
 interface ModularSpriteState {
@@ -122,7 +124,7 @@ export class ModularVehicleLiveAdapter {
     /** Whether to skip blockout body rendering. Set by caller based on result. */
   ): LiveAdapterResult {
     if (!ENABLE_MODULAR_VEHICLE_RENDER) {
-      return { usedModular: false, plan: null, debugLabel: 'flag-off' };
+      return { usedModular: false, plan: null, debugLabel: 'flag-off', fallbackReason: 'flag-off' };
     }
 
     // Map BlockoutVehicleState → ModularVehicleVisual + directions
@@ -140,10 +142,11 @@ export class ModularVehicleLiveAdapter {
         usedModular: false,
         plan: null,
         debugLabel: `mapping-failed: ${mapped.failReason}`,
+        fallbackReason: `mapping-failed: ${mapped.failReason}`,
       };
     }
 
-    // Request lazy-load of the modular vehicle set
+    // Request lazy-load of the modular vehicle set (always trigger load)
     requestModularVehicleSet(this.scene, mapped.visual);
 
     // Compute the screen anchor: vehicle world position + offset
@@ -166,15 +169,29 @@ export class ModularVehicleLiveAdapter {
       textureExists: (key: string) => this.scene.textures.exists(key),
     });
 
-    // Apply the plan: create/update Phaser sprites
-    this.applyPlan(vehicle.id, plan);
+    const labelBase = modularVisualDebugLabel(mapped.visual) +
+      ` h:${mapped.hullDir16} t:${mapped.turretDir16}` +
+      ` avail:${plan.available} fb:${plan.fallbackReason ?? 'none'}`;
 
+    // Only apply the plan and claim modular when textures are fully available.
+    // While assets are loading or missing, fall back to legacy rendering.
+    if (plan.available) {
+      this.applyPlan(vehicle.id, plan);
+      return {
+        usedModular: true,
+        plan,
+        debugLabel: labelBase,
+        fallbackReason: null,
+      };
+    }
+
+    // Assets not ready — hide any stale modular sprites but do NOT suppress legacy
+    this.hideVehicle(vehicle.id);
     return {
-      usedModular: true,
+      usedModular: false,
       plan,
-      debugLabel: modularVisualDebugLabel(mapped.visual) +
-        ` h:${mapped.hullDir16} t:${mapped.turretDir16}` +
-        ` avail:${plan.available} fb:${plan.fallbackReason ?? 'none'}`,
+      debugLabel: labelBase,
+      fallbackReason: plan.fallbackReason ?? 'assets-loading',
     };
   }
 
@@ -268,6 +285,38 @@ export class ModularVehicleLiveAdapter {
       state.turretSprite.destroy();
     }
     this.vehicleModularSprites.delete(vehicleId);
+  }
+
+  /**
+   * Hide modular sprites for a single vehicle (e.g., when assets are
+   * not yet available and legacy fallback should take over).
+   */
+  hideVehicle(vehicleId: string): void {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    if (!state) return;
+    if (state.hullSprite) state.hullSprite.setVisible(false);
+    if (state.turretSprite) state.turretSprite.setVisible(false);
+  }
+
+  /**
+   * Return all vehicle IDs that have modular sprite state.
+   * Used by BlockoutVehicleRenderer for stale cleanup, because
+   * vehicleHullSprites/vehicleTurretSprites are empty in modular mode.
+   */
+  getVehicleIds(): Set<string> {
+    return new Set(this.vehicleModularSprites.keys());
+  }
+
+  /**
+   * Remove modular sprites for vehicles NOT in the active set.
+   * Called from BlockoutVehicleRenderer.syncFromState().
+   */
+  removeStale(activeIds: Set<string>): void {
+    for (const id of this.vehicleModularSprites.keys()) {
+      if (!activeIds.has(id)) {
+        this.removeVehicle(id);
+      }
+    }
   }
 
   /**

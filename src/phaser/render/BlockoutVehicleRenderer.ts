@@ -655,11 +655,9 @@ export class BlockoutVehicleRenderer {
       }
     }
     // MODULAR-RUNTIME-03A: Clean up stale modular sprites
-    for (const id of new Set([...this.vehicleHullSprites.keys(), ...this.vehicleTurretSprites.keys()])) {
-      if (!activeIds.has(id)) {
-        this.modularAdapter.removeVehicle(id);
-      }
-    }
+    // Uses removeStale() which checks the adapter's own vehicleModularSprites map,
+    // not the legacy vehicleHullSprites/vehicleTurretSprites (which are empty in modular mode).
+    this.modularAdapter.removeStale(activeIds);
     // Clean up stale direction debug labels
     for (const [id, label] of this.directionDebugLabels) {
       if (!activeIds.has(id)) {
