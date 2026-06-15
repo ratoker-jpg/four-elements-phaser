@@ -44,6 +44,7 @@ import {
 import {
   composeModularVehicle,
   MODULAR_FRAME_SIZE,
+  MODULAR_VEHICLE_BASE_SCALE,
   getHullVisualScaleMultiplier,
   HULL_VISUAL_SCALE_MULTIPLIERS,
 } from '../modular/modularVehicleComposition';
@@ -589,10 +590,10 @@ describe('Dictator visual scale compensation', () => {
       anchor: { x: 300, y: 300 },
       textureExists: () => true,
     });
-    // Hull scale should be 0.5 * 1.09 = 0.545
-    expect(plan.hull.scale).toBeCloseTo(0.5 * 1.09, 6);
-    // Turret scale should be normal 0.5
-    expect(plan.turret.scale).toBe(0.5);
+    // Hull scale should be base * 1.09 (MODULAR-RUNTIME-04A base = 0.16)
+    expect(plan.hull.scale).toBeCloseTo(MODULAR_VEHICLE_BASE_SCALE * 1.09, 6);
+    // Turret scale should be the normal base scale
+    expect(plan.turret.scale).toBe(MODULAR_VEHICLE_BASE_SCALE);
   });
 
   it('Dictator hull displaySize is larger than turret displaySize', () => {
@@ -604,8 +605,8 @@ describe('Dictator visual scale compensation', () => {
       textureExists: () => true,
     });
     expect(plan.hull.displaySize).toBeGreaterThan(plan.turret.displaySize);
-    expect(plan.hull.displaySize).toBeCloseTo(512 * 0.5 * 1.09, 6);
-    expect(plan.turret.displaySize).toBe(512 * 0.5);
+    expect(plan.hull.displaySize).toBeCloseTo(512 * MODULAR_VEHICLE_BASE_SCALE * 1.09, 6);
+    expect(plan.turret.displaySize).toBe(512 * MODULAR_VEHICLE_BASE_SCALE);
   });
 
   it('Dictator turret pivot still lands on hull socket (stable alignment)', () => {
@@ -630,7 +631,7 @@ describe('Dictator visual scale compensation', () => {
       anchor: { x: 300, y: 300 },
       textureExists: () => true,
     });
-    expect(plan.turret.scale).toBe(0.5);
+    expect(plan.turret.scale).toBe(MODULAR_VEHICLE_BASE_SCALE);
   });
 });
 

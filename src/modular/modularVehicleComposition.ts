@@ -48,8 +48,35 @@ import {
 import type { ModularVehicleVisual } from './modularVehicleVisual';
 import { isValidModularVehicleVisual } from './modularVehicleVisual';
 
-/** Display scale applied to the 512x512 source frames in preview space. */
-export const MODULAR_VEHICLE_DISPLAY_SCALE = 0.5;
+/**
+ * MODULAR-RUNTIME-04A: single shared base scale for modular vehicles.
+ *
+ * This is the one source of truth for how the 512×512 modular hull/turret
+ * source frames are scaled to runtime/preview display size. Live runtime
+ * (ModularVehicleLiveAdapter → composeModularVehicle) and the devtools
+ * preview (GeneratedModularVehicleRenderer → effectiveHullScale) both read
+ * this constant so they render at the same visual size.
+ *
+ * Value history:
+ *   - Before 04A: 0.5. Live and preview default both rendered at 512×0.5 =
+ *     256px hulls — far too large. The accepted preview look was only
+ *     reachable by manually dialing the devtools modelScale down to ~0.32,
+ *     giving an effective 0.5 × 0.32 = 0.16. That 0.16 was the accepted
+ *     visual but lived only in transient devtools calibration state.
+ *   - 04A: bake the accepted 0.16 into the base constant and reset the
+ *     devtools modelScale default back to 1, so default preview == live ==
+ *     accepted visual without any calibration. 512×0.16 = ~82px hull.
+ *
+ * Devtools calibration (modelScale/hullScale/turretScale) remains a pure
+ * QA-only multiplier on top of this base and is never written back here.
+ */
+export const MODULAR_VEHICLE_BASE_SCALE = 0.16;
+
+/**
+ * @deprecated Use MODULAR_VEHICLE_BASE_SCALE. Retained as an alias so the
+ * many existing imports keep compiling; it always equals the base scale.
+ */
+export const MODULAR_VEHICLE_DISPLAY_SCALE = MODULAR_VEHICLE_BASE_SCALE;
 
 /** Source frame edge length (px). All modular frames are 512x512. */
 export const MODULAR_FRAME_SIZE = 512;
