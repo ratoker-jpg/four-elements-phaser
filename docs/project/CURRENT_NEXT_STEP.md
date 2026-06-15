@@ -33,9 +33,22 @@ OPUS-AUDIT-RUNTIME-03 (PR #290) is merged: modular full game integration audit/d
 MODULAR-RUNTIME-03A (PR #292) is merged: calibration-free live modular vehicle adapter for Arena demo.
 MODULAR-RUNTIME-03B (PR #293): route normal runtime vehicles through modular adapter.
 
+MODULAR-RUNTIME-04A (this PR): modular PNG hull+turret is the DEFAULT runtime
+renderer in Arena devtools and normal runtime (ENABLE_MODULAR_VEHICLE_RENDER
+default = true). Modular vehicle scale normalized to one shared source of
+truth MODULAR_VEHICLE_BASE_SCALE = 0.16 (preview == live, no calibration
+needed). Dead generated-vehicle proof harness removed. Emergency
+blockout/legacy fallback retained for loading/missing assets. Dictator +9%
+hull-only preserved.
+
+Note: PR #294 (03C1 proof-harness cleanup) is open/unmerged; its removal is
+superseded by and folded into 04A. #294 can be closed.
+
 Next default work:
-1. QA acceptance of 03B normal runtime modular rendering (manual QA).
-2. MODULAR-RUNTIME-03C: optional cleanup of legacy Wasp/Smoky/proof harness after QA acceptance.
+1. Manual QA acceptance of 04A default modular rendering + scale across all
+   hulls/turrets/factions (see MODULAR_RUNTIME_04A report QA plan).
+2. After QA acceptance: optional retirement of remaining legacy Wasp/Smoky
+   pilot fallback once modular default is proven stable.
 ```
 
 Still in force:

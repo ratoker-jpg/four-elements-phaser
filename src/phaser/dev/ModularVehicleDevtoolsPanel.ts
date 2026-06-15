@@ -252,10 +252,13 @@ export class ModularVehicleDevtoolsPanel {
       ]),
     );
 
-    // MODULAR-RUNTIME-03A: Live render toggle
-    content.appendChild(this.makeSectionLabel('Live Render (03A)'));
+    // MODULAR-RUNTIME-04A: modular PNG rendering is the DEFAULT runtime
+    // renderer. This toggle is an emergency/debug fallback switch only —
+    // turning it OFF drops to the legacy blockout/generated path, which is
+    // NOT a normal workflow. It exists purely for diagnostics.
+    content.appendChild(this.makeSectionLabel('Modular Render (default ON — emergency fallback only)'));
     this._liveRenderBtn = this.makeControlButton(
-      `Live: ${ENABLE_MODULAR_VEHICLE_RENDER ? 'ON' : 'OFF'}`,
+      `Modular: ${ENABLE_MODULAR_VEHICLE_RENDER ? 'ON (default)' : 'OFF (emergency legacy)'}`,
       () => {
         const newState = toggleModularVehicleRender();
         // Notify parent (BlockoutVehicleRenderer) so it can hide modular
@@ -316,9 +319,9 @@ export class ModularVehicleDevtoolsPanel {
     if (this.openCloseBtn) {
       this.openCloseBtn.textContent = s.active ? 'Close Preview' : 'Open Preview';
     }
-    // MODULAR-RUNTIME-03A: Sync Live Render button to actual flag state
+    // MODULAR-RUNTIME-04A: Sync emergency-fallback toggle to actual flag state
     if (this._liveRenderBtn) {
-      this._liveRenderBtn.textContent = `Live: ${ENABLE_MODULAR_VEHICLE_RENDER ? 'ON' : 'OFF'}`;
+      this._liveRenderBtn.textContent = `Modular: ${ENABLE_MODULAR_VEHICLE_RENDER ? 'ON (default)' : 'OFF (emergency legacy)'}`;
       this._liveRenderBtn.style.color = ENABLE_MODULAR_VEHICLE_RENDER ? '#44ff88' : '#ff8844';
       this._liveRenderBtn.style.borderColor = ENABLE_MODULAR_VEHICLE_RENDER ? '#44ff8855' : '#ff884455';
     }

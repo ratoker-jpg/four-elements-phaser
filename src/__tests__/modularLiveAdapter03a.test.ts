@@ -214,9 +214,9 @@ describe('composeModularVehicle with modular_hull_* namespace', () => {
       textureExists: alwaysExists,
     };
     const plan = composeModularVehicle(input);
-    // Hull scale should be 0.5 * 1.09 = 0.545
+    // Hull scale should be base * 1.09 (Dictator hull-only compensation)
     expect(plan.hull.scale).toBeCloseTo(MODULAR_VEHICLE_DISPLAY_SCALE * 1.09, 4);
-    // Turret scale should be plain 0.5
+    // Turret scale should be the plain base scale (no Dictator multiplier)
     expect(plan.turret.scale).toBe(MODULAR_VEHICLE_DISPLAY_SCALE);
   });
 

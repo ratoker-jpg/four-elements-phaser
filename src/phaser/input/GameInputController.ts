@@ -23,7 +23,6 @@ import type { DebugOverlayRenderer } from '../render/DebugOverlayRenderer';
 import type { DevtoolsPanel } from '../ui/DevtoolsPanel';
 import type { AssetPreviewTool } from '../dev/AssetPreviewTool';
 import type { AssetPreviewPanel } from '../dev/AssetPreviewPanel';
-import type { GeneratedVehicleProofHarness } from '../dev/GeneratedVehicleProofHarness';
 import {
   routeLmbClick,
   routeRmbClick,
@@ -83,8 +82,6 @@ export interface GameInputDeps {
   assetPreviewTool: AssetPreviewTool | null;
   /** AssetPreviewPanel — nullable, only present when devtools is active. DEV-ASSET-PREVIEW-01. */
   assetPreviewPanel: AssetPreviewPanel | null;
-  /** MODULAR-PROOF-01: generated vehicle proof harness — nullable, devtools-only. */
-  generatedVehicleProofHarness?: GeneratedVehicleProofHarness | null;
   /** Callback to change paused state in GameScene. */
   setPaused: (paused: boolean) => void;
   /** ARENA-02H+ fixup: Whether arena placement mode is active. When true,
@@ -125,7 +122,6 @@ export class GameInputController {
   private devtoolsPanel: DevtoolsPanel | null;
   private assetPreviewTool: AssetPreviewTool | null;
   private assetPreviewPanel: AssetPreviewPanel | null;
-  private generatedVehicleProofHarness: GeneratedVehicleProofHarness | null;
   private setPausedCb: (paused: boolean) => void;
   private isPlacementActive: () => boolean;
   private isArenaMode: () => boolean;
@@ -168,7 +164,6 @@ export class GameInputController {
     this.devtoolsPanel = deps.devtoolsPanel;
     this.assetPreviewTool = deps.assetPreviewTool;
     this.assetPreviewPanel = deps.assetPreviewPanel;
-    this.generatedVehicleProofHarness = deps.generatedVehicleProofHarness ?? null;
     this.setPausedCb = deps.setPaused;
     this.isPlacementActive = deps.isPlacementActive ?? (() => false);
     this.isArenaMode = deps.isArenaMode ?? (() => false);
@@ -827,11 +822,6 @@ export class GameInputController {
         }
         console.log(`[GameScene] Asset preview: ${this.assetPreviewTool.active ? 'ON' : 'OFF'}`);
       }
-    });
-
-    // ── MODULAR-PROOF-01: Generated vehicle proof harness toggle (9) ──
-    kb.on('keydown-NINE', () => {
-      this.generatedVehicleProofHarness?.toggle();
     });
 
     // ── CORE-STEP-05H+: ESC with priority chain ──────────────

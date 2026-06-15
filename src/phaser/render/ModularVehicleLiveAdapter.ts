@@ -52,20 +52,24 @@ import {
 // ─── Feature flag ──────────────────────────────────────────────────
 
 /**
- * MODULAR-RUNTIME-03A+03B: Kill switch for live modular vehicle rendering.
+ * MODULAR-RUNTIME-04A: default runtime renderer switch for modular vehicles.
  *
- * When false: no modular sprites are created, loaded, or positioned.
- * The legacy BlockoutVehicleRenderer path (generated hull + blockout turret)
- * runs normally.
+ * Default: TRUE. Modular PNG hull+turret rendering is the intended runtime
+ * visual for both Arena devtools/demo and normal runtime modular-combat.
  *
- * When true: for each vehicle with a valid modular visual mapping,
+ * When true (default): for each vehicle with a valid modular visual mapping,
  * composeModularVehicle() produces a ModularRenderPlan, and hull+turret
- * sprites are positioned in world space. The legacy hull sprite is
- * hidden and the procedural turret is suppressed.
+ * sprites are positioned in world space. The legacy hull sprite is hidden
+ * and the procedural blockout turret is suppressed. While the selected
+ * modular asset set is still loading or unavailable, the legacy
+ * blockout/generated path renders as an EMERGENCY FALLBACK only — it is not
+ * a normal workflow and no entity disappears during loading.
  *
- * Default: false (off). Toggle via devtools panel or assignment.
+ * When false: emergency/debug only. The legacy BlockoutVehicleRenderer path
+ * (generated hull + blockout turret) runs. This is exposed in devtools as an
+ * emergency fallback toggle, NOT as a "switch to the old look" workflow.
  */
-export let ENABLE_MODULAR_VEHICLE_RENDER = false;
+export let ENABLE_MODULAR_VEHICLE_RENDER = true;
 
 /** Toggle the modular vehicle render flag. Returns new state. */
 export function toggleModularVehicleRender(): boolean {
