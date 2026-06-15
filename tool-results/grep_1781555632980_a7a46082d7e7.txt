@@ -1,0 +1,201 @@
+/home/z/my-project/src/assets/generatedHullAssets.ts:112: * Format: `generated_hull_<hull>_<faction>_<mod>_dirNN`
+/home/z/my-project/src/assets/generatedHullAssets.ts:114: * Example: `generated_hull_wasp_cyan_m0_dir00`
+/home/z/my-project/src/assets/generatedHullAssets.ts:116: * The `generated_hull_` prefix prevents collisions with legacy
+/home/z/my-project/src/assets/generatedHullAssets.ts:117: * `wasp_m0_hull_<faction>_dir<N>` keys from modularUnitAssets.ts.
+/home/z/my-project/src/assets/generatedHullAssets.ts:126:  return `generated_hull_${hull}_${faction}_${mod}_dir${dirPadded}`;
+/home/z/my-project/src/assets/generatedModularVehicleAssets.generated.ts:60:  return `generated_turret_${turret}_${faction}_${mod}_dir${String(dir16).padStart(2, "0")}`;
+/home/z/my-project/src/assets/assetDiagnostics.ts:421: * "wasp_m0_hull_cyan_dir0" → "cyan"
+/home/z/my-project/src/assets/assetDiagnostics.ts:422: * "smoky_m0_turret_green_dir3" → "green"
+/home/z/my-project/src/assets/generatedAssetManifest.ts:29:      keys: ['wasp_m0_hull_cyan_dir0', 'wasp_m0_hull_cyan_dir1', 'wasp_m0_hull_cyan_dir2', 'wasp_m0_hull_cyan_dir3', 'wasp_m0_hull_cyan_dir4', 'wasp_m0_hull_cyan_dir5', 'wasp_m0_hull_cyan_dir6', 'wasp_m0_hull_cyan_dir7', 'smoky_m0_turret_cyan_dir0', 'smoky_m0_turret_cyan_dir1', 'smoky_m0_turret_cyan_dir2', 'smoky_m0_turret_cyan_dir3', 'smoky_m0_turret_cyan_dir4', 'smoky_m0_turret_cyan_dir5', 'smoky_m0_turret_cyan_dir6', 'smoky_m0_turret_cyan_dir7', 'wasp_m0_hull_green_dir0', 'wasp_m0_hull_green_dir1', 'wasp_m0_hull_green_dir2', 'wasp_m0_hull_green_dir3', 'wasp_m0_hull_green_dir4', 'wasp_m0_hull_green_dir5', 'wasp_m0_hull_green_dir6', 'wasp_m0_hull_green_dir7', 'smoky_m0_turret_green_dir0', 'smoky_m0_turret_green_dir1', 'smoky_m0_turret_green_dir2', 'smoky_m0_turret_green_dir3', 'smoky_m0_turret_green_dir4', 'smoky_m0_turret_green_dir5', 'smoky_m0_turret_green_dir6', 'smoky_m0_turret_green_dir7', 'wasp_m0_hull_yellow_dir0', 'wasp_m0_hull_yellow_dir1', 'wasp_m0_hull_yellow_dir2', 'wasp_m0_hull_yellow_dir3', 'wasp_m0_hull_yellow_dir4', 'wasp_m0_hull_yellow_dir5', 'wasp_m0_hull_yellow_dir6', 'wasp_m0_hull_yellow_dir7', 'smoky_m0_turret_yellow_dir0', 'smoky_m0_turret_yellow_dir1', 'smoky_m0_turret_yellow_dir2', 'smoky_m0_turret_yellow_dir3', 'smoky_m0_turret_yellow_dir4', 'smoky_m0_turret_yellow_dir5', 'smoky_m0_turret_yellow_dir6', 'smoky_m0_turret_yellow_dir7', 'wasp_m0_hull_purple_dir0', 'wasp_m0_hull_purple_dir1', 'wasp_m0_hull_purple_dir2', 'wasp_m0_hull_purple_dir3', 'wasp_m0_hull_purple_dir4', 'wasp_m0_hull_purple_dir5', 'wasp_m0_hull_purple_dir6', 'wasp_m0_hull_purple_dir7', 'smoky_m0_turret_purple_dir0', 'smoky_m0_turret_purple_dir1', 'smoky_m0_turret_purple_dir2', 'smoky_m0_turret_purple_dir3', 'smoky_m0_turret_purple_dir4', 'smoky_m0_turret_purple_dir5', 'smoky_m0_turret_purple_dir6', 'smoky_m0_turret_purple_dir7'],
+/home/z/my-project/src/assets/generatedAssetManifest.ts:99:    'wasp_m0_hull_cyan_dir0': 'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir0_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:100:    'wasp_m0_hull_cyan_dir1': 'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir1_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:101:    'wasp_m0_hull_cyan_dir2': 'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir2_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:102:    'wasp_m0_hull_cyan_dir3': 'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir3_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:103:    'wasp_m0_hull_cyan_dir4': 'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir4_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:104:    'wasp_m0_hull_cyan_dir5': 'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir5_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:105:    'wasp_m0_hull_cyan_dir6': 'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir6_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:106:    'wasp_m0_hull_cyan_dir7': 'assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir7_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:107:    'smoky_m0_turret_cyan_dir0': 'assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir0_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:108:    'smoky_m0_turret_cyan_dir1': 'assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir1_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:109:    'smoky_m0_turret_cyan_dir2': 'assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir2_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:110:    'smoky_m0_turret_cyan_dir3': 'assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir3_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:111:    'smoky_m0_turret_cyan_dir4': 'assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir4_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:112:    'smoky_m0_turret_cyan_dir5': 'assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir5_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:113:    'smoky_m0_turret_cyan_dir6': 'assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir6_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:114:    'smoky_m0_turret_cyan_dir7': 'assets/units/weapons/smoky_m0/cyan/smoky_m0_turret_idle_dir7_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:115:    'wasp_m0_hull_green_dir0': 'assets/units/chassis/wasp_m0/green/wasp_m0_hull_idle_dir0_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:116:    'wasp_m0_hull_green_dir1': 'assets/units/chassis/wasp_m0/green/wasp_m0_hull_idle_dir1_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:117:    'wasp_m0_hull_green_dir2': 'assets/units/chassis/wasp_m0/green/wasp_m0_hull_idle_dir2_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:118:    'wasp_m0_hull_green_dir3': 'assets/units/chassis/wasp_m0/green/wasp_m0_hull_idle_dir3_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:119:    'wasp_m0_hull_green_dir4': 'assets/units/chassis/wasp_m0/green/wasp_m0_hull_idle_dir4_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:120:    'wasp_m0_hull_green_dir5': 'assets/units/chassis/wasp_m0/green/wasp_m0_hull_idle_dir5_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:121:    'wasp_m0_hull_green_dir6': 'assets/units/chassis/wasp_m0/green/wasp_m0_hull_idle_dir6_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:122:    'wasp_m0_hull_green_dir7': 'assets/units/chassis/wasp_m0/green/wasp_m0_hull_idle_dir7_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:123:    'smoky_m0_turret_green_dir0': 'assets/units/weapons/smoky_m0/green/smoky_m0_turret_idle_dir0_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:124:    'smoky_m0_turret_green_dir1': 'assets/units/weapons/smoky_m0/green/smoky_m0_turret_idle_dir1_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:125:    'smoky_m0_turret_green_dir2': 'assets/units/weapons/smoky_m0/green/smoky_m0_turret_idle_dir2_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:126:    'smoky_m0_turret_green_dir3': 'assets/units/weapons/smoky_m0/green/smoky_m0_turret_idle_dir3_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:127:    'smoky_m0_turret_green_dir4': 'assets/units/weapons/smoky_m0/green/smoky_m0_turret_idle_dir4_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:128:    'smoky_m0_turret_green_dir5': 'assets/units/weapons/smoky_m0/green/smoky_m0_turret_idle_dir5_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:129:    'smoky_m0_turret_green_dir6': 'assets/units/weapons/smoky_m0/green/smoky_m0_turret_idle_dir6_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:130:    'smoky_m0_turret_green_dir7': 'assets/units/weapons/smoky_m0/green/smoky_m0_turret_idle_dir7_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:131:    'wasp_m0_hull_yellow_dir0': 'assets/units/chassis/wasp_m0/yellow/wasp_m0_hull_idle_dir0_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:132:    'wasp_m0_hull_yellow_dir1': 'assets/units/chassis/wasp_m0/yellow/wasp_m0_hull_idle_dir1_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:133:    'wasp_m0_hull_yellow_dir2': 'assets/units/chassis/wasp_m0/yellow/wasp_m0_hull_idle_dir2_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:134:    'wasp_m0_hull_yellow_dir3': 'assets/units/chassis/wasp_m0/yellow/wasp_m0_hull_idle_dir3_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:135:    'wasp_m0_hull_yellow_dir4': 'assets/units/chassis/wasp_m0/yellow/wasp_m0_hull_idle_dir4_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:136:    'wasp_m0_hull_yellow_dir5': 'assets/units/chassis/wasp_m0/yellow/wasp_m0_hull_idle_dir5_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:137:    'wasp_m0_hull_yellow_dir6': 'assets/units/chassis/wasp_m0/yellow/wasp_m0_hull_idle_dir6_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:138:    'wasp_m0_hull_yellow_dir7': 'assets/units/chassis/wasp_m0/yellow/wasp_m0_hull_idle_dir7_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:139:    'smoky_m0_turret_yellow_dir0': 'assets/units/weapons/smoky_m0/yellow/smoky_m0_turret_idle_dir0_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:140:    'smoky_m0_turret_yellow_dir1': 'assets/units/weapons/smoky_m0/yellow/smoky_m0_turret_idle_dir1_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:141:    'smoky_m0_turret_yellow_dir2': 'assets/units/weapons/smoky_m0/yellow/smoky_m0_turret_idle_dir2_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:142:    'smoky_m0_turret_yellow_dir3': 'assets/units/weapons/smoky_m0/yellow/smoky_m0_turret_idle_dir3_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:143:    'smoky_m0_turret_yellow_dir4': 'assets/units/weapons/smoky_m0/yellow/smoky_m0_turret_idle_dir4_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:144:    'smoky_m0_turret_yellow_dir5': 'assets/units/weapons/smoky_m0/yellow/smoky_m0_turret_idle_dir5_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:145:    'smoky_m0_turret_yellow_dir6': 'assets/units/weapons/smoky_m0/yellow/smoky_m0_turret_idle_dir6_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:146:    'smoky_m0_turret_yellow_dir7': 'assets/units/weapons/smoky_m0/yellow/smoky_m0_turret_idle_dir7_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:147:    'wasp_m0_hull_purple_dir0': 'assets/units/chassis/wasp_m0/purple/wasp_m0_hull_idle_dir0_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:148:    'wasp_m0_hull_purple_dir1': 'assets/units/chassis/wasp_m0/purple/wasp_m0_hull_idle_dir1_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:149:    'wasp_m0_hull_purple_dir2': 'assets/units/chassis/wasp_m0/purple/wasp_m0_hull_idle_dir2_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:150:    'wasp_m0_hull_purple_dir3': 'assets/units/chassis/wasp_m0/purple/wasp_m0_hull_idle_dir3_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:151:    'wasp_m0_hull_purple_dir4': 'assets/units/chassis/wasp_m0/purple/wasp_m0_hull_idle_dir4_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:152:    'wasp_m0_hull_purple_dir5': 'assets/units/chassis/wasp_m0/purple/wasp_m0_hull_idle_dir5_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:153:    'wasp_m0_hull_purple_dir6': 'assets/units/chassis/wasp_m0/purple/wasp_m0_hull_idle_dir6_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:154:    'wasp_m0_hull_purple_dir7': 'assets/units/chassis/wasp_m0/purple/wasp_m0_hull_idle_dir7_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:155:    'smoky_m0_turret_purple_dir0': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir0_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:156:    'smoky_m0_turret_purple_dir1': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir1_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:157:    'smoky_m0_turret_purple_dir2': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir2_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:158:    'smoky_m0_turret_purple_dir3': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir3_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:159:    'smoky_m0_turret_purple_dir4': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir4_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:160:    'smoky_m0_turret_purple_dir5': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir5_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:161:    'smoky_m0_turret_purple_dir6': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir6_0.png',
+/home/z/my-project/src/assets/generatedAssetManifest.ts:162:    'smoky_m0_turret_purple_dir7': 'assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir7_0.png',
+/home/z/my-project/src/assets/generatedVehicleMetadata.ts:97:  /** Texture key prefix for this family (e.g. 'generated_hull_wasp_cyan_m0'). */
+/home/z/my-project/src/assets/generatedVehicleMetadata.ts:131:    keyPrefix: `generated_hull_${params.id}_${params.faction}_${params.mod}`,
+/home/z/my-project/src/assets/generatedVehicleMetadata.ts:159:    keyPrefix: `generated_turret_${params.id}_${params.faction}_${params.mod}`,
+/home/z/my-project/src/assets/generatedVehicleMetadata.ts:234:  keyPrefix: 'generated_turret_smoky_cyan_m0',
+/home/z/my-project/src/assets/generatedTurretAssets.ts:190: * Format: `generated_turret_<turret>_<faction>_<mod>_dirNN`
+/home/z/my-project/src/assets/generatedTurretAssets.ts:192: * Example: `generated_turret_smoky_cyan_m0_dir00`
+/home/z/my-project/src/assets/generatedTurretAssets.ts:194: * The `generated_turret_` prefix prevents collisions with:
+/home/z/my-project/src/assets/generatedTurretAssets.ts:195: * - `generated_hull_` keys from generatedHullAssets.ts
+/home/z/my-project/src/assets/generatedTurretAssets.ts:196: * - legacy `smoky_m0_turret_<faction>_dir<N>` keys from modularUnitAssets.ts
+/home/z/my-project/src/assets/generatedTurretAssets.ts:205:  return `generated_turret_${turret}_${faction}_${mod}_dir${dirPadded}`;
+/home/z/my-project/src/assets/modularUnitAssets.ts:12:  return `wasp_m0_hull_${faction}_dir${dir}`;
+/home/z/my-project/src/assets/modularUnitAssets.ts:16:  return `smoky_m0_turret_${faction}_dir${dir}`;
+/home/z/my-project/src/assets/modularUnitAssets.ts:20:  return `assets/units/chassis/wasp_m0/${faction}/wasp_m0_hull_idle_dir${dir}_0.png`;
+/home/z/my-project/src/assets/modularUnitAssets.ts:24:  return `assets/units/weapons/smoky_m0/${faction}/smoky_m0_turret_idle_dir${dir}_0.png`;
+/home/z/my-project/src/assets/runtimeGeneratedAssets.ts:200: * hull assets have been loaded. Updated from legacy `wasp_m0_hull_cyan_dir0`
+/home/z/my-project/src/assets/runtimeGeneratedAssets.ts:206:export const MODULAR_UNIT_PROBE_KEY = 'generated_hull_wasp_cyan_m0_dir00' as const;
+/home/z/my-project/src/assets/runtimeGeneratedAssets.ts:272:export const PILOT_TURRET_PROBE_KEY = 'generated_turret_smoky_cyan_m0_dir00' as const;
+/home/z/my-project/src/phaser/render/ModularVehicleLiveAdapter.ts:12: *   - Uses the accepted `modular_hull_*` / `generated_turret_*` namespace
+/home/z/my-project/src/phaser/render/ModularTankRenderer.ts:15: * first (composeModularVehicle with modular_hull_* / generated_turret_*
+/home/z/my-project/src/phaser/render/ModularTankRenderer.ts:178:   * / generated_turret_* namespace). Falls back to the existing generated-hull /
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:89:      .toBe('generated_turret_smoky_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:94:      .toBe('generated_turret_hammer_purple_m3_dir15');
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:97:  it('uses generated_turret_ prefix to avoid collision with hull keys', () => {
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:99:    expect(key.startsWith('generated_turret_')).toBe(true);
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:100:    expect(key.startsWith('generated_hull_')).toBe(false);
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:335:          key === 'generated_turret_smoky_cyan_m0_dir00'),
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:340:      .toBe('generated_turret_smoky_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:347:          key === 'generated_turret_firebird_cyan_m0_dir00'),
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:352:      .toBe('generated_turret_firebird_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:359:          key === 'generated_turret_smoky_cyan_m3_dir00'),
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:364:      .toBe('generated_turret_smoky_cyan_m3_dir00');
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:371:          key === 'generated_turret_smoky_cyan_m0_dir04'),
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:376:      .toBe('generated_turret_smoky_cyan_m0_dir04');
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:424:          key === 'generated_turret_smoky_cyan_m0_dir00'),
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:436:    expect(keys).not.toContain('generated_turret_smoky_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:443:  it('all generated turret keys start with generated_turret_', () => {
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:447:        expect(key.startsWith('generated_turret_')).toBe(true);
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:452:  it('no generated turret key starts with generated_hull_', () => {
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:454:    expect(key.startsWith('generated_hull_')).toBe(false);
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:581:          key.startsWith('generated_hull_')),
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:687:    expect(meta.keyPrefix).toBe('generated_hull_wasp_cyan_m0');
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:732:    expect(meta.keyPrefix).toBe('generated_turret_smoky_cyan_m0');
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:792:      keyPrefix: 'generated_hull_wasp_cyan_m0',
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:807:      keyPrefix: 'generated_hull_wasp_cyan_m0',
+/home/z/my-project/src/__tests__/runtime01ModularTurretResolver.test.ts:822:      keyPrefix: 'generated_hull__cyan_m0',
+/home/z/my-project/src/__tests__/generatedVehiclePreviewComposition.test.ts:92:    expect(r.hullTextureKey).toBe('generated_hull_wasp_cyan_m0_dir04');
+/home/z/my-project/src/__tests__/generatedVehiclePreviewComposition.test.ts:93:    expect(r.turretTextureKey).toBe('generated_turret_smoky_cyan_m0_dir04');
+/home/z/my-project/src/__tests__/generatedVehiclePreviewComposition.test.ts:150:    expect(r.hullTextureKey).toBe('generated_hull_wasp_cyan_m0_dir04');
+/home/z/my-project/src/__tests__/legacyWaspIsolation.test.ts:174:    expect(turretKey).toBe('generated_turret_smoky_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/legacyWaspIsolation.test.ts:182:  it('MODULAR-RUNTIME-02A: modular hull key namespace is disjoint from the legacy generated_hull_ namespace', () => {
+/home/z/my-project/src/__tests__/legacyWaspIsolation.test.ts:184:    // `_hull_dir` crops under the `generated_hull_*` key namespace. The modular
+/home/z/my-project/src/__tests__/legacyWaspIsolation.test.ts:190:    expect(legacyKey).toBe('generated_hull_wasp_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/legacyWaspIsolation.test.ts:194:    expect(modularKey.startsWith('generated_hull_')).toBe(false);
+/home/z/my-project/src/__tests__/modularRuntime01.test.ts:118:  it('builds turret keys as generated_turret_<turret>_<faction>_<mod>_dirNN', () => {
+/home/z/my-project/src/__tests__/modularRuntime01.test.ts:120:      'generated_turret_smoky_cyan_m0_dir00',
+/home/z/my-project/src/__tests__/modularRuntime01.test.ts:136:      'generated_turret_smoky_green_m0_dir00',
+/home/z/my-project/src/__tests__/modularRuntime01.test.ts:139:      'generated_turret_railgun_purple_m2_dir03',
+/home/z/my-project/src/__tests__/modularRuntime01.test.ts:242:    const turretKeys = diag.queuedKeys.filter((k) => k.startsWith('generated_turret_'));
+/home/z/my-project/src/__tests__/modularRuntime01.test.ts:520:    expect(turretKey).toBe('generated_turret_smoky_green_m0_dir00');
+/home/z/my-project/src/__tests__/modularRuntime01.test.ts:531:    expect(turretKey).toBe('generated_turret_railgun_purple_m0_dir00');
+/home/z/my-project/src/__tests__/modularRuntime01.test.ts:647:    // Legacy key format would be: generated_hull_wasp_cyan_m0_dir00
+/home/z/my-project/src/__tests__/modularRuntime01.test.ts:648:    expect(modularKey).not.toBe('generated_hull_wasp_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/modularTurretSpriteResolver.test.ts:54:  it('returns smoky_m0_turret_cyan_dir2 for turretAngle=0 (East), cyan faction', () => {
+/home/z/my-project/src/__tests__/modularTurretSpriteResolver.test.ts:60:    expect(result).toBe('smoky_m0_turret_cyan_dir2');
+/home/z/my-project/src/__tests__/modularTurretSpriteResolver.test.ts:63:  it('returns smoky_m0_turret_green_dir4 for turretAngle=PI/2 (South), green faction', () => {
+/home/z/my-project/src/__tests__/modularTurretSpriteResolver.test.ts:69:    expect(result).toBe('smoky_m0_turret_green_dir4');
+/home/z/my-project/src/__tests__/modularTurretSpriteResolver.test.ts:72:  it('returns smoky_m0_turret_yellow_dir6 for turretAngle=PI (West)', () => {
+/home/z/my-project/src/__tests__/modularTurretSpriteResolver.test.ts:78:    expect(result).toBe('smoky_m0_turret_yellow_dir6');
+/home/z/my-project/src/__tests__/modularTurretSpriteResolver.test.ts:81:  it('returns smoky_m0_turret_purple_dir0 for turretAngle=-PI/2 (North)', () => {
+/home/z/my-project/src/__tests__/modularTurretSpriteResolver.test.ts:87:    expect(result).toBe('smoky_m0_turret_purple_dir0');
+/home/z/my-project/src/__tests__/modularPreviewCalibration01c.test.ts:258:    expect(key).toBe('generated_turret_smoky_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/modularPreviewCalibration01c.test.ts:286:    expect(plan.turret.textureKey).toBe('generated_turret_smoky_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/modularLiveAdapter03a.test.ts:182:  it('produces turret texture keys with generated_turret_ prefix', () => {
+/home/z/my-project/src/__tests__/modularLiveAdapter03a.test.ts:192:    expect(plan.turret.textureKey).toMatch(/^generated_turret_/);
+/home/z/my-project/src/__tests__/modularLiveAdapter03a.test.ts:239:  it('produces keys with modular_hull_ prefix (not generated_hull_)', () => {
+/home/z/my-project/src/__tests__/modularLiveAdapter03a.test.ts:242:    expect(key).not.toMatch(/^generated_hull_/);
+/home/z/my-project/src/__tests__/modularLiveAdapter03a.test.ts:279:    expect(plan.turret.textureKey).toBe('generated_turret_smoky_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/modularRuntime03b.test.ts:10: *   - modular_hull_* / generated_turret_* namespace
+/home/z/my-project/src/__tests__/modularRuntime03b.test.ts:11: *   - No generated_hull_* in clean modular path
+/home/z/my-project/src/__tests__/modularRuntime03b.test.ts:265:  it('wasp+smoky+cyan+m0 dir=2 produces correct plan with modular_hull_ and generated_turret_ namespace', () => {
+/home/z/my-project/src/__tests__/modularRuntime03b.test.ts:287:    expect(plan.hull.textureKey).not.toMatch(/^generated_hull_/);
+/home/z/my-project/src/__tests__/modularRuntime03b.test.ts:288:    expect(plan.turret.textureKey).toMatch(/^generated_turret_/);
+/home/z/my-project/src/__tests__/modularRuntime03b.test.ts:424:    // generated_hull_ / wasp path runs and stays visible until
+/home/z/my-project/src/__tests__/modularRuntime03b.test.ts:563:describe('namespace: modular_hull_* hulls, generated_turret_* turrets', () => {
+/home/z/my-project/src/__tests__/modularRuntime03b.test.ts:583:    expect(plan.hull.textureKey).not.toMatch(/^generated_hull_/);
+/home/z/my-project/src/__tests__/modularRuntime03b.test.ts:586:  it('turret texture keys use generated_turret_* namespace', () => {
+/home/z/my-project/src/__tests__/modularRuntime03b.test.ts:602:    expect(plan.turret.textureKey).toMatch(/^generated_turret_/);
+/home/z/my-project/src/__tests__/tankviewerManifest.test.ts:156:    expect(waspM0Cyan[0].key).toBe('wasp_m0_hull_cyan_dir0');
+/home/z/my-project/src/__tests__/tankviewerManifest.test.ts:157:    expect(waspM0Cyan[15].key).toBe('wasp_m0_hull_cyan_dir15');
+/home/z/my-project/src/__tests__/tankviewerManifest.test.ts:186:    expect(smokyM0Cyan[0].key).toBe('smoky_m0_turret_cyan_dir0');
+/home/z/my-project/src/__tests__/tankviewerManifest.test.ts:187:    expect(smokyM0Cyan[15].key).toBe('smoky_m0_turret_cyan_dir15');
+/home/z/my-project/src/__tests__/runtime03PilotTurretComposition.test.ts:112:    expect(result.turretKey).toBe('generated_turret_smoky_cyan_m0_dir04');
+/home/z/my-project/src/__tests__/runtime03PilotTurretComposition.test.ts:407:    expect(textureExistsSpy).toHaveBeenCalledWith('generated_turret_smoky_cyan_m0_dir04');
+/home/z/my-project/src/__tests__/runtime03PilotTurretComposition.test.ts:511:    expect(result.turretKey).toBe('generated_turret_smoky_cyan_m0_dir04');
+/home/z/my-project/src/__tests__/runtime03PilotTurretComposition.test.ts:542:    expect(result.turretKey).toBe('generated_turret_smoky_cyan_m3_dir04');
+/home/z/my-project/src/__tests__/runtimeGeneratedAssets.test.ts:189:    expect(muKeys).toContain('wasp_m0_hull_cyan_dir0');
+/home/z/my-project/src/__tests__/runtimeGeneratedAssets.test.ts:190:    expect(muKeys).toContain('wasp_m0_hull_purple_dir7');
+/home/z/my-project/src/__tests__/runtimeGeneratedAssets.test.ts:191:    expect(muKeys).toContain('smoky_m0_turret_cyan_dir0');
+/home/z/my-project/src/__tests__/runtimeGeneratedAssets.test.ts:192:    expect(muKeys).toContain('smoky_m0_turret_purple_dir7');
+/home/z/my-project/src/__tests__/runtimeGeneratedAssets.test.ts:220:    expect(GENERATED_ASSET_MANIFEST.paths['wasp_m0_hull_cyan_dir0']).toBe('assets/units/chassis/wasp_m0/cyan/wasp_m0_hull_idle_dir0_0.png');
+/home/z/my-project/src/__tests__/runtimeGeneratedAssets.test.ts:221:    expect(GENERATED_ASSET_MANIFEST.paths['smoky_m0_turret_purple_dir7']).toBe('assets/units/weapons/smoky_m0/purple/smoky_m0_turret_idle_dir7_0.png');
+/home/z/my-project/src/__tests__/runtimeGeneratedAssets.test.ts:472:    expect(MODULAR_UNIT_PROBE_KEY).toBe('generated_hull_wasp_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/runtime02aPilotAssetIntake.test.ts:106:      .toBe('generated_turret_smoky_cyan_m0');
+/home/z/my-project/src/__tests__/waspHullDirectionCalibrator.test.ts:269:      textureKey: 'generated_hull_wasp_cyan_m0_dir08',
+/home/z/my-project/src/__tests__/waspHullDirectionCalibrator.test.ts:291:      textureKey: 'generated_hull_wasp_cyan_m0_dir00',
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:137:  it('hull keys follow generated_hull_ prefix', () => {
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:142:      expect(key).toMatch(/^generated_hull_wasp_cyan_m0_dir\d{2}$/);
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:146:  it('turret keys follow generated_turret_ prefix', () => {
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:151:      expect(key).toMatch(/^generated_turret_smoky_cyan_m0_dir\d{2}$/);
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:181:    const turretKeys = loadImageCalls.filter(c => c.key.startsWith('generated_turret_'));
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:193:    const hullKeys = loadImageCalls.filter(c => c.key.startsWith('generated_hull_'));
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:203:    const hullKeys = loadImageCalls.filter(c => c.key.startsWith('generated_hull_'));
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:284:      c => c.key.startsWith('generated_hull_wasp_cyan_m0'),
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:291:      c => c.key.startsWith('generated_turret_smoky_cyan_m0'),
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:437:    const turretKeys = loadImageCalls.filter(c => c.key.startsWith('generated_turret_smoky_cyan_m0'));
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:446:    const hullKeys = loadImageCalls.filter(c => c.key.startsWith('generated_hull_'));
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:452:    expect(PILOT_TURRET_PROBE_KEY).toBe('generated_turret_smoky_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:511:      c => c.key.startsWith('generated_turret_') && !c.key.includes('smoky_cyan_m0'),
+/home/z/my-project/src/__tests__/runtime02bPilotLazyLoad.test.ts:517:      c => c.key.startsWith('generated_hull_') && !c.key.includes('wasp_cyan_m0'),
+/home/z/my-project/src/__tests__/generatedHullAssets.test.ts:73:    expect(key).toBe('generated_hull_wasp_cyan_m0_dir00');
+/home/z/my-project/src/__tests__/generatedHullAssets.test.ts:78:    expect(key).toBe('generated_hull_dictator_purple_m3_dir15');
+/home/z/my-project/src/__tests__/generatedHullAssets.test.ts:81:  it('uses generated_hull_ prefix to avoid collision with legacy keys', () => {
+/home/z/my-project/src/__tests__/generatedHullAssets.test.ts:83:    expect(key.startsWith('generated_hull_')).toBe(true);
+/home/z/my-project/src/__tests__/generatedHullAssets.test.ts:84:    // Legacy key format is: wasp_m0_hull_cyan_dir0
+/home/z/my-project/src/__tests__/generatedHullAssets.test.ts:85:    expect(key).not.toBe('wasp_m0_hull_cyan_dir0');
+/home/z/my-project/src/__tests__/waspHullPlacementCalibrator.test.ts:187:      textureKey: 'generated_hull_wasp_cyan_m0_dir04',
+/home/z/my-project/src/__tests__/waspHullPlacementCalibrator.test.ts:221:      textureKey: 'generated_hull_wasp_cyan_m0_dir00',
+/home/z/my-project/src/__tests__/waspHullPlacementCalibrator.test.ts:245:      textureKey: 'generated_hull_wasp_cyan_m0_dir08',
