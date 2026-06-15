@@ -1,0 +1,669 @@
+     1→     1→import Phaser from 'phaser';
+     2→     2→import { ASSET_KEYS, DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
+     3→     3→import {
+     4→     4→  type ModularTankDirection,
+     5→     5→} from '../../config/worldConfig';
+     6→     6→import { tileToScreen, footprintSouthVertex, IsoPoint } from './isometric';
+     7→     7→import { computeDepthValue } from './depthSorting';
+     8→     8→import { ModularTankRenderer } from './ModularTankRenderer';
+     9→     9→import {
+    10→    10→  ModularVehicleLiveAdapter,
+    11→    11→  ENABLE_MODULAR_VEHICLE_RENDER,
+    12→    12→} from './ModularVehicleLiveAdapter';
+    13→    13→import { ConstructionRenderer } from './ConstructionRenderer';
+    14→    14→import type {
+    15→    15→  Faction,
+    16→    16→  RenderableEntity,
+    17→    17→  EntityKind,
+    18→    18→  ResourceType,
+    19→    19→  GameState,
+    20→    20→  HarvesterState,
+    21→    21→  ResourceNodeState,
+    22→    22→} from '../../state/types';
+    23→    23→import { directionFromDelta } from '../../state/updateGameState';
+    24→    24→import { HARVESTER_RENDER_SCALE } from '../../config/unitRenderConfig';
+    25→    25→import { getHqAssetKey } from '../../assets/buildingAssets';
+    26→    26→import { computeTargetDisplayWidth } from '../../assets/buildingPlacementMeta';
+    27→    27→import { getCivilUnitKey, CIVIL_FACTIONS } from '../../assets/civilUnitAssets';
+    28→    28→import type { ResourceStyle } from '../../state/gameSetup';
+    29→    29→
+    30→    30→/**
+    31→    31→ * EntityRenderer — renders and syncs entities from GameState onto the scene.
+    32→    32→ *
+    33→    33→ * PR3 changes:
+    34→    34→ * - Static entities (HQ, builder, obstacles, decor) are rendered once from RenderableEntity[].
+    35→    35→ * - Harvesters are rendered from HarvesterState[] with fractional positions and direction facing.
+    36→    36→ * - Resources are rendered from ResourceNodeState[] with depletion support.
+    37→    37→ * - syncFromState() updates harvester positions and resource visibility each frame.
+    38→    38→ *
+    39→    39→ * PR7 changes:
+    40→    40→ * - Modular tank has separate bodyDir and turretDir.
+    41→    41→ * - Hull texture uses bodyDir; turret texture uses turretDir.
+    42→    42→ * - Hull position = anchor + hullOffsetsByBodyDir[bodyDir].
+    43→    43→ * - Turret mount position = anchor + turretMountByBodyDir[bodyDir] (depends on bodyDir, NOT turretDir).
+    44→    44→ * - Q/E cycles bodyDir, Z/X cycles turretDir (overlay ON only).
+    45→    45→ *
+    46→    46→ * ARCH-13B changes:
+    47→    47→ * - Modular tank rendering and debug overlay extracted to ModularTankRenderer
+    48→    48→ *   and ModularTankDebugOverlay. EntityRenderer delegates modular-combat
+    49→    49→ *   placement and all tuner/debug methods to ModularTankRenderer.
+    50→    50→ *
+    51→    51→ * ARCH-05Y changes:
+    52→    52→ * - Removed render-side smoothing. Harvester sprite position is set directly
+    53→    53→ *   from state ftx/fty each frame. With ARRIVAL_THRESHOLD reduced to 0.03
+    54→    54→ *   (matching builder), the waypoint snap is sub-pixel and invisible.
+    55→    55→ * - Selection ring anchoring is now done in GameScene via tileToScreen from
+    56→    56→ *   state coordinates, not via sprite position queries.
+    57→    57→ *
+    58→    58→ * Entities with stateOnly=true are skipped with a console warning.
+    59→    59→ */
+    60→    60→
+    61→    61→/** Direction labels for animation key construction. Index matches directionFromDelta output. */
+    62→    62→const DIR_LABELS = ['e', 'se', 's', 'sw', 'w', 'nw', 'n', 'ne'] as const;
+    63→    63→
+    64→    64→/** Frame rate for harvester walk cycle animation. 7 frames at 8 fps = ~0.875s per cycle. */
+    65→    65→const HARVESTER_WALK_FPS = 8;
+    66→    66→
+    67→    67→/** Scale for infinite resources — rendered as a large mineral at bigger scale. */
+    68→    68→const INFINITE_MINERAL_SCALE = 0.65;
+    69→    69→
+    70→    70→/**
+    71→    71→ * VISUAL-06E: Resource type → asset key mapping, parametrized by resourceStyle.
+    72→    72→ * Legacy keeps the original sand mineral crystal keys.
+    73→    73→ * Industrial maps to approved VISUAL-06 crystal assets.
+    74→    74→ *
+    75→    75→ * Preferred first mapping (per VISUAL-06E task):
+    76→    76→ *   small  -> resource_industrial_poor_01
+    77→    77→ *   medium -> resource_industrial_medium_01
+    78→    78→ *   large  -> resource_industrial_rich_01
+    79→    79→ *   infinite -> resource_industrial_infinite_center_2x2_01
+    80→    80→ *
+    81→    81→ * very_poor and very_rich are preloaded but reserved for future mapgen/richness PR.
+    82→    82→ */
+    83→    83→const RESOURCE_ASSET_MAPS: Record<ResourceStyle, Record<ResourceType, string>> = {
+    84→    84→  legacy: {
+    85→    85→    small: ASSET_KEYS.MINERAL_SMALL,
+    86→    86→    medium: ASSET_KEYS.MINERAL_MEDIUM,
+    87→    87→    large: ASSET_KEYS.MINERAL_LARGE,
+    88→    88→    infinite: ASSET_KEYS.MINERAL_LARGE, // No infinite-specific asset; use large
+    89→    89→  },
+    90→    90→  industrial: {
+    91→    91→    small: ASSET_KEYS.RESOURCE_INDUSTRIAL_POOR_01,
+    92→    92→    medium: ASSET_KEYS.RESOURCE_INDUSTRIAL_MEDIUM_01,
+    93→    93→    large: ASSET_KEYS.RESOURCE_INDUSTRIAL_RICH_01,
+    94→    94→    infinite: ASSET_KEYS.RESOURCE_INDUSTRIAL_INFINITE_CENTER_2X2_01,
+    95→    95→  },
+    96→    96→};
+    97→    97→
+    98→    98→/**
+    99→    99→ * VISUAL-06E: Resource type → display scale, parametrized by resourceStyle.
+   100→   100→ * Legacy scales match the original mineral crystal rendering.
+   101→   101→ * Industrial scales are calibrated for the approved variable-cropped PNG assets.
+   102→   102→ *
+   103→   103→ * Industrial resources are larger source images (155–247px wide vs 384px mineral
+   104→   104→ * canvases), so they need smaller scale factors to fit the 76×38 isometric cell.
+   105→   105→ * The infinite 2×2 asset uses a moderate scale to visually fill the 2×2 footprint.
+   106→   106→ *
+   107→   107→ * These are initial conservative values; VISUAL-06F may adjust for polish.
+   108→   108→ */
+   109→   109→const RESOURCE_SCALE_MAPS: Record<ResourceStyle, Record<ResourceType, number>> = {
+   110→   110→  legacy: {
+   111→   111→    small: 0.3,
+   112→   112→    medium: 0.4,
+   113→   113→    large: 0.5,
+   114→   114→    infinite: INFINITE_MINERAL_SCALE,
+   115→   115→  },
+   116→   116→  industrial: {
+   117→   117→    small: 0.20,
+   118→   118→    medium: 0.22,
+   119→   119→    large: 0.22,
+   120→   120→    infinite: 0.35,
+   121→   121→  },
+   122→   122→};
+   123→   123→
+   124→   124→/**
+   125→   125→ * VISUAL-06E: Get the asset key for a resource type given the current resourceStyle.
+   126→   126→ * Falls back to legacy keys if the industrial texture is not loaded.
+   127→   127→ *
+   128→   128→ * Exported for testing — production code should use EntityRenderer which
+   129→   129→ * calls this internally via createResourceSprite().
+   130→   130→ */
+   131→   131→export function getResourceAssetKey(resourceType: ResourceType, resourceStyle: ResourceStyle, textureManager: Phaser.Textures.TextureManager): string {
+   132→   132→  const preferredKey = RESOURCE_ASSET_MAPS[resourceStyle][resourceType];
+   133→   133→  if (textureManager.exists(preferredKey)) return preferredKey;
+   134→   134→  // Fallback: if the preferred style's texture is missing, use legacy
+   135→   135→  const legacyKey = RESOURCE_ASSET_MAPS.legacy[resourceType];
+   136→   136→  if (textureManager.exists(legacyKey)) return legacyKey;
+   137→   137→  // Last resort: return the preferred key anyway (will produce a missing texture warning)
+   138→   138→  return preferredKey;
+   139→   139→}
+   140→   140→
+   141→   141→/**
+   142→   142→ * VISUAL-06E: Get the display scale for a resource type given the current resourceStyle.
+   143→   143→ * Uses legacy scale when falling back to legacy textures.
+   144→   144→ *
+   145→   145→ * Exported for testing.
+   146→   146→ */
+   147→   147→export function getResourceScale(resourceType: ResourceType, resourceStyle: ResourceStyle, assetKey: string): number {
+   148→   148→  // If using a legacy key (fallback), use legacy scale
+   149→   149→  const isLegacyKey = Object.values(RESOURCE_ASSET_MAPS.legacy).includes(assetKey);
+   150→   150→  return isLegacyKey
+   151→   151→    ? RESOURCE_SCALE_MAPS.legacy[resourceType]
+   152→   152→    : RESOURCE_SCALE_MAPS[resourceStyle][resourceType];
+   153→   153→}
+   154→   154→
+   155→   155→/**
+   156→   156→ * VISUAL-06E: Exported for testing — returns the asset map for a given resourceStyle.
+   157→   157→ * Pure data lookup, no texture fallback.
+   158→   158→ */
+   159→   159→export { RESOURCE_ASSET_MAPS, RESOURCE_SCALE_MAPS };
+   160→   160→
+   161→   161→export class EntityRenderer {
+   162→   162→  private scene: Phaser.Scene;
+   163→   163→  private offset: IsoPoint;
+   164→   164→
+   165→   165→  /** Static game objects (HQ, builder) — rendered once, never updated per frame. */
+   166→   166→  private staticObjects: Phaser.GameObjects.GameObject[] = [];
+   167→   167→
+   168→   168→  /** Harvester sprites keyed by harvester ID. */
+   169→   169→  private harvesterSprites = new Map<string, Phaser.GameObjects.Sprite>();
+   170→   170→
+   171→   171→  /** Previous harvester tile positions for direction calculation. */
+   172→   172→  private harvesterPrevTile = new Map<string, { ftx: number; fty: number }>();
+   173→   173→
+   174→   174→  /** Last facing direction per harvester (for idle animation key). Default: 2 (S). */
+   175→   175→  private harvesterFacing = new Map<string, number>();
+   176→   176→
+   177→   177→  /** Effective faction per harvester (accounts for texture fallback). */
+   178→   178→  private harvesterFaction = new Map<string, Faction>();
+   179→   179→
+   180→   180→  /** Whether harvester animations have been registered with the Animation Manager. */
+   181→   181→  private harvesterAnimRegistered = false;
+   182→   182→
+   183→   183→  /** Resource image objects keyed by resource node ID. */
+   184→   184→  private resourceSprites = new Map<string, Phaser.GameObjects.Image>();
+   185→   185→
+   186→   186→  /** Count of state-only entities skipped during initial render. */
+   187→   187→  private skippedCount: number = 0;
+   188→   188→
+   189→   189→  /** Modular tank renderer — owns hull/turret placement, direction, debug overlay. */
+   190→   190→  private modularTankRenderer: ModularTankRenderer;
+   191→   191→
+   192→   192→  /** MODULAR-RUNTIME-03B: Modular adapter for normal-runtime clean modular rendering. */
+   193→   193→  private modularAdapter: ModularVehicleLiveAdapter;
+   194→   194→
+   195→   195→  /** Construction renderer — owns construction site + building placeholder graphics. */
+   196→   196→  private constructionRenderer: ConstructionRenderer;
+   197→   197→
+   198→   198→  /** VISUAL-06E: Active resource visual style. */
+   199→   199→  private resourceStyle: ResourceStyle;
+   200→   200→
+   201→   201→  constructor(scene: Phaser.Scene, offset: IsoPoint, resourceStyle: ResourceStyle = 'legacy') {
+   202→   202→    this.scene = scene;
+   203→   203→    this.offset = offset;
+   204→   204→    this.resourceStyle = resourceStyle;
+   205→   205→    this.modularTankRenderer = new ModularTankRenderer(scene, offset);
+   206→   206→    this.modularAdapter = new ModularVehicleLiveAdapter(scene, offset, 100);
+   207→   207→    this.constructionRenderer = new ConstructionRenderer(scene, offset);
+   208→   208→  }
+   209→   209→
+   210→   210→  // ─── Static entity rendering (called once) ─────────────────────
+   211→   211→
+   212→   212→  /** Render static entities (HQ, builder, state-only) from the renderable entity list. */
+   213→   213→  renderStaticEntities(entities: RenderableEntity[]): void {
+   214→   214→    this.skippedCount = 0;
+   215→   215→    for (const entity of entities) {
+   216→   216→      // Skip harvester and resource — handled dynamically from runtime state
+   217→   217→      if (entity.kind === 'harvester' || entity.kind === 'resource') continue;
+   218→   218→
+   219→   219→      // Skip state-only entities (no visual asset exists)
+   220→   220→      if (entity.stateOnly) {
+   221→   221→        this.skippedCount++;
+   222→   222→        continue;
+   223→   223→      }
+   224→   224→      this.renderStaticEntity(entity);
+   225→   225→    }
+   226→   226→    if (this.skippedCount > 0) {
+   227→   227→      console.warn(
+   228→   228→        `[EntityRenderer] Skipped ${this.skippedCount} state-only entities ` +
+   229→   229→        `(obstacles, decor, and placeholder buildings without approved assets).`,
+   230→   230→      );
+   231→   231→    }
+   232→   232→  }
+   233→   233→
+   234→   234→  // ─── Dynamic entity rendering (called once at init) ────────────
+   235→   235→
+   236→   236→  /** Create initial sprites for all harvesters and resource nodes. */
+   237→   237→  renderDynamicInit(harvesters: HarvesterState[], resourceNodes: ResourceNodeState[]): void {
+   238→   238→    for (const h of harvesters) {
+   239→   239→      this.createHarvesterSprite(h);
+   240→   240→    }
+   241→   241→    for (const r of resourceNodes) {
+   242→   242→      this.createResourceSprite(r);
+   243→   243→    }
+   244→   244→  }
+   245→   245→
+   246→   246→  // ─── Frame-by-frame sync (called every frame) ─────────────────
+   247→   247→
+   248→   248→  /** Sync all dynamic sprites from the current GameState. */
+   249→   249→  syncFromState(state: GameState): void {
+   250→   250→    this.syncHarvesters(state.harvesters);
+   251→   251→    this.syncResources(state.resourceNodes);
+   252→   252→    this.constructionRenderer.syncFromState(state);
+   253→   253→
+   254→   254→    // MODULAR-RUNTIME-03B: Retry clean modular placement while assets are loading.
+   255→   255→    // Called each frame so that when textures finish loading, the modular
+   256→   256→    // sprites are applied and legacy hull/turret are suppressed.
+   257→   257→    if (ENABLE_MODULAR_VEHICLE_RENDER) {
+   258→   258→      this.modularTankRenderer.retryCleanModular();
+   259→   259→    }
+   260→   260→  }
+   261→   261→
+   262→   262→  private syncHarvesters(harvesters: HarvesterState[]): void {
+   263→   263→    // Track which harvester IDs are still in state so we can clean up stale sprites
+   264→   264→    const activeIds = new Set<string>();
+   265→   265→
+   266→   266→    for (const h of harvesters) {
+   267→   267→      activeIds.add(h.id);
+   268→   268→
+   269→   269→      let sprite = this.harvesterSprites.get(h.id);
+   270→   270→      if (!sprite) {
+   271→   271→        // ARCH-11A fixup: Create sprite on-the-fly for dev-spawned harvesters
+   272→   272→        // so they become visible immediately without scene restart.
+   273→   273→        this.createHarvesterSprite(h);
+   274→   274→        sprite = this.harvesterSprites.get(h.id);
+   275→   275→        if (!sprite) continue; // safety guard
+   276→   276→      }
+   277→   277→
+   278→   278→      // Set sprite position directly from state (no render-side smoothing).
+   279→   279→      // With ARRIVAL_THRESHOLD = 0.03, waypoint snap is sub-pixel (~0.57px)
+   280→   280→      // and invisible — no smoothing layer needed.
+   281→   281→      const screenPos = tileToScreen(h.ftx, h.fty);
+   282→   282→      const worldX = screenPos.x + this.offset.x;
+   283→   283→      const worldY = screenPos.y + this.offset.y;
+   284→   284→
+   285→   285→      sprite.setPosition(worldX, worldY);
+   286→   286→      // CORE-STEP-06H+ fixup: Use unified depth sorting for correct unit/building ordering
+   287→   287→      sprite.setDepth(computeDepthValue({
+   288→   288→        id: h.id, type: 'unit', tx: h.ftx, ty: h.fty,
+   289→   289→        offsetX: this.offset.x, offsetY: this.offset.y,
+   290→   290→      }));
+   291→   291→
+   292→   292→      // Animation state: determine facing direction and whether moving
+   293→   293→      const prev = this.harvesterPrevTile.get(h.id);
+   294→   294→      const isMoving =
+   295→   295→        prev !== undefined &&
+   296→   296→        (Math.abs(h.ftx - prev.ftx) > 0.001 || Math.abs(h.fty - prev.fty) > 0.001);
+   297→   297→
+   298→   298→      let dirIndex = this.harvesterFacing.get(h.id) ?? DIR_ROW.S; // default: S
+   299→   299→      if (isMoving && prev) {
+   300→   300→        dirIndex = directionFromDelta(h.ftx - prev.ftx, h.fty - prev.fty);
+   301→   301→        this.harvesterFacing.set(h.id, dirIndex);
+   302→   302→      }
+   303→   303→
+   304→   304→      // Construct animation key using effective faction (accounts for texture fallback)
+   305→   305→      const animFaction = this.harvesterFaction.get(h.id) ?? h.faction;
+   306→   306→      const dirLabel = DIR_LABELS[dirIndex];
+   307→   307→      const animKey = `harvester_${animFaction}_${isMoving ? 'move' : 'idle'}_${dirLabel}`;
+   308→   308→
+   309→   309→      if (this.scene.anims.exists(animKey)) {
+   310→   310→        // ignoreIfPlaying=true avoids restarting the same animation every frame
+   311→   311→        sprite.anims.play(animKey, true);
+   312→   312→      } else {
+   313→   313→        // Fallback: manual frame indexing (original approach)
+   314→   314→        // Stop any playing animation before manually setting the frame,
+   315→   315→        // otherwise a running animation may continue ticking.
+   316→   316→        sprite.anims.stop();
+   317→   317→        const frame = dirIndex * 8 + IDLE_FRAME;
+   318→   318→        sprite.setFrame(frame);
+   319→   319→      }
+   320→   320→
+   321→   321→      this.harvesterPrevTile.set(h.id, { ftx: h.ftx, fty: h.fty });
+   322→   322→    }
+   323→   323→
+   324→   324→    // Clean up stale harvester sprites (sprites for harvesters no longer in state)
+   325→   325→    for (const [id, sprite] of this.harvesterSprites) {
+   326→   326→      if (!activeIds.has(id)) {
+   327→   327→        sprite.destroy();
+   328→   328→        this.harvesterSprites.delete(id);
+   329→   329→        this.harvesterPrevTile.delete(id);
+   330→   330→        this.harvesterFacing.delete(id);
+   331→   331→        this.harvesterFaction.delete(id);
+   332→   332→      }
+   333→   333→    }
+   334→   334→  }
+   335→   335→
+   336→   336→  private syncResources(resourceNodes: ResourceNodeState[]): void {
+   337→   337→    for (const r of resourceNodes) {
+   338→   338→      const img = this.resourceSprites.get(r.id);
+   339→   339→      if (!img) continue;
+   340→   340→
+   341→   341→      if (r.depleted && img.visible) {
+   342→   342→        img.setVisible(false);
+   343→   343→      }
+   344→   344→    }
+   345→   345→  }
+   346→   346→
+   347→   347→  // ─── Static entity factory ─────────────────────────────────────
+   348→   348→
+   349→   349→  private renderStaticEntity(entity: RenderableEntity): void {
+   350→   350→    switch (entity.kind) {
+   351→   351→      case 'hq':
+   352→   352→        // BASE-ANCHOR-01: HQ uses south-vertex placement (like other buildings),
+   353→   353→        // not top-left tile center. Pass tile coords so placeHQ can compute
+   354→   354→        // the correct footprint south vertex.
+   355→   355→        this.placeHQ(entity.tx, entity.ty, entity.faction);
+   356→   356→        break;
+   357→   357→      case 'builder':
+   358→   358→      case 'modular-combat': {
+   359→   359→        const screenPos = tileToScreen(entity.tx, entity.ty);
+   360→   360→        const worldX = screenPos.x + this.offset.x;
+   361→   361→        const worldY = screenPos.y + this.offset.y;
+   362→   362→        if (entity.kind === 'builder') {
+   363→   363→          this.placeBuilder(worldX, worldY, entity);
+   364→   364→        } else {
+   365→   365→          this.modularTankRenderer.place(entity, this.modularAdapter);
+   366→   366→        }
+   367→   367→        break;
+   368→   368→      }
+   369→   369→      default:
+   370→   370→        break;
+   371→   371→    }
+   372→   372→  }
+   373→   373→
+   374→   374→  /**
+   375→   375→   * HQ footprint dimensions — 3×3 tiles.
+   376→   376→   *
+   377→   377→   * BASE-ANCHOR-01: HQ now uses south-vertex placement, matching the
+   378→   378→   * metadata-driven model used by ConstructionRenderer for other buildings.
+   379→   379→   * Previously HQ was placed at the top-left tile center with origin(0.5, 0.75),
+   380→   380→   * causing the building to visually float above its 3×3 footprint.
+   381→   381→   */
+   382→   382→  private static readonly HQ_FOOTPRINT_W = 3;
+   383→   383→  private static readonly HQ_FOOTPRINT_H = 3;
+   384→   384→
+   385→   385→  /**
+   386→   386→   * HQ ground-line ratio — alpha bounds bottom / source height.
+   387→   387→   *
+   388→   388→   * All four faction HQ PNGs are 1114×835 with alpha bounds [3, 3, 1111, 832],
+   389→   389→   * giving groundLineRatio = 832 / 835 = 0.996407.
+   390→   390→   * This is consistent with other buildings (all ~0.996).
+   391→   391→   */
+   392→   392→  private static readonly HQ_GROUND_LINE_RATIO = 0.996407;
+   393→   393→
+   394→   394→  private placeHQ(tx: number, ty: number, faction?: string): void {
+   395→   395→    const effectiveFaction: Faction =
+   396→   396→      (faction === 'cyan' || faction === 'green' || faction === 'yellow' || faction === 'purple')
+   397→   397→        ? (faction as Faction)
+   398→   398→        : 'cyan';
+   399→   399→    let hqKey = getHqAssetKey(effectiveFaction);
+   400→   400→
+   401→   401→    if (!this.scene.textures.exists(hqKey)) {
+   402→   402→      console.error(
+   403→   403→        `[EntityRenderer] HQ texture "${hqKey}" missing for faction "${effectiveFaction}" ` +
+   404→   404→        `— falling back to cyan.`,
+   405→   405→      );
+   406→   406→      hqKey = getHqAssetKey('cyan');
+   407→   407→      if (!this.scene.textures.exists(hqKey)) {
+   408→   408→        console.error(
+   409→   409→          `[EntityRenderer] Fallback HQ texture "${hqKey}" also missing — skipping HQ render.`,
+   410→   410→        );
+   411→   411→        return;
+   412→   412→      }
+   413→   413→    }
+   414→   414→
+   415→   415→    // BASE-ANCHOR-01: South-vertex placement — same model as ConstructionRenderer.
+   416→   416→    // Compute the south vertex of the 3×3 isometric footprint diamond.
+   417→   417→    const sv = footprintSouthVertex(tx, ty, EntityRenderer.HQ_FOOTPRINT_W, EntityRenderer.HQ_FOOTPRINT_H);
+   418→   418→    const worldX = sv.x + this.offset.x;
+   419→   419→    const worldY = sv.y + this.offset.y;
+   420→   420→
+   421→   421→    const img = this.scene.add.image(worldX, worldY, hqKey);
+   422→   422→
+   423→   423→    // Scale from metadata-driven display width (3×3 footprint → 200px)
+   424→   424→    const targetWidth = computeTargetDisplayWidth(EntityRenderer.HQ_FOOTPRINT_W, EntityRenderer.HQ_FOOTPRINT_H);
+   425→   425→    const scale = targetWidth / img.width;
+   426→   426→    img.setScale(scale);
+   427→   427→
+   428→   428→    // Origin: center-X, ground-line ratio (consistent with other buildings ~0.996)
+   429→   429→    img.setOrigin(0.5, EntityRenderer.HQ_GROUND_LINE_RATIO);
+   430→   430→
+   431→   431→    // CORE-STEP-06H+ fixup: Use unified depth sorting for correct building/unit ordering
+   432→   432→    img.setDepth(computeDepthValue({
+   433→   433→      id: `hq-${tx}-${ty}`, type: 'building', tx, ty,
+   434→   434→      footprintW: EntityRenderer.HQ_FOOTPRINT_W, footprintH: EntityRenderer.HQ_FOOTPRINT_H,
+   435→   435→      offsetX: this.offset.x, offsetY: this.offset.y,
+   436→   436→    }));
+   437→   437→
+   438→   438→    this.staticObjects.push(img);
+   439→   439→  }
+   440→   440→
+   441→   441→  private placeBuilder(_x: number, _y: number, entity: RenderableEntity): void {
+   442→   442→    // ARCH-13E3: Builder rendering is now handled by ConstructionRenderer
+   443→   443→    // using fractional tile positions for smooth movement.
+   444→   444→    // The static builder placeholder in entities is no longer rendered here.
+   445→   445→    void entity;
+   446→   446→  }
+   447→   447→
+   448→   448→  // ─── Animation registration ─────────────────────────────────────
+   449→   449→
+   450→   450→  /**
+   451→   451→   * Register all harvester animations with the Phaser Animation Manager.
+   452→   452→   *
+   453→   453→   * Registers 64 animation keys: 4 factions × 2 states (idle/move) × 8 directions.
+   454→   454→   * Idle animations are single-frame (no bobbing).
+   455→   455→   * Move animations use frames 1–7 per direction row (walk cycle, excluding idle column 0).
+   456→   456→   *
+   457→   457→   * Called lazily on first harvester sprite creation; guarded by harvesterAnimRegistered.
+   458→   458→   */
+   459→   459→  private registerHarvesterAnimations(): void {
+   460→   460→    if (this.harvesterAnimRegistered) return;
+   461→   461→
+   462→   462→    for (const faction of CIVIL_FACTIONS) {
+   463→   463→      const textureKey = getCivilUnitKey(faction, 'harvester');
+   464→   464→
+   465→   465→      // Skip factions whose texture is not loaded
+   466→   466→      if (!this.scene.textures.exists(textureKey)) continue;
+   467→   467→
+   468→   468→      for (let dirIndex = 0; dirIndex < 8; dirIndex++) {
+   469→   469→        const dirLabel = DIR_LABELS[dirIndex];
+   470→   470→        const rowStart = dirIndex * 8; // first frame in this direction row
+   471→   471→
+   472→   472→        // Idle: single frame (column 0), loops at 1 fps but visually never changes
+   473→   473→        const idleKey = `harvester_${faction}_idle_${dirLabel}`;
+   474→   474→        if (!this.scene.anims.exists(idleKey)) {
+   475→   475→          this.scene.anims.create({
+   476→   476→            key: idleKey,
+   477→   477→            frames: [{ key: textureKey, frame: rowStart + 0 }],
+   478→   478→            frameRate: 1,
+   479→   479→            repeat: -1,
+   480→   480→          });
+   481→   481→        }
+   482→   482→
+   483→   483→        // Move: walk cycle frames 1–7 (7 frames), loops at HARVESTER_WALK_FPS
+   484→   484→        // Frame 0 is the idle/standing pose — excluded for smoother walk cycle.
+   485→   485→        const moveKey = `harvester_${faction}_move_${dirLabel}`;
+   486→   486→        if (!this.scene.anims.exists(moveKey)) {
+   487→   487→          this.scene.anims.create({
+   488→   488→            key: moveKey,
+   489→   489→            frames: this.scene.anims.generateFrameNumbers(textureKey, {
+   490→   490→              start: rowStart + 1,
+   491→   491→              end: rowStart + 7,
+   492→   492→            }),
+   493→   493→            frameRate: HARVESTER_WALK_FPS,
+   494→   494→            repeat: -1,
+   495→   495→          });
+   496→   496→        }
+   497→   497→      }
+   498→   498→    }
+   499→   499→
+   500→   500→    this.harvesterAnimRegistered = true;
+   501→   501→  }
+   502→   502→
+   503→   503→  // ─── Dynamic entity factories ──────────────────────────────────
+   504→   504→
+   505→   505→  private createHarvesterSprite(h: HarvesterState): void {
+   506→   506→    // Ensure animations are registered before creating sprites
+   507→   507→    this.registerHarvesterAnimations();
+   508→   508→
+   509→   509→    const screenPos = tileToScreen(h.ftx, h.fty);
+   510→   510→    const worldX = screenPos.x + this.offset.x;
+   511→   511→    const worldY = screenPos.y + this.offset.y;
+   512→   512→
+   513→   513→    let harvesterKey = getCivilUnitKey(h.faction, 'harvester');
+   514→   514→    let effectiveFaction: Faction = h.faction;
+   515→   515→    if (!this.scene.textures.exists(harvesterKey)) {
+   516→   516→      console.error(
+   517→   517→        `[EntityRenderer] Harvester texture "${harvesterKey}" missing for faction "${h.faction}" ` +
+   518→   518→        `— falling back to cyan.`,
+   519→   519→      );
+   520→   520→      harvesterKey = getCivilUnitKey('cyan', 'harvester');
+   521→   521→      effectiveFaction = 'cyan';
+   522→   522→      if (!this.scene.textures.exists(harvesterKey)) {
+   523→   523→        console.error(
+   524→   524→          `[EntityRenderer] Fallback harvester texture "${harvesterKey}" also missing — skipping sprite.`,
+   525→   525→        );
+   526→   526→        return;
+   527→   527→      }
+   528→   528→    }
+   529→   529→
+   530→   530→    // Frame index: row S (2) * 8 + col IDLE (0) = frame 16
+   531→   531→    const idleFrame = DIR_ROW.S * 8 + IDLE_FRAME;
+   532→   532→    const sprite = this.scene.add.sprite(worldX, worldY, harvesterKey, idleFrame);
+   533→   533→    sprite.setScale(HARVESTER_RENDER_SCALE);
+   534→   534→    sprite.setOrigin(0.5, 0.75);
+   535→   535→    sprite.setDepth(computeDepthValue({
+   536→   536→      id: h.id, type: 'unit', tx: h.ftx, ty: h.fty,
+   537→   537→      offsetX: this.offset.x, offsetY: this.offset.y,
+   538→   538→    }));
+   539→   539→
+   540→   540→    // Play initial idle animation (south-facing)
+   541→   541→    const initialAnimKey = `harvester_${effectiveFaction}_idle_s`;
+   542→   542→    if (this.scene.anims.exists(initialAnimKey)) {
+   543→   543→      sprite.anims.play(initialAnimKey);
+   544→   544→    }
+   545→   545→
+   546→   546→    // Track effective faction and default facing direction
+   547→   547→    this.harvesterFaction.set(h.id, effectiveFaction);
+   548→   548→    this.harvesterFacing.set(h.id, DIR_ROW.S);
+   549→   549→    this.harvesterSprites.set(h.id, sprite);
+   550→   550→    this.harvesterPrevTile.set(h.id, { ftx: h.ftx, fty: h.fty });
+   551→   551→  }
+   552→   552→
+   553→   553→  private createResourceSprite(r: ResourceNodeState): void {
+   554→   554→    // VISUAL-06E: Use resourceStyle-aware asset key and scale lookup.
+   555→   555→    // Falls back to legacy key if industrial texture is not loaded.
+   556→   556→    const assetKey = getResourceAssetKey(r.resourceType, this.resourceStyle, this.scene.textures);
+   557→   557→    const scale = getResourceScale(r.resourceType, this.resourceStyle, assetKey);
+   558→   558→
+   559→   559→    const screenPos = tileToScreen(r.tx, r.ty);
+   560→   560→    const worldX = screenPos.x + this.offset.x;
+   561→   561→    const worldY = screenPos.y + this.offset.y;
+   562→   562→
+   563→   563→    const img = this.scene.add.image(worldX, worldY, assetKey);
+   564→   564→    img.setScale(scale);
+   565→   565→    // VISUAL-06E: Industrial infinite (2×2) uses a slightly different origin
+   566→   566→    // to center the larger asset over the 2×2 footprint. For 1×1 nodes,
+   567→   567→    // the standard (0.5, 0.75) origin keeps crystals visually grounded.
+   568→   568→    // The infinite 2×2 asset needs origin closer to center to align properly.
+   569→   569→    if (r.resourceType === 'infinite' && this.resourceStyle === 'industrial' && assetKey === RESOURCE_ASSET_MAPS.industrial.infinite) {
+   570→   570→      img.setOrigin(0.5, 0.72);
+   571→   571→    } else {
+   572→   572→      img.setOrigin(0.5, 0.75);
+   573→   573→    }
+   574→   574→    // CORE-STEP-06H+ fixup: Use unified depth sorting for correct resource/unit ordering
+   575→   575→    img.setDepth(computeDepthValue({
+   576→   576→      id: r.id, type: 'resource', tx: r.tx, ty: r.ty,
+   577→   577→      offsetX: this.offset.x, offsetY: this.offset.y,
+   578→   578→    }));
+   579→   579→
+   580→   580→    this.resourceSprites.set(r.id, img);
+   581→   581→  }
+   582→   582→
+   583→   583→  // ─── Utility ───────────────────────────────────────────────────
+   584→   584→
+   585→   585→  /** Count how many visible entities of each kind exist (excludes stateOnly). */
+   586→   586→  static countByKind(entities: RenderableEntity[]): Record<EntityKind, number> {
+   587→   587→    const counts: Record<EntityKind, number> = {
+   588→   588→      hq: 0,
+   589→   589→      builder: 0,
+   590→   590→      harvester: 0,
+   591→   591→      resource: 0,
+   592→   592→      'modular-combat': 0,
+   593→   593→    };
+   594→   594→    for (const entity of entities) {
+   595→   595→      if (!entity.stateOnly) {
+   596→   596→        counts[entity.kind]++;
+   597→   597→      }
+   598→   598→    }
+   599→   599→    return counts;
+   600→   600→  }
+   601→   601→
+   602→   602→  // ─── Modular tank facade methods (delegate to ModularTankRenderer) ──
+   603→   603→
+   604→   604→  /** Whether the debug overlay is currently visible. */
+   605→   605→  isDebugOverlayVisible(): boolean {
+   606→   606→    return this.modularTankRenderer.isDebugOverlayVisible();
+   607→   607→  }
+   608→   608→
+   609→   609→  /** Toggle the modular tank debug overlay. Returns new visibility state. */
+   610→   610→  toggleModularTankDebug(): boolean {
+   611→   611→    return this.modularTankRenderer.toggleDebug();
+   612→   612→  }
+   613→   613→
+   614→   614→  /** Change the body direction of the modular tank. */
+   615→   615→  setModularTankBodyDir(dir: ModularTankDirection): void {
+   616→   616→    this.modularTankRenderer.setBodyDir(dir);
+   617→   617→  }
+   618→   618→
+   619→   619→  /** Change the turret direction of the modular tank. */
+   620→   620→  setModularTankTurretDir(dir: ModularTankDirection): void {
+   621→   621→    this.modularTankRenderer.setTurretDir(dir);
+   622→   622→  }
+   623→   623→
+   624→   624→  /** Reposition hull/turret and rebuild debug overlay. */
+   625→   625→  updateModularTankVisuals(): void {
+   626→   626→    this.modularTankRenderer.updateVisuals();
+   627→   627→  }
+   628→   628→
+   629→   629→  /** Print mutable runtime offset tables to console. */
+   630→   630→  printOffsetTables(): void {
+   631→   631→    this.modularTankRenderer.printOffsetTables();
+   632→   632→  }
+   633→   633→
+   634→   634→  // ─── MODULAR-RUNTIME-03B: Toggle-off cleanup ──────────────────────
+   635→   635→
+   636→   636→  /**
+   637→   637→   * Clear all modular vehicle sprites for normal runtime.
+   638→   638→   * Called when ENABLE_MODULAR_VEHICLE_RENDER is toggled OFF.
+   639→   639→   * Delegates to ModularTankRenderer.clearModularVehicleRender().
+   640→   640→   */
+   641→   641→  clearModularVehicleRender(): void {
+   642→   642→    this.modularTankRenderer.clearModularVehicleRender();
+   643→   643→  }
+   644→   644→
+   645→   645→  destroy(): void {
+   646→   646→    for (const obj of this.staticObjects) {
+   647→   647→      obj.destroy();
+   648→   648→    }
+   649→   649→    this.staticObjects = [];
+   650→   650→
+   651→   651→    this.modularAdapter.destroy();
+   652→   652→    this.modularTankRenderer.destroy();
+   653→   653→    this.constructionRenderer.destroy();
+   654→   654→
+   655→   655→    for (const sprite of this.harvesterSprites.values()) {
+   656→   656→      sprite.destroy();
+   657→   657→    }
+   658→   658→    this.harvesterSprites.clear();
+   659→   659→    this.harvesterPrevTile.clear();
+   660→   660→    this.harvesterFacing.clear();
+   661→   661→    this.harvesterFaction.clear();
+   662→   662→
+   663→   663→    for (const img of this.resourceSprites.values()) {
+   664→   664→      img.destroy();
+   665→   665→    }
+   666→   666→    this.resourceSprites.clear();
+   667→   667→  }
+   668→   668→}
+   669→   669→

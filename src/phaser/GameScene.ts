@@ -597,6 +597,9 @@ export class GameScene extends Phaser.Scene {
         onLiveRenderToggle: (enabled: boolean) => {
           if (!enabled) {
             this.blockoutVehicleRenderer?.clearModularVehicleRender();
+            this.entityRenderer?.clearModularVehicleRender();
+          } else {
+            this.entityRenderer?.activateModularVehicleRender();
           }
         },
       });

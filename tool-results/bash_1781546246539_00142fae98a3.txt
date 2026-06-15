@@ -1,0 +1,759 @@
+8bf6f6c Merge pull request #292 from ratoker-jpg/modular-runtime-03a-v3
+9041482 MODULAR-RUNTIME-03A fixup: hide modular sprites on flag-off toggle
+83a5ab1 MODULAR-RUNTIME-03A fixup: available guard, stale cleanup, devtools state sync
+44f2986 MODULAR-RUNTIME-03A: calibration-free live modular vehicle adapter for Arena demo
+cb18707 Merge pull request #290 from ratoker-jpg/claude/modest-planck-vr6xek
+75a8e7c docs: add MODULAR-RUNTIME-03 full game integration audit/design
+7282df3 Merge pull request #289 from ratoker-jpg/docs/modular-runtime-roadmap-03
+c39dff0 docs: point next step to modular runtime 03 audit
+e0df8f6 docs: add modular runtime 03 full game integration roadmap
+cbe72d1 Merge pull request #288 from ratoker-jpg/modular-all-factions-01c-preview-calibration
+0c8cbda MODULAR-ALL-FACTIONS-01C: add modular preview calibration controls and tile overlay
+30c9679 Merge pull request #287 from ratoker-jpg/modular-all-factions-01b
+636284d MODULAR-ALL-FACTIONS-01B: connect all modular factions and add Dictator visual scale compensation
+e5546d9 Merge pull request #286 from ratoker-jpg/codex/asset-import-02a-modular-all-factions-assets
+fbc6e92 ASSET-IMPORT-02A: import modular all-factions vehicle assets
+e7175e8 Merge pull request #285 from ratoker-jpg/claude/hopeful-mendel-7t5s9u
+c2d97f2 MODULAR-RUNTIME-02A: isolate modular hull texture keys from legacy preload
+4b5195c Merge pull request #284 from ratoker-jpg/wasp-m0-asset-fix-02c
+e36b924 docs: add WASP-M0-ASSET-FIX-02C report
+b2a08cf WASP-M0-ASSET-FIX-02C: regenerate Wasp cyan m0 modular hull sprites
+3518def Merge pull request #283 from ratoker-jpg/docs/dictator-scale-01
+1f1763f docs: document Dictator export scale compensation
+4c41f34 Merge pull request #281 from ratoker-jpg/legacy-wasp-cleanup-01b
+5122b8f fixup: rewrite isolation tests to read raw source text and check forbidden identifiers
+2b5c9c6 LEGACY-WASP-CLEANUP-01B: mark Wasp pilot hooks legacy and add modular isolation tests
+cd0334c Merge pull request #280 from ratoker-jpg/codex/asset-fix-02a-wasp-cyan-m0-hull
+4c29e50 ASSET-FIX-02A: fix Wasp cyan m0 hull sprites
+71ba4ec Merge pull request #279 from ratoker-jpg/claude/brave-euler-k3ipc4
+0e31929 MODULAR-RUNTIME-01: fix review blockers in modular runtime
+20182c7 MODULAR-RUNTIME-01: integrate modular cyan vehicle runtime
+2c1dac1 Merge pull request #278 from ratoker-jpg/asset-import-01-modular-cyan-vehicle-assets
+2830ddd ASSET-IMPORT-01: import modular cyan vehicle assets
+2cead0c Merge pull request #277 from ratoker-jpg/claude/trusting-ritchie-xcrlml
+5afce37 docs: fix proof harness zHeight control wording
+46d0c35 MODULAR-PROOF-01 fixup: replace harness hotkeys with devtools UI panel
+42a6341 MODULAR-PROOF-01: add generated vehicle attachment proof harness
+cc87ba3 Merge pull request #276 from ratoker-jpg/runtime-03b-quarantine-failed-turret-composition
+5d6c54a RUNTIME-03B docs: fix PR chain and validation in quarantine report
+d27dfe2 RUNTIME-03B: quarantine failed pilot turret composition
+9261ddd Merge pull request #275 from ratoker-jpg/runtime-03a-turret-attachment-fix
+3fa1cba RUNTIME-03A: fix pilot turret attachment height and hull anchoring
+fd157be Merge pull request #274 from ratoker-jpg/runtime-03-pilot-turret-composition
+dd91f94 RUNTIME-03 fixup v3: visual direction remap + GENERATED_TURRET_SCALE
+f43aef6 RUNTIME-03 fixup: replace same-center with pivot-on-socket composition
+2ab6679 RUNTIME-03: compose pilot modular hull and turret sprites
+eaa24ff Merge pull request #273 from ratoker-jpg/runtime-02b-pilot-lazy-load-diagnostics
+5eec2c4 RUNTIME-02B: wire pilot modular vehicle lazy-load diagnostics
+e8081d4 Merge pull request #272 from ratoker-jpg/runtime-02a-cyan-smoky-pilot-asset-intake
+0c0354b RUNTIME-02A: fixup stale path format comment and test count in report
+75b2ced RUNTIME-02A: add cyan Smoky pilot asset intake
+7a2b799 Merge pull request #271 from ratoker-jpg/runtime-01-modular-turret-resolver
+7f30be5 RUNTIME-01: add modular turret resolver and metadata contract
+c441293 Merge pull request #270 from ratoker-jpg/cleanup-01-docs-source-of-truth
+1e0af2f CLEANUP-01: docs source-of-truth cleanup
+2306560 Merge pull request #269 from ratoker-jpg/docs/ai-audit-budget-rules-20260614
+0f04d8c DOCS-BUDGET-01: add AI audit budget rules
+1f16774 DOCS-BUDGET-01: tighten Opus audit budget rules
+d9f846f Merge pull request #268 from ratoker-jpg/docs/opus-modular-runtime-system-audit-20260614
+7821b90 docs: add modular vehicle runtime system audit
+d525d9c Merge pull request #267 from ratoker-jpg/fix/graphify-workflow-timeout-20260614
+7ed1539 FIX-GRAPHIFY-02: build code-only graph without LLM key
+e9c4f57 fix: move graphify workflow timeout into job
+510dab8 Merge pull request #266 from ratoker-jpg/docs/graphify-ai-governance-20260614
+efd7dc2 AI-GOVERNANCE-00: remove deprecated top-level AI workflow
+06f62ae AI-GOVERNANCE-00: archive deprecated AI workflow pointer
+dcd0383 AI-GOVERNANCE-00: add docs archive policy
+4656e7b AI-GOVERNANCE-00: deprecate stale guardrails doc
+cece41b AI-GOVERNANCE-00: update GLM executor rules
+08225bc AI-GOVERNANCE-00: update GPT workflow
+9a3ad72 AI-GOVERNANCE-00: update current next step
+39ad989 AI-GOVERNANCE-00: update project state for graphify roadmap
+cb62e44 AI-GOVERNANCE-00: update agent source of truth
+056a599 AI-GOVERNANCE-00: refresh README required docs
+9f6ee06 MODULAR-ROADMAP-00: add modular vehicle runtime roadmap
+0f9be2f AI-GOVERNANCE-00: add Codex local auditor rules
+bacafb7 AI-GOVERNANCE-00: add Opus audit rules
+73c6d0e AI-GOVERNANCE-00: add GPT lead instructions
+c486ba1 AI-GOVERNANCE-00: add orchestration rules
+3fda3c3 GRAPHIFY-00: document graph-first workflow
+0ba2f2b GRAPHIFY-00: add remote graph workflow
+b7dc42c Merge pull request #265 from ratoker-jpg/docs-handoff-20260613
+6689a71 fix: stop loading deleted legacy Wasp/Smoky modular assets in devtools/arena mode
+403ef28 DOCS: point current next step to socket handoff
+a76ec0b DOCS: add turret hull socket recovery handoff
+9c33465 Delete public/assets/units/weapons/smoky_m0 directory
+17bdeab Delete public/assets/units/chassis/wasp_m0 directory
+73e8c99 Merge pull request #262 from ratoker-jpg/turret-hull-contract-pr-f1
+5e74450 TURRET-HULL-CONTRACT-PR-F1: fix stale PivotProfile doc comment
+d86bd35 TURRET-HULL-CONTRACT-PR-F1: add directional Smoky pivot and muzzle profiles
+d5499dd Merge pull request #260 from ratoker-jpg/turret-hull-contract-pr-e1
+e38accc TURRET-HULL-CONTRACT-PR-E1: add pure socket/pivot attachment helpers
+9d77c8b Merge pull request #259 from ratoker-jpg/turret-hull-contract-pr-d
+e026be4 TURRET-HULL-CONTRACT-PR-D: add profile-based Smoky turret dir resolver
+8e7d22b Merge pull request #258 from ratoker-jpg/turret-hull-contract-pr-c
+9d1c5c0 TURRET-HULL-CONTRACT-PR-C: route Wasp hull dir remap through visual profile helper
+951191f Merge pull request #257 from ratoker-jpg/turret-hull-contract-pr-b
+7fb7b4d TURRET-HULL-CONTRACT-PR-B: add read-only hull/turret visual profiles
+bd6491b Merge pull request #256 from ratoker-jpg/docs/turret-hull-attachment-audit-01
+6e4fcf5 docs: add turret/hull attachment contract audit (TURRET-HULL-ASSET-CONTRACT-AUDIT-01)
+1154662 Merge pull request #254 from ratoker-jpg/codex/experiment-c1c2-turret-rest-arena-inspection
+ecd8ebe restore smoke preload markers
+0693e64 load Arena visual assets from real menu
+1f1371b implement turret rest and Arena inspection controls
+afdc48d Merge pull request #253 from ratoker-jpg/experiment-opus-b1b2-01
+df92356 EXPERIMENT-OPUS-B1B2-01: align Arena placement preview and hull turret depth
+411dcd5 Merge pull request #252 from ratoker-jpg/docs-strong-model-experiments-20260612
+b2cdaa0 docs: reference strong model experiment plan in agents
+e9ce228 docs: add strong model experiment to fix audit
+af7ac1d docs: point next step to strong model experiment
+6caeb84 docs: add strong model experiment plan
+7e1414a Merge pull request #251 from ratoker-jpg/fix-a2-map-cleanup-01
+00172c8 FIX-A2-MAP-CLEANUP-01: remove legacy Map 1 from debug map options
+0cfa03a Merge pull request #250 from ratoker-jpg/docs-fix-backlog-audit-20260612
+33d9962 DOCS-FIX-BACKLOG-AUDIT-01: add audit to active docs
+3d80f37 DOCS-FIX-BACKLOG-AUDIT-01: update current next step
+365e4ef DOCS-FIX-BACKLOG-AUDIT-01: record accepted audit
+c48e815 Merge pull request #249 from ratoker-jpg/docs-fix-backlog-20260612
+a335d9b DOCS-FIX-BACKLOG-01: update current next step
+32ab79d DOCS-FIX-BACKLOG-01: collect current bugfix roadmap
+80274e4 Merge pull request #248 from ratoker-jpg/docs-codemap-20260612
+236784c DOCS-CODEMAP-01: add CODEMAP to agent sources
+83016bd DOCS-CODEMAP-01: add project code map
+974aa29 Merge pull request #247 from ratoker-jpg/docs-ai-execution-workflow-20260612
+3351a68 DOCS-AI-WORKFLOW-01: document immediate next sequence
+0e51674 DOCS-AI-WORKFLOW-01: add AI workflow doc to sources
+30b75aa DOCS-AI-WORKFLOW-01: document AI execution workflow
+cc4a781 Merge pull request #244 from ratoker-jpg/PIM-WASP-SCALE-PLACEMENT-01-generated-unit-scale-and-wasp-placement
+567843b fixup! PIM-WASP-SCALE-PLACEMENT-01: Denis-calibrated Wasp placement offsets (-1, 12)
+77c7731 PIM-WASP-SCALE-PLACEMENT-01: reduce generated unit scale and finalize Wasp placement
+4f1924d Merge pull request #243 from ratoker-jpg/PIM-HULL-WASP-ANCHOR-MAP-01-placement-calibration-tool
+20d190e fixup! PIM-HULL-WASP-ANCHOR-MAP-01: on-screen calibration buttons + pointer guard
+4ba951f fixup! PIM-HULL-WASP-ANCHOR-MAP-01: ModularTankDebugOverlay-style placement calibration
+b6929a4 fixup! PIM-HULL-WASP-ANCHOR-MAP-01: Alt+U activation chord, consume keys before upgrades
+f953a40 fixup! PIM-HULL-WASP-ANCHOR-MAP-01: fix placement calibration hotkeys and overlay
+85ee49c PIM-HULL-WASP-ANCHOR-MAP-01: add Wasp placement calibration overlay
+2b962b2 Merge pull request #241 from ratoker-jpg/PIM-HULL-WASP-DIR-FIX-01-calibrated-remap
+61e5017 PIM-HULL-WASP-DIR-FIX-01: apply calibrated Wasp hull direction remap
+99a7601 Merge pull request #242 from ratoker-jpg/fix/wasp-calibrator-no-auto-override
+9888f52 fix: calibration mode must not change hull direction on activation
+d3b3d6b Merge pull request #240 from ratoker-jpg/PIM-HULL-WASP-DIR-MAP-01-debug-calibration-tool-v2
+b949e61 PIM-HULL-WASP-DIR-MAP-01: add devtools gating to calibration tool
+1ece72a PIM-HULL-WASP-DIR-01: Wasp-only hull direction calibration with debug overlay
+a352ef0 Merge pull request #221 from ratoker-jpg/hull-asset-01-generated-hull-sprite-loader
+21cbe97 feat(assets): integrate generated hull sprite runtime loader (HULL-ASSET-01)
+37b80d6 Merge pull request #220 from ratoker-jpg/asset/hull-sprite-matrix-upload
+f7ce69c ASSET: add generated hull sprite matrix
+fcf60a3 Merge pull request #219 from ratoker-jpg/webexporter-spike-04-z-up-import-transform
+1e8a250 feat(pipeline): TankViewer Z-up → Three.js Y-up import transform (WEBEXPORTER-SPIKE-04)
+0a5f2c5 Merge pull request #218 from ratoker-jpg/webexporter-spike-02-uv-alpha-diagnostics
+c5833bf feat(pipeline): UV/alpha diagnostics for TankViewer composite spike (WEBEXPORTER-SPIKE-02)
+c36c8b2 Merge pull request #217 from ratoker-jpg/webexporter-ru-ui
+727d92d feat(pipeline): Russian UI labels for TankViewer composite spike (WEBEXPORTER-SPIKE-01-RU-UI)
+82adcb7 Merge pull request #216 from ratoker-jpg/deploy-fix-webexporter-spike
+fb09536 fix(deploy): copy spike-composite.html to GitHub Pages dist (DEPLOY-FIX-WEBEXPORTER-SPIKE)
+7951283 Merge pull request #215 from ratoker-jpg/unit-asset-pipeline-02a-fixup-autofit
+99de219 fix(pipeline): restore full Vitest coverage — widen include + set root (WEBEXPORTER-SPIKE-01 FIXUP)
+abd1e30 feat(pipeline): Wasp M0 3-layer compositing spike (WEBEXPORTER-SPIKE-01)
+85e2d8b Merge pull request #214 from ratoker-jpg/unit-asset-pipeline-02a-fixup-autofit
+c5ff73e fix(pipeline): real TankViewer config compatibility — <config> root + 1-4 digit suffixes (UNIT-ASSET-PIPELINE-02A3 FIXUP)
+ed60f2b feat(pipeline): make TankViewer web exporter config-aware (UNIT-ASSET-PIPELINE-02A3)
+884ae22 Merge pull request #212 from ratoker-jpg/unit-asset-pipeline-02a-fixup-autofit
+ab9dc1b fix(pipeline): correct auto-fit centering transform via wrapper group (FIXUP-2)
+be3302a fix(pipeline): auto-fit 3DS model scale for web exporter (UNIT-ASSET-PIPELINE-02A FIXUP)
+3cc0179 Merge pull request #211 from ratoker-jpg/deploy/tankviewer-web-exporter
+0816955 deploy: publish tankviewer web exporter on Pages
+805cd15 Merge pull request #210 from ratoker-jpg/unit-asset-pipeline-02a-web-exporter
+b0d7977 feat(pipeline): Web 3DS Sprite Exporter feasibility spike (UNIT-ASSET-PIPELINE-02A)
+ea914b2 Merge pull request #209 from ratoker-jpg/unit-asset-pipeline-01-blender-camera-rig
+fe48f76 fix(pipeline): Blender script syntax + direction convention
+4a17c8f UNIT-ASSET-PIPELINE-01: Blender camera rig + 3DS import calibration tooling
+706f2e4 Merge pull request #208 from ratoker-jpg/docs/core-mechanics-closure-20260604
+ddda15f docs: CORE_MECHANICS closure report 2026-06-04
+57a29f4 docs: update current next step for core mechanics closure
+0782669 docs: update project state for core mechanics closure
+d029c3a docs: remove temporary probe file
+639ae2b docs: temp
+05191de Merge pull request #207 from ratoker-jpg/core-step-08h-weapon-body-animation
+0413b22 CORE-STEP-08H+ FIXUP-2: Canister drain under target-lock auto-fire + Hammer volley bypass
+86085af CORE-STEP-08H+ FIXUP: Wire weapon runtime into real game loop/fire path
+21147ff CORE-STEP-08H+: Weapons / Bodies / M0-M3 / Animation Feel
+b4d8dc7 Merge pull request #206 from ratoker-jpg/core-step-07h-combat-core
+480ca05 FIXUP-2: Runtime projected hit model correctness
+1624284 fix(combat): CORE-STEP-07H+ fixup — wire projected hit model + auto-fire + chase stop
+ccbcaa6 feat(combat): CORE-STEP-07H+ — Combat Core / Targeting / Hit Model
+821d533 Merge pull request #205 from ratoker-jpg/core-step-06h-movement-occupancy-depth
+4dcc5f1 FIXUP: CORE-STEP-06H+ — Address GPT review blockers for PR #205
+30b98f5 CORE-STEP-06H+: Movement / Occupancy / Depth Sorting
+c0668d5 Merge pull request #204 from ratoker-jpg/core-step-05h-unified-rts-controls
+3de15a0 fix: remove screen-space command confirmation rings (CAMERA_PROJECTION_CONTRACT violation)
+d97b0d4 CORE-STEP-05H+: Unified RTS Controls and Command Routing
+47776eb Merge pull request #203 from ratoker-jpg/core-step-04h-buildings-economy-loop
+5c83450 FIXUP: Build hotkeys, visual-ready reactor guard, storage cap alignment
+ae09154 CORE-STEP-04H+: complete building configs, storage caps, Russian UI, economy loop, tests
+58c6ff2 Merge pull request #202 from ratoker-jpg/core-step-03c-resource-class-runtime
+37d3f86 CORE-STEP-03C fixup: unambiguous HUD short labels + focused integration tests
+8c85392 CORE-STEP-03C: wire resource classes into harvesting and validation
+9ff3adf Merge pull request #201 from ratoker-jpg/docs-core-step-03c-handoff
+4a5de17 docs: add new chat handoff for core step 03c
+db6a54a docs: update current next step for core step 03c
+6ee103c Merge pull request #200 from ratoker-jpg/core-step-03b
+9cd2dc9 CORE-STEP-03B: Anchor-based generated resource placement
+ca199bc Merge pull request #199 from ratoker-jpg/core-step-03a
+d8c1d82 fix: replace hardcoded asset key strings with ASSET_KEYS constants
+85e5fe0 CORE-STEP-03A: Resource class runtime type and asset mapping
+0926241 Merge pull request #198 from ratoker-jpg/core-step-02c
+0bc998a fixup! CORE-STEP-02C: handle NaN/non-finite inputs in shared helpers
+491b9ec CORE-STEP-02C: Scaling helpers armor formula and config integration tests
+3aa64ae Merge pull request #197 from ratoker-jpg/core-step-02b
+32c398e fixup: make faction passive bonuses concrete with specific effects
+1e75ea2 CORE-STEP-02B: Faction resource and building config data models
+bb2c82e Merge pull request #196 from ratoker-jpg/core-step-02a
+a78cd15 fixup! CORE-STEP-02A: Isida is heal-only support weapon, not damage
+e5f15b6 CORE-STEP-02A: Weapon and body config data models
+3027d63 Merge pull request #195 from ratoker-jpg/core-step-01c
+4eb9d3f fix: remove native English body tooltip from ArenaUnitComposer
+b2fb0d1 CORE-STEP-01C: Tooltips and DevTools separation
+1270209 Merge pull request #194 from ratoker-jpg/core-step-01b
+07efd47 fixup! CORE-STEP-01B: remove player-facing 'Материя' and hardcoded English 'Unit not found'
+0e6e537 CORE-STEP-01B: Russian UI labels and theme pass
+ba544b5 Merge pull request #193 from ratoker-jpg/core-step-01a-localization-setup
+22538c9 fixup: reorder setup flow (mode→size→faction→start) and hide seed from Standard summary
+cc51054 CORE-STEP-01A: Localization infrastructure and setup flow
+17486c3 Merge pull request #192 from ratoker-jpg/docs-current-next-step-core-mechanics
+a985ee9 DOCS: Update current next step for core mechanics
+3403e58 Merge pull request #191 from ratoker-jpg/core-mech-audit-01
+76a91e2 fixup(audit): resolve docs status and source-of-truth inconsistencies
+eb0329b docs(audit): CORE-MECH-AUDIT-01 — Core Mechanics System Audit
+7c088eb Merge pull request #190 from ratoker-jpg/docs-asset-permission-status-20260603
+d0b3403 DOCS: Add asset permission status
+e9c8a58 Merge pull request #189 from ratoker-jpg/roadmap-01-core-mechanics
+c2a0fef fixup(roadmap): align wording with accepted mechanics decisions
+8f07aeb ROADMAP-01: Core Mechanics Roadmap
+6a006f6 Merge pull request #188 from ratoker-jpg/docs-mechanics-decisions-20260603
+3aa7f03 DOCS: Add accepted mechanics decisions
+973311c Merge pull request #187 from ratoker-jpg/mech-audit-01-exploratory-audit
+4120f47 Merge 6491397d803afcf5333486c97753bfeeb7f58f96 into 6961b71a8202b09414ee57392b7133daad3a81e7
+6491397 MECH-AUDIT-01: Exploratory Mechanics and Design Audit
+6961b71 Merge pull request #186 from ratoker-jpg/docs/mechanics-intake-2026-06-03
+ece6163 DOCS: Add mechanics intake for exploratory audit
+e5726ec Merge pull request #185 from ratoker-jpg/docs-arena-cycle-closure
+b9cb110 DOCS: Mark Arena system audit closed
+675c7d2 DOCS: Mark Arena roadmap closed
+629deb3 DOCS: Update GLM executor rules after Arena closure
+221a074 DOCS: Update GPT workflow after Arena closure
+57a74d9 DOCS: Refresh project state after Arena closure
+602b539 DOCS: Refresh agent handoff after Arena closure
+6b35d7f DOCS: Refresh GPT start handoff after Arena closure
+4bec11a DOCS: Update current next step after Arena closure
+47d47f8 DOCS: Add Arena Sandbox closure report
+f76984d Merge pull request #184 from ratoker-jpg/arena-05h-enemy-behavior-modes
+769f5b7 fix(arena): pass aiMode on placement, AI firing creates real VFX/damage
+631b8d9 ARENA-05H+: Enemy Behavior Modes
+81bf0cf Merge pull request #183 from ratoker-jpg/arena-04h-control-panel-roster-usability-help
+84f2dab fix(arena): make getVehicles() return actual state, extract decideRosterClick
+2a45a2e ARENA-04H+: Arena Control Panel Roster Usability Help
+ec5a5a3 Merge pull request #182 from ratoker-jpg/arena-03h-control-targeting-turret-rules
+7f5361b ARENA-03H+ fixup: stop continuous fire when Arena target is missing
+71f3b83 ARENA-03H+: Control Targeting and Turret Rules
+21904c8 Merge pull request #181 from ratoker-jpg/arena-02h-unit-creation-click-placement
+3fe4ee2 ARENA-02H+ fixup: prevent placement input conflicts
+d368cfc ARENA-02H+: Unit Creation and Click Placement
+22a0127 Merge pull request #180 from ratoker-jpg/arena-01h-standalone-clean-arena
+bb48b28 ARENA-01H+: Standalone Clean Arena
+c4e9640 Merge pull request #179 from ratoker-jpg/arena-00h-arena-sandbox-system-audit
+3be2d3d ARENA-00H+: Fixup audit — risk classification, validation, projection wording
+a09dece ARENA-00H+: Add Arena Sandbox System Audit
+21e5d69 Merge pull request #178 from ratoker-jpg/arena-00h-arena-sandbox-roadmap
+eb7b8b6 ARENA-00H+: Add Arena Sandbox roadmap
+7f5fa21 Merge pull request #177 from ratoker-jpg/projection-01-ground-plane-blockout-visual-retrofit
+18306fd PROJECTION-01: Fixup #3 — align barrel tip with body recoil impulse
+adbe965 PROJECTION-01 fixup #2: barrel visual/logical Z alignment
+ae2cf92 PROJECTION-01 fixup: shared projected vehicle geometry source of truth
+b230fd0 PROJECTION-01: Ground-plane retrofit for blockout visuals
+4e35158 Merge pull request #176 from ratoker-jpg/camera-00-projection-calibration-contract
+0048d9f Merge pull request #175 from ratoker-jpg/blockout-10h-combat-readability-closure-qa
+f41a227 CAMERA-00 fixup: correct getGroundEllipseBounds math, update docs, clean renderer
+6961bc7 CAMERA-00: Projection calibration contract
+1fade5a fix(ci): prevent gh-pages branch bloat + add artifact diagnostics
+0919932 Merge pull request #174 from ratoker-jpg/blockout-10h-combat-readability-closure-qa
+5a93c09 fix: status overlay camera positioning + closure report PR number
+856d926 BLOCKOUT-10H+: Combat readability sandbox and closure QA
+958287d Merge pull request #173 from ratoker-jpg/blockout-09h-upgrade-skeleton-visual-indicators
+857956e fix: store adjustedAmount in BlockoutDamageEvent.amount
+0e3c264 BLOCKOUT-09H fixup: fix double mobility + wire cooldown/cadence upgrades
+13725d5 feat: BLOCKOUT-09H — Upgrade skeleton and visual indicators
+bec6586 Merge pull request #172 from ratoker-jpg/blockout-08h-blockout-obstacles
+e13c308 docs: fix stale Next action — BLOCKOUT-08H → BLOCKOUT-09H
+bb8065c feat: BLOCKOUT-08H — Blockout obstacles for combat sandbox
+abd1816 Merge pull request #171 from ratoker-jpg/blockout-07h-damage-placeholders
+42ef589 fixup: Twins plasma continuous damage — add plasma to continuousKinds, tickMs/streamCadenceMs
+c542189 fixup! BLOCKOUT-07H+ — Separate VFX/damage cadence timestamps
+6acd597 feat: BLOCKOUT-07H+ — Damage placeholders for blockout vehicles
+c8ab0dd Merge pull request #170 from ratoker-jpg/blockout-06h-remaining-weapon-vfx-families
+7761834 fix: BLOCKOUT-06H+ fixup — continuous-fire lifecycle + remove agent-ctx
+75d695e feat: BLOCKOUT-06H+ — remaining weapon VFX families for blockout vehicles
+110bbde Merge pull request #169 from ratoker-jpg/blockout-05h-recoil-first-weapon-vfx
+3b39e73 docs: update stale Next action to BLOCKOUT-06H+ in PROJECT_STATE.md
+038a272 fix: use consistent Phaser scene time for all blockout weapon timing
+df199ee BLOCKOUT-05H+: Add visual-only firing, recoil, and weapon VFX for Smoky/Railgun/Thunder
+c67d022 Merge pull request #168 from ratoker-jpg/blockout-04h-semi-physics-movement
+3c4c16f fixup(docs): correct date 2026-06-02 → 2026-06-01 in CURRENT_NEXT_STEP.md
+a3197bb BLOCKOUT-04H+: Semi-physics movement for blockout vehicles
+824949a Merge pull request #167 from ratoker-jpg/blockout-03h-selection-control-turret-aiming
+68e743a fixup: BLOCKOUT-03H — turret aiming uses actual mount origin, not tile center
+9f90606 BLOCKOUT-03H: Selection/control and turret aiming for blockout vehicles
+0c942c1 Merge pull request #166 from ratoker-jpg/blockout-02h-first-visible-blockout-vehicles
+3841ea9 fixup: BLOCKOUT-02H — prevent spawn stacking, save sanitization, date fix
+4e41400 BLOCKOUT-02H: First visible blockout vehicles
+9603e80 Merge pull request #165 from ratoker-jpg/blockout-roadmap-fixup-high-steps
+282f88a fixup(docs): BLOCKOUT roadmap — high/high+ visible implementation sequence
+307d793 Merge pull request #164 from ratoker-jpg/blockout-01-huge-roadmap-audit
+1c81fb6 fixup(docs): correct date 2026-06-02 → 2026-06-01, add Telegram status
+625a1a3 BLOCKOUT-01: Huge roadmap audit for vehicle/combat blockout MVP
+54a25d4 Merge pull request #163 from ratoker-jpg/blockout-00-mvp-roadmap
+4e147a1 DOCS: mark BLOCKOUT MVP as active planning direction
+48b4ed1 DOCS: set BLOCKOUT audit as next step
+eb7c0ef DOCS: add BLOCKOUT MVP roadmap
+5c6947e Merge pull request #162 from ratoker-jpg/docs-close-current-roadmap
+1b10f2f DOCS: update project state after roadmap closure
+a3e4838 DOCS: close current next-step queue
+abd21f8 DOCS: add VISUAL/UI roadmap closure checkpoint
+7af7827 Merge pull request #161 from ratoker-jpg/hud-01-playtest-hud-readability
+e1795e6 HUD-01: Polish playtest HUD readability
+0d71c51 Merge pull request #160 from ratoker-jpg/ui-04-save-continue-flow-polish
+728ca76 fixup(UI-04): refresh ESC Load button state after saves change
+06e3a7a UI-04: Polish Save and Continue flow
+ffa6409 Merge pull request #159 from ratoker-jpg/ui-03-esc-menu-polish
+71235da UI-03: Polish in-game ESC menu
+e5c3a81 Merge pull request #158 from ratoker-jpg/ui-02-new-game-setup-polish
+71ab9e3 UI-02: Polish New Game setup screen
+920b62d Merge pull request #157 from ratoker-jpg/ui-01-main-menu-polish
+89f1a83 UI-01: Polish main menu shell
+7098abb Merge pull request #156 from ratoker-jpg/visual-06e-fixup-resolve-resource-style
+80a0417 VISUAL-06E fixup: Remove unused ResourceStyle import to fix TS6196 build error
+6c13d44 VISUAL-06E fixup: Resolve resourceStyle from mapStyle so industrial maps use industrial resources by default
+81b6671 Merge pull request #155 from ratoker-jpg/visual-06e-render-industrial-resources
+82edd4f VISUAL-06E: Render industrial resources behind resourceStyle
+7e588ac Merge pull request #154 from ratoker-jpg/visual-06d-resource-style-wiring
+d9ff333 VISUAL-06D: Wire approved resource assets behind resourceStyle
+24bfe30 Merge pull request #153 from ratoker-jpg/visual-06c-approved-resource-assets
+900abef VISUAL-06C: fixup — corrected resource_asset_manifest.json to match variable-cropped PNG dimensions, updated CURRENT_NEXT_STEP to VISUAL-06D
+c4080a8 VISUAL-06C: Add approved industrial resource assets
+b98f2d1 Merge pull request #152 from ratoker-jpg/visual-06b1-resource-richness-pivot
+3a8579a VISUAL-06B1: fixup — aligned prompts with teal-blue crystal direction, removed leftover size-variant wording
+37d2075 VISUAL-06B1: Pivot resources to 1x1 richness tiers and 2x2 infinite
+bf27baf Merge pull request #151 from ratoker-jpg/visual-06b-resource-candidate-review
+a86d5e6 VISUAL-06B: fixup — align review scope with prompt-only package
+cbcf6ef VISUAL-06B: Add resource candidate review package
+d7e2b08 Merge pull request #150 from ratoker-jpg/visual-06a-resource-visual-model
+2f26d54 VISUAL-06A: fixup — corrected date and clarified 06C asset-only vs 06D manifest wiring
+7e6bff5 VISUAL-06A: Define resource field visual model
+ca3b2db Merge pull request #149 from ratoker-jpg/post-visual-05a-01-docs-checkpoint
+429db49 POST-VISUAL-05A-01: fixup — align production map size wording with deferred migration
+24770cc POST-VISUAL-05A-01: fixup — corrected date to 2026-05-31
+cd7d324 POST-VISUAL-05A-01: Document checkpoint and resource guardrails
+dbc3bd8 Merge pull request #148 from ratoker-jpg/visual-05a-pr5-industrial-default
+46c15ce docs: mark VISUAL-05A PR5/PR#148 done, VISUAL-05A sequence complete
+c186262 VISUAL-05A-PR5: Make industrial generated map default for new games
+04c3c41 Merge pull request #147 from ratoker-jpg/visual-05a-pr4-lower-left-hq
+9b8939e VISUAL-05A PR4: Move HQ start to lower-left
+ee33297 Merge pull request #146 from ratoker-jpg/visual-05a-pr3-industrial-frame
+29a4705 fix: move wall faces below terrain to eliminate black fin artifacts
+83253a4 fix: add runtime Phaser import to IndustrialFrameRenderer
+3bd24be fix: correct IndustrialFrameRenderer depth order — background below terrain
+da296eb feat(VISUAL-05A-PR3): add production industrial frame and background layer
+72457bc Merge pull request #145 from ratoker-jpg/visual-05a-pr2-industrial-mapstyle
+3901664 fix(VISUAL-05A-PR2): infer mapStyle from terrain on save load
+e042720 VISUAL-05A-PR2: Add industrial terrain behind mapStyle flag
+ffd0760 Merge pull request #144 from ratoker-jpg/visual-05a-pr1-parameterize-map-size
+3954938 fix(visual-05a-pr1): replace RenderTexture with CanvasTexture for large map platform tiles
+4ae2019 fix(visual-05a-pr1): RenderTexture platform tiles invisible on large maps (96/128/192)
+9890062 fix(visual-05a-pr1): replace fuzzy diamond hit-tests with explicit grid-range classification
+1290ae2 fix(visual-05a-pr1): use Arrow keys only for camera pan (WASD conflicts with W/P toggles)
+813c1cc VISUAL-05A-PR1: Parameterize Visual04a map size preview (96/128/192) with camera pan/zoom
+48d8542 Merge pull request #143 from ratoker-jpg/visual-05a-production-industrial-map-integration-plan
+205be9b docs: fix PR #143 — resolve PR2/PR5 contradiction, correct PR references, set active next step to PR 1
+cad0441 VISUAL-05A: Plan Production Industrial Map Integration
+de7cef6 Merge pull request #142 from ratoker-jpg/visual-04f-single-png-wall-face-block
+e106e8c fix(visual-04f): right wall white tint (no darkening), left wall darker 0x777788
+89f8e5e fix(visual-04f): swap wall side lighting — left darker, right lighter
+750c700 fix(visual-04f): correct mirrored right-wall origin and filter to outer-only wall faces
+063423b VISUAL-04F: Integrate Single PNG Wall Face Block
+9bed81c Merge pull request #140 from ratoker-jpg/ci-01-remove-redundant-typecheck
+0eaf7d2 ci: remove redundant Typecheck step from Pages workflow
+e039403 Merge pull request #139 from ratoker-jpg/visual-04d-single-png-frame-top-block
+f95a48b fix(visual04d): correct PNG frame top block alignment using actual diamond geometry
+e7ccf76 VISUAL-04D: Integrate Single PNG Frame Top Block
+7ba303a Merge pull request #137 from ratoker-jpg/visual-04c-modular-frame-asset-contract
+f94243d Merge pull request #138 from ratoker-jpg/visual-04b1-background-fallback
+2333507 VISUAL-04B1: Add background fallback for Visual04a preview
+a18c7ca VISUAL-04C: Define Modular Frame Asset Contract
+7215cec Merge pull request #136 from ratoker-jpg/visual-04b-procedural-polish-modular-frame
+1bd0eb3 VISUAL-04B: Procedural Polish for Modular Grid-Aligned Arena Frame
+ebd13b1 Merge pull request #135 from ratoker-jpg/visual-04a-modular-grid-aligned-frame
+88a86e8 VISUAL-04A: Modular Grid-Aligned Arena Frame Prototype
+ad7926f Merge pull request #133 from ratoker-jpg/visual-03a-runtime-layered-prototype
+2536aff fix(visual-03a): keep GeometryMask graphics off display list
+f145c9a VISUAL-03A: Runtime Layered Platform Prototype
+ba14696 Merge pull request #132 from ratoker-jpg/docs-visual-03a-next-step
+76f5d5f DOCS: Set VISUAL-03A as next step
+2fa5837 DOCS: Sync visual next step after VISUAL-02C rejection
+647de7d Merge pull request #130 from ratoker-jpg/visual-02b-frame-geometry-proof
+617ad68 VISUAL-02B: Frame Geometry Proof
+2d8c35e Merge pull request #129 from ratoker-jpg/visual-02a-layered-platform-preview
+e7f1da8 fix(visual-02a): route ESC through PreloadScene instead of MainMenuScene
+cc32208 VISUAL-02A: Layered platform frame prototype
+a09aa2f Merge pull request #128 from ratoker-jpg/visual-01c-tile-balance-proof
+6a50cac VISUAL-01C: Update report with Telegram notification status
+73a561e VISUAL-01C: Balance platform tile proof
+a522e7f Merge pull request #127 from ratoker-jpg/visual-01b-sync-state-docs
+0eeb598 Update visual candidate summary approval status
+5ef7bba Sync project state with VISUAL-01B checkpoint
+d39c922 Merge pull request #126 from ratoker-jpg/visual-01b-layered-platform-frame-docs
+ca4efbe Update current next step for layered platform frame checkpoint
+9d99f0f VISUAL-01B: document layered platform frame direction
+74cb977 VISUAL-01: industrial map visual direction candidates
+044844b Merge pull request #124 from ratoker-jpg/visual-docs-handoff-01
+6048f68 VISUAL-DOCS-HANDOFF-01: Update project instruction docs for VISUAL roadmap/audit direction
+4be6531 Merge pull request #123 from ratoker-jpg/visual-audit-01-system-audit
+881bbb4 VISUAL-AUDIT-01: Full visual system audit and implementation plan
+a809de0 Merge pull request #122 from ratoker-jpg/visual-roadmap-01-docs-reset
+9bc1ca8 VISUAL-ROADMAP-01 review fixup: correct PROJECT_STATE task grouping
+637b532 VISUAL-ROADMAP-01: Archive old roadmap and add new Visual Roadmap
+3e5011a Merge pull request #121 from ratoker-jpg/terrain-fix-01-remove-grid-seams
+bf4a116 TERRAIN-FIX-01: Remove visible grid/seams and restore continuous high-res terrain
+ce3e260 Merge pull request #119 from ratoker-jpg/terrain-02a-256x128-integration
+2f95041 TERRAIN-02A review fixup 2: TerrainRenderer is truly pure mapping layer
+18155ac TERRAIN-02A review fixup: single source of truth for terrain variant selection
+eb1b70a TERRAIN-02A: Integrate 256×128 terrain tile family
+d2c7ba0 Merge pull request #118 from ratoker-jpg/terrain-02-quality-audit-pipeline
+f8ba4e4 TERRAIN-02 review fixup: clarify rotation unsafe for 256x128 isometric tiles
+28ea82c TERRAIN-02: Terrain quality audit and clean high-res sand pipeline design
+e4affff Merge pull request #117 from ratoker-jpg/dev-asset-preview-03-chroma-key-controls
+33849fa DEV-ASSET-PREVIEW-03: custom chroma-key color, tolerance, and reprocess controls
+b59a8a4 Merge pull request #116 from ratoker-jpg/dev-asset-preview-02-upload-fix
+8c7695e DEV-ASSET-PREVIEW-02: fix runtime upload — replace Phaser Loader with TextureManager.addCanvas
+fa809d3 Merge pull request #115 from ratoker-jpg/dev-asset-preview-01
+a587fa5 Merge pull request #114 from ratoker-jpg/weapon-workflow-01-vfx-recoil-design
+7fa7c7a DEV-ASSET-PREVIEW-01 fixup: move-on-click, click-to-select, scale/footprint on placement
+ebfb7e9 DEV-ASSET-PREVIEW-01: Phaser dev asset upload and map placement preview
+efe5997 docs: fixup PR #114 review — neutral damage timing boundary + fire-rate placeholder clarification
+9e9aa96 WEAPON-WORKFLOW-01: Weapon VFX and recoil design document
+9fd4ca2 Merge pull request #113 from ratoker-jpg/visual-spike-01-normal-maps-lighting
+72b4ece docs: clarify WEAPON-WORKFLOW-01 is design/workflow only, not implementation
+efb54d3 VISUAL-SPIKE-01: Normal maps / lighting feasibility spike report
+cafe990 Merge pull request #112 from ratoker-jpg/maplife-01-env-props
+dcb5c77 MAPLIFE-01: Asset readiness report — no prop/doodad/decal PNGs available
+674cc7c Merge pull request #111 from ratoker-jpg/hotkeys-01-command-registry
+a50631f HOTKEYS-01 fixup: Idempotent MVP registration + HUD hotkey init guarantee
+d8ed7f7 HOTKEYS-01: Command registry / hotkey system — centralized command definitions and registry-based dispatch
+df97131 Merge pull request #110 from ratoker-jpg/fix-05-camera-controls-destroy
+812929e FIX-05: CameraControls.destroy() bound handler fix — remove only owned listeners
+0d5e627 Merge pull request #109 from ratoker-jpg/builder-id-stable-ids
+8fbc691 BUILDER-ID: Add stable builder IDs — prerequisite for UNIT-ANIM-02
+eb2ebbf Merge pull request #108 from ratoker-jpg/resource-01-depleted-occupancy-fix
+bfcd1b9 RESOURCE-01: Fix depleted resource ghost occupancy — occupancy map now checks runtime depletion state
+61edd0b Merge pull request #107 from ratoker-jpg/unit-anim-01-harvester-readiness
+be365b4 docs(UNIT-ANIM-01): harvester asset readiness report — no approved assets found
+10d5446 Merge pull request #106 from ratoker-jpg/asset-workflow-01-animated-unit-pipeline
+9263464 fix(ASSET-WORKFLOW-01): review fixup — frame count consistency, texture-size caution, origin wording precision
+ad1ed7a ASSET-WORKFLOW-01: Animated unit asset pipeline design
+93bf86e Merge pull request #105 from ratoker-jpg/menu-02-mode-aware-late-loading
+435b587 fix(MENU-02): guard loaderror/complete race in late-loading fallback
+4b04ecb MENU-02: Mode-aware late-loading / seamless mode switching
+2e10a98 Merge pull request #104 from ratoker-jpg/base-anchor-01-hq-grounding
+5fb186d BASE-ANCHOR-01: Fix HQ/building grounding — south-vertex placement for HQ
+0f64400 Merge pull request #103 from ratoker-jpg/terrain-01-sand-visual-system
+5a7189f TERRAIN-01: Sand terrain visual system — clustered variation, smoothing, tint, grid removal
+395cc63 Merge pull request #102 from ratoker-jpg/hud-01-legacy-hud-removal
+a0fcfc4 feat: HUD-01 — legacy HUD removal + HUD consolidation
+8a0dd87 Merge pull request #101 from ratoker-jpg/loading-01-proper-loading-screen
+39db307 feat: LOADING-01 — proper loading screen with progress bar
+de6976c Merge pull request #100 from ratoker-jpg/menu-01-mode-selection
+092f0aa feat: MENU-01 — main menu mode selection via controlled URL launch
+9af9506 Merge pull request #99 from ratoker-jpg/docs-p2-00-phase2-source-of-truth
+a99b81f docs: update backlog for phase 2
+951eb6c docs: update new chat handoff for phase 2
+18e1093 docs: update current next step for phase 2
+6e9d5df docs: update project state for phase 2
+a7d813e Merge pull request #98 from ratoker-jpg/phase2-roadmap-audit
+2e6e60c docs: fix PR #98 review — 4 issues (PR#96 status, prompt baselines, MENU-01 model, TERRAIN-01 assets)
+3a44e96 docs: add Phase 2 roadmap audit (PHASE-2-ROADMAP-AUDIT)
+c29b73e Merge pull request #97 from ratoker-jpg/docs-phase-2-roadmap-and-audit-prompt
+e040c2e docs: add phase 2 roadmap audit prompt
+89b1aab docs: add phase 2 visual roadmap
+fc37e25 Merge pull request #95 from ratoker-jpg/arch-11a-qa-smoke-automation
+0fe80e7 ARCH-11A: QA smoke automation — dual-mode smoke with expanded markers and DOM assertion
+a816dfb Merge pull request #94 from ratoker-jpg/arch-11a-audit-qa-smoke-automation
+db34983 ARCH-11A-AUDIT fixup: add guard blocks to Section 13 prompt, clarify EntityRenderer placement
+c3b1550 ARCH-11A-AUDIT: QA smoke automation / Sandbox MVP regression coverage audit report
+2dec6c3 Merge pull request #93 from ratoker-jpg/docs-checkpoint-01-sandbox-mvp-engine
+8795daa DOCS-CHECKPOINT-01 fixup: update CURRENT_NEXT_STEP.md to redirect to ARCH-11A
+e44ecb4 DOCS-CHECKPOINT-01: update project docs for Sandbox MVP engine roadmap completion through PR #92
+2cfefef Merge pull request #92 from ratoker-jpg/phaser4-gpu-01-spike-report
+05fb798 docs: fix repo name typo ratoker-jkg -> ratoker-jpg in Section 2
+0a028b6 PHASER4-GPU-01: SpriteGPULayer / TilemapGPULayer spike report
+f3e5796 Merge pull request #91 from ratoker-jpg/phaser4-load-02-dev-arena-conditional-loading
+b33cb17 PHASER4-LOAD-02: strip modular-combat from loaded saves in standard mode
+9508a3e PHASER4-LOAD-02 fixup: gate starter modular-combat entity behind devtools/arena (Codex P1)
+01120f7 PHASER4-LOAD-02: Gate modularUnits loading behind devtools/arena mode
+3b8b295 Merge pull request #90 from ratoker-jpg/phaser4-load-01-conditional-loading-spike
+f348ad5 PHASER4-LOAD-01 fixup: revise Option B benefit claims, fix table typo, expand LOAD-02 prompt
+5af6d03 PHASER4-LOAD-01: Conditional asset loading spike report
+4b0d008 Merge pull request #89 from ratoker-jpg/fix-04-factory-blockage-cancel
+d9a8a29 FIX-04 fixup: replace window.__fe_cancel global with callback-based delegated click handler
+6533176 FIX-04: Factory spawn blockage UI feedback + cancel
+1744bf0 Merge pull request #88 from ratoker-jpg/fix-03-unit-cap-control-state
+d95ce4b FIX-03 fixup: spawn-time cap recheck in processFactorySpawns
+387cadc FIX-03: Add unit cap / ControlState for Sandbox MVP
+58880a7 Merge pull request #87 from ratoker-jpg/fix-02-harvester-idle-feedback
+7f76aa8 FIX-02 fixup: stabilize blockedReason + remove duplicate HUD blocked count
+4350238 FIX-02: Add harvester idle-forever UI feedback with blocked reason model
+9318285 Merge pull request #86 from ratoker-jpg/arch-18a-lite-input-extraction
+1092607 ARCH-18A-LITE: Extract input/command handling from GameScene into GameInputController
+e0a524c Merge pull request #85 from ratoker-jpg/anim-02-harvester-walk-cycle
+8b6ad51 fix: guard duplicate anim registration & stop anim before fallback setFrame
+8596e3a PHASER4-ANIM-02: Migrate harvester rendering to Phaser 4 Animation Manager for walk cycles
+8f3ae7b Merge pull request #84 from ratoker-jpg/docs/PHASER4-ANIM-01-spike-report
+590f3e2 PHASER4-ANIM-01: Animation Manager spike report with findings and migration recommendation
+2af46ba Merge pull request #83 from ratoker-jpg/fix-01-faction-asset-wiring
+0b3358d FIX-01: Wire faction-specific HQ and harvester asset keys in EntityRenderer
+46bfe2c Merge pull request #82 from ratoker-jpg/docs-audit-01-phaser4-audit-sync
+713ad9b DOCS-AUDIT-01 fixup: add Telegram notification block to first-ready prompts
+b1ebd12 DOCS-AUDIT-01 fixup: restore full audit content, narrow FIX-01 scope
+4ef67e0 DOCS-AUDIT-01: Commit corrected Phaser 4 audit and sync project docs
+9a4d058 Merge pull request #81 from ratoker-jpg/docs-phase-1-freeze-sandbox-audit
+c998daf DOCS-FREEZE: Point GPT onboarding to handoff
+0d97bca DOCS-FREEZE: Update project state for freeze
+7184f0d DOCS-FREEZE: Add new chat handoff
+4d67378 DOCS-FREEZE: Add Sandbox MVP fix backlog
+1b290a1 DOCS-FREEZE: Add Phase 1 freeze checkpoint
+c956503 DOCS-FREEZE: Mark legacy roadmap inactive
+c9b3692 Merge pull request #80 from ratoker-jpg/arch-13c-lite-unit-motion-dust
+4d47aa4 fix(motion-fx): add cleanStaleBuilderTracks lifecycle cleanup
+101bc53 ARCH-13C-LITE: Add render-only unit motion dust polish
+04dbcad Merge pull request #79 from ratoker-jpg/arch-17a-17b-asset-diagnostics-viewer
+103d297 fix: AssetViewerPanel UI scale + preserve section headers
+7d60012 ARCH-17A-17B: Add asset diagnostics and asset viewer MVP
+d747a9c Merge pull request #78 from ratoker-jpg/arch-08b-09a-generated-map-terrain-resource-balance
+22bec56 fixup: generated-map diagnostics detection + remove invisible blocking obstacles
+dff017d ARCH-08B-09A: Improve generated map terrain and resource balance
+1e2c763 Merge pull request #77 from ratoker-jpg/arch-16a-16b-map-setup-generated-map
+43192fe fix(map-names): preserve readable map names and harden generated ID parsing
+3adab59 ARCH-16A-16B: Add map setup options and deterministic generated map MVP
+a36ee29 Merge pull request #76 from ratoker-jpg/arch-14c-15b-ui-shell-polish-save-ux
+754725d fix(ui-scale): apply UI scale transform to save-list and settings overlays
+75bf7fa ARCH-14C-15B: Add UI shell polish and save management UX
+219d9aa Merge pull request #75 from ratoker-jpg/arch-13a-13b-gameplay-feedback-vfx
+f29f127 fix(feedback): gathering-activity pulse repeats while harvester gathering
+a376f2f ARCH-13A-13B: Add gameplay feedback and VFX MVP
+56d8339 Merge pull request #74 from ratoker-jpg/arch-11b-12a-debug-overlays-arena
+d1ea8a0 DOCS: Add Telegram notification rule to executor rules
+0ee1185 ARCH-11B-12A fixups: arena devtools-gating, remove arena from MAP_LIST, early arena init
+332d1d4 ARCH-11B-12A: Add debug overlays and QA test arena MVP
+8ba788b Merge pull request #73 from ratoker-jpg/docs-arch-package-policy
+732a280 DOCS: Update project state for ARCH package mode
+9857ef6 DOCS: Link ARCH package policy from scoping rules
+1ec05a5 DOCS: Add coherent ARCH package policy
+8dffdb9 Merge pull request #72 from ratoker-jpg/arch-11a-devtools-qa-sandbox
+4773a65 ARCH-11A fixups: spawn tile dedup, harvester sprite creation, risk label
+09b06b0 ARCH-11A: Add devtools QA sandbox MVP
+cd3e4a3 Merge pull request #71 from ratoker-jpg/arch-15a-save-load-skeleton
+0da3e64 fix(save/load): update same slot on re-save; detect storage write failure
+2a09951 ARCH-15A: Add local save/load skeleton
+5c9c7ff Merge pull request #70 from ratoker-jpg/docs-add-faction-assets-fix-backlog
+a7088b0 Merge pull request #69 from ratoker-jpg/arch-14b-main-menu-new-game-shell
+65aff65 DOCS: Add faction asset wiring to fix backlog
+e64f9a2 fix: remove worklog.md from PR, add Phaser SHUTDOWN event cleanup
+634fefb ARCH-14B: Add main menu and new game shell
+5a629b0 Merge pull request #68 from ratoker-jpg/arch-08-09-10-map-readability-resource-diagnostics
+bcd13f1 fix: reachability uses any HQ-adjacent tile, soft impassable check muted in HUD
+5f3c00a ARCH-08-09-10: Improve map readability and resource diagnostics
+08cb157 Merge pull request #67 from ratoker-jpg/docs-add-harvester-fix-backlog
+b5b9db9 DOCS: Add harvester reliability to fix backlog
+db1b9a4 Merge pull request #66 from ratoker-jpg/arch-07a-production-loop-readability
+5420166 fix: blocked-power before queue-full in getFactoryStatus; suppress initial resource deltas
+f565297 ARCH-07A: Add production loop readability
+8339d2a Merge pull request #65 from ratoker-jpg/docs-fix-backlog-policy
+2f55c31 DOCS: Clarify fix backlog vs immediate audit
+1fa03dd DOCS: Clarify fix backlog priority
+5d9203e Merge pull request #64 from ratoker-jpg/docs-fix-audit-policy
+3f74d87 DOCS: Add fix roadmap audit prompt template
+49ebf1d DOCS: Update project state for failed-fix workflow
+04cf749 DOCS: Add failed-fix audit rule
+270f79b Merge pull request #63 from ratoker-jpg/arch-05y-selection-ring-smoothing
+f9a7820 ARCH-05Y rework: state-level snap fix + tile-ground ring anchor
+72c6e38 Merge pull request #62 from ratoker-jpg/docs-workflow-v2
+4155bd7 DOCS: Add ARCH-05Y next-step note
+6f81f37 DOCS: Update project state after ARCH-05X
+bdf2f2f DOCS: Update risk policy after ARCH-05X
+92b6960 Merge pull request #61 from ratoker-jpg/arch-05x-high-risk-probe
+8b26912 ARCH-05X: manual QA fixup — 4 findings from GPT review
+ebb51b6 ARCH-05X: fix stale _manualMove comment in builder.ts
+e7e2f82 ARCH-05X hardening: remove as any casts, typed fields, no straight-line fallback
+8c6fbd3 ARCH-05X: High-risk civil movement/control/passability probe
+d34b345 Merge pull request #60 from ratoker-jpg/arch-05a-unit-scale-facing
+0ab2803 ARCH-05A cleanup: remove _reports QA artifacts, add to .gitignore
+e8a3916 ARCH-05A fixup: scale-aware offset transform for modular tank
+a6ffbe1 ARCH-05A: Normalize unit scale and movement facing
+378ef94 Merge pull request #59 from ratoker-jpg/policy/smoke-check-risk-clarification
+6568a49 POLICY: Clarify smoke-check impact on PR risk
+13314c7 Merge pull request #58 from ratoker-jpg/arch-11a-qa-smoke
+e0f94bb fix: track smoke errors, fix preview failure report, cleanup preview on startup failure
+f70f843 ARCH-11A: Add QA smoke automation
+7e5708a Merge pull request #57 from ratoker-jpg/docs/low-pr-batching
+c669073 POLICY: batch low-risk implementation tasks by default
+7fd62e9 Merge pull request #56 from ratoker-jpg/preload-log-01-throttle-progress
+0aad06c PRELOAD-LOG-01: Throttle preload progress logs
+0dbd2cb Merge pull request #55 from ratoker-jpg/arch-14a-playtest-hud
+7fb5f52 fix: restore Phaser import in PreloadScene; add P hotkey for power-plant build
+d4deeab ARCH-14A: Add playtest HUD and build panel MVP
+5e55061 Merge pull request #54 from ratoker-jpg/arch-02-docs-sync
+c77ab0e ARCH-02-DOCS: Sync asset pipeline documentation
+4c997e2 Merge pull request #53 from ratoker-jpg/arch-02i-terrain-resources-manifest
+e598939 ARCH-02I: add terrain and resources to generated runtime manifest
+f6bea62 Merge pull request #51 from ratoker-jpg/arch-02h-modular-units-manifest
+a73bbf3 ci: add workflow_dispatch to Pages workflow (#52)
+7310def Revert "ci: add workflow_dispatch to Pages workflow for manual PR preview triggers"
+6baaa91 ci: add workflow_dispatch to Pages workflow for manual PR preview triggers
+80cf1a4 ARCH-02H: add modular unit images to generated runtime manifest
+8a9b2aa Merge pull request #50 from ratoker-jpg/arch-02g-civil-units-spritesheet-manifest
+fb3e0c4 fix: remove dangerous process:art-assets:buildings script
+dba72e1 ARCH-02G: Load civil unit spritesheets from generated runtime manifest
+d0361bf Merge pull request #49 from ratoker-jpg/dev-hotkey-log-01-reduce-console-noise
+e5712c7 DEV-HOTKEY-LOG-01: Reduce debug hotkey console noise
+71d3b3f Merge pull request #48 from ratoker-jpg/arch-02f-generated-runtime-manifest
+2f69f13 ARCH-02F: Load building assets from generated runtime manifest
+1910d70 Merge pull request #47 from ratoker-jpg/arch-02e-sample-viewer
+50604ab fix: make art-sample viewer work on GitHub Pages / PR preview
+380d1b7 ARCH-02E: Add generated asset sample viewer
+a012ca7 Merge pull request #46 from ratoker-jpg/arch-02d-building-processor-mvp
+0ed896c fix: make generated output deterministic
+fe066ff ARCH-02D: Add building asset processor MVP
+a6ec9dd Merge pull request #45 from ratoker-jpg/arch-02bc-manifest-validation-scaffold
+c53c251 fix: replace hard-coded paths with temp fixture dirs in manifest tests
+df5b6e7 ARCH-02B+C: Add asset manifest validation scaffold
+2c64fd5 Merge pull request #44 from ratoker-jpg/build-anchor-02-alpha-bounds-generator
+5b73a67 BUILD-ANCHOR-02: Update generator footprints, add Python helper tests
+1429093 Merge pull request #43 from ratoker-jpg/arch-02a-asset-pipeline-strategy
+0b79fc1 ARCH-02A: Add asset pipeline strategy document
+3f49773 Merge pull request #42 from ratoker-jpg/docs-sync-after-arch-01
+5171be8 DOCS-SYNC: Update current next step after ARCH-01
+e453d28 DOCS-SYNC: Update project state after ARCH-01
+ce66301 Merge pull request #41 from ratoker-jpg/arch-01f-units-factory-production
+eaa9c8c fix: use actual dt for factory production progress
+e9aa0c8 ARCH-01F: Add units-factory production baseline
+8689c3f Merge pull request #40 from ratoker-jpg/arch-01e-power-baseline
+86c93d9 ARCH-01E: Add power baseline and separator power gating
+066cc5f Merge pull request #39 from ratoker-jpg/arch-01d-storage-caps
+4a45f16 ARCH-01D: Add storage caps and cap-safe economy processing
+4a6e54f Merge pull request #38 from ratoker-jpg/docs-arch-risk-levels
+2cc5c5a DOCS: Add risk levels to ARCH scoping policy
+d324627 Merge pull request #37 from ratoker-jpg/arch-01c-separator-processing-cycle
+490a4a3 ARCH-01C: Add separator processing cycle
+73ccab9 Merge pull request #36 from ratoker-jpg/arch-01b-economy-state-matter-construction
+fb928b3 fix: remove debug matter top-up from B hotkey
+7780583 ARCH-01B: Add economy state and matter-based construction baseline
+955cf11 Merge pull request #35 from ratoker-jpg/docs-arch-scoping-policy
+b81997c DOCS: Reference ARCH scoping policy from GPT entrypoint
+1fed1be DOCS: Add ARCH scoping policy
+3f007cc Merge pull request #34 from ratoker-jpg/docs-sync-after-build-anchor-03
+7a72bcf DOCS-SYNC: Add current next step checkpoint
+f7c02fa DOCS-SYNC: Update building placement strategy after implementation
+5591ff8 DOCS-SYNC: Update project state after BUILD-ANCHOR-03
+69842e4 Merge pull request #33 from ratoker-jpg/build-anchor-03-south-vertex-renderer
+050eedd BUILD-ANCHOR-03 scale fixup: Footprint-based targetDisplayWidth mapping
+86718d4 BUILD-ANCHOR-03 fixup: Fix groundLineRatio heuristic — alpha-bottom instead of widest-row
+2fe2d69 Merge remote-tracking branch 'origin/main' into build-anchor-03-south-vertex-renderer
+005fa3e BUILD-ANCHOR-03: Render completed buildings with placement metadata
+2728fe9 Merge pull request #32 from ratoker-jpg/build-anchor-02-alpha-bounds-generator
+72bcbd0 BUILD-ANCHOR-02 fixup: cross-platform script, Pillow deps, test hygiene
+5410b71 BUILD-ANCHOR-02: Add offline building alpha-bounds generator
+b638159 Merge pull request #31 from ratoker-jpg/arch-00-docs-workflow-roadmap
+4b82ff7 ARCH-00-docs: Remove stale future-tense audit wording in ROADMAP.md
+da76925 ARCH-00-docs: Fix roadmap paths, status, audit clarifications
+5126fff ARCH-00-docs: Update PROJECT_STATE.md for post-merge state
+b1774ea ARCH-00-docs: Add workflow, roadmap, and roadmap system audit docs
+acf5820 Merge pull request #30 from ratoker-jpg/build-anchor-01-building-placement-meta
+18e8137 BUILD-ANCHOR-01: Add BuildingPlacementMeta data model for systemic building PNG placement
+3ba40cd Merge pull request #29 from ratoker-jpg/docs-building-placement-strategy
+8cd3592 DOC-01: add building placement strategy
+f1eb0c2 Merge pull request #27 from ratoker-jpg/asset-02-render-builder-spritesheet
+4a93d29 ASSET-02 fix: reduce builder snap threshold + remove fallback circle
+5d9b476 ASSET-02 fix: use fixed DIR_ROW.S for builder, remove direction tracking
+f625ea1 ASSET-02: Render builder from spritesheet instead of circle
+e5bcfcd Merge pull request #26 from ratoker-jpg/asset-01-port-civil-building-assets
+2b48876 ASSET-01 fix: normalize building texture keys to underscores
+578aaa5 ASSET-01: Port civil + building assets from four-elements-next
+0da1706 Merge pull request #25 from ratoker-jpg/arch-13f1-construction-ux-qa-cleanup
+523e86b ARCH-13F1: Construction UX / QA Cleanup
+685acfe Merge pull request #24 from ratoker-jpg/arch-13e4-auto-build-site
+0a3f4a2 ARCH-13E4: Automatic build-site selection MVP
+444f603 ARCH-13E3: Builder movement to construction site (#22)
+dd5804f ARCH-13E2: Construction site render + debug hotkey placement (#21)
+cf88d52 ARCH-13E1: Construction core pure TS — Separator building type (#20)
+47b68f1 Merge pull request #19 from ratoker-jpg/arch-13cd-occupancy-pathfinding
+b0021df ARCH-13C+D: Occupancy + BFS pathfinding pure TS foundation
+f38c044 Merge pull request #18 from ratoker-jpg/arch-13b-modular-tank-renderer-split
+eb1b2fb ARCH-13B: Extract ModularTankRenderer + ModularTankDebugOverlay
+a15cc82 Merge pull request #17 from ratoker-jpg/arch-13a-vitest-baseline
+386cd1b ARCH-13A: Add Vitest baseline with 35 unit tests
+b0afeae Merge pull request #16 from ratoker-jpg/docs/arch-phase-rules-20260525
+199bdf7 docs: add ARCH phase planning rules
+621fc9a Merge pull request #15 from ratoker-jpg/docs/phaser4-runtime-notes-20260525
+09eb7c5 docs: add Phaser 4 runtime notes
+b7b28a0 Merge pull request #14 from ratoker-jpg/docs/capture-pr4-pr5-notes-20260525
+0f4b4b6 docs: capture future PR4 PR5 notes
+6366b89 Merge pull request #13 from ratoker-jpg/docs/current-guardrails-20260525
+ccd8b28 Merge pull request #12 from ratoker-jpg/pr7/modular-tank-socket-model
+2a8da7c docs: add current project guardrails
+d6a5d58 feat: modular tank body/turret socket model (PR7)
+353bd10 Merge pull request #11 from ratoker-jpg/pr6/modular-tank-direction-sync
+e22af95 fix: sync tunerState.modularTankDir in placeModularCombat and setModularTankDirection
+a61b90e PR6: Modular Tank Direction Sync
+76c0fa0 Merge pull request #10 from ratoker-jpg/pr5/modular-unit-visual-tuner
+edca6a0 Update default offsets per GPT review
+3bd5547 PR5: Modular Unit Visual Tuner
+8ff5915 Merge pull request #9 from ratoker-jpg/codex/pr4-modular-combat-visual-mvp
+a0c2e79 Disable modular tank debug by default
+894371c Tune modular turret offset
+f71679f add hull offset tuning
+a9c36be tune smoky turret socket offset
+6b1a8cc improve modular tank tile overlay
+2b4f830 add modular tank debug overlay
+04d6d06 fix starter spawn and tune turret offset
+b3766a6 modular combat visual mvp
+5aa2bdf Merge pull request #8 from ratoker-jpg/pr3/harvester-civil-loop
+c0c7ece feat: PR3 — Harvester Civil Loop MVP
+b0b7ac4 Merge pull request #7 from ratoker-jpg/pr2/gamestate-saved-map
+dabe9e3 fix: PR2 FIX 2 — use uploaded saved custom map, not donor mapgen
+96bc2ae fix: PR2 — use actual saved map data, remove brittle BootScene guard
+d1e1ef2 feat: PR2 — GameState + saved map + render sync
+a3fa721 Merge pull request #6 from ratoker-jpg/pr1.1/camera-ux-polish
+2b556d5 fix: use camera transform for cursor-stable zoom
+57e5188 feat: PR1.1 — camera UX polish
+2d7ff1f Merge pull request #5 from ratoker-jpg/hotfix/wheel-zoom-delta-y
+dec4a2e fix: use wheel deltaY for zoom direction
+1a34f81 Merge pull request #4 from ratoker-jpg/hotfix/terrain-config-cycle
+4250342 fix: read map constants from world config in iso helpers
+e5d0220 fix: read map constants from world config in terrain renderer
+74fe1a1 fix: read map constants from world config in game scene
+a3bf526 fix: remove world constants from scene-importing config
+9406282 fix: move world constants out of game config
+e48fbc1 Merge pull request #3 from ratoker-jpg/hotfix/boot-webgl-guard
+05a5272 fix: simplify boot scene startup
+f7274db Merge pull request #2 from ratoker-jpg/pages/github-pages-and-pr-previews
+e99f504 ci: add GitHub Pages deploy and PR previews
+e3c9def Merge pull request #1 from ratoker-jpg/pr1/skeleton-static-scene
+27f3501 fix: flush Phaser 4 RenderTexture drawing commands
+bcb06f8 fix: terrain RenderTexture coordinate clipping
+f756d40 feat: PR1 — Phaser 4 skeleton + runtime-approved static scene
+52a6818 docs: add PR1 task contract
+198979c docs: add asset policy
+4ba0304 docs: add AI workflow rules
+2cd124f docs: add initial roadmap
+f14103a docs: add project charter
+cd90b60 docs: add agent rules for clean Phaser restart
+05708a8 docs: update README for Phaser-first restart
+4fa19b4 Initial commit: clean repo shell

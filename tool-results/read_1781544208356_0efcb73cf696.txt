@@ -1,0 +1,1390 @@
+     1→import Phaser from 'phaser';
+     2→import { ASSET_KEYS } from '../assets/assetManifest';
+     3→import { TerrainRenderer } from './render/TerrainRenderer';
+     4→import { IndustrialFrameRenderer } from './render/IndustrialFrameRenderer';
+     5→import { EntityRenderer } from './render/EntityRenderer';
+     6→import { BuildingStatusRenderer } from './render/BuildingStatusRenderer';
+     7→import { CameraControls } from './input/CameraControls';
+     8→import { GameInputController } from './input/GameInputController';
+     9→import { PlaytestHud } from './ui/PlaytestHud';
+    10→
+    11→import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric';
+    12→import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
+    13→import { updateGameState } from '../state/updateGameState';
+    14→import { updateConstructionSiteProgress } from '../state/construction';
+    15→import { assignIdleBuilders, updateBuilders } from '../state/builder';
+    16→import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '../state/types';
+    17→import { validateMap } from '../state/mapValidation';
+    18→import { PauseMenu } from './ui/PauseMenu';
+    19→import type { GameSetupConfig } from '../state/gameSetup';
+    20→import { DEFAULT_SETUP, getMapDataFromConfig, getMapDisplayName, resolveResourceStyleForMapStyle } from '../state/gameSetup';
+    21→import type { MapStyle, ResourceStyle } from '../state/gameSetup';
+    22→import { saveGame } from '../state/saveGame';
+    23→import { loadUiSettings, applyUiScale } from '../state/uiSettings';
+    24→import { DevtoolsPanel } from './ui/DevtoolsPanel';
+    25→import { isDevtoolsEnabled, type DevCommandResult } from '../state/devCommands';
+    26→import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
+    27→import { FeedbackRenderer } from './render/FeedbackRenderer';
+    28→import { UnitMotionFxRenderer } from './render/UnitMotionFxRenderer';
+    29→import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData, arenaSpawnVehicle } from '../state/devArena';
+    30→import { createArenaModeContext, type ArenaModeContext } from '../state/arenaModeContext';
+    31→import { ArenaMenu } from './ui/ArenaMenu';
+    32→import {
+    33→  createArenaPlacementState,
+    34→  enterPlacementMode,
+    35→  cancelPlacementMode,
+    36→  convertClickToPlacementTile,
+    37→  getPlacementHoverTile,
+    38→  type ArenaPlacementState,
+    39→} from '../state/arenaPlacement';
+    40→import { projectGroundPoint } from '../config/cameraProjectionContract';
+    41→import { AssetPreviewTool } from './dev/AssetPreviewTool';
+    42→import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
+    43→import { GeneratedVehicleProofHarness } from './dev/GeneratedVehicleProofHarness';
+    44→import { GeneratedVehicleProofPanel } from './dev/GeneratedVehicleProofPanel';
+    45→import { GeneratedModularVehicleRenderer } from './render/GeneratedModularVehicleRenderer';
+    46→import { ModularVehicleDevtoolsPanel } from './dev/ModularVehicleDevtoolsPanel';
+    47→import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
+    48→import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputController';
+    49→import { BlockoutWeaponVfxRenderer } from './render/BlockoutWeaponVfxRenderer';
+    50→import { BlockoutDamageRenderer } from './render/BlockoutDamageRenderer';
+    51→import { BlockoutObstacleRenderer } from './render/BlockoutObstacleRenderer';
+    52→import { BlockoutUpgradeRenderer } from './render/BlockoutUpgradeRenderer';
+    53→import { BlockoutSandboxHudRenderer } from './render/BlockoutSandboxHudRenderer';
+    54→import { CameraProjectionDebugRenderer } from './render/CameraProjectionDebugRenderer';
+    55→import { DEFAULT_SANDBOX_SCENARIO, ARENA_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
+    56→import { resetBlockoutScenario } from '../state/blockoutScenario';
+    57→import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
+    58→import { TileReservationMap, RESERVATION_MAX_AGE_MS } from '../state/tileReservation';
+    59→import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from '../state/occupancy';
+    60→import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring } from '../state/blockoutWeaponVfx';
+    61→import { updateAllWeaponResources, tryFireWithDamage, clearTargetAndWeaponState } from '../state/weaponFireCoordinator';
+    62→import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
+    63→import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
+    64→import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
+    65→import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter, computeProjectedTurretMountScreen } from './render/blockoutVehicleGeometry';
+    66→import type { BlockoutVehicleState } from '../state/blockoutVehicleState';
+    67→import { updateBlockoutAi } from '../state/blockoutAi';
+    68→import { updateAllCombatTargeting } from '../state/combatTargeting';
+    69→import { angleFromTo } from '../state/angleMath';
+    70→import { rotateTurretToward } from '../state/blockoutTurretAim';
+    71→import { cycleArenaInspectionBody, cycleArenaInspectionWeapon, resetArenaInspectionPose } from '../state/arenaInspection';
+    72→
+    73→
+    74→/**
+    75→ * GameScene — orchestration-only scene.
+    76→ *
+    77→ * PR3: Drives the harvester civil loop via updateGameState().
+    78→ * GameScene calls state update + renderer sync + HUD update only.
+    79→ * No game logic lives here.
+    80→ *
+    81→ * ARCH-18A-LITE: Input handling and command dispatch extracted to
+    82→ * GameInputController. GameScene creates subsystems, wires the
+    83→ * controller, and runs the game loop. No keyboard/pointer handlers
+    84→ * or selection state remain in this file.
+    85→ */
+    86→
+    87→/**
+    88→ * ARCH-15A: Scene data for loading a saved game.
+    89→ * When MainMenuScene loads a save, it passes this to GameScene.init().
+    90→ *
+    91→ * Fix 1: Includes saveSlotId so GameScene can update the same slot
+    92→ * on subsequent saves instead of creating duplicates.
+    93→ */
+    94→export interface LoadSceneData {
+    95→  loadedGameState: GameState;
+    96→  mapId?: string;
+    97→  /** Slot ID of the loaded save, used to update the same slot on re-save. */
+    98→  saveSlotId?: string;
+    99→}
+   100→
+   101→/**
+   102→ * Infer mapStyle from terrain data in a loaded save.
+   103→ * VISUAL-05A-PR2 fix: When a saved game is loaded, the setupConfig
+   104→ * is built from DEFAULT_SETUP which has mapStyle='sand'. If the saved
+   105→ * terrain contains any 'industrial' tiles, we must render as industrial
+   106→ * or the terrain will be invisible (TERRAIN_KEY_MAP.industrial is '').
+   107→ */
+   108→function inferMapStyleFromTerrain(terrain: TerrainType[][]): MapStyle {
+   109→  return terrain.some(row => row.some(t => t === 'industrial')) ? 'industrial' : 'sand';
+   110→}
+   111→
+   112→export class GameScene extends Phaser.Scene {
+   113→  private terrainRenderer: TerrainRenderer | null = null;
+   114→  private industrialFrameRenderer: IndustrialFrameRenderer | null = null;
+   115→  private entityRenderer: EntityRenderer | null = null;
+   116→  private buildingStatusRenderer: BuildingStatusRenderer | null = null;
+   117→  private cameraControls: CameraControls | null = null;
+   118→  private inputController: GameInputController | null = null;
+   119→  private playtestHud: PlaytestHud | null = null;
+   120→  private pauseMenu: PauseMenu | null = null;
+   121→  private gameState!: GameState;
+   122→  private hqWorldX: number = 0;
+   123→  private hqWorldY: number = 0;
+   124→
+   125→  // ARCH-14B: Setup config stored for restart functionality
+   126→  private setupConfig: GameSetupConfig = DEFAULT_SETUP;
+   127→
+   128→  // ARCH-15A: Loaded game state from save (null for new games)
+   129→  private loadedGameState: GameState | null = null;
+   130→
+   131→  // Fix 1: Track current save slot so subsequent saves update the same slot
+   132→  private currentSaveSlotId: string | null = null;
+   133→
+   134→  // ARCH-14B: Pause state — when true, update loop is skipped
+   135→  private paused = false;
+   136→
+   137→  // ARCH-11A: Devtools panel (only created when devtools is enabled)
+   138→  private devtoolsPanel: DevtoolsPanel | null = null;
+   139→  private devtoolsActive = false;
+   140→
+   141→  // ARCH-11B: Debug overlay renderer (only when devtools is enabled)
+   142→  private debugOverlayRenderer: DebugOverlayRenderer | null = null;
+   143→  // ARCH-12A: Arena mode flag
+   144→  private arenaMode = false;
+   145→
+   146→  // ARCH-13A: Feedback renderer — command indicators and resource flow
+   147→  private feedbackRenderer: FeedbackRenderer | null = null;
+   148→
+   149→  // ARCH-13C-LITE: Motion dust renderer — render-only movement dust particles
+   150→  private motionFxRenderer: UnitMotionFxRenderer | null = null;
+   151→
+   152→  /** Offset for tile-to-screen conversion. */
+   153→  private _offset: { x: number; y: number } = { x: 0, y: 0 };
+   154→
+   155→  /** Track last raw count to log once per unload. */
+   156→  private lastLoggedRaw: number = 0;
+   157→
+   158→  // DEV-ASSET-PREVIEW-01: Dev-only asset preview tool and panel
+   159→  private assetPreviewTool: AssetPreviewTool | null = null;
+   160→  private assetPreviewPanel: AssetPreviewPanel | null = null;
+   161→
+   162→  // MODULAR-PROOF-01: Isolated generated vehicle attachment proof harness
+   163→  // (devtools-only; does NOT integrate with live Arena vehicle rendering).
+   164→  private generatedVehicleProofHarness: GeneratedVehicleProofHarness | null = null;
+   165→  private generatedVehicleProofPanel: GeneratedVehicleProofPanel | null = null;
+   166→
+   167→  // MODULAR-RUNTIME-01: Clean modular generated vehicle renderer + QA selector
+   168→  // (devtools-only; isolated overlay, does NOT alter live Arena combat/movement).
+   169→  private generatedModularVehicleRenderer: GeneratedModularVehicleRenderer | null = null;
+   170→  private modularVehicleDevtoolsPanel: ModularVehicleDevtoolsPanel | null = null;
+   171→
+   172→  // BLOCKOUT-02H: Blockout vehicle renderer (only when devtools is active)
+   173→  private blockoutVehicleRenderer: BlockoutVehicleRenderer | null = null;
+   174→
+   175→  // BLOCKOUT-03H: Blockout vehicle input controller (selection/aim, only when devtools is active)
+   176→  private blockoutVehicleInputController: BlockoutVehicleInputController | null = null;
+   177→
+   178→  // BLOCKOUT-05H+: Blockout weapon VFX renderer (only when devtools is active)
+   179→  private blockoutWeaponVfxRenderer: BlockoutWeaponVfxRenderer | null = null;
+   180→
+   181→  // BLOCKOUT-07H+: Blockout damage renderer (only when devtools is active)
+   182→  private blockoutDamageRenderer: BlockoutDamageRenderer | null = null;
+   183→
+   184→  // BLOCKOUT-08H: Blockout obstacle renderer (only when devtools is active)
+   185→  private blockoutObstacleRenderer: BlockoutObstacleRenderer | null = null;
+   186→
+   187→  // BLOCKOUT-09H: Blockout upgrade renderer (only when devtools is active)
+   188→  private blockoutUpgradeRenderer: BlockoutUpgradeRenderer | null = null;
+   189→
+   190→  // BLOCKOUT-10H+: Blockout sandbox HUD renderer (only when devtools is active)
+   191→  private blockoutSandboxHudRenderer: BlockoutSandboxHudRenderer | null = null;
+   192→
+   193→  // CAMERA-00: Camera projection debug renderer (only when devtools is active)
+   194→  private cameraProjectionDebugRenderer: CameraProjectionDebugRenderer | null = null;
+   195→
+   196→  // ARENA-01H+: ArenaMenu — primary Arena UX (replaces PlaytestHud for Arena)
+   197→  private arenaMenu: ArenaMenu | null = null;
+   198→
+   199→  // ARENA-01H+: ArenaModeContext — controls which subsystems are active
+   200→  private arenaCtx: ArenaModeContext = createArenaModeContext(false);
+   201→
+   202→  // ARENA-02H+: Placement state for Arena unit creation
+   203→  private arenaPlacementState: ArenaPlacementState = createArenaPlacementState();
+   204→
+   205→  // ARENA-02H+: Placement marker graphics (projected ground plane diamond)
+   206→  private placementMarker: Phaser.GameObjects.Graphics | null = null;
+   207→
+   208→  // CORE-STEP-06H+: Tile reservation map for grid movement
+   209→  private reservationMap: TileReservationMap | null = null;
+   210→
+   211→  constructor() {
+   212→    super({ key: 'GameScene' });
+   213→  }
+   214→
+   215→  /**
+   216→   * Receive scene data from MainMenu/NewGameSetup or from a loaded save.
+   217→   * Called by Phaser before create().
+   218→   *
+   219→   * ARCH-15A: Accepts either a GameSetupConfig (new game) or a
+   220→   * LoadSceneData (loaded save). If loadedGameState is present,
+   221→   * the saved state is used directly instead of createInitialState.
+   222→   */
+   223→  init(data: GameSetupConfig | LoadSceneData): void {
+   224→    if ('loadedGameState' in data && data.loadedGameState) {
+   225→      // VISUAL-05A-PR2 fix: Infer mapStyle from loaded terrain so industrial
+   226→      // saves render correctly instead of falling back to sand (DEFAULT_SETUP).
+   227→      const inferredStyle = inferMapStyleFromTerrain(data.loadedGameState.mapData.terrain);
+   228→      this.setupConfig = {
+   229→        ...DEFAULT_SETUP,
+   230→        faction: data.loadedGameState.playerFaction,
+   231→        mapId: data.mapId ?? 'customMap1',
+   232→        mapStyle: inferredStyle,
+   233→        resourceStyle: resolveResourceStyleForMapStyle(inferredStyle),
+   234→      };
+   235→      this.loadedGameState = data.loadedGameState;
+   236→      // Fix 1: Preserve loaded slot ID for re-save
+   237→      this.currentSaveSlotId = data.saveSlotId ?? null;
+   238→    } else {
+   239→      this.setupConfig = { ...DEFAULT_SETUP, ...data as GameSetupConfig };
+   240→      this.loadedGameState = null;
+   241→      // Fix 1: New game starts with no save slot
+   242→      this.currentSaveSlotId = null;
+   243→    }
+   244→  }
+   245→
+   246→  create(): void {
+   247→    // ARCH-14C: Apply saved UI scale on game start
+   248→    applyUiScale(loadUiSettings().uiScale);
+   249→
+   250→    // ARCH-11B+12A fixup: Compute devtools/arena flags BEFORE any rendering.
+   251→    // MENU-02: Mode detection now supports both URL params and GameSetupConfig.gameMode.
+   252→    // URL params take priority (for QA shortcuts), but if no URL params are set,
+   253→    // the config-based mode from menu selection is used.
+   254→    const urlDevtools = isDevtoolsEnabled();
+   255→    const urlArena = urlDevtools && isArenaEnabled();
+   256→    const configDebug = this.setupConfig.gameMode === 'debug';
+   257→    const configArena = this.setupConfig.gameMode === 'arena';
+   258→
+   259→    this.devtoolsActive = urlDevtools || configDebug || configArena;
+   260→    this.arenaMode = urlArena || configArena;
+   261→
+   262→    // ARENA-01H+: Create ArenaModeContext — controls which subsystems are active
+   263→    this.arenaCtx = createArenaModeContext(this.arenaMode);
+   264→
+   265→    // Determine the game state source — loaded save takes priority,
+   266→    // then arena (dev-only), then normal setup config.
+   267→    if (this.loadedGameState) {
+   268→      // PHASER4-LOAD-02: Strip modular-combat entities from old saves in standard mode.
+   269→      // Older saves may contain modular-combat entities whose textures are not loaded
+   270→      // when devtools is disabled. Devtools/arena mode preserves them (textures loaded).
+   271→      this.gameState = stripModularCombatFromState(this.loadedGameState, {
+   272→        includeModularCombat: this.devtoolsActive,
+   273→      });
+   274→      this.loadedGameState = null;
+   275→      const stripped = this.gameState.entities.filter(e => e.kind === 'modular-combat').length === 0
+   276→        && (this.gameState.extraModularCombat?.length ?? 0) === 0;
+   277→      if (!stripped) {
+   278→        console.log('[GameScene] Loaded saved game state (modular-combat preserved: devtools mode).');
+   279→      } else {
+   280→        console.log('[GameScene] Loaded saved game state.');
+   281→      }
+   282→    } else if (this.arenaMode) {
+   283→      // ARENA-01H+: Arena mode — clean standalone, no HQ/harvesters/resources/economy
+   284→      const arenaMapData = createArenaMapData();
+   285→      this.gameState = createInitialState(arenaMapData, this.setupConfig.faction, 'QA Arena', { includeModularCombat: true, arenaMode: true });
+   286→      console.log('[GameScene] Arena mode active. Map: QA Arena (20x20) — clean standalone');
+   287→    } else {
+   288→      const mapData = getMapDataFromConfig(this.setupConfig);
+   289→      const mapNameOverride = getMapDisplayName(this.setupConfig);
+   290→      this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride, { includeModularCombat: this.devtoolsActive });
+   291→    }
+   292→
+   293→    // CORE-STEP-06H+: Initialize tile reservation map for grid movement
+   294→    this.reservationMap = new TileReservationMap(this.gameState.mapWidth);
+   295→
+   296→    // ARCH-11A: Log faction for smoke test verification
+   297→    console.log(`[GameScene] Faction: ${this.gameState.playerFaction}`);
+   298→
+   299→    // Verify all required assets are loaded
+   300→    this.verifyAssets();
+   301→
+   302→    // Render terrain from GameState.mapData.terrain
+   303→    // VISUAL-05A-PR2: Pass mapStyle to TerrainRenderer for industrial/sand rendering
+   304→    const mapStyle: MapStyle = this.setupConfig.mapStyle ?? 'sand';
+   305→    this.terrainRenderer = new TerrainRenderer(
+   306→      this,
+   307→      this.gameState.mapData.terrain,
+   308→      this.gameState.mapWidth,
+   309→      this.gameState.mapHeight,
+   310→      mapStyle,
+   311→    );
+   312→
+   313→    // VISUAL-05A-PR3: Create industrial frame/background renderer when industrial
+   314→    if (mapStyle === 'industrial') {
+   315→      this.industrialFrameRenderer = new IndustrialFrameRenderer(
+   316→        this,
+   317→        this.gameState.mapWidth,
+   318→        this.gameState.mapHeight,
+   319→      );
+   320→    }
+   321→
+   322→    // Get offset for entity placement
+   323→    const offset = mapOriginOffset(this.gameState.mapWidth, this.gameState.mapHeight);
+   324→    this._offset = offset;
+   325→
+   326→    // TERRAIN-01: Grid lines removed — they reinforced the chessboard
+   327→    // pattern and are no longer needed with improved terrain clustering.
+   328→    // If needed for debugging, re-enable drawGridLines() temporarily.
+   329→
+   330→    // Render entities — static first, then dynamic
+   331→    // ARENA-01H+: Arena mode has no Normal Game entities (empty entities, harvesters, resourceNodes)
+   332→    const resourceStyle: ResourceStyle = this.setupConfig.resourceStyle ?? 'legacy';
+   333→    this.entityRenderer = new EntityRenderer(this, offset, resourceStyle);
+   334→    this.entityRenderer.renderStaticEntities(this.gameState.entities);
+   335→    if (!this.arenaCtx.arenaMode) {
+   336→      this.entityRenderer.renderDynamicInit(
+   337→        this.gameState.harvesters,
+   338→        this.gameState.resourceNodes,
+   339→      );
+   340→    }
+   341→
+   342→    // ARCH-11A: Log harvester animation readiness for smoke test verification
+   343→    console.log('[GameScene] Harvester animation ready.');
+   344→
+   345→    // ARCH-07A: Building status renderer (separator progress, factory queue, construction labels)
+   346→    this.buildingStatusRenderer = new BuildingStatusRenderer(this, offset);
+   347→
+   348→    // ARCH-13A: Feedback renderer for command indicators and resource flow
+   349→    this.feedbackRenderer = new FeedbackRenderer(this, offset);
+   350→
+   351→    // ARCH-13C-LITE: Motion dust renderer — render-only movement dust
+   352→    this.motionFxRenderer = new UnitMotionFxRenderer(this, offset);
+   353→
+   354→    // Setup camera
+   355→    // VISUAL-05A-PR3: Use extended bounds when industrial frame is present
+   356→    this.cameraControls = new CameraControls(this);
+   357→    const bounds = this.industrialFrameRenderer
+   358→      ? this.industrialFrameRenderer.getExtendedBounds()
+   359→      : this.terrainRenderer.getBounds();
+   360→    this.cameraControls.setBounds(bounds);
+   361→
+   362→    // ARENA-01H+: Center camera on map center for Arena, HQ for Normal Game
+   363→    if (this.arenaCtx.arenaMode) {
+   364→      const centerTx = Math.floor(this.gameState.mapWidth / 2);
+   365→      const centerTy = Math.floor(this.gameState.mapHeight / 2);
+   366→      const centerScreen = tileToScreen(centerTx, centerTy);
+   367→      this.hqWorldX = centerScreen.x + offset.x;
+   368→      this.hqWorldY = centerScreen.y + offset.y;
+   369→    } else {
+   370→      const hq = this.gameState.mapData.hq;
+   371→      const hqCenterTx = hq.tx + 1;
+   372→      const hqCenterTy = hq.ty + 1;
+   373→      const hqScreen = tileToScreen(hqCenterTx, hqCenterTy);
+   374→      this.hqWorldX = hqScreen.x + offset.x;
+   375→      this.hqWorldY = hqScreen.y + offset.y;
+   376→    }
+   377→    this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
+   378→    this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
+   379→
+   380→    // ARENA-01H+: Arena mode uses ArenaMenu instead of PlaytestHud
+   381→    if (this.arenaCtx.showPlaytestHud) {
+   382→      this.playtestHud = new PlaytestHud();
+   383→    }
+   384→
+   385→    // ARENA-01H+: Create ArenaMenu if in Arena mode
+   386→    if (this.arenaCtx.showArenaMenu) {
+   387→      this.arenaMenu = new ArenaMenu();
+   388→      this.arenaMenu.create({
+   389→        onResetArena: () => {
+   390→          this.scene.restart({ faction: this.setupConfig.faction, mapId: ARENA_MAP_ID, gameMode: 'arena' });
+   391→        },
+   392→        onClearUnits: () => {
+   393→          // ARENA-01H+: Clear all blockout vehicles
+   394→          if (this.gameState.blockoutVehicles) {
+   395→            this.gameState.blockoutVehicles.length = 0;
+   396→            this.gameState.blockoutObstacles = [];
+   397→          }
+   398→        },
+   399→        onToggleHelp: () => {
+   400→          // ARENA-04H+: Toggle both ArenaMenu help overlay and HUD renderer help
+   401→          this.arenaMenu?.toggleHelp();
+   402→          this.blockoutSandboxHudRenderer?.toggleHelp();
+   403→        },
+   404→        // ARENA-02H+: Placement mode callbacks
+   405→        onPlaceUnit: () => {
+   406→          const composer = this.arenaMenu?.getUnitComposer();
+   407→          if (!composer) return;
+   408→          const selections = composer.getSelections();
+   409→          if (!selections.body || !selections.weapon) return;
+   410→          // Sync selections to placement state
+   411→          this.arenaPlacementState.selectedBody = selections.body;
+   412→          this.arenaPlacementState.selectedWeapon = selections.weapon;
+   413→          this.arenaPlacementState.selectedTeam = selections.team;
+   414→          this.arenaPlacementState.selectedAiMode = selections.aiMode; // ARENA-05H+
+   415→          const entered = enterPlacementMode(this.arenaPlacementState);
+   416→          if (!entered) {
+   417→            this.arenaMenu?.showPlacementFeedback('Select body and weapon first', false);
+   418→          }
+   419→        },
+   420→        onCancelPlacement: () => {
+   421→          cancelPlacementMode(this.arenaPlacementState);
+   422→          this.hidePlacementMarker();
+   423→        },
+   424→        getPlacementState: () => this.arenaPlacementState,
+   425→        // ARENA-04H+: Roster callbacks — select, target, deselect, clear target
+   426→        getSelectedVehicleId: () => this.blockoutVehicleInputController?.selectedVehicleId ?? null,
+   427→        getTargetVehicleId: () => {
+   428→          const selectedId = this.blockoutVehicleInputController?.selectedVehicleId;
+   429→          if (!selectedId) return null;
+   430→          const selected = this.gameState.blockoutVehicles?.find(v => v.id === selectedId);
+   431→          return selected?.targetVehicleId ?? null;
+   432→        },
+   433→        onSelectVehicle: (vehicleId: string) => {
+   434→          // ARENA-04H+: Select a vehicle from roster click.
+   435→          // In Arena mode: only allies can be selected as controllable.
+   436→          const vehicles = this.gameState.blockoutVehicles;
+   437→          if (!vehicles) return;
+   438→          const vehicle = vehicles.find(v => v.id === vehicleId);
+   439→          if (!vehicle) return;
+   440→          if (vehicle.team === 'enemy') return; // Enemies are not controllable
+   441→          // Use the input controller's proper selection method
+   442→          this.blockoutVehicleInputController?.setSelectedVehicleId(vehicleId);
+   443→        },
+   444→        onAssignTarget: (targetVehicleId: string) => {
+   445→          // ARENA-04H+: Assign a target from roster enemy click.
+   446→          const selectedId = this.blockoutVehicleInputController?.selectedVehicleId;
+   447→          if (!selectedId) return;
+   448→          const vehicles = this.gameState.blockoutVehicles;
+   449→          if (!vehicles) return;
+   450→          const selected = vehicles.find(v => v.id === selectedId);
+   451→          if (!selected || selected.team !== 'ally') return;
+   452→          // Validate target exists and is enemy
+   453→          const target = vehicles.find(v => v.id === targetVehicleId);
+   454→          if (!target || target.team !== 'enemy') return;
+   455→          selected.targetVehicleId = targetVehicleId;
+   456→        },
+   457→        onDeselectVehicle: () => {
+   458→          // ARENA-04H+: Deselect current vehicle and clear its target.
+   459→          this.blockoutVehicleInputController?.setSelectedVehicleId(null);
+   460→        },
+   461→        onClearTarget: () => {
+   462→          // ARENA-04H+: Clear target on selected vehicle.
+   463→          // CORE-STEP-08H+ FIXUP Blocker 3: Uses clearTargetAndWeaponState
+   464→          // to properly cancel wind-up (Railgun) and drum bursts (Hammer).
+   465→          const selectedId = this.blockoutVehicleInputController?.selectedVehicleId;
+   466→          if (!selectedId) return;
+   467→          const vehicles = this.gameState.blockoutVehicles;
+   468→          if (vehicles) {
+   469→            const selected = vehicles.find(v => v.id === selectedId);
+   470→            if (selected) {
+   471→              clearTargetAndWeaponState(selected);
+   472→            }
+   473→          }
+   474→        },
+   475→        onInspectPrevBody: () => this.inspectCycleBody(-1),
+   476→        onInspectNextBody: () => this.inspectCycleBody(1),
+   477→        onInspectPrevWeapon: () => this.inspectCycleWeapon(-1),
+   478→        onInspectNextWeapon: () => this.inspectCycleWeapon(1),
+   479→        onInspectResetPose: () => this.inspectResetPose(),
+   480→      });
+   481→      console.log('[GameScene] ArenaMenu created (primary Arena UX).');
+   482→    }
+   483→
+   484→    // ARCH-14B: Create pause menu with callbacks
+   485→    // ARENA-01H+: Pause menu is available in Arena mode too (ESC menu)
+   486→    this.pauseMenu = new PauseMenu();
+   487→    this.pauseMenu.create(
+   488→      {
+   489→        onResume: () => {
+   490→          this.paused = false;
+   491→        },
+   492→        onRestart: (config: GameSetupConfig) => {
+   493→          // Restart GameScene with the same config
+   494→          this.paused = false;
+   495→          this.scene.restart(config);
+   496→        },
+   497→        onMainMenu: () => {
+   498→          // Stop GameScene, return to main menu
+   499→          this.paused = false;
+   500→          this.scene.start('MainMenuScene');
+   501→        },
+   502→        onSave: () => {
+   503→          const result = saveGame(this.gameState, this.setupConfig.mapId, this.currentSaveSlotId ?? undefined);
+   504→          // Fix 1: Store the slot ID from the first save so subsequent saves update it
+   505→          if (result.success && result.slotId) {
+   506→            this.currentSaveSlotId = result.slotId;
+   507→          }
+   508→          return { success: result.success, message: result.message };
+   509→        },
+   510→        onLoad: (gameState: GameState, mapId: string, saveSlotId: string) => {
+   511→          // UI-04: Load a saved game from in-game ESC menu
+   512→          // Uses scene restart with LoadSceneData, same as MainMenuScene loading
+   513→          this.paused = false;
+   514→          this.scene.restart({
+   515→            loadedGameState: gameState,
+   516→            mapId,
+   517→            saveSlotId,
+   518→          } as LoadSceneData);
+   519→        },
+   520→      },
+   521→      this.setupConfig,
+   522→    );
+   523→
+   524→    // ARCH-11B: Create debug overlay renderer if devtools is active
+   525→    if (this.devtoolsActive) {
+   526→      this.debugOverlayRenderer = new DebugOverlayRenderer(this, this._offset as IsoPoint);
+   527→    }
+   528→
+   529→    // ARCH-11A: Create devtools panel if activated
+   530→    // ARENA-01H+: In Arena mode, DevTools starts HIDDEN — ArenaMenu is primary UX.
+   531→    // DevTools remains available via F10/backtick for technical debugging.
+   532→    if (this.devtoolsActive) {
+   533→      this.devtoolsPanel = new DevtoolsPanel();
+   534→      this.devtoolsPanel.create({
+   535→        onCommand: (command: (state: GameState) => DevCommandResult) => {
+   536→          const result = command(this.gameState);
+   537→          this.devtoolsPanel?.showCommandResult(result);
+   538→        },
+   539→        onToggleOverlay: (overlay: 'passability' | 'footprint' | 'resource') => {
+   540→          if (!this.debugOverlayRenderer) return false;
+   541→          if (overlay === 'passability') return this.debugOverlayRenderer.togglePassability();
+   542→          if (overlay === 'footprint') return this.debugOverlayRenderer.toggleFootprint();
+   543→          if (overlay === 'resource') return this.debugOverlayRenderer.toggleResource();
+   544→          return false;
+   545→        },
+   546→        onResetArena: () => {
+   547→          if (this.arenaMode) {
+   548→            this.scene.restart({ faction: this.setupConfig.faction, mapId: ARENA_MAP_ID, gameMode: 'arena' });
+   549→          }
+   550→        },
+   551→        getScene: () => this as Phaser.Scene,
+   552→      }, this.arenaMode);
+   553→      // ARENA-01H+: DevTools is NOT the primary Arena UX — start hidden
+   554→      if (this.arenaMode) {
+   555→        this.devtoolsPanel.hide();
+   556→      }
+   557→      console.log('[GameScene] Devtools panel enabled.', this.arenaMode ? '(hidden — ArenaMenu is primary UX)' : '');
+   558→    }
+   559→
+   560→    // DEV-ASSET-PREVIEW-01: Create asset preview tool and panel if devtools is active
+   561→    if (this.devtoolsActive) {
+   562→      this.assetPreviewTool = new AssetPreviewTool(this, this._offset as IsoPoint);
+   563→      this.assetPreviewPanel = new AssetPreviewPanel();
+   564→      this.assetPreviewPanel.create({ getTool: () => this.assetPreviewTool });
+   565→      this.assetPreviewTool.setOnStateChange(() => this.assetPreviewPanel?.refresh());
+   566→      console.log('[GameScene] Asset preview tool enabled (toggle: 0).');
+   567→    }
+   568→
+   569→    // MODULAR-PROOF-01: Create the generated vehicle attachment proof harness
+   570→    // if devtools is active. Isolated/overlay only — does NOT enable generated
+   571→    // vehicle rendering in the live Arena.
+   572→    if (this.devtoolsActive) {
+   573→      this.generatedVehicleProofHarness = new GeneratedVehicleProofHarness(this);
+   574→      // MODULAR-PROOF-01 fixup: control via a devtools UI panel (mouse), not
+   575→      // gameplay hotkeys. The docked panel is shown so it can open/close the
+   576→      // harness without a hotkey; `9` remains an optional open/close shortcut.
+   577→      this.generatedVehicleProofPanel = new GeneratedVehicleProofPanel();
+   578→      this.generatedVehicleProofPanel.create({
+   579→        getHarness: () => this.generatedVehicleProofHarness,
+   580→      });
+   581→      this.generatedVehicleProofHarness.setOnStateChange(
+   582→        () => this.generatedVehicleProofPanel?.refresh(),
+   583→      );
+   584→      this.generatedVehicleProofPanel.show();
+   585→      console.log('[GameScene] Generated vehicle proof harness enabled (panel + toggle: 9).');
+   586→    }
+   587→
+   588→    // MODULAR-RUNTIME-01: Create the clean modular generated vehicle renderer
+   589→    // and its QA/demo selector panel if devtools is active. Isolated overlay —
+   590→    // does NOT enable modular rendering in live Arena combat, and adds no URL
+   591→    // flags. Hull/turret/hullMod/turretMod are independently selectable.
+   592→    if (this.devtoolsActive) {
+   593→      this.generatedModularVehicleRenderer = new GeneratedModularVehicleRenderer(this);
+   594→      this.modularVehicleDevtoolsPanel = new ModularVehicleDevtoolsPanel();
+   595→      this.modularVehicleDevtoolsPanel.create({
+   596→        getRenderer: () => this.generatedModularVehicleRenderer,
+   597→        onLiveRenderToggle: (enabled: boolean) => {
+   598→          if (!enabled) {
+   599→            this.blockoutVehicleRenderer?.clearModularVehicleRender();
+   600→          }
+   601→        },
+   602→      });
+   603→      this.generatedModularVehicleRenderer.setOnStateChange(
+   604→        () => this.modularVehicleDevtoolsPanel?.refresh(),
+   605→      );
+   606→      this.modularVehicleDevtoolsPanel.show();
+   607→      console.log('[GameScene] Modular vehicle renderer + selector enabled (panel).');
+   608→    }
+   609→
+   610→    // BLOCKOUT-02H: Create blockout vehicle renderer and spawn initial set if devtools is active
+   611→    // ARENA-01H+: Arena mode uses ARENA_SANDBOX_SCENARIO (no obstacles)
+   612→    if (this.devtoolsActive) {
+   613→      this.blockoutVehicleRenderer = new BlockoutVehicleRenderer(this, this._offset as IsoPoint, () => this.devtoolsActive);
+   614→      this.blockoutWeaponVfxRenderer = new BlockoutWeaponVfxRenderer(this, this._offset as IsoPoint);
+   615→      this.blockoutDamageRenderer = new BlockoutDamageRenderer(this, this._offset as IsoPoint);
+   616→      this.blockoutObstacleRenderer = new BlockoutObstacleRenderer(this, this._offset as IsoPoint);
+   617→      this.blockoutUpgradeRenderer = new BlockoutUpgradeRenderer(this, this._offset as IsoPoint);
+   618→      // ARENA-01H+: Arena uses obstacle-free scenario
+   619→      const scenario = this.arenaMode ? ARENA_SANDBOX_SCENARIO : DEFAULT_SANDBOX_SCENARIO;
+   620→      resetBlockoutScenario(this.gameState, scenario);
+   621→      console.log('[GameScene] Blockout vehicle renderer enabled. Spawned', this.arenaMode ? 'arena' : 'sandbox', 'scenario.');
+   622→    }
+   623→
+   624→    // ARENA-02H+: Create placement marker graphics (projected ground plane diamond)
+   625→    if (this.arenaMode) {
+   626→      this.placementMarker = this.add.graphics();
+   627→      this.placementMarker.setDepth(60); // Above terrain but below vehicles
+   628→      this.placementMarker.setVisible(false);
+   629→
+   630→      // ARENA-02H+: Register placement click handler
+   631→      this.input.on('pointerdown', this.handlePlacementPointerdown, this);
+   632→      this.input.on('pointermove', this.handlePlacementPointermove, this);
+   633→      this.input.keyboard?.on('keydown', this.handlePlacementKeydown, this);
+   634→    }
+   635→
+   636→    // BLOCKOUT-03H: Create blockout vehicle input controller for selection/aiming
+   637→    // BLOCKOUT-10H+: Wire R/T/H hotkeys and sandbox HUD
+   638→    if (this.devtoolsActive) {
+   639→      this.blockoutSandboxHudRenderer = new BlockoutSandboxHudRenderer(this);
+   640→      // ARENA-04H+: Set Arena mode for context-specific help
+   641→      this.blockoutSandboxHudRenderer.setArenaMode(this.arenaMode);
+   642→      this.cameraProjectionDebugRenderer = new CameraProjectionDebugRenderer(this, this._offset as IsoPoint);
+   643→      this.cameraProjectionDebugRenderer.render();
+   644→      this.blockoutVehicleInputController = new BlockoutVehicleInputController({
+   645→        scene: this,
+   646→        offset: this._offset as IsoPoint,
+   647→        getGameState: () => this.gameState,
+   648→        isDevtoolsActive: () => this.devtoolsActive,
+   649→        onSelectionChanged: (selectedId: string | null) => {
+   650→          this.blockoutVehicleRenderer?.setSelectedVehicleId(selectedId);
+   651→        },
+   652→        onResetScenario: () => {
+   653→          // ARENA-01H+: Arena uses obstacle-free scenario on reset
+   654→          const scenario = this.arenaMode ? ARENA_SANDBOX_SCENARIO : DEFAULT_SANDBOX_SCENARIO;
+   655→          resetBlockoutScenario(this.gameState, scenario);
+   656→          // CORE-STEP-06H+: Reinitialize reservation map on scenario reset
+   657→          this.reservationMap = new TileReservationMap(this.gameState.mapWidth);
+   658→          console.log('[GameScene] Scenario reset to', this.arenaMode ? 'arena' : 'defaults', '.');
+   659→        },
+   660→        onToggleHelp: () => {
+   661→          this.blockoutSandboxHudRenderer?.toggleHelp();
+   662→        },
+   663→        onToggleCalibration: () => {
+   664→          const visible = this.cameraProjectionDebugRenderer?.toggle() ?? false;
+   665→          console.log(`[GameScene] Camera projection calibration overlay: ${visible ? 'ON' : 'OFF'}`);
+   666→        },
+   667→        // ARENA-02H+ fixup: Guard placement mode — suppress selection/movement when placing
+   668→        isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
+   669→        // ARENA-03H+: Arena mode flag — enforces ally/enemy control and target-lock
+   670→        isArenaMode: () => this.arenaMode,
+   671→        // CORE-STEP-06H+: Provides tile reservation map for grid movement commands
+   672→        getReservationMap: () => this.reservationMap,
+   673→      });
+   674→      console.log('[GameScene] Blockout vehicle input controller enabled.');
+   675→    }
+   676→
+   677→    // ── ARCH-18A-LITE: Create input controller ─────────────────────
+   678→    // All keyboard/pointer input wiring, selection state, and command
+   679→    // methods are now handled by GameInputController.
+   680→    this.inputController = new GameInputController({
+   681→      scene: this,
+   682→      offset: this._offset as IsoPoint,
+   683→      getGameState: () => this.gameState,
+   684→      entityRenderer: this.entityRenderer,
+   685→      feedbackRenderer: this.feedbackRenderer,
+   686→      showStatus: (message: string, success: boolean) => this.playtestHud?.showStatus(message, success),
+   687→      pauseMenu: this.pauseMenu,
+   688→      debugOverlayRenderer: this.debugOverlayRenderer,
+   689→      devtoolsPanel: this.devtoolsPanel,
+   690→      assetPreviewTool: this.assetPreviewTool,
+   691→      assetPreviewPanel: this.assetPreviewPanel,
+   692→      generatedVehicleProofHarness: this.generatedVehicleProofHarness,
+   693→      setPaused: (paused: boolean) => { this.paused = paused; },
+   694→      // ARENA-02H+ fixup: Guard placement mode — suppress ESC pause toggle when placing
+   695→      isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
+   696→      // CORE-STEP-05H+: Arena mode flag and CameraControls reference
+   697→      isArenaMode: () => this.arenaMode,
+   698→      cameraControls: this.cameraControls,
+   699→    });
+   700→
+   701→    // Wire PlaytestHud callbacks to delegate to the input controller
+   702→    // ARENA-01H+: Only wire PlaytestHud in Normal Game (Arena uses ArenaMenu)
+   703→    if (this.playtestHud) {
+   704→      const cancelHandler = (factoryIndex: number, queueIndex: number) => {
+   705→        return this.inputController!.requestCancelQueueItem(factoryIndex, queueIndex);
+   706→      };
+   707→      this.playtestHud.create(
+   708→        (buildingType: BuildingType) => this.inputController!.requestBuild(buildingType),
+   709→        (unitType: ProducibleUnitType) => this.inputController!.requestQueueUnit(unitType),
+   710→        cancelHandler,
+   711→      );
+   712→    }
+   713→
+   714→    // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
+   715→    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+   716→
+   717→    // Set world background color
+   718→    this.cameras.main.setBackgroundColor('#1a1a2e');
+   719→
+   720→    // Log state summary
+   721→    const s = this.gameState;
+   722→
+   723→    // ARCH-08/09/10: Run map validation and log diagnostics
+   724→    const validation = validateMap(s);
+   725→    if (!validation.valid) {
+   726→      console.warn('[GameScene] Map validation issues:');
+   727→      for (const check of validation.checks) {
+   728→        if (!check.passed) {
+   729→          console.warn(`  [WARN] ${check.id}: ${check.message}`);
+   730→        }
+   731→      }
+   732→    } else {
+   733→      console.log('[GameScene] Map validation passed.');
+   734→    }
+   735→    console.log(
+   736→      `[GameScene] Reachable resources near base: ${validation.reachableResourceCount}/${validation.totalResourceCount}`,
+   737→    );
+   738→
+   739→    console.log(
+   740→      `[GameScene] State-driven scene ready. Map: ${s.mapName} | ` +
+   741→      `Size: ${s.mapWidth}x${s.mapHeight} | ` +
+   742→      `Harvesters: ${s.harvesters.length} | ` +
+   743→      `Resources: ${s.resourceNodes.length} | ` +
+   744→      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B/P/F: build | N: queue builder | G: queue harvester | Q/E: body dir | Z/X: turret dir`,
+   745→    );
+   746→  }
+   747→
+   748→  update(_time: number, delta: number): void {
+   749→    // ARCH-14B: Skip game loop when paused
+   750→    if (this.paused) return;
+   751→
+   752→    // ARENA-01H+: Skip civil game loop in Arena mode (no harvesters, economy, construction)
+   753→    if (this.arenaCtx.runCivilLoop) {
+   754→      // 1. Advance game state (harvester civil loop)
+   755→      updateGameState(this.gameState, delta);
+   756→
+   757→      // 2. Auto-assign idle builders to pending construction sites
+   758→      assignIdleBuilders(this.gameState);
+   759→
+   760→      // 3. Advance builder movement (must come before construction progress)
+   761→      updateBuilders(this.gameState, delta);
+   762→
+   763→      // 4. Advance construction site progress (only for sites with active builder)
+   764→      const siteIds = this.gameState.mapData.constructionSites.map(s => `site-${s.id}`);
+   765→      for (const siteId of siteIds) {
+   766→        const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
+   767→        if (result.completed) {
+   768→          console.log(`[GameScene] Construction completed: ${result.buildingId}`);
+   769→        }
+   770→      }
+   771→    }
+   772→
+   773→    // 5. Sync render layer
+   774→    this.entityRenderer?.syncFromState(this.gameState);
+   775→
+   776→    // 5b. Sync building status indicators (ARCH-07A)
+   777→    this.buildingStatusRenderer?.syncFromState(this.gameState);
+   778→
+   779→    // 6. Update PlaytestHud panel (ARENA-01H+: only in Normal Game)
+   780→    if (this.playtestHud) {
+   781→      this.playtestHud.update(this.gameState);
+   782→    }
+   783→
+   784→    // ARENA-01H+: Update ArenaMenu (primary Arena UX)
+   785→    if (this.arenaMenu) {
+   786→      this.arenaMenu.update(this.gameState);
+   787→    }
+   788→
+   789→    // 7. Update input controller (selection highlight)
+   790→    this.inputController?.update();
+   791→
+   792→    // 8. ARCH-11A: Update devtools diagnostics
+   793→    this.devtoolsPanel?.update(this.gameState);
+   794→
+   795→    // 8b. ARCH-11B: Sync debug overlays
+   796→    this.debugOverlayRenderer?.syncFromState(this.gameState);
+   797→
+   798→    // 8c. ARCH-13A: Sync feedback renderer (command indicators, resource flow)
+   799→    this.feedbackRenderer?.syncFromState(this.gameState, this.time.now);
+   800→
+   801→    // 8d. ARCH-13C-LITE: Sync motion dust renderer (movement particles)
+   802→    this.motionFxRenderer?.syncFromState(this.gameState, this.time.now);
+   803→
+   804→    // 8e. DEV-ASSET-PREVIEW-01: Update asset preview tool (selection highlight)
+   805→    this.assetPreviewTool?.update();
+   806→
+   807→    // 8f. BLOCKOUT-02H: Sync blockout vehicle renderer
+   808→    // BLOCKOUT-03H: Also update input controller and sync hover/selection state
+   809→    // BLOCKOUT-04H+: Also update movement per frame
+   810→    if (this.blockoutVehicleInputController && this.devtoolsActive) {
+   811→      this.blockoutVehicleInputController.update(delta);
+   812→      // Sync hover state to renderer
+   813→      if (this.blockoutVehicleRenderer) {
+   814→        this.blockoutVehicleRenderer.setHoveredVehicleId(this.blockoutVehicleInputController.hoveredVehicleId);
+   815→        // ARENA-03H+: Sync target indicator to renderer
+   816→        if (this.arenaMode) {
+   817→          const selectedId = this.blockoutVehicleInputController.selectedVehicleId;
+   818→          const vehicles = this.gameState.blockoutVehicles;
+   819→          const selected = selectedId ? vehicles?.find(v => v.id === selectedId) : null;
+   820→          this.blockoutVehicleRenderer.setTargetedVehicleId(selected?.targetVehicleId ?? null);
+   821→        } else {
+   822→          this.blockoutVehicleRenderer.setTargetedVehicleId(null);
+   823→        }
+   824→      }
+   825→    }
+   826→    // BLOCKOUT-04H+: Update blockout vehicle movement
+   827→    // BLOCKOUT-09H: Use effective movement profile (with upgrade modifiers)
+   828→    // CORE-STEP-06H+: Build occupancy map and pass grid movement params
+   829→    if (this.gameState.blockoutVehicles && this.devtoolsActive) {
+   830→      // Build occupancy map once per frame for all vehicles
+   831→      const occupancy = buildOccupancyMap(this.gameState);
+   832→      if (this.gameState.blockoutVehicles) {
+   833→        // Add all vehicle blockers initially; each vehicle excludes itself via getOccupancyForRepath
+   834→        addVehicleBlockers(this.gameState.blockoutVehicles, occupancy);
+   835→      }
+   836→      addUnitBlockers(this.gameState, occupancy);
+   837→
+   838→      // getOccupancyForRepath: rebuilds fresh occupancy excluding the repathing vehicle
+   839→      const getOccupancyForRepath = (excludeVehicleId: string) => {
+   840→        const fresh = buildOccupancyMap(this.gameState);
+   841→        if (this.gameState.blockoutVehicles) {
+   842→          addVehicleBlockers(this.gameState.blockoutVehicles, fresh, excludeVehicleId);
+   843→        }
+   844→        addUnitBlockers(this.gameState, fresh);
+   845→        return fresh;
+   846→      };
+   847→
+   848→      for (const vehicle of this.gameState.blockoutVehicles) {
+   849→        const baseProfile = MOVEMENT_PROFILES[vehicle.bodyId];
+   850→        if (baseProfile) {
+   851→          const effectiveProfile = getEffectiveMovementProfile(vehicle, baseProfile);
+   852→          updateBlockoutVehicleMovement(
+   853→            vehicle, effectiveProfile, delta, this.gameState.blockoutObstacles,
+   854→            occupancy, this.reservationMap ?? undefined,
+   855→            () => getOccupancyForRepath(vehicle.id),
+   856→            this.time.now,
+   857→          );
+   858→        }
+   859→      }
+   860→    }
+   861→    // BLOCKOUT-05H+: Update blockout vehicle recoil
+   862→    if (this.gameState.blockoutVehicles && this.devtoolsActive) {
+   863→      const nowMs = this.time.now;
+   864→      for (const vehicle of this.gameState.blockoutVehicles) {
+   865→        updateBlockoutRecoil(vehicle, nowMs);
+   866→      }
+   867→      // Expire old VFX events
+   868→      expireVfxEvents(nowMs);
+   869→    }
+   870→    // ARENA-05H+: Update enemy AI (Arena mode only)
+   871→    if (this.arenaMode && this.gameState.blockoutVehicles) {
+   872→      const nowMs = this.time.now;
+   873→      updateBlockoutAi(this.gameState.blockoutVehicles, {
+   874→        nowMs,
+   875→        offsetX: this._offset.x,
+   876→        offsetY: this._offset.y,
+   877→        // CORE-STEP-06H+: Pass gameState and reservationMap for grid pathing
+   878→        gameState: this.gameState,
+   879→        reservationMap: this.reservationMap ?? undefined,
+   880→        // CORE-STEP-08H+ FIXUP Blocker 3: fireWeapon callback now uses weapon fire coordinator
+   881→        // This ensures wind-up (Railgun), drum burst (Hammer), and resource gates
+   882→        // are properly handled for AI weapons too.
+   883→        fireWeapon: (enemy, target, fireNowMs) => {
+   884→          // Compute barrel tip using projected geometry at barrel Z
+   885→          // (shared source of truth with renderer — PROJECTION-01)
+   886→          const barrelTip = computeProjectedBarrelTipScreenAtZ(enemy, this._offset as IsoPoint);
+   887→          const barrelTipX = barrelTip.x;
+   888→          const barrelTipY = barrelTip.y;
+   889→          // Target center as aim point
+   890→          const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
+   891→          const aimTargetX = targetCenter.x;
+   892→          const aimTargetY = targetCenter.y;
+   893→
+   894→          tryFireWithDamage(
+   895→            enemy,
+   896→            this.gameState.blockoutVehicles!,
+   897→            barrelTipX, barrelTipY,
+   898→            enemy.turretAngle,
+   899→            aimTargetX, aimTargetY,
+   900→            this._offset as IsoPoint, fireNowMs,
+   901→            this.gameState.blockoutObstacles ?? [],
+   902→          );
+   903→        },
+   904→      });
+   905→    }
+   906→    // CORE-STEP-07H+: Update combat targeting for all vehicles with active target-locks
+   907→    // This drives auto-chase, stop-at-range, and turret aim tracking for player allies
+   908→    if (this.gameState.blockoutVehicles && this.arenaMode && this.reservationMap) {
+   909→      updateAllCombatTargeting(
+   910→        this.gameState.blockoutVehicles,
+   911→        this.gameState,
+   912→        this.reservationMap,
+   913→        this._offset as { x: number; y: number },
+   914→        {
+   915→          nowMs: this.time.now,
+   916→          // CORE-STEP-08H+ FIXUP Blocker 3: Target-lock auto-fire uses weapon fire coordinator
+   917→          // This ensures wind-up (Railgun), drum burst (Hammer), and resource gates
+   918→          // are properly handled for player target-lock weapons too.
+   919→          fireWeapon: (vehicle, target, fireNowMs) => {
+   920→            const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this._offset as IsoPoint);
+   921→            const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
+   922→
+   923→            tryFireWithDamage(
+   924→              vehicle,
+   925→              this.gameState.blockoutVehicles!,
+   926→              barrelTip.x, barrelTip.y,
+   927→              vehicle.turretAngle,
+   928→              targetCenter.x, targetCenter.y,
+   929→              this._offset as IsoPoint, fireNowMs,
+   930→              this.gameState.blockoutObstacles ?? [],
+   931→            );
+   932→          },
+   933→        },
+   934→      );
+   935→    }
+   936→    // C1: Arena turrets always rotate toward either a valid target or body-parallel rest.
+   937→    this.updateArenaTurretAiming(delta);
+   938→    // CORE-STEP-08H+ FIXUP-2: Update weapon resources AFTER combat targeting and AI.
+   939→    // Canisters drain/regen, overheat cools, magazines regen, drums reload.
+   940→    // Must run after updateAllCombatTargeting so isAutoFiring is set for canister drain.
+   941→    if (this.gameState.blockoutVehicles) {
+   942→      const nowMs = this.time.now;
+   943→      updateAllWeaponResources(this.gameState.blockoutVehicles, nowMs, delta);
+   944→    }
+   945→    // CORE-STEP-06H+: Clean up stale tile reservations periodically
+   946→    if (this.reservationMap) {
+   947→      this.reservationMap.cleanStale(this.time.now, RESERVATION_MAX_AGE_MS);
+   948→    }
+   949→    // BLOCKOUT-06H+: Tick continuous fire for stream weapons
+   950→    // BLOCKOUT-07H+: Also tick continuous damage
+   951→    // ARENA-03H+: Use target-lock aim for Arena vehicles with target
+   952→    if (this.gameState.blockoutVehicles && this.devtoolsActive) {
+   953→      const nowMs = this.time.now;
+   954→      for (const vehicle of this.gameState.blockoutVehicles) {
+   955→        if (vehicle.fireHeld && vehicle.isFiring && !vehicle.isDestroyed) {
+   956→          // Compute barrel tip using projected geometry at barrel Z (shared source of truth — PROJECTION-01 fixup #2)
+   957→          const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this._offset as IsoPoint);
+   958→          const barrelTipX = barrelTip.x;
+   959→          const barrelTipY = barrelTip.y;
+   960→
+   961→          // ARENA-03H+: In Arena mode, continuous fire uses target-lock direction
+   962→          // ARENA-03H+ fixup: null return means no valid target — stop fire and skip tick
+   963→          const aimTarget = this.getContinuousFireAimTarget(vehicle);
+   964→          if (!aimTarget) {
+   965→            // Arena mode: no valid target — stop continuous fire, do not fall back to turret angle
+   966→            stopFiring(vehicle);
+   967→            continue;
+   968→          }
+   969→          const aimTargetX = aimTarget.x;
+   970→          const aimTargetY = aimTarget.y;
+   971→
+   972→          tickContinuousFire(vehicle, barrelTipX, barrelTipY, vehicle.turretAngle,
+   973→            aimTargetX, aimTargetY, nowMs);
+   974→          // BLOCKOUT-07H+: Apply continuous damage
+   975→          // BLOCKOUT-08H: Pass obstacles for line-of-fire blocking
+   976→          tickContinuousDamage(vehicle, this.gameState.blockoutVehicles,
+   977→            barrelTipX, barrelTipY, vehicle.turretAngle,
+   978→            aimTargetX, aimTargetY,
+   979→            this._offset as IsoPoint, nowMs,
+   980→            this.gameState.blockoutObstacles);
+   981→        }
+   982→      }
+   983→      // BLOCKOUT-07H+: Expire damage events
+   984→      expireDamageEvents(nowMs);
+   985→    }
+   986→    if (this.blockoutVehicleRenderer && this.gameState.blockoutVehicles) {
+   987→      this.blockoutVehicleRenderer.syncFromState(this.gameState.blockoutVehicles);
+   988→    }
+   989→    // BLOCKOUT-05H+: Sync weapon VFX renderer
+   990→    if (this.blockoutWeaponVfxRenderer && this.devtoolsActive) {
+   991→      this.blockoutWeaponVfxRenderer.syncFromState(this.time.now);
+   992→    }
+   993→    // BLOCKOUT-07H+: Sync damage renderer
+   994→    if (this.blockoutDamageRenderer && this.devtoolsActive && this.gameState.blockoutVehicles) {
+   995→      this.blockoutDamageRenderer.syncFromState(this.time.now, this.gameState.blockoutVehicles);
+   996→    }
+   997→    // BLOCKOUT-08H: Sync obstacle renderer
+   998→    if (this.blockoutObstacleRenderer && this.devtoolsActive && this.gameState.blockoutObstacles) {
+   999→      this.blockoutObstacleRenderer.syncFromState(this.gameState.blockoutObstacles);
+  1000→    }
+  1001→    // BLOCKOUT-09H: Sync upgrade renderer
+  1002→    if (this.blockoutUpgradeRenderer && this.devtoolsActive && this.gameState.blockoutVehicles) {
+  1003→      this.blockoutUpgradeRenderer.syncFromState(this.gameState.blockoutVehicles, this.blockoutVehicleInputController?.selectedVehicleId ?? null);
+  1004→    }
+  1005→    // BLOCKOUT-10H+: Sync sandbox HUD renderer
+  1006→    if (this.blockoutSandboxHudRenderer && this.devtoolsActive) {
+  1007→      if (this.arenaMode) {
+  1008→        // ARENA-04H+: Arena-specific HUD with target info
+  1009→        const selectedId = this.blockoutVehicleInputController?.selectedVehicleId ?? null;
+  1010→        const selected = selectedId ? this.gameState.blockoutVehicles?.find(v => v.id === selectedId) : null;
+  1011→        const targetId = selected?.targetVehicleId ?? null;
+  1012→        this.blockoutSandboxHudRenderer.syncFromStateArena(
+  1013→          this.gameState.blockoutVehicles,
+  1014→          selectedId,
+  1015→          targetId,
+  1016→          this.time.now,
+  1017→        );
+  1018→      } else {
+  1019→        this.blockoutSandboxHudRenderer.syncFromState(
+  1020→          this.gameState.blockoutVehicles,
+  1021→          this.blockoutVehicleInputController?.selectedVehicleId ?? null,
+  1022→          this.time.now,
+  1023→        );
+  1024→      }
+  1025→    }
+  1026→
+  1027→    // 10. Debug log on unload completion (ARENA-01H+: only in Normal Game)
+  1028→    if (this.arenaCtx.runCivilLoop && this.gameState.economy.raw > this.lastLoggedRaw) {
+  1029→      console.log(
+  1030→        `[GameScene] Unloaded! Raw: ${this.gameState.economy.raw}`,
+  1031→      );
+  1032→      this.lastLoggedRaw = this.gameState.economy.raw;
+  1033→    }
+  1034→  }
+  1035→
+  1036→  // ─── Helpers ────────────────────────────────────────────────────
+  1037→
+  1038→  // ─── ARENA-02H+: Placement mode handlers ─────────────────────────
+  1039→
+  1040→  /**
+  1041→   * Handle pointer down in placement mode.
+  1042→   * LMB: attempt placement. RMB: cancel placement mode.
+  1043→   */
+  1044→  private handlePlacementPointerdown(pointer: Phaser.Input.Pointer): void {
+  1045→    if (!this.arenaMode) return;
+  1046→    if (this.arenaPlacementState.mode !== 'placing') return;
+  1047→
+  1048→    // RMB cancels placement
+  1049→    if (pointer.rightButtonDown()) {
+  1050→      cancelPlacementMode(this.arenaPlacementState);
+  1051→      this.hidePlacementMarker();
+  1052→      return;
+  1053→    }
+  1054→
+  1055→    // LMB: attempt placement at click position
+  1056→    if (pointer.leftButtonDown()) {
+  1057→      const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+  1058→
+  1059→      const result = convertClickToPlacementTile(
+  1060→        worldPoint.x, worldPoint.y,
+  1061→        this._offset,
+  1062→        this.gameState.mapWidth,
+  1063→        this.gameState.mapHeight,
+  1064→        this.gameState.blockoutVehicles ?? [],
+  1065→      );
+  1066→
+  1067→      if (!result.valid) {
+  1068→        this.arenaMenu?.showPlacementFeedback(result.reason ?? 'Invalid placement', false);
+  1069→        return;
+  1070→      }
+  1071→
+  1072→      // Spawn the vehicle
+  1073→      // ARENA-05H+ fixup: Pass selected AI mode for enemy units
+  1074→      const spawnResult = arenaSpawnVehicle(
+  1075→        this.gameState,
+  1076→        this.arenaPlacementState.selectedBody!,
+  1077→        this.arenaPlacementState.selectedWeapon!,
+  1078→        this.arenaPlacementState.selectedTeam,
+  1079→        result.tx,
+  1080→        result.ty,
+  1081→        this.arenaPlacementState.selectedTeam === 'enemy' ? this.arenaPlacementState.selectedAiMode : undefined,
+  1082→      );
+  1083→
+  1084→      if (spawnResult.success) {
+  1085→        this.arenaMenu?.showPlacementFeedback(spawnResult.message, true);
+  1086→        // Stay in placement mode for rapid placement — user can Esc/RMB to cancel
+  1087→      } else {
+  1088→        this.arenaMenu?.showPlacementFeedback(spawnResult.message, false);
+  1089→      }
+  1090→    }
+  1091→  }
+  1092→
+  1093→  /**
+  1094→   * Handle pointer move in placement mode — update placement marker position.
+  1095→   * ARENA-02H+: Marker is projected onto the ground plane using camera projection contract.
+  1096→   */
+  1097→  private handlePlacementPointermove(pointer: Phaser.Input.Pointer): void {
+  1098→    if (!this.arenaMode) return;
+  1099→    if (this.arenaPlacementState.mode !== 'placing') return;
+  1100→    if (!this.placementMarker) return;
+  1101→
+  1102→    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+  1103→
+  1104→    const hoverTile = getPlacementHoverTile(
+  1105→      worldPoint.x, worldPoint.y,
+  1106→      this._offset,
+  1107→      this.gameState.mapWidth,
+  1108→      this.gameState.mapHeight,
+  1109→      this.gameState.blockoutVehicles ?? [],
+  1110→    );
+  1111→
+  1112→    if (!hoverTile) {
+  1113→      this.placementMarker.setVisible(false);
+  1114→      return;
+  1115→    }
+  1116→
+  1117→    // Draw projected ground plane diamond at hover tile
+  1118→    this.drawPlacementMarker(hoverTile.tx, hoverTile.ty, hoverTile.valid);
+  1119→  }
+  1120→
+  1121→  /**
+  1122→   * Handle keydown in placement mode — Esc cancels placement.
+  1123→   */
+  1124→  private handlePlacementKeydown(event: KeyboardEvent): void {
+  1125→    if (!this.arenaMode) return;
+  1126→    if (this.arenaPlacementState.mode !== 'placing') return;
+  1127→
+  1128→    if (event.code === 'Escape') {
+  1129→      cancelPlacementMode(this.arenaPlacementState);
+  1130→      this.hidePlacementMarker();
+  1131→    }
+  1132→  }
+  1133→
+  1134→  /**
+  1135→   * Draw a placement marker on the ground plane at the given tile position.
+  1136→   * ARENA-02H+: Uses projectGroundPoint from camera projection contract
+  1137→   * to project a diamond shape onto the ground plane. NOT a screen-space circle.
+  1138→   */
+  1139→  private drawPlacementMarker(tx: number, ty: number, valid: boolean): void {
+  1140→    if (!this.placementMarker) return;
+  1141→
+  1142→    this.placementMarker.clear();
+  1143→    this.placementMarker.setVisible(true);
+  1144→
+  1145→    // EXPERIMENT-OPUS-B1B2-01 / B1: Diamond centered on (tx, ty) tile center,
+  1146→    // aligned with the same baseline used by spawn/terrain/selection.
+  1147→    const topCorner = projectGroundPoint(tx - 0.5, ty - 0.5, this._offset);
+  1148→    const rightCorner = projectGroundPoint(tx + 0.5, ty - 0.5, this._offset);
+  1149→    const bottomCorner = projectGroundPoint(tx + 0.5, ty + 0.5, this._offset);
+  1150→    const leftCorner = projectGroundPoint(tx - 0.5, ty + 0.5, this._offset);
+  1151→
+  1152→    // Draw the projected diamond outline
+  1153→    const color = valid ? 0x64c8ff : 0xff5050; // cyan for valid, red for invalid
+  1154→    const alpha = 0.6;
+  1155→
+  1156→    this.placementMarker.lineStyle(2, color, alpha);
+  1157→    this.placementMarker.beginPath();
+  1158→    this.placementMarker.moveTo(topCorner.x, topCorner.y);
+  1159→    this.placementMarker.lineTo(rightCorner.x, rightCorner.y);
+  1160→    this.placementMarker.lineTo(bottomCorner.x, bottomCorner.y);
+  1161→    this.placementMarker.lineTo(leftCorner.x, leftCorner.y);
+  1162→    this.placementMarker.closePath();
+  1163→    this.placementMarker.strokePath();
+  1164→
+  1165→    // Fill with semi-transparent color
+  1166→    this.placementMarker.fillStyle(color, 0.12);
+  1167→    this.placementMarker.fillPath();
+  1168→
+  1169→    // EXPERIMENT-OPUS-B1B2-01 / B1: Crosshair at tile center (tx, ty)
+  1170→    const center = projectGroundPoint(tx, ty, this._offset);
+  1171→    this.placementMarker.lineStyle(1, color, alpha * 0.7);
+  1172→    this.placementMarker.beginPath();
+  1173→    this.placementMarker.moveTo(center.x - 6, center.y);
+  1174→    this.placementMarker.lineTo(center.x + 6, center.y);
+  1175→    this.placementMarker.moveTo(center.x, center.y - 4);
+  1176→    this.placementMarker.lineTo(center.x, center.y + 4);
+  1177→    this.placementMarker.strokePath();
+  1178→  }
+  1179→
+  1180→  /**
+  1181→   * Get the continuous fire aim target for a vehicle.
+  1182→   *
+  1183→   * ARENA-03H+ fixup: In Arena mode, returns null when there is no valid target.
+  1184→   * This prevents continuous fire from falling back to turret-angle direction
+  1185→   * or mouse position when the target is missing/destroyed.
+  1186→   *
+  1187→   * In non-Arena devtools mode, always returns mouse/fallback position (never null).
+  1188→   *
+  1189→   * @returns Aim target coordinates, or null if Arena mode has no valid target
+  1190→   */
+  1191→  private getContinuousFireAimTarget(vehicle: BlockoutVehicleState): { x: number; y: number } | null {
+  1192→    // For non-Arena devtools mode, fall back to mouse position (never null)
+  1193→    if (!this.arenaMode) {
+  1194→      return {
+  1195→        x: this.blockoutVehicleInputController?.mouseWorldX ?? vehicle.worldX + this._offset.x,
+  1196→        y: this.blockoutVehicleInputController?.mouseWorldY ?? vehicle.worldY + this._offset.y,
+  1197→      };
+  1198→    }
+  1199→
+  1200→    // Arena mode: use target-lock
+  1201→    if (vehicle.targetVehicleId) {
+  1202→      const vehicles = this.gameState.blockoutVehicles;
+  1203→      const target = vehicles?.find(v => v.id === vehicle.targetVehicleId);
+  1204→      if (target && !target.isDestroyed) {
+  1205→        const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
+  1206→        return { x: targetCenter.x, y: targetCenter.y };
+  1207→      }
+  1208→      // Target gone/destroyed — clear it and return null (stop fire)
+  1209→      vehicle.targetVehicleId = null;
+  1210→      return null;
+  1211→    }
+  1212→
+  1213→    // Arena mode with no target: do not fire, do not fall back to turret angle or mouse
+  1214→    return null;
+  1215→  }
+  1216→
+  1217→  /** Update Arena turret aim/rest for allies and enemies using one shared pass. */
+  1218→  private updateArenaTurretAiming(delta: number): void {
+  1219→    if (!this.arenaMode) return;
+  1220→    const vehicles = this.gameState.blockoutVehicles;
+  1221→    if (!vehicles) return;
+  1222→
+  1223→    for (const vehicle of vehicles) {
+  1224→      if (vehicle.isDestroyed) continue;
+  1225→
+  1226→      let desiredAngle = vehicle.bodyAngle;
+  1227→
+  1228→      if (vehicle.targetVehicleId) {
+  1229→        const target = vehicles.find(v => v.id === vehicle.targetVehicleId);
+  1230→        if (target && !target.isDestroyed) {
+  1231→          const turretMount = computeProjectedTurretMountScreen(vehicle, this._offset as IsoPoint);
+  1232→          const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
+  1233→          desiredAngle = angleFromTo(turretMount.x, turretMount.y, targetCenter.x, targetCenter.y);
+  1234→        } else {
+  1235→          clearTargetAndWeaponState(vehicle);
+  1236→          desiredAngle = vehicle.bodyAngle;
+  1237→        }
+  1238→      }
+  1239→
+  1240→      rotateTurretToward(vehicle, desiredAngle, delta);
+  1241→    }
+  1242→  }
+  1243→
+  1244→  private getSelectedArenaAlly(): BlockoutVehicleState | null {
+  1245→    const selectedId = this.blockoutVehicleInputController?.selectedVehicleId;
+  1246→    if (!selectedId) return null;
+  1247→    const selected = this.gameState.blockoutVehicles?.find(v => v.id === selectedId);
+  1248→    if (!selected || selected.team !== 'ally') return null;
+  1249→    return selected;
+  1250→  }
+  1251→
+  1252→  private inspectCycleBody(direction: -1 | 1): { success: boolean; message: string } {
+  1253→    const selected = this.getSelectedArenaAlly();
+  1254→    if (!selected) return { success: false, message: 'Select an ally first' };
+  1255→    const bodyId = cycleArenaInspectionBody(selected, direction);
+  1256→    return { success: true, message: `Body: ${bodyId}` };
+  1257→  }
+  1258→
+  1259→  private inspectCycleWeapon(direction: -1 | 1): { success: boolean; message: string } {
+  1260→    const selected = this.getSelectedArenaAlly();
+  1261→    if (!selected) return { success: false, message: 'Select an ally first' };
+  1262→    const weaponId = cycleArenaInspectionWeapon(selected, direction);
+  1263→    return { success: true, message: `Weapon: ${weaponId}` };
+  1264→  }
+  1265→
+  1266→  private inspectResetPose(): { success: boolean; message: string } {
+  1267→    const selected = this.getSelectedArenaAlly();
+  1268→    if (!selected) return { success: false, message: 'Select an ally first' };
+  1269→    resetArenaInspectionPose(selected, this.reservationMap ?? undefined);
+  1270→    return { success: true, message: 'Pose reset' };
+  1271→  }
+  1272→
+  1273→  /**
+  1274→   * Hide the placement marker.
+  1275→   */
+  1276→  private hidePlacementMarker(): void {
+  1277→    if (this.placementMarker) {
+  1278→      this.placementMarker.clear();
+  1279→      this.placementMarker.setVisible(false);
+  1280→    }
+  1281→  }
+  1282→
+  1283→  private verifyAssets(): void {
+  1284→    // TERRAIN-02A: Use generated manifest keys for verification instead of
+  1285→    // the legacy ASSET_KEYS (which includes deprecated terrain keys no longer
+  1286→    // loaded at runtime). The generated manifest has the authoritative key set.
+  1287→    const requiredKeys = Object.values(ASSET_KEYS).filter(
+  1288→      // Filter out legacy terrain keys that are no longer loaded
+  1289→      key => !['terrain_sand', 'terrain_sand_dark', 'terrain_sand_light'].includes(key)
+  1290→    );
+  1291→    for (const key of requiredKeys) {
+  1292→      if (!this.textures.exists(key)) {
+  1293→        console.error(`[GameScene] Missing texture: ${key}`);
+  1294→      }
+  1295→    }
+  1296→    console.log('[GameScene] All asset textures verified.');
+  1297→  }
+  1298→
+  1299→  // TERRAIN-01: drawGridLines removed — grid overlay reinforced the
+  1300→  // chessboard pattern. The method is preserved below commented out
+  1301→  // for debugging purposes if needed in the future.
+  1302→  //
+  1303→  // private drawGridLines(offset: { x: number; y: number }): void {
+  1304→  //   const graphics = this.add.graphics();
+  1305→  //   graphics.setDefaultStyles({
+  1306→  //     lineStyle: { width: 0.5, color: 0x4a4a6a, alpha: 0.2 },
+  1307→  //   });
+  1308→  //   const hw = 76 / 2;
+  1309→  //   const hh = 38 / 2;
+  1310→  //   for (let ty = 0; ty < this.gameState.mapHeight; ty++) {
+  1311→  //     for (let tx = 0; tx < this.gameState.mapWidth; tx++) {
+  1312→  //       const screenPos = tileToScreen(tx, ty);
+  1313→  //       const cx = screenPos.x + offset.x;
+  1314→  //       const cy = screenPos.y + offset.y;
+  1315→  //       graphics.beginPath();
+  1316→  //       graphics.moveTo(cx, cy - hh);
+  1317→  //       graphics.lineTo(cx + hw, cy);
+  1318→  //       graphics.lineTo(cx, cy + hh);
+  1319→  //       graphics.lineTo(cx - hw, cy);
+  1320→  //       graphics.closePath();
+  1321→  //       graphics.strokePath();
+  1322→  //     }
+  1323→  //   }
+  1324→  //   graphics.setDepth(50);
+  1325→  // }
+  1326→
+  1327→  shutdown(): void {
+  1328→    // ARENA-02H+: Clean up placement mode event listeners
+  1329→    if (this.arenaMode) {
+  1330→      this.input.off('pointerdown', this.handlePlacementPointerdown, this);
+  1331→      this.input.off('pointermove', this.handlePlacementPointermove, this);
+  1332→      this.input.keyboard?.off('keydown', this.handlePlacementKeydown, this);
+  1333→    }
+  1334→    this.placementMarker?.destroy();
+  1335→    this.placementMarker = null;
+  1336→
+  1337→    this.inputController?.destroy();
+  1338→    this.inputController = null;
+  1339→    this.motionFxRenderer?.destroy();
+  1340→    this.motionFxRenderer = null;
+  1341→    this.feedbackRenderer?.destroy();
+  1342→    this.feedbackRenderer = null;
+  1343→    this.debugOverlayRenderer?.destroy();
+  1344→    this.debugOverlayRenderer = null;
+  1345→    this.devtoolsPanel?.destroy();
+  1346→    this.devtoolsPanel = null;
+  1347→    this.assetPreviewPanel?.destroy();
+  1348→    this.assetPreviewPanel = null;
+  1349→    this.assetPreviewTool?.destroy();
+  1350→    this.assetPreviewTool = null;
+  1351→    this.generatedVehicleProofHarness?.destroy();
+  1352→    this.generatedVehicleProofHarness = null;
+  1353→    this.generatedVehicleProofPanel?.destroy();
+  1354→    this.generatedVehicleProofPanel = null;
+  1355→    this.generatedModularVehicleRenderer?.destroy();
+  1356→    this.generatedModularVehicleRenderer = null;
+  1357→    this.modularVehicleDevtoolsPanel?.destroy();
+  1358→    this.modularVehicleDevtoolsPanel = null;
+  1359→    this.blockoutVehicleInputController?.destroy();
+  1360→    this.blockoutVehicleInputController = null;
+  1361→    this.blockoutVehicleRenderer?.destroy();
+  1362→    this.blockoutVehicleRenderer = null;
+  1363→    this.blockoutWeaponVfxRenderer?.destroy();
+  1364→    this.blockoutWeaponVfxRenderer = null;
+  1365→    this.blockoutDamageRenderer?.destroy();
+  1366→    this.blockoutDamageRenderer = null;
+  1367→    this.blockoutObstacleRenderer?.destroy();
+  1368→    this.blockoutObstacleRenderer = null;
+  1369→    this.blockoutUpgradeRenderer?.destroy();
+  1370→    this.blockoutUpgradeRenderer = null;
+  1371→    this.blockoutSandboxHudRenderer?.destroy();
+  1372→    this.blockoutSandboxHudRenderer = null;
+  1373→    this.cameraProjectionDebugRenderer?.destroy();
+  1374→    this.cameraProjectionDebugRenderer = null;
+  1375→    this.arenaMenu?.destroy();
+  1376→    this.arenaMenu = null;
+  1377→    this.pauseMenu?.destroy();
+  1378→    this.pauseMenu = null;
+  1379→    this.playtestHud?.destroy();
+  1380→    this.playtestHud = null;
+  1381→    this.buildingStatusRenderer?.destroy();
+  1382→    this.buildingStatusRenderer = null;
+  1383→    this.cameraControls?.destroy();
+  1384→    this.entityRenderer?.destroy();
+  1385→    this.terrainRenderer?.destroy();
+  1386→    this.industrialFrameRenderer?.destroy();
+  1387→    this.paused = false;
+  1388→  }
+  1389→}
+  1390→

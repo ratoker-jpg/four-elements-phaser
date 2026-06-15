@@ -6,6 +6,10 @@ import {
 import { tileToScreen, footprintSouthVertex, IsoPoint } from './isometric';
 import { computeDepthValue } from './depthSorting';
 import { ModularTankRenderer } from './ModularTankRenderer';
+import {
+  ModularVehicleLiveAdapter,
+  ENABLE_MODULAR_VEHICLE_RENDER,
+} from './ModularVehicleLiveAdapter';
 import { ConstructionRenderer } from './ConstructionRenderer';
 import type {
   Faction,
@@ -185,6 +189,9 @@ export class EntityRenderer {
   /** Modular tank renderer — owns hull/turret placement, direction, debug overlay. */
   private modularTankRenderer: ModularTankRenderer;
 
+  /** MODULAR-RUNTIME-03B: Modular adapter for normal-runtime clean modular rendering. */
+  private modularAdapter: ModularVehicleLiveAdapter;
+
   /** Construction renderer — owns construction site + building placeholder graphics. */
   private constructionRenderer: ConstructionRenderer;
 
@@ -196,6 +203,7 @@ export class EntityRenderer {
     this.offset = offset;
     this.resourceStyle = resourceStyle;
     this.modularTankRenderer = new ModularTankRenderer(scene, offset);
+    this.modularAdapter = new ModularVehicleLiveAdapter(scene, offset, 100);
     this.constructionRenderer = new ConstructionRenderer(scene, offset);
   }
 
@@ -242,6 +250,13 @@ export class EntityRenderer {
     this.syncHarvesters(state.harvesters);
     this.syncResources(state.resourceNodes);
     this.constructionRenderer.syncFromState(state);
+
+    // MODULAR-RUNTIME-03B: Retry clean modular placement while assets are loading.
+    // Called each frame so that when textures finish loading, the modular
+    // sprites are applied and legacy hull/turret are suppressed.
+    if (ENABLE_MODULAR_VEHICLE_RENDER) {
+      this.modularTankRenderer.retryCleanModular();
+    }
   }
 
   private syncHarvesters(harvesters: HarvesterState[]): void {
@@ -347,7 +362,7 @@ export class EntityRenderer {
         if (entity.kind === 'builder') {
           this.placeBuilder(worldX, worldY, entity);
         } else {
-          this.modularTankRenderer.place(entity);
+          this.modularTankRenderer.place(entity, this.modularAdapter);
         }
         break;
       }
@@ -616,12 +631,36 @@ export class EntityRenderer {
     this.modularTankRenderer.printOffsetTables();
   }
 
+  // ─── MODULAR-RUNTIME-03B: Toggle-off cleanup ──────────────────────
+
+  /**
+   * Clear all modular vehicle sprites for normal runtime.
+   * Called when ENABLE_MODULAR_VEHICLE_RENDER is toggled OFF.
+   * Delegates to ModularTankRenderer.clearModularVehicleRender().
+   */
+  clearModularVehicleRender(): void {
+    this.modularTankRenderer.clearModularVehicleRender();
+  }
+
+  // ─── MODULAR-RUNTIME-03B: Activation on Live Render ON ───────────
+
+  /**
+   * Activate clean modular rendering for normal-runtime entities.
+   * Called when ENABLE_MODULAR_VEHICLE_RENDER is toggled ON after
+   * scene initialization (flag was off during place()).
+   * Delegates to ModularTankRenderer.activateCleanModularRender().
+   */
+  activateModularVehicleRender(): void {
+    this.modularTankRenderer.activateCleanModularRender();
+  }
+
   destroy(): void {
     for (const obj of this.staticObjects) {
       obj.destroy();
     }
     this.staticObjects = [];
 
+    this.modularAdapter.destroy();
     this.modularTankRenderer.destroy();
     this.constructionRenderer.destroy();
 
