@@ -31,9 +31,15 @@ import {
   cycleScaleStep,
   type ModularPreviewCalibration,
 } from '../../modular/modularPreviewCalibration';
+import {
+  toggleModularVehicleRender,
+  ENABLE_MODULAR_VEHICLE_RENDER,
+} from '../render/ModularVehicleLiveAdapter';
 
 export interface ModularVehicleDevtoolsPanelCallbacks {
   getRenderer: () => GeneratedModularVehicleRenderer | null;
+  /** Called when the Live Render (03A) toggle changes state. */
+  onLiveRenderToggle?: (enabled: boolean) => void;
 }
 
 export class ModularVehicleDevtoolsPanel {
@@ -46,6 +52,7 @@ export class ModularVehicleDevtoolsPanel {
   private _visible = false;
   private _collapseLabel: HTMLSpanElement | null = null;
   private _collapsed = false;
+  private _liveRenderBtn: HTMLButtonElement | null = null;
 
   // Calibration state (devtools-only, not persisted)
   private calibration: ModularPreviewCalibration = { ...DEFAULT_MODULAR_PREVIEW_CALIBRATION };
@@ -245,6 +252,23 @@ export class ModularVehicleDevtoolsPanel {
       ]),
     );
 
+    // MODULAR-RUNTIME-03A: Live render toggle
+    content.appendChild(this.makeSectionLabel('Live Render (03A)'));
+    this._liveRenderBtn = this.makeControlButton(
+      `Live: ${ENABLE_MODULAR_VEHICLE_RENDER ? 'ON' : 'OFF'}`,
+      () => {
+        const newState = toggleModularVehicleRender();
+        // Notify parent (BlockoutVehicleRenderer) so it can hide modular
+        // sprites immediately on toggle-off, before the next sync frame.
+        this.callbacks?.onLiveRenderToggle?.(newState);
+        this.refresh();
+      },
+      ENABLE_MODULAR_VEHICLE_RENDER ? '#44ff88' : '#ff8844',
+    );
+    content.appendChild(
+      this.makeButtonRow([this._liveRenderBtn]),
+    );
+
     // Readout
     this.readoutEl = document.createElement('div');
     this.readoutEl.style.cssText = `
@@ -292,6 +316,12 @@ export class ModularVehicleDevtoolsPanel {
     if (this.openCloseBtn) {
       this.openCloseBtn.textContent = s.active ? 'Close Preview' : 'Open Preview';
     }
+    // MODULAR-RUNTIME-03A: Sync Live Render button to actual flag state
+    if (this._liveRenderBtn) {
+      this._liveRenderBtn.textContent = `Live: ${ENABLE_MODULAR_VEHICLE_RENDER ? 'ON' : 'OFF'}`;
+      this._liveRenderBtn.style.color = ENABLE_MODULAR_VEHICLE_RENDER ? '#44ff88' : '#ff8844';
+      this._liveRenderBtn.style.borderColor = ENABLE_MODULAR_VEHICLE_RENDER ? '#44ff8855' : '#ff884455';
+    }
     for (const btn of this.controlBtns) {
       btn.disabled = !s.active;
       btn.style.opacity = s.active ? '1' : '0.4';
@@ -329,6 +359,7 @@ export class ModularVehicleDevtoolsPanel {
     this.controlBtns = [];
     this._collapseLabel = null;
     this._collapsed = false;
+    this._liveRenderBtn = null;
     this.callbacks = null;
     this._visible = false;
   }

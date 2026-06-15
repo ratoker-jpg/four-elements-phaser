@@ -1,0 +1,196 @@
+/**
+ * blockoutToModularVisual — MODULAR-RUNTIME-03A mapper.
+ *
+ * Translates BlockoutVehicleState fields into a ModularVehicleVisual
+ * used by the live modular rendering path.
+ *
+ * Mapping rules:
+ *   bodyId → hullId           (identity: wasp→wasp, hornet→hornet, …)
+ *   weaponId → turretId       (smoky→smoky, vulcan→vulcan_b, …)
+ *   faction → faction         (identity)
+ *   modificationLevel → hullMod / turretMod  (0→m0, 1→m1, 2→m2, 3→m3)
+ *
+ * Direction mapping:
+ *   bodyAngle (radians) → hullDir16  via runtimeAngleToDir16
+ *   turretAngle (radians) → turretDir16  via runtimeAngleToDir16
+ *
+ * This module is engine-agnostic and unit-testable without Phaser.
+ */
+
+import type { BodyId, WeaponId } from '../config/blockoutProfiles';
+import type { Faction } from '../state/types';
+import {
+  GENERATED_MODULAR_HULLS,
+  GENERATED_MODULAR_TURRETS,
+  GENERATED_MODULAR_FACTIONS,
+  type GeneratedModularHullId,
+  type GeneratedModularTurretId,
+  type GeneratedModularFactionId,
+  type GeneratedModularDir16,
+} from '../assets/generatedModularVehicleAssets.generated';
+import type { ModularVehicleVisual, ModularHullId, ModularTurretId, ModularFactionId, ModularModId } from './modularVehicleVisual';
+import { modLevelToModularMod } from './modularVehicleVisual';
+
+// ─── Body ID → Hull ID mapping ─────────────────────────────────────
+
+/**
+ * Maps a BlockoutVehicleState bodyId to the modular hull id.
+ * Identity mapping for all 7 accepted hulls.
+ * Returns null when the bodyId has no modular asset.
+ */
+export function bodyIdToModularHullId(bodyId: BodyId): ModularHullId | null {
+  const candidate = bodyId as string;
+  if (GENERATED_MODULAR_HULLS.includes(candidate as GeneratedModularHullId)) {
+    return candidate as ModularHullId;
+  }
+  return null;
+}
+
+// ─── Weapon ID → Turret ID mapping ─────────────────────────────────
+
+/**
+ * WeaponId → GeneratedModularTurretId mapping.
+ *
+ * Most weapon IDs map directly. Two exceptions:
+ *   - 'flamethrower' → 'firebird'  (the turret asset uses firebird naming)
+ *   - 'vulcan'       → 'vulcan_b'  (the turret asset uses vulcan_b naming)
+ */
+const WEAPON_TO_TURRET_MAP: Record<string, GeneratedModularTurretId> = {
+  smoky: 'smoky',
+  thunder: 'thunder',
+  railgun: 'railgun',
+  shaft: 'railgun',     // shaft has no dedicated turret yet — fall back to railgun
+  flamethrower: 'firebird',
+  freeze: 'freeze',
+  isida: 'isida',
+  vulcan: 'vulcan_b',
+  twins: 'twins',
+  ricochet: 'ricochet',
+  hammer: 'hammer',
+};
+
+/**
+ * Maps a BlockoutVehicleState weaponId to the modular turret id.
+ * Returns null when the weaponId has no modular asset.
+ */
+export function weaponIdToModularTurretId(weaponId: WeaponId): ModularTurretId | null {
+  const mapped = WEAPON_TO_TURRET_MAP[weaponId];
+  if (mapped && GENERATED_MODULAR_TURRETS.includes(mapped)) {
+    return mapped as ModularTurretId;
+  }
+  return null;
+}
+
+// ─── Faction mapping ───────────────────────────────────────────────
+
+/**
+ * Maps a runtime Faction to the modular faction id.
+ * Identity mapping for all 4 accepted factions.
+ * Returns null when the faction has no modular asset.
+ */
+export function factionToModularFactionId(faction: Faction): ModularFactionId | null {
+  const candidate = faction as string;
+  if (GENERATED_MODULAR_FACTIONS.includes(candidate as GeneratedModularFactionId)) {
+    return candidate as ModularFactionId;
+  }
+  return null;
+}
+
+// ─── Angle → dir16 conversion ──────────────────────────────────────
+
+/**
+ * Converts a continuous runtime angle (radians) to a dir16 index.
+ *
+ * The modular asset matrix uses 16 directions:
+ *   dir00 = E  (angle = 0)
+ *   dir02 = SE (angle = π/4)
+ *   dir04 = S  (angle = π/2)
+ *   …
+ *   dir16 wraps back to dir00.
+ *
+ * The angle-to-direction mapping follows the isometric convention where
+ * angle 0 = east, increasing clockwise. Each direction spans 2π/16 = π/8
+ * radians. We add half a step (π/16) before flooring to center the bin.
+ */
+export function runtimeAngleToDir16(angleRad: number): GeneratedModularDir16 {
+  // Normalize to [0, 2π)
+  let a = angleRad % (2 * Math.PI);
+  if (a < 0) a += 2 * Math.PI;
+
+  const step = (2 * Math.PI) / 16;
+  const idx = Math.round(a / step) % 16;
+  return idx as GeneratedModularDir16;
+}
+
+// ─── Full mapper ───────────────────────────────────────────────────
+
+export interface BlockoutToModularResult {
+  /** The resolved ModularVehicleVisual, or null when unmappable. */
+  visual: ModularVehicleVisual | null;
+  /** Hull dir16 derived from bodyAngle. */
+  hullDir16: GeneratedModularDir16;
+  /** Turret dir16 derived from turretAngle. */
+  turretDir16: GeneratedModularDir16;
+  /** Why the mapping failed (null on success). */
+  failReason: string | null;
+}
+
+/**
+ * Maps a BlockoutVehicleState to the modular rendering parameters.
+ *
+ * Returns the ModularVehicleVisual + computed dir16 values.
+ * When any mapping fails, returns null visual with a failReason.
+ */
+export function blockoutToModularVisual(args: {
+  bodyId: BodyId;
+  weaponId: WeaponId;
+  faction: Faction;
+  modificationLevel: number;
+  bodyAngle: number;
+  turretAngle: number;
+}): BlockoutToModularResult {
+  const hullId = bodyIdToModularHullId(args.bodyId);
+  const turretId = weaponIdToModularTurretId(args.weaponId);
+  const factionId = factionToModularFactionId(args.faction);
+
+  if (!hullId) {
+    return {
+      visual: null,
+      hullDir16: runtimeAngleToDir16(args.bodyAngle),
+      turretDir16: runtimeAngleToDir16(args.turretAngle),
+      failReason: `no modular hull for bodyId=${args.bodyId}`,
+    };
+  }
+  if (!turretId) {
+    return {
+      visual: null,
+      hullDir16: runtimeAngleToDir16(args.bodyAngle),
+      turretDir16: runtimeAngleToDir16(args.turretAngle),
+      failReason: `no modular turret for weaponId=${args.weaponId}`,
+    };
+  }
+  if (!factionId) {
+    return {
+      visual: null,
+      hullDir16: runtimeAngleToDir16(args.bodyAngle),
+      turretDir16: runtimeAngleToDir16(args.turretAngle),
+      failReason: `no modular faction for faction=${args.faction}`,
+    };
+  }
+
+  const hullMod = modLevelToModularMod(args.modificationLevel) as ModularModId;
+  const turretMod = modLevelToModularMod(args.modificationLevel) as ModularModId;
+
+  return {
+    visual: {
+      hullId,
+      turretId,
+      faction: factionId,
+      hullMod,
+      turretMod,
+    },
+    hullDir16: runtimeAngleToDir16(args.bodyAngle),
+    turretDir16: runtimeAngleToDir16(args.turretAngle),
+    failReason: null,
+  };
+}
