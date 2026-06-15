@@ -180,54 +180,11 @@ export class ModularTankRenderer {
         mod,
       );
 
-      if (result.usedModular) {
-        // Clean modular path succeeded
-        this.usingCleanModular = true;
-        this.modularAdapter = modularAdapter;
-        this.modularEntityId = entity.id;
-        this.faction = faction;
-        this.bodyDir = bodyDir;
-        this.turretDir = turretDir;
-        this.anchorWorld = { x: anchorX, y: anchorY };
-
-        // Set depth for the modular sprites
-        const baseDepth = computeDepthValue({
-          id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
-          offsetX: this.offset.x, offsetY: this.offset.y,
-        });
-        modularAdapter.setNormalRuntimeDepth(entity.id, baseDepth);
-
-        // Create debug overlay for the clean modular path too
-        this.debugOverlay = new ModularTankDebugOverlay(
-          this.scene,
-          {
-            tx: entity.tx,
-            ty: entity.ty,
-            anchorWorldX: anchorX,
-            anchorWorldY: anchorY,
-            hullWorldX: anchorX,
-            hullWorldY: anchorY,
-            turretWorldX: anchorX,
-            turretWorldY: anchorY,
-            baseDepth,
-          },
-          this.debugVisible,
-        );
-
-        if (!this.combatLogged) {
-          console.log(`[ModularTankRenderer] Rendered modular combat via clean modular path (03B)`);
-          this.combatLogged = true;
-        }
-        return;
-      }
-
-      // Modular not yet available (assets loading or mapping failed) — store depth
-      // for the pending retry and fall through to legacy placement.
+      // Compute depth once (used by both modular and legacy paths)
       const baseDepth = computeDepthValue({
         id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
         offsetX: this.offset.x, offsetY: this.offset.y,
       });
-      modularAdapter.setPendingDepth(baseDepth);
 
       // Store adapter reference for retryCleanModular()
       this.modularAdapter = modularAdapter;
@@ -235,10 +192,29 @@ export class ModularTankRenderer {
       this.faction = faction;
       this.bodyDir = bodyDir;
       this.turretDir = turretDir;
+
+      if (result.usedModular) {
+        // Clean modular path succeeded — set depth on modular sprites
+        this.usingCleanModular = true;
+        modularAdapter.setNormalRuntimeDepth(entity.id, baseDepth);
+
+        if (!this.combatLogged) {
+          console.log(`[ModularTankRenderer] Rendered modular combat via clean modular path (03B)`);
+          this.combatLogged = true;
+        }
+        // Do NOT return: fall through to always create legacy hull/turret
+        // so that clearModularVehicleRender() can restore them on toggle-off.
+      } else {
+        // Modular not yet available (assets loading or mapping failed) —
+        // store depth for the pending retry.
+        modularAdapter.setPendingDepth(baseDepth);
+      }
     }
 
-    // ── Legacy / generated-hull path (unchanged from pre-03B) ────────
-    this.usingCleanModular = false;
+    // ── Legacy / generated-hull path (always creates hull/turret sprites) ──
+    // When usingCleanModular is true (clean modular path succeeded above),
+    // the legacy sprites will be hidden immediately after creation so
+    // modular visuals show instead. They remain available for toggle-off restore.
 
     // Resolve generated hull faction (falls back to 'cyan')
     const generatedFaction = resolveGeneratedHullFaction(faction);
@@ -327,6 +303,14 @@ export class ModularTankRenderer {
     this.faction = faction;
     tunerState.bodyDir = bodyDir;
     tunerState.turretDir = turretDir;
+
+    // MODULAR-RUNTIME-03B: If clean modular path succeeded, hide legacy
+    // hull/turret so modular sprites show instead. The legacy sprites stay
+    // alive (not destroyed) so clearModularVehicleRender() can restore them.
+    if (this.usingCleanModular) {
+      this.hull?.setVisible(false);
+      this.turret?.setVisible(false);
+    }
 
     // Create debug overlay
     this.debugOverlay = new ModularTankDebugOverlay(
