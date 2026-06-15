@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: Graphify + AI governance + modular vehicle roadmap is the next default work  
+Status: Modular Runtime 03 roadmap / audit gate is the next default work  
 Project: Four Elements Phaser  
 Updated: 2026-06-15
 
@@ -19,33 +19,35 @@ What should GPT/GLM/Opus/Codex do next by default?
 ## Current answer
 
 ```text
-ASSET-IMPORT-01 (PR #278) is merged: modular cyan assets are now in the repo.
+ASSET-IMPORT-01 (PR #278) is merged: modular cyan assets entered the repo.
 MODULAR-RUNTIME-01 (PR #279) is merged: clean modular cyan vehicle runtime works.
-ASSET-FIX-02A (PR #280) is merged: Wasp cyan m0 hull sprites fixed.
-LEGACY-WASP-CLEANUP-01A audit is complete: 12 legacy Wasp-only artifacts identified.
-LEGACY-WASP-CLEANUP-01B adds @legacy markers and modular isolation tests.
-WASP-M0-ASSET-FIX-02C (PR #284) is merged: Wasp cyan m0 modular hull sprites regenerated to match the m1 family.
+ASSET-FIX-02A (PR #280) is merged: first Wasp m0 asset fix attempt.
+LEGACY-WASP-CLEANUP-01B (PR #281) is merged: legacy Wasp hooks are marked and modular isolation tests exist.
+WASP-M0-ASSET-FIX-02C (PR #284) is merged: Wasp cyan m0 target PNGs regenerated.
 MODULAR-RUNTIME-02A (PR #285) is merged: modular hull texture keys use `modular_hull_*` namespace.
-ASSET-IMPORT-02A (PR #286) is merged: all-factions modular vehicle PNG assets imported into repo.
-MODULAR-ALL-FACTIONS-01B connects all-factions runtime/devtools and adds Dictator visual scale compensation.
-MODULAR-ALL-FACTIONS-01C adds preview calibration controls and tile overlay to the Modular Vehicle devtools panel.
+ASSET-IMPORT-02A (PR #286) is merged: all-factions modular PNG assets are in the repo.
+MODULAR-ALL-FACTIONS-01B (PR #287) is merged: all-factions runtime/devtools + Dictator 1.09 visual scale.
+MODULAR-ALL-FACTIONS-01C (PR #288) is merged: preview calibration controls and tile overlay.
+
+Next default work:
+1. Merge/accept docs roadmap:
+   docs/project/MODULAR_RUNTIME_03_FULL_GAME_INTEGRATION_ROADMAP_2026_06_15.md
+2. Then run one broad Opus audit:
+   OPUS-MODULAR-RUNTIME-03-AUDIT
+3. Only after accepted audit, route implementation to GLM as High/High+ work.
+```
 
 Still in force:
+
+```text
 - Do not continue PR #263 / Wasp+Smoky offset recovery by inertia.
 - Do not continue PR #274/#275 failed generated turret composition path.
 - Do not re-enable ENABLE_PILOT_GENERATED_TURRET_COMPOSITION.
 - Do not preload the full modular matrix.
 - Do not use a combined hull×turret production matrix.
 - Do not add new query-string visual test modes.
-
-Next after merge of MODULAR-ALL-FACTIONS-01C:
-- MODULAR-RUNTIME-02B — Controlled Arena demo unit using GeneratedModularVehicleRenderer
-  after QA accepts preview placement
+- Do not turn preview calibration offsets into production constants without audit.
 ```
-
-The "do not copy modular_cyan_v1 assets yet" / "do not start runtime implementation
-yet" lines below predate PR #278 and are superseded for the asset import and the
-MODULAR-RUNTIME-01 runtime step. The rest of the guardrails still apply.
 
 ---
 
@@ -54,10 +56,12 @@ MODULAR-RUNTIME-01 runtime step. The rest of the guardrails still apply.
 ```text
 AGENTS.md
 docs/project/PROJECT_STATE.md
+docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
 docs/project/AI_GRAPHIFY_WORKFLOW.md
 docs/project/MODULAR_VEHICLE_ASSET_RUNTIME_ROADMAP_2026_06_14.md
+docs/project/MODULAR_RUNTIME_03_FULL_GAME_INTEGRATION_ROADMAP_2026_06_15.md
 ```
 
 Agent-specific:
@@ -77,82 +81,65 @@ docs/project/CAMERA_PROJECTION_CONTRACT.md
 
 ---
 
-## Current known asset staging fact
-
-Local staging exists outside this repo:
-
-```text
-D:\Desktop\Модели\game_asset_staging\modular_cyan_v1\
-```
-
-Known summary:
-
-```text
-448 hull PNG
-640 turret PNG
-1088 runtime PNG total
-warnings 0
-hulls and turrets are separate
-metadata/manifest/generated TS draft exist
-```
-
-This does not mean the assets should be imported immediately.
-
----
-
 ## Current priority
 
 ```text
-Cleanup and integration plan before asset import.
+Simplify the next phase:
+roadmap doc-only PR -> one broad Opus audit/design -> High/High+ GLM implementation.
 ```
 
-Reasons:
+Reason:
 
 ```text
-- repo has stale docs and old active-looking instructions;
-- legacy asset paths/formulas can conflict with modular runtime;
-- current generated hull pathing may not match staging pathing;
-- manual Wasp/socket offset fixes are not the desired production source;
-- importing 1088 PNG before loader/render proof would make cleanup harder;
-- new debug URL flags would repeat past process drift.
+The previous tactical work fixed assets, key collisions, all-factions preview, Dictator scale and preview calibration.
+The next request is larger: add modular hulls/turrets to all relevant game modes.
+That needs one cohesive audit/design, not another chain of tiny speculative tasks.
 ```
 
 ---
 
 ## Required next sequence
 
-### 1. GRAPHIFY-00
+### 1. ROADMAP-03-DOCS
 
-Docs/tooling only.
+Docs only.
 
 ```text
-- GitHub Actions Graphify workflow;
-- Graphify workflow doc;
-- AI orchestration rules;
-- GPT/GLM/Opus/Codex role docs;
-- modular vehicle runtime roadmap.
+- Add MODULAR_RUNTIME_03_FULL_GAME_INTEGRATION_ROADMAP_2026_06_15.md.
+- Keep runtime/assets untouched.
+- Make this file point to the new roadmap.
 ```
 
-### 2. OPUS-AUDIT-00
+### 2. OPUS-MODULAR-RUNTIME-03-AUDIT
 
-Use Graphify artifact + roadmap.
+Use the roadmap and graph/repo context.
 
 Expected output:
 
 ```text
-docs/project/MODULAR_VEHICLE_ASSET_RUNTIME_SYSTEM_AUDIT_2026_06_14.md
+docs/project/MODULAR_RUNTIME_03_FULL_GAME_INTEGRATION_AUDIT_2026_06_15.md
 ```
 
-The audit should cover cleanup and implementation strategy, not just a single step.
+The audit must cover:
+
+```text
+- the exact three target modes/surfaces;
+- front/center/rear mount slot model;
+- body/weapon/faction/mod mapping;
+- controlled Arena demo unit strategy;
+- normal Arena/runtime integration strategy;
+- fallback and lazy loading;
+- tests and QA gates.
+```
 
 ### 3. High/High+ implementation
 
-GPT routes each step:
+GPT routes after accepted audit:
 
 ```text
-GLM -> bounded High/High+ implementation after accepted audit
-Opus -> above High+ or cohesive/refactor-heavy implementation
-Codex -> read-only local audit only
+GLM -> bounded High/High+ implementation from accepted audit
+Opus -> only if audit classifies implementation above High+
+Codex -> local asset/file facts only when GitHub cannot see them
 ```
 
 ---
@@ -160,17 +147,14 @@ Codex -> read-only local audit only
 ## Do not start by default
 
 ```text
-- do not merge PR #263;
-- do not build new work on PR #263;
-- do not keep adding offset/origin/math fixups;
-- do not copy modular_cyan_v1 assets yet;
-- do not import all 1088 PNG as first step;
-- do not preload all modular assets;
+- do not ask GLM to implement full live runtime before Opus audit;
+- do not split the next phase into many tiny process-only tasks unless audit identifies real risk boundaries;
 - do not use combined hull x turret production matrix;
-- do not add new query-string visual test modes;
-- do not ask Denis to locally download/test repo for standard repo context;
-- do not turn Codex into implementation executor;
-- do not touch combat, movement, economy, pathfinding, save-load, bot/AI, or mapgen as part of docs/tooling/asset-runtime planning.
+- do not preload all modular assets;
+- do not add new query-string visual modes;
+- do not hardcode per-hull/per-dir pixel offsets without audit;
+- do not turn preview calibration values into production metadata/config without design;
+- do not touch combat, movement, economy, pathfinding, save-load, bot/AI, or mapgen as part of roadmap/audit.
 ```
 
 ---
