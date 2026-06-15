@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: Modular Runtime 03 roadmap / audit gate is the next default work  
+Status: Modular Runtime 03C1 merged; 03C2 next default work  
 Project: Four Elements Phaser  
-Updated: 2026-06-15
+Updated: 2026-06-16
 
 ---
 
@@ -28,13 +28,16 @@ MODULAR-RUNTIME-02A (PR #285) is merged: modular hull texture keys use `modular_
 ASSET-IMPORT-02A (PR #286) is merged: all-factions modular PNG assets are in the repo.
 MODULAR-ALL-FACTIONS-01B (PR #287) is merged: all-factions runtime/devtools + Dictator 1.09 visual scale.
 MODULAR-ALL-FACTIONS-01C (PR #288) is merged: preview calibration controls and tile overlay.
+MODULAR-RUNTIME-03A (PR #292) is merged: calibration-free live modular vehicle adapter for Arena.
+MODULAR-RUNTIME-03B (PR #293) is merged: normal runtime modular combat integration.
+MODULAR-RUNTIME-03C1 (PR #294) is merged: remove dead generated vehicle proof harness.
 
 Next default work:
-1. Merge/accept docs roadmap:
-   docs/project/MODULAR_RUNTIME_03_FULL_GAME_INTEGRATION_ROADMAP_2026_06_15.md
-2. Then run one broad Opus audit:
-   OPUS-MODULAR-RUNTIME-03-AUDIT
-3. Only after accepted audit, route implementation to GLM as High/High+ work.
+1. MODULAR-RUNTIME-03C2: simplify dead pilot turret composition code paths in
+   BlockoutVehicleRenderer (remove ENABLE_PILOT_GENERATED_TURRET_COMPOSITION
+   dead code, remove resolveModularTurretSpriteKey). NOT legacy fallback removal.
+2. Legacy fallback removal (generatedHullAssets, pilotTurretComposition, etc.)
+   only after 03B manual QA is accepted by product owner.
 ```
 
 Still in force:

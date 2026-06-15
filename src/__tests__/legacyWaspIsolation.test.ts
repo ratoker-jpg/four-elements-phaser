@@ -65,10 +65,6 @@ const FORBIDDEN_LEGACY_IDENTIFIERS: readonly string[] = [
   'pilotVehicleLazyLoad',
   'generatedVehicleMetadata',
   'ENABLE_PILOT_GENERATED_TURRET_COMPOSITION',
-  'GeneratedVehicleProofHarness',
-  'GeneratedVehicleProofPanel',
-  'generatedVehiclePreviewComposition',
-  'composeGeneratedVehiclePreview',
   'getGeneratedHullPlacementOffset',
   '_hull_dir',
 ];
@@ -81,11 +77,8 @@ const FORBIDDEN_LEGACY_IMPORT_PATHS: readonly string[] = [
   'pilotTurretComposition',
   'pilotVehicleLazyLoad',
   'generatedVehicleMetadata',
-  'generatedVehiclePreviewComposition',
   'WaspHullPlacementCalibrator',
   'WaspPlacementCalibrationPanel',
-  'GeneratedVehicleProofHarness',
-  'GeneratedVehicleProofPanel',
 ];
 
 // ─── Tests ─────────────────────────────────────────────────────────────
