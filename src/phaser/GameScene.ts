@@ -598,6 +598,8 @@ export class GameScene extends Phaser.Scene {
           if (!enabled) {
             this.blockoutVehicleRenderer?.clearModularVehicleRender();
             this.entityRenderer?.clearModularVehicleRender();
+          } else {
+            this.entityRenderer?.activateModularVehicleRender();
           }
         },
       });

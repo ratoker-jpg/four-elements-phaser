@@ -25,6 +25,7 @@ import {
 import {
   ENABLE_MODULAR_VEHICLE_RENDER,
   ModularVehicleLiveAdapter,
+  type LiveAdapterResult,
 } from './ModularVehicleLiveAdapter';
 import {
   normalCombatToModularVisual,
@@ -142,6 +143,27 @@ export class ModularTankRenderer {
   /** Entity ID for the modular-combat entity (used as key in adapter). */
   private modularEntityId: string | null = null;
 
+  // ─── MODULAR-RUNTIME-03B: Stored placement info for late activation ──
+
+  /**
+   * Stored modular-combat entity reference from place().
+   * Used by activateCleanModularRender() when Live Render is toggled ON
+   * after scene initialization (flag was off during place()).
+   */
+  private storedModularEntity: RenderableEntity | null = null;
+
+  /** Stored chassis string from place() for late activation. */
+  private storedChassis: string = 'wasp';
+
+  /** Stored weapon string from place() for late activation. */
+  private storedWeapon: string = 'smoky';
+
+  /** Stored mod string from place() for late activation. */
+  private storedMod: string = 'm0';
+
+  /** Whether activateCleanModularRender() has already been called. */
+  private activationAttempted: boolean = false;
+
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
     this.offset = offset;
@@ -208,6 +230,21 @@ export class ModularTankRenderer {
         // Modular not yet available (assets loading or mapping failed) —
         // store depth for the pending retry.
         modularAdapter.setPendingDepth(baseDepth);
+      }
+    }
+
+    // ── MODULAR-RUNTIME-03B: Store entity info for late activation ──
+    // Always store the entity reference, chassis/weapon/mod, and adapter
+    // so activateCleanModularRender() can attempt modular placement when
+    // Live Render is toggled ON after scene initialization.
+    if (!this.storedModularEntity && modularAdapter) {
+      this.storedModularEntity = entity;
+      this.storedChassis = 'wasp';
+      this.storedWeapon = 'smoky';
+      this.storedMod = 'm0';
+      // Also store adapter if not already set (flag-off path skips the block above)
+      if (!this.modularAdapter) {
+        this.modularAdapter = modularAdapter;
       }
     }
 
@@ -376,6 +413,85 @@ export class ModularTankRenderer {
     return false;
   }
 
+  // ─── MODULAR-RUNTIME-03B: Activation on Live Render ON ───────────
+
+  /**
+   * Activate clean modular rendering for the normal-runtime entity.
+   * Called when ENABLE_MODULAR_VEHICLE_RENDER is toggled ON after
+   * scene initialization (flag was off during place()).
+   *
+   * Uses the stored entity reference and adapter to attempt
+   * placeModularCombat(). If assets are unavailable, creates a pending
+   * retry so retryCleanModular() can apply modular sprites once they load.
+   * Legacy hull/turret remain visible until modular succeeds.
+   *
+   * No-op if already using clean modular or activation already attempted.
+   * Does not duplicate legacy sprites.
+   */
+  activateCleanModularRender(): void {
+    // Already using clean modular — nothing to do
+    if (this.usingCleanModular) {
+      return;
+    }
+
+    // Already attempted activation — retryCleanModular() handles ongoing retries
+    if (this.activationAttempted) {
+      return;
+    }
+
+    // Need stored entity info and adapter
+    if (!this.storedModularEntity || !this.modularAdapter) {
+      return;
+    }
+
+    // Flag must be on
+    if (!ENABLE_MODULAR_VEHICLE_RENDER) {
+      return;
+    }
+
+    this.activationAttempted = true;
+
+    const entity = this.storedModularEntity;
+    const tileAnchor = tileToScreen(entity.tx, entity.ty);
+    const anchorX = tileAnchor.x + this.offset.x;
+    const anchorY = tileAnchor.y + this.offset.y;
+
+    const result: LiveAdapterResult = this.modularAdapter.placeModularCombat(
+      entity,
+      { x: anchorX, y: anchorY },
+      this.storedChassis,
+      this.storedWeapon,
+      this.storedMod,
+    );
+
+    // Compute depth for modular sprites
+    const baseDepth = computeDepthValue({
+      id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
+      offsetX: this.offset.x, offsetY: this.offset.y,
+    });
+
+    this.modularEntityId = entity.id;
+
+    if (result.usedModular) {
+      // Clean modular succeeded immediately — hide legacy hull/turret
+      this.usingCleanModular = true;
+      this.modularAdapter.setNormalRuntimeDepth(entity.id, baseDepth);
+
+      if (this.hull) {
+        this.hull.setVisible(false);
+      }
+      if (this.turret) {
+        this.turret.setVisible(false);
+      }
+
+      console.log(`[ModularTankRenderer] Late activation: clean modular applied (03B)`);
+    } else {
+      // Assets not yet available — store depth for pending retry
+      this.modularAdapter.setPendingDepth(baseDepth);
+      // Legacy hull/turret stay visible until retryCleanModular() succeeds
+    }
+  }
+
   // ─── MODULAR-RUNTIME-03B: Toggle-off cleanup ──────────────────────
 
   /**
@@ -398,6 +514,10 @@ export class ModularTankRenderer {
         this.turret.setVisible(true);
       }
     }
+
+    // Reset activation so the entity can be re-activated if flag is
+    // toggled ON again
+    this.activationAttempted = false;
   }
 
   /**

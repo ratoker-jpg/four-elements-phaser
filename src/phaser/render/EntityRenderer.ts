@@ -642,6 +642,18 @@ export class EntityRenderer {
     this.modularTankRenderer.clearModularVehicleRender();
   }
 
+  // ─── MODULAR-RUNTIME-03B: Activation on Live Render ON ───────────
+
+  /**
+   * Activate clean modular rendering for normal-runtime entities.
+   * Called when ENABLE_MODULAR_VEHICLE_RENDER is toggled ON after
+   * scene initialization (flag was off during place()).
+   * Delegates to ModularTankRenderer.activateCleanModularRender().
+   */
+  activateModularVehicleRender(): void {
+    this.modularTankRenderer.activateCleanModularRender();
+  }
+
   destroy(): void {
     for (const obj of this.staticObjects) {
       obj.destroy();
