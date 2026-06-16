@@ -2,7 +2,7 @@
 
 Status: Modular Runtime 03 roadmap / audit gate is the next default work  
 Project: Four Elements Phaser  
-Updated: 2026-06-15
+Updated: 2026-06-16
 
 ---
 
@@ -17,6 +17,17 @@ What should GPT/GLM/Opus/Codex do next by default?
 ---
 
 ## Current answer
+
+```text
+VEHICLE-RENDER-UNIFY-AUDIT (2026-06-16):
+  A new vehicle-render unification audit + High+ roadmap has been added:
+    - docs/project/VEHICLE_RENDER_UNIFICATION_AUDIT_2026_06_16.md
+    - docs/project/VEHICLE_RENDER_UNIFICATION_ROADMAP_2026_06_16.md
+  These docs supersede the "optional retirement of legacy Wasp/Smoky pilot
+  fallback" item below until GPT/Denis accepts the 4-stage roadmap.
+  No runtime implementation until GPT/Denis approves the roadmap.
+  GPT review required before implementation.
+```
 
 ```text
 ASSET-IMPORT-01 (PR #278) is merged: modular cyan assets entered the repo.
