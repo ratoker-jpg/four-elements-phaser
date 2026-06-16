@@ -115,31 +115,58 @@ plan.available === false AND sticky === false (first render of this visual)
 This eliminates the "turquoise cube flicker" during direction changes
 and asset-loading transitions.
 
-### 2.3 Package E — Debug artifacts OFF by default
+### 2.3 Package E — Debug artifacts OFF by default (fixup: explicit flags)
+
+**New file:** `src/config/debugRenderFlags.ts`
+
+Module-level singleton with 4 explicit debug-render flags, all
+defaulting to `false`:
+
+- `debugRenderFlags.directionArrow`
+- `debugRenderFlags.aimLine`
+- `debugRenderFlags.mountPoints`
+- `debugRenderFlags.debugLabels`
+
+Helpers: `setDebugRenderFlag(key, value)`, `getDebugRenderFlag(key)`,
+`resetDebugRenderFlags()`, `areAllDebugRenderFlagsOff()`.
+
+This module is the **single source of truth** for debug artifact
+visibility. Flags are never implicitly set by `isDevtoolsActive()`,
+game mode, or URL params — only explicit setter calls flip them.
 
 **Modified:** `src/phaser/render/BlockoutVehicleRenderer.ts`
 
-Four changes:
+Four changes (after the fixup commit `b551c476`):
 
-1. `showMountPoints` default: `true` → `false`.
-   The red mount-point dot on each vehicle's turret mount no longer
-   appears in default view. Existing `toggleMountPoints()` re-enables
-   it for devtools.
+1. `showMountPoints` / `showDebugLabels`: replaced renderer-local
+   boolean fields with getter/setter proxies that read/write
+   `debugRenderFlags.mountPoints` / `debugRenderFlags.debugLabels`.
+   Default `false`. Existing `toggleMountPoints()` /
+   `toggleDebugLabels()` / `isMountPointsVisible()` /
+   `isDebugLabelsVisible()` continue to work through the proxy.
 
-2. `showDebugLabels` default: `true` → `false`.
-   The text label above each vehicle no longer appears in default view.
-   Existing `toggleDebugLabels()` re-enables it for devtools.
+2. `showDebugLabels` proxy: same pattern, reads/writes
+   `debugRenderFlags.debugLabels`. Default `false`.
 
-3. Aim line (red dashed): wrapped `if (isSelected)` in
-   `if (isSelected && this.isDevtoolsActive())`.
+3. Aim line (red dashed): gated by
+   `if (isSelected && debugRenderFlags.aimLine)`.
    The red dashed aim line from barrel tip along turret aim direction
-   no longer appears in default view. Devtools mode re-enables it.
+   is OFF by default, even when Arena/devtools is active. Devtools
+   panels must explicitly call `setDebugRenderFlag('aimLine', true)`.
 
-4. Direction arrow on selection ring: wrapped the arrow-drawing block
-   in `if (this.isDevtoolsActive())`.
-   The direction arrow outside the selection ring no longer appears in
-   default view. The selection ring itself stays (it is core UI, not a
-   debug artifact). Devtools mode re-enables the arrow.
+4. Direction arrow on selection ring: gated by
+   `if (debugRenderFlags.directionArrow)`.
+   The direction arrow outside the selection ring is OFF by default,
+   even when Arena/devtools is active. Devtools panels must explicitly
+   call `setDebugRenderFlag('directionArrow', true)`. The selection
+   ring itself stays (it is core UI, not a debug artifact).
+
+**Important (fixup rationale):** the original PR #298 commit gated the
+aim line and direction arrow behind `this.isDevtoolsActive()`. That
+was wrong because Arena mode is also devtools-active in `GameScene`,
+so `isDevtoolsActive() === true` in default Arena view — the artifacts
+still appeared by default. The fixup commit `b551c476` replaced
+`isDevtoolsActive()` gating with explicit `debugRenderFlags.*` checks.
 
 **Modified:** `src/phaser/input/BlockoutVehicleInputController.ts`
 
@@ -171,7 +198,8 @@ for Arena devtools; `EntityRenderer` → `ModularTankRenderer` +
 - Use the same sticky no-flicker state in `ModularVehicleLiveAdapter` —
   once a vehicle is modular, it stays modular across direction changes
   on both surfaces.
-- Gate debug artifacts behind `isDevtoolsActive()` — default view is
+- Gate debug artifacts behind explicit `debugRenderFlags.*` flags
+  (default OFF, even when Arena/devtools is active) — default view is
   clean on both surfaces.
 
 Mode-specific code (Arena roster UI, normal-runtime PlaytestHud, etc.)
@@ -207,9 +235,12 @@ Covers:
   - placeModularCombat passes valid non-cyan faction through.
 - Package E gating (2 tests):
   - turretCursorFollowEnabled defaults to false;
-  - BlockoutVehicleRenderer source has `showMountPoints = false`,
-    `showDebugLabels = false`, aim line gated by isDevtoolsActive,
-    direction arrow gated by isDevtoolsActive.
+  - BlockoutVehicleRenderer source gates aim line via
+    `debugRenderFlags.aimLine` (not `isDevtoolsActive()`), direction
+    arrow via `debugRenderFlags.directionArrow`, mount points and
+    debug labels via `debugRenderFlags.*` proxy fields. All flags
+    default to `false`. `devtoolsActive=true` alone does NOT enable
+    any debug artifact (the blocker regression test).
 - Package G invariants (5 tests):
   - no PR #296 drift/mount-slot model introduced;
   - MAX_MODULAR_VEHICLE_SET_PNG is still 32;
@@ -361,8 +392,8 @@ visible warning in the console, not a silent recolor.
 |----------|--------|-------|
 | Red mount-point dot | ON by default (`showMountPoints = true`) | OFF by default; toggle via `toggleMountPoints()` |
 | Debug labels above vehicles | ON by default (`showDebugLabels = true`) | OFF by default; toggle via `toggleDebugLabels()` |
-| Red dashed aim line (selected vehicle) | ON when `isSelected` | ON only when `isSelected && isDevtoolsActive()` |
-| Direction arrow on selection ring | ON when `isSelected` | ON only when `isDevtoolsActive()` (selection ring itself stays) |
+| Red dashed aim line (selected vehicle) | ON when `isSelected` | OFF by default; ON only when `isSelected && debugRenderFlags.aimLine` (explicit opt-in; OFF even when Arena/devtools active) |
+| Direction arrow on selection ring | ON when `isSelected` | OFF by default; ON only when `debugRenderFlags.directionArrow` (explicit opt-in; OFF even when Arena/devtools active; selection ring itself stays) |
 | Turret-to-cursor follow (non-Arena devtools) | ON by default | OFF by default; opt-in via `setTurretCursorFollowEnabled(true)` |
 | Mouse-aim fire (non-Arena devtools) | ON by default | OFF by default; gated behind `turretCursorFollowEnabled` |
 | Direction-debug overlay | OFF (`directionDebugEnabled = false`) | unchanged (already gated) |
@@ -431,8 +462,11 @@ visible during transient texture-missing states.
 
 ```text
 npm run typecheck: PASS
-npm test:           PASS — 91 files, 4688 tests (was 89 files, 4653 tests on main)
-  New tests: +35 (15 in vehicleRenderFactionFlow.test.ts, 20 in vehicleRenderUnify01vh.test.ts)
+npm test:           PASS — 91 files, 4698 tests (was 89 files, 4653 tests on main)
+  New tests: +45 (15 in vehicleRenderFactionFlow.test.ts, 30 in vehicleRenderUnify01vh.test.ts)
+    - 20 from initial commit (sticky, faction flow, gating, invariants)
+    - 10 from fixup commit b551c476 (debugRenderFlags module + blocker regression)
+    - (vehicleRenderFactionFlow.test.ts: 15 from initial commit)
 npm run build:      BLOCKED — ENOSPC (see §11)
 npm run qa:smoke:   BLOCKED — ENOSPC + Playwright browser missing (see §11)
 ```
@@ -442,7 +476,7 @@ npm run qa:smoke:   BLOCKED — ENOSPC + Playwright browser missing (see §11)
 | Test file | Tests | Coverage |
 |-----------|-------|----------|
 | `vehicleRenderFactionFlow.test.ts` | 15 | factionResolver: canonical factions, warn-once, no silent recolor, diagnostic fallback marked |
-| `vehicleRenderUnify01vh.test.ts` | 20 | sticky no-flicker (8), faction flow through adapter (4), Package E gating (2), Package G invariants (6: no #296 drift, 32-PNG cap, Dictator +9%, scale 0.16) |
+| `vehicleRenderUnify01vh.test.ts` | 30 | sticky no-flicker (8), faction flow through adapter (4), turret-to-cursor default OFF even when devtools active (1), Package E fixup: debugRenderFlags module (6) + renderer gates via flags not isDevtoolsActive (4) + devtoolsActive=true alone does NOT enable artifacts (1), Package G invariants (6: no #296 drift, 32-PNG cap, Dictator +9%, scale 0.16) |
 
 ### 10.3 Existing tests
 
@@ -483,7 +517,10 @@ browser binary is not installed in this container"*).
 ### 11.3 What WAS validated
 
 - `npm run typecheck` — PASS (TypeScript strict mode, no errors).
-- `npm test` — PASS (4688 tests, including 35 new tests for this PR).
+- `npm test` — PASS (4698 tests, including 45 new tests for this PR:
+  35 from the initial commit + 10 from the fixup commit `b551c476`
+  for the `debugRenderFlags` module and the `devtoolsActive=true does
+  NOT enable any debug artifact` regression test).
 - `git diff --check` — PASS (no whitespace errors).
 - Secret/token scan — PASS (no `ghp_*`, no bot tokens, no chat IDs in
   any changed file).
