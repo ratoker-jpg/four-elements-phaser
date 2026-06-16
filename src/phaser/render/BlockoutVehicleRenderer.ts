@@ -226,11 +226,26 @@ export class BlockoutVehicleRenderer {
   /** Debug text labels keyed by blockout vehicle ID. */
   private debugLabels = new Map<string, Phaser.GameObjects.Text>();
 
-  /** Whether debug labels are shown. */
-  private showDebugLabels = true;
+  /**
+   * Whether debug labels are shown.
+   *
+   * VEHICLE-RENDER-UNIFY-01-VH Package E: default flipped to false.
+   * Debug labels (text above each vehicle) are dev/QA artifacts and
+   * must not appear in default gameplay/Arena view. Existing devtools
+   * toggle (toggleDebugLabels) re-enables them when explicitly requested.
+   */
+  private showDebugLabels = false;
 
-  /** Whether mount points are shown. */
-  private showMountPoints = true;
+  /**
+   * Whether mount points are shown.
+   *
+   * VEHICLE-RENDER-UNIFY-01-VH Package E: default flipped to false.
+   * The red mount-point dot on each vehicle's turret mount is a debug
+   * artifact and must not appear in default gameplay/Arena view.
+   * Existing devtools toggle (toggleMountPoints) re-enables it when
+   * explicitly requested.
+   */
+  private showMountPoints = false;
 
   /** Currently selected vehicle ID (set from BlockoutVehicleInputController). */
   private _selectedVehicleId: string | null = null;
@@ -827,33 +842,39 @@ export class BlockoutVehicleRenderer {
       g.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
       drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
 
-      // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity
-      // Use screen-space arrow from body center along body angle
-      // Approximate ring edge in screen space for arrow placement
-      const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38; // approximate pixel distance
-      const arrowBaseX = cx + Math.cos(bodyAngle) * ringEdgeDist;
-      const arrowBaseY = cy + Math.sin(bodyAngle) * ringEdgeDist;
-      const arrowTipX = cx + Math.cos(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
-      const arrowTipY = cy + Math.sin(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
+      // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity.
+      // VEHICLE-RENDER-UNIFY-01-VH Package E: gate behind isDevtoolsActive().
+      // The direction arrow on the selection ring is a debug artifact and
+      // must not appear in default gameplay/Arena view. Devtools mode
+      // re-enables it. The selection ring itself stays (it is core UI).
+      if (this.isDevtoolsActive()) {
+        // Use screen-space arrow from body center along body angle
+        // Approximate ring edge in screen space for arrow placement
+        const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38; // approximate pixel distance
+        const arrowBaseX = cx + Math.cos(bodyAngle) * ringEdgeDist;
+        const arrowBaseY = cy + Math.sin(bodyAngle) * ringEdgeDist;
+        const arrowTipX = cx + Math.cos(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
+        const arrowTipY = cy + Math.sin(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
 
-      // Arrow shaft
-      g.lineStyle(2, SELECTION_RING_COLOR, alpha);
-      g.beginPath();
-      g.moveTo(arrowBaseX, arrowBaseY);
-      g.lineTo(arrowTipX, arrowTipY);
-      g.strokePath();
+        // Arrow shaft
+        g.lineStyle(2, SELECTION_RING_COLOR, alpha);
+        g.beginPath();
+        g.moveTo(arrowBaseX, arrowBaseY);
+        g.lineTo(arrowTipX, arrowTipY);
+        g.strokePath();
 
-      // Arrow head
-      const headAngle1 = bodyAngle + Math.PI * 0.8;
-      const headAngle2 = bodyAngle - Math.PI * 0.8;
-      g.beginPath();
-      g.moveTo(arrowTipX, arrowTipY);
-      g.lineTo(arrowTipX + Math.cos(headAngle1) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle1) * DIRECTION_ARROW_HEAD);
-      g.strokePath();
-      g.beginPath();
-      g.moveTo(arrowTipX, arrowTipY);
-      g.lineTo(arrowTipX + Math.cos(headAngle2) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle2) * DIRECTION_ARROW_HEAD);
-      g.strokePath();
+        // Arrow head
+        const headAngle1 = bodyAngle + Math.PI * 0.8;
+        const headAngle2 = bodyAngle - Math.PI * 0.8;
+        g.beginPath();
+        g.moveTo(arrowTipX, arrowTipY);
+        g.lineTo(arrowTipX + Math.cos(headAngle1) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle1) * DIRECTION_ARROW_HEAD);
+        g.strokePath();
+        g.beginPath();
+        g.moveTo(arrowTipX, arrowTipY);
+        g.lineTo(arrowTipX + Math.cos(headAngle2) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle2) * DIRECTION_ARROW_HEAD);
+        g.strokePath();
+      }
     }
 
     // ── Hover marker (projected ground-plane) ────────────────────
@@ -1250,7 +1271,10 @@ export class BlockoutVehicleRenderer {
       g.strokePath();
 
       // ── Aim line for selected vehicle ─────────────────────────────
-      if (isSelected) {
+      // VEHICLE-RENDER-UNIFY-01-VH Package E: gate behind isDevtoolsActive().
+      // The red dashed aim line is a debug artifact and must not appear in
+      // default gameplay/Arena view. Existing devtools mode re-enables it.
+      if (isSelected && this.isDevtoolsActive()) {
         g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
         const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
         // Aim starts at shared barrel tip (PROJECTION-01 fixup #3)

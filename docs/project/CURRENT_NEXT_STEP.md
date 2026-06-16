@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: VEHICLE-RENDER-UNIFY-AUDIT / ROADMAP is the active next decision
+Status: VEHICLE-RENDER-UNIFY-01-VH implementation PR is the active next step
 Project: Four Elements Phaser
-Updated: 2026-06-16
+Updated: 2026-06-17
 
 ---
 
@@ -19,17 +19,66 @@ What should GPT/GLM/Opus/Codex do next by default?
 ## Active next step (single)
 
 ```text
+VEHICLE-RENDER-UNIFY-01-VH (implementation, DRAFT PR)
+  Status: DRAFT PR pending GPT review + Denis manual QA.
+  Combines: Stage 1 (canonical renderer foundation) + Stage 2 (visual
+            parity + placement stabilization).
+  Does NOT include: Stage 3 (legacy renderer retirement), Stage 4
+            (GameScene render orchestration cleanup).
+  PR: https://github.com/ratoker-jpg/four-elements-phaser/pull/298
+  Branch: vehicle-render-unify-01-vh
+  Base: main @ 2665192 (after PR #297 merge)
+  Report: docs/project/VEHICLE_RENDER_UNIFY_01_VH_IMPLEMENTATION_REPORT_2026_06_17.md
+
+  Validation:
+    - npm run typecheck: PASS
+    - npm test: PASS (91 files, 4688 tests, +35 new)
+    - npm run build: BLOCKED — ENOSPC environment constraint (not a code defect;
+      verified same failure on clean main)
+    - npm run qa:smoke: BLOCKED — ENOSPC + Playwright browser missing
+      (same as 04A report; not a code defect)
+
+  What changed:
+    - Package C: factionResolver.ts — canonical faction resolution,
+      no silent ?? 'cyan' default
+    - Package D: sticky no-flicker state in ModularVehicleLiveAdapter —
+      once modular succeeds, transient texture-missing does not fall back
+      to blockout
+    - Package E: debug artifacts OFF by default (mount points, labels,
+      aim line, direction arrow, turret-to-cursor)
+    - Package F: Arena + normal runtime parity through shared adapter contract
+    - Package G: 35 new tests (faction flow, sticky, gating, invariants)
+    - Package H: this report + CURRENT_NEXT_STEP update
+
+  What was NOT changed:
+    - composeModularVehicle() math (placement preserved)
+    - MODULAR_VEHICLE_BASE_SCALE = 0.16 (04A source of truth preserved)
+    - Dictator +9% hull-only multiplier preserved
+    - cameraProjectionContract.ts (unchanged)
+    - combat / movement / economy / mapgen / pathfinding / save-load
+    - PNG assets / generated metadata / package files
+    - Legacy renderers retained as emergency fallback (Stage 3 retirement
+      is a separate future PR after QA acceptance)
+    - GameScene orchestration unchanged (Stage 4 is a separate future PR)
+    - No PR #296 mount-slot / forward-back drift model reused
+
+  GPT review required before merge.
+  Denis manual QA required before merge (see report §12).
+  PR is DRAFT — do not mark ready until both reviews pass.
+```
+
+---
+
+## Previous step (completed)
+
+```text
 VEHICLE-RENDER-UNIFY-AUDIT / ROADMAP
-  Status: docs PR #297 pending GPT/Denis approval.
-  Docs:
+  Status: COMPLETED. PR #297 merged on 2026-06-16.
+  Docs (now on main):
     - docs/project/VEHICLE_RENDER_UNIFICATION_AUDIT_2026_06_16.md
     - docs/project/VEHICLE_RENDER_UNIFICATION_ROADMAP_2026_06_16.md
-  PR: https://github.com/ratoker-jpg/four-elements-phaser/pull/297
-  Branch: vehicle-render-unify-audit
-  Base: main @ 4bced103 (after PR #295 / MODULAR-RUNTIME-04A)
-
-  No runtime implementation until GPT/Denis approves the 4-stage roadmap.
-  GPT review required before implementation.
+  These define the 4-stage roadmap that VEHICLE-RENDER-UNIFY-01-VH
+  implements (Stage 1 + Stage 2 only).
 ```
 
 After approval, the 4-stage High+ roadmap executes in order:

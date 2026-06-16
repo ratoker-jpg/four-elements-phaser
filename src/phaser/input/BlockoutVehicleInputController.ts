@@ -147,6 +147,22 @@ export class BlockoutVehicleInputController {
   private _mouseWorldX: number = 0;
   private _mouseWorldY: number = 0;
 
+  /**
+   * VEHICLE-RENDER-UNIFY-01-VH Package E: turret-to-cursor follow flag.
+   *
+   * Default: FALSE. When false, the non-Arena devtools turret does NOT
+   * follow the mouse cursor — the turret holds its last angle unless
+   * the player explicitly assigns a target (Arena target-lock) or
+   * explicitly enables this cursor-follow mode.
+   *
+   * When true (explicit devtools opt-in), the non-Arena devtools turret
+   * follows the mouse cursor (legacy behavior preserved as opt-in).
+   *
+   * Arena mode is unaffected: it always uses target-lock and never
+   * follows the cursor.
+   */
+  private _turretCursorFollowEnabled: boolean = false;
+
   /** LMB click detection state. */
   private _lmbClickStartX: number = 0;
   private _lmbClickStartY: number = 0;
@@ -233,6 +249,27 @@ export class BlockoutVehicleInputController {
 
   /** Mouse world Y position. BLOCKOUT-06H+. */
   get mouseWorldY(): number { return this._mouseWorldY; }
+
+  // ─── VEHICLE-RENDER-UNIFY-01-VH Package E: turret-to-cursor gating ──
+
+  /**
+   * Whether the non-Arena devtools turret follows the mouse cursor.
+   * Default: false. Use setTurretCursorFollowEnabled() to opt in.
+   */
+  get turretCursorFollowEnabled(): boolean { return this._turretCursorFollowEnabled; }
+
+  /**
+   * Enable or disable non-Arena devtools turret-to-cursor follow.
+   *
+   * Package E: this is an explicit devtools opt-in. When false (default),
+   * the turret does NOT follow the cursor — it holds its last angle.
+   * When true, legacy mouse-follow behavior is restored.
+   *
+   * Arena mode is unaffected: it always uses target-lock.
+   */
+  setTurretCursorFollowEnabled(enabled: boolean): void {
+    this._turretCursorFollowEnabled = enabled;
+  }
 
   // ─── CORE-STEP-05H+: Cursor feedback ─────────────────────────────
 
@@ -340,8 +377,11 @@ export class BlockoutVehicleInputController {
         if (this.isArenaMode()) {
           // Arena turret aim is centralized in GameScene so selected allies
           // and enemies share the same target-lock/rest behavior.
-        } else {
-          // Non-Arena devtools: original mouse-follow behavior
+        } else if (this._turretCursorFollowEnabled) {
+          // VEHICLE-RENDER-UNIFY-01-VH Package E: non-Arena devtools
+          // turret-to-cursor follow is now an explicit opt-in. Default
+          // is false — turret holds its last angle unless the devtools
+          // panel calls setTurretCursorFollowEnabled(true).
           const turretMountScreen = computeProjectedTurretMountScreen(selected, this.offset);
           const targetAngle = angleFromTo(turretMountScreen.x, turretMountScreen.y, this._mouseWorldX, this._mouseWorldY);
           selected.turretTargetAngle = targetAngle;
@@ -355,6 +395,9 @@ export class BlockoutVehicleInputController {
           const maxDelta = degPerSecToRadPerMs(effectiveTurretSpeed) * delta;
           selected.turretAngle = rotateTowardAngle(selected.turretAngle, targetAngle, maxDelta);
         }
+        // else: non-Arena devtools, cursor-follow OFF — turret holds last angle.
+        // Arena's central GameScene turret-aim path handles target-lock; non-Arena
+        // devtools with cursor-follow OFF is a no-op here (no turret angle change).
       } else {
         // Selected vehicle no longer exists
         this._selectedVehicleId = null;
@@ -953,10 +996,16 @@ export class BlockoutVehicleInputController {
         // No target assigned in Arena mode — don't fire blindly at mouse
         return;
       }
-    } else {
-      // Non-Arena devtools: original mouse-aim behavior
+    } else if (this._turretCursorFollowEnabled) {
+      // VEHICLE-RENDER-UNIFY-01-VH Package E: non-Arena devtools mouse-aim
+      // is gated behind the explicit cursor-follow opt-in. When the flag
+      // is OFF (default), non-Arena devtools does not fire at the mouse
+      // cursor — fire requires an explicit target or cursor-follow ON.
       aimTargetX = this._mouseWorldX;
       aimTargetY = this._mouseWorldY;
+    } else {
+      // Non-Arena devtools, cursor-follow OFF — don't fire blindly at mouse.
+      return;
     }
 
     fireBlockoutWeapon(

@@ -48,6 +48,9 @@ import {
 import {
   requestModularVehicleSet,
 } from '../../modular/modularVehicleRuntimeLoader';
+import {
+  resolveFactionOrDiagnosticFallback,
+} from '../../modular/factionResolver';
 
 // ─── Feature flag ──────────────────────────────────────────────────
 
@@ -101,6 +104,22 @@ interface ModularSpriteState {
   lastHullKey: string | null;
   lastTurretKey: string | null;
   lastVisual: ModularVehicleVisual | null;
+  /**
+   * VEHICLE-RENDER-UNIFY-01-VH Package D: sticky modular-success flag.
+   *
+   * True once this vehicle has been successfully rendered as modular PNG
+   * (plan.available === true → applyPlan() ran) for its current
+   * `lastVisual` identity. While sticky is true, transient
+   * plan.available === false (e.g. a direction frame still loading) does
+   * NOT cause fallback to blockout — the last good modular sprites stay
+   * visible until the new frame loads.
+   *
+   * Sticky is released when:
+   *   - the visual identity changes (different hull/turret/faction/mod);
+   *   - the vehicle is removed (removeVehicle);
+   *   - destroy() clears all state.
+   */
+  stickyModularSuccess: boolean;
 }
 
 // ─── 03B: Pending normal-runtime entity state for retry ────────────
@@ -153,6 +172,18 @@ export class ModularVehicleLiveAdapter {
    * Called from BlockoutVehicleRenderer.syncFromState() when the feature
    * flag is on. Returns the result so the renderer knows whether to
    * skip the legacy hull/turret path.
+   *
+   * VEHICLE-RENDER-UNIFY-01-VH Package D (no-flicker):
+   *   Once a vehicle has been successfully rendered as modular PNG for its
+   *   current visual identity (stickyModularSuccess === true), transient
+   *   plan.available === false (e.g. a new direction frame still loading)
+   *   does NOT fall back to blockout. The last good modular sprites stay
+   *   visible until the new frame loads. This eliminates the
+   *   "turquoise cube flicker" during direction changes.
+   *
+   *   Sticky is released when the visual identity changes (different
+   *   hull/turret/faction/mod), so a real visual change still pays the
+   *   normal fallback cost on first render.
    */
   syncVehicle(
     vehicle: BlockoutVehicleState,
@@ -162,10 +193,16 @@ export class ModularVehicleLiveAdapter {
       // Flag toggled off: hide any existing modular sprites for this vehicle
       // so they don't persist over legacy rendering on the next frame.
       this.hideVehicle(vehicle.id);
+      this.clearSticky(vehicle.id);
       return { usedModular: false, plan: null, debugLabel: 'flag-off', fallbackReason: 'flag-off' };
     }
 
-    // Map BlockoutVehicleState → ModularVehicleVisual + directions
+    // Map BlockoutVehicleState → ModularVehicleVisual + directions.
+    // VEHICLE-RENDER-UNIFY-01-VH Package C: vehicle.faction on BlockoutVehicleState
+    // is typed as required Faction, so no silent cyan default here. The
+    // factionResolver is still applied defensively in case of upstream state
+    // corruption (e.g. a future code path that constructs BlockoutVehicleState
+    // with a non-canonical faction string).
     const mapped = blockoutToModularVisual({
       bodyId: vehicle.bodyId,
       weaponId: vehicle.weaponId,
@@ -211,10 +248,14 @@ export class ModularVehicleLiveAdapter {
       ` h:${mapped.hullDir16} t:${mapped.turretDir16}` +
       ` avail:${plan.available} fb:${plan.fallbackReason ?? 'none'}`;
 
+    // Check sticky state: has this vehicle already been successfully
+    // rendered as modular for its current visual identity?
+    const sticky = this.getSticky(vehicle.id, mapped.visual);
+
     // Only apply the plan and claim modular when textures are fully available.
-    // While assets are loading or missing, fall back to legacy rendering.
     if (plan.available) {
       this.applyPlan(vehicle.id, plan);
+      this.setSticky(vehicle.id, mapped.visual);
       return {
         usedModular: true,
         plan,
@@ -223,7 +264,24 @@ export class ModularVehicleLiveAdapter {
       };
     }
 
-    // Assets not ready — hide any stale modular sprites but do NOT suppress legacy
+    // Package D no-flicker: if we already rendered this visual successfully
+    // (sticky === true), keep the last good modular sprites visible instead
+    // of falling back to blockout. The new direction frame will load shortly
+    // and the next syncVehicle() call will swap it in cleanly.
+    if (sticky) {
+      // Sprites stay at their last good position/texture. We still report
+      // usedModular: true so the caller suppresses the blockout path.
+      return {
+        usedModular: true,
+        plan,
+        debugLabel: `${labelBase} [sticky: keeping last good modular]`,
+        fallbackReason: null,
+      };
+    }
+
+    // No sticky state — first render of this visual identity, assets not
+    // ready yet. Hide any stale modular sprites (from a previous visual)
+    // and fall back to legacy blockout rendering until textures arrive.
     this.hideVehicle(vehicle.id);
     return {
       usedModular: false,
@@ -260,11 +318,24 @@ export class ModularVehicleLiveAdapter {
       return { usedModular: false, plan: null, debugLabel: 'flag-off', fallbackReason: 'flag-off' };
     }
 
+    // VEHICLE-RENDER-UNIFY-01-VH Package C: canonical faction resolution.
+    // entity.faction is optional on RenderableEntity, so a missing/invalid
+    // faction goes through resolveFactionOrDiagnosticFallback() which:
+    //   - passes valid factions (cyan/green/yellow/purple) through unchanged;
+    //   - warns ONCE per call site on missing/invalid faction (no silent recolor);
+    //   - returns diagnostic cyan as explicit last-resort fallback (marked
+    //     via usedFallback=true so callers/tests can detect it).
+    const factionRes = resolveFactionOrDiagnosticFallback(
+      entity.faction,
+      'ModularVehicleLiveAdapter.placeModularCombat',
+    );
+    const faction = factionRes.faction;
+
     // Map RenderableEntity → ModularVehicleVisual + dir16
     const mapped = normalCombatToModularVisual({
       chassis,
       weapon,
-      faction: entity.faction ?? 'cyan',
+      faction,
       mod,
       dir: entity.dir,
       turretDir: entity.turretDir,
@@ -293,11 +364,13 @@ export class ModularVehicleLiveAdapter {
 
     const labelBase = modularVisualDebugLabel(mapped.visual) +
       ` h:${mapped.hullDir16} t:${mapped.turretDir16}` +
-      ` avail:${plan.available} fb:${plan.fallbackReason ?? 'none'}`;
+      ` avail:${plan.available} fb:${plan.fallbackReason ?? 'none'}` +
+      (factionRes.usedFallback ? ' faction:fallback-cyan' : '');
 
     // Only apply the plan and claim modular when textures are fully available.
     if (plan.available) {
       this.applyPlan(entity.id, plan);
+      this.setSticky(entity.id, mapped.visual);
       // Clear any pending retry — we succeeded
       this.pendingCombat = null;
       return {
@@ -308,14 +381,26 @@ export class ModularVehicleLiveAdapter {
       };
     }
 
-    // Assets not ready — store pending state for retry each frame
+    // Package D no-flicker: if we already rendered this visual successfully
+    // (sticky === true), keep the last good modular sprites visible.
+    if (this.getSticky(entity.id, mapped.visual)) {
+      this.pendingCombat = null;
+      return {
+        usedModular: true,
+        plan,
+        debugLabel: `${labelBase} [sticky: keeping last good modular]`,
+        fallbackReason: null,
+      };
+    }
+
+    // Assets not ready and no sticky state — store pending state for retry each frame
     this.pendingCombat = {
       entityId: entity.id,
       anchor,
       chassis,
       weapon,
       mod,
-      faction: entity.faction ?? 'cyan',
+      faction,
       dir: entity.dir,
       turretDir: entity.turretDir,
       depth: 0, // will be set by setNormalRuntimeDepth() after place()
@@ -401,6 +486,7 @@ export class ModularVehicleLiveAdapter {
     // Assets ready — apply the plan
     this.applyPlan(p.entityId, plan);
     this.setNormalRuntimeDepth(p.entityId, p.depth);
+    this.setSticky(p.entityId, mapped.visual);
     this.pendingCombat = null;
     return true;
   }
@@ -468,6 +554,7 @@ export class ModularVehicleLiveAdapter {
         lastHullKey: null,
         lastTurretKey: null,
         lastVisual: null,
+        stickyModularSuccess: false,
       };
       this.vehicleModularSprites.set(vehicleId, state);
     }
@@ -545,6 +632,10 @@ export class ModularVehicleLiveAdapter {
     if (state.turretSprite) {
       state.turretSprite.destroy();
     }
+    // Package D: clear sticky state so a future vehicle with the same id
+    // (if ids are ever recycled) does not inherit sticky from the previous one.
+    state.stickyModularSuccess = false;
+    state.lastVisual = null;
     this.vehicleModularSprites.delete(vehicleId);
   }
 
@@ -557,6 +648,62 @@ export class ModularVehicleLiveAdapter {
     if (!state) return;
     if (state.hullSprite) state.hullSprite.setVisible(false);
     if (state.turretSprite) state.turretSprite.setVisible(false);
+  }
+
+  // ─── VEHICLE-RENDER-UNIFY-01-VH Package D: sticky no-flicker state ──
+
+  /**
+   * Returns true if this vehicle has been successfully rendered as
+   * modular PNG for the SAME visual identity currently requested.
+   *
+   * "Same visual identity" means hullId, turretId, faction, hullMod,
+   * turretMod all match. Direction (hullDir16/turretDir16) is NOT part
+   * of identity — direction changes within the same visual are exactly
+   * the case where sticky keeps the last good frame visible until the
+   * new direction's texture loads.
+   *
+   * When true, syncVehicle()/placeModularCombat() will NOT fall back to
+   * blockout even if plan.available === false — the last good modular
+   * sprites stay visible.
+   */
+  private getSticky(vehicleId: string, visual: ModularVehicleVisual): boolean {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    if (!state || !state.stickyModularSuccess || !state.lastVisual) {
+      return false;
+    }
+    return (
+      state.lastVisual.hullId === visual.hullId &&
+      state.lastVisual.turretId === visual.turretId &&
+      state.lastVisual.faction === visual.faction &&
+      state.lastVisual.hullMod === visual.hullMod &&
+      state.lastVisual.turretMod === visual.turretMod
+    );
+  }
+
+  /**
+   * Mark a vehicle as having been successfully rendered as modular PNG
+   * for the given visual identity. Subsequent calls with the same
+   * identity will be sticky (no blockout fallback on transient
+   * plan.available === false).
+   */
+  private setSticky(vehicleId: string, visual: ModularVehicleVisual): void {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    if (!state) return;
+    state.stickyModularSuccess = true;
+    state.lastVisual = visual;
+  }
+
+  /**
+   * Clear sticky state for a vehicle. Used when:
+   *   - the modular render flag is toggled off;
+   *   - the vehicle is removed;
+   *   - the adapter is destroyed.
+   */
+  private clearSticky(vehicleId: string): void {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    if (!state) return;
+    state.stickyModularSuccess = false;
+    state.lastVisual = null;
   }
 
   /**
