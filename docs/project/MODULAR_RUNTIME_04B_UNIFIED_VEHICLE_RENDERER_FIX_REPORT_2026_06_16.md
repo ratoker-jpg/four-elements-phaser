@@ -112,39 +112,48 @@ still loading, or when a visual cannot be mapped).
 
 ---
 
-## 5. Mount-slot implementation
+## 5. Mount-slot implementation (corrected — 04B-FIX)
+
+> **Correction:** the first 04B cut used a "blind" forward/back directional
+> shift (`MOUNT_SLOT_FORWARD_FRACTION` along hull facing). Manual QA showed it
+> drifted every hull and pushed Wasp off its tile. That heuristic is **removed**.
+> Placement is now the accepted preview-calibration offsets promoted to
+> production constants — fixed per-category screen offsets, no direction math.
 
 New file: `src/modular/modularVehicleMountSlots.ts`.
 
 - `type ModularVehicleMountSlot = 'front' | 'center' | 'rear'`
-- `HULL_MOUNT_SLOTS` production config (single source of truth):
+- `HULL_MOUNT_SLOTS` production config (hull → category):
   - front: `mammoth`, `titan`
   - center: `viking`, `hunter`, `hornet`
   - rear: `wasp`, `dictator`
-- `getHullMountSlot(hullId)` → unknown hulls fall back to `center` (zero shift,
-  non-regressing).
-- `MOUNT_SLOT_FORWARD_FRACTION` → `{ front: +0.16, center: 0, rear: -0.16 }`
-  expressed as a fraction of the hull display size (the **only** tunable).
-- `getMountSlotSocketShift(hullId, hullDir16, hullDisplaySize)` → computes a
-  screen-space shift **along the hull's facing direction** (derived from
-  `hullDir16`, iso vertical compression `0.5`). No per-direction table; one
-  fraction covers all 16 directions for every hull in a slot.
+- `MOUNT_SLOT_PLACEMENT` production config (category → accepted profile):
+  - front (ref titan + smoky): `hullOffset 4 / -12`, `turretOffset 0 / 0`
+  - center (ref hunter + ricochet): `hullOffset -5 / -7`, `turretOffset 0 / 0`
+  - rear (ref dictator + ricochet): `hullOffset -7 / -11`, `turretOffset 0 / 0`
+- `getHullMountSlot(hullId)` → unknown hulls fall back to `center`.
+- `getMountSlotPlacement(hullId)` → the single placement source consumed by
+  **both** the live renderer and the preview renderer.
 
-### What the mount slot affects (explicit)
+### What the placement profile affects (explicit)
 
 | Target | Affected? |
 |---|---|
 | Hull socket metadata (nx/ny) | **No** — untouched |
 | Turret pivot metadata (nx/ny) | **No** — untouched |
-| Hull sprite position / scale | **No** — hull stays on the anchor |
-| Composition offset (socket screen point) | **Yes** — the only thing shifted |
-| Selected metadata socket source | **No** — metadata still drives base |
+| Hull/turret scale | **No** — Dictator +9% hull-only is separate |
+| Hull sprite position | **Yes** — `anchor + hullOffset` |
+| Turret sprite position | rides with the hull; `+ turretOffset` (0/0 now) |
+| Collision / hitbox / footprint / gameplay | **No** |
 
-Integration: in `composeModularVehicle()` the mount shift is added to
-`socketScreen` (where the turret pivot lands). For `center` hulls the shift is
-exactly `{0,0}` so frame-centre-correct hulls are never overcorrected. Adding a
-new hull only requires choosing one category. **No calibration data is written
-into metadata or assets.**
+Integration: in `composeModularVehicle()` the hull centre is `anchor +
+placement.hullOffset`; the socket and the turret ride with the hull, and
+`placement.turretOffset` adds a turret-only nudge. The preview renderer
+(`GeneratedModularVehicleRenderer`) reads the same `getMountSlotPlacement` and
+shows it in the panel, so **preview matches live by construction**. Devtools
+calibration stacks on top of this production base and is never written back.
+Adding a new hull only requires choosing one category. **No per-direction tables,
+no metadata edits, no asset regeneration.**
 
 ---
 

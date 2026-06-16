@@ -45,7 +45,7 @@ import {
   getTurretPivotAnchor,
   FALLBACK_FRAME_CENTER,
 } from './modularVehicleMetadata';
-import { getMountSlotSocketShift } from './modularVehicleMountSlots';
+import { getMountSlotPlacement } from './modularVehicleMountSlots';
 import type { ModularVehicleVisual } from './modularVehicleVisual';
 import { isValidModularVehicleVisual } from './modularVehicleVisual';
 
@@ -239,37 +239,39 @@ export function composeModularVehicle(
   const socketNorm = socketMeta ?? FALLBACK_FRAME_CENTER;
   const pivotNorm = pivotMeta ?? FALLBACK_FRAME_CENTER;
 
-  // Hull is centred on the screen anchor (ground-contact point).
+  // MODULAR-RUNTIME-04B-FIX: apply the accepted production mount-slot placement
+  // profile. `hullOffset` is a fixed screen-space shift (the calibration-
+  // accepted value per category) applied to the hull centre; the socket and the
+  // turret ride along with the hull. `turretOffset` is a fixed turret-only nudge
+  // (0/0 for all current categories). This replaces the previous blind
+  // forward/back directional shift that drifted every hull. It is a placement-
+  // only adjustment: exported socket/pivot metadata, scale, and all
+  // collision/hitbox/footprint/gameplay values are untouched.
+  const placement = getMountSlotPlacement(visual.hullId);
+
+  // Hull centred on the screen anchor + production hull offset.
   const hullOrigin: ScreenPoint = { x: 0.5, y: 0.5 };
-  const hullCenter: ScreenPoint = { x: anchor.x, y: anchor.y };
+  const hullCenter: ScreenPoint = {
+    x: anchor.x + placement.hullOffset.x,
+    y: anchor.y + placement.hullOffset.y,
+  };
 
   // Socket screen position = hull centre + normalized socket offset.
-  //
-  // MODULAR-RUNTIME-04B: apply the production mount-slot semantic shift on top
-  // of the export-derived socket. This moves the turret pivot toward the front
-  // (mammoth/titan), centre (viking/hunter/hornet — zero shift), or rear
-  // (wasp/dictator) of the hull, following the hull's facing direction. It is a
-  // composition-offset-only adjustment: hull sprite, hull metadata, and turret
-  // pivot metadata are all untouched. `center` hulls receive an exact zero shift
-  // so frame-centre-correct hulls are never overcorrected.
-  const mountShift = getMountSlotSocketShift(
-    visual.hullId,
-    hullDir16,
-    hullDisplaySize,
-  );
   const socketScreen: ScreenPoint = {
-    x: hullCenter.x + (socketNorm.nx - 0.5) * hullDisplaySize + mountShift.dx,
-    y: hullCenter.y + (socketNorm.ny - 0.5) * hullDisplaySize + mountShift.dy,
+    x: hullCenter.x + (socketNorm.nx - 0.5) * hullDisplaySize,
+    y: hullCenter.y + (socketNorm.ny - 0.5) * hullDisplaySize,
   };
 
-  // Turret pivot must land on the hull socket. Place the turret centre so
-  // that its (pivotNorm) point coincides with socketScreen.
+  // Turret pivot must land on the hull socket. Place the turret centre so that
+  // its (pivotNorm) point coincides with socketScreen, plus the turret-only
+  // production offset.
   const turretOrigin: ScreenPoint = { x: 0.5, y: 0.5 };
   const turretCenter: ScreenPoint = {
-    x: socketScreen.x - (pivotNorm.nx - 0.5) * turretDisplaySize,
-    y: socketScreen.y - (pivotNorm.ny - 0.5) * turretDisplaySize,
+    x: socketScreen.x - (pivotNorm.nx - 0.5) * turretDisplaySize + placement.turretOffset.x,
+    y: socketScreen.y - (pivotNorm.ny - 0.5) * turretDisplaySize + placement.turretOffset.y,
   };
-  // Pivot screen position computed from the placed turret (equals socket).
+  // Pivot screen position computed from the placed turret (equals socket when
+  // the turret offset is zero).
   const pivotScreen: ScreenPoint = {
     x: turretCenter.x + (pivotNorm.nx - 0.5) * turretDisplaySize,
     y: turretCenter.y + (pivotNorm.ny - 0.5) * turretDisplaySize,

@@ -401,33 +401,35 @@ describe('metadata-driven composition', () => {
     expect(plan.pivotScreen.y).toBeCloseTo(plan.socketScreen.y, 6);
   });
 
-  it('default composition places hull at the anchor with no manual offset', () => {
+  it('default composition places hull at anchor + accepted mount-slot offset', () => {
     const anchor = { x: 200, y: 150 };
     const plan = composeModularVehicle({
-      visual: SAMPLE_VISUAL,
+      visual: SAMPLE_VISUAL, // wasp → rear profile -7 / -11
       hullDir16: 0,
       turretDir16: 0,
       anchor,
       textureExists: () => true,
     });
-    // Hull centred on the anchor — no Wasp y-offset / zHeight nudge. The
-    // MODULAR-RUNTIME-04B mount-slot layer never moves the hull.
-    expect(plan.hull.position).toEqual(anchor);
+    // MODULAR-RUNTIME-04B-FIX: the accepted preview placement is the production
+    // source of truth. Wasp (rear) sits at anchor + (-7, -11), not raw anchor.
+    expect(plan.hull.position).toEqual({ x: 193, y: 139 });
     expect(plan.hull.origin).toEqual({ x: 0.5, y: 0.5 });
   });
 
-  it('center-mount hull keeps the turret centre on the hull centre (frame-centre)', () => {
+  it('turret centre rides on the hull centre (frame-centre, turretOffset 0/0)', () => {
     const anchor = { x: 200, y: 150 };
     const plan = composeModularVehicle({
-      // viking is a center-mount hull → zero mount-slot shift.
-      visual: { ...SAMPLE_VISUAL, hullId: 'viking' },
+      visual: { ...SAMPLE_VISUAL, hullId: 'viking' }, // center profile -5 / -7
       hullDir16: 0,
       turretDir16: 0,
       anchor,
       textureExists: () => true,
     });
-    expect(plan.turret.position.x).toBeCloseTo(anchor.x, 6);
-    expect(plan.turret.position.y).toBeCloseTo(anchor.y, 6);
+    // Turret rides with the hull: centre == hull centre == anchor + (-5, -7).
+    expect(plan.turret.position.x).toBeCloseTo(anchor.x - 5, 6);
+    expect(plan.turret.position.y).toBeCloseTo(anchor.y - 7, 6);
+    expect(plan.turret.position.x).toBeCloseTo(plan.hull.position.x, 6);
+    expect(plan.turret.position.y).toBeCloseTo(plan.hull.position.y, 6);
   });
 
   it('keeps the turret pivot on the socket independent of hull and turret dir', () => {

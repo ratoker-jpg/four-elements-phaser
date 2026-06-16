@@ -1,51 +1,68 @@
 /**
- * modularVehicleMountSlots — MODULAR-RUNTIME-04B production mount-slot model.
+ * modularVehicleMountSlots — production mount-slot placement model.
  *
- * Problem this solves
- * -------------------
- * The export-derived socket/pivot metadata places every turret pivot at the
- * hull frame centre (nx=ny=0.5, see generatedModularVehicleMetadata). That is
- * correct for hulls whose weapon socket genuinely sits at the body centre, but
- * several hulls mount their weapon clearly toward the front or the rear of the
- * chassis. Without a correction the turret floats in the wrong place.
+ * MODULAR-RUNTIME-04B-FIX: The accepted devtools preview calibration placement
+ * is promoted to the production source of truth. Each hull belongs to one of
+ * three mount-slot categories, and each category carries a fixed screen-space
+ * placement profile (hull offset + turret offset, in pixels at the base scale).
+ * These exact values were dialed in and accepted in manual preview QA:
  *
- * The fix is a small, SEMANTIC adjustment layer — not a per-hull pixel table
- * and not a per-direction x/y table. Each hull is tagged with one of three
- * mount-slot categories. Adding a new hull only requires choosing one of these
- * categories; no calibration data is written into metadata or assets.
+ *   front  (mammoth, titan)         hullOffset  4 / -12   turretOffset 0 / 0
+ *          reference: titan + smoky
+ *   center (viking, hunter, hornet) hullOffset -5 /  -7   turretOffset 0 / 0
+ *          reference: hunter + ricochet
+ *   rear   (wasp, dictator)         hullOffset -7 / -11   turretOffset 0 / 0
+ *          reference: dictator + ricochet
  *
- *   front  → mammoth, titan      (turret sits ahead of body centre)
- *   center → viking, hunter, hornet (turret at body centre — no adjustment)
- *   rear   → wasp, dictator      (turret sits behind body centre)
+ * Why this replaces the old forward-fraction shift
+ * ------------------------------------------------
+ * The previous implementation applied a "blind" forward/back directional shift
+ * derived from the hull facing. Manual QA showed that drifted every hull and
+ * pushed Wasp visibly outside its tile. That heuristic is removed entirely. The
+ * placement is now a small, fixed, per-category screen offset — exactly the
+ * accepted preview calibration — not a direction-dependent computation and not
+ * a per-direction table.
  *
- * What the mount slot affects
- * ---------------------------
- * The mount slot is applied ONLY to the COMPOSITION OFFSET — i.e. the screen
- * position where the turret pivot is placed (the "socket screen" point) — and
- * the shift follows the hull's facing direction so it stays correct for all 16
- * directions WITHOUT a per-direction table. It does NOT touch:
- *   - the hull sprite position / hull scale;
- *   - the exported hull socket metadata (nx/ny);
- *   - the exported turret pivot metadata (nx/ny);
- *   - any collision/hitbox/footprint/gameplay stat.
+ * What the placement profile affects
+ * ----------------------------------
+ *   - hullOffset shifts the hull centre (and therefore the socket and the
+ *     turret riding on it) by a fixed screen-space amount;
+ *   - turretOffset adds a fixed screen-space nudge to the turret only (0/0 for
+ *     every current slot, but kept in the model for future hulls).
+ * It does NOT touch exported socket/pivot metadata, hull/turret scale, or any
+ * collision/hitbox/footprint/gameplay value. Dictator's +9% hull-only scale is
+ * handled separately in composition and is unaffected by this offset.
  *
- * For `center` hulls the shift is exactly zero, so hulls already solved by the
- * frame-centre metadata are not overcorrected.
+ * The SAME profile is consumed by both the live runtime renderer
+ * (composeModularVehicle) and the devtools preview renderer, so preview matches
+ * live by construction. Devtools calibration controls remain devtools-only and
+ * stack on top of this production base without ever writing it back.
  */
 
 export type ModularVehicleMountSlot = 'front' | 'center' | 'rear';
 
+export interface MountSlotOffset {
+  x: number;
+  y: number;
+}
+
+export interface MountSlotPlacementProfile {
+  /** Fixed screen-space hull offset (px at base scale), relative to anchor. */
+  hullOffset: MountSlotOffset;
+  /** Fixed screen-space turret-only offset (px at base scale). */
+  turretOffset: MountSlotOffset;
+}
+
 /**
- * Production config: hull id → mount-slot category.
- *
- * This is the single source of truth. A new hull is supported by adding one
- * entry here (or it falls back to `center`, see getHullMountSlot).
+ * Production config: hull id → mount-slot category. Single source of truth.
+ * A new hull is supported by adding one entry here (or it falls back to the
+ * `center` profile, see getHullMountSlot).
  */
 export const HULL_MOUNT_SLOTS: Record<string, ModularVehicleMountSlot> = {
   // Front-mounted weapon hulls.
   mammoth: 'front',
   titan: 'front',
-  // Centre-mounted weapon hulls (metadata frame-centre already correct).
+  // Centre-mounted weapon hulls.
   viking: 'center',
   hunter: 'center',
   hornet: 'center',
@@ -54,75 +71,32 @@ export const HULL_MOUNT_SLOTS: Record<string, ModularVehicleMountSlot> = {
   dictator: 'rear',
 };
 
-/** Default category for an unknown hull: centre (no adjustment, safest). */
+/** Default category for an unknown hull. */
 export const DEFAULT_MOUNT_SLOT: ModularVehicleMountSlot = 'center';
 
 /**
- * Forward shift per mount slot, expressed as a fraction of the hull display
- * size (so it scales with zoom and the per-hull visual scale automatically).
- *
- * Positive = toward the hull's facing/front; negative = toward the rear.
- * `center` is exactly 0 — a true no-op so frame-centre hulls are untouched.
- *
- * This single constant is the only tunable in the whole mount-slot layer.
+ * Production config: mount-slot category → accepted placement profile.
+ * These are the calibration-accepted offsets, promoted to production constants.
  */
-export const MOUNT_SLOT_FORWARD_FRACTION: Record<ModularVehicleMountSlot, number> = {
-  front: 0.16,
-  center: 0,
-  rear: -0.16,
+export const MOUNT_SLOT_PLACEMENT: Record<ModularVehicleMountSlot, MountSlotPlacementProfile> = {
+  front: { hullOffset: { x: 4, y: -12 }, turretOffset: { x: 0, y: 0 } },
+  center: { hullOffset: { x: -5, y: -7 }, turretOffset: { x: 0, y: 0 } },
+  rear: { hullOffset: { x: -7, y: -11 }, turretOffset: { x: 0, y: 0 } },
 };
 
 /**
- * Isometric vertical compression for projecting a facing vector to screen.
- * The hull direction sprites are pre-rendered in the game's 2:1-style iso, so
- * a unit world-forward projects to screen with the vertical axis compressed.
- * 0.5 matches the 2:1 ground projection used elsewhere in the renderer.
- */
-export const MOUNT_SLOT_ISO_VERTICAL_SCALE = 0.5;
-
-/** Radians per dir16 step (16 directions around the circle). */
-const DIR16_STEP_RAD = (2 * Math.PI) / 16;
-
-/**
- * Resolve a hull's mount slot. Unknown hulls fall back to `center` (no shift),
- * which is the safe non-regressing default.
+ * Resolve a hull's mount slot. Unknown hulls fall back to `center`, which is
+ * the safe default category.
  */
 export function getHullMountSlot(hullId: string): ModularVehicleMountSlot {
   return HULL_MOUNT_SLOTS[hullId] ?? DEFAULT_MOUNT_SLOT;
 }
 
-export interface MountSlotOffset {
-  /** Screen-space x shift in pixels (added to the socket screen point). */
-  dx: number;
-  /** Screen-space y shift in pixels (added to the socket screen point). */
-  dy: number;
-}
-
 /**
- * Compute the screen-space socket shift for a hull, following its facing.
- *
- * dir16 0 = E (angle 0), increasing clockwise (matches runtimeAngleToDir16 /
- * MODULAR_DIR16_SUFFIXES). The forward unit vector is projected to screen with
- * iso vertical compression, then scaled by the slot's forward fraction and the
- * hull display size. `center` hulls always return {0,0}.
- *
- * No per-direction table: the offset is computed from the direction angle, so
- * one fraction constant covers all 16 directions for every hull in a slot.
+ * Resolve the production placement profile for a hull. This is the single
+ * source of placement truth shared by the live renderer and the preview
+ * renderer.
  */
-export function getMountSlotSocketShift(
-  hullId: string,
-  hullDir16: number,
-  hullDisplaySize: number,
-): MountSlotOffset {
-  const slot = getHullMountSlot(hullId);
-  const fraction = MOUNT_SLOT_FORWARD_FRACTION[slot];
-  if (fraction === 0) {
-    return { dx: 0, dy: 0 };
-  }
-  const angle = hullDir16 * DIR16_STEP_RAD;
-  const magnitude = fraction * hullDisplaySize;
-  return {
-    dx: Math.cos(angle) * magnitude,
-    dy: Math.sin(angle) * MOUNT_SLOT_ISO_VERTICAL_SCALE * magnitude,
-  };
+export function getMountSlotPlacement(hullId: string): MountSlotPlacementProfile {
+  return MOUNT_SLOT_PLACEMENT[getHullMountSlot(hullId)];
 }

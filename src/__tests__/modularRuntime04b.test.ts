@@ -19,9 +19,9 @@ import {
 } from '../modular/modularVehicleComposition';
 import {
   HULL_MOUNT_SLOTS,
-  MOUNT_SLOT_FORWARD_FRACTION,
+  MOUNT_SLOT_PLACEMENT,
   getHullMountSlot,
-  getMountSlotSocketShift,
+  getMountSlotPlacement,
   type ModularVehicleMountSlot,
 } from '../modular/modularVehicleMountSlots';
 import {
@@ -73,89 +73,111 @@ describe('MODULAR-RUNTIME-04B: mount-slot categories for all seven hulls', () =>
     expect(bySlot.rear.sort()).toEqual(['dictator', 'wasp']);
   });
 
-  it('unknown hull falls back to center (no shift, non-regressing)', () => {
+  it('unknown hull falls back to center profile (non-regressing)', () => {
     expect(getHullMountSlot('totally-new-hull')).toBe('center');
-    const shift = getMountSlotSocketShift('totally-new-hull', 0, 100);
-    expect(shift).toEqual({ dx: 0, dy: 0 });
+    expect(getMountSlotPlacement('totally-new-hull')).toEqual(
+      MOUNT_SLOT_PLACEMENT.center,
+    );
   });
 });
 
-describe('MODULAR-RUNTIME-04B: mount-slot socket shift behavior', () => {
-  it('center hulls receive an exact zero shift in every direction', () => {
-    for (const dir of [0, 2, 4, 6, 8, 10, 12, 14]) {
-      const shift = getMountSlotSocketShift('viking', dir, 82);
-      expect(shift.dx).toBe(0);
-      expect(shift.dy).toBe(0);
+describe('MODULAR-RUNTIME-04B-FIX: accepted production placement profiles', () => {
+  it('front profile (titan/mammoth) = hullOffset 4 / -12, turretOffset 0 / 0', () => {
+    expect(MOUNT_SLOT_PLACEMENT.front).toEqual({
+      hullOffset: { x: 4, y: -12 },
+      turretOffset: { x: 0, y: 0 },
+    });
+    for (const hull of ['titan', 'mammoth']) {
+      expect(getMountSlotPlacement(hull).hullOffset).toEqual({ x: 4, y: -12 });
+      expect(getMountSlotPlacement(hull).turretOffset).toEqual({ x: 0, y: 0 });
     }
   });
 
-  it('front and rear shifts are equal magnitude, opposite sign (same hull facing)', () => {
-    const front = getMountSlotSocketShift('mammoth', 0, 82); // mammoth = front
-    const rear = getMountSlotSocketShift('wasp', 0, 82); // wasp = rear
-    expect(front.dx).toBeCloseTo(-rear.dx, 6);
-    expect(front.dy).toBeCloseTo(-rear.dy, 6);
-    expect(front.dx).toBeGreaterThan(0); // dir0 = East → +x toward facing
+  it('center profile (hunter/viking/hornet) = hullOffset -5 / -7, turretOffset 0 / 0', () => {
+    expect(MOUNT_SLOT_PLACEMENT.center).toEqual({
+      hullOffset: { x: -5, y: -7 },
+      turretOffset: { x: 0, y: 0 },
+    });
+    for (const hull of ['hunter', 'viking', 'hornet']) {
+      expect(getMountSlotPlacement(hull).hullOffset).toEqual({ x: -5, y: -7 });
+      expect(getMountSlotPlacement(hull).turretOffset).toEqual({ x: 0, y: 0 });
+    }
   });
 
-  it('shift follows the hull facing direction (computed, not a per-dir table)', () => {
-    // dir0 = E → +x; dir4 = S → +y; dir8 = W → -x; dir12 = N → -y
-    const e = getMountSlotSocketShift('titan', 0, 82);
-    const s = getMountSlotSocketShift('titan', 4, 82);
-    const w = getMountSlotSocketShift('titan', 8, 82);
-    const n = getMountSlotSocketShift('titan', 12, 82);
-    expect(e.dx).toBeGreaterThan(0);
-    expect(Math.abs(e.dy)).toBeLessThan(1e-6);
-    expect(s.dy).toBeGreaterThan(0);
-    expect(w.dx).toBeLessThan(0);
-    expect(n.dy).toBeLessThan(0);
+  it('rear profile (dictator/wasp) = hullOffset -7 / -11, turretOffset 0 / 0', () => {
+    expect(MOUNT_SLOT_PLACEMENT.rear).toEqual({
+      hullOffset: { x: -7, y: -11 },
+      turretOffset: { x: 0, y: 0 },
+    });
+    for (const hull of ['dictator', 'wasp']) {
+      expect(getMountSlotPlacement(hull).hullOffset).toEqual({ x: -7, y: -11 });
+      expect(getMountSlotPlacement(hull).turretOffset).toEqual({ x: 0, y: 0 });
+    }
   });
 
-  it('shift scales with the hull display size (fraction-based, not pixel-absolute)', () => {
-    const small = getMountSlotSocketShift('mammoth', 0, 50);
-    const big = getMountSlotSocketShift('mammoth', 0, 100);
-    expect(big.dx).toBeCloseTo(small.dx * 2, 6);
-  });
-
-  it('forward fraction config: center is exactly 0, front/rear are opposite', () => {
-    expect(MOUNT_SLOT_FORWARD_FRACTION.center).toBe(0);
-    expect(MOUNT_SLOT_FORWARD_FRACTION.front).toBeGreaterThan(0);
-    expect(MOUNT_SLOT_FORWARD_FRACTION.rear).toBeLessThan(0);
+  it('Wasp no longer uses 0 / 0 placement (regression that pushed it off-tile)', () => {
+    const wasp = getMountSlotPlacement('wasp').hullOffset;
+    expect(wasp).not.toEqual({ x: 0, y: 0 });
+    expect(wasp).toEqual({ x: -7, y: -11 });
   });
 });
 
-describe('MODULAR-RUNTIME-04B: mount-slot integrates into composition', () => {
-  function socketX(hullId: (typeof ALL_HULLS)[number]) {
-    const plan = composeModularVehicle({
-      visual: { hullId, turretId: 'smoky', faction: 'cyan', hullMod: 'm0', turretMod: 'm0' },
+describe('MODULAR-RUNTIME-04B-FIX: placement integrates into composition', () => {
+  function planFor(hullId: string) {
+    return composeModularVehicle({
+      visual: { hullId: hullId as any, turretId: 'smoky', faction: 'cyan', hullMod: 'm0', turretMod: 'm0' },
       hullDir16: 0 as GeneratedModularDir16,
       turretDir16: 0 as GeneratedModularDir16,
       anchor: { x: 300, y: 300 },
       textureExists: () => true,
     });
-    return plan.socketScreen.x;
   }
 
-  it('center hull socket stays at the hull centre (anchor) at dir0', () => {
-    // viking is center; metadata is frame-centre → socket == anchor.
-    expect(socketX('viking')).toBeCloseTo(300, 6);
+  it('hull position = anchor + production hullOffset for each category', () => {
+    // front (titan): +4 / -12
+    expect(planFor('titan').hull.position).toEqual({ x: 304, y: 288 });
+    // center (hunter): -5 / -7
+    expect(planFor('hunter').hull.position).toEqual({ x: 295, y: 293 });
+    // rear (wasp): -7 / -11
+    expect(planFor('wasp').hull.position).toEqual({ x: 293, y: 289 });
   });
 
-  it('front hull socket sits ahead of centre, rear behind, at dir0 (East)', () => {
-    expect(socketX('mammoth')).toBeGreaterThan(300); // front → +x
-    expect(socketX('wasp')).toBeLessThan(300); // rear → -x
+  it('socket rides with the hull (frame-centre metadata → socket == hull centre)', () => {
+    const p = planFor('wasp');
+    expect(p.socketScreen.x).toBeCloseTo(p.hull.position.x, 6);
+    expect(p.socketScreen.y).toBeCloseTo(p.hull.position.y, 6);
   });
 
-  it('mount-slot does NOT change hull sprite position or scale', () => {
-    const plan = composeModularVehicle({
-      visual: { hullId: 'mammoth', turretId: 'smoky', faction: 'cyan', hullMod: 'm0', turretMod: 'm0' },
-      hullDir16: 0 as GeneratedModularDir16,
-      turretDir16: 0 as GeneratedModularDir16,
-      anchor: { x: 300, y: 300 },
-      textureExists: () => true,
-    });
-    // Hull stays centred on the anchor; only the turret/socket moved.
-    expect(plan.hull.position).toEqual({ x: 300, y: 300 });
-    expect(plan.hull.scale).toBe(MODULAR_VEHICLE_BASE_SCALE);
+  it('turret rides with the hull; turretOffset 0/0 → turret centre == hull centre', () => {
+    const p = planFor('wasp');
+    expect(p.turret.position.x).toBeCloseTo(p.hull.position.x, 6);
+    expect(p.turret.position.y).toBeCloseTo(p.hull.position.y, 6);
+  });
+
+  it('placement does NOT change hull/turret scale', () => {
+    const p = planFor('mammoth');
+    expect(p.hull.scale).toBe(MODULAR_VEHICLE_BASE_SCALE);
+    expect(p.turret.scale).toBe(MODULAR_VEHICLE_BASE_SCALE);
+  });
+});
+
+describe('MODULAR-RUNTIME-04B-FIX: preview and live use the same placement source', () => {
+  it('the shared placement profile is the single source for live composition', () => {
+    // Live composition derives hull.position from getMountSlotPlacement; the
+    // preview renderer reads the identical getMountSlotPlacement for its base.
+    const anchor = { x: 500, y: 400 };
+    for (const hull of ALL_HULLS) {
+      const placement = getMountSlotPlacement(hull);
+      const plan = composeModularVehicle({
+        visual: { hullId: hull, turretId: 'smoky', faction: 'cyan', hullMod: 'm0', turretMod: 'm0' },
+        hullDir16: 0 as GeneratedModularDir16,
+        turretDir16: 0 as GeneratedModularDir16,
+        anchor,
+        textureExists: () => true,
+      });
+      expect(plan.hull.position.x).toBeCloseTo(anchor.x + placement.hullOffset.x, 6);
+      expect(plan.hull.position.y).toBeCloseTo(anchor.y + placement.hullOffset.y, 6);
+    }
   });
 });
 
@@ -171,6 +193,18 @@ describe('MODULAR-RUNTIME-04B: Dictator +9% hull-only survives mount-slot layer'
     expect(plan.hull.scale).toBeCloseTo(MODULAR_VEHICLE_BASE_SCALE * 1.09, 6);
     expect(plan.turret.scale).toBe(MODULAR_VEHICLE_BASE_SCALE);
     expect(getHullMountSlot('dictator')).toBe('rear');
+  });
+
+  it('exact accepted scales: dictator hull 0.1744, dictator turret 0.1600', () => {
+    const plan = composeModularVehicle({
+      visual: { hullId: 'dictator', turretId: 'ricochet', faction: 'cyan', hullMod: 'm0', turretMod: 'm0' },
+      hullDir16: 0 as GeneratedModularDir16,
+      turretDir16: 0 as GeneratedModularDir16,
+      anchor: { x: 0, y: 0 },
+      textureExists: () => true,
+    });
+    expect(plan.hull.scale).toBeCloseTo(0.1744, 4);
+    expect(plan.turret.scale).toBeCloseTo(0.1600, 4);
   });
 });
 

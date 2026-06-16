@@ -277,8 +277,9 @@ describe('end-to-end: blockout → modular render plan', () => {
     expect(plan.available).toBe(true);
     expect(plan.hull.textureKey).toBe('modular_hull_wasp_cyan_m0_dir00');
     expect(plan.turret.textureKey).toBe('generated_turret_smoky_cyan_m0_dir00');
-    expect(plan.hull.position.x).toBe(400);
-    expect(plan.hull.position.y).toBe(300);
+    // MODULAR-RUNTIME-04B-FIX: Wasp (rear) hull sits at anchor + (-7, -11).
+    expect(plan.hull.position.x).toBe(393);
+    expect(plan.hull.position.y).toBe(289);
   });
 });
 

@@ -56,6 +56,10 @@ import {
   effectiveTurretScale,
 } from '../../modular/modularPreviewCalibration';
 import type { GeneratedModularDir16 } from '../../assets/generatedModularVehicleAssets.generated';
+import {
+  getHullMountSlot,
+  getMountSlotPlacement,
+} from '../../modular/modularVehicleMountSlots';
 
 const OVERLAY_DEPTH = 21000;
 const BACKDROP_COLOR = 0x0b0f1e;
@@ -622,8 +626,8 @@ export class GeneratedModularVehicleRenderer {
       `Dictator/base hull mult: ${hullScaleMultiplier}`,
       `effective hull scale: ${this._effHullScale.toFixed(4)}`,
       `effective turret scale: ${this._effTurretScale.toFixed(4)}`,
-      `hullOffset: ${cal.hullOffsetX} / ${cal.hullOffsetY}`,
-      `turretOffset: ${cal.turretOffsetX} / ${cal.turretOffsetY}`,
+      `hullOffset (devtools extra): ${cal.hullOffsetX} / ${cal.hullOffsetY}`,
+      `turretOffset (devtools extra): ${cal.turretOffsetX} / ${cal.turretOffsetY}`,
       `pixelStep: ${cal.pixelStep}   scaleStep: ${cal.scaleStep}`,
       '',
       '--- Positions ---',
@@ -641,6 +645,23 @@ export class GeneratedModularVehicleRenderer {
       'calibration is devtools-only',
       'does not modify metadata/assets',
     ];
+
+    // MODULAR-RUNTIME-04B-FIX: show the production mount-slot placement that the
+    // live runtime uses, so the preview reflects the same source of truth (and
+    // no longer reads 0/0 for hulls like Wasp). The devtools calibration values
+    // above stack on top of this production base.
+    const mountSlot = getHullMountSlot(v.hullId);
+    const placement = getMountSlotPlacement(v.hullId);
+    lines.splice(
+      lines.indexOf('--- Tile / Calibration ---'),
+      0,
+      '--- Mount slot (production placement) ---',
+      `mountSlot: ${mountSlot}`,
+      `hullOffset (production): ${placement.hullOffset.x} / ${placement.hullOffset.y}`,
+      `turretOffset (production): ${placement.turretOffset.x} / ${placement.turretOffset.y}`,
+      '',
+    );
+
     this.labelText!.setText(lines);
   }
 
