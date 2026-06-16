@@ -74,6 +74,9 @@ import { resolvePilotTurretComposition, type PilotTurretCompositionResult } from
 import {
   ModularVehicleLiveAdapter,
 } from './ModularVehicleLiveAdapter';
+import {
+  debugRenderFlags,
+} from '../../config/debugRenderFlags';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -229,23 +232,38 @@ export class BlockoutVehicleRenderer {
   /**
    * Whether debug labels are shown.
    *
-   * VEHICLE-RENDER-UNIFY-01-VH Package E: default flipped to false.
-   * Debug labels (text above each vehicle) are dev/QA artifacts and
-   * must not appear in default gameplay/Arena view. Existing devtools
-   * toggle (toggleDebugLabels) re-enables them when explicitly requested.
+   * VEHICLE-RENDER-UNIFY-01-VH fixup: this field is now a thin proxy
+   * for `debugRenderFlags.debugLabels` (the canonical source of truth
+   * in src/config/debugRenderFlags.ts). It is retained as a private
+   * field only so existing internal references compile unchanged; all
+   * reads and writes go through `debugRenderFlags.debugLabels`.
+   *
+   * Default: false. Debug labels (text above each vehicle) are dev/QA
+   * artifacts and must not appear in default gameplay/Arena view.
+   * Existing devtools toggle (toggleDebugLabels) re-enables them when
+   * explicitly requested.
    */
-  private showDebugLabels = false;
+  private get showDebugLabels(): boolean {
+    return debugRenderFlags.debugLabels;
+  }
+  private set showDebugLabels(value: boolean) {
+    debugRenderFlags.debugLabels = value;
+  }
 
   /**
    * Whether mount points are shown.
    *
-   * VEHICLE-RENDER-UNIFY-01-VH Package E: default flipped to false.
-   * The red mount-point dot on each vehicle's turret mount is a debug
-   * artifact and must not appear in default gameplay/Arena view.
-   * Existing devtools toggle (toggleMountPoints) re-enables it when
-   * explicitly requested.
+   * VEHICLE-RENDER-UNIFY-01-VH fixup: this field is now a thin proxy
+   * for `debugRenderFlags.mountPoints` (the canonical source of truth).
+   * Default: false. The red mount-point dot is a debug artifact and
+   * must not appear in default gameplay/Arena view.
    */
-  private showMountPoints = false;
+  private get showMountPoints(): boolean {
+    return debugRenderFlags.mountPoints;
+  }
+  private set showMountPoints(value: boolean) {
+    debugRenderFlags.mountPoints = value;
+  }
 
   /** Currently selected vehicle ID (set from BlockoutVehicleInputController). */
   private _selectedVehicleId: string | null = null;
@@ -843,11 +861,14 @@ export class BlockoutVehicleRenderer {
       drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
 
       // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity.
-      // VEHICLE-RENDER-UNIFY-01-VH Package E: gate behind isDevtoolsActive().
-      // The direction arrow on the selection ring is a debug artifact and
-      // must not appear in default gameplay/Arena view. Devtools mode
-      // re-enables it. The selection ring itself stays (it is core UI).
-      if (this.isDevtoolsActive()) {
+      // VEHICLE-RENDER-UNIFY-01-VH fixup: gate behind an EXPLICIT debug
+      // render flag (debugRenderFlags.directionArrow), NOT behind
+      // isDevtoolsActive(). Arena mode is also devtools-active in GameScene,
+      // so isDevtoolsActive() === true in default Arena view — that would
+      // leak the direction arrow. The flag defaults to false; devtools
+      // panels must explicitly opt in. The selection ring itself stays
+      // (it is core UI, not a debug artifact).
+      if (debugRenderFlags.directionArrow) {
         // Use screen-space arrow from body center along body angle
         // Approximate ring edge in screen space for arrow placement
         const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38; // approximate pixel distance
@@ -1271,10 +1292,12 @@ export class BlockoutVehicleRenderer {
       g.strokePath();
 
       // ── Aim line for selected vehicle ─────────────────────────────
-      // VEHICLE-RENDER-UNIFY-01-VH Package E: gate behind isDevtoolsActive().
-      // The red dashed aim line is a debug artifact and must not appear in
-      // default gameplay/Arena view. Existing devtools mode re-enables it.
-      if (isSelected && this.isDevtoolsActive()) {
+      // VEHICLE-RENDER-UNIFY-01-VH fixup: gate behind an EXPLICIT debug
+      // render flag (debugRenderFlags.aimLine), NOT behind isDevtoolsActive().
+      // Arena mode is also devtools-active in GameScene, so isDevtoolsActive()
+      // === true in default Arena view — that would leak the aim line.
+      // The flag defaults to false; devtools panels must explicitly opt in.
+      if (isSelected && debugRenderFlags.aimLine) {
         g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
         const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
         // Aim starts at shared barrel tip (PROJECTION-01 fixup #3)

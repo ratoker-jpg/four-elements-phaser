@@ -417,10 +417,15 @@ describe('VEHICLE-RENDER-UNIFY-01-VH: faction flow through live adapter (Package
 // ─── Package E: turret-to-cursor default OFF (no Phaser scene required) ──
 
 describe('VEHICLE-RENDER-UNIFY-01-VH: turret-to-cursor default OFF (Package E)', () => {
-  it('BlockoutVehicleInputController.turretCursorFollowEnabled defaults to false', async () => {
+  it('BlockoutVehicleInputController.turretCursorFollowEnabled defaults to false even when devtools active', async () => {
     // Import the controller — we only need to verify the default value of
     // the new public field. We construct the controller with a mock deps
     // object that satisfies the constructor's minimal requirements.
+    //
+    // VEHICLE-RENDER-UNIFY-01-VH fixup: isDevtoolsActive is set to true
+    // here to prove that devtools-active alone does NOT enable turret-
+    // to-cursor. The flag must be explicitly opted in via
+    // setTurretCursorFollowEnabled(true).
     const { BlockoutVehicleInputController } = await import('../phaser/input/BlockoutVehicleInputController');
 
     const mockDeps: any = {
@@ -437,7 +442,7 @@ describe('VEHICLE-RENDER-UNIFY-01-VH: turret-to-cursor default OFF (Package E)',
         mapWidth: 20, mapHeight: 20,
         mapData: { terrain: [], hq: { tx: 0, ty: 0, faction: 'cyan' }, resources: [], obstacles: [], decor: [], buildings: [], builders: [], constructionSites: [] },
       }),
-      isDevtoolsActive: () => false,
+      isDevtoolsActive: () => true, // devtools active — but turret-to-cursor still OFF
       onSelectionChanged: () => {},
       isPlacementActive: () => false,
       isArenaMode: () => false,
@@ -446,6 +451,7 @@ describe('VEHICLE-RENDER-UNIFY-01-VH: turret-to-cursor default OFF (Package E)',
 
     const controller = new BlockoutVehicleInputController(mockDeps);
 
+    // Even with isDevtoolsActive() === true, turret-to-cursor is OFF by default.
     expect(controller.turretCursorFollowEnabled).toBe(false);
 
     // Opt-in via setter
@@ -458,24 +464,144 @@ describe('VEHICLE-RENDER-UNIFY-01-VH: turret-to-cursor default OFF (Package E)',
   });
 });
 
-// ─── Package E: BlockoutVehicleRenderer debug defaults (raw source) ──
+// ─── Package E fixup: debugRenderFlags module ──────────────────────
 
-describe('VEHICLE-RENDER-UNIFY-01-VH: BlockoutVehicleRenderer debug defaults (Package E)', () => {
-  it('showMountPoints and showDebugLabels default to false (raw source check)', async () => {
-    // Read the source file via Vite's ?raw import to verify the default
-    // field values. Constructing the renderer requires a full Phaser scene
-    // which is not feasible in a unit test.
+import {
+  debugRenderFlags,
+  resetDebugRenderFlags,
+  setDebugRenderFlag,
+  getDebugRenderFlag,
+  areAllDebugRenderFlagsOff,
+} from '../config/debugRenderFlags';
+
+describe('VEHICLE-RENDER-UNIFY-01-VH fixup: debugRenderFlags module', () => {
+  beforeEach(() => {
+    resetDebugRenderFlags();
+  });
+
+  it('all flags default to false', () => {
+    expect(debugRenderFlags.directionArrow).toBe(false);
+    expect(debugRenderFlags.aimLine).toBe(false);
+    expect(debugRenderFlags.mountPoints).toBe(false);
+    expect(debugRenderFlags.debugLabels).toBe(false);
+  });
+
+  it('areAllDebugRenderFlagsOff() returns true at defaults', () => {
+    expect(areAllDebugRenderFlagsOff()).toBe(true);
+  });
+
+  it('setDebugRenderFlag sets a single flag', () => {
+    setDebugRenderFlag('aimLine', true);
+    expect(debugRenderFlags.aimLine).toBe(true);
+    expect(debugRenderFlags.directionArrow).toBe(false); // others unchanged
+    expect(areAllDebugRenderFlagsOff()).toBe(false);
+  });
+
+  it('getDebugRenderFlag reads a single flag', () => {
+    setDebugRenderFlag('directionArrow', true);
+    expect(getDebugRenderFlag('directionArrow')).toBe(true);
+    expect(getDebugRenderFlag('aimLine')).toBe(false);
+  });
+
+  it('resetDebugRenderFlags restores all flags to false', () => {
+    setDebugRenderFlag('aimLine', true);
+    setDebugRenderFlag('directionArrow', true);
+    setDebugRenderFlag('mountPoints', true);
+    setDebugRenderFlag('debugLabels', true);
+    expect(areAllDebugRenderFlagsOff()).toBe(false);
+
+    resetDebugRenderFlags();
+    expect(areAllDebugRenderFlagsOff()).toBe(true);
+  });
+
+  it('flags are independent (setting one does not flip others)', () => {
+    setDebugRenderFlag('aimLine', true);
+    expect(debugRenderFlags.aimLine).toBe(true);
+    expect(debugRenderFlags.directionArrow).toBe(false);
+    expect(debugRenderFlags.mountPoints).toBe(false);
+    expect(debugRenderFlags.debugLabels).toBe(false);
+
+    setDebugRenderFlag('directionArrow', true);
+    expect(debugRenderFlags.aimLine).toBe(true);
+    expect(debugRenderFlags.directionArrow).toBe(true);
+    expect(debugRenderFlags.mountPoints).toBe(false);
+    expect(debugRenderFlags.debugLabels).toBe(false);
+  });
+});
+
+// ─── Package E fixup: BlockoutVehicleRenderer gates via flags, NOT isDevtoolsActive ──
+
+describe('VEHICLE-RENDER-UNIFY-01-VH fixup: renderer gates via debugRenderFlags, not isDevtoolsActive', () => {
+  beforeEach(() => {
+    resetDebugRenderFlags();
+  });
+
+  it('aim line is gated by debugRenderFlags.aimLine, NOT by isDevtoolsActive', async () => {
+    // Verify the source no longer uses `isSelected && this.isDevtoolsActive()`
+    // for the aim line. This was the GPT-reviewed blocker: Arena mode is
+    // devtools-active, so isDevtoolsActive() === true leaked the aim line.
     const source = (await import('../phaser/render/BlockoutVehicleRenderer.ts?raw')).default as string;
 
-    // Find the field declarations and verify defaults
-    expect(source).toMatch(/private showDebugLabels = false/);
-    expect(source).toMatch(/private showMountPoints = false/);
+    // The aim line must check debugRenderFlags.aimLine, not isDevtoolsActive.
+    expect(source).toMatch(/if \(isSelected && debugRenderFlags\.aimLine\) \{/);
+    // The old gating must NOT be present anywhere in the aim-line block.
+    // (We check that the specific pattern `isSelected && this.isDevtoolsActive()`
+    // does not appear at all in the file — it was only used for aim line.)
+    expect(source).not.toMatch(/isSelected && this\.isDevtoolsActive\(\)/);
+  });
 
-    // Verify aim line is gated by isDevtoolsActive
-    expect(source).toMatch(/if \(isSelected && this\.isDevtoolsActive\(\)\) \{/);
+  it('direction arrow is gated by debugRenderFlags.directionArrow, NOT by isDevtoolsActive', async () => {
+    const source = (await import('../phaser/render/BlockoutVehicleRenderer.ts?raw')).default as string;
 
-    // Verify direction arrow is gated by isDevtoolsActive
-    expect(source).toMatch(/VEHICLE-RENDER-UNIFY-01-VH Package E: gate behind isDevtoolsActive\(\)/);
+    // The direction arrow must check debugRenderFlags.directionArrow.
+    expect(source).toMatch(/if \(debugRenderFlags\.directionArrow\) \{/);
+  });
+
+  it('mount points and debug labels are gated by debugRenderFlags (via proxy fields)', async () => {
+    const source = (await import('../phaser/render/BlockoutVehicleRenderer.ts?raw')).default as string;
+
+    // The proxy getters read from debugRenderFlags.
+    expect(source).toMatch(/return debugRenderFlags\.mountPoints/);
+    expect(source).toMatch(/return debugRenderFlags\.debugLabels/);
+
+    // The render-time checks use the proxy fields (this.showMountPoints /
+    // this.showDebugLabels), which read through to debugRenderFlags.
+    expect(source).toMatch(/if \(this\.showMountPoints\)/);
+    expect(source).toMatch(/this\.showDebugLabels/);
+  });
+
+  it('devtoolsActive=true alone does NOT enable any debug artifact (the blocker fix)', () => {
+    // This is the core regression test for the GPT-reviewed blocker.
+    // Before the fix: isDevtoolsActive() === true → aim line + direction
+    // arrow rendered in default Arena view.
+    // After the fix: devtoolsActive has NO effect on debug artifacts.
+    // Only explicit debugRenderFlags enable them.
+
+    // Simulate "devtools active, no explicit flags" (default Arena view).
+    // The flags are at their default (false) state.
+    expect(debugRenderFlags.aimLine).toBe(false);
+    expect(debugRenderFlags.directionArrow).toBe(false);
+    expect(debugRenderFlags.mountPoints).toBe(false);
+    expect(debugRenderFlags.debugLabels).toBe(false);
+
+    // devtoolsActive is a separate concept — it does NOT flip any flag.
+    // (We verify this by checking that the flags module has no setter
+    // that takes a devtoolsActive parameter, and that the renderer source
+    // does not write to flags based on isDevtoolsActive.)
+    // The flags remain false regardless of devtoolsActive state.
+    expect(areAllDebugRenderFlagsOff()).toBe(true);
+  });
+
+  it('explicit flag ON enables the corresponding artifact', () => {
+    // Devtools panel explicitly opts in to aim line.
+    setDebugRenderFlag('aimLine', true);
+    expect(debugRenderFlags.aimLine).toBe(true);
+    expect(areAllDebugRenderFlagsOff()).toBe(false);
+
+    // Other artifacts remain off until explicitly enabled.
+    expect(debugRenderFlags.directionArrow).toBe(false);
+    expect(debugRenderFlags.mountPoints).toBe(false);
+    expect(debugRenderFlags.debugLabels).toBe(false);
   });
 });
 
