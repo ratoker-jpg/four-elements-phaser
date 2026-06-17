@@ -110,7 +110,7 @@ the full stage definitions, risk table, manual QA gates, and rollback plan.
       state: OPEN, DRAFT (not ready for review)
       branch: vehicle-render-unify-01-vh
       base: main @ 2665192 (after PR #297 merge)
-      commits: 3 (93f82ec + b551c476 + aac65ee)
+      commits: 4 (93f82ec + b551c476 + aac65ee + 3a0bd60)
       This is the current active PR. Implementation combines Stage 1 + Stage 2.
       Stage 3 (legacy renderer retirement) and Stage 4 (GameScene render
       orchestration cleanup) are NOT started.

@@ -217,7 +217,7 @@ Covers `factionResolver`:
 - `resetFactionWarningLedger` clears counts.
 - Different contexts warn independently.
 
-**New file:** `src/__tests__/vehicleRenderUnify01vh.test.ts` (20 tests)
+**New file:** `src/__tests__/vehicleRenderUnify01vh.test.ts` (30 tests)
 
 Covers:
 - Sticky no-flicker behavior (8 tests):
