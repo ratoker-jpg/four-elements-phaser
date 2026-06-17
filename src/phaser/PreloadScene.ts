@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadArenaVisualAssets, loadGeneratedTerrainAndResourceAssets, loadGeneratedIndustrialTerrainAssets, loadGeneratedIndustrialFrameAssets, loadGeneratedIndustrialResourceAssets } from '../assets/runtimeGeneratedAssets';
 import { isDevtoolsEnabled } from '../state/devCommands';
-import { getPilotVehicleLoadDiagnostics } from '../assets/pilotVehicleLazyLoad';
+// FIXUP-5: pilotVehicleLazyLoad import removed.
+// No pilot-era Wasp/Smoky preload in PreloadScene. Modular vehicle assets
+// are loaded on-demand via requestModularVehicleSet() when vehicles spawn.
 
 /**
  * PreloadScene — load all runtime-approved assets, then start MainMenuScene.
@@ -48,20 +50,12 @@ export class PreloadScene extends Phaser.Scene {
 
     // --- Modular combat images (PHASER4-LOAD-02: devtools/arena only) ---
     if (isDevtoolsEnabled()) {
+      // FIXUP-5: loadArenaVisualAssets is now a no-op (returns []).
+      // No Wasp M0 hull preload, no pilot turret preload.
+      // All modular vehicle assets are loaded on-demand via
+      // requestModularVehicleSet() when vehicles spawn in Arena/runtime.
       loadArenaVisualAssets(this);
-      console.log('[PreloadScene] generated hull sets loaded: wasp/<all factions>/m0 (16 dirs each).');
-
-      // RUNTIME-02B: Log pilot vehicle set diagnostics after loading
-      const pilotDiag = getPilotVehicleLoadDiagnostics(this);
-      console.log(
-        `[PreloadScene] Pilot vehicle set diagnostics: ` +
-        `hullSupported=${pilotDiag.hullSupported} hullLoaded=${pilotDiag.hullLoaded} hullKeysPresent=${pilotDiag.hullKeysPresent}/16 ` +
-        `turretSupported=${pilotDiag.turretSupported} turretLoaded=${pilotDiag.turretLoaded} turretKeysPresent=${pilotDiag.turretKeysPresent}/16 ` +
-        `fullyLoaded=${pilotDiag.fullyLoaded}`,
-      );
-
-      // Legacy modularUnits family is disabled. Generated hull sets loaded for all factions.
-      // RUNTIME-02B: Pilot turret set (Smoky cyan m0) loaded via loadArenaVisualAssets.
+      console.log('[PreloadScene] Arena visual assets: no preloaded modular vehicle sets (FIXUP-5). All loaded on-demand.');
     } else {
       console.log('[PreloadScene] modularUnits loading skipped (standard mode).');
     }

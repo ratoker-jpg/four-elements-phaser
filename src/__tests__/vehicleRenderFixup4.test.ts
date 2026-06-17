@@ -161,7 +161,7 @@ describe('VEHICLE-RENDER-UNIFY-03-VH-FIXUP-4: canonical on-demand loader auto-st
 // ─── Pilot preload removal tests ───────────────────────────────────
 
 describe('VEHICLE-RENDER-UNIFY-03-VH-FIXUP-4: pilot preload removed from live path', () => {
-  it('loadArenaVisualAssets does NOT queue pilot turret keys (Smoky cyan m0)', async () => {
+  it('FIXUP-5: loadArenaVisualAssets is a no-op (no hull keys, no turret keys)', async () => {
     const { loadArenaVisualAssets } = await import('../assets/runtimeGeneratedAssets');
 
     const loadImageCalls: Array<{ key: string; path: string }> = [];
@@ -176,13 +176,9 @@ describe('VEHICLE-RENDER-UNIFY-03-VH-FIXUP-4: pilot preload removed from live pa
 
     loadArenaVisualAssets(scene as any);
 
-    // FIXUP-4: no turret keys should be queued
-    const turretKeys = loadImageCalls.filter(c => c.key.startsWith('generated_turret_'));
-    expect(turretKeys.length).toBe(0);
-
-    // Hull keys for all 4 factions should still be queued
-    const hullKeys = loadImageCalls.filter(c => c.key.startsWith('generated_hull_'));
-    expect(hullKeys.length).toBe(64); // 4 factions × 16 dirs
+    // FIXUP-5: no keys of any kind should be queued.
+    // All modular vehicle assets are loaded on-demand.
+    expect(loadImageCalls.length).toBe(0);
   });
 
   it('isArenaVisualAssetsLoaded does NOT require pilot turret probe key', async () => {

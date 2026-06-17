@@ -273,18 +273,37 @@ export class GeneratedModularVehicleRenderer {
 
   private ensureAssetsLoaded(): void {
     if (this.loadRequested) return;
+    // FIXUP-5: Register COMPLETE listener BEFORE requestModularVehicleSet().
+    // requestModularVehicleSet() now auto-starts the loader (FIXUP-4), so
+    // the COMPLETE event could fire before a listener registered after the
+    // call. Registering before the call ensures we don't miss the event.
+    //
+    // We also do NOT call scene.load.start() here — requestModularVehicleSet()
+    // owns the auto-start, and a duplicate start() could cause race conditions.
+    const onComplete = () => {
+      if (this._active) {
+        this.refresh();
+        this.onStateChange?.();
+      }
+    };
+    this.scene.load.once(Phaser.Loader.Events.COMPLETE, onComplete);
+
     const diag = requestModularVehicleSet(this.scene, this.visual);
     this.lastLoad = diag;
     this.loadRequested = true;
-    if (diag.queuedCount > 0) {
-      this.scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
-        if (this._active) {
-          this.refresh();
-          this.onStateChange?.();
-        }
-      });
-      this.scene.load.start();
+
+    // FIXUP-5: If nothing was queued (all textures already available),
+    // the loader won't fire COMPLETE — call refresh immediately.
+    if (diag.queuedCount === 0) {
+      this.scene.load.off(Phaser.Loader.Events.COMPLETE, onComplete);
+      if (this._active) {
+        this.refresh();
+        this.onStateChange?.();
+      }
     }
+    // If diag.queuedCount > 0, requestModularVehicleSet() already started
+    // the loader. The COMPLETE listener registered above will fire when
+    // loading finishes. No scene.load.start() call here.
   }
 
   // ─── Build / teardown ─────────────────────────────────────────────
