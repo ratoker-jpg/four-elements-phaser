@@ -3,16 +3,16 @@
 Status: active operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Updated: 2026-06-14
+Updated: 2026-06-17
 
 ---
 
 ## Current mode
 
 ```text
-MODULAR-RUNTIME-01 IMPLEMENTATION IS ACTIVE.
-The cleanup + modular vehicle roadmap/audit is accepted.
-ASSET-IMPORT-01 (PR #278) merged — modular cyan assets are now in the repo.
+VEHICLE RENDER UNIFICATION — POST-PR #298 BASELINE.
+Stage 1 + Stage 2 are merged and manually QA-accepted.
+The next direction is docs sync, then Stage 3/4 audit-first planning.
 ```
 
 Current direction:
@@ -22,13 +22,10 @@ Graphify-first AI workflow
 +
 documentation/source-of-truth cleanup
 +
-modular cyan vehicle runtime integration (MODULAR-RUNTIME-01)
+modular vehicle runtime / unified vehicle renderer
++
+legacy render path retirement planning
 ```
-
-ASSET-IMPORT-01 was an approved asset-only exception, already merged as PR #278.
-The modular cyan hull/turret PNGs, metadata manifests, root manifest, and the
-generated registry now live in the repo. MODULAR-RUNTIME-01 is the active
-implementation step (clean modular generated vehicle renderer path).
 
 Closed / accepted cycles:
 
@@ -39,6 +36,9 @@ CAMERA-00 projection contract: IMPLEMENTED / ACCEPTED.
 PROJECTION-01 ground-plane retrofit: IMPLEMENTED / ACCEPTED.
 Arena Sandbox roadmap/audit cycle: CLOSED after PR #184.
 Core Mechanics roadmap/audit cycle: CLOSED after PR #207.
+MODULAR-RUNTIME-04A baseline: MERGED via PR #295.
+VEHICLE-RENDER-UNIFY audit/roadmap: MERGED via PR #297.
+VEHICLE-RENDER-UNIFY Stage 1+2: MERGED via PR #298 and accepted by Denis manual QA.
 ```
 
 Do not continue closed roadmaps by inertia.
@@ -56,7 +56,8 @@ docs/project/CURRENT_NEXT_STEP.md
 docs/project/GPT_WORKFLOW.md
 docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
 docs/project/AI_GRAPHIFY_WORKFLOW.md
-docs/project/MODULAR_VEHICLE_ASSET_RUNTIME_ROADMAP_2026_06_14.md
+docs/project/VEHICLE_RENDER_UNIFICATION_AUDIT_2026_06_16.md
+docs/project/VEHICLE_RENDER_UNIFICATION_ROADMAP_2026_06_16.md
 ```
 
 Agent-specific docs:
@@ -102,7 +103,11 @@ The project currently has:
 - body armor/damage reduction and body/weapon M0-M3 runtime scaling;
 - industrial generated map as default for new games;
 - core economy/building/movement/combat baseline from closed Core Mechanics work;
-- multiple stale/legacy docs and asset/runtime paths that require cleanup before final modular asset integration.
+- modular PNG vehicle renderer enabled in normal runtime and Arena/devtools;
+- canonical faction resolver with no silent cyan fallback in live render path;
+- sticky no-flicker behavior after successful modular render;
+- default debug render artifacts OFF;
+- legacy render paths still present but ready for Stage 3 retirement planning.
 ```
 
 ---
@@ -117,6 +122,8 @@ hull sprite separately
 turret sprite separately
 +
 socket/pivot metadata
++
+canonical live adapter path
 ```
 
 Rejected model:
@@ -131,32 +138,12 @@ Reason:
 combined matrix explodes with independent hull/turret mods and factions.
 ```
 
-Known local staging summary outside repo:
+Important current renderer decision:
 
 ```text
-448 hull PNG
-640 turret PNG
-1088 runtime PNG total
-warnings 0
+modular PNG is the default visual path when assets are available.
+fallback is emergency/loading only, not a normal production render path.
 ```
-
-The full staging package must not be imported before cleanup/loader/renderer strategy is accepted.
-
----
-
-## Graphify / GitHub-first context rule
-
-Repository-level context building should happen in GitHub, not by asking Denis to download and inspect the repo locally.
-
-Use:
-
-```text
-.github/workflows/graphify.yml
-```
-
-Generated `graphify-out/**` artifacts are used for broad Opus/GLM/GPT audits.
-
-Do not commit graph output by default.
 
 ---
 
@@ -166,13 +153,43 @@ Do not commit graph output by default.
 1. [DONE] Docs-only Graphify + AI governance + modular roadmap update.
 2. [DONE] Opus cleanup + modular runtime system audit committed.
 3. [DONE] ASSET-IMPORT-01 (PR #278) — modular cyan assets imported into repo.
-4. [ACTIVE] MODULAR-RUNTIME-01 — clean modular generated vehicle renderer:
-   - typed ModularVehicleVisual model (independent hull/turret + hullMod/turretMod);
-   - metadata-driven composition (socket/pivot from export manifests, no offset tables);
-   - lazy loader (max 32 PNG per selected visual);
-   - GeneratedModularVehicleRenderer + Arena/devtools selector;
-   - safe fallback; no combat/movement/economy/mapgen/save-load changes.
-5. [NEXT] After runtime QA, broaden Arena modular QA + reconcile legacy px-offset stack.
+4. [DONE] MODULAR-RUNTIME-04A (PR #295) — default modular + scale normalization.
+5. [DONE] VEHICLE-RENDER-UNIFY-AUDIT (PR #297) — 4-stage roadmap accepted.
+6. [DONE] VEHICLE-RENDER-UNIFY-01-VH (PR #298) — Stage 1 + Stage 2 merged:
+   - canonical renderer foundation;
+   - visual parity + placement stabilization;
+   - no silent cyan fallback;
+   - no flicker back to cubes after modular success;
+   - debug artifacts OFF by default;
+   - Arena + normal runtime parity.
+7. [ACTIVE] DOCS-SYNC-POST-298 — source-of-truth docs sync after #298 merge.
+8. [NEXT] VEHICLE-RENDER-UNIFY-03-04-VH-AUDIT — audit-only decision on whether
+   Stage 3 + Stage 4 can be combined into one Very High+ GLM 5.2 implementation PR.
+```
+
+---
+
+## Next implementation direction, not yet approved
+
+Candidate experiment:
+
+```text
+Combine Stage 3 + Stage 4 into one larger Very High+ implementation PR.
+```
+
+This is not automatically approved. It requires an audit-only PR or audit report first.
+
+Audit must answer:
+
+```text
+- all production references to ModularTankRenderer / legacy render paths;
+- whether BlockoutVehicleRenderer procedural fallback should move to legacy/ or be dev-only gated;
+- whether emergency/loading fallback remains safe and explicit;
+- exact GameScene render orchestration extraction plan;
+- exact touched files;
+- rollback plan;
+- validation and manual QA plan;
+- whether combined implementation is justified, or whether Stage 3 and Stage 4 must remain separate.
 ```
 
 ---
@@ -190,6 +207,10 @@ Do not start implementation if:
 - task proposes combined hull x turret production matrix;
 - task proposes preloading all modular assets at startup;
 - task adds new URL debug/test modes instead of using Arena/debug UI;
+- task changes composeModularVehicle() placement/math without explicit Denis approval;
+- task blindly reuses PR #296 mount-slot / forward-back drift model;
+- task touches combat, movement, economy, mapgen, pathfinding, save-load, bot/AI
+  during vehicle render unification work;
 - task asks Denis to do local repo context work that can run in GitHub;
 - task turns Codex from read-only local auditor into executor without explicit approval.
 ```
