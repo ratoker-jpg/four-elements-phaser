@@ -67,7 +67,9 @@ const SMOKE_RUNS = [
       '[GameScene] All asset textures verified.',
       '[GameScene] State-driven scene ready.',
       '[GameScene] Faction: cyan',
-      '[PreloadScene] generated hull sets loaded: wasp/<all factions>/m0 (16 dirs each).',
+      // FIXUP-5: PreloadScene no longer preloads Wasp M0 hull sets.
+      // It now logs that all modular vehicle assets are loaded on-demand.
+      '[PreloadScene] Arena visual assets: no preloaded modular vehicle sets (FIXUP-5). All loaded on-demand.',
       '[GameScene] Harvester animation ready.',
     ],
     screenshotFile: 'qa-smoke-devtools.png',

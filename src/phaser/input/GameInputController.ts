@@ -8,12 +8,8 @@ import { startUnitProduction, cancelFactoryQueueItem } from '../../state/product
 import type { UnitSelection } from '../../state/unitSelection';
 import { clearSelection, isUnitSelected, isHarvesterSelected } from '../../state/unitSelection';
 import { issueManualMove, stopUnitCommand } from '../../state/unitCommands';
-import {
-  MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
-  MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR,
-  tunerState,
-  type ModularTankDirection,
-} from '../../config/worldConfig';
+// Stage 3 retirement: ModularTankDirection import removed from worldConfig.
+// It was only used by the legacy tuner hotkeys (Q/E/Z/X), which are gone.
 import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
 import { commandRegistry, registerMvpCommands } from '../../state/commandRegistry';
 import type { EntityRenderer } from '../render/EntityRenderer';
@@ -104,10 +100,9 @@ const CLICK_DRAG_THRESHOLD = 4;
 /** Selection radius in tile units for click-to-select. */
 const SELECT_RADIUS = 0.8;
 
-// ─── Arrow key tuning constants (debug overlay only) ───────────────
-
-const ARROW_STEP = 1;
-const ARROW_SHIFT_STEP = 5;
+// ─── Stage 3 retirement ───────────────────────────────────────────
+// ARROW_STEP / ARROW_SHIFT_STEP constants removed: they were used only
+// by the legacy offset-table tuner hotkeys, which are no longer wired.
 
 // ─── GameInputController class ─────────────────────────────────────
 
@@ -148,7 +143,6 @@ export class GameInputController {
   private boundPointerdown: (pointer: Phaser.Input.Pointer) => void;
   private boundPointerup: (pointer: Phaser.Input.Pointer) => void;
   private boundPointermove: (pointer: Phaser.Input.Pointer) => void;
-  private boundArrowHandler: (event: KeyboardEvent) => void;
 
   /** DOM contextmenu handler reference for proper cleanup. */
   private contextmenuHandler: ((e: Event) => void) | null = null;
@@ -180,7 +174,6 @@ export class GameInputController {
     this.boundPointerdown = this.onPointerdown.bind(this);
     this.boundPointerup = this.onPointerup.bind(this);
     this.boundPointermove = this.onPointermove.bind(this);
-    this.boundArrowHandler = this.onArrowKey.bind(this);
 
     // HOTKEYS-01: Initialize command registry and wire MVP command callbacks
     registerMvpCommands();
@@ -712,70 +705,26 @@ export class GameInputController {
     const kb = this.scene.input.keyboard;
     if (!kb) return;
 
-    // ── Debug overlay toggle (T) + tuner controls ────────────
-    kb.on('keydown-T', () => {
-      const visible = this.entityRenderer.toggleModularTankDebug();
-      if (visible !== undefined) {
-        console.log(`[GameScene] Modular tank debug overlay: ${visible ? 'ON' : 'OFF'}`);
-      }
-    });
-
-    // H — select hull layer for tuning (only when overlay is ON)
-    kb.on('keydown-H', () => {
-      if (!this.entityRenderer.isDebugOverlayVisible()) return;
-      tunerState.selectedLayer = 'hull';
-      this.entityRenderer.updateModularTankVisuals();
-      console.log('[Tuner] Selected layer: hull');
-    });
-
-    // J — select turret layer for tuning (only when overlay is ON)
-    kb.on('keydown-J', () => {
-      if (!this.entityRenderer.isDebugOverlayVisible()) return;
-      tunerState.selectedLayer = 'turret';
-      this.entityRenderer.updateModularTankVisuals();
-      console.log('[Tuner] Selected layer: turret');
-    });
-
-    // C — print mutable runtime offset tables to console (only when overlay is ON)
-    kb.on('keydown-C', () => {
-      if (!this.entityRenderer.isDebugOverlayVisible()) return;
-      this.entityRenderer.printOffsetTables();
-    });
-
-    // Arrow keys — adjust selected offset for current bodyDir entry (only when overlay is ON)
-    kb.on('keydown', this.boundArrowHandler as (event: KeyboardEvent) => void);
-
-    // Q — previous body direction (only when overlay is ON)
-    kb.on('keydown-Q', () => {
-      if (!this.entityRenderer.isDebugOverlayVisible()) return;
-      const next = ((tunerState.bodyDir - 1) + 8) % 8 as ModularTankDirection;
-      this.entityRenderer.setModularTankBodyDir(next);
-      console.log(`[Tuner] bodyDir: ${next}`);
-    });
-
-    // E — next body direction (only when overlay is ON)
-    kb.on('keydown-E', () => {
-      if (!this.entityRenderer.isDebugOverlayVisible()) return;
-      const next = ((tunerState.bodyDir + 1) % 8) as ModularTankDirection;
-      this.entityRenderer.setModularTankBodyDir(next);
-      console.log(`[Tuner] bodyDir: ${next}`);
-    });
-
-    // Z — previous turret direction (only when overlay is ON)
-    kb.on('keydown-Z', () => {
-      if (!this.entityRenderer.isDebugOverlayVisible()) return;
-      const next = ((tunerState.turretDir - 1) + 8) % 8 as ModularTankDirection;
-      this.entityRenderer.setModularTankTurretDir(next);
-      console.log(`[Tuner] turretDir: ${next}`);
-    });
-
-    // X — next turret direction (only when overlay is ON)
-    kb.on('keydown-X', () => {
-      if (!this.entityRenderer.isDebugOverlayVisible()) return;
-      const next = ((tunerState.turretDir + 1) % 8) as ModularTankDirection;
-      this.entityRenderer.setModularTankTurretDir(next);
-      console.log(`[Tuner] turretDir: ${next}`);
-    });
+    // ── Stage 3 retirement: modular tank tuner hotkeys removed ──
+    //
+    // The following hotkeys were removed in VEHICLE-RENDER-UNIFY-03-VH
+    // because they controlled the legacy per-dir offset tables, which
+    // are no longer in worldConfig.ts:
+    //   - T  (toggle modular tank debug overlay)
+    //   - H  (select hull layer for tuning)
+    //   - J  (select turret layer for tuning)
+    //   - C  (print offset tables to console)
+    //   - Q/E (cycle body direction)
+    //   - Z/X (cycle turret direction)
+    //   - Arrow keys (adjust selected offset)
+    //
+    // The modular tank direction is now controlled entirely by the
+    // adapter's composeModularVehicle() math, driven by entity.dir /
+    // entity.turretDir from game state. No manual tuner is needed.
+    //
+    // If a future stage needs devtools direction cycling, it should be
+    // implemented as an explicit devtools panel control, not as global
+    // keyboard hotkeys that mutate shared tuner state.
 
     // ── Build & Production hotkeys (HOTKEYS-01: dispatched via command registry) ──
     // Register keyboard listeners for each build/produce command.
@@ -900,27 +849,10 @@ export class GameInputController {
     }
   }
 
-  private onArrowKey(event: KeyboardEvent): void {
-    if (!this.entityRenderer.isDebugOverlayVisible()) return;
-    event.preventDefault();
-
-    const step = event.shiftKey ? ARROW_SHIFT_STEP : ARROW_STEP;
-    // Arrow tuning targets the current bodyDir entry in the offset tables
-    const bodyDir = tunerState.bodyDir;
-    const offset = tunerState.selectedLayer === 'hull'
-      ? MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir]
-      : MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir];
-
-    switch (event.code) {
-      case 'ArrowLeft':  offset.x -= step; break;
-      case 'ArrowRight': offset.x += step; break;
-      case 'ArrowUp':    offset.y -= step; break;
-      case 'ArrowDown':  offset.y += step; break;
-      default: return; // not an arrow key, ignore
-    }
-
-    this.entityRenderer.updateModularTankVisuals();
-  }
+  // ─── Stage 3 retirement ───────────────────────────────────────────
+  // onArrowKey() removed: it was only used by the legacy offset-table
+  // tuner, which is no longer wired. Arrow keys now do nothing in the
+  // modular tank context.
 
   // ─── Selection highlight ───────────────────────────────────────
 

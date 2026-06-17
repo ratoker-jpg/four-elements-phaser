@@ -2,12 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   GENERATED_ASSET_MANIFEST,
 } from '../assets/generatedAssetManifest';
-import {
-  DEFAULT_GENERATED_HULL,
-  DEFAULT_GENERATED_HULL_MOD,
-  GENERATED_HULL_FACTIONS,
-  getGeneratedHullTextureKey,
-} from '../assets/generatedHullAssets';
+// FIXUP-5: generatedHullAssets imports removed — loadArenaVisualAssets
+// is now a no-op, no hull keys to check.
 
 // We test the loader helper without importing Phaser by mocking the scene.
 // runtimeGeneratedAssets uses scene.load.image()/spritesheet() which are Phaser APIs.
@@ -515,79 +511,63 @@ describe('MENU-02: isModularUnitsLoaded', () => {
 // the file system without importing 'fs'/'path' (which would require @types/node).
 
 describe('MENU-02: Arena visual asset loading', () => {
-  it('loads generated Wasp hull sets for Arena (legacy modularUnits disabled)', async () => {
+  it('FIXUP-5: loadArenaVisualAssets is a no-op (returns empty array)', async () => {
     const { loadArenaVisualAssets } = await import('../assets/runtimeGeneratedAssets');
     const mock = createMockScene();
 
     try {
       const loadedKeys = loadArenaVisualAssets(mock.scene as any);
 
-      // 4 factions × 16 dirs = 64 generated hull keys + 16 pilot turret keys (Smoky cyan m0)
-      // RUNTIME-02B: loadArenaVisualAssets now also loads the pilot turret set
-      expect(loadedKeys).toHaveLength(80);
-      expect(mock.loadImageCalls).toHaveLength(80);
-      expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
-      expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
+      // FIXUP-5: no Wasp M0 hull preload, no pilot turret preload.
+      // All modular vehicle assets are loaded on-demand.
+      expect(loadedKeys).toHaveLength(0);
+      expect(mock.loadImageCalls).toHaveLength(0);
     } finally {
       mock.restore();
     }
   });
 
-  it('skips already-loaded generated hull sets', async () => {
+  it('FIXUP-5: loadArenaVisualAssets returns empty even when textures exist', async () => {
     const { loadArenaVisualAssets } = await import('../assets/runtimeGeneratedAssets');
     const mock = createMockScene();
-    // Simulate cyan hull set already loaded
-    const cyanKeys = new Set<string>();
-    for (let i = 0; i < 16; i++) {
-      cyanKeys.add(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', i as any));
-    }
-    mock.scene.textures.exists = (key: string) => cyanKeys.has(key);
+    // Simulate some textures already loaded
+    mock.scene.textures.exists = (_key: string) => true;
 
     try {
       const loadedKeys = loadArenaVisualAssets(mock.scene as any);
 
-      // Only 3 factions × 16 dirs = 48 hull keys (cyan already loaded) + 16 pilot turret keys
-      // RUNTIME-02B: loadArenaVisualAssets also loads the pilot turret set (Smoky cyan m0)
-      expect(loadedKeys).toHaveLength(64);
-      expect(loadedKeys).not.toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
-      expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
-      expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'purple', 'm0', 15));
+      // FIXUP-5: always returns [] regardless of texture state.
+      expect(loadedKeys).toHaveLength(0);
+      expect(mock.loadImageCalls).toHaveLength(0);
     } finally {
       mock.restore();
     }
   });
 
-  it('does not consider Arena visuals loaded when generated Wasp hulls are missing', async () => {
-    const { isArenaVisualAssetsLoaded, MODULAR_UNIT_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
+  it('FIXUP-5: isArenaVisualAssetsLoaded always returns true (no preload to check)', async () => {
+    const { isArenaVisualAssetsLoaded } = await import('../assets/runtimeGeneratedAssets');
 
     const mockScene = {
       textures: {
-        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY,
+        exists: (_key: string) => false,
       },
     };
 
-    expect(isArenaVisualAssetsLoaded(mockScene as any)).toBe(false);
+    // FIXUP-5: always true — no modular vehicle preload, nothing to check.
+    // Per-vehicle availability is checked by composeModularVehicle().
+    expect(isArenaVisualAssetsLoaded(mockScene as any)).toBe(true);
   });
 
-  it('considers Arena visuals loaded only when modularUnits and all Wasp factions are present', async () => {
-    const { isArenaVisualAssetsLoaded, MODULAR_UNIT_PROBE_KEY, PILOT_TURRET_PROBE_KEY } = await import('../assets/runtimeGeneratedAssets');
-    const generatedProbeKeys = new Set(
-      GENERATED_HULL_FACTIONS.map(faction => (
-        getGeneratedHullTextureKey(
-          DEFAULT_GENERATED_HULL,
-          faction,
-          DEFAULT_GENERATED_HULL_MOD,
-          0,
-        )
-      )),
-    );
+  it('FIXUP-5: isArenaVisualAssetsLoaded returns true even when no textures exist', async () => {
+    const { isArenaVisualAssetsLoaded } = await import('../assets/runtimeGeneratedAssets');
 
     const mockScene = {
       textures: {
-        exists: (key: string) => key === MODULAR_UNIT_PROBE_KEY || generatedProbeKeys.has(key) || key === PILOT_TURRET_PROBE_KEY,
+        exists: (_key: string) => false,
       },
     };
 
+    // FIXUP-5: always true regardless of texture state.
     expect(isArenaVisualAssetsLoaded(mockScene as any)).toBe(true);
   });
 });

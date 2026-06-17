@@ -70,7 +70,12 @@ import {
   type PlacementOverlayParams,
 } from '../debug/WaspHullPlacementCalibrator';
 import { WaspPlacementCalibrationPanel } from '../debug/WaspPlacementCalibrationPanel';
-import { resolvePilotTurretComposition, type PilotTurretCompositionResult } from '../../assets/pilotTurretComposition';
+// Stage 3 retirement: pilotTurretComposition import removed.
+// The quarantine flag ENABLE_PILOT_GENERATED_TURRET_COMPOSITION was
+// always false since MODULAR-RUNTIME-03B, and the modular path
+// (useModularBody === true) stubs out the turret composition anyway.
+// With Stage 3, the entire pilot turret composition path is removed
+// from this renderer.
 import {
   ModularVehicleLiveAdapter,
 } from './ModularVehicleLiveAdapter';
@@ -94,27 +99,10 @@ const HULL_SPRITE_DEPTH_BIAS = -0.5;
 /** Mount point circle radius. */
 const MOUNT_POINT_RADIUS = 3;
 
-/**
- * RUNTIME-03B: Quarantine flag for generated pilot turret composition.
- *
- * Manual Arena QA shows the generated Smoky turret does not visually sit on
- * the Wasp hull — it appears offset/down/front. The composition math may be
- * correct in isolation but the renderer integration produces wrong screen
- * positions. Until a proper Opus audit rebuilds the turret-to-hull attachment
- * pipeline, this flag disables generated turret sprites so the Arena returns
- * to the stable procedural fallback.
- *
- * When false:
- * - No generated turret sprites are created or updated.
- * - Any existing turret sprite is destroyed/hidden.
- * - Procedural turret (box+barrel) renders normally.
- * - Hull generated sprites, selection rings, HP bars, target-lock, aim line,
- *   depth sorting all remain unchanged.
- *
- * Do NOT re-enable without an Opus-level audit of the modular vehicle renderer.
- * No magic offsets, no per-dir tuning, no zHeight guessing.
- */
-const ENABLE_PILOT_GENERATED_TURRET_COMPOSITION = false;
+// Stage 3 retirement: ENABLE_PILOT_GENERATED_TURRET_COMPOSITION flag removed.
+// The quarantine flag was always false since MODULAR-RUNTIME-03B, and
+// Stage 3 removed the entire pilotTurretComposition path from this
+// renderer. There is no longer anything to gate.
 
 // ─── Faction colors ────────────────────────────────────────────────
 
@@ -277,17 +265,21 @@ export class BlockoutVehicleRenderer {
   /** Generated hull sprite images keyed by blockout vehicle ID. */
   private vehicleHullSprites = new Map<string, Phaser.GameObjects.Image>();
 
-  /** RUNTIME-03: Generated turret sprite images keyed by blockout vehicle ID. */
+  /** RUNTIME-03: Generated turret sprite images keyed by blockout vehicle ID.
+   *  Stage 3: only used for defensive cleanup of stale sprites from pre-Stage-3 sessions. */
   private vehicleTurretSprites = new Map<string, Phaser.GameObjects.Image>();
 
-  /** RUNTIME-03: Whether each vehicle has an active generated turret sprite. */
+  /** RUNTIME-03: Whether each vehicle has an active generated turret sprite.
+   *  Stage 3: always false — no new turret sprites are created. */
   private vehicleHasGeneratedTurret = new Map<string, boolean>();
 
-  /** RUNTIME-03: Whether generated turret sprites have been logged (once). */
-  private generatedTurretLogged = false;
+  // Stage 3 retirement: generatedTurretLogged field removed.
+  // It was only set to true when ENABLE_PILOT_GENERATED_TURRET_COMPOSITION
+  // created a turret sprite, which no longer happens.
 
-  /** RUNTIME-03A: Last turret composition result per vehicle, used for positioning in renderVehicle(). */
-  private vehicleTurretComp = new Map<string, PilotTurretCompositionResult>();
+  // Stage 3 retirement: vehicleTurretComp Map removed.
+  // pilotTurretComposition is no longer called, so no composition results
+  // need to be stored.
 
   /** Direction debug text labels keyed by blockout vehicle ID. */
   private directionDebugLabels = new Map<string, Phaser.GameObjects.Text>();
@@ -463,66 +455,33 @@ export class BlockoutVehicleRenderer {
         }
       }
 
-      // ── RUNTIME-03: Check for generated turret sprite ──────────
-      // RUNTIME-03B: Gated by ENABLE_PILOT_GENERATED_TURRET_COMPOSITION.
-      // When the flag is false, the generated turret composition is resolved
-      // (preserving the pure function for audit) but no sprite is created.
-      // Any existing turret sprite is destroyed so the Arena returns to
-      // procedural fallback.
-      // MODULAR-RUNTIME-03A: When modular is active, skip legacy turret entirely.
-      const turretComp = useModularBody
-        ? { hasGeneratedTurret: false, turretKey: null as string | null, scale: 1, originX: 0.5, originY: 0.5, turretOffsetPx: null as { x: number; y: number } | null, socketZHeight: null as number | null }
-        : resolvePilotTurretComposition(
-            vehicle.weaponId,
-            vehicle.bodyId,
-            vehicle.faction,
-            vehicle.modificationLevel,
-            vehicle.turretAngle,
-            (key: string) => this.scene.textures.exists(key),
-          );
+      // ── Stage 3 retirement: pilot turret composition path removed ──
+      //
+      // VEHICLE-RENDER-UNIFY-03-VH removed the entire pilotTurretComposition
+      // path from this renderer. The quarantine flag
+      // ENABLE_PILOT_GENERATED_TURRET_COMPOSITION was always false since
+      // MODULAR-RUNTIME-03B, and the modular path (useModularBody === true)
+      // stubs out the turret composition anyway. With Stage 3:
+      //   - resolvePilotTurretComposition() is no longer called.
+      //   - The vehicleTurretComp Map is removed.
+      //   - The vehicleTurretSprites Map is kept but only used to destroy
+      //     any stale turret sprites from before Stage 3 (defensive cleanup).
+      //   - The turret positioning block in renderVehicle() that read
+      //     turretComp.turretOffsetPx / socketZHeight is removed.
+      //
+      // The modular adapter (ModularVehicleLiveAdapter) handles all
+      // turret positioning via composeModularVehicle() metadata-driven
+      // socket/pivot math. The procedural blockout turret (drawn via
+      // Phaser.Graphics when useModularBody === false) is unchanged.
 
-      // Manage turret sprite lifecycle — gated by quarantine flag or modular active
-      let turretSprite = this.vehicleTurretSprites.get(vehicle.id);
-      if (useModularBody) {
-        // Modular active: destroy legacy turret sprite if it exists
-        if (turretSprite) {
-          turretSprite.destroy();
-          this.vehicleTurretSprites.delete(vehicle.id);
-        }
-        this.vehicleHasGeneratedTurret.set(vehicle.id, false);
-      } else if (ENABLE_PILOT_GENERATED_TURRET_COMPOSITION && turretComp.hasGeneratedTurret && turretComp.turretKey) {
-        if (!turretSprite) {
-          turretSprite = this.scene.add.image(0, 0, turretComp.turretKey);
-          turretSprite.setScale(turretComp.scale);
-          turretSprite.setOrigin(turretComp.originX, turretComp.originY);
-          turretSprite.setDepth(BLOCKOUT_DEPTH + HULL_SPRITE_DEPTH_BIAS + 0.1); // above hull
-          this.vehicleTurretSprites.set(vehicle.id, turretSprite);
-          this.vehicleHasGeneratedTurret.set(vehicle.id, true);
-          if (!this.generatedTurretLogged) {
-            console.log(`[BlockoutVehicleRenderer] Using generated turret sprite for ${vehicle.bodyId}+${vehicle.weaponId}`);
-            this.generatedTurretLogged = true;
-          }
-        } else {
-          turretSprite.setTexture(turretComp.turretKey);
-        }
-      } else {
-        // No generated turret (or quarantine active): destroy existing sprite if any
-        if (turretSprite) {
-          turretSprite.destroy();
-          this.vehicleTurretSprites.delete(vehicle.id);
-        }
-        this.vehicleHasGeneratedTurret.set(vehicle.id, false);
+      // Defensive cleanup: destroy any stale turret sprite from a
+      // pre-Stage-3 session. No new turret sprites are created here.
+      const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
+      if (turretSprite) {
+        turretSprite.destroy();
+        this.vehicleTurretSprites.delete(vehicle.id);
       }
-
-      // RUNTIME-03A: Store turret composition for positioning in renderVehicle().
-      // Turret positioning is deferred until after hullSprite.setPosition() so
-      // we can use the actual hull sprite position as the base, and apply
-      // socket.zHeight through projectWorldPoint for correct elevation.
-      // RUNTIME-03B: Composition is still stored even when quarantine is active,
-      // so the data is available for audit/diagnostic purposes. The renderer
-      // will simply not position a turret sprite when the flag is false.
-      // MODULAR-RUNTIME-03A: When modular active, turretComp is a stub.
-      this.vehicleTurretComp.set(vehicle.id, turretComp as PilotTurretCompositionResult);
+      this.vehicleHasGeneratedTurret.set(vehicle.id, false);
 
       // Determine selection/hover state for this vehicle
       const isSelected = vehicle.id === this._selectedVehicleId;
@@ -681,12 +640,8 @@ export class BlockoutVehicleRenderer {
         this.vehicleHasGeneratedTurret.delete(id);
       }
     }
-    // RUNTIME-03A: Clean up stale turret composition data
-    for (const [id] of this.vehicleTurretComp) {
-      if (!activeIds.has(id)) {
-        this.vehicleTurretComp.delete(id);
-      }
-    }
+    // Stage 3 retirement: vehicleTurretComp stale-cleanup loop removed
+    // (the Map no longer exists).
     // MODULAR-RUNTIME-03A: Clean up stale modular sprites
     // Uses removeStale() which checks the adapter's own vehicleModularSprites map,
     // not the legacy vehicleHullSprites/vehicleTurretSprites (which are empty in modular mode).
@@ -771,36 +726,11 @@ export class BlockoutVehicleRenderer {
       hullSprite.setDepth(BLOCKOUT_DEPTH + HULL_SPRITE_DEPTH_BIAS); // will be updated by depth sorting below
     }
 
-    // ── RUNTIME-03A: Position turret sprite using actual hull sprite position ──
-    // The turret must be positioned AFTER the hull sprite has been placed so we
-    // use the actual hullSprite.x/y as the base (not a recomputed value that
-    // could diverge due to debug offsets, calibration, etc.).
-    // Socket zHeight is applied through projectWorldPoint for correct elevation.
-    const turretSprite = this.vehicleTurretSprites.get(vehicle.id);
-    const turretComp = this.vehicleTurretComp.get(vehicle.id);
-    if (turretSprite && turretComp?.turretOffsetPx && hullSprite) {
-      // Base position = actual hull sprite position (includes all offsets already applied)
-      const hullSpriteX = hullSprite.x;
-      const hullSpriteY = hullSprite.y;
-
-      // Apply socket zHeight through the existing projection helpers.
-      // The hull sprite is at ground-plane screen position. The turret mount
-      // point is elevated by socket.zHeight above the ground. We compute the
-      // z-height screen delta by projecting the hull's tile position at z=0
-      // and at z=socketZHeight, then taking the Y difference.
-      let zHeightScreenDeltaY = 0;
-      if (turretComp.socketZHeight !== null && turretComp.socketZHeight > 0) {
-        const hullTilePos = unprojectScreenToGround(hullSpriteX, hullSpriteY, this.offset);
-        const groundProj = projectWorldPoint(hullTilePos.x, hullTilePos.y, 0, this.offset);
-        const elevatedProj = projectWorldPoint(hullTilePos.x, hullTilePos.y, turretComp.socketZHeight, this.offset);
-        zHeightScreenDeltaY = elevatedProj.y - groundProj.y;
-      }
-
-      // Turret position = hull sprite position + pivot-on-socket offset + z-height elevation
-      const turretCx = hullSpriteX + turretComp.turretOffsetPx.x;
-      const turretCy = hullSpriteY + turretComp.turretOffsetPx.y + zHeightScreenDeltaY;
-      turretSprite.setPosition(turretCx, turretCy);
-    }
+    // Stage 3 retirement: turret sprite positioning block removed.
+    // The vehicleTurretComp Map is gone, and no turret sprites are
+    // created in this renderer (the modular adapter handles all turret
+    // positioning via composeModularVehicle). The procedural blockout
+    // turret (drawn via Phaser.Graphics below) is unchanged.
 
     // ── Shared projected geometry (single source of truth) ────────
     const geom = computeProjectedBlockoutVehicleGeometry(vehicle, this.offset);
@@ -1553,7 +1483,7 @@ export class BlockoutVehicleRenderer {
     }
     this.vehicleTurretSprites.clear();
     this.vehicleHasGeneratedTurret.clear();
-    this.vehicleTurretComp.clear();
+    // Stage 3 retirement: vehicleTurretComp.clear() removed (Map no longer exists).
 
     for (const [, label] of this.directionDebugLabels) {
       label.destroy();

@@ -64,7 +64,13 @@ export interface ModularLoadDiagnostics {
 /** Minimal Phaser scene surface this loader needs (keeps it testable). */
 export interface ModularLoaderScene {
   textures: { exists: (key: string) => boolean };
-  load: { image: (key: string, path: string) => unknown };
+  load: {
+    image: (key: string, path: string) => unknown;
+    /** FIXUP-4: start the Phaser loader if it is not already active. */
+    start?: () => unknown;
+    /** FIXUP-4: check if the loader is currently loading. */
+    isLoading?: () => boolean;
+  };
 }
 
 /** Stable id for one selected visual's asset set. */
@@ -206,6 +212,27 @@ export function requestModularVehicleSet(
 
   if (!alreadyRequested) {
     requestedSets.add(setId);
+  }
+
+  // FIXUP-4: Auto-start the Phaser loader if we queued any images and the
+  // loader is not already active. Phaser's loader does NOT auto-start outside
+  // of the scene's preload() method. When requestModularVehicleSet() is called
+  // during update() (e.g. when a vehicle is spawned in Arena or normal runtime),
+  // the queued images would never load without an explicit start() call.
+  //
+  // This was the root cause of Denis's QA failure: textures were queued but
+  // never loaded, so plan.available stayed false forever and vehicles showed
+  // blockout cubes / loading placeholders indefinitely.
+  //
+  // The old pilot preload (loadArenaVisualAssets) worked because it was called
+  // from PreloadScene.preload(), where Phaser auto-starts the loader. The
+  // canonical on-demand path (placeModularCombat / syncVehicle) calls
+  // requestModularVehicleSet() during update(), where no auto-start happens.
+  if (queuedKeys.length > 0 && scene.load.start) {
+    // Only start if the loader is not already loading (avoid duplicate starts).
+    if (!scene.load.isLoading || !scene.load.isLoading()) {
+      scene.load.start();
+    }
   }
 
   return {

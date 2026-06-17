@@ -1,27 +1,76 @@
 /**
- * ModularTankRenderer — renders and manages the modular Wasp/Smoky tank.
+ * ModularTankRenderer — VEHICLE-RENDER-UNIFY-03-VH Stage 3 retirement.
  *
- * Extracted from EntityRenderer as part of ARCH-13B (Phase B).
- * Owns: placing hull/turret images, bodyDir/turretDir texture switching,
- * socket positioning, applying hull/turret mount offsets, printOffsetTables,
- * and destroy lifecycle for modular tank visuals.
+ * This file was originally a full hull+turret sprite renderer with two
+ * paths:
+ *   - clean modular path (delegate to ModularVehicleLiveAdapter);
+ *   - legacy generated-hull / wasp+smoky path with per-dir offset
+ *     tables.
  *
- * PR7: bodyDir controls hull texture + turret mount position.
- * turretDir controls turret texture only.
- * Offsets are per-bodyDir Records imported from worldConfig as mutable runtime values.
+ * Stage 3 retires the legacy path entirely. The renderer is now a thin
+ * delegate around ModularVehicleLiveAdapter. The legacy hull/turret
+ * sprites, per-dir offset tables, tuner state, debug overlay, and
+ * late-activation logic are all removed.
  *
- * MODULAR-RUNTIME-03B: When ENABLE_MODULAR_VEHICLE_RENDER is on and
- * a ModularVehicleLiveAdapter is provided, tries the clean modular path
- * first (composeModularVehicle with modular_hull_* / generated_turret_*
- * namespace). Falls back to the existing generated-hull / legacy path when
- * the flag is off, mapping fails, or assets are not yet loaded.
+ * Behavior contract after Stage 3:
+ *   - place(entity, adapter) → adapter.placeModularCombat(...)
+ *   - retryCleanModular() → adapter.retryCleanModular()
+ *   - clearModularVehicleRender() → adapter.hideVehicle(entityId)
+ *   - activateCleanModularRender() → re-attempts placeModularCombat
+ *     using stored entity info (kept for devtools toggle-on scenario)
+ *   - setBodyDir / setTurretDir → adapter.updateDirection(...)
+ *   - destroy() → adapter.removeVehicle(entityId)
+ *
+ * Emergency fallback (FIXUP-1 + FIXUP-2):
+ *   If modular assets are unavailable on first render:
+ *     - If the adapter has sticky state (Stage 2), the last good modular
+ *       sprites stay visible — no flicker, no fallback needed.
+ *     - If this is the very first render (no sticky), a neutral gray
+ *       procedural loading placeholder is shown (isometric box outline,
+ *       NOT faction-colored, NOT cyan recolor, NOT legacy wasp+smoky).
+ *       The placeholder is removed once modular PNG appears via
+ *       retryCleanModular() or a subsequent place() call with
+ *       usedModular === true.
+ *   The entity is NEVER invisible during loading. No silent cyan
+ *   recolor. No legacy Wasp/Smoky fallback.
+ *
+ * Toggle edge-case (FIXUP-2):
+ *   When ENABLE_MODULAR_VEHICLE_RENDER is false but a modularAdapter is
+ *   provided, place() stores the adapter + entityId + entity reference
+ *   BEFORE showing the loading placeholder and returning. This allows
+ *   activateCleanModularRender() to work if the flag is later toggled
+ *   on. Without this, the toggle-on scenario would be a no-op (the
+ *   adapter reference would be null).
+ *
+ * What was removed (Stage 3):
+ *   - getWaspHullKey / getSmokyTurretKey imports
+ *   - MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR /
+ *     MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR imports
+ *   - tunerState import
+ *   - applyScaleTransform helper
+ *   - hull / turret sprite fields and creation logic
+ *   - usingGeneratedHull / generatedHullId / generatedHullMod fields
+ *   - debugOverlay / debugVisible / ModularTankDebugOverlay import
+ *   - printOffsetTables() method
+ *   - updateVisuals() repositioning logic
+ *   - anchorWorld field (no legacy sprites to reposition)
+ *
+ * What was kept:
+ *   - place() — now thin delegate, but keeps faction resolution
+ *     (Stage 2 contract: no silent cyan fallback).
+ *   - retryCleanModular() — thin delegate.
+ *   - activateCleanModularRender() — kept for devtools toggle-on
+ *     scenario (when ENABLE_MODULAR_VEHICLE_RENDER is flipped from
+ *     off to on after scene init).
+ *   - clearModularVehicleRender() — kept for devtools toggle-off.
+ *   - setBodyDir / setTurretDir — thin delegates to adapter.updateDirection.
+ *   - destroy() — cleans up adapter state.
+ *
+ * No placement/composition math is changed. The adapter's
+ * composeModularVehicle() is the single source of truth.
  */
 
 import Phaser from 'phaser';
-import {
-  getSmokyTurretKey,
-  getWaspHullKey,
-} from '../../assets/modularUnitAssets';
 import {
   ENABLE_MODULAR_VEHICLE_RENDER,
   ModularVehicleLiveAdapter,
@@ -30,115 +79,29 @@ import {
 import {
   normalCombatToModularVisual,
 } from '../../modular/normalCombatToModularVisual';
-import {
-  getGeneratedHullTextureKey,
-  mapRuntimeDir8ToGeneratedDir16,
-  isGeneratedHullSetLoaded,
-  DEFAULT_GENERATED_HULL,
-  DEFAULT_GENERATED_HULL_MOD,
-  resolveGeneratedHullFaction,
-  GENERATED_HULL_SCALE,
-  GENERATED_HULL_ORIGIN_X,
-  GENERATED_HULL_ORIGIN_Y,
-  getGeneratedHullPlacementOffset,
-  type GeneratedHullId,
-  type GeneratedHullMod,
-} from '../../assets/generatedHullAssets';
-import {
-  MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR,
-  MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR,
-  tunerState,
-  type ModularTankDirection,
-} from '../../config/worldConfig';
 import { tileToScreen, type IsoPoint } from './isometric';
 import type { RenderableEntity, Faction } from '../../state/types';
-import {
-  MODULAR_RENDER_SCALE,
-  MODULAR_SCALE_RATIO,
-  MODULAR_ANCHOR_CORRECTION,
-} from '../../config/unitRenderConfig';
 import { computeDepthValue } from './depthSorting';
-import { ModularTankDebugOverlay } from '../debug/ModularTankDebugOverlay';
 import {
   resolveFactionOrDiagnosticFallback,
 } from '../../modular/factionResolver';
-
-/** Default initial visibility for the debug overlay. */
-const MODULAR_TANK_DEBUG = false;
-
-/** Render scale for the modular tank sprites (ARCH-05A: 25% reduction). */
-export const MODULAR_TANK_SCALE = MODULAR_RENDER_SCALE;
-
-/** Sprite origin for the legacy hull image. */
-const MODULAR_TANK_HULL_ORIGIN = { x: 0.5, y: 0.75 };
-
-/** Sprite origin for the turret image. */
-const MODULAR_TANK_TURRET_ORIGIN = { x: 0.5, y: 0.5 };
+import type { ModularTankDirection } from '../../config/worldConfig';
 
 /**
- * Apply scale-aware transform to a base-scale offset.
+ * ModularTankRenderer — thin delegate around ModularVehicleLiveAdapter.
  *
- * Base offsets in worldConfig were calibrated at MODULAR_TANK_BASE_SCALE (0.32).
- * When the render scale changes, offsets must be proportionally adjusted so
- * the hull+turret visual composition stays consistent on the tile.
- *
- * Transform: (offset × scaleRatio) + anchorCorrection
- *
- * The anchor correction compensates for the non-linear shift in visual centre
- * caused by the non-centred sprite origin (0.5, 0.75).  It shifts the entire
- * hull+turret group together, preserving their relative alignment.
+ * Stage 3 retirement: legacy hull/turret sprite path, per-dir offset
+ * tables, tuner state, and debug overlay are all removed. The renderer
+ * exists only to preserve the EntityRenderer ↔ adapter call sites
+ * without a larger refactor (Stage 4 will revisit GameScene orchestration).
  */
-function applyScaleTransform(offset: { x: number; y: number }): { x: number; y: number } {
-  return {
-    x: offset.x * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.x,
-    y: offset.y * MODULAR_SCALE_RATIO + MODULAR_ANCHOR_CORRECTION.y,
-  };
-}
-
 export class ModularTankRenderer {
+  // FIXUP-1: scene field restored for loading placeholder creation.
+  // Stage 3 removed this field when legacy sprite creation was removed,
+  // but FIXUP-1 needs it back to create the procedural loading
+  // placeholder (Phaser.GameObjects.Graphics + Text).
   private scene: Phaser.Scene;
   private offset: IsoPoint;
-
-  /** Stored hull image for live repositioning. */
-  private hull: Phaser.GameObjects.Image | null = null;
-
-  /** Stored turret image for live repositioning. */
-  private turret: Phaser.GameObjects.Image | null = null;
-
-  /** Modular unit anchor world position — tile center in screen space + offset. */
-  private anchorWorld: { x: number; y: number } | null = null;
-
-  /** Current body facing direction. */
-  private bodyDir: ModularTankDirection = 2;
-
-  /** Current turret facing direction. */
-  private turretDir: ModularTankDirection = 2;
-
-  /** Faction of the modular tank, stored for texture swaps. */
-  private faction: Faction = 'cyan';
-
-  /** Whether the current hull is using a generated hull sprite. */
-  private usingGeneratedHull: boolean = false;
-
-  /** Generated hull ID in use (only meaningful when usingGeneratedHull is true). */
-  private generatedHullId: GeneratedHullId = DEFAULT_GENERATED_HULL;
-
-  /** Generated hull mod in use (only meaningful when usingGeneratedHull is true). */
-  private generatedHullMod: GeneratedHullMod = DEFAULT_GENERATED_HULL_MOD;
-
-  /** Debug overlay for tuner markers and text. */
-  private debugOverlay: ModularTankDebugOverlay | null = null;
-
-  /** Current visibility state for the debug overlay. */
-  private debugVisible: boolean = MODULAR_TANK_DEBUG;
-
-  /** Optional one-time render confirmation log. */
-  private combatLogged: boolean = false;
-
-  // ─── MODULAR-RUNTIME-03B: Clean modular adapter state ───────────
-
-  /** Whether the current entity is using the clean modular rendering path. */
-  private usingCleanModular: boolean = false;
 
   /** Modular adapter (shared with EntityRenderer). */
   private modularAdapter: ModularVehicleLiveAdapter | null = null;
@@ -146,45 +109,53 @@ export class ModularTankRenderer {
   /** Entity ID for the modular-combat entity (used as key in adapter). */
   private modularEntityId: string | null = null;
 
-  // ─── MODULAR-RUNTIME-03B: Stored placement info for late activation ──
+  /** Stored faction for direction-update delegation. */
+  private faction: Faction = 'cyan';
 
-  /**
-   * Stored modular-combat entity reference from place().
-   * Used by activateCleanModularRender() when Live Render is toggled ON
-   * after scene initialization (flag was off during place()).
-   */
+  /** Current body facing direction (for adapter.updateDirection). */
+  private bodyDir: ModularTankDirection = 2;
+
+  /** Current turret facing direction (for adapter.updateDirection). */
+  private turretDir: ModularTankDirection = 2;
+
+  /** Anchor world position (tile center in screen space + offset). */
+  private anchorWorld: { x: number; y: number } | null = null;
+
+  // ─── Stage 3: Stored placement info for late activation ─────────
+  // Kept for the devtools toggle-on scenario (when
+  // ENABLE_MODULAR_VEHICLE_RENDER is flipped from off to on after
+  // scene init). Stage 4 may revisit this if the toggle is removed.
+
   private storedModularEntity: RenderableEntity | null = null;
-
-  /** Stored chassis string from place() for late activation. */
-  private storedChassis: string = 'wasp';
-
-  /** Stored weapon string from place() for late activation. */
-  private storedWeapon: string = 'smoky';
-
-  /** Stored mod string from place() for late activation. */
-  private storedMod: string = 'm0';
-
-  /** Whether activateCleanModularRender() has already been called. */
   private activationAttempted: boolean = false;
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
+    // FIXUP-1: scene stored for loading placeholder creation.
     this.scene = scene;
     this.offset = offset;
   }
 
   /**
-   * Place the modular combat tank (hull + turret) and create the debug overlay.
-   * Called once during initial entity rendering.
+   * Place the modular combat tank via the canonical adapter path.
    *
-   * MODULAR-RUNTIME-03B: When ENABLE_MODULAR_VEHICLE_RENDER is on, tries the
-   * clean modular rendering path first (composeModularVehicle with modular_hull_*
-   * / generated_turret_* namespace). Falls back to the existing generated-hull /
-   * legacy path when the flag is off, mapping fails, or assets are not yet loaded.
+   * VEHICLE-RENDER-UNIFY-03-VH-FIXUP-1:
+   *   - Captures the result from placeModularCombat().
+   *   - If result.usedModular === true: calls setNormalRuntimeDepth() so
+   *     the modular sprites get the correct computeDepthValue depth
+   *     (fixes Blocker 1 — z-sorting regression).
+   *   - If result.usedModular === false: calls setPendingDepth() so
+   *     retryCleanModular() applies the depth when textures arrive.
+   *   - If result.usedModular === false AND no sticky: shows an explicit
+   *     loading placeholder (procedural blockout box) so the entity is
+   *     visibly present during asset loading (fixes Blocker 2 — no
+   *     permanent or noticeable invisibility).
+   *
+   * Stage 3: legacy hull/turret sprite path removed. The loading
+   * placeholder is a neutral/diagnostic procedural box, NOT a silent
+   * cyan recolor. It is removed once modular PNG appears.
    *
    * VEHICLE-RENDER-UNIFY-01-VH Package C: faction is resolved via
    * resolveFactionOrDiagnosticFallback() — no silent `?? 'cyan'` default.
-   * Missing/invalid faction warns once and falls back to diagnostic cyan
-   * (marked via factionRes.usedFallback for caller/test detection).
    */
   place(entity: RenderableEntity, modularAdapter?: ModularVehicleLiveAdapter): void {
     // Package C: canonical faction resolution — no silent cyan default.
@@ -196,271 +167,236 @@ export class ModularTankRenderer {
     const bodyDir: ModularTankDirection = (entity.dir ?? 2) as ModularTankDirection;
     const turretDir: ModularTankDirection = (entity.turretDir ?? bodyDir) as ModularTankDirection;
 
-    // ── MODULAR-RUNTIME-03B: Try clean modular path first ──────────
-    if (ENABLE_MODULAR_VEHICLE_RENDER && modularAdapter) {
-      const tileAnchor = tileToScreen(entity.tx, entity.ty);
-      const anchorX = tileAnchor.x + this.offset.x;
-      const anchorY = tileAnchor.y + this.offset.y;
+    this.faction = faction;
+    this.bodyDir = bodyDir;
+    this.turretDir = turretDir;
 
-      // Default normal-runtime entity is wasp+smoky+m0 (from ModularCombatUnit)
-      const chassis = 'wasp';
-      const weapon = 'smoky';
-      const mod = 'm0';
-
-      const result = modularAdapter.placeModularCombat(
-        entity,
-        { x: anchorX, y: anchorY },
-        chassis,
-        weapon,
-        mod,
-      );
-
-      // Compute depth once (used by both modular and legacy paths)
-      const baseDepth = computeDepthValue({
-        id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
-        offsetX: this.offset.x, offsetY: this.offset.y,
-      });
-
-      // Store adapter reference for retryCleanModular()
-      this.modularAdapter = modularAdapter;
-      this.modularEntityId = entity.id;
-      this.faction = faction;
-      this.bodyDir = bodyDir;
-      this.turretDir = turretDir;
-
-      if (result.usedModular) {
-        // Clean modular path succeeded — set depth on modular sprites
-        this.usingCleanModular = true;
-        modularAdapter.setNormalRuntimeDepth(entity.id, baseDepth);
-
-        if (!this.combatLogged) {
-          console.log(`[ModularTankRenderer] Rendered modular combat via clean modular path (03B)`);
-          this.combatLogged = true;
-        }
-        // Do NOT return: fall through to always create legacy hull/turret
-        // so that clearModularVehicleRender() can restore them on toggle-off.
-      } else {
-        // Modular not yet available (assets loading or mapping failed) —
-        // store depth for the pending retry.
-        modularAdapter.setPendingDepth(baseDepth);
-      }
-    }
-
-    // ── MODULAR-RUNTIME-03B: Store entity info for late activation ──
-    // Always store the entity reference, chassis/weapon/mod, and adapter
-    // so activateCleanModularRender() can attempt modular placement when
-    // Live Render is toggled ON after scene initialization.
-    if (!this.storedModularEntity && modularAdapter) {
-      this.storedModularEntity = entity;
-      this.storedChassis = 'wasp';
-      this.storedWeapon = 'smoky';
-      this.storedMod = 'm0';
-      // Also store adapter if not already set (flag-off path skips the block above)
-      if (!this.modularAdapter) {
-        this.modularAdapter = modularAdapter;
-      }
-    }
-
-    // ── Legacy / generated-hull path (always creates hull/turret sprites) ──
-    // When usingCleanModular is true (clean modular path succeeded above),
-    // the legacy sprites will be hidden immediately after creation so
-    // modular visuals show instead. They remain available for toggle-off restore.
-
-    // Resolve generated hull faction (falls back to 'cyan')
-    const generatedFaction = resolveGeneratedHullFaction(faction);
-
-    // Check whether generated hull sprites are loaded for default hull/mod
-    const generatedLoaded = isGeneratedHullSetLoaded(
-      this.scene, DEFAULT_GENERATED_HULL, generatedFaction, DEFAULT_GENERATED_HULL_MOD,
-    );
-
-    this.usingGeneratedHull = generatedLoaded;
-    this.generatedHullId = DEFAULT_GENERATED_HULL;
-    this.generatedHullMod = DEFAULT_GENERATED_HULL_MOD;
-
-    // Hull texture: prefer generated hull if loaded, fallback to legacy
-    let hullKey: string;
-    let hullScale: number;
-    let hullOriginX: number;
-    let hullOriginY: number;
-
-    if (generatedLoaded) {
-      const dir16 = mapRuntimeDir8ToGeneratedDir16(bodyDir);
-      hullKey = getGeneratedHullTextureKey(DEFAULT_GENERATED_HULL, generatedFaction, DEFAULT_GENERATED_HULL_MOD, dir16);
-      hullScale = GENERATED_HULL_SCALE;
-      hullOriginX = GENERATED_HULL_ORIGIN_X;
-      hullOriginY = GENERATED_HULL_ORIGIN_Y;
-    } else {
-      hullKey = getWaspHullKey(faction, bodyDir);
-      hullScale = MODULAR_TANK_SCALE;
-      hullOriginX = MODULAR_TANK_HULL_ORIGIN.x;
-      hullOriginY = MODULAR_TANK_HULL_ORIGIN.y;
-    }
-
-    // Turret texture: use legacy Smoky turret key if available; skip if not loaded
-    // (legacy modularUnits family is disabled — turret textures may not be loaded
-    // until generated turret assets are wired in a future PR)
-    const turretKey = getSmokyTurretKey(faction, turretDir);
-    const turretTextureExists = this.scene.textures.exists(turretKey);
-
+    // Store anchor for direction updates
     const tileAnchor = tileToScreen(entity.tx, entity.ty);
-    const anchorWorldX = tileAnchor.x + this.offset.x;
-    const anchorWorldY = tileAnchor.y + this.offset.y;
+    this.anchorWorld = {
+      x: tileAnchor.x + this.offset.x,
+      y: tileAnchor.y + this.offset.y,
+    };
 
-    // Hull position = anchor + scaleTransform(hullOffset[bodyDir])
-    const hullOff = applyScaleTransform(MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir]);
-    let hullWorldX = anchorWorldX + hullOff.x;
-    let hullWorldY = anchorWorldY + hullOff.y;
+    // Store entity for late activation (devtools toggle-on scenario)
+    this.storedModularEntity = entity;
 
-    // PIM-WASP-SCALE-PLACEMENT-01: Apply per-hull placement offset for generated hulls.
-    // This compensates for the visual centering shift after the scale reduction.
-    if (generatedLoaded) {
-      const placement = getGeneratedHullPlacementOffset(this.generatedHullId);
-      hullWorldX += placement.offsetX;
-      hullWorldY += placement.offsetY;
-    }
-    // CORE-STEP-06H+ fixup: Use unified depth sorting for correct unit/building ordering
+    // Compute depth once — used by both modular sprites and loading placeholder.
     const baseDepth = computeDepthValue({
       id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
       offsetX: this.offset.x, offsetY: this.offset.y,
     });
 
-    const hull = this.scene.add.image(hullWorldX, hullWorldY, hullKey);
-    hull.setScale(hullScale);
-    hull.setOrigin(hullOriginX, hullOriginY);
-    hull.setDepth(baseDepth);
-
-    // Turret mount position = anchor + scaleTransform(turretMount[bodyDir]) (NOT turretDir!)
-    const turretMountOff = applyScaleTransform(MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir]);
-    const turretWorldX = anchorWorldX + turretMountOff.x;
-    const turretWorldY = anchorWorldY + turretMountOff.y;
-    const turret = turretTextureExists
-      ? this.scene.add.image(turretWorldX, turretWorldY, turretKey)
-      : null;
-    if (turret) {
-      turret.setScale(MODULAR_TANK_SCALE);
-      turret.setOrigin(MODULAR_TANK_TURRET_ORIGIN.x, MODULAR_TANK_TURRET_ORIGIN.y);
-      turret.setDepth(baseDepth + 1);
+    if (!ENABLE_MODULAR_VEHICLE_RENDER || !modularAdapter) {
+      // FIXUP-2: Even when the flag is off or no adapter is provided,
+      // store the adapter + entityId + entity reference BEFORE showing
+      // the loading placeholder and returning. This allows
+      // activateCleanModularRender() to work if the flag is later
+      // toggled on (devtools toggle-on scenario). Without this, the
+      // toggle-on path would be a no-op because this.modularAdapter
+      // would still be null.
+      if (modularAdapter) {
+        this.modularAdapter = modularAdapter;
+        this.modularEntityId = entity.id;
+      }
+      // Show loading placeholder — the entity is visible as a neutral
+      // gray procedural box until the flag is toggled on and
+      // activateCleanModularRender() is called.
+      this.showLoadingPlaceholder(entity, baseDepth);
+      return;
     }
 
-    // Store references for live tuner repositioning and direction swaps
-    this.hull = hull;
-    this.turret = turret;
-    this.anchorWorld = { x: anchorWorldX, y: anchorWorldY };
-    // Anchor tile coords are passed to the debug overlay; not stored here.
-    this.bodyDir = bodyDir;
-    this.turretDir = turretDir;
-    this.faction = faction;
-    tunerState.bodyDir = bodyDir;
-    tunerState.turretDir = turretDir;
+    // FIXUP-2: Store adapter + entityId before any branching so the
+    // toggle-on scenario always has the references it needs.
+    this.modularAdapter = modularAdapter;
+    this.modularEntityId = entity.id;
 
-    // MODULAR-RUNTIME-03B: If clean modular path succeeded, hide legacy
-    // hull/turret so modular sprites show instead. The legacy sprites stay
-    // alive (not destroyed) so clearModularVehicleRender() can restore them.
-    if (this.usingCleanModular) {
-      this.hull?.setVisible(false);
-      this.turret?.setVisible(false);
-    }
+    // Default normal-runtime entity is wasp+smoky+m0 (from ModularCombatUnit)
+    const chassis = 'wasp';
+    const weapon = 'smoky';
+    const mod = 'm0';
 
-    // Create debug overlay
-    this.debugOverlay = new ModularTankDebugOverlay(
-      this.scene,
-      {
-        tx: entity.tx,
-        ty: entity.ty,
-        anchorWorldX,
-        anchorWorldY,
-        hullWorldX,
-        hullWorldY,
-        turretWorldX,
-        turretWorldY,
-        baseDepth,
-      },
-      this.debugVisible,
+    // FIXUP-1 Blocker 1: capture the result so we can call the right
+    // depth setter. Previously this always called setPendingDepth(),
+    // which is a no-op when pendingCombat is null (i.e. when
+    // usedModular === true). That left modular sprites at the adapter's
+    // default baseDepth, regressing z-sorting around buildings/resources.
+    const result = modularAdapter.placeModularCombat(
+      entity,
+      this.anchorWorld,
+      chassis,
+      weapon,
+      mod,
     );
 
-    if (!this.combatLogged) {
-      const hullSource = this.usingGeneratedHull ? 'generated' : 'legacy';
-      console.log(`[ModularTankRenderer] Rendered modular combat: wasp_m0 + smoky_m0 (hull: ${hullSource})`);
-      this.combatLogged = true;
+    if (result.usedModular) {
+      // Modular sprites are active — set their depth directly.
+      modularAdapter.setNormalRuntimeDepth(entity.id, baseDepth);
+      // Hide any loading placeholder that may have been shown by a
+      // previous place() call (e.g. devtools toggle cycling).
+      this.hideLoadingPlaceholder();
+    } else {
+      // Modular assets not yet available — store depth for retry.
+      modularAdapter.setPendingDepth(baseDepth);
+      // FIXUP-1 Blocker 2: show an explicit loading placeholder so the
+      // entity is visibly present during asset loading. This is NOT a
+      // silent cyan recolor — it is a neutral/diagnostic procedural box
+      // that is removed once modular PNG appears.
+      this.showLoadingPlaceholder(entity, baseDepth);
     }
   }
 
-  // ─── MODULAR-RUNTIME-03B: Retry/resync after asset loading ────────
+  // ─── FIXUP-1 Blocker 2: explicit loading placeholder ─────────────
+  //
+  // When modular assets are unavailable on first render and the adapter
+  // has no sticky state, the entity would otherwise be invisible. This
+  // procedural placeholder ensures the entity is visibly present:
+  //   - neutral gray box (NOT faction-colored — avoids silent cyan recolor);
+  //   - positioned at the entity's tile anchor;
+  //   - depth-sorted via computeDepthValue;
+  //   - removed once retryCleanModular() succeeds and modular PNG appears.
+  //
+  // The placeholder is a Phaser.GameObjects.Graphics drawn as a simple
+  // isometric box outline. It does NOT use any faction color, does NOT
+  // use getWaspHullKey/getSmokyTurretKey, and does NOT change
+  // composeModularVehicle() placement math.
+
+  /** Loading placeholder Graphics object, or null when not shown. */
+  private loadingPlaceholder: Phaser.GameObjects.Graphics | null = null;
+
+  /**
+   * Show a procedural loading placeholder at the entity's tile anchor.
+   * The placeholder is a neutral gray isometric box outline — NOT
+   * faction-colored, NOT a cyan recolor. It is removed by
+   * hideLoadingPlaceholder() once modular PNG appears.
+   */
+  private showLoadingPlaceholder(entity: RenderableEntity, depth: number): void {
+    // Don't create a duplicate if already shown
+    if (this.loadingPlaceholder) {
+      return;
+    }
+
+    if (!this.scene) {
+      return;
+    }
+
+    const g = this.scene.add.graphics();
+    const ax = this.anchorWorld?.x ?? 0;
+    const ay = this.anchorWorld?.y ?? 0;
+
+    // Draw a neutral gray isometric box outline (NOT faction-colored).
+    // This is a diagnostic placeholder, not a gameplay visual.
+    const boxW = 30;
+    const boxH = 15;
+    const boxZ = 20;
+
+    // Bottom face (diamond)
+    g.lineStyle(2, 0x888888, 0.8);
+    g.beginPath();
+    g.moveTo(ax, ay + boxH);
+    g.lineTo(ax + boxW, ay);
+    g.lineTo(ax, ay - boxH);
+    g.lineTo(ax - boxW, ay);
+    g.closePath();
+    g.strokePath();
+
+    // Top face (diamond, elevated by boxZ)
+    g.lineStyle(2, 0xaaaaaa, 0.8);
+    g.beginPath();
+    g.moveTo(ax, ay + boxH - boxZ);
+    g.lineTo(ax + boxW, ay - boxZ);
+    g.lineTo(ax, ay - boxH - boxZ);
+    g.lineTo(ax - boxW, ay - boxZ);
+    g.closePath();
+    g.strokePath();
+
+    // Vertical edges
+    g.lineStyle(2, 0x888888, 0.8);
+    g.beginPath();
+    g.moveTo(ax + boxW, ay);
+    g.lineTo(ax + boxW, ay - boxZ);
+    g.moveTo(ax, ay + boxH);
+    g.lineTo(ax, ay + boxH - boxZ);
+    g.moveTo(ax - boxW, ay);
+    g.lineTo(ax - boxW, ay - boxZ);
+    g.strokePath();
+
+    // "Loading" text label (neutral white, small)
+    const label = this.scene.add.text(ax, ay - boxZ - 8, '…', {
+      fontSize: '10px',
+      color: '#ffffff',
+      backgroundColor: '#33333388',
+      padding: { x: 3, y: 1 },
+    });
+    label.setOrigin(0.5, 1);
+    label.setDepth(depth + 1);
+
+    g.setDepth(depth);
+    this.loadingPlaceholder = g;
+    this.loadingPlaceholderLabel = label;
+
+    if (!this.loadingLogged) {
+      console.log(`[ModularTankRenderer] Showing loading placeholder for entity ${entity.id} (modular assets loading)`);
+      this.loadingLogged = true;
+    }
+  }
+
+  /** Loading placeholder text label, or null when not shown. */
+  private loadingPlaceholderLabel: Phaser.GameObjects.Text | null = null;
+
+  /** Whether the loading placeholder log has been emitted (once). */
+  private loadingLogged = false;
+
+  /**
+   * Hide and destroy the loading placeholder. Called when modular PNG
+   * appears (result.usedModular === true) or when the entity is destroyed.
+   */
+  private hideLoadingPlaceholder(): void {
+    if (this.loadingPlaceholder) {
+      this.loadingPlaceholder.destroy();
+      this.loadingPlaceholder = null;
+    }
+    if (this.loadingPlaceholderLabel) {
+      this.loadingPlaceholderLabel.destroy();
+      this.loadingPlaceholderLabel = null;
+    }
+  }
 
   /**
    * Retry clean modular placement for the stored modular-combat entity.
    * Called each frame from EntityRenderer.syncFromState().
    *
-   * When the adapter's retryCleanModular() succeeds (assets now loaded),
-   * suppresses the legacy hull/turret visuals and marks usingCleanModular=true.
-   * Returns true when modular sprites are now active (legacy should be hidden).
+   * FIXUP-1: when retry succeeds, hide the loading placeholder so the
+   * modular PNG is the only visible visual. When retry fails (assets
+   * still loading), keep the placeholder visible.
    */
   retryCleanModular(): boolean {
     if (!this.modularAdapter || !this.modularEntityId) {
       return false;
     }
-
-    // If already using clean modular, nothing to retry
-    if (this.usingCleanModular) {
-      return true;
-    }
-
-    // If flag was turned off, stop retrying
     if (!ENABLE_MODULAR_VEHICLE_RENDER) {
       return false;
     }
-
     const succeeded = this.modularAdapter.retryCleanModular();
     if (succeeded) {
-      // Clean modular now active — suppress legacy hull/turret
-      this.usingCleanModular = true;
-      if (this.hull) {
-        this.hull.setVisible(false);
-      }
-      if (this.turret) {
-        this.turret.setVisible(false);
-      }
-      return true;
+      // Modular PNG is now active — hide the loading placeholder.
+      this.hideLoadingPlaceholder();
     }
-    return false;
+    return succeeded;
   }
-
-  // ─── MODULAR-RUNTIME-03B: Activation on Live Render ON ───────────
 
   /**
    * Activate clean modular rendering for the normal-runtime entity.
    * Called when ENABLE_MODULAR_VEHICLE_RENDER is toggled ON after
    * scene initialization (flag was off during place()).
    *
-   * Uses the stored entity reference and adapter to attempt
-   * placeModularCombat(). If assets are unavailable, creates a pending
-   * retry so retryCleanModular() can apply modular sprites once they load.
-   * Legacy hull/turret remain visible until modular succeeds.
-   *
-   * No-op if already using clean modular or activation already attempted.
-   * Does not duplicate legacy sprites.
+   * Stage 3: kept for devtools toggle-on scenario. Re-attempts
+   * placeModularCombat using stored entity info.
    */
   activateCleanModularRender(): void {
-    // Already using clean modular — nothing to do
-    if (this.usingCleanModular) {
-      return;
-    }
-
-    // Already attempted activation — retryCleanModular() handles ongoing retries
-    if (this.activationAttempted) {
-      return;
-    }
-
-    // Need stored entity info and adapter
-    if (!this.storedModularEntity || !this.modularAdapter) {
-      return;
-    }
-
-    // Flag must be on
-    if (!ENABLE_MODULAR_VEHICLE_RENDER) {
-      return;
-    }
+    if (this.activationAttempted) return;
+    if (!this.storedModularEntity || !this.modularAdapter) return;
+    if (!ENABLE_MODULAR_VEHICLE_RENDER) return;
 
     this.activationAttempted = true;
 
@@ -469,265 +405,151 @@ export class ModularTankRenderer {
     const anchorX = tileAnchor.x + this.offset.x;
     const anchorY = tileAnchor.y + this.offset.y;
 
+    this.modularEntityId = entity.id;
+    this.anchorWorld = { x: anchorX, y: anchorY };
+
     const result: LiveAdapterResult = this.modularAdapter.placeModularCombat(
       entity,
       { x: anchorX, y: anchorY },
-      this.storedChassis,
-      this.storedWeapon,
-      this.storedMod,
+      'wasp',
+      'smoky',
+      'm0',
     );
 
-    // Compute depth for modular sprites
-    const baseDepth = computeDepthValue({
-      id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
-      offsetX: this.offset.x, offsetY: this.offset.y,
-    });
-
-    this.modularEntityId = entity.id;
-
     if (result.usedModular) {
-      // Clean modular succeeded immediately — hide legacy hull/turret
-      this.usingCleanModular = true;
+      const baseDepth = computeDepthValue({
+        id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
+        offsetX: this.offset.x, offsetY: this.offset.y,
+      });
       this.modularAdapter.setNormalRuntimeDepth(entity.id, baseDepth);
-
-      if (this.hull) {
-        this.hull.setVisible(false);
-      }
-      if (this.turret) {
-        this.turret.setVisible(false);
-      }
-
-      console.log(`[ModularTankRenderer] Late activation: clean modular applied (03B)`);
+      // FIXUP-1: hide loading placeholder on successful activation.
+      this.hideLoadingPlaceholder();
     } else {
-      // Assets not yet available — store depth for pending retry
+      const baseDepth = computeDepthValue({
+        id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
+        offsetX: this.offset.x, offsetY: this.offset.y,
+      });
       this.modularAdapter.setPendingDepth(baseDepth);
-      // Legacy hull/turret stay visible until retryCleanModular() succeeds
+      // FIXUP-1: show loading placeholder while assets load.
+      this.showLoadingPlaceholder(entity, baseDepth);
     }
   }
-
-  // ─── MODULAR-RUNTIME-03B: Toggle-off cleanup ──────────────────────
 
   /**
    * Clear all modular vehicle sprites for normal runtime.
    * Called when ENABLE_MODULAR_VEHICLE_RENDER is toggled OFF.
-   * Hides modular sprites via the adapter and restores legacy visuals.
+   *
+   * Stage 3: thin delegate to adapter.hideVehicle().
    */
   clearModularVehicleRender(): void {
     if (this.modularAdapter && this.modularEntityId) {
       this.modularAdapter.hideVehicle(this.modularEntityId);
     }
-
-    // If we were using clean modular, restore legacy visuals
-    if (this.usingCleanModular) {
-      this.usingCleanModular = false;
-      if (this.hull) {
-        this.hull.setVisible(true);
-      }
-      if (this.turret) {
-        this.turret.setVisible(true);
-      }
-    }
-
-    // Reset activation so the entity can be re-activated if flag is
-    // toggled ON again
     this.activationAttempted = false;
   }
 
   /**
    * Change the body direction of the modular tank.
-   * Changes hull texture and turret mount position (mount depends on bodyDir).
-   * Does NOT change turret texture (that's setTurretDir).
+   * Stage 3: thin delegate to adapter.updateDirection().
    */
   setBodyDir(dir: ModularTankDirection): void {
     this.bodyDir = dir;
-    tunerState.bodyDir = dir;
+    if (!this.modularAdapter || !this.modularEntityId || !this.anchorWorld) return;
 
-    // MODULAR-RUNTIME-03B: If using clean modular path, delegate to adapter
-    if (this.usingCleanModular && this.modularAdapter && this.modularEntityId && this.anchorWorld) {
-      const mapped = normalCombatToModularVisual({
-        chassis: 'wasp',
-        weapon: 'smoky',
-        faction: this.faction,
-        mod: 'm0',
-        dir,
-        turretDir: this.turretDir,
-      });
-      if (mapped.visual) {
-        this.modularAdapter.updateDirection(
-          this.modularEntityId,
-          mapped.visual,
-          mapped.hullDir16,
-          mapped.turretDir16,
-          this.anchorWorld,
-        );
-      }
-      this.updateVisuals();
-      return;
+    const mapped = normalCombatToModularVisual({
+      chassis: 'wasp',
+      weapon: 'smoky',
+      faction: this.faction,
+      mod: 'm0',
+      dir,
+      turretDir: this.turretDir,
+    });
+    if (mapped.visual) {
+      this.modularAdapter.updateDirection(
+        this.modularEntityId,
+        mapped.visual,
+        mapped.hullDir16,
+        mapped.turretDir16,
+        this.anchorWorld,
+      );
     }
-
-    if (!this.hull || !this.turret) return;
-
-    // Hull texture follows bodyDir — prefer generated if available
-    if (this.usingGeneratedHull) {
-      const dir16 = mapRuntimeDir8ToGeneratedDir16(dir);
-      const generatedFaction = resolveGeneratedHullFaction(this.faction);
-      const key = getGeneratedHullTextureKey(this.generatedHullId, generatedFaction, this.generatedHullMod, dir16);
-      // If the specific generated texture is missing, fall back to legacy
-      if (this.scene.textures.exists(key)) {
-        this.hull.setTexture(key);
-      } else {
-        this.hull.setTexture(getWaspHullKey(this.faction, dir));
-      }
-    } else {
-      this.hull.setTexture(getWaspHullKey(this.faction, dir));
-    }
-
-    // Turret mount position changes because bodyDir changed
-    this.updateVisuals();
   }
 
   /**
    * Change the turret direction of the modular tank.
-   * Changes turret texture ONLY. Turret mount position stays the same
-   * (it depends on bodyDir, not turretDir).
-   * No-op if turret texture is not available (legacy modularUnits disabled).
+   * Stage 3: thin delegate to adapter.updateDirection().
    */
   setTurretDir(dir: ModularTankDirection): void {
     this.turretDir = dir;
-    tunerState.turretDir = dir;
+    if (!this.modularAdapter || !this.modularEntityId || !this.anchorWorld) return;
 
-    // MODULAR-RUNTIME-03B: If using clean modular path, delegate to adapter
-    if (this.usingCleanModular && this.modularAdapter && this.modularEntityId && this.anchorWorld) {
-      const mapped = normalCombatToModularVisual({
-        chassis: 'wasp',
-        weapon: 'smoky',
-        faction: this.faction,
-        mod: 'm0',
-        dir: this.bodyDir,
-        turretDir: dir,
-      });
-      if (mapped.visual) {
-        this.modularAdapter.updateDirection(
-          this.modularEntityId,
-          mapped.visual,
-          mapped.hullDir16,
-          mapped.turretDir16,
-          this.anchorWorld,
-        );
-      }
-      this.updateVisuals();
-      return;
+    const mapped = normalCombatToModularVisual({
+      chassis: 'wasp',
+      weapon: 'smoky',
+      faction: this.faction,
+      mod: 'm0',
+      dir: this.bodyDir,
+      turretDir: dir,
+    });
+    if (mapped.visual) {
+      this.modularAdapter.updateDirection(
+        this.modularEntityId,
+        mapped.visual,
+        mapped.hullDir16,
+        mapped.turretDir16,
+        this.anchorWorld,
+      );
     }
-
-    if (!this.turret) return;
-
-    // Turret texture follows turretDir; position stays (depends on bodyDir)
-    const turretKey = getSmokyTurretKey(this.faction, dir);
-    if (this.scene.textures.exists(turretKey)) {
-      this.turret.setTexture(turretKey);
-    }
-
-    // Update overlay text to reflect new turretDir (positions unchanged)
-    this.updateVisuals();
   }
 
   /**
-   * Reposition hull and turret sprites from current runtime offsets
-   * keyed by bodyDir, then rebuild the debug overlay markers and text.
-   * Called by GameScene after keyboard offset adjustments or direction changes.
+   * Stage 3: no-op. Legacy updateVisuals() repositioned hull/turret
+   * sprites using per-dir offset tables. Both are removed; the adapter
+   * handles all positioning via composeModularVehicle().
+   *
+   * Kept as a no-op stub so EntityRenderer's facade methods
+   * (updateModularTankVisuals) continue to compile without a wider
+   * refactor. Stage 4 may remove this stub when GameScene orchestration
+   * is cleaned up.
    */
   updateVisuals(): void {
-    if (!this.hull || !this.anchorWorld) return;
-
-    const ax = this.anchorWorld.x;
-    const ay = this.anchorWorld.y;
-    const bodyDir = this.bodyDir;
-
-    // Hull position = anchor + scaleTransform(hullOffset[bodyDir])
-    const hullOff = applyScaleTransform(MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[bodyDir]);
-    let hullX = ax + hullOff.x;
-    let hullY = ay + hullOff.y;
-
-    // PIM-WASP-SCALE-PLACEMENT-01: Apply per-hull placement offset for generated hulls.
-    if (this.usingGeneratedHull) {
-      const placement = getGeneratedHullPlacementOffset(this.generatedHullId);
-      hullX += placement.offsetX;
-      hullY += placement.offsetY;
-    }
-
-    this.hull.setPosition(hullX, hullY);
-
-    // Turret mount position = anchor + scaleTransform(turretMount[bodyDir])
-    const turretMountOff = applyScaleTransform(MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[bodyDir]);
-    const turretX = ax + turretMountOff.x;
-    const turretY = ay + turretMountOff.y;
-    if (this.turret) {
-      this.turret.setPosition(turretX, turretY);
-    }
-
-    this.debugOverlay?.rebuild({
-      hullWorldX: hullX,
-      hullWorldY: hullY,
-      turretWorldX: turretX,
-      turretWorldY: turretY,
-      bodyDir: this.bodyDir,
-      turretDir: this.turretDir,
-      scale: MODULAR_TANK_SCALE,
-    });
+    // No-op — adapter handles positioning.
   }
 
-  /** Print copy-ready mutable runtime offset tables to console. */
+  /**
+   * Stage 3: no-op. Legacy printOffsetTables() printed the mutable
+   * runtime offset tables to console. The tables are removed; nothing
+   * to print. Kept as a stub for EntityRenderer facade compatibility.
+   */
   printOffsetTables(): void {
-    const dirs: ModularTankDirection[] = [0, 1, 2, 3, 4, 5, 6, 7];
-
-    const hullEntries = dirs.map(d => {
-      const o = MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR[d];
-      return `  ${d}: { x: ${o.x}, y: ${o.y} }`;
-    }).join(',\n');
-
-    const turretEntries = dirs.map(d => {
-      const o = MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR[d];
-      return `  ${d}: { x: ${o.x}, y: ${o.y} }`;
-    }).join(',\n');
-
-    console.log('DEFAULT_MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR = {');
-    console.log(hullEntries);
-    console.log('};');
-    console.log('DEFAULT_MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR = {');
-    console.log(turretEntries);
-    console.log('};');
+    // No-op — offset tables removed.
   }
 
-  /** Whether the debug overlay is currently visible. */
+  /**
+   * Stage 3: no-op. Legacy debug overlay (ModularTankDebugOverlay)
+   * showed tuner markers and text for offset tables. The overlay is
+   * removed along with the tables. Kept as stubs for EntityRenderer
+   * facade compatibility.
+   */
   isDebugOverlayVisible(): boolean {
-    return this.debugVisible;
+    return false;
   }
 
-  /** Toggle the debug overlay visibility. Returns new visibility state. */
   toggleDebug(): boolean {
-    this.debugVisible = !this.debugVisible;
-    this.debugOverlay?.toggle();
-    // Sync visibility in case toggle was called directly
-    this.debugVisible = this.debugOverlay?.isVisible() ?? this.debugVisible;
-    return this.debugVisible;
+    return false;
   }
 
-  /** Destroy all modular tank game objects (hull, turret, debug overlay). */
+  /** Destroy all modular tank state. FIXUP-1: also clean up loading placeholder. */
   destroy(): void {
-    // MODULAR-RUNTIME-03B: If using clean modular path, clean up adapter sprites
+    // FIXUP-1: clean up loading placeholder if still shown.
+    this.hideLoadingPlaceholder();
     if (this.modularAdapter && this.modularEntityId) {
       this.modularAdapter.removeVehicle(this.modularEntityId);
-      this.usingCleanModular = false;
-      this.modularAdapter = null;
-      this.modularEntityId = null;
     }
-    this.hull?.destroy();
-    this.hull = null;
-    this.turret?.destroy();
-    this.turret = null;
-    this.debugOverlay?.destroy();
-    this.debugOverlay = null;
+    this.modularAdapter = null;
+    this.modularEntityId = null;
+    this.storedModularEntity = null;
     this.anchorWorld = null;
-    // Debug overlay destroyed above; no anchor tile state to clear here.
+    this.activationAttempted = false;
   }
 }
