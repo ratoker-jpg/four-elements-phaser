@@ -1,9 +1,6 @@
 import Phaser from 'phaser';
 import { ASSET_KEYS } from '../assets/assetManifest';
-import { TerrainRenderer } from './render/TerrainRenderer';
-import { IndustrialFrameRenderer } from './render/IndustrialFrameRenderer';
-import { EntityRenderer } from './render/EntityRenderer';
-import { BuildingStatusRenderer } from './render/BuildingStatusRenderer';
+import { RenderManager } from './render/RenderManager';
 import { CameraControls } from './input/CameraControls';
 import { GameInputController } from './input/GameInputController';
 import { PlaytestHud } from './ui/PlaytestHud';
@@ -23,9 +20,6 @@ import { saveGame } from '../state/saveGame';
 import { loadUiSettings, applyUiScale } from '../state/uiSettings';
 import { DevtoolsPanel } from './ui/DevtoolsPanel';
 import { isDevtoolsEnabled, type DevCommandResult } from '../state/devCommands';
-import { DebugOverlayRenderer } from './render/DebugOverlayRenderer';
-import { FeedbackRenderer } from './render/FeedbackRenderer';
-import { UnitMotionFxRenderer } from './render/UnitMotionFxRenderer';
 import { isArenaEnabled, ARENA_MAP_ID, createArenaMapData, arenaSpawnVehicle } from '../state/devArena';
 import { createArenaModeContext, type ArenaModeContext } from '../state/arenaModeContext';
 import { ArenaMenu } from './ui/ArenaMenu';
@@ -38,18 +32,7 @@ import {
   type ArenaPlacementState,
 } from '../state/arenaPlacement';
 import { projectGroundPoint } from '../config/cameraProjectionContract';
-import { AssetPreviewTool } from './dev/AssetPreviewTool';
-import { AssetPreviewPanel } from './dev/AssetPreviewPanel';
-import { GeneratedModularVehicleRenderer } from './render/GeneratedModularVehicleRenderer';
-import { ModularVehicleDevtoolsPanel } from './dev/ModularVehicleDevtoolsPanel';
-import { BlockoutVehicleRenderer } from './render/BlockoutVehicleRenderer';
 import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputController';
-import { BlockoutWeaponVfxRenderer } from './render/BlockoutWeaponVfxRenderer';
-import { BlockoutDamageRenderer } from './render/BlockoutDamageRenderer';
-import { BlockoutObstacleRenderer } from './render/BlockoutObstacleRenderer';
-import { BlockoutUpgradeRenderer } from './render/BlockoutUpgradeRenderer';
-import { BlockoutSandboxHudRenderer } from './render/BlockoutSandboxHudRenderer';
-import { CameraProjectionDebugRenderer } from './render/CameraProjectionDebugRenderer';
 import { DEFAULT_SANDBOX_SCENARIO, ARENA_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
 import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
@@ -108,10 +91,28 @@ function inferMapStyleFromTerrain(terrain: TerrainType[][]): MapStyle {
 }
 
 export class GameScene extends Phaser.Scene {
-  private terrainRenderer: TerrainRenderer | null = null;
-  private industrialFrameRenderer: IndustrialFrameRenderer | null = null;
-  private entityRenderer: EntityRenderer | null = null;
-  private buildingStatusRenderer: BuildingStatusRenderer | null = null;
+  // Stage 4: RenderManager owns all renderer fields.
+  // GameScene accesses them via getters for backward compatibility.
+  private renderManager: RenderManager | null = null;
+
+  // Render field getters (delegate to RenderManager)
+  private get terrainRenderer() { return this.renderManager?.terrainRenderer ?? null; }
+  private get industrialFrameRenderer() { return this.renderManager?.industrialFrameRenderer ?? null; }
+  private get entityRenderer() { return this.renderManager?.entityRenderer ?? null; }
+  private get buildingStatusRenderer() { return this.renderManager?.buildingStatusRenderer ?? null; }
+  private get feedbackRenderer() { return this.renderManager?.feedbackRenderer ?? null; }
+  private get motionFxRenderer() { return this.renderManager?.motionFxRenderer ?? null; }
+  private get debugOverlayRenderer() { return this.renderManager?.debugOverlayRenderer ?? null; }
+  private get blockoutVehicleRenderer() { return this.renderManager?.blockoutVehicleRenderer ?? null; }
+  private get blockoutWeaponVfxRenderer() { return this.renderManager?.blockoutWeaponVfxRenderer ?? null; }
+  private get blockoutDamageRenderer() { return this.renderManager?.blockoutDamageRenderer ?? null; }
+  private get blockoutObstacleRenderer() { return this.renderManager?.blockoutObstacleRenderer ?? null; }
+  private get blockoutUpgradeRenderer() { return this.renderManager?.blockoutUpgradeRenderer ?? null; }
+  private get blockoutSandboxHudRenderer() { return this.renderManager?.blockoutSandboxHudRenderer ?? null; }
+  private get cameraProjectionDebugRenderer() { return this.renderManager?.cameraProjectionDebugRenderer ?? null; }
+  private get assetPreviewTool() { return this.renderManager?.assetPreviewTool ?? null; }
+  private get assetPreviewPanel() { return this.renderManager?.assetPreviewPanel ?? null; }
+
   private cameraControls: CameraControls | null = null;
   private inputController: GameInputController | null = null;
   private playtestHud: PlaytestHud | null = null;
@@ -136,16 +137,8 @@ export class GameScene extends Phaser.Scene {
   private devtoolsPanel: DevtoolsPanel | null = null;
   private devtoolsActive = false;
 
-  // ARCH-11B: Debug overlay renderer (only when devtools is enabled)
-  private debugOverlayRenderer: DebugOverlayRenderer | null = null;
   // ARCH-12A: Arena mode flag
   private arenaMode = false;
-
-  // ARCH-13A: Feedback renderer — command indicators and resource flow
-  private feedbackRenderer: FeedbackRenderer | null = null;
-
-  // ARCH-13C-LITE: Motion dust renderer — render-only movement dust particles
-  private motionFxRenderer: UnitMotionFxRenderer | null = null;
 
   /** Offset for tile-to-screen conversion. */
   private _offset: { x: number; y: number } = { x: 0, y: 0 };
@@ -153,38 +146,8 @@ export class GameScene extends Phaser.Scene {
   /** Track last raw count to log once per unload. */
   private lastLoggedRaw: number = 0;
 
-  // DEV-ASSET-PREVIEW-01: Dev-only asset preview tool and panel
-  private assetPreviewTool: AssetPreviewTool | null = null;
-  private assetPreviewPanel: AssetPreviewPanel | null = null;
-
-  // MODULAR-RUNTIME-01: Clean modular generated vehicle renderer + QA selector
-  // (devtools-only; isolated overlay, does NOT alter live Arena combat/movement).
-  private generatedModularVehicleRenderer: GeneratedModularVehicleRenderer | null = null;
-  private modularVehicleDevtoolsPanel: ModularVehicleDevtoolsPanel | null = null;
-
-  // BLOCKOUT-02H: Blockout vehicle renderer (only when devtools is active)
-  private blockoutVehicleRenderer: BlockoutVehicleRenderer | null = null;
-
   // BLOCKOUT-03H: Blockout vehicle input controller (selection/aim, only when devtools is active)
   private blockoutVehicleInputController: BlockoutVehicleInputController | null = null;
-
-  // BLOCKOUT-05H+: Blockout weapon VFX renderer (only when devtools is active)
-  private blockoutWeaponVfxRenderer: BlockoutWeaponVfxRenderer | null = null;
-
-  // BLOCKOUT-07H+: Blockout damage renderer (only when devtools is active)
-  private blockoutDamageRenderer: BlockoutDamageRenderer | null = null;
-
-  // BLOCKOUT-08H: Blockout obstacle renderer (only when devtools is active)
-  private blockoutObstacleRenderer: BlockoutObstacleRenderer | null = null;
-
-  // BLOCKOUT-09H: Blockout upgrade renderer (only when devtools is active)
-  private blockoutUpgradeRenderer: BlockoutUpgradeRenderer | null = null;
-
-  // BLOCKOUT-10H+: Blockout sandbox HUD renderer (only when devtools is active)
-  private blockoutSandboxHudRenderer: BlockoutSandboxHudRenderer | null = null;
-
-  // CAMERA-00: Camera projection debug renderer (only when devtools is active)
-  private cameraProjectionDebugRenderer: CameraProjectionDebugRenderer | null = null;
 
   // ARENA-01H+: ArenaMenu — primary Arena UX (replaces PlaytestHud for Arena)
   private arenaMenu: ArenaMenu | null = null;
@@ -292,64 +255,36 @@ export class GameScene extends Phaser.Scene {
     // Verify all required assets are loaded
     this.verifyAssets();
 
-    // Render terrain from GameState.mapData.terrain
-    // VISUAL-05A-PR2: Pass mapStyle to TerrainRenderer for industrial/sand rendering
+    // Stage 4: RenderManager owns all renderer construction.
     const mapStyle: MapStyle = this.setupConfig.mapStyle ?? 'sand';
-    this.terrainRenderer = new TerrainRenderer(
-      this,
-      this.gameState.mapData.terrain,
-      this.gameState.mapWidth,
-      this.gameState.mapHeight,
-      mapStyle,
-    );
-
-    // VISUAL-05A-PR3: Create industrial frame/background renderer when industrial
-    if (mapStyle === 'industrial') {
-      this.industrialFrameRenderer = new IndustrialFrameRenderer(
-        this,
-        this.gameState.mapWidth,
-        this.gameState.mapHeight,
-      );
-    }
-
-    // Get offset for entity placement
+    const resourceStyle: ResourceStyle = this.setupConfig.resourceStyle ?? 'legacy';
     const offset = mapOriginOffset(this.gameState.mapWidth, this.gameState.mapHeight);
     this._offset = offset;
 
-    // TERRAIN-01: Grid lines removed — they reinforced the chessboard
-    // pattern and are no longer needed with improved terrain clustering.
-    // If needed for debugging, re-enable drawGridLines() temporarily.
-
-    // Render entities — static first, then dynamic
-    // ARENA-01H+: Arena mode has no Normal Game entities (empty entities, harvesters, resourceNodes)
-    const resourceStyle: ResourceStyle = this.setupConfig.resourceStyle ?? 'legacy';
-    this.entityRenderer = new EntityRenderer(this, offset, resourceStyle);
-    this.entityRenderer.renderStaticEntities(this.gameState.entities);
-    if (!this.arenaCtx.arenaMode) {
-      this.entityRenderer.renderDynamicInit(
-        this.gameState.harvesters,
-        this.gameState.resourceNodes,
-      );
-    }
+    this.renderManager = new RenderManager(this);
+    this.renderManager.create(this.gameState, {
+      offset: offset as IsoPoint,
+      mapStyle,
+      resourceStyle,
+      devtoolsActive: this.devtoolsActive,
+      arenaMode: this.arenaMode,
+      arenaCtx: this.arenaCtx,
+      onClearModularVehicleRender: () => this.entityRenderer?.clearModularVehicleRender(),
+      onActivateModularVehicleRender: () => this.entityRenderer?.activateModularVehicleRender(),
+      isPlacementActive: () => this.arenaPlacementState.mode === 'placing',
+      isArenaMode: () => this.arenaMode,
+      getGameState: () => this.gameState,
+    });
 
     // ARCH-11A: Log harvester animation readiness for smoke test verification
     console.log('[GameScene] Harvester animation ready.');
-
-    // ARCH-07A: Building status renderer (separator progress, factory queue, construction labels)
-    this.buildingStatusRenderer = new BuildingStatusRenderer(this, offset);
-
-    // ARCH-13A: Feedback renderer for command indicators and resource flow
-    this.feedbackRenderer = new FeedbackRenderer(this, offset);
-
-    // ARCH-13C-LITE: Motion dust renderer — render-only movement dust
-    this.motionFxRenderer = new UnitMotionFxRenderer(this, offset);
 
     // Setup camera
     // VISUAL-05A-PR3: Use extended bounds when industrial frame is present
     this.cameraControls = new CameraControls(this);
     const bounds = this.industrialFrameRenderer
       ? this.industrialFrameRenderer.getExtendedBounds()
-      : this.terrainRenderer.getBounds();
+      : (this.terrainRenderer?.getBounds() ?? new Phaser.Geom.Rectangle(0, 0, 800, 600));
     this.cameraControls.setBounds(bounds);
 
     // ARENA-01H+: Center camera on map center for Arena, HQ for Normal Game
@@ -514,10 +449,9 @@ export class GameScene extends Phaser.Scene {
       this.setupConfig,
     );
 
-    // ARCH-11B: Create debug overlay renderer if devtools is active
-    if (this.devtoolsActive) {
-      this.debugOverlayRenderer = new DebugOverlayRenderer(this, this._offset as IsoPoint);
-    }
+    // Stage 4: Debug overlay, asset preview, modular vehicle, blockout renderers
+    // are now created by RenderManager.create() above.
+    // DevtoolsPanel is still created here (UI panel, not a renderer).
 
     // ARCH-11A: Create devtools panel if activated
     // ARENA-01H+: In Arena mode, DevTools starts HIDDEN — ArenaMenu is primary UX.
@@ -543,56 +477,14 @@ export class GameScene extends Phaser.Scene {
         },
         getScene: () => this as Phaser.Scene,
       }, this.arenaMode);
-      // ARENA-01H+: DevTools is NOT the primary Arena UX — start hidden
       if (this.arenaMode) {
         this.devtoolsPanel.hide();
       }
       console.log('[GameScene] Devtools panel enabled.', this.arenaMode ? '(hidden — ArenaMenu is primary UX)' : '');
     }
 
-    // DEV-ASSET-PREVIEW-01: Create asset preview tool and panel if devtools is active
+    // BLOCKOUT-02H: Spawn initial scenario if devtools is active
     if (this.devtoolsActive) {
-      this.assetPreviewTool = new AssetPreviewTool(this, this._offset as IsoPoint);
-      this.assetPreviewPanel = new AssetPreviewPanel();
-      this.assetPreviewPanel.create({ getTool: () => this.assetPreviewTool });
-      this.assetPreviewTool.setOnStateChange(() => this.assetPreviewPanel?.refresh());
-      console.log('[GameScene] Asset preview tool enabled (toggle: 0).');
-    }
-
-    // MODULAR-RUNTIME-01: Create the clean modular generated vehicle renderer
-    // and its QA/demo selector panel if devtools is active. Isolated overlay —
-    // does NOT enable modular rendering in live Arena combat, and adds no URL
-    // flags. Hull/turret/hullMod/turretMod are independently selectable.
-    if (this.devtoolsActive) {
-      this.generatedModularVehicleRenderer = new GeneratedModularVehicleRenderer(this);
-      this.modularVehicleDevtoolsPanel = new ModularVehicleDevtoolsPanel();
-      this.modularVehicleDevtoolsPanel.create({
-        getRenderer: () => this.generatedModularVehicleRenderer,
-        onLiveRenderToggle: (enabled: boolean) => {
-          if (!enabled) {
-            this.blockoutVehicleRenderer?.clearModularVehicleRender();
-            this.entityRenderer?.clearModularVehicleRender();
-          } else {
-            this.entityRenderer?.activateModularVehicleRender();
-          }
-        },
-      });
-      this.generatedModularVehicleRenderer.setOnStateChange(
-        () => this.modularVehicleDevtoolsPanel?.refresh(),
-      );
-      this.modularVehicleDevtoolsPanel.show();
-      console.log('[GameScene] Modular vehicle renderer + selector enabled (panel).');
-    }
-
-    // BLOCKOUT-02H: Create blockout vehicle renderer and spawn initial set if devtools is active
-    // ARENA-01H+: Arena mode uses ARENA_SANDBOX_SCENARIO (no obstacles)
-    if (this.devtoolsActive) {
-      this.blockoutVehicleRenderer = new BlockoutVehicleRenderer(this, this._offset as IsoPoint, () => this.devtoolsActive);
-      this.blockoutWeaponVfxRenderer = new BlockoutWeaponVfxRenderer(this, this._offset as IsoPoint);
-      this.blockoutDamageRenderer = new BlockoutDamageRenderer(this, this._offset as IsoPoint);
-      this.blockoutObstacleRenderer = new BlockoutObstacleRenderer(this, this._offset as IsoPoint);
-      this.blockoutUpgradeRenderer = new BlockoutUpgradeRenderer(this, this._offset as IsoPoint);
-      // ARENA-01H+: Arena uses obstacle-free scenario
       const scenario = this.arenaMode ? ARENA_SANDBOX_SCENARIO : DEFAULT_SANDBOX_SCENARIO;
       resetBlockoutScenario(this.gameState, scenario);
       console.log('[GameScene] Blockout vehicle renderer enabled. Spawned', this.arenaMode ? 'arena' : 'sandbox', 'scenario.');
@@ -613,11 +505,6 @@ export class GameScene extends Phaser.Scene {
     // BLOCKOUT-03H: Create blockout vehicle input controller for selection/aiming
     // BLOCKOUT-10H+: Wire R/T/H hotkeys and sandbox HUD
     if (this.devtoolsActive) {
-      this.blockoutSandboxHudRenderer = new BlockoutSandboxHudRenderer(this);
-      // ARENA-04H+: Set Arena mode for context-specific help
-      this.blockoutSandboxHudRenderer.setArenaMode(this.arenaMode);
-      this.cameraProjectionDebugRenderer = new CameraProjectionDebugRenderer(this, this._offset as IsoPoint);
-      this.cameraProjectionDebugRenderer.render();
       this.blockoutVehicleInputController = new BlockoutVehicleInputController({
         scene: this,
         offset: this._offset as IsoPoint,
@@ -658,8 +545,8 @@ export class GameScene extends Phaser.Scene {
       scene: this,
       offset: this._offset as IsoPoint,
       getGameState: () => this.gameState,
-      entityRenderer: this.entityRenderer,
-      feedbackRenderer: this.feedbackRenderer,
+      entityRenderer: this.entityRenderer!,
+      feedbackRenderer: this.feedbackRenderer!,
       showStatus: (message: string, success: boolean) => this.playtestHud?.showStatus(message, success),
       pauseMenu: this.pauseMenu,
       debugOverlayRenderer: this.debugOverlayRenderer,
@@ -1312,50 +1199,22 @@ export class GameScene extends Phaser.Scene {
 
     this.inputController?.destroy();
     this.inputController = null;
-    this.motionFxRenderer?.destroy();
-    this.motionFxRenderer = null;
-    this.feedbackRenderer?.destroy();
-    this.feedbackRenderer = null;
-    this.debugOverlayRenderer?.destroy();
-    this.debugOverlayRenderer = null;
+
+    // Stage 4: RenderManager owns all renderer destruction.
+    this.renderManager?.destroy();
+    this.renderManager = null;
+
     this.devtoolsPanel?.destroy();
     this.devtoolsPanel = null;
-    this.assetPreviewPanel?.destroy();
-    this.assetPreviewPanel = null;
-    this.assetPreviewTool?.destroy();
-    this.assetPreviewTool = null;
-    this.generatedModularVehicleRenderer?.destroy();
-    this.generatedModularVehicleRenderer = null;
-    this.modularVehicleDevtoolsPanel?.destroy();
-    this.modularVehicleDevtoolsPanel = null;
     this.blockoutVehicleInputController?.destroy();
     this.blockoutVehicleInputController = null;
-    this.blockoutVehicleRenderer?.destroy();
-    this.blockoutVehicleRenderer = null;
-    this.blockoutWeaponVfxRenderer?.destroy();
-    this.blockoutWeaponVfxRenderer = null;
-    this.blockoutDamageRenderer?.destroy();
-    this.blockoutDamageRenderer = null;
-    this.blockoutObstacleRenderer?.destroy();
-    this.blockoutObstacleRenderer = null;
-    this.blockoutUpgradeRenderer?.destroy();
-    this.blockoutUpgradeRenderer = null;
-    this.blockoutSandboxHudRenderer?.destroy();
-    this.blockoutSandboxHudRenderer = null;
-    this.cameraProjectionDebugRenderer?.destroy();
-    this.cameraProjectionDebugRenderer = null;
     this.arenaMenu?.destroy();
     this.arenaMenu = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
     this.playtestHud?.destroy();
     this.playtestHud = null;
-    this.buildingStatusRenderer?.destroy();
-    this.buildingStatusRenderer = null;
     this.cameraControls?.destroy();
-    this.entityRenderer?.destroy();
-    this.terrainRenderer?.destroy();
-    this.industrialFrameRenderer?.destroy();
     this.paused = false;
   }
 }
