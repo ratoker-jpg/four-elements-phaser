@@ -83,9 +83,11 @@ import type { ModularTankDirection } from '../../config/worldConfig';
  * without a larger refactor (Stage 4 will revisit GameScene orchestration).
  */
 export class ModularTankRenderer {
-  // Stage 3 retirement: scene field removed.
-  // The legacy hull/turret sprite creation (which needed scene.add.image)
-  // is gone. All sprite management is in ModularVehicleLiveAdapter.
+  // FIXUP-1: scene field restored for loading placeholder creation.
+  // Stage 3 removed this field when legacy sprite creation was removed,
+  // but FIXUP-1 needs it back to create the procedural loading
+  // placeholder (Phaser.GameObjects.Graphics + Text).
+  private scene: Phaser.Scene;
   private offset: IsoPoint;
 
   /** Modular adapter (shared with EntityRenderer). */
@@ -114,19 +116,30 @@ export class ModularTankRenderer {
   private storedModularEntity: RenderableEntity | null = null;
   private activationAttempted: boolean = false;
 
-  constructor(_scene: Phaser.Scene, offset: IsoPoint) {
-    // Stage 3: scene parameter retained for EntityRenderer constructor
-    // signature compatibility, but no longer stored. The adapter handles
-    // all Phaser scene interactions.
+  constructor(scene: Phaser.Scene, offset: IsoPoint) {
+    // FIXUP-1: scene stored for loading placeholder creation.
+    this.scene = scene;
     this.offset = offset;
   }
 
   /**
    * Place the modular combat tank via the canonical adapter path.
    *
-   * Stage 3: this is now a thin delegate. The legacy hull/turret sprite
-   * creation path is removed. If modular assets are unavailable, the
-   * adapter's sticky state + retryCleanModular() handle loading.
+   * VEHICLE-RENDER-UNIFY-03-VH-FIXUP-1:
+   *   - Captures the result from placeModularCombat().
+   *   - If result.usedModular === true: calls setNormalRuntimeDepth() so
+   *     the modular sprites get the correct computeDepthValue depth
+   *     (fixes Blocker 1 — z-sorting regression).
+   *   - If result.usedModular === false: calls setPendingDepth() so
+   *     retryCleanModular() applies the depth when textures arrive.
+   *   - If result.usedModular === false AND no sticky: shows an explicit
+   *     loading placeholder (procedural blockout box) so the entity is
+   *     visibly present during asset loading (fixes Blocker 2 — no
+   *     permanent or noticeable invisibility).
+   *
+   * Stage 3: legacy hull/turret sprite path removed. The loading
+   * placeholder is a neutral/diagnostic procedural box, NOT a silent
+   * cyan recolor. It is removed once modular PNG appears.
    *
    * VEHICLE-RENDER-UNIFY-01-VH Package C: faction is resolved via
    * resolveFactionOrDiagnosticFallback() — no silent `?? 'cyan'` default.
@@ -155,10 +168,17 @@ export class ModularTankRenderer {
     // Store entity for late activation (devtools toggle-on scenario)
     this.storedModularEntity = entity;
 
+    // Compute depth once — used by both modular sprites and loading placeholder.
+    const baseDepth = computeDepthValue({
+      id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
+      offsetX: this.offset.x, offsetY: this.offset.y,
+    });
+
     if (!ENABLE_MODULAR_VEHICLE_RENDER || !modularAdapter) {
-      // Flag off or no adapter — no rendering. The entity will be
-      // invisible until the flag is toggled on and activateCleanModularRender()
-      // is called. This is the explicit emergency behavior.
+      // Flag off or no adapter — show loading placeholder only.
+      // The entity will be visible as a procedural box until the flag
+      // is toggled on and activateCleanModularRender() is called.
+      this.showLoadingPlaceholder(entity, baseDepth);
       return;
     }
 
@@ -170,7 +190,12 @@ export class ModularTankRenderer {
     const weapon = 'smoky';
     const mod = 'm0';
 
-    modularAdapter.placeModularCombat(
+    // FIXUP-1 Blocker 1: capture the result so we can call the right
+    // depth setter. Previously this always called setPendingDepth(),
+    // which is a no-op when pendingCombat is null (i.e. when
+    // usedModular === true). That left modular sprites at the adapter's
+    // default baseDepth, regressing z-sorting around buildings/resources.
+    const result = modularAdapter.placeModularCombat(
       entity,
       this.anchorWorld,
       chassis,
@@ -178,19 +203,146 @@ export class ModularTankRenderer {
       mod,
     );
 
-    // Compute and set depth for modular sprites
-    const baseDepth = computeDepthValue({
-      id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
-      offsetX: this.offset.x, offsetY: this.offset.y,
+    if (result.usedModular) {
+      // Modular sprites are active — set their depth directly.
+      modularAdapter.setNormalRuntimeDepth(entity.id, baseDepth);
+      // Hide any loading placeholder that may have been shown by a
+      // previous place() call (e.g. devtools toggle cycling).
+      this.hideLoadingPlaceholder();
+    } else {
+      // Modular assets not yet available — store depth for retry.
+      modularAdapter.setPendingDepth(baseDepth);
+      // FIXUP-1 Blocker 2: show an explicit loading placeholder so the
+      // entity is visibly present during asset loading. This is NOT a
+      // silent cyan recolor — it is a neutral/diagnostic procedural box
+      // that is removed once modular PNG appears.
+      this.showLoadingPlaceholder(entity, baseDepth);
+    }
+  }
+
+  // ─── FIXUP-1 Blocker 2: explicit loading placeholder ─────────────
+  //
+  // When modular assets are unavailable on first render and the adapter
+  // has no sticky state, the entity would otherwise be invisible. This
+  // procedural placeholder ensures the entity is visibly present:
+  //   - neutral gray box (NOT faction-colored — avoids silent cyan recolor);
+  //   - positioned at the entity's tile anchor;
+  //   - depth-sorted via computeDepthValue;
+  //   - removed once retryCleanModular() succeeds and modular PNG appears.
+  //
+  // The placeholder is a Phaser.GameObjects.Graphics drawn as a simple
+  // isometric box outline. It does NOT use any faction color, does NOT
+  // use getWaspHullKey/getSmokyTurretKey, and does NOT change
+  // composeModularVehicle() placement math.
+
+  /** Loading placeholder Graphics object, or null when not shown. */
+  private loadingPlaceholder: Phaser.GameObjects.Graphics | null = null;
+
+  /**
+   * Show a procedural loading placeholder at the entity's tile anchor.
+   * The placeholder is a neutral gray isometric box outline — NOT
+   * faction-colored, NOT a cyan recolor. It is removed by
+   * hideLoadingPlaceholder() once modular PNG appears.
+   */
+  private showLoadingPlaceholder(entity: RenderableEntity, depth: number): void {
+    // Don't create a duplicate if already shown
+    if (this.loadingPlaceholder) {
+      return;
+    }
+
+    if (!this.scene) {
+      return;
+    }
+
+    const g = this.scene.add.graphics();
+    const ax = this.anchorWorld?.x ?? 0;
+    const ay = this.anchorWorld?.y ?? 0;
+
+    // Draw a neutral gray isometric box outline (NOT faction-colored).
+    // This is a diagnostic placeholder, not a gameplay visual.
+    const boxW = 30;
+    const boxH = 15;
+    const boxZ = 20;
+
+    // Bottom face (diamond)
+    g.lineStyle(2, 0x888888, 0.8);
+    g.beginPath();
+    g.moveTo(ax, ay + boxH);
+    g.lineTo(ax + boxW, ay);
+    g.lineTo(ax, ay - boxH);
+    g.lineTo(ax - boxW, ay);
+    g.closePath();
+    g.strokePath();
+
+    // Top face (diamond, elevated by boxZ)
+    g.lineStyle(2, 0xaaaaaa, 0.8);
+    g.beginPath();
+    g.moveTo(ax, ay + boxH - boxZ);
+    g.lineTo(ax + boxW, ay - boxZ);
+    g.lineTo(ax, ay - boxH - boxZ);
+    g.lineTo(ax - boxW, ay - boxZ);
+    g.closePath();
+    g.strokePath();
+
+    // Vertical edges
+    g.lineStyle(2, 0x888888, 0.8);
+    g.beginPath();
+    g.moveTo(ax + boxW, ay);
+    g.lineTo(ax + boxW, ay - boxZ);
+    g.moveTo(ax, ay + boxH);
+    g.lineTo(ax, ay + boxH - boxZ);
+    g.moveTo(ax - boxW, ay);
+    g.lineTo(ax - boxW, ay - boxZ);
+    g.strokePath();
+
+    // "Loading" text label (neutral white, small)
+    const label = this.scene.add.text(ax, ay - boxZ - 8, '…', {
+      fontSize: '10px',
+      color: '#ffffff',
+      backgroundColor: '#33333388',
+      padding: { x: 3, y: 1 },
     });
-    modularAdapter.setPendingDepth(baseDepth);
+    label.setOrigin(0.5, 1);
+    label.setDepth(depth + 1);
+
+    g.setDepth(depth);
+    this.loadingPlaceholder = g;
+    this.loadingPlaceholderLabel = label;
+
+    if (!this.loadingLogged) {
+      console.log(`[ModularTankRenderer] Showing loading placeholder for entity ${entity.id} (modular assets loading)`);
+      this.loadingLogged = true;
+    }
+  }
+
+  /** Loading placeholder text label, or null when not shown. */
+  private loadingPlaceholderLabel: Phaser.GameObjects.Text | null = null;
+
+  /** Whether the loading placeholder log has been emitted (once). */
+  private loadingLogged = false;
+
+  /**
+   * Hide and destroy the loading placeholder. Called when modular PNG
+   * appears (result.usedModular === true) or when the entity is destroyed.
+   */
+  private hideLoadingPlaceholder(): void {
+    if (this.loadingPlaceholder) {
+      this.loadingPlaceholder.destroy();
+      this.loadingPlaceholder = null;
+    }
+    if (this.loadingPlaceholderLabel) {
+      this.loadingPlaceholderLabel.destroy();
+      this.loadingPlaceholderLabel = null;
+    }
   }
 
   /**
    * Retry clean modular placement for the stored modular-combat entity.
    * Called each frame from EntityRenderer.syncFromState().
    *
-   * Stage 3: thin delegate to adapter.retryCleanModular().
+   * FIXUP-1: when retry succeeds, hide the loading placeholder so the
+   * modular PNG is the only visible visual. When retry fails (assets
+   * still loading), keep the placeholder visible.
    */
   retryCleanModular(): boolean {
     if (!this.modularAdapter || !this.modularEntityId) {
@@ -199,7 +351,12 @@ export class ModularTankRenderer {
     if (!ENABLE_MODULAR_VEHICLE_RENDER) {
       return false;
     }
-    return this.modularAdapter.retryCleanModular();
+    const succeeded = this.modularAdapter.retryCleanModular();
+    if (succeeded) {
+      // Modular PNG is now active — hide the loading placeholder.
+      this.hideLoadingPlaceholder();
+    }
+    return succeeded;
   }
 
   /**
@@ -239,12 +396,16 @@ export class ModularTankRenderer {
         offsetX: this.offset.x, offsetY: this.offset.y,
       });
       this.modularAdapter.setNormalRuntimeDepth(entity.id, baseDepth);
+      // FIXUP-1: hide loading placeholder on successful activation.
+      this.hideLoadingPlaceholder();
     } else {
       const baseDepth = computeDepthValue({
         id: `modular-${entity.tx}-${entity.ty}`, type: 'unit', tx: entity.tx, ty: entity.ty,
         offsetX: this.offset.x, offsetY: this.offset.y,
       });
       this.modularAdapter.setPendingDepth(baseDepth);
+      // FIXUP-1: show loading placeholder while assets load.
+      this.showLoadingPlaceholder(entity, baseDepth);
     }
   }
 
@@ -352,8 +513,10 @@ export class ModularTankRenderer {
     return false;
   }
 
-  /** Destroy all modular tank state. Stage 3: clean up adapter only. */
+  /** Destroy all modular tank state. FIXUP-1: also clean up loading placeholder. */
   destroy(): void {
+    // FIXUP-1: clean up loading placeholder if still shown.
+    this.hideLoadingPlaceholder();
     if (this.modularAdapter && this.modularEntityId) {
       this.modularAdapter.removeVehicle(this.modularEntityId);
     }

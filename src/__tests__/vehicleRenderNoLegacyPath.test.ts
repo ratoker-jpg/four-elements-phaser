@@ -143,11 +143,14 @@ describe('VEHICLE-RENDER-UNIFY-03-VH Stage 3: legacy renderer retirement', () =>
       expect(violations, violations.join('\n')).toEqual([]);
     });
 
-    it('ModularTankRenderer is now a thin delegate (< 400 lines)', () => {
-      // Stage 3 retirement: the file was 733 lines, should now be ~350.
-      // This is a soft upper bound to catch accidental re-growth.
+    it('ModularTankRenderer is now a thin delegate with loading placeholder (< 600 lines)', () => {
+      // Stage 3 retirement: the file was 733 lines.
+      // FIXUP-1: grew to ~529 lines after adding the loading placeholder
+      // (showLoadingPlaceholder / hideLoadingPlaceholder methods + graphics).
+      // Upper bound is 600 to catch accidental re-growth while allowing
+      // the explicit loading fallback to live in this file.
       const lineCount = modularTankRendererSrc.split('\n').length;
-      expect(lineCount).toBeLessThan(400);
+      expect(lineCount).toBeLessThan(600);
     });
   });
 
@@ -250,6 +253,90 @@ describe('VEHICLE-RENDER-UNIFY-03-VH Stage 3: legacy renderer retirement', () =>
       }
       expect(importFailed).toBe(true);
     });
+  });
+});
+
+// ─── FIXUP-1 tests: depth handling + loading placeholder ───────────
+
+describe('VEHICLE-RENDER-UNIFY-03-VH-FIXUP-1: depth handling + loading placeholder', () => {
+  it('ModularTankRenderer.place() captures result and calls setNormalRuntimeDepth on success', async () => {
+    // Verify the source captures the result and branches on usedModular.
+    const source = modularTankRendererSrc;
+    // Must capture the result (not ignore it).
+    expect(source).toMatch(/const result = modularAdapter\.placeModularCombat/);
+    // Must call setNormalRuntimeDepth when usedModular is true.
+    expect(source).toMatch(/if \(result\.usedModular\)/);
+    expect(source).toMatch(/modularAdapter\.setNormalRuntimeDepth\(entity\.id, baseDepth\)/);
+    // Must call setPendingDepth when usedModular is false.
+    expect(source).toMatch(/modularAdapter\.setPendingDepth\(baseDepth\)/);
+  });
+
+  it('ModularTankRenderer has loading placeholder methods', () => {
+    // Verify the loading placeholder exists as explicit fallback.
+    expect(modularTankRendererSrc).toMatch(/showLoadingPlaceholder/);
+    expect(modularTankRendererSrc).toMatch(/hideLoadingPlaceholder/);
+    expect(modularTankRendererSrc).toMatch(/loadingPlaceholder/);
+  });
+
+  it('loading placeholder uses neutral gray color, NOT faction color (no silent cyan)', () => {
+    // The placeholder must not use faction colors. Verify it uses 0x888888 / 0xaaaaaa.
+    expect(modularTankRendererSrc).toMatch(/0x888888/);
+    expect(modularTankRendererSrc).toMatch(/0xaaaaaa/);
+    // Must NOT reference faction color constants or cyan recolor.
+    expect(modularTankRendererSrc).not.toMatch(/FACTION_BODY_COLORS/);
+    expect(modularTankRendererSrc).not.toMatch(/0x00cccc/); // cyan faction color
+  });
+
+  it('loading placeholder does NOT use getWaspHullKey or getSmokyTurretKey', () => {
+    // No legacy fallback path is restored. Check non-comment lines only.
+    const lines = modularTankRendererSrc.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
+      if (line.includes('getWaspHullKey') || line.includes('getSmokyTurretKey')) {
+        throw new Error(`Forbidden legacy identifier in active code: ${trimmed}`);
+      }
+    }
+  });
+
+  it('retryCleanModular hides loading placeholder on success', () => {
+    // When retry succeeds, the placeholder must be hidden.
+    expect(modularTankRendererSrc).toMatch(/const succeeded = this\.modularAdapter\.retryCleanModular\(\)/);
+    expect(modularTankRendererSrc).toMatch(/if \(succeeded\)/);
+    expect(modularTankRendererSrc).toMatch(/this\.hideLoadingPlaceholder\(\)/);
+  });
+
+  it('destroy() cleans up loading placeholder', () => {
+    // destroy must call hideLoadingPlaceholder.
+    expect(modularTankRendererSrc).toMatch(/destroy\(\): void \{[\s\S]*?this\.hideLoadingPlaceholder\(\)/);
+  });
+
+  it('place() does NOT call setPendingDepth when usedModular is true', () => {
+    // The fix ensures setPendingDepth is only called in the else branch.
+    // Verify the if-branch calls setNormalRuntimeDepth, not setPendingDepth.
+    const lines = modularTankRendererSrc.split('\n');
+    let inUsedModularBranch = false;
+    let foundSetPendingInUsedModularBranch = false;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
+
+      if (/if \(result\.usedModular\)/.test(line)) {
+        inUsedModularBranch = true;
+      } else if (inUsedModularBranch && /^\s*\}\s*else\s*\{/.test(line)) {
+        inUsedModularBranch = false;
+      }
+
+      if (inUsedModularBranch && /setPendingDepth/.test(line)) {
+        foundSetPendingInUsedModularBranch = true;
+      }
+    }
+    expect(foundSetPendingInUsedModularBranch).toBe(false);
+  });
+
+  it('scene field is restored (needed for loading placeholder Graphics/Text creation)', () => {
+    expect(modularTankRendererSrc).toMatch(/private scene: Phaser\.Scene/);
+    expect(modularTankRendererSrc).toMatch(/this\.scene = scene/);
   });
 });
 

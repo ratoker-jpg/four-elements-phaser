@@ -89,11 +89,11 @@ After this PR:
 - `ModularVehicleLiveAdapter.retryCleanModular()` — re-attempts `placeModularCombat()` each frame until textures arrive. Once textures load, modular sprites appear and sticky is set.
 
 ### What is NOT a fallback anymore
-- Legacy `getWaspHullKey` + `getSmokyTurretKey` sprite path — **removed**. Normal-runtime modular-combat entities no longer fall back to cyan-tinted wasp+smoky sprites. If modular assets are unavailable on first render and sticky is not set, the entity is **invisible** until textures load (typically <1 second), then `retryCleanModular()` applies modular sprites.
+- Legacy `getWaspHullKey` + `getSmokyTurretKey` sprite path — **removed**. Normal-runtime modular-combat entities no longer fall back to cyan-tinted wasp+smoky sprites. Instead, FIXUP-1 shows a **neutral gray procedural loading placeholder** while modular assets load. The placeholder is removed once modular PNG appears.
 - `pilotTurretComposition` — **removed**. Arena vehicles no longer have a pilot turret composition fallback. The modular adapter handles all turret positioning via `composeModularVehicle()` metadata-driven socket/pivot math.
 
 ### Behavior change risk
-- **Normal-runtime modular-combat entity**: brief invisibility on first spawn if textures are not yet loaded. Stage 2 sticky state covers all subsequent direction changes (no flicker). The `retryCleanModular()` call each frame ensures the entity appears within ~1 second of spawn. This is the explicit loading behavior — no silent cyan recolor, no legacy fallback.
+- **Normal-runtime modular-combat entity**: FIXUP-1 added an explicit loading placeholder (neutral gray procedural box) that is shown when modular assets are unavailable on first render and sticky is not set. The placeholder is removed once `retryCleanModular()` succeeds and modular PNG appears. The entity is **never invisible** during loading — the placeholder ensures visible presence. Stage 2 sticky state covers all subsequent direction changes (no flicker). This is the explicit loading behavior — no silent cyan recolor, no legacy fallback, no permanent invisibility.
 
 ---
 
