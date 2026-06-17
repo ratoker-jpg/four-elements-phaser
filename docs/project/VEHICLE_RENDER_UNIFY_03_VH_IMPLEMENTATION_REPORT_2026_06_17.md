@@ -20,7 +20,7 @@ procedural blockout geometry in `BlockoutVehicleRenderer`, gated by
 `plan.available === false` AND sticky-not-set (Stage 2 contract).
 
 After this PR:
-- `ModularTankRenderer` is a thin delegate (~360 lines, was 733).
+- `ModularTankRenderer` is a thin delegate (reduced from 733, kept under 600 lines after explicit loading placeholder added in FIXUP-1; currently 555 lines).
 - Legacy `getWaspHullKey` / `getSmokyTurretKey` / per-dir offset tables
   are removed from production code.
 - `pilotTurretComposition` and its quarantine flag are removed.
@@ -39,12 +39,12 @@ After this PR:
 
 ### Modified (4 files)
 - `src/config/worldConfig.ts` — removed `MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR`, `MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR`, `DEFAULT_*` variants, `tunerState`, `TunerLayer`, `cloneOffsetRecord`, `ALL_DIRS`. Retained: `TILE_W`, `TILE_H`, `MAP_W`, `MAP_H`, `Offset2D`, `ModularTankDirection`. (~85 lines → ~45 lines)
-- `src/phaser/render/ModularTankRenderer.ts` — rewrote as thin delegate around `ModularVehicleLiveAdapter`. Removed legacy hull/turret sprite path, offset table usage, tuner state, debug overlay, `applyScaleTransform` helper, `printOffsetTables`, `updateVisuals` (now no-op stubs). (~733 lines → ~365 lines)
+- `src/phaser/render/ModularTankRenderer.ts` — rewrote as thin delegate around `ModularVehicleLiveAdapter`. Removed legacy hull/turret sprite path, offset table usage, tuner state, debug overlay, `applyScaleTransform` helper, `printOffsetTables`, `updateVisuals` (now no-op stubs). FIXUP-1 added explicit loading placeholder methods. (~733 lines → 555 lines, kept under 600)
 - `src/phaser/render/BlockoutVehicleRenderer.ts` — removed `pilotTurretComposition` import, `ENABLE_PILOT_GENERATED_TURRET_COMPOSITION` flag, `vehicleTurretComp` Map, turret sprite positioning block, `generatedTurretLogged` field. Kept `vehicleTurretSprites` Map for defensive cleanup of stale sprites. (~1596 lines → ~1526 lines)
 - `src/phaser/input/GameInputController.ts` — removed `MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR`, `MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR`, `tunerState` imports; removed tuner hotkeys (T/H/J/C/Q/E/Z/X + arrow keys); removed `boundArrowHandler` field, `onArrowKey` method, `ARROW_STEP`/`ARROW_SHIFT_STEP` constants. (~996 lines → ~920 lines)
 
 ### Added (1 file)
-- `src/__tests__/vehicleRenderNoLegacyPath.test.ts` — 17 contract tests verifying legacy paths are not re-introduced.
+- `src/__tests__/vehicleRenderNoLegacyPath.test.ts` — 25 tests total (17 contract tests + 8 FIXUP-1 tests) verifying legacy paths are not re-introduced and loading placeholder behavior is correct.
 
 ---
 
@@ -133,7 +133,7 @@ git diff --check:   PASS
 secret/token scan:  PASS
 ```
 
-### 6.2 New contract tests (17 tests in `vehicleRenderNoLegacyPath.test.ts`)
+### 6.2 New contract tests (25 tests total in `vehicleRenderNoLegacyPath.test.ts`: 17 contract tests + 8 FIXUP-1 tests)
 
 **Legacy import guards (4 tests):**
 - `ModularTankRenderer` does not import `getWaspHullKey`, `getSmokyTurretKey`, `MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR`, `MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR`, `tunerState`, `pilotTurretComposition`, `ModularTankDebugOverlay`, or any `generatedHullAssets` export.
