@@ -21,13 +21,26 @@
  *   - setBodyDir / setTurretDir → adapter.updateDirection(...)
  *   - destroy() → adapter.removeVehicle(entityId)
  *
- * Emergency fallback:
- *   If modular assets are unavailable on first render, the adapter's
- *   sticky no-flicker state (Stage 2) keeps the last good modular
- *   sprites visible. If this is the very first render (no sticky),
- *   the entity is invisible until textures load, then retryCleanModular()
- *   applies modular sprites. This is the explicit loading behavior;
- *   no silent cyan recolor, no legacy wasp+smoky fallback.
+ * Emergency fallback (FIXUP-1 + FIXUP-2):
+ *   If modular assets are unavailable on first render:
+ *     - If the adapter has sticky state (Stage 2), the last good modular
+ *       sprites stay visible — no flicker, no fallback needed.
+ *     - If this is the very first render (no sticky), a neutral gray
+ *       procedural loading placeholder is shown (isometric box outline,
+ *       NOT faction-colored, NOT cyan recolor, NOT legacy wasp+smoky).
+ *       The placeholder is removed once modular PNG appears via
+ *       retryCleanModular() or a subsequent place() call with
+ *       usedModular === true.
+ *   The entity is NEVER invisible during loading. No silent cyan
+ *   recolor. No legacy Wasp/Smoky fallback.
+ *
+ * Toggle edge-case (FIXUP-2):
+ *   When ENABLE_MODULAR_VEHICLE_RENDER is false but a modularAdapter is
+ *   provided, place() stores the adapter + entityId + entity reference
+ *   BEFORE showing the loading placeholder and returning. This allows
+ *   activateCleanModularRender() to work if the flag is later toggled
+ *   on. Without this, the toggle-on scenario would be a no-op (the
+ *   adapter reference would be null).
  *
  * What was removed (Stage 3):
  *   - getWaspHullKey / getSmokyTurretKey imports
@@ -175,13 +188,26 @@ export class ModularTankRenderer {
     });
 
     if (!ENABLE_MODULAR_VEHICLE_RENDER || !modularAdapter) {
-      // Flag off or no adapter — show loading placeholder only.
-      // The entity will be visible as a procedural box until the flag
-      // is toggled on and activateCleanModularRender() is called.
+      // FIXUP-2: Even when the flag is off or no adapter is provided,
+      // store the adapter + entityId + entity reference BEFORE showing
+      // the loading placeholder and returning. This allows
+      // activateCleanModularRender() to work if the flag is later
+      // toggled on (devtools toggle-on scenario). Without this, the
+      // toggle-on path would be a no-op because this.modularAdapter
+      // would still be null.
+      if (modularAdapter) {
+        this.modularAdapter = modularAdapter;
+        this.modularEntityId = entity.id;
+      }
+      // Show loading placeholder — the entity is visible as a neutral
+      // gray procedural box until the flag is toggled on and
+      // activateCleanModularRender() is called.
       this.showLoadingPlaceholder(entity, baseDepth);
       return;
     }
 
+    // FIXUP-2: Store adapter + entityId before any branching so the
+    // toggle-on scenario always has the references it needs.
     this.modularAdapter = modularAdapter;
     this.modularEntityId = entity.id;
 

@@ -123,10 +123,10 @@ After this PR:
 ### 6.1 Test results
 ```text
 npm run typecheck: PASS
-npm test:           PASS — 91 files, 4671 tests (was 91 files, 4698 tests on main)
+npm test:           PASS — 91 files, 4679 tests (was 91 files, 4698 tests on main)
   Removed: -44 tests (runtime03PilotTurretComposition.test.ts deleted)
-  Added:   +17 tests (vehicleRenderNoLegacyPath.test.ts)
-  Net:     -27 tests (4654 pre-existing pass + 17 new = 4671)
+  Added:   +25 tests (17 contract tests + 8 FIXUP-1 tests in vehicleRenderNoLegacyPath.test.ts)
+  Net:    -19 tests (4654 pre-existing pass + 25 new = 4679)
 npm run build:      not run — ENOSPC environment constraint (verified on clean main in PR #298; not a code defect)
 npm run qa:smoke:   not run — ENOSPC + Playwright browser missing (same as 04A report)
 git diff --check:   PASS
@@ -147,7 +147,7 @@ secret/token scan:  PASS
 - `runtime03PilotTurretComposition.test.ts` is deleted (import fails).
 
 **Size guard (1 test):**
-- `ModularTankRenderer` is now < 400 lines (was 733).
+- `ModularTankRenderer` is now < 600 lines (was 733; FIXUP-1 grew it to ~545 for loading placeholder).
 
 **Behavior preservation guards (6 tests):**
 - `factionResolver` still exports `resolveFactionOrDiagnosticFallback` + `CANONICAL_FACTIONS`.
@@ -178,7 +178,7 @@ Denis must complete this checklist on his local machine before merge:
 6. Representative hulls: wasp, hunter, titan, dictator — all render correctly.
 7. Representative turrets: smoky, ricochet, railgun, thunder — all render correctly.
 8. No flicker back to turquoise/green blockout cube after PNG appears.
-9. **Stage 3 extra:** normal-runtime modular-combat entity appears within ~1 second of spawn (no permanent invisibility). Brief invisibility on first spawn is acceptable (loading); permanent invisibility is a regression.
+9. **Stage 3 extra:** normal-runtime modular-combat entity shows a neutral gray loading placeholder on first spawn while modular assets load (no invisibility). Placeholder is removed once modular PNG appears (within ~1 second). Permanent placeholder (modular never appears) is a regression.
 10. No disappearing units during asset loading (sticky keeps last good modular visible during direction changes).
 11. Visual placement not regressed (hull+turret alignment on tile looks the same as before).
 12. Dictator +9% hull only; turret not scaled by +9%.
@@ -192,7 +192,7 @@ Denis must complete this checklist on his local machine before merge:
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Normal-runtime modular-combat entity briefly invisible on first spawn (no legacy wasp+smoky fallback) | Medium | `retryCleanModular()` runs each frame; entity appears within ~1s. Stage 2 sticky state covers all subsequent direction changes. Manual QA item 9 verifies. |
+| Normal-runtime modular-combat entity shows neutral gray loading placeholder on first spawn (no legacy wasp+smoky fallback, no invisibility) | Low | FIXUP-1 loading placeholder ensures entity is visible during asset loading. `retryCleanModular()` runs each frame; placeholder is removed once modular PNG appears. Stage 2 sticky state covers all subsequent direction changes. Manual QA item 9 verifies placeholder appears and is removed. |
 | `pilotVehicleLazyLoad` still references cyan-only pilot set — non-cyan vehicles may have slower first-load | Low | Stage 2 sticky state + lazy-load 32-PNG cap already handle this. Not a Stage 3 regression. |
 | `modularUnitAssets` may still export `getWaspHullKey`/`getSmokyTurretKey` (unused but not deleted from the file) | Low | Contract test verifies no production file imports them. The exports themselves are dead code; Stage 4 cleanup can remove them if desired. |
 | `ModularTankRenderer.updateVisuals` / `printOffsetTables` / `toggleDebug` / `isDebugOverlayVisible` are now no-op stubs | Low | Kept for EntityRenderer facade compatibility. Stage 4 can remove the facades when GameScene orchestration is cleaned up. |
