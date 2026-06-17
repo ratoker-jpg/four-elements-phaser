@@ -91,6 +91,8 @@ After this PR:
 ### What is NOT a fallback anymore
 - Legacy `getWaspHullKey` + `getSmokyTurretKey` sprite path — **removed**. Normal-runtime modular-combat entities no longer fall back to cyan-tinted wasp+smoky sprites. Instead, FIXUP-1 shows a **neutral gray procedural loading placeholder** while modular assets load. The placeholder is removed once modular PNG appears.
 - `pilotTurretComposition` — **removed**. Arena vehicles no longer have a pilot turret composition fallback. The modular adapter handles all turret positioning via `composeModularVehicle()` metadata-driven socket/pivot math.
+- **FIXUP-4**: `requestModularVehicleSet()` now auto-starts the Phaser loader when assets are queued. Previously, queued images never loaded because `scene.load.start()` was never called outside `preload()`. This was the root cause of Denis's QA failure (permanent blockout cubes).
+- **FIXUP-5**: `loadArenaVisualAssets()` is now a no-op — no Wasp M0 hull preload, no pilot turret preload. All modular vehicle assets (hull + turret for any combo) are loaded exclusively on-demand via `requestModularVehicleSet()`. `pilotVehicleLazyLoad.ts` was deleted. `GeneratedModularVehicleRenderer.ensureAssetsLoaded()` registers COMPLETE listener before `requestModularVehicleSet()` and no longer calls `scene.load.start()` redundantly.
 
 ### Behavior change risk
 - **Normal-runtime modular-combat entity**: FIXUP-1 added an explicit loading placeholder (neutral gray procedural box) that is shown when modular assets are unavailable on first render and sticky is not set. The placeholder is removed once `retryCleanModular()` succeeds and modular PNG appears. The entity is **never invisible** during loading — the placeholder ensures visible presence. Stage 2 sticky state covers all subsequent direction changes (no flicker). This is the explicit loading behavior — no silent cyan recolor, no legacy fallback, no permanent invisibility.
@@ -106,9 +108,9 @@ After this PR:
 - `ModularVehicleLiveAdapter` — unchanged (sticky state, faction resolver integration, retry logic all preserved from Stage 2).
 - `debugRenderFlags.ts` — unchanged (4 flags, all default false).
 - `factionResolver.ts` — unchanged (canonical faction resolution, no silent cyan).
-- `GeneratedModularVehicleRenderer` — unchanged (devtools preview only).
+- `GeneratedModularVehicleRenderer` — FIXUP-5: `ensureAssetsLoaded()` updated to register COMPLETE listener before `requestModularVehicleSet()` and remove duplicate `scene.load.start()`. Devtools preview only.
 - `ModularVehicleDevtoolsPanel` — unchanged.
-- `pilotVehicleLazyLoad` — kept (still referenced by `PreloadScene.loadArenaVisualAssets()` for devtools/arena pilot set preload).
+- `pilotVehicleLazyLoad` — FIXUP-5: DELETED. No longer referenced by any production file. All modular vehicle assets are loaded on-demand via `requestModularVehicleSet()`.
 - `modularUnitAssets` — kept (the `MODULAR_FACTIONS` list may still be referenced; only `getWaspHullKey`/`getSmokyTurretKey` were the removed exports — verify in validation).
 - Combat / movement / economy / mapgen / pathfinding / save-load — unchanged.
 - `GameScene` orchestration — unchanged (Stage 4 will address).
@@ -123,17 +125,17 @@ After this PR:
 ### 6.1 Test results
 ```text
 npm run typecheck: PASS
-npm test:           PASS — 91 files, 4679 tests (was 91 files, 4698 tests on main)
-  Removed: -44 tests (runtime03PilotTurretComposition.test.ts deleted)
-  Added:   +25 tests (17 contract tests + 8 FIXUP-1 tests in vehicleRenderNoLegacyPath.test.ts)
-  Net:    -19 tests (4654 pre-existing pass + 25 new = 4679)
+npm test:           PASS — 91 files, 4643 tests (was 91 files, 4698 tests on main)
+  Removed: -88 tests (runtime03PilotTurretComposition.test.ts -44 + runtime02bPilotLazyLoad.test.ts -44)
+  Added:   +33 tests (25 in vehicleRenderNoLegacyPath.test.ts + 8 in vehicleRenderFixup4.test.ts)
+  Net:    -55 tests (4610 pre-existing pass + 33 new = 4643)
 npm run build:      not run — ENOSPC environment constraint (verified on clean main in PR #298; not a code defect)
 npm run qa:smoke:   not run — ENOSPC + Playwright browser missing (same as 04A report)
 git diff --check:   PASS
 secret/token scan:  PASS
 ```
 
-### 6.2 New contract tests (25 tests total in `vehicleRenderNoLegacyPath.test.ts`: 17 contract tests + 8 FIXUP-1 tests)
+### 6.2 New contract tests (33 tests total: 25 in vehicleRenderNoLegacyPath.test.ts + 8 in vehicleRenderFixup4.test.ts)
 
 **Legacy import guards (4 tests):**
 - `ModularTankRenderer` does not import `getWaspHullKey`, `getSmokyTurretKey`, `MODULAR_TANK_HULL_OFFSETS_BY_BODY_DIR`, `MODULAR_TANK_TURRET_MOUNT_BY_BODY_DIR`, `tunerState`, `pilotTurretComposition`, `ModularTankDebugOverlay`, or any `generatedHullAssets` export.
@@ -193,7 +195,7 @@ Denis must complete this checklist on his local machine before merge:
 | Risk | Severity | Mitigation |
 |------|----------|------------|
 | Normal-runtime modular-combat entity shows neutral gray loading placeholder on first spawn (no legacy wasp+smoky fallback, no invisibility) | Low | FIXUP-1 loading placeholder ensures entity is visible during asset loading. `retryCleanModular()` runs each frame; placeholder is removed once modular PNG appears. Stage 2 sticky state covers all subsequent direction changes. Manual QA item 9 verifies placeholder appears and is removed. |
-| `pilotVehicleLazyLoad` still references cyan-only pilot set — non-cyan vehicles may have slower first-load | Low | Stage 2 sticky state + lazy-load 32-PNG cap already handle this. Not a Stage 3 regression. |
+| `pilotVehicleLazyLoad` was deleted in FIXUP-5 — no longer a risk | N/A | File removed, no production references remain. |
 | `modularUnitAssets` may still export `getWaspHullKey`/`getSmokyTurretKey` (unused but not deleted from the file) | Low | Contract test verifies no production file imports them. The exports themselves are dead code; Stage 4 cleanup can remove them if desired. |
 | `ModularTankRenderer.updateVisuals` / `printOffsetTables` / `toggleDebug` / `isDebugOverlayVisible` are now no-op stubs | Low | Kept for EntityRenderer facade compatibility. Stage 4 can remove the facades when GameScene orchestration is cleaned up. |
 | `GameInputController` no longer wires T/H/J/C/Q/E/Z/X hotkeys | Low | These were devtools-only tuner hotkeys. Q/E/Z/X direction cycling is now driven by game state (`entity.dir` / `entity.turretDir`), not manual keyboard input. |
