@@ -28,7 +28,9 @@ import {
   preloadGeneratedHullSet,
   type GeneratedHullFaction,
 } from './generatedHullAssets';
-import { loadPilotTurretSet } from './pilotVehicleLazyLoad';
+// FIXUP-4: loadPilotTurretSet import removed from pilotVehicleLazyLoad.
+// The pilot Wasp/Smoky preload is no longer used by the live Arena path.
+// Canonical on-demand loading via requestModularVehicleSet() replaces it.
 
 // ─── Internal helpers ──────────────────────────────────────────────
 
@@ -220,27 +222,34 @@ export function isModularUnitsLoaded(scene: Phaser.Scene): boolean {
 /**
  * Load the small combat visual set needed by Debug/Arena.
  *
- * Standard mode does not call this helper. It deliberately queues only:
- * - generated Wasp M0 hull sets for four factions
- * - pilot turret set (Smoky cyan m0) via RUNTIME-02B lazy-load
+ * FIXUP-4: The old pilot Wasp/Smoky preload was removed from the live
+ * Arena path. The canonical on-demand loading (requestModularVehicleSet)
+ * now auto-starts the Phaser loader, so vehicles load their own assets
+ * when spawned — no pilot-era hardcoded preload needed.
  *
- * Legacy modularUnits family is disabled (PNGs removed). Generated turret
- * assets are loaded on demand via the pilot turret loader.
+ * This function still preloads Wasp M0 hull sets for all 4 factions
+ * (64 PNG total) as a devtools convenience so the Arena devtools overlay
+ * has something to show immediately. The turret for the selected weapon
+ * is loaded on-demand via requestModularVehicleSet() when a vehicle is
+ * spawned.
  *
- * RUNTIME-02B: After loading hull sets for all factions, the pilot turret
- * set (Smoky cyan m0, 16 PNG) is loaded via loadPilotTurretSet(). We load
- * only the turret here — not the full vehicle set — because the hull set
- * for cyan wasp m0 is already queued by the faction loop above. Loading
- * the full vehicle set would cause duplicate key queueing since Phaser's
- * TextureManager.exists() check cannot detect keys queued in the same
- * preload batch.
+ * Legacy modularUnits family is disabled (PNGs removed).
  */
 export function loadArenaVisualAssets(scene: Phaser.Scene): string[] {
   const loadedKeys: string[] = [];
 
-  // Legacy modularUnits family is disabled — skip entirely.
-  // Generated hull sets are loaded below instead.
-
+  // FIXUP-4: Still preload Wasp M0 hull sets for all 4 factions as a
+  // devtools convenience. This gives the Arena devtools overlay immediate
+  // hull textures for quick preview. Turret textures are loaded on-demand
+  // via requestModularVehicleSet() when a vehicle is spawned with a
+  // specific weapon.
+  //
+  // The old pilot turret preload (loadPilotTurretSet → Smoky cyan m0 only)
+  // was removed because it masked the canonical on-demand loading failure:
+  // only Smoky cyan m0 turret was preloaded, so any other weapon/faction
+  // combo had no turret until the (broken) on-demand loader was fixed.
+  // With FIXUP-4, requestModularVehicleSet() now auto-starts the Phaser
+  // loader, so all weapon/faction combos load correctly on demand.
   for (const faction of GENERATED_HULL_FACTIONS) {
     loadedKeys.push(
       ...preloadGeneratedHullSet(
@@ -252,12 +261,8 @@ export function loadArenaVisualAssets(scene: Phaser.Scene): string[] {
     );
   }
 
-  // RUNTIME-02B: Load pilot turret set only (Smoky cyan m0, 16 PNG).
-  // The hull set for cyan wasp m0 is already queued above.
-  // We use loadPilotTurretSet (not loadPilotVehicleAssetSet) to avoid
-  // duplicate key queueing in the same preload batch.
-  const pilotTurretKeys = loadPilotTurretSet(scene);
-  loadedKeys.push(...pilotTurretKeys);
+  // FIXUP-4: No pilot turret preload. Turret assets are loaded on-demand
+  // via requestModularVehicleSet() when a vehicle is spawned.
 
   return loadedKeys;
 }
@@ -274,11 +279,10 @@ export const PILOT_TURRET_PROBE_KEY = 'generated_turret_smoky_cyan_m0_dir00' as 
 /**
  * Check whether the Debug/Arena combat visual set is available.
  *
- * Checks that generated hull sets for all factions are loaded,
- * AND the pilot turret set (Smoky cyan m0) is loaded.
- *
- * RUNTIME-02B: Extended to also verify the pilot turret probe key,
- * since loadArenaVisualAssets() now loads the pilot turret set.
+ * FIXUP-4: Only checks hull sets (Wasp M0 for all 4 factions). Turret
+ * sets are loaded on-demand via requestModularVehicleSet() and are NOT
+ * part of the preload check. The old pilot turret probe key check was
+ * removed because the pilot preload was removed from the live path.
  */
 export function isArenaVisualAssetsLoaded(scene: Phaser.Scene): boolean {
   const hullsLoaded = GENERATED_HULL_FACTIONS.every(faction => (
@@ -289,8 +293,9 @@ export function isArenaVisualAssetsLoaded(scene: Phaser.Scene): boolean {
       DEFAULT_GENERATED_HULL_MOD,
     )
   ));
-  const pilotTurretLoaded = scene.textures.exists(PILOT_TURRET_PROBE_KEY);
-  return hullsLoaded && pilotTurretLoaded;
+  // FIXUP-4: No pilot turret probe check. Turret assets are loaded
+  // on-demand per vehicle via requestModularVehicleSet().
+  return hullsLoaded;
 }
 
 /**

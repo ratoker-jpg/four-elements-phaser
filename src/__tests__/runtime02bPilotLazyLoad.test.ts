@@ -272,9 +272,8 @@ describe('RUNTIME-02B: no duplicate texture queueing', () => {
   });
 
   it('loadArenaVisualAssets does not duplicate hull keys when pilot set loads', () => {
-    // Simulate the exact Arena lifecycle:
-    // 1. loadArenaVisualAssets loads hulls for all 4 factions
-    // 2. Then calls loadPilotVehicleAssetSet which re-checks cyan hull
+    // FIXUP-4: pilot turret preload was removed from loadArenaVisualAssets.
+    // Only hull keys are queued now; turret keys are loaded on-demand.
     const { scene, loadImageCalls } = createMockScene();
 
     loadArenaVisualAssets(scene as unknown as Phaser.Scene);
@@ -286,11 +285,12 @@ describe('RUNTIME-02B: no duplicate texture queueing', () => {
     // 16 keys for cyan hull (loaded once by the hull faction loop)
     expect(cyanHullKeys.length).toBe(16);
 
-    // Count turret keys for smoky_cyan_m0 — should appear exactly once
+    // FIXUP-4: No turret keys should be queued by loadArenaVisualAssets.
+    // Turret assets are loaded on-demand via requestModularVehicleSet().
     const smokyTurretKeys = loadImageCalls.filter(
       c => c.key.startsWith('generated_turret_smoky_cyan_m0'),
     );
-    expect(smokyTurretKeys.length).toBe(16);
+    expect(smokyTurretKeys.length).toBe(0);
   });
 });
 
@@ -429,13 +429,15 @@ describe('RUNTIME-02B: isPilotVehicleSetFullyLoaded', () => {
 // ═══════════════════════════════════════════════════════════════════
 
 describe('RUNTIME-02B: loadArenaVisualAssets integration', () => {
-  it('loadArenaVisualAssets queues pilot turret keys', () => {
+  it('FIXUP-4: loadArenaVisualAssets does NOT queue pilot turret keys (on-demand only)', () => {
+    // FIXUP-4: pilot turret preload removed. Turret assets are loaded
+    // on-demand via requestModularVehicleSet() when a vehicle is spawned.
     const { scene, loadImageCalls } = createMockScene();
 
     loadArenaVisualAssets(scene as unknown as Phaser.Scene);
 
-    const turretKeys = loadImageCalls.filter(c => c.key.startsWith('generated_turret_smoky_cyan_m0'));
-    expect(turretKeys.length).toBe(16);
+    const turretKeys = loadImageCalls.filter(c => c.key.startsWith('generated_turret_'));
+    expect(turretKeys.length).toBe(0);
   });
 
   it('loadArenaVisualAssets queues hull keys for all 4 factions', () => {
@@ -452,8 +454,9 @@ describe('RUNTIME-02B: loadArenaVisualAssets integration', () => {
     expect(PILOT_TURRET_PROBE_KEY).toBe('generated_turret_smoky_cyan_m0_dir00');
   });
 
-  it('isArenaVisualAssetsLoaded checks pilot turret probe key', () => {
-    // Preload all hull keys but NOT the turret probe key
+  it('FIXUP-4: isArenaVisualAssetsLoaded checks hulls only (no pilot turret probe)', () => {
+    // FIXUP-4: isArenaVisualAssetsLoaded no longer checks pilot turret probe key.
+    // It only checks hull sets. Turret assets are loaded on-demand.
     const preloaded = new Set<string>();
     for (const faction of ['cyan', 'green', 'yellow', 'purple']) {
       for (let dir = 0; dir < 16; dir++) {
@@ -464,11 +467,12 @@ describe('RUNTIME-02B: loadArenaVisualAssets integration', () => {
     }
 
     const { scene } = createMockScene(preloaded);
-    // Hulls loaded but turret not loaded → should return false
-    expect(isArenaVisualAssetsLoaded(scene as unknown as Phaser.Scene)).toBe(false);
+    // Hulls loaded, no turret probe key → should return true (hulls-only check)
+    expect(isArenaVisualAssetsLoaded(scene as unknown as Phaser.Scene)).toBe(true);
   });
 
-  it('isArenaVisualAssetsLoaded returns true when hulls and turret are loaded', () => {
+  it('FIXUP-4: isArenaVisualAssetsLoaded returns true when hulls are loaded (no turret needed)', () => {
+    // FIXUP-4: turret probe key is no longer required.
     const preloaded = new Set<string>();
     for (const faction of ['cyan', 'green', 'yellow', 'purple']) {
       for (let dir = 0; dir < 16; dir++) {
@@ -477,8 +481,7 @@ describe('RUNTIME-02B: loadArenaVisualAssets integration', () => {
         );
       }
     }
-    // Add turret probe key
-    preloaded.add(PILOT_TURRET_PROBE_KEY);
+    // No turret probe key added — not needed anymore.
 
     const { scene } = createMockScene(preloaded);
     expect(isArenaVisualAssetsLoaded(scene as unknown as Phaser.Scene)).toBe(true);

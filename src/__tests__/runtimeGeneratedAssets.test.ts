@@ -522,10 +522,11 @@ describe('MENU-02: Arena visual asset loading', () => {
     try {
       const loadedKeys = loadArenaVisualAssets(mock.scene as any);
 
-      // 4 factions × 16 dirs = 64 generated hull keys + 16 pilot turret keys (Smoky cyan m0)
-      // RUNTIME-02B: loadArenaVisualAssets now also loads the pilot turret set
-      expect(loadedKeys).toHaveLength(80);
-      expect(mock.loadImageCalls).toHaveLength(80);
+      // FIXUP-4: 4 factions × 16 dirs = 64 generated hull keys only.
+      // No pilot turret preload — turrets are loaded on-demand via
+      // requestModularVehicleSet() when a vehicle is spawned.
+      expect(loadedKeys).toHaveLength(64);
+      expect(mock.loadImageCalls).toHaveLength(64);
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
     } finally {
@@ -546,9 +547,9 @@ describe('MENU-02: Arena visual asset loading', () => {
     try {
       const loadedKeys = loadArenaVisualAssets(mock.scene as any);
 
-      // Only 3 factions × 16 dirs = 48 hull keys (cyan already loaded) + 16 pilot turret keys
-      // RUNTIME-02B: loadArenaVisualAssets also loads the pilot turret set (Smoky cyan m0)
-      expect(loadedKeys).toHaveLength(64);
+      // FIXUP-4: Only 3 factions × 16 dirs = 48 hull keys (cyan already loaded).
+      // No pilot turret preload — turrets are loaded on-demand.
+      expect(loadedKeys).toHaveLength(48);
       expect(loadedKeys).not.toContain(getGeneratedHullTextureKey('wasp', 'cyan', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'green', 'm0', 0));
       expect(loadedKeys).toContain(getGeneratedHullTextureKey('wasp', 'purple', 'm0', 15));
