@@ -3,16 +3,16 @@
 Status: active operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Updated: 2026-06-17
+Updated: 2026-06-18
 
 ---
 
 ## Current mode
 
 ```text
-VEHICLE RENDER UNIFICATION — POST-PR #298 BASELINE.
-Stage 1 + Stage 2 are merged and manually QA-accepted.
-The next direction is docs sync, then Stage 3/4 audit-first planning.
+VEHICLE RENDER UNIFICATION — POST-PR #300 BASELINE.
+Stage 1 + Stage 2 + Stage 3 are merged and manually QA-accepted.
+The next direction is docs sync, then Stage 4 audit-first planning.
 ```
 
 Current direction:
@@ -24,7 +24,7 @@ documentation/source-of-truth cleanup
 +
 modular vehicle runtime / unified vehicle renderer
 +
-legacy render path retirement planning
+GameScene render orchestration cleanup planning
 ```
 
 Closed / accepted cycles:
@@ -39,6 +39,7 @@ Core Mechanics roadmap/audit cycle: CLOSED after PR #207.
 MODULAR-RUNTIME-04A baseline: MERGED via PR #295.
 VEHICLE-RENDER-UNIFY audit/roadmap: MERGED via PR #297.
 VEHICLE-RENDER-UNIFY Stage 1+2: MERGED via PR #298 and accepted by Denis manual QA.
+VEHICLE-RENDER-UNIFY Stage 3: MERGED via PR #300 and accepted by Denis manual QA.
 ```
 
 Do not continue closed roadmaps by inertia.
@@ -58,6 +59,7 @@ docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
 docs/project/AI_GRAPHIFY_WORKFLOW.md
 docs/project/VEHICLE_RENDER_UNIFICATION_AUDIT_2026_06_16.md
 docs/project/VEHICLE_RENDER_UNIFICATION_ROADMAP_2026_06_16.md
+docs/project/VEHICLE_RENDER_UNIFY_03_VH_IMPLEMENTATION_REPORT_2026_06_17.md
 ```
 
 Agent-specific docs:
@@ -107,7 +109,13 @@ The project currently has:
 - canonical faction resolver with no silent cyan fallback in live render path;
 - sticky no-flicker behavior after successful modular render;
 - default debug render artifacts OFF;
-- legacy render paths still present but ready for Stage 3 retirement planning.
+- legacy pilot Wasp/Smoky preload removed;
+- old Wasp M0 no longer forced as default/preloaded visual;
+- modular vehicle assets load on-demand through requestModularVehicleSet();
+- loadArenaVisualAssets() no longer preloads modular vehicle sets;
+- neutral loading placeholder exists for first-load fallback;
+- Stage 3 legacy renderer retirement is merged and accepted;
+- Stage 4 GameScene orchestration cleanup is not started.
 ```
 
 ---
@@ -124,18 +132,22 @@ turret sprite separately
 socket/pivot metadata
 +
 canonical live adapter path
++
+on-demand modular asset loading
 ```
 
 Rejected model:
 
 ```text
 combined hull x turret production matrix
+old pilot Wasp/Smoky preload as default visual source
 ```
 
 Reason:
 
 ```text
 combined matrix explodes with independent hull/turret mods and factions.
+old Wasp/Smoky preload masked canonical loader failures and is now removed.
 ```
 
 Important current renderer decision:
@@ -143,6 +155,8 @@ Important current renderer decision:
 ```text
 modular PNG is the default visual path when assets are available.
 fallback is emergency/loading only, not a normal production render path.
+loadArenaVisualAssets() does not preload vehicle sets.
+requestModularVehicleSet() owns on-demand loading and starts Phaser loader when needed.
 ```
 
 ---
@@ -162,34 +176,43 @@ fallback is emergency/loading only, not a normal production render path.
    - no flicker back to cubes after modular success;
    - debug artifacts OFF by default;
    - Arena + normal runtime parity.
-7. [ACTIVE] DOCS-SYNC-POST-298 — source-of-truth docs sync after #298 merge.
-8. [NEXT] VEHICLE-RENDER-UNIFY-03-04-VH-AUDIT — audit-only decision on whether
-   Stage 3 + Stage 4 can be combined into one Very High+ GLM 5.2 implementation PR.
+7. [DONE] DOCS-SYNC-POST-298 (PR #299) — source-of-truth docs sync after #298.
+8. [DONE] VEHICLE-RENDER-UNIFY-03-VH (PR #300) — Stage 3 legacy renderer retirement:
+   - pilot Wasp/Smoky preload removed;
+   - pilotVehicleLazyLoad deleted;
+   - pilotTurretComposition deleted;
+   - ModularTankDebugOverlay / offset tuner removed;
+   - legacy offset tables removed;
+   - canonical on-demand loader fixed;
+   - manual visual QA accepted by Denis.
+9. [ACTIVE] DOCS-SYNC-POST-300 — source-of-truth docs sync after #300 merge.
+10. [NEXT] VEHICLE-RENDER-UNIFY-04-VH-AUDIT — audit-only plan for Stage 4.
 ```
 
 ---
 
 ## Next implementation direction, not yet approved
 
-Candidate experiment:
+Candidate:
 
 ```text
-Combine Stage 3 + Stage 4 into one larger Very High+ implementation PR.
+Stage 4: GameScene render orchestration cleanup.
 ```
 
-This is not automatically approved. It requires an audit-only PR or audit report first.
+This is not automatically approved. It requires audit/design first.
 
 Audit must answer:
 
 ```text
-- all production references to ModularTankRenderer / legacy render paths;
-- whether BlockoutVehicleRenderer procedural fallback should move to legacy/ or be dev-only gated;
-- whether emergency/loading fallback remains safe and explicit;
-- exact GameScene render orchestration extraction plan;
+- exact current GameScene render responsibilities;
+- proposed RenderManager or equivalent boundary;
+- lifecycle ownership: create / update / sync / shutdown;
+- how standard runtime and Arena/devtools stay aligned;
+- what remains in GameScene;
 - exact touched files;
+- tests needed;
 - rollback plan;
-- validation and manual QA plan;
-- whether combined implementation is justified, or whether Stage 3 and Stage 4 must remain separate.
+- validation and manual QA plan.
 ```
 
 ---
@@ -206,6 +229,8 @@ Do not start implementation if:
 - task asks for final modular assets without accepted cleanup/runtime plan;
 - task proposes combined hull x turret production matrix;
 - task proposes preloading all modular assets at startup;
+- task restores old Wasp M0 preload / pilotVehicleLazyLoad / pilot turret preload;
+- task reintroduces offset tuner tables or ENABLE_PILOT_GENERATED_TURRET_COMPOSITION;
 - task adds new URL debug/test modes instead of using Arena/debug UI;
 - task changes composeModularVehicle() placement/math without explicit Denis approval;
 - task blindly reuses PR #296 mount-slot / forward-back drift model;
