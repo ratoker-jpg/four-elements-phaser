@@ -135,6 +135,10 @@ git diff --check:   PASS
 secret/token scan:  PASS
 ```
 
+Note: `tools/qa_smoke.mjs` was also updated (FIXUP-6) to change the expected
+PreloadScene log marker from the old "generated hull sets loaded: wasp" to the
+new "Arena visual assets: no preloaded modular vehicle sets (FIXUP-5)".
+
 ### 6.2 New contract tests (33 tests total: 25 in vehicleRenderNoLegacyPath.test.ts + 8 in vehicleRenderFixup4.test.ts)
 
 **Legacy import guards (4 tests):**
