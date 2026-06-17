@@ -74,6 +74,9 @@ import { resolvePilotTurretComposition, type PilotTurretCompositionResult } from
 import {
   ModularVehicleLiveAdapter,
 } from './ModularVehicleLiveAdapter';
+import {
+  debugRenderFlags,
+} from '../../config/debugRenderFlags';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -226,11 +229,41 @@ export class BlockoutVehicleRenderer {
   /** Debug text labels keyed by blockout vehicle ID. */
   private debugLabels = new Map<string, Phaser.GameObjects.Text>();
 
-  /** Whether debug labels are shown. */
-  private showDebugLabels = true;
+  /**
+   * Whether debug labels are shown.
+   *
+   * VEHICLE-RENDER-UNIFY-01-VH fixup: this field is now a thin proxy
+   * for `debugRenderFlags.debugLabels` (the canonical source of truth
+   * in src/config/debugRenderFlags.ts). It is retained as a private
+   * field only so existing internal references compile unchanged; all
+   * reads and writes go through `debugRenderFlags.debugLabels`.
+   *
+   * Default: false. Debug labels (text above each vehicle) are dev/QA
+   * artifacts and must not appear in default gameplay/Arena view.
+   * Existing devtools toggle (toggleDebugLabels) re-enables them when
+   * explicitly requested.
+   */
+  private get showDebugLabels(): boolean {
+    return debugRenderFlags.debugLabels;
+  }
+  private set showDebugLabels(value: boolean) {
+    debugRenderFlags.debugLabels = value;
+  }
 
-  /** Whether mount points are shown. */
-  private showMountPoints = true;
+  /**
+   * Whether mount points are shown.
+   *
+   * VEHICLE-RENDER-UNIFY-01-VH fixup: this field is now a thin proxy
+   * for `debugRenderFlags.mountPoints` (the canonical source of truth).
+   * Default: false. The red mount-point dot is a debug artifact and
+   * must not appear in default gameplay/Arena view.
+   */
+  private get showMountPoints(): boolean {
+    return debugRenderFlags.mountPoints;
+  }
+  private set showMountPoints(value: boolean) {
+    debugRenderFlags.mountPoints = value;
+  }
 
   /** Currently selected vehicle ID (set from BlockoutVehicleInputController). */
   private _selectedVehicleId: string | null = null;
@@ -827,33 +860,42 @@ export class BlockoutVehicleRenderer {
       g.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
       drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
 
-      // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity
-      // Use screen-space arrow from body center along body angle
-      // Approximate ring edge in screen space for arrow placement
-      const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38; // approximate pixel distance
-      const arrowBaseX = cx + Math.cos(bodyAngle) * ringEdgeDist;
-      const arrowBaseY = cy + Math.sin(bodyAngle) * ringEdgeDist;
-      const arrowTipX = cx + Math.cos(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
-      const arrowTipY = cy + Math.sin(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
+      // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity.
+      // VEHICLE-RENDER-UNIFY-01-VH fixup: gate behind an EXPLICIT debug
+      // render flag (debugRenderFlags.directionArrow), NOT behind
+      // isDevtoolsActive(). Arena mode is also devtools-active in GameScene,
+      // so isDevtoolsActive() === true in default Arena view — that would
+      // leak the direction arrow. The flag defaults to false; devtools
+      // panels must explicitly opt in. The selection ring itself stays
+      // (it is core UI, not a debug artifact).
+      if (debugRenderFlags.directionArrow) {
+        // Use screen-space arrow from body center along body angle
+        // Approximate ring edge in screen space for arrow placement
+        const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38; // approximate pixel distance
+        const arrowBaseX = cx + Math.cos(bodyAngle) * ringEdgeDist;
+        const arrowBaseY = cy + Math.sin(bodyAngle) * ringEdgeDist;
+        const arrowTipX = cx + Math.cos(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
+        const arrowTipY = cy + Math.sin(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
 
-      // Arrow shaft
-      g.lineStyle(2, SELECTION_RING_COLOR, alpha);
-      g.beginPath();
-      g.moveTo(arrowBaseX, arrowBaseY);
-      g.lineTo(arrowTipX, arrowTipY);
-      g.strokePath();
+        // Arrow shaft
+        g.lineStyle(2, SELECTION_RING_COLOR, alpha);
+        g.beginPath();
+        g.moveTo(arrowBaseX, arrowBaseY);
+        g.lineTo(arrowTipX, arrowTipY);
+        g.strokePath();
 
-      // Arrow head
-      const headAngle1 = bodyAngle + Math.PI * 0.8;
-      const headAngle2 = bodyAngle - Math.PI * 0.8;
-      g.beginPath();
-      g.moveTo(arrowTipX, arrowTipY);
-      g.lineTo(arrowTipX + Math.cos(headAngle1) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle1) * DIRECTION_ARROW_HEAD);
-      g.strokePath();
-      g.beginPath();
-      g.moveTo(arrowTipX, arrowTipY);
-      g.lineTo(arrowTipX + Math.cos(headAngle2) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle2) * DIRECTION_ARROW_HEAD);
-      g.strokePath();
+        // Arrow head
+        const headAngle1 = bodyAngle + Math.PI * 0.8;
+        const headAngle2 = bodyAngle - Math.PI * 0.8;
+        g.beginPath();
+        g.moveTo(arrowTipX, arrowTipY);
+        g.lineTo(arrowTipX + Math.cos(headAngle1) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle1) * DIRECTION_ARROW_HEAD);
+        g.strokePath();
+        g.beginPath();
+        g.moveTo(arrowTipX, arrowTipY);
+        g.lineTo(arrowTipX + Math.cos(headAngle2) * DIRECTION_ARROW_HEAD, arrowTipY + Math.sin(headAngle2) * DIRECTION_ARROW_HEAD);
+        g.strokePath();
+      }
     }
 
     // ── Hover marker (projected ground-plane) ────────────────────
@@ -1250,7 +1292,12 @@ export class BlockoutVehicleRenderer {
       g.strokePath();
 
       // ── Aim line for selected vehicle ─────────────────────────────
-      if (isSelected) {
+      // VEHICLE-RENDER-UNIFY-01-VH fixup: gate behind an EXPLICIT debug
+      // render flag (debugRenderFlags.aimLine), NOT behind isDevtoolsActive().
+      // Arena mode is also devtools-active in GameScene, so isDevtoolsActive()
+      // === true in default Arena view — that would leak the aim line.
+      // The flag defaults to false; devtools panels must explicitly opt in.
+      if (isSelected && debugRenderFlags.aimLine) {
         g.lineStyle(1.5, AIM_LINE_COLOR, AIM_LINE_ALPHA);
         const aimTileLength = AIM_LINE_LENGTH / PROJ_TILE_W;
         // Aim starts at shared barrel tip (PROJECTION-01 fixup #3)

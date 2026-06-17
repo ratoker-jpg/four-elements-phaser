@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: VEHICLE-RENDER-UNIFY-AUDIT / ROADMAP is the active next decision
+Status: VEHICLE-RENDER-UNIFY-01-VH implementation PR is the active next step
 Project: Four Elements Phaser
-Updated: 2026-06-16
+Updated: 2026-06-17 (docs consistency fixup)
 
 ---
 
@@ -19,17 +19,68 @@ What should GPT/GLM/Opus/Codex do next by default?
 ## Active next step (single)
 
 ```text
+VEHICLE-RENDER-UNIFY-01-VH (implementation, DRAFT PR)
+  Status: DRAFT PR pending GPT review + Denis manual QA.
+  Combines: Stage 1 (canonical renderer foundation) + Stage 2 (visual
+            parity + placement stabilization).
+  Does NOT include: Stage 3 (legacy renderer retirement), Stage 4
+            (GameScene render orchestration cleanup).
+  PR: https://github.com/ratoker-jpg/four-elements-phaser/pull/298
+  Branch: vehicle-render-unify-01-vh
+  Base: main @ 2665192 (after PR #297 merge)
+  Report: docs/project/VEHICLE_RENDER_UNIFY_01_VH_IMPLEMENTATION_REPORT_2026_06_17.md
+
+  Validation:
+    - npm run typecheck: PASS
+    - npm test: PASS (91 files, 4698 tests, +45 new: 35 from initial commit
+      + 10 from fixup commit b551c476 for debugRenderFlags module)
+    - npm run build: BLOCKED — ENOSPC environment constraint (not a code defect;
+      verified same failure on clean main)
+    - npm run qa:smoke: BLOCKED — ENOSPC + Playwright browser missing
+      (same as 04A report; not a code defect)
+
+  What changed:
+    - Package C: factionResolver.ts — canonical faction resolution,
+      no silent ?? 'cyan' default
+    - Package D: sticky no-flicker state in ModularVehicleLiveAdapter —
+      once modular succeeds, transient texture-missing does not fall back
+      to blockout
+    - Package E: debug artifacts OFF by default (mount points, labels,
+      aim line, direction arrow, turret-to-cursor)
+    - Package F: Arena + normal runtime parity through shared adapter contract
+    - Package G: 45 new tests (faction flow, sticky, gating, invariants,
+      debugRenderFlags module, devtoolsActive=true blocker regression)
+    - Package H: this report + CURRENT_NEXT_STEP update
+
+  What was NOT changed:
+    - composeModularVehicle() math (placement preserved)
+    - MODULAR_VEHICLE_BASE_SCALE = 0.16 (04A source of truth preserved)
+    - Dictator +9% hull-only multiplier preserved
+    - cameraProjectionContract.ts (unchanged)
+    - combat / movement / economy / mapgen / pathfinding / save-load
+    - PNG assets / generated metadata / package files
+    - Legacy renderers retained as emergency fallback (Stage 3 retirement
+      is a separate future PR after QA acceptance)
+    - GameScene orchestration unchanged (Stage 4 is a separate future PR)
+    - No PR #296 mount-slot / forward-back drift model reused
+
+  GPT review required before merge.
+  Denis manual QA required before merge (see report §12).
+  PR is DRAFT — do not mark ready until both reviews pass.
+```
+
+---
+
+## Previous step (completed)
+
+```text
 VEHICLE-RENDER-UNIFY-AUDIT / ROADMAP
-  Status: docs PR #297 pending GPT/Denis approval.
-  Docs:
+  Status: COMPLETED. PR #297 merged on 2026-06-16.
+  Docs (now on main):
     - docs/project/VEHICLE_RENDER_UNIFICATION_AUDIT_2026_06_16.md
     - docs/project/VEHICLE_RENDER_UNIFICATION_ROADMAP_2026_06_16.md
-  PR: https://github.com/ratoker-jpg/four-elements-phaser/pull/297
-  Branch: vehicle-render-unify-audit
-  Base: main @ 4bced103 (after PR #295 / MODULAR-RUNTIME-04A)
-
-  No runtime implementation until GPT/Denis approves the 4-stage roadmap.
-  GPT review required before implementation.
+  These define the 4-stage roadmap that VEHICLE-RENDER-UNIFY-01-VH
+  implements (Stage 1 + Stage 2 only).
 ```
 
 After approval, the 4-stage High+ roadmap executes in order:
@@ -51,19 +102,32 @@ the full stage definitions, risk table, manual QA gates, and rollback plan.
 
 ---
 
-## Current PR / branch state (verified 2026-06-16)
+## Current PR / branch state (verified 2026-06-17)
+
+```text
+#298  VEHICLE-RENDER-UNIFY-01-VH: canonical renderer foundation +
+      visual parity stabilization
+      state: OPEN, DRAFT (not ready for review)
+      branch: vehicle-render-unify-01-vh
+      base: main @ 2665192 (after PR #297 merge)
+      commits: 4 (93f82ec + b551c476 + aac65ee + 3a0bd60)
+      This is the current active PR. Implementation combines Stage 1 + Stage 2.
+      Stage 3 (legacy renderer retirement) and Stage 4 (GameScene render
+      orchestration cleanup) are NOT started.
+      GPT review + Denis manual visual QA required before mark ready / merge.
+```
 
 ```text
 #297  VEHICLE-RENDER-UNIFY-AUDIT: audit and High+ roadmap
-      state: OPEN (docs-only)
+      state: CLOSED / MERGED on 2026-06-16 (historical, completed)
       branch: vehicle-render-unify-audit
-      base: main
-      This is the current PR. Docs-only. No runtime/assets/tests changed.
+      Docs-only audit + roadmap PR. Defined the 4-stage roadmap that
+      PR #298 implements (Stage 1 + Stage 2 only).
 ```
 
 ---
 
-## Historical PR state (verified via GitHub API on 2026-06-16)
+## Historical PR state (verified via GitHub API on 2026-06-17)
 
 ```text
 #278  ASSET-IMPORT-01                          — merged / historical
@@ -78,8 +142,10 @@ the full stage definitions, risk table, manual QA gates, and rollback plan.
 #290  OPUS-AUDIT-RUNTIME-03                    — merged / historical
 #292  MODULAR-RUNTIME-03A (Arena live adapter) — merged / historical
 #293  MODULAR-RUNTIME-03B (normal runtime)     — merged / historical
-#295  MODULAR-RUNTIME-04A (default modular +   — merged / current main baseline
-      scale normalization)                      after 04A
+#295  MODULAR-RUNTIME-04A (default modular +   — merged / historical (current
+      scale normalization)                      main baseline after 04A)
+#297  VEHICLE-RENDER-UNIFY-AUDIT (audit +      — merged / historical (2026-06-16)
+      4-stage roadmap)                          Defined the roadmap PR #298 implements.
 #294  MODULAR-RUNTIME-03C1 (proof-harness      — closed / superseded by 04A
       cleanup)                                   (folded into 04A scope)
 #296  MODULAR-RUNTIME-04B (unified corrective  — closed / not merged

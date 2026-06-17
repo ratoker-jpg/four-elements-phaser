@@ -59,6 +59,9 @@ import {
 } from '../../config/unitRenderConfig';
 import { computeDepthValue } from './depthSorting';
 import { ModularTankDebugOverlay } from '../debug/ModularTankDebugOverlay';
+import {
+  resolveFactionOrDiagnosticFallback,
+} from '../../modular/factionResolver';
 
 /** Default initial visibility for the debug overlay. */
 const MODULAR_TANK_DEBUG = false;
@@ -177,9 +180,19 @@ export class ModularTankRenderer {
    * clean modular rendering path first (composeModularVehicle with modular_hull_*
    * / generated_turret_* namespace). Falls back to the existing generated-hull /
    * legacy path when the flag is off, mapping fails, or assets are not yet loaded.
+   *
+   * VEHICLE-RENDER-UNIFY-01-VH Package C: faction is resolved via
+   * resolveFactionOrDiagnosticFallback() — no silent `?? 'cyan'` default.
+   * Missing/invalid faction warns once and falls back to diagnostic cyan
+   * (marked via factionRes.usedFallback for caller/test detection).
    */
   place(entity: RenderableEntity, modularAdapter?: ModularVehicleLiveAdapter): void {
-    const faction: Faction = entity.faction ?? 'cyan';
+    // Package C: canonical faction resolution — no silent cyan default.
+    const factionRes = resolveFactionOrDiagnosticFallback(
+      entity.faction,
+      'ModularTankRenderer.place',
+    );
+    const faction: Faction = factionRes.faction;
     const bodyDir: ModularTankDirection = (entity.dir ?? 2) as ModularTankDirection;
     const turretDir: ModularTankDirection = (entity.turretDir ?? bodyDir) as ModularTankDirection;
 
