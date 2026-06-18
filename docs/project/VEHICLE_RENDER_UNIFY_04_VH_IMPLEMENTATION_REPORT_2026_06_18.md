@@ -15,14 +15,15 @@ Stage 4 extracts render orchestration from GameScene into RenderManager. RenderM
 
 ---
 
-## 2. Files changed (3)
+## 2. Files changed (4)
 
-**New (2):**
+**New (3):**
 - `src/phaser/render/RenderManager.ts` (472 lines) — owns all 18 renderer fields + create + 3 phase sync methods + bridge methods + destroy
 - `src/__tests__/renderManager.test.ts` (242 lines, 46 tests) — contract tests
+- `docs/project/VEHICLE_RENDER_UNIFY_04_VH_IMPLEMENTATION_REPORT_2026_06_18.md` — this report
 
 **Modified (1):**
-- `src/phaser/GameScene.ts` (1361 → 1168 lines, −193 lines)
+- `src/phaser/GameScene.ts` (1361 → 1164 lines, −197 lines)
 
 ---
 
@@ -64,7 +65,7 @@ Exact same order as original GameScene.create() — terrain, industrial, entity,
 - `toggleCameraProjectionDebug()` — called when calibration hotkey pressed
 
 ### Destroy (RenderManager.destroy):
-Exact reverse of construction order.
+Preserves original GameScene.shutdown() order (not exact reverse of construction — the original shutdown order was already not reverse-of-construction). Verified by comparing RenderManager.destroy() against original GameScene.shutdown() from main: all 18 renderer destroy calls appear in the same relative order.
 
 ---
 
