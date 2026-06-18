@@ -5,7 +5,7 @@
  *   - RenderManager exports the expected class;
  *   - GameScene no longer directly imports individual renderer classes
  *     that are now owned by RenderManager;
- *   - RenderManager has create/syncFromState/destroy API;
+ *   - RenderManager has create / phased sync methods / destroy API;
  *   - no legacy renderer resurrection.
  */
 
