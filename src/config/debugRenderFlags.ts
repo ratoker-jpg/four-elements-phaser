@@ -34,9 +34,13 @@
  *   - selection ring (always shown for selected vehicle).
  *   - hover ring (always shown for hovered vehicle).
  *   - HP bar (always shown when HP < max).
- *   - target-lock indicator (always shown when target assigned).
- *   - enemy team indicator (always shown for enemies).
  *   - move-target marker (always shown during movement).
+ *
+ * ARENA-VISUAL-COMBAT-FIX-01: target-lock indicator and enemy team
+ * indicator were previously listed here as "always shown" core gameplay
+ * UI. On review, they are debug artifacts that leak as stray pixels
+ * in the default Arena view. They are now gated behind explicit flags
+ * (targetLockIndicator / enemyTeamIndicator, default false).
  *
  * This module is engine-agnostic (no Phaser) and unit-testable.
  */
@@ -70,6 +74,22 @@ export interface DebugRenderFlags {
    * Default: false.
    */
   debugLabels: boolean;
+
+  /**
+   * Yellow dot above the turret when this vehicle has an active target-lock.
+   * ARENA-VISUAL-COMBAT-FIX-01: Previously always drawn when
+   * vehicle.targetVehicleId was truthy — a stray pixel visible in default
+   * Arena view. Now gated behind this explicit flag (default false).
+   */
+  targetLockIndicator: boolean;
+
+  /**
+   * Small red diamond above the HP bar for enemy-team vehicles.
+   * ARENA-VISUAL-COMBAT-FIX-01: Previously always drawn when
+   * vehicle.team === 'enemy' — a stray pixel visible in default Arena view.
+   * Now gated behind this explicit flag (default false).
+   */
+  enemyTeamIndicator: boolean;
 }
 
 /**
@@ -83,6 +103,8 @@ export const debugRenderFlags: DebugRenderFlags = {
   aimLine: false,
   mountPoints: false,
   debugLabels: false,
+  targetLockIndicator: false,
+  enemyTeamIndicator: false,
 };
 
 /**
@@ -94,6 +116,8 @@ export function resetDebugRenderFlags(): void {
   debugRenderFlags.aimLine = false;
   debugRenderFlags.mountPoints = false;
   debugRenderFlags.debugLabels = false;
+  debugRenderFlags.targetLockIndicator = false;
+  debugRenderFlags.enemyTeamIndicator = false;
 }
 
 /**
@@ -126,6 +150,8 @@ export function areAllDebugRenderFlagsOff(): boolean {
     !debugRenderFlags.directionArrow &&
     !debugRenderFlags.aimLine &&
     !debugRenderFlags.mountPoints &&
-    !debugRenderFlags.debugLabels
+    !debugRenderFlags.debugLabels &&
+    !debugRenderFlags.targetLockIndicator &&
+    !debugRenderFlags.enemyTeamIndicator
   );
 }

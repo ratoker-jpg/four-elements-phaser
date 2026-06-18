@@ -849,8 +849,11 @@ export class BlockoutVehicleRenderer {
     }
 
     // ── CORE-STEP-07H+: Target-lock status indicator on attacker ──
-    // Show a small colored dot above the turret when this vehicle has an active target-lock
-    if (vehicle.targetVehicleId && !vehicle.isDestroyed) {
+    // ARENA-VISUAL-COMBAT-FIX-01: Gated behind debugRenderFlags.targetLockIndicator.
+    // Previously always drawn when vehicle.targetVehicleId was truthy —
+    // a stray yellow pixel visible in default Arena view. Now hidden by
+    // default; devtools must explicitly opt in.
+    if (debugRenderFlags.targetLockIndicator && vehicle.targetVehicleId && !vehicle.isDestroyed) {
       // Target-lock active: show yellow dot above turret
       const lockIndicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.3;
       const tilePosLocal = unprojectScreenToGround(cx, cy, this.offset);
@@ -860,7 +863,11 @@ export class BlockoutVehicleRenderer {
     }
 
     // ── ARENA-03H+: Enemy team indicator (small red diamond above HP bar) ──
-    if (vehicle.team === 'enemy' && !vehicle.isDestroyed) {
+    // ARENA-VISUAL-COMBAT-FIX-01: Gated behind debugRenderFlags.enemyTeamIndicator.
+    // Previously always drawn when vehicle.team === 'enemy' — a stray red
+    // diamond visible in default Arena view. Now hidden by default; devtools
+    // must explicitly opt in.
+    if (debugRenderFlags.enemyTeamIndicator && vehicle.team === 'enemy' && !vehicle.isDestroyed) {
       const indicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.2;
       const indicatorPos = projectWorldPoint(tilePos.x, tilePos.y, indicatorZ, this.offset);
       const indicatorSize = 0.08;
@@ -1521,5 +1528,32 @@ export class BlockoutVehicleRenderer {
    */
   clearModularVehicleRender(): void {
     this.modularAdapter.hideAll();
+  }
+
+  // ─── Modular barrel tip delegation (ARENA-VISUAL-COMBAT-FIX-01 Fix 6) ──
+
+  /**
+   * Compute the barrel tip screen position for a modular-rendered vehicle.
+   *
+   * Delegates to ModularVehicleLiveAdapter.getModularBarrelTip(). Returns
+   * null if the vehicle is not using modular rendering, in which case the
+   * caller should fall back to the blockout geometry barrel tip computation.
+   *
+   * @param vehicleId - The vehicle ID
+   * @param turretAngle - Current turret angle in radians
+   * @returns Screen-space barrel tip, or null if not using modular rendering
+   */
+  getModularBarrelTip(vehicleId: string, turretAngle: number): { x: number; y: number } | null {
+    return this.modularAdapter.getModularBarrelTip(vehicleId, turretAngle);
+  }
+
+  /**
+   * Check whether a vehicle is currently using modular rendering.
+   *
+   * Used by GameScene to decide whether to use the modular barrel tip
+   * computation vs. the blockout geometry barrel tip.
+   */
+  isVehicleUsingModularRender(vehicleId: string): boolean {
+    return this.modularAdapter.isUsingModularRender(vehicleId);
   }
 }

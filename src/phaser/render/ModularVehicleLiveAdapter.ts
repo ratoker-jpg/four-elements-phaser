@@ -52,6 +52,53 @@ import {
   resolveFactionOrDiagnosticFallback,
 } from '../../modular/factionResolver';
 
+// ─── Visual center offset (ARENA-VISUAL-COMBAT-FIX-01 Fix 3) ────────
+
+/**
+ * Per-hull screen-space pixel offset to visually center the tank composite
+ * (hull + turret together) within its selection ring.
+ *
+ * The modular composition pipeline places the hull sprite at `anchor` with
+ * `origin = (0.5, 0.5)`. The selection ring is drawn at the same anchor.
+ * However, the tank's visual body is NOT centered at frame center (256, 256)
+ * in the 512×512 PNG — the isometric artwork extends asymmetrically (typically
+ * the visual center is slightly above the ground-contact point because the
+ * top face of the isometric hull is offset upward from the footprint center).
+ *
+ * The legacy path compensates with `getGeneratedHullPlacementOffset()`
+ * (e.g., Wasp gets offsetX=-1, offsetY=12). The modular path had NO
+ * equivalent offset, causing tanks to appear offset from their selection rings.
+ *
+ * This map is applied as a shift to the anchor passed to composeModularVehicle(),
+ * moving the entire composite (hull + turret) together. It does NOT shift
+ * worldX/worldY or the selection ring position — only the modular sprites.
+ *
+ * Offset values match the legacy `getGeneratedHullPlacementOffset()` values.
+ * For hulls not listed here, a reasonable default of {dx: 0, dy: 12} is used
+ * (most isometric hulls have the visual center slightly above the
+ * ground-contact point).
+ */
+const MODULAR_VISUAL_CENTER_OFFSET: Record<string, { dx: number; dy: number }> = {
+  wasp:     { dx: -1, dy: 12 },
+  hornet:   { dx: 0,  dy: 12 },
+  hunter:   { dx: 0,  dy: 12 },
+  viking:   { dx: 0,  dy: 12 },
+  titan:    { dx: 0,  dy: 12 },
+  mammoth:  { dx: 0,  dy: 12 },
+  dictator: { dx: 0,  dy: 12 },
+};
+
+/** Default visual center offset for hulls not in the map above. */
+const DEFAULT_VISUAL_CENTER_OFFSET = { dx: 0, dy: 12 };
+
+/**
+ * Get the visual center offset for a hull ID.
+ * Returns the hull-specific offset if known, otherwise the default.
+ */
+function getModularVisualCenterOffset(hullId: string): { dx: number; dy: number } {
+  return MODULAR_VISUAL_CENTER_OFFSET[hullId] ?? DEFAULT_VISUAL_CENTER_OFFSET;
+}
+
 // ─── Feature flag ──────────────────────────────────────────────────
 
 /**
@@ -230,9 +277,16 @@ export class ModularVehicleLiveAdapter {
     const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
     const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
 
+    // ARENA-VISUAL-COMBAT-FIX-01 Fix 3: Apply per-hull visual center offset.
+    // This shifts the entire modular composite (hull + turret) so the tank
+    // appears visually centered in its selection ring. Without this, the
+    // isometric artwork sits offset from the ring because the visual body
+    // center is not at the PNG frame center.
+    const visualOffset = getModularVisualCenterOffset(mapped.visual.hullId);
+
     const anchor: ScreenPoint = {
-      x: vehicle.worldX + this.offset.x + bodyImpulseX,
-      y: vehicle.worldY + this.offset.y + bodyImpulseY,
+      x: vehicle.worldX + this.offset.x + bodyImpulseX + visualOffset.dx,
+      y: vehicle.worldY + this.offset.y + bodyImpulseY + visualOffset.dy,
     };
 
     // Compose the render plan using the accepted composition API
@@ -353,12 +407,19 @@ export class ModularVehicleLiveAdapter {
     // Request lazy-load of the modular vehicle set
     requestModularVehicleSet(this.scene, mapped.visual);
 
+    // ARENA-VISUAL-COMBAT-FIX-01 Fix 3: Apply per-hull visual center offset.
+    const visualOffset = getModularVisualCenterOffset(mapped.visual.hullId);
+    const adjustedAnchor: ScreenPoint = {
+      x: anchor.x + visualOffset.dx,
+      y: anchor.y + visualOffset.dy,
+    };
+
     // Compose the render plan
     const plan = composeModularVehicle({
       visual: mapped.visual,
       hullDir16: mapped.hullDir16,
       turretDir16: mapped.turretDir16,
-      anchor,
+      anchor: adjustedAnchor,
       textureExists: (key: string) => this.scene.textures.exists(key),
     });
 
@@ -469,12 +530,19 @@ export class ModularVehicleLiveAdapter {
     // Re-trigger lazy-load (idempotent — requestModularVehicleSet deduplicates)
     requestModularVehicleSet(this.scene, mapped.visual);
 
+    // ARENA-VISUAL-COMBAT-FIX-01 Fix 3: Apply per-hull visual center offset.
+    const visualOffset = getModularVisualCenterOffset(mapped.visual.hullId);
+    const adjustedAnchor: ScreenPoint = {
+      x: p.anchor.x + visualOffset.dx,
+      y: p.anchor.y + visualOffset.dy,
+    };
+
     // Re-compose the plan
     const plan = composeModularVehicle({
       visual: mapped.visual,
       hullDir16: mapped.hullDir16,
       turretDir16: mapped.turretDir16,
-      anchor: p.anchor,
+      anchor: adjustedAnchor,
       textureExists: (key: string) => this.scene.textures.exists(key),
     });
 
@@ -527,11 +595,18 @@ export class ModularVehicleLiveAdapter {
     turretDir16: number,
     anchor: ScreenPoint,
   ): void {
+    // ARENA-VISUAL-COMBAT-FIX-01 Fix 3: Apply per-hull visual center offset.
+    const visualOffset = getModularVisualCenterOffset(visual.hullId);
+    const adjustedAnchor: ScreenPoint = {
+      x: anchor.x + visualOffset.dx,
+      y: anchor.y + visualOffset.dy,
+    };
+
     const plan = composeModularVehicle({
       visual,
       hullDir16: hullDir16 as any,
       turretDir16: turretDir16 as any,
-      anchor,
+      anchor: adjustedAnchor,
       textureExists: (key: string) => this.scene.textures.exists(key),
     });
 
@@ -757,5 +832,81 @@ export class ModularVehicleLiveAdapter {
     }
     this.vehicleModularSprites.clear();
     this.pendingCombat = null;
+  }
+
+  // ─── Modular barrel tip (ARENA-VISUAL-COMBAT-FIX-01 Fix 6) ──────────
+
+  /**
+   * Estimated barrel pixel length per weapon type (from turret visual center
+   * to muzzle end in the modular turret PNG sprites).
+   *
+   * TEMPORARY until asset muzzle metadata is exported. These values
+   * approximate the visual barrel length from turret pivot to muzzle end,
+   * scaled to match the modular display size.
+   *
+   * The modular base scale is 0.16, and the turret PNG is 512×512, so
+   * display size = 512 * 0.16 ≈ 82px. The barrel extends about 25-50%
+   * of the turret frame width from the pivot point, depending on weapon.
+   */
+  private static readonly MODULAR_BARREL_LENGTH_PX: Record<string, number> = {
+    smoky:       28,
+    thunder:     32,
+    railgun:     42,
+    shaft:       38,
+    flamethrower: 18,
+    freeze:      18,
+    isida:       22,
+    vulcan:      22,
+    twins:       18,
+    ricochet:    28,
+    hammer:      22,
+  };
+
+  private static readonly DEFAULT_BARREL_LENGTH_PX = 24;
+
+  /**
+   * Compute the barrel tip screen position for a modular-rendered vehicle.
+   *
+   * Uses the turret sprite's current screen position (set by the modular
+   * composition pipeline, which includes the visual center offset from Fix 3)
+   * and offsets along the turret angle by a weapon-specific estimated barrel
+   * length.
+   *
+   * ARENA-VISUAL-COMBAT-FIX-01: TEMPORARY until asset muzzle metadata is
+   * exported. The barrel length values are estimated from turret PNG artwork
+   * and may need adjustment after visual QA.
+   *
+   * @param vehicleId - The vehicle ID to compute the barrel tip for
+   * @param turretAngle - The current turret angle in radians
+   * @returns Screen-space barrel tip position, or null if the vehicle has
+   *          no modular turret sprite (not using modular rendering)
+   */
+  getModularBarrelTip(
+    vehicleId: string,
+    turretAngle: number,
+  ): { x: number; y: number } | null {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    if (!state?.turretSprite) return null;
+
+    const tx = state.turretSprite.x;
+    const ty = state.turretSprite.y;
+    const weaponId = state.lastVisual?.turretId ?? '';
+    const barrelLength = ModularVehicleLiveAdapter.MODULAR_BARREL_LENGTH_PX[weaponId]
+      ?? ModularVehicleLiveAdapter.DEFAULT_BARREL_LENGTH_PX;
+
+    return {
+      x: tx + Math.cos(turretAngle) * barrelLength,
+      y: ty + Math.sin(turretAngle) * barrelLength,
+    };
+  }
+
+  /**
+   * Check whether a vehicle is currently using modular rendering.
+   * Used by GameScene to decide whether to use the modular barrel tip
+   * computation vs. the blockout geometry barrel tip.
+   */
+  isUsingModularRender(vehicleId: string): boolean {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    return state != null && state.turretSprite != null && state.stickyModularSuccess;
   }
 }

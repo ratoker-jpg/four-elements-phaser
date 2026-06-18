@@ -720,9 +720,9 @@ export class GameScene extends Phaser.Scene {
         // This ensures wind-up (Railgun), drum burst (Hammer), and resource gates
         // are properly handled for AI weapons too.
         fireWeapon: (enemy, target, fireNowMs) => {
-          // Compute barrel tip using projected geometry at barrel Z
-          // (shared source of truth with renderer — PROJECTION-01)
-          const barrelTip = computeProjectedBarrelTipScreenAtZ(enemy, this._offset as IsoPoint);
+          // ARENA-VISUAL-COMBAT-FIX-01 Fix 6: Use modular barrel tip when
+          // modular rendering is active, otherwise fall back to blockout geometry.
+          const barrelTip = this.computeBarrelTip(enemy);
           const barrelTipX = barrelTip.x;
           const barrelTipY = barrelTip.y;
           // Target center as aim point
@@ -756,7 +756,7 @@ export class GameScene extends Phaser.Scene {
           // This ensures wind-up (Railgun), drum burst (Hammer), and resource gates
           // are properly handled for player target-lock weapons too.
           fireWeapon: (vehicle, target, fireNowMs) => {
-            const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this._offset as IsoPoint);
+            const barrelTip = this.computeBarrelTip(vehicle);
             const targetCenter = computeBodyWorldCenter(target, this._offset as IsoPoint);
 
             tryFireWithDamage(
@@ -792,8 +792,9 @@ export class GameScene extends Phaser.Scene {
       const nowMs = this.time.now;
       for (const vehicle of this.gameState.blockoutVehicles) {
         if (vehicle.fireHeld && vehicle.isFiring && !vehicle.isDestroyed) {
-          // Compute barrel tip using projected geometry at barrel Z (shared source of truth — PROJECTION-01 fixup #2)
-          const barrelTip = computeProjectedBarrelTipScreenAtZ(vehicle, this._offset as IsoPoint);
+          // ARENA-VISUAL-COMBAT-FIX-01 Fix 6: Use modular barrel tip when
+          // modular rendering is active, otherwise fall back to blockout geometry.
+          const barrelTip = this.computeBarrelTip(vehicle);
           const barrelTipX = barrelTip.x;
           const barrelTipY = barrelTip.y;
 
@@ -841,6 +842,31 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ─── Helpers ────────────────────────────────────────────────────
+
+  /**
+   * ARENA-VISUAL-COMBAT-FIX-01 Fix 6: Compute barrel tip screen position.
+   *
+   * When the vehicle is using modular rendering (modular sprites are active),
+   * uses the modular adapter's barrel tip computation which accounts for:
+   *   - The turret sprite's actual screen position (including visual center offset)
+   *   - Weapon-specific estimated barrel length from modular turret PNGs
+   *
+   * When modular rendering is not active, falls back to the blockout
+   * procedural geometry barrel tip computation.
+   *
+   * @param vehicle - The vehicle to compute the barrel tip for
+   * @returns Screen-space barrel tip position
+   */
+  private computeBarrelTip(vehicle: BlockoutVehicleState): { x: number; y: number } {
+    // Try modular barrel tip first (when modular rendering is active)
+    const blockoutRenderer = this.renderManager?.getBlockoutVehicleRenderer();
+    if (blockoutRenderer?.isVehicleUsingModularRender(vehicle.id)) {
+      const modularTip = blockoutRenderer.getModularBarrelTip(vehicle.id, vehicle.turretAngle);
+      if (modularTip) return modularTip;
+    }
+    // Fallback: blockout procedural geometry barrel tip
+    return computeProjectedBarrelTipScreenAtZ(vehicle, this._offset as IsoPoint);
+  }
 
   // ─── ARENA-02H+: Placement mode handlers ─────────────────────────
 
