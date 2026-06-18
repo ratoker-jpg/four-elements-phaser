@@ -99,15 +99,15 @@ export class GameScene extends Phaser.Scene {
   private get terrainRenderer() { return this.renderManager?.terrainRenderer ?? null; }
   private get industrialFrameRenderer() { return this.renderManager?.industrialFrameRenderer ?? null; }
   private get entityRenderer() { return this.renderManager?.entityRenderer ?? null; }
-  private get buildingStatusRenderer() { return this.renderManager?.buildingStatusRenderer ?? null; }
+  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
   private get feedbackRenderer() { return this.renderManager?.feedbackRenderer ?? null; }
-  private get motionFxRenderer() { return this.renderManager?.motionFxRenderer ?? null; }
+  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
   private get debugOverlayRenderer() { return this.renderManager?.debugOverlayRenderer ?? null; }
   private get blockoutVehicleRenderer() { return this.renderManager?.blockoutVehicleRenderer ?? null; }
-  private get blockoutWeaponVfxRenderer() { return this.renderManager?.blockoutWeaponVfxRenderer ?? null; }
-  private get blockoutDamageRenderer() { return this.renderManager?.blockoutDamageRenderer ?? null; }
-  private get blockoutObstacleRenderer() { return this.renderManager?.blockoutObstacleRenderer ?? null; }
-  private get blockoutUpgradeRenderer() { return this.renderManager?.blockoutUpgradeRenderer ?? null; }
+  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
+  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
+  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
+  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
   private get blockoutSandboxHudRenderer() { return this.renderManager?.blockoutSandboxHudRenderer ?? null; }
   private get cameraProjectionDebugRenderer() { return this.renderManager?.cameraProjectionDebugRenderer ?? null; }
   private get assetPreviewTool() { return this.renderManager?.assetPreviewTool ?? null; }
@@ -327,7 +327,7 @@ export class GameScene extends Phaser.Scene {
         onToggleHelp: () => {
           // ARENA-04H+: Toggle both ArenaMenu help overlay and HUD renderer help
           this.arenaMenu?.toggleHelp();
-          this.blockoutSandboxHudRenderer?.toggleHelp();
+          this.renderManager?.toggleSandboxHelp();
         },
         // ARENA-02H+: Placement mode callbacks
         onPlaceUnit: () => {
@@ -511,7 +511,7 @@ export class GameScene extends Phaser.Scene {
         getGameState: () => this.gameState,
         isDevtoolsActive: () => this.devtoolsActive,
         onSelectionChanged: (selectedId: string | null) => {
-          this.blockoutVehicleRenderer?.setSelectedVehicleId(selectedId);
+          this.renderManager?.setSelectedVehicleId(selectedId);
         },
         onResetScenario: () => {
           // ARENA-01H+: Arena uses obstacle-free scenario on reset
@@ -522,10 +522,10 @@ export class GameScene extends Phaser.Scene {
           console.log('[GameScene] Scenario reset to', this.arenaMode ? 'arena' : 'defaults', '.');
         },
         onToggleHelp: () => {
-          this.blockoutSandboxHudRenderer?.toggleHelp();
+          this.renderManager?.toggleSandboxHelp();
         },
         onToggleCalibration: () => {
-          const visible = this.cameraProjectionDebugRenderer?.toggle() ?? false;
+          const visible = this.renderManager?.toggleCameraProjectionDebug() ?? false;
           console.log(`[GameScene] Camera projection calibration overlay: ${visible ? 'ON' : 'OFF'}`);
         },
         // ARENA-02H+ fixup: Guard placement mode — suppress selection/movement when placing
