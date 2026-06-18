@@ -428,7 +428,7 @@ export class RenderManager {
   }
 
   /**
-   * Destroy all renderers in the exact same reverse order as the original GameScene.shutdown().
+   * Destroy all renderers in the same relative order as the original GameScene.shutdown().
    */
   destroy(): void {
     this.motionFxRenderer?.destroy();
