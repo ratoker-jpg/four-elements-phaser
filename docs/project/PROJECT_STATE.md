@@ -10,9 +10,10 @@ Updated: 2026-06-18
 ## Current mode
 
 ```text
-VEHICLE RENDER UNIFICATION — POST-PR #300 BASELINE.
-Stage 1 + Stage 2 + Stage 3 are merged and manually QA-accepted.
-The next direction is docs sync, then Stage 4 audit-first planning.
+VEHICLE RENDER UNIFICATION — POST-PR #302 BASELINE.
+Stage 1 + Stage 2 + Stage 3 + Stage 4 are merged and manually QA-accepted.
+The current operational step is docs sync after #302.
+After docs sync, vehicle render unification is closed unless Denis explicitly starts a new render-adjacent task.
 ```
 
 Current direction:
@@ -22,9 +23,11 @@ Graphify-first AI workflow
 +
 documentation/source-of-truth cleanup
 +
-modular vehicle runtime / unified vehicle renderer
+accepted modular vehicle runtime / unified vehicle renderer baseline
 +
-GameScene render orchestration cleanup planning
+accepted RenderManager / GameScene orchestration baseline
++
+next roadmap direction to be selected explicitly by Denis
 ```
 
 Closed / accepted cycles:
@@ -40,6 +43,7 @@ MODULAR-RUNTIME-04A baseline: MERGED via PR #295.
 VEHICLE-RENDER-UNIFY audit/roadmap: MERGED via PR #297.
 VEHICLE-RENDER-UNIFY Stage 1+2: MERGED via PR #298 and accepted by Denis manual QA.
 VEHICLE-RENDER-UNIFY Stage 3: MERGED via PR #300 and accepted by Denis manual QA.
+VEHICLE-RENDER-UNIFY Stage 4: MERGED via PR #302 and accepted by Denis manual QA.
 ```
 
 Do not continue closed roadmaps by inertia.
@@ -60,6 +64,7 @@ docs/project/AI_GRAPHIFY_WORKFLOW.md
 docs/project/VEHICLE_RENDER_UNIFICATION_AUDIT_2026_06_16.md
 docs/project/VEHICLE_RENDER_UNIFICATION_ROADMAP_2026_06_16.md
 docs/project/VEHICLE_RENDER_UNIFY_03_VH_IMPLEMENTATION_REPORT_2026_06_17.md
+docs/project/VEHICLE_RENDER_UNIFY_04_VH_IMPLEMENTATION_REPORT_2026_06_18.md
 ```
 
 Agent-specific docs:
@@ -114,8 +119,9 @@ The project currently has:
 - modular vehicle assets load on-demand through requestModularVehicleSet();
 - loadArenaVisualAssets() no longer preloads modular vehicle sets;
 - neutral loading placeholder exists for first-load fallback;
-- Stage 3 legacy renderer retirement is merged and accepted;
-- Stage 4 GameScene orchestration cleanup is not started.
+- RenderManager owns renderer construction, phased sync, visual bridge callbacks, and destroy;
+- GameScene keeps scene lifecycle, gameplay state, UI/menu callbacks, input, camera, placement, save/load;
+- Stage 1 + Stage 2 + Stage 3 + Stage 4 are merged and accepted.
 ```
 
 ---
@@ -134,6 +140,8 @@ socket/pivot metadata
 canonical live adapter path
 +
 on-demand modular asset loading
++
+RenderManager-owned render orchestration
 ```
 
 Rejected model:
@@ -141,6 +149,7 @@ Rejected model:
 ```text
 combined hull x turret production matrix
 old pilot Wasp/Smoky preload as default visual source
+old offset tuner / per-dir production offset tables
 ```
 
 Reason:
@@ -148,6 +157,7 @@ Reason:
 ```text
 combined matrix explodes with independent hull/turret mods and factions.
 old Wasp/Smoky preload masked canonical loader failures and is now removed.
+production placement must come from canonical composition/socket data, not ad hoc tuner tables.
 ```
 
 Important current renderer decision:
@@ -157,6 +167,8 @@ modular PNG is the default visual path when assets are available.
 fallback is emergency/loading only, not a normal production render path.
 loadArenaVisualAssets() does not preload vehicle sets.
 requestModularVehicleSet() owns on-demand loading and starts Phaser loader when needed.
+RenderManager owns renderer construction, phased sync, and cleanup.
+GameScene no longer directly owns most renderer fields.
 ```
 
 ---
@@ -185,35 +197,34 @@ requestModularVehicleSet() owns on-demand loading and starts Phaser loader when 
    - legacy offset tables removed;
    - canonical on-demand loader fixed;
    - manual visual QA accepted by Denis.
-9. [ACTIVE] DOCS-SYNC-POST-300 — source-of-truth docs sync after #300 merge.
-10. [NEXT] VEHICLE-RENDER-UNIFY-04-VH-AUDIT — audit-only plan for Stage 4.
+9. [DONE] DOCS-SYNC-POST-300 (PR #301) — source-of-truth docs sync after #300.
+10. [DONE] VEHICLE-RENDER-UNIFY-04-VH (PR #302) — Stage 4 GameScene render orchestration cleanup:
+    - RenderManager added;
+    - renderer construction moved from GameScene;
+    - phased renderer sync moved from GameScene;
+    - visual bridge callbacks moved through RenderManager;
+    - renderer cleanup moved to RenderManager;
+    - manual visual QA accepted by Denis.
+11. [ACTIVE] DOCS-SYNC-POST-302 — source-of-truth docs sync after #302.
 ```
 
 ---
 
-## Next implementation direction, not yet approved
+## Next implementation direction, not yet selected
 
-Candidate:
+There is no automatic next implementation task after renderer unification closure.
 
-```text
-Stage 4: GameScene render orchestration cleanup.
-```
-
-This is not automatically approved. It requires audit/design first.
-
-Audit must answer:
+Candidate directions Denis may choose:
 
 ```text
-- exact current GameScene render responsibilities;
-- proposed RenderManager or equivalent boundary;
-- lifecycle ownership: create / update / sync / shutdown;
-- how standard runtime and Arena/devtools stay aligned;
-- what remains in GameScene;
-- exact touched files;
-- tests needed;
-- rollback plan;
-- validation and manual QA plan.
+- post-render baseline hardening / regression checklist;
+- next gameplay/product roadmap audit;
+- next asset pipeline/runtime task;
+- Arena UX or unit runtime improvements;
+- new feature direction selected explicitly by Denis.
 ```
+
+Before starting a new direction, create or read the relevant audit/roadmap and avoid continuing closed renderer-unification work by inertia.
 
 ---
 
@@ -230,12 +241,14 @@ Do not start implementation if:
 - task proposes combined hull x turret production matrix;
 - task proposes preloading all modular assets at startup;
 - task restores old Wasp M0 preload / pilotVehicleLazyLoad / pilot turret preload;
+- task restores pilotTurretComposition;
 - task reintroduces offset tuner tables or ENABLE_PILOT_GENERATED_TURRET_COMPOSITION;
+- task rewrites RenderManager/GameScene lifecycle without a concrete bug or accepted audit;
 - task adds new URL debug/test modes instead of using Arena/debug UI;
 - task changes composeModularVehicle() placement/math without explicit Denis approval;
 - task blindly reuses PR #296 mount-slot / forward-back drift model;
 - task touches combat, movement, economy, mapgen, pathfinding, save-load, bot/AI
-  during vehicle render unification work;
+  during render cleanup work;
 - task asks Denis to do local repo context work that can run in GitHub;
 - task turns Codex from read-only local auditor into executor without explicit approval.
 ```
