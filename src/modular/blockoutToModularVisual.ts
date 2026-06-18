@@ -99,22 +99,42 @@ export function factionToModularFactionId(faction: Faction): ModularFactionId | 
 // ─── Angle → dir16 conversion ──────────────────────────────────────
 
 /**
+ * Rotation offset applied to runtime angles before dir16 conversion.
+ *
+ * Denis-provided visual truth map for modular assets:
+ *   dir0  = screen top-right   (NE)
+ *   dir4  = screen bottom-right (SE)
+ *   dir8  = screen bottom-left  (SW)
+ *   dir12 = screen top-left     (NW)
+ *
+ * Runtime screen-space angle convention (Phaser, Y-down):
+ *   0     = screen right    (E)
+ *   π/4   = screen down-right (SE)
+ *   3π/4  = screen down-left  (SW)
+ *   5π/4  = screen up-left    (NW)
+ *   7π/4  = screen up-right   (NE)
+ *
+ * Adding π/4 to the runtime angle aligns it with the asset dir16 indices:
+ *   angle 7π/4 + π/4 = 2π  → dir0  (NE) ✓
+ *   angle π/4  + π/4 = π/2 → dir4  (SE) ✓
+ *   angle 3π/4 + π/4 = π   → dir8  (SW) ✓
+ *   angle 5π/4 + π/4 = 3π/2→ dir12 (NW) ✓
+ *
+ * ARENA-VISUAL-COMBAT-FIX-01: this offset fixes "tanks drive sideways".
+ */
+const DIR16_ANGLE_OFFSET = Math.PI / 4;
+
+/**
  * Converts a continuous runtime angle (radians) to a dir16 index.
  *
- * The modular asset matrix uses 16 directions:
- *   dir00 = E  (angle = 0)
- *   dir02 = SE (angle = π/4)
- *   dir04 = S  (angle = π/2)
- *   …
- *   dir16 wraps back to dir00.
+ * Applies the isometric rotation offset so that the resulting dir16
+ * matches the Denis truth map for modular asset directions.
  *
- * The angle-to-direction mapping follows the isometric convention where
- * angle 0 = east, increasing clockwise. Each direction spans 2π/16 = π/8
- * radians. We add half a step (π/16) before flooring to center the bin.
+ * Each direction spans 2π/16 = π/8 radians.
  */
 export function runtimeAngleToDir16(angleRad: number): GeneratedModularDir16 {
-  // Normalize to [0, 2π)
-  let a = angleRad % (2 * Math.PI);
+  // Apply rotation offset so runtime angles map to correct dir16
+  let a = (angleRad + DIR16_ANGLE_OFFSET) % (2 * Math.PI);
   if (a < 0) a += 2 * Math.PI;
 
   const step = (2 * Math.PI) / 16;

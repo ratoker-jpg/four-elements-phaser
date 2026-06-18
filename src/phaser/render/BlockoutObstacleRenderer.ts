@@ -41,8 +41,8 @@ export class BlockoutObstacleRenderer {
   /** Debug text labels keyed by obstacle ID. */
   private debugLabels = new Map<string, Phaser.GameObjects.Text>();
 
-  /** Whether debug labels are shown. */
-  private showDebugLabels = true;
+  /** Whether debug labels are shown. Default false — labels are opt-in only. */
+  private showDebugLabels = false;
 
   constructor(scene: Phaser.Scene, offset: IsoPoint) {
     this.scene = scene;
