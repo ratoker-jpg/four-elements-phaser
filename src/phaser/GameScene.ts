@@ -103,13 +103,13 @@ export class GameScene extends Phaser.Scene {
   private get feedbackRenderer() { return this.renderManager?.feedbackRenderer ?? null; }
   // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
   private get debugOverlayRenderer() { return this.renderManager?.debugOverlayRenderer ?? null; }
-  private get blockoutVehicleRenderer() { return this.renderManager?.blockoutVehicleRenderer ?? null; }
+  // Stage 4 FIXUP-2: getter removed (visual state owned by RenderManager)
   // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
   // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
   // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
   // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
-  private get blockoutSandboxHudRenderer() { return this.renderManager?.blockoutSandboxHudRenderer ?? null; }
-  private get cameraProjectionDebugRenderer() { return this.renderManager?.cameraProjectionDebugRenderer ?? null; }
+  // Stage 4 FIXUP-2: getter removed (visual state owned by RenderManager)
+  // Stage 4 FIXUP-2: getter removed (visual state owned by RenderManager)
   private get assetPreviewTool() { return this.renderManager?.assetPreviewTool ?? null; }
   private get assetPreviewPanel() { return this.renderManager?.assetPreviewPanel ?? null; }
 
