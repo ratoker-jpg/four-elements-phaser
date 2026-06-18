@@ -28,8 +28,15 @@ describe('VEHICLE-RENDER-UNIFY-04-VH: RenderManager exists and has correct API',
     expect(renderManagerSrc).toMatch(/create\(state.*opts.*\): void/);
   });
 
-  it('RenderManager has syncFromState() method', () => {
-    expect(renderManagerSrc).toMatch(/syncFromState\(/);
+  it('FIXUP-2: RenderManager does NOT have old syncFromState method', () => {
+    // The old single syncFromState was replaced with 3 phase methods
+    const lines = renderManagerSrc.split('\n');
+    for (const line of lines) {
+      if (line.trim().startsWith('//') || line.trim().startsWith('*')) continue;
+      if (/^\s*syncFromState\s*\(/.test(line)) {
+        throw new Error(`Old syncFromState method still defined: ${line.trim()}`);
+      }
+    }
   });
 
   it('RenderManager has destroy() method', () => {
