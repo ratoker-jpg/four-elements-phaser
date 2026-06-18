@@ -633,11 +633,8 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // 5. Sync render layer
-    this.entityRenderer?.syncFromState(this.gameState);
-
-    // 5b. Sync building status indicators (ARCH-07A)
-    this.buildingStatusRenderer?.syncFromState(this.gameState);
+    // 5. Sync render layer (Stage 4 FIXUP-1: delegated to RenderManager)
+    this.renderManager?.syncCivilRenderState(this.gameState, this.time.now);
 
     // 6. Update PlaytestHud panel (ARENA-01H+: only in Normal Game)
     if (this.playtestHud) {
@@ -655,36 +652,19 @@ export class GameScene extends Phaser.Scene {
     // 8. ARCH-11A: Update devtools diagnostics
     this.devtoolsPanel?.update(this.gameState);
 
-    // 8b. ARCH-11B: Sync debug overlays
-    this.debugOverlayRenderer?.syncFromState(this.gameState);
+    // 8b-8e: Stage 4 FIXUP-1: debug/feedback/motion/assetPreview sync
+    // now handled by syncCivilRenderState() above.
 
-    // 8c. ARCH-13A: Sync feedback renderer (command indicators, resource flow)
-    this.feedbackRenderer?.syncFromState(this.gameState, this.time.now);
-
-    // 8d. ARCH-13C-LITE: Sync motion dust renderer (movement particles)
-    this.motionFxRenderer?.syncFromState(this.gameState, this.time.now);
-
-    // 8e. DEV-ASSET-PREVIEW-01: Update asset preview tool (selection highlight)
-    this.assetPreviewTool?.update();
-
-    // 8f. BLOCKOUT-02H: Sync blockout vehicle renderer
-    // BLOCKOUT-03H: Also update input controller and sync hover/selection state
-    // BLOCKOUT-04H+: Also update movement per frame
+    // 8f. BLOCKOUT-02H: Update blockout vehicle input controller
+    // Stage 4 FIXUP-1: hover/target visual sync delegated to RenderManager
     if (this.blockoutVehicleInputController && this.devtoolsActive) {
       this.blockoutVehicleInputController.update(delta);
-      // Sync hover state to renderer
-      if (this.blockoutVehicleRenderer) {
-        this.blockoutVehicleRenderer.setHoveredVehicleId(this.blockoutVehicleInputController.hoveredVehicleId);
-        // ARENA-03H+: Sync target indicator to renderer
-        if (this.arenaMode) {
-          const selectedId = this.blockoutVehicleInputController.selectedVehicleId;
-          const vehicles = this.gameState.blockoutVehicles;
-          const selected = selectedId ? vehicles?.find(v => v.id === selectedId) : null;
-          this.blockoutVehicleRenderer.setTargetedVehicleId(selected?.targetVehicleId ?? null);
-        } else {
-          this.blockoutVehicleRenderer.setTargetedVehicleId(null);
-        }
-      }
+      this.renderManager?.syncBlockoutInputVisualState(
+        this.gameState,
+        this.blockoutVehicleInputController.hoveredVehicleId,
+        this.blockoutVehicleInputController.selectedVehicleId,
+        this.arenaMode,
+      );
     }
     // BLOCKOUT-04H+: Update blockout vehicle movement
     // BLOCKOUT-09H: Use effective movement profile (with upgrade modifiers)
@@ -846,46 +826,14 @@ export class GameScene extends Phaser.Scene {
       // BLOCKOUT-07H+: Expire damage events
       expireDamageEvents(nowMs);
     }
-    if (this.blockoutVehicleRenderer && this.gameState.blockoutVehicles) {
-      this.blockoutVehicleRenderer.syncFromState(this.gameState.blockoutVehicles);
-    }
-    // BLOCKOUT-05H+: Sync weapon VFX renderer
-    if (this.blockoutWeaponVfxRenderer && this.devtoolsActive) {
-      this.blockoutWeaponVfxRenderer.syncFromState(this.time.now);
-    }
-    // BLOCKOUT-07H+: Sync damage renderer
-    if (this.blockoutDamageRenderer && this.devtoolsActive && this.gameState.blockoutVehicles) {
-      this.blockoutDamageRenderer.syncFromState(this.time.now, this.gameState.blockoutVehicles);
-    }
-    // BLOCKOUT-08H: Sync obstacle renderer
-    if (this.blockoutObstacleRenderer && this.devtoolsActive && this.gameState.blockoutObstacles) {
-      this.blockoutObstacleRenderer.syncFromState(this.gameState.blockoutObstacles);
-    }
-    // BLOCKOUT-09H: Sync upgrade renderer
-    if (this.blockoutUpgradeRenderer && this.devtoolsActive && this.gameState.blockoutVehicles) {
-      this.blockoutUpgradeRenderer.syncFromState(this.gameState.blockoutVehicles, this.blockoutVehicleInputController?.selectedVehicleId ?? null);
-    }
-    // BLOCKOUT-10H+: Sync sandbox HUD renderer
-    if (this.blockoutSandboxHudRenderer && this.devtoolsActive) {
-      if (this.arenaMode) {
-        // ARENA-04H+: Arena-specific HUD with target info
-        const selectedId = this.blockoutVehicleInputController?.selectedVehicleId ?? null;
-        const selected = selectedId ? this.gameState.blockoutVehicles?.find(v => v.id === selectedId) : null;
-        const targetId = selected?.targetVehicleId ?? null;
-        this.blockoutSandboxHudRenderer.syncFromStateArena(
-          this.gameState.blockoutVehicles,
-          selectedId,
-          targetId,
-          this.time.now,
-        );
-      } else {
-        this.blockoutSandboxHudRenderer.syncFromState(
-          this.gameState.blockoutVehicles,
-          this.blockoutVehicleInputController?.selectedVehicleId ?? null,
-          this.time.now,
-        );
-      }
-    }
+    // Stage 4 FIXUP-1: blockout render sync delegated to RenderManager
+    this.renderManager?.syncBlockoutRenderState(
+      this.gameState,
+      this.time.now,
+      this.blockoutVehicleInputController?.selectedVehicleId ?? null,
+      this.devtoolsActive,
+      this.arenaMode,
+    );
 
     // 10. Debug log on unload completion (ARENA-01H+: only in Normal Game)
     if (this.arenaCtx.runCivilLoop && this.gameState.economy.raw > this.lastLoggedRaw) {
