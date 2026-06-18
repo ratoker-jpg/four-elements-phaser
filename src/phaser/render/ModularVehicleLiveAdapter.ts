@@ -40,6 +40,8 @@ import {
   composeModularVehicle,
   type ModularRenderPlan,
   type ScreenPoint,
+  MODULAR_FRAME_SIZE,
+  MODULAR_VEHICLE_BASE_SCALE,
 } from '../../modular/modularVehicleComposition';
 import type { ModularVehicleVisual } from '../../modular/modularVehicleVisual';
 import {
@@ -51,6 +53,9 @@ import {
 import {
   resolveFactionOrDiagnosticFallback,
 } from '../../modular/factionResolver';
+import {
+  resolveTurretMuzzlesForDir,
+} from '../../config/directionalTurretProfiles';
 
 // ─── Visual center offset (ARENA-VISUAL-COMBAT-FIX-01 Fix 3) ────────
 
@@ -73,23 +78,25 @@ import {
  * moving the entire composite (hull + turret) together. It does NOT shift
  * worldX/worldY or the selection ring position — only the modular sprites.
  *
- * Offset values match the legacy `getGeneratedHullPlacementOffset()` values.
- * For hulls not listed here, a reasonable default of {dx: 0, dy: 12} is used
- * (most isometric hulls have the visual center slightly above the
- * ground-contact point).
+ * ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Visual center offset reset to {0, 0}.
+ * The previous {dy: 12} offset made tank centering worse in manual QA —
+ * the sprite shifted down while the selection ring stayed on worldX/worldY.
+ * If a correction is still required, it must be measured against the
+ * selection ring, not assumed. Zero offset is the correct starting point
+ * for metadata-driven composition (socket/pivot alignment handles centering).
  */
 const MODULAR_VISUAL_CENTER_OFFSET: Record<string, { dx: number; dy: number }> = {
-  wasp:     { dx: -1, dy: 12 },
-  hornet:   { dx: 0,  dy: 12 },
-  hunter:   { dx: 0,  dy: 12 },
-  viking:   { dx: 0,  dy: 12 },
-  titan:    { dx: 0,  dy: 12 },
-  mammoth:  { dx: 0,  dy: 12 },
-  dictator: { dx: 0,  dy: 12 },
+  wasp:     { dx: 0, dy: 0 },
+  hornet:   { dx: 0, dy: 0 },
+  hunter:   { dx: 0, dy: 0 },
+  viking:   { dx: 0, dy: 0 },
+  titan:    { dx: 0, dy: 0 },
+  mammoth:  { dx: 0, dy: 0 },
+  dictator: { dx: 0, dy: 0 },
 };
 
 /** Default visual center offset for hulls not in the map above. */
-const DEFAULT_VISUAL_CENTER_OFFSET = { dx: 0, dy: 12 };
+const DEFAULT_VISUAL_CENTER_OFFSET = { dx: 0, dy: 0 };
 
 /**
  * Get the visual center offset for a hull ID.
@@ -167,6 +174,18 @@ interface ModularSpriteState {
    *   - destroy() clears all state.
    */
   stickyModularSuccess: boolean;
+  /**
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Store last render plan for
+   * muzzle/VFX origin computation. The plan contains socketScreen and
+   * pivotScreen positions computed from composition metadata, which are
+   * more accurate than turret sprite center + flat barrel length.
+   */
+  lastPlan: ModularRenderPlan | null;
+  /**
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Store last turret dir16 for
+   * muzzle profile lookup via directionalTurretProfiles.
+   */
+  lastTurretDir16: number;
 }
 
 // ─── 03B: Pending normal-runtime entity state for retry ────────────
@@ -308,7 +327,7 @@ export class ModularVehicleLiveAdapter {
 
     // Only apply the plan and claim modular when textures are fully available.
     if (plan.available) {
-      this.applyPlan(vehicle.id, plan);
+      this.applyPlan(vehicle.id, plan, mapped.turretDir16);
       this.setSticky(vehicle.id, mapped.visual);
       return {
         usedModular: true,
@@ -430,7 +449,7 @@ export class ModularVehicleLiveAdapter {
 
     // Only apply the plan and claim modular when textures are fully available.
     if (plan.available) {
-      this.applyPlan(entity.id, plan);
+      this.applyPlan(entity.id, plan, mapped.turretDir16);
       this.setSticky(entity.id, mapped.visual);
       // Clear any pending retry — we succeeded
       this.pendingCombat = null;
@@ -552,7 +571,7 @@ export class ModularVehicleLiveAdapter {
     }
 
     // Assets ready — apply the plan
-    this.applyPlan(p.entityId, plan);
+    this.applyPlan(p.entityId, plan, mapped.turretDir16);
     this.setNormalRuntimeDepth(p.entityId, p.depth);
     this.setSticky(p.entityId, mapped.visual);
     this.pendingCombat = null;
@@ -611,7 +630,7 @@ export class ModularVehicleLiveAdapter {
     });
 
     if (plan.available) {
-      this.applyPlan(vehicleId, plan);
+      this.applyPlan(vehicleId, plan, turretDir16);
     }
   }
 
@@ -620,7 +639,7 @@ export class ModularVehicleLiveAdapter {
   /**
    * Apply a ModularRenderPlan to create/update world-space sprites.
    */
-  private applyPlan(vehicleId: string, plan: ModularRenderPlan): void {
+  private applyPlan(vehicleId: string, plan: ModularRenderPlan, turretDir16?: number): void {
     let state = this.vehicleModularSprites.get(vehicleId);
     if (!state) {
       state = {
@@ -630,6 +649,8 @@ export class ModularVehicleLiveAdapter {
         lastTurretKey: null,
         lastVisual: null,
         stickyModularSuccess: false,
+        lastPlan: null,
+        lastTurretDir16: 0,
       };
       this.vehicleModularSprites.set(vehicleId, state);
     }
@@ -676,6 +697,12 @@ export class ModularVehicleLiveAdapter {
       if (state.turretSprite) {
         state.turretSprite.setVisible(false);
       }
+    }
+
+    // ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Store plan for muzzle computation
+    state.lastPlan = plan;
+    if (turretDir16 !== undefined) {
+      state.lastTurretDir16 = turretDir16;
     }
   }
 
@@ -834,19 +861,15 @@ export class ModularVehicleLiveAdapter {
     this.pendingCombat = null;
   }
 
-  // ─── Modular barrel tip (ARENA-VISUAL-COMBAT-FIX-01 Fix 6) ──────────
+  // ─── Modular barrel tip (ARENA-VISUAL-COMBAT-FIX-01 fixup-4) ────────
 
   /**
    * Estimated barrel pixel length per weapon type (from turret visual center
    * to muzzle end in the modular turret PNG sprites).
    *
-   * TEMPORARY until asset muzzle metadata is exported. These values
-   * approximate the visual barrel length from turret pivot to muzzle end,
-   * scaled to match the modular display size.
-   *
-   * The modular base scale is 0.16, and the turret PNG is 512×512, so
-   * display size = 512 * 0.16 ≈ 82px. The barrel extends about 25-50%
-   * of the turret frame width from the pivot point, depending on weapon.
+   * FALLBACK ONLY when directional muzzle profiles are unavailable.
+   * These values approximate the visual barrel length from turret pivot
+   * to muzzle end, scaled to match the modular display size.
    */
   private static readonly MODULAR_BARREL_LENGTH_PX: Record<string, number> = {
     smoky:       28,
@@ -867,14 +890,21 @@ export class ModularVehicleLiveAdapter {
   /**
    * Compute the barrel tip screen position for a modular-rendered vehicle.
    *
-   * Uses the turret sprite's current screen position (set by the modular
-   * composition pipeline, which includes the visual center offset from Fix 3)
-   * and offsets along the turret angle by a weapon-specific estimated barrel
-   * length.
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Now uses composition-aware muzzle
+   * origin computation instead of only turret sprite center + flat length.
    *
-   * ARENA-VISUAL-COMBAT-FIX-01: TEMPORARY until asset muzzle metadata is
-   * exported. The barrel length values are estimated from turret PNG artwork
-   * and may need adjustment after visual QA.
+   * Priority:
+   *   1. Directional muzzle profile (directionalTurretProfiles) — uses
+   *      per-direction normalized muzzle position from 3DS projection data,
+   *      transformed to screen space via the composition plan's turret
+   *      placement. Most accurate for supported weapons (currently Smoky).
+   *   2. Composition pivot-aware fallback — uses pivotScreen from the
+   *      render plan (composition metadata) as the muzzle origin base,
+   *      plus weapon-specific barrel length along turret angle.
+   *      Better than sprite center because pivotScreen accounts for
+   *      socket/pivot alignment from composition metadata.
+   *   3. Legacy fallback — turret sprite center + flat barrel length.
+   *      Used when no plan is stored (should not happen in normal flow).
    *
    * @param vehicleId - The vehicle ID to compute the barrel tip for
    * @param turretAngle - The current turret angle in radians
@@ -888,12 +918,43 @@ export class ModularVehicleLiveAdapter {
     const state = this.vehicleModularSprites.get(vehicleId);
     if (!state?.turretSprite) return null;
 
+    const weaponId = state.lastVisual?.turretId ?? '';
+    const turretDir16 = state.lastTurretDir16;
+    const plan = state.lastPlan;
+    const turretDisplaySize = plan?.turret.displaySize
+      ?? (MODULAR_FRAME_SIZE * MODULAR_VEHICLE_BASE_SCALE);
+
+    // Priority 1: Directional muzzle profile (per-direction 3DS projection data)
+    const muzzleProfile = resolveTurretMuzzlesForDir(weaponId, 0, turretDir16);
+    if (muzzleProfile && muzzleProfile.length > 0 && plan) {
+      // The muzzle position is in normalized sprite-space (0..1).
+      // Transform to screen-space using the turret sprite placement:
+      //   muzzleScreen = turretPosition + (muzzleNorm - origin) * displaySize
+      const muzzleNorm = muzzleProfile[0].position;
+      const muzzleScreenX = plan.turret.position.x + (muzzleNorm.x - plan.turret.origin.x) * turretDisplaySize;
+      const muzzleScreenY = plan.turret.position.y + (muzzleNorm.y - plan.turret.origin.y) * turretDisplaySize;
+      return { x: muzzleScreenX, y: muzzleScreenY };
+    }
+
+    // Priority 2: Composition pivot-aware fallback
+    // Use pivotScreen from the render plan as the turret rotation base,
+    // then offset along turret angle by weapon-specific barrel length.
+    // This is better than sprite center because pivotScreen is computed
+    // from composition metadata (socket/pivot alignment).
+    if (plan && plan.pivotScreen) {
+      const barrelLength = ModularVehicleLiveAdapter.MODULAR_BARREL_LENGTH_PX[weaponId]
+        ?? ModularVehicleLiveAdapter.DEFAULT_BARREL_LENGTH_PX;
+      return {
+        x: plan.pivotScreen.x + Math.cos(turretAngle) * barrelLength,
+        y: plan.pivotScreen.y + Math.sin(turretAngle) * barrelLength,
+      };
+    }
+
+    // Priority 3: Legacy fallback — turret sprite center + flat barrel length
     const tx = state.turretSprite.x;
     const ty = state.turretSprite.y;
-    const weaponId = state.lastVisual?.turretId ?? '';
     const barrelLength = ModularVehicleLiveAdapter.MODULAR_BARREL_LENGTH_PX[weaponId]
       ?? ModularVehicleLiveAdapter.DEFAULT_BARREL_LENGTH_PX;
-
     return {
       x: tx + Math.cos(turretAngle) * barrelLength,
       y: ty + Math.sin(turretAngle) * barrelLength,

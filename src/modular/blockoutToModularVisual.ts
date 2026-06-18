@@ -11,8 +11,14 @@
  *   modificationLevel → hullMod / turretMod  (0→m0, 1→m1, 2→m2, 3→m3)
  *
  * Direction mapping:
- *   bodyAngle (radians) → hullDir16  via runtimeAngleToDir16
- *   turretAngle (radians) → turretDir16  via runtimeAngleToDir16
+ *   bodyAngle (radians) → hullDir16  via gridBodyAngleToModularDir16
+ *   turretAngle (radians) → turretDir16  via screenAngleToModularDir16
+ *
+ * ARENA-VISUAL-COMBAT-FIX-01 fixup-4: hull and turret now use SEPARATE
+ * angle-to-dir16 functions. Hull body angles come from grid movement
+ * (directionToAngle convention) and need +π/2 offset. Turret angles
+ * are screen-space and need +π/4 offset. Previously a single
+ * runtimeAngleToDir16 was shared, causing hull direction to be wrong.
  *
  * This module is engine-agnostic and unit-testable without Phaser.
  */
@@ -99,7 +105,7 @@ export function factionToModularFactionId(faction: Faction): ModularFactionId | 
 // ─── Angle → dir16 conversion ──────────────────────────────────────
 
 /**
- * Rotation offset applied to runtime angles before dir16 conversion.
+ * Rotation offset for screen-space angles (turret aim, free-movement body).
  *
  * Denis-provided visual truth map for modular assets:
  *   dir0  = screen top-right   (NE)
@@ -114,32 +120,84 @@ export function factionToModularFactionId(faction: Faction): ModularFactionId | 
  *   5π/4  = screen up-left    (NW)
  *   7π/4  = screen up-right   (NE)
  *
- * Adding π/4 to the runtime angle aligns it with the asset dir16 indices:
+ * Adding π/4 to the runtime screen angle aligns it with the asset dir16 indices:
  *   angle 7π/4 + π/4 = 2π  → dir0  (NE) ✓
  *   angle π/4  + π/4 = π/2 → dir4  (SE) ✓
  *   angle 3π/4 + π/4 = π   → dir8  (SW) ✓
  *   angle 5π/4 + π/4 = 3π/2→ dir12 (NW) ✓
- *
- * ARENA-VISUAL-COMBAT-FIX-01: this offset fixes "tanks drive sideways".
  */
-const DIR16_ANGLE_OFFSET = Math.PI / 4;
+const SCREEN_ANGLE_OFFSET = Math.PI / 4;
 
 /**
- * Converts a continuous runtime angle (radians) to a dir16 index.
+ * Rotation offset for grid-body angles.
  *
- * Applies the isometric rotation offset so that the resulting dir16
- * matches the Denis truth map for modular asset directions.
+ * Grid movement uses `directionToAngle()` which maps cardinal tile directions
+ * to screen-cardinal angles (N→-π/2, E→0, S→π/2, W→π). In isometric view,
+ * tile-east visually appears as screen bottom-right (SE), tile-south as
+ * screen bottom-left (SW), etc. This requires an additional π/4 rotation
+ * on top of the screen-angle offset, totaling π/2.
  *
- * Each direction spans 2π/16 = π/8 radians.
+ * Denis truth map for hull movement:
+ *   grid east / angle 0    → dir4  (SE) ✓   (0 + π/2) / step = 4
+ *   grid south / angle π/2 → dir8  (SW) ✓   (π/2 + π/2) / step = 8
+ *   grid west / angle π    → dir12 (NW) ✓   (π + π/2) / step = 12
+ *   grid north / angle -π/2→ dir0  (NE) ✓   (-π/2 + π/2) / step = 0
  */
-export function runtimeAngleToDir16(angleRad: number): GeneratedModularDir16 {
-  // Apply rotation offset so runtime angles map to correct dir16
-  let a = (angleRad + DIR16_ANGLE_OFFSET) % (2 * Math.PI);
-  if (a < 0) a += 2 * Math.PI;
+const GRID_BODY_ANGLE_OFFSET = Math.PI / 2;
 
+/**
+ * Converts a screen-space angle (turret aim, free-movement body) to dir16.
+ *
+ * Use for:
+ *   - turretAngle → turretDir16 (turret tracks screen aim direction)
+ *   - bodyAngle from free-movement (Math.atan2 of screen-space dx/dy)
+ *
+ * Applies +π/4 offset so runtime screen angles map to correct dir16
+ * per the Denis truth map. Each direction spans π/8 radians.
+ */
+export function screenAngleToModularDir16(angleRad: number): GeneratedModularDir16 {
+  let a = (angleRad + SCREEN_ANGLE_OFFSET) % (2 * Math.PI);
+  if (a < 0) a += 2 * Math.PI;
   const step = (2 * Math.PI) / 16;
   const idx = Math.round(a / step) % 16;
   return idx as GeneratedModularDir16;
+}
+
+/**
+ * Converts a grid-body angle to dir16.
+ *
+ * Use for:
+ *   - bodyAngle from grid movement (directionToAngle() convention)
+ *
+ * Grid-body angles use a different convention than screen-space angles:
+ * directionToAngle() maps cardinal tile directions to screen-cardinal
+ * angles without the isometric rotation. Adding +π/2 total offset
+ * accounts for both the screen→dir16 alignment and the isometric
+ * rotation, mapping grid directions to the correct visual dir16.
+ *
+ * Denis truth map verification:
+ *   grid east  (angle 0)     → dir4  (SE) ✓
+ *   grid south (angle π/2)  → dir8  (SW) ✓
+ *   grid west  (angle π)    → dir12 (NW) ✓
+ *   grid north (angle -π/2) → dir0  (NE) ✓
+ */
+export function gridBodyAngleToModularDir16(angleRad: number): GeneratedModularDir16 {
+  let a = (angleRad + GRID_BODY_ANGLE_OFFSET) % (2 * Math.PI);
+  if (a < 0 || Object.is(a, -0)) a += 2 * Math.PI;
+  const step = (2 * Math.PI) / 16;
+  const idx = Math.round(a / step) % 16;
+  return idx as GeneratedModularDir16;
+}
+
+/**
+ * @deprecated Use screenAngleToModularDir16() or gridBodyAngleToModularDir16()
+ * instead. This function does not distinguish between screen-space (turret)
+ * and grid-body (hull) angle conventions.
+ *
+ * Preserved for backward compatibility; delegates to screenAngleToModularDir16.
+ */
+export function runtimeAngleToDir16(angleRad: number): GeneratedModularDir16 {
+  return screenAngleToModularDir16(angleRad);
 }
 
 // ─── Full mapper ───────────────────────────────────────────────────
@@ -176,24 +234,24 @@ export function blockoutToModularVisual(args: {
   if (!hullId) {
     return {
       visual: null,
-      hullDir16: runtimeAngleToDir16(args.bodyAngle),
-      turretDir16: runtimeAngleToDir16(args.turretAngle),
+      hullDir16: gridBodyAngleToModularDir16(args.bodyAngle),
+      turretDir16: screenAngleToModularDir16(args.turretAngle),
       failReason: `no modular hull for bodyId=${args.bodyId}`,
     };
   }
   if (!turretId) {
     return {
       visual: null,
-      hullDir16: runtimeAngleToDir16(args.bodyAngle),
-      turretDir16: runtimeAngleToDir16(args.turretAngle),
+      hullDir16: gridBodyAngleToModularDir16(args.bodyAngle),
+      turretDir16: screenAngleToModularDir16(args.turretAngle),
       failReason: `no modular turret for weaponId=${args.weaponId}`,
     };
   }
   if (!factionId) {
     return {
       visual: null,
-      hullDir16: runtimeAngleToDir16(args.bodyAngle),
-      turretDir16: runtimeAngleToDir16(args.turretAngle),
+      hullDir16: gridBodyAngleToModularDir16(args.bodyAngle),
+      turretDir16: screenAngleToModularDir16(args.turretAngle),
       failReason: `no modular faction for faction=${args.faction}`,
     };
   }
@@ -209,8 +267,8 @@ export function blockoutToModularVisual(args: {
       hullMod,
       turretMod,
     },
-    hullDir16: runtimeAngleToDir16(args.bodyAngle),
-    turretDir16: runtimeAngleToDir16(args.turretAngle),
+    hullDir16: gridBodyAngleToModularDir16(args.bodyAngle),
+    turretDir16: screenAngleToModularDir16(args.turretAngle),
     failReason: null,
   };
 }

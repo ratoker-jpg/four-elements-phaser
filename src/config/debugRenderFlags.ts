@@ -90,6 +90,31 @@ export interface DebugRenderFlags {
    * Now gated behind this explicit flag (default false).
    */
   enemyTeamIndicator: boolean;
+
+  /**
+   * Show blockout obstacle geometry (walls, barriers, crates, rocks) in the
+   * Arena view. Default: false.
+   *
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Default Arena should not show
+   * obstacle geometry. Obstacle combat/blocking logic is preserved;
+   * only the visual rendering is gated. Obstacle debug labels are
+   * separately gated by BlockoutObstacleRenderer.showDebugLabels.
+   *
+   * Explicit obstacle/debug scenarios (DEFAULT_SANDBOX_SCENARIO) set this
+   * flag to true when the scenario has obstacles. Arena sandbox has no
+   * obstacles and keeps this false.
+   */
+  obstacleGeometry: boolean;
+
+  /**
+   * Show damage hit markers (white circle + red X at hit point).
+   * Default: true (intended gameplay feedback, NOT a debug artifact).
+   *
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Added as an explicit flag so it
+   * can be suppressed for visual QA comparison. Default remains true
+   * because hit markers are core damage feedback, not debug-only.
+   */
+  damageHitMarker: boolean;
 }
 
 /**
@@ -105,6 +130,8 @@ export const debugRenderFlags: DebugRenderFlags = {
   debugLabels: false,
   targetLockIndicator: false,
   enemyTeamIndicator: false,
+  obstacleGeometry: false,
+  damageHitMarker: true,
 };
 
 /**
@@ -118,6 +145,8 @@ export function resetDebugRenderFlags(): void {
   debugRenderFlags.debugLabels = false;
   debugRenderFlags.targetLockIndicator = false;
   debugRenderFlags.enemyTeamIndicator = false;
+  debugRenderFlags.obstacleGeometry = false;
+  debugRenderFlags.damageHitMarker = true;
 }
 
 /**
@@ -152,6 +181,8 @@ export function areAllDebugRenderFlagsOff(): boolean {
     !debugRenderFlags.mountPoints &&
     !debugRenderFlags.debugLabels &&
     !debugRenderFlags.targetLockIndicator &&
-    !debugRenderFlags.enemyTeamIndicator
+    !debugRenderFlags.enemyTeamIndicator &&
+    !debugRenderFlags.obstacleGeometry &&
+    debugRenderFlags.damageHitMarker // true is default
   );
 }

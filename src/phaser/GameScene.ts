@@ -34,6 +34,7 @@ import {
 import { projectGroundPoint } from '../config/cameraProjectionContract';
 import { BlockoutVehicleInputController } from './input/BlockoutVehicleInputController';
 import { DEFAULT_SANDBOX_SCENARIO, ARENA_SANDBOX_SCENARIO } from '../config/blockoutScenarioData';
+import { setDebugRenderFlag } from '../config/debugRenderFlags';
 import { resetBlockoutScenario } from '../state/blockoutScenario';
 import { updateBlockoutVehicleMovement } from '../state/blockoutMovement';
 import { TileReservationMap, RESERVATION_MAX_AGE_MS } from '../state/tileReservation';
@@ -483,6 +484,10 @@ export class GameScene extends Phaser.Scene {
     if (this.devtoolsActive) {
       const scenario = this.arenaMode ? ARENA_SANDBOX_SCENARIO : DEFAULT_SANDBOX_SCENARIO;
       resetBlockoutScenario(this.gameState, scenario);
+      // ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Enable obstacle geometry only
+      // when the scenario has obstacles (DEFAULT_SANDBOX_SCENARIO).
+      // Arena sandbox has no obstacles — keep flag false.
+      setDebugRenderFlag('obstacleGeometry', scenario.obstacles.length > 0);
       console.log('[GameScene] Blockout vehicle renderer enabled. Spawned', this.arenaMode ? 'arena' : 'sandbox', 'scenario.');
     }
 
@@ -513,6 +518,8 @@ export class GameScene extends Phaser.Scene {
           // ARENA-01H+: Arena uses obstacle-free scenario on reset
           const scenario = this.arenaMode ? ARENA_SANDBOX_SCENARIO : DEFAULT_SANDBOX_SCENARIO;
           resetBlockoutScenario(this.gameState, scenario);
+          // ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Sync obstacle geometry flag
+          setDebugRenderFlag('obstacleGeometry', scenario.obstacles.length > 0);
           // CORE-STEP-06H+: Reinitialize reservation map on scenario reset
           this.reservationMap = new TileReservationMap(this.gameState.mapWidth);
           console.log('[GameScene] Scenario reset to', this.arenaMode ? 'arena' : 'defaults', '.');
