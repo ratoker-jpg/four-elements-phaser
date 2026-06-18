@@ -231,92 +231,92 @@ export class RenderManager {
    *
    * Preserves exact sync order from original GameScene.update().
    */
-  syncFromState(state: GameState, timeNow: number, delta: number, opts: {
-    devtoolsActive: boolean;
-    arenaMode: boolean;
-    blockoutVehicleInputController?: {
-      update: (delta: number) => void;
-      hoveredVehicleId: string | null;
-      selectedVehicleId: string | null;
-    };
-  }): void {
-    // 1. Entity renderer
+  /**
+   * FIXUP-1: Phase 1 — sync civil render state.
+   *
+   * Called from GameScene.update() after civil gameplay updates.
+   * Owns sync calls for: entity, building, debug overlay, feedback,
+   * motion FX, asset preview tool.
+   *
+   * Preserves exact sync order from original GameScene.update().
+   */
+  syncCivilRenderState(state: GameState, timeNow: number): void {
     this.entityRenderer?.syncFromState(state);
-
-    // 2. Building status renderer
     this.buildingStatusRenderer?.syncFromState(state);
-
-    // 3. Devtools panel update (handled by GameScene — it owns DevtoolsPanel)
-
-    // 4. Debug overlay renderer
     this.debugOverlayRenderer?.syncFromState(state);
-
-    // 5. Feedback renderer
     this.feedbackRenderer?.syncFromState(state, timeNow);
-
-    // 6. Motion FX renderer
     this.motionFxRenderer?.syncFromState(state, timeNow);
-
-    // 7. Asset preview tool update
     this.assetPreviewTool?.update();
+  }
 
-    // 8. Blockout vehicle input controller update + hover/target sync
-    if (opts.blockoutVehicleInputController && opts.devtoolsActive) {
-      opts.blockoutVehicleInputController.update(delta);
-      if (this.blockoutVehicleRenderer) {
-        this.blockoutVehicleRenderer.setHoveredVehicleId(opts.blockoutVehicleInputController.hoveredVehicleId);
-        if (opts.arenaMode) {
-          const selectedId = opts.blockoutVehicleInputController.selectedVehicleId;
-          const vehicles = state.blockoutVehicles;
-          const selected = selectedId ? vehicles?.find(v => v.id === selectedId) : null;
-          this.blockoutVehicleRenderer.setTargetedVehicleId(selected?.targetVehicleId ?? null);
-        } else {
-          this.blockoutVehicleRenderer.setTargetedVehicleId(null);
-        }
-      }
+  /**
+   * FIXUP-1: Phase 2 — sync blockout input visual state.
+   *
+   * Called from GameScene.update() after blockoutVehicleInputController.update().
+   * Owns hover/target visual state sync for blockout vehicle renderer.
+   */
+  syncBlockoutInputVisualState(
+    state: GameState,
+    hoveredVehicleId: string | null,
+    selectedVehicleId: string | null,
+    arenaMode: boolean,
+  ): void {
+    if (!this.blockoutVehicleRenderer) return;
+    this.blockoutVehicleRenderer.setHoveredVehicleId(hoveredVehicleId);
+    if (arenaMode) {
+      const selected = selectedVehicleId ? state.blockoutVehicles?.find(v => v.id === selectedVehicleId) : null;
+      this.blockoutVehicleRenderer.setTargetedVehicleId(selected?.targetVehicleId ?? null);
+    } else {
+      this.blockoutVehicleRenderer.setTargetedVehicleId(null);
     }
+  }
 
-    // 9. Blockout vehicle renderer sync
+  /**
+   * FIXUP-1: Phase 3 — sync blockout render state.
+   *
+   * Called from GameScene.update() after all blockout gameplay updates
+   * (movement, AI, combat, weapon resources).
+   * Owns sync calls for: blockout vehicle, weapon VFX, damage, obstacle,
+   * upgrade, sandbox HUD.
+   *
+   * Preserves exact sync order from original GameScene.update().
+   */
+  syncBlockoutRenderState(
+    state: GameState,
+    timeNow: number,
+    selectedVehicleId: string | null,
+    devtoolsActive: boolean,
+    arenaMode: boolean,
+  ): void {
     if (this.blockoutVehicleRenderer && state.blockoutVehicles) {
       this.blockoutVehicleRenderer.syncFromState(state.blockoutVehicles);
     }
-
-    // 10. Blockout weapon VFX sync
-    if (this.blockoutWeaponVfxRenderer && opts.devtoolsActive) {
+    if (this.blockoutWeaponVfxRenderer && devtoolsActive) {
       this.blockoutWeaponVfxRenderer.syncFromState(timeNow);
     }
-
-    // 11. Blockout damage renderer sync
-    if (this.blockoutDamageRenderer && opts.devtoolsActive && state.blockoutVehicles) {
+    if (this.blockoutDamageRenderer && devtoolsActive && state.blockoutVehicles) {
       this.blockoutDamageRenderer.syncFromState(timeNow, state.blockoutVehicles);
     }
-
-    // 12. Blockout obstacle renderer sync
-    if (this.blockoutObstacleRenderer && opts.devtoolsActive && state.blockoutObstacles) {
+    if (this.blockoutObstacleRenderer && devtoolsActive && state.blockoutObstacles) {
       this.blockoutObstacleRenderer.syncFromState(state.blockoutObstacles);
     }
-
-    // 13. Blockout upgrade renderer sync
-    if (this.blockoutUpgradeRenderer && opts.devtoolsActive && state.blockoutVehicles) {
-      this.blockoutUpgradeRenderer.syncFromState(state.blockoutVehicles, opts.blockoutVehicleInputController?.selectedVehicleId ?? null);
+    if (this.blockoutUpgradeRenderer && devtoolsActive && state.blockoutVehicles) {
+      this.blockoutUpgradeRenderer.syncFromState(state.blockoutVehicles, selectedVehicleId);
     }
-
-    // 14. Blockout sandbox HUD sync
-    if (this.blockoutSandboxHudRenderer && opts.devtoolsActive) {
-      if (opts.arenaMode) {
-        const selectedId = opts.blockoutVehicleInputController?.selectedVehicleId ?? null;
-        const selected = selectedId ? state.blockoutVehicles?.find(v => v.id === selectedId) : null;
+    if (this.blockoutSandboxHudRenderer && devtoolsActive) {
+      if (arenaMode) {
+        const selected = selectedVehicleId ? state.blockoutVehicles?.find(v => v.id === selectedVehicleId) : null;
         const targetId = selected?.targetVehicleId ?? null;
         this.blockoutSandboxHudRenderer.syncFromStateArena(
           state.blockoutVehicles,
-          selectedId,
+          selectedVehicleId,
           targetId,
           timeNow,
         );
       } else {
         this.blockoutSandboxHudRenderer.syncFromState(
           state.blockoutVehicles,
-          opts.blockoutVehicleInputController?.selectedVehicleId ?? null,
+          selectedVehicleId,
           timeNow,
         );
       }
