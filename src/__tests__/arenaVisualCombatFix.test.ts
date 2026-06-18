@@ -317,7 +317,6 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: muzzle/VFX origin', () => {
 
     // Angle = π (left)
     const tip2X = mountX + Math.cos(Math.PI) * barrelLength;
-    const _tip2Y = mountY + Math.sin(Math.PI) * barrelLength;
 
     // Tip should be to the left of mount
     expect(tip2X).toBeLessThan(mountX);
