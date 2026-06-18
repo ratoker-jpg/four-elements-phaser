@@ -94,9 +94,9 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: friendly fire off', () => {
   });
 
   it('same-team ally is excluded from direct hit', () => {
-    const shooter = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, Math.PI / 2, 'ally');
-    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 'ally');
-    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 'enemy');
+    const shooter = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, Math.PI / 2, 120, 'ally');
+    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 120, 'ally');
+    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 120, 'enemy');
 
     const vehicles = [shooter, ally, enemy];
     const shooterScreenX = shooter.worldX + TEST_OFFSET.x;
@@ -112,9 +112,9 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: friendly fire off', () => {
   });
 
   it('same-team ally is excluded from splash damage', () => {
-    const shooter = createBlockoutVehicle('wasp', 'thunder', 'cyan', 10, 10, Math.PI / 2, 'ally');
-    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 'ally');
-    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 'enemy');
+    const shooter = createBlockoutVehicle('wasp', 'thunder', 'cyan', 10, 10, Math.PI / 2, 120, 'ally');
+    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 120, 'ally');
+    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 120, 'enemy');
 
     const vehicles = [shooter, ally, enemy];
     const allyCenter = computeBodyWorldCenter(ally, TEST_OFFSET);
@@ -126,9 +126,9 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: friendly fire off', () => {
   });
 
   it('same-team ally is excluded from cone targets', () => {
-    const shooter = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 10, 10, Math.PI / 2, 'ally');
-    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 'ally');
-    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 'enemy');
+    const shooter = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 10, 10, Math.PI / 2, 120, 'ally');
+    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 120, 'ally');
+    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 120, 'enemy');
 
     const vehicles = [shooter, ally, enemy];
     const shooterScreenX = shooter.worldX + TEST_OFFSET.x;
@@ -140,9 +140,9 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: friendly fire off', () => {
   });
 
   it('same-team ally is excluded from beam targets', () => {
-    const shooter = createBlockoutVehicle('wasp', 'isida', 'cyan', 10, 10, Math.PI / 2, 'ally');
-    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 'ally');
-    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 'enemy');
+    const shooter = createBlockoutVehicle('wasp', 'isida', 'cyan', 10, 10, Math.PI / 2, 120, 'ally');
+    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 120, 'ally');
+    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 120, 'enemy');
 
     const vehicles = [shooter, ally, enemy];
     const shooterScreenX = shooter.worldX + TEST_OFFSET.x;
@@ -154,9 +154,9 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: friendly fire off', () => {
   });
 
   it('same-team ally is excluded from penetration targets', () => {
-    const shooter = createBlockoutVehicle('wasp', 'railgun', 'cyan', 10, 10, Math.PI / 2, 'ally');
-    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 'ally');
-    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 'enemy');
+    const shooter = createBlockoutVehicle('wasp', 'railgun', 'cyan', 10, 10, Math.PI / 2, 120, 'ally');
+    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 120, 'ally');
+    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 120, 'enemy');
 
     const vehicles = [shooter, ally, enemy];
     const shooterScreenX = shooter.worldX + TEST_OFFSET.x;
@@ -168,9 +168,9 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: friendly fire off', () => {
   });
 
   it('same-team ally is excluded from shotgun targets', () => {
-    const shooter = createBlockoutVehicle('wasp', 'hammer', 'cyan', 10, 10, Math.PI / 2, 'ally');
-    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 'ally');
-    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 'enemy');
+    const shooter = createBlockoutVehicle('wasp', 'hammer', 'cyan', 10, 10, Math.PI / 2, 120, 'ally');
+    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 120, 'ally');
+    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 120, 'enemy');
 
     const vehicles = [shooter, ally, enemy];
     const shooterScreenX = shooter.worldX + TEST_OFFSET.x;
@@ -182,9 +182,9 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: friendly fire off', () => {
   });
 
   it('same-team ally is excluded from ricochet targets', () => {
-    const shooter = createBlockoutVehicle('wasp', 'ricochet', 'cyan', 10, 10, Math.PI / 2, 'ally');
-    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 'ally');
-    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 'enemy');
+    const shooter = createBlockoutVehicle('wasp', 'ricochet', 'cyan', 10, 10, Math.PI / 2, 120, 'ally');
+    const ally = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 12, Math.PI / 2, 120, 'ally');
+    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 120, 'enemy');
 
     const vehicles = [shooter, ally, enemy];
     const shooterScreenX = shooter.worldX + TEST_OFFSET.x;
@@ -196,8 +196,8 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: friendly fire off', () => {
   });
 
   it('enemy vehicle IS included in direct hit', () => {
-    const shooter = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, Math.PI / 2, 'ally');
-    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 'enemy');
+    const shooter = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, Math.PI / 2, 120, 'ally');
+    const enemy = createBlockoutVehicle('hunter', 'thunder', 'green', 10, 14, -Math.PI / 2, 120, 'enemy');
 
     const vehicles = [shooter, enemy];
     const shooterScreenX = shooter.worldX + TEST_OFFSET.x;
@@ -211,7 +211,7 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: friendly fire off', () => {
   });
 
   it('self-damage is still excluded by default (selfDamageScale === 0)', () => {
-    const shooter = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, Math.PI / 2, 'ally');
+    const shooter = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, Math.PI / 2, 120, 'ally');
 
     const vehicles = [shooter];
     const shooterScreenX = shooter.worldX + TEST_OFFSET.x;
@@ -231,7 +231,7 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: turret tracking', () => {
   });
 
   it('rotateTurretToward moves turretAngle toward desired angle', () => {
-    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, 0, 'ally');
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, 0, 120, 'ally');
     // Start turret facing right (angle = 0)
     vehicle.turretAngle = 0;
 
@@ -244,7 +244,7 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: turret tracking', () => {
   });
 
   it('rotateTurretToward eventually reaches target angle', () => {
-    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, 0, 'ally');
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, 0, 120, 'ally');
     vehicle.turretAngle = 0;
 
     // Simulate many frames of rotation
@@ -258,7 +258,7 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: turret tracking', () => {
   });
 
   it('turretTargetAngle is set by rotateTurretToward', () => {
-    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, 0, 'ally');
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, 0, 120, 'ally');
     vehicle.turretAngle = 0;
 
     rotateTurretToward(vehicle, Math.PI / 2, 16);
@@ -267,7 +267,7 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: turret tracking', () => {
   });
 
   it('when target cleared, turret can return to body angle', () => {
-    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, Math.PI / 4, 'ally');
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, Math.PI / 4, 120, 'ally');
     vehicle.turretAngle = Math.PI / 2; // turret facing away from body
     vehicle.turretTargetAngle = Math.PI / 2;
 
@@ -317,7 +317,7 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: muzzle/VFX origin', () => {
 
     // Angle = π (left)
     const tip2X = mountX + Math.cos(Math.PI) * barrelLength;
-    const tip2Y = mountY + Math.sin(Math.PI) * barrelLength;
+    const _tip2Y = mountY + Math.sin(Math.PI) * barrelLength;
 
     // Tip should be to the left of mount
     expect(tip2X).toBeLessThan(mountX);
@@ -327,7 +327,7 @@ describe('ARENA-VISUAL-COMBAT-FIX-01: muzzle/VFX origin', () => {
     // The barrel tip must NOT be at the body center (worldX, worldY).
     // This is the core requirement: VFX origin must come from turret/muzzle,
     // not hull center.
-    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, Math.PI / 2, 'ally');
+    const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 10, 10, Math.PI / 2, 120, 'ally');
     vehicle.turretAngle = Math.PI / 2;
 
     const bodyCenter = computeBodyWorldCenter(vehicle, TEST_OFFSET);
