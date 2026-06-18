@@ -145,3 +145,91 @@ describe('VEHICLE-RENDER-UNIFY-04-VH: no legacy renderer resurrection', () => {
     expect(renderManagerSrc).not.toMatch(/tunerState/);
   });
 });
+
+
+// ─── FIXUP-1: RenderManager owns sync orchestration ───────────────
+
+import gameSceneSrcFixup1 from '../phaser/GameScene?raw';
+import renderManagerSrcFixup1 from '../phaser/render/RenderManager?raw';
+
+describe('VEHICLE-RENDER-UNIFY-04-VH-FIXUP-1: RenderManager owns sync orchestration', () => {
+  it('RenderManager has syncCivilRenderState method', () => {
+    expect(renderManagerSrcFixup1).toMatch(/syncCivilRenderState\(/);
+  });
+
+  it('RenderManager has syncBlockoutInputVisualState method', () => {
+    expect(renderManagerSrcFixup1).toMatch(/syncBlockoutInputVisualState\(/);
+  });
+
+  it('RenderManager has syncBlockoutRenderState method', () => {
+    expect(renderManagerSrcFixup1).toMatch(/syncBlockoutRenderState\(/);
+  });
+
+  it('GameScene.update() calls syncCivilRenderState', () => {
+    expect(gameSceneSrcFixup1).toMatch(/renderManager\?\.syncCivilRenderState/);
+  });
+
+  it('GameScene.update() calls syncBlockoutInputVisualState', () => {
+    expect(gameSceneSrcFixup1).toMatch(/renderManager\?\.syncBlockoutInputVisualState/);
+  });
+
+  it('GameScene.update() calls syncBlockoutRenderState', () => {
+    expect(gameSceneSrcFixup1).toMatch(/renderManager\?\.syncBlockoutRenderState/);
+  });
+
+  it('GameScene no longer directly calls entityRenderer?.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/entityRenderer\?\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls buildingStatusRenderer?.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/buildingStatusRenderer\?\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls debugOverlayRenderer?.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/debugOverlayRenderer\?\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls feedbackRenderer?.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/feedbackRenderer\?\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls motionFxRenderer?.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/motionFxRenderer\?\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls assetPreviewTool?.update', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/assetPreviewTool\?\.update/);
+  });
+
+  it('GameScene no longer directly calls blockoutVehicleRenderer.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/blockoutVehicleRenderer\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls blockoutWeaponVfxRenderer.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/blockoutWeaponVfxRenderer\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls blockoutDamageRenderer.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/blockoutDamageRenderer\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls blockoutObstacleRenderer.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/blockoutObstacleRenderer\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls blockoutUpgradeRenderer.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/blockoutUpgradeRenderer\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls blockoutSandboxHudRenderer.syncFromState', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/blockoutSandboxHudRenderer\.syncFromState/);
+  });
+
+  it('GameScene no longer directly calls blockoutVehicleRenderer.setHoveredVehicleId', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/blockoutVehicleRenderer\.setHoveredVehicleId/);
+  });
+
+  it('GameScene no longer directly calls blockoutVehicleRenderer.setTargetedVehicleId', () => {
+    expect(gameSceneSrcFixup1).not.toMatch(/blockoutVehicleRenderer\.setTargetedVehicleId/);
+  });
+});
