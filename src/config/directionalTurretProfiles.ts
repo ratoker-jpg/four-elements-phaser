@@ -295,6 +295,80 @@ export const SMOKY_M23_DIRECTIONAL_PROFILE: DirectionalTurretMarkerProfile = {
   ],
 };
 
+// ── TURRET_MUZZLE_PROFILE (ARENA-VISUAL-COMBAT-FIX-01 fixup-6) ───────
+
+/**
+ * Per-turret muzzle offset profile, in screen pixels relative to the turret
+ * PIVOT, expressed in a turret-local frame (forward = the screen direction
+ * the turret currently faces; lateral = 90° clockwise from forward).
+ *
+ * WHY THIS EXISTS (and is not "guessing"):
+ *   - Only Smoky has real exported per-direction muzzle metadata
+ *     (SMOKY_*_DIRECTIONAL_PROFILE, projected from 3DS). Every other turret
+ *     the Arena shows has NO exported muzzle marker yet.
+ *   - fixup-1..5 computed the muzzle as `pivot + cos/sin(turretAngle)*len`.
+ *     That is wrong twice over: (a) `turretAngle` is grid-space while the
+ *     turret rests (root cause D), so the muzzle pointed the wrong way at
+ *     rest; (b) it ignored that real barrels sit slightly off the pivot
+ *     centre-line (lateral) and above the ground plane (vertical).
+ *   - This table replaces that with an explicit, documented per-turret
+ *     forward/lateral/vertical offset, applied along the SCREEN direction of
+ *     the resolved `turretDir16` (via dir16ToScreenAngle), so the muzzle is
+ *     correct at rest AND while aiming.
+ *
+ * TEMPORARY: these are approximate, hand-set per visible turret. They are a
+ * stand-in until real per-direction muzzle markers are exported for every
+ * turret (like Smoky's). When that data exists, resolveTurretMuzzlesForDir()
+ * takes priority and this profile is only the fallback.
+ *
+ * Coordinate convention (screen pixels, turret-local):
+ *   - muzzleForwardPx : distance pivot→muzzle along the barrel (always > 0).
+ *   - muzzleLateralPx : sideways offset, +right of the forward direction.
+ *   - muzzleVerticalPx: screen-Y correction (− = up) for barrel height above
+ *                       the ground/pivot plane. Small; kept conservative.
+ */
+export interface TurretMuzzleProfile {
+  muzzleForwardPx: number;
+  muzzleLateralPx: number;
+  muzzleVerticalPx: number;
+  note: string;
+}
+
+/** Safe fallback muzzle profile for turrets without an explicit entry. */
+export const DEFAULT_TURRET_MUZZLE_PROFILE: TurretMuzzleProfile = {
+  muzzleForwardPx: 24,
+  muzzleLateralPx: 0,
+  muzzleVerticalPx: 0,
+  note: 'default fallback — centred forward barrel, no lateral/vertical',
+};
+
+/**
+ * Approximate muzzle profiles for the currently visible Arena turrets.
+ * Keyed by modular turret id (see WEAPON_TO_TURRET_MAP). Forward lengths
+ * mirror the previously-used MODULAR_BARREL_LENGTH_PX so we do not regress
+ * barrel reach; lateral/vertical stay 0 unless a turret visibly needs it.
+ */
+export const TURRET_MUZZLE_PROFILE: Record<string, TurretMuzzleProfile> = {
+  smoky:    { muzzleForwardPx: 28, muzzleLateralPx: 0, muzzleVerticalPx: -2, note: 'fallback only — Smoky has real per-dir data' },
+  thunder:  { muzzleForwardPx: 32, muzzleLateralPx: 0, muzzleVerticalPx: -2, note: 'approx; single long barrel' },
+  railgun:  { muzzleForwardPx: 42, muzzleLateralPx: 0, muzzleVerticalPx: -2, note: 'approx; longest barrel' },
+  firebird: { muzzleForwardPx: 18, muzzleLateralPx: 0, muzzleVerticalPx: -1, note: 'approx; short flame nozzle' },
+  freeze:   { muzzleForwardPx: 18, muzzleLateralPx: 0, muzzleVerticalPx: -1, note: 'approx; short nozzle' },
+  isida:    { muzzleForwardPx: 22, muzzleLateralPx: 0, muzzleVerticalPx: -1, note: 'approx; emitter' },
+  vulcan_b: { muzzleForwardPx: 22, muzzleLateralPx: 0, muzzleVerticalPx: -2, note: 'approx; rotary barrel cluster' },
+  twins:    { muzzleForwardPx: 18, muzzleLateralPx: 3, muzzleVerticalPx: -1, note: 'approx; twin barrels, slight right offset' },
+  ricochet: { muzzleForwardPx: 28, muzzleLateralPx: 0, muzzleVerticalPx: -2, note: 'approx' },
+  hammer:   { muzzleForwardPx: 22, muzzleLateralPx: 0, muzzleVerticalPx: -2, note: 'approx; drum barrel' },
+};
+
+/**
+ * Resolve the muzzle profile for a turret id, with a safe fallback for
+ * turrets without an explicit entry. Never throws.
+ */
+export function getTurretMuzzleProfile(turretId: string): TurretMuzzleProfile {
+  return TURRET_MUZZLE_PROFILE[turretId] ?? DEFAULT_TURRET_MUZZLE_PROFILE;
+}
+
 // ── Profile registry ───────────────────────────────────────────────
 
 /**

@@ -20,6 +20,7 @@ import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { getBodyProfile } from '../../config/blockoutBodyData';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import { unprojectScreenToGround, projectGroundPoint, projectWorldPoint, PROJ_TILE_W } from '../../config/cameraProjectionContract';
+import { getHullRingScale } from '../../config/hullVisualProfiles';
 import type { IsoPoint } from './isometric';
 
 // ─── Body pixel size by blockoutShape ──────────────────────────────
@@ -192,7 +193,13 @@ export function getHullSelectionRingRadiusTiles(bodyId: string): number {
   // Half-extent in pixels → tile units (matches the body geometry convention
   // where body half-extent in tiles = bodySize / PROJ_TILE_W).
   const halfExtentPx = Math.max(size.w, size.h) / 2;
-  return (halfExtentPx / PROJ_TILE_W) * SELECTION_RING_FOOTPRINT_MARGIN;
+  // ARENA-VISUAL-COMBAT-FIX-01 fixup-6: apply the per-hull ringScale from the
+  // HULL_VISUAL_PROFILE so the selection ring is explicitly hull-profile
+  // dependent (the footprint already encodes weight; ringScale is the
+  // documented per-hull fine-tune hook). Defaults to 1.0 for every current
+  // Arena hull, so the footprint formula is preserved.
+  const ringScale = getHullRingScale(bodyId);
+  return (halfExtentPx / PROJ_TILE_W) * SELECTION_RING_FOOTPRINT_MARGIN * ringScale;
 }
 
 // ─── Shared turret constants (PROJECTION-01 fixup) ──────────────────

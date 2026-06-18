@@ -190,6 +190,33 @@ export function gridBodyAngleToModularDir16(angleRad: number): GeneratedModularD
 }
 
 /**
+ * Inverse of screenAngleToModularDir16: the canonical SCREEN-space angle
+ * (radians, Phaser y-down) at the centre of a given dir16 index.
+ *
+ * Used by the muzzle/VFX origin math: the barrel must extend in the screen
+ * direction that the turret SPRITE for `turretDir16` actually faces, NOT the
+ * raw runtime `turretAngle` (which is grid-space while the turret rests and
+ * screen-space only while aiming — see ARENA-VISUAL-COMBAT-FIX-01 fixup-6
+ * root cause D). Deriving the barrel direction from the already-resolved
+ * dir16 keeps the muzzle aligned with the visible barrel in BOTH rest and
+ * attack, because dir16 is the single source of truth for which turret PNG
+ * frame is on screen.
+ *
+ *   screenAngleToModularDir16(a) = round((a + π/4) / (π/8)) mod 16
+ *   ⇒ centre angle of dir d = d·(π/8) − π/4
+ *
+ * Verification (Denis screen truth map):
+ *   dir0  → −π/4  (screen up-right,   NE) ✓
+ *   dir4  →  π/4  (screen down-right, SE) ✓
+ *   dir8  →  3π/4 (screen down-left,  SW) ✓
+ *   dir12 →  5π/4 (screen up-left,    NW) ✓
+ */
+export function dir16ToScreenAngle(dir16: number): number {
+  const step = (2 * Math.PI) / 16;
+  return dir16 * step - SCREEN_ANGLE_OFFSET;
+}
+
+/**
  * @deprecated Use screenAngleToModularDir16() or gridBodyAngleToModularDir16()
  * instead. This function does not distinguish between screen-space (turret)
  * and grid-body (hull) angle conventions.
@@ -226,32 +253,63 @@ export function blockoutToModularVisual(args: {
   modificationLevel: number;
   bodyAngle: number;
   turretAngle: number;
+  /**
+   * Whether the turret is actively aiming at a target / under an aim override.
+   *
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-6 root cause D: `turretAngle` does NOT
+   * have a single coordinate convention. While the turret AIMS at a target,
+   * GameScene sets it from `angleFromTo(turretMountScreen, targetCenterScreen)`
+   * — a SCREEN-space angle. While the turret RESTS (no target), it is driven
+   * toward `bodyAngle` (setTurretRestTarget), which is GRID/tile-space.
+   *
+   * Feeding the rest (grid-space) angle into `screenAngleToModularDir16`
+   * (+π/4) while the hull uses `gridBodyAngleToModularDir16` (+π/2) put the
+   * turret 2 dir16 steps (≈45°) off the hull — the "turret points sideways
+   * while idle" QA failure.
+   *
+   * Fix: when NOT aiming, the turret is parallel to the hull, so we reuse the
+   * hull's grid-derived dir16 directly (turretDir16 === hullDir16). Only when
+   * aiming do we treat `turretAngle` as screen-space.
+   *
+   * Defaults to `true` (screen-space) so existing callers/tests that pass a
+   * real aim angle keep their behaviour; the live adapter passes the actual
+   * target state.
+   */
+  turretAiming?: boolean;
 }): BlockoutToModularResult {
   const hullId = bodyIdToModularHullId(args.bodyId);
   const turretId = weaponIdToModularTurretId(args.weaponId);
   const factionId = factionToModularFactionId(args.faction);
 
+  const hullDir16 = gridBodyAngleToModularDir16(args.bodyAngle);
+  const aiming = args.turretAiming ?? true;
+  // Rest pose: turret parallel to hull → identical dir16 (no screen mapping).
+  // Aiming: turret tracks a screen-space aim angle → screen mapping.
+  const turretDir16 = aiming
+    ? screenAngleToModularDir16(args.turretAngle)
+    : hullDir16;
+
   if (!hullId) {
     return {
       visual: null,
-      hullDir16: gridBodyAngleToModularDir16(args.bodyAngle),
-      turretDir16: screenAngleToModularDir16(args.turretAngle),
+      hullDir16,
+      turretDir16,
       failReason: `no modular hull for bodyId=${args.bodyId}`,
     };
   }
   if (!turretId) {
     return {
       visual: null,
-      hullDir16: gridBodyAngleToModularDir16(args.bodyAngle),
-      turretDir16: screenAngleToModularDir16(args.turretAngle),
+      hullDir16,
+      turretDir16,
       failReason: `no modular turret for weaponId=${args.weaponId}`,
     };
   }
   if (!factionId) {
     return {
       visual: null,
-      hullDir16: gridBodyAngleToModularDir16(args.bodyAngle),
-      turretDir16: screenAngleToModularDir16(args.turretAngle),
+      hullDir16,
+      turretDir16,
       failReason: `no modular faction for faction=${args.faction}`,
     };
   }
@@ -267,8 +325,8 @@ export function blockoutToModularVisual(args: {
       hullMod,
       turretMod,
     },
-    hullDir16: gridBodyAngleToModularDir16(args.bodyAngle),
-    turretDir16: screenAngleToModularDir16(args.turretAngle),
+    hullDir16,
+    turretDir16,
     failReason: null,
   };
 }
