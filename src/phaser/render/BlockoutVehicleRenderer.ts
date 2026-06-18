@@ -262,6 +262,17 @@ export class BlockoutVehicleRenderer {
   /** ARENA-03H+: Currently targeted vehicle ID (for target indicator rendering). */
   private _targetedVehicleId: string | null = null;
 
+  /**
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-5: shared ground-plane decal layer for
+   * selection / hover / target rings. These rings must render BEHIND/BELOW the
+   * hull sprites so the hull visually sits inside the ring. The per-vehicle
+   * `vehicleGraphics` layer sits at/above the hull depth (it also carries HP
+   * bars and the procedural turret, which must be on top), so the rings cannot
+   * live there. This single shared graphics object is depth-sorted just below
+   * all hull sprites and is cleared once per frame.
+   */
+  private groundRingGraphics: Phaser.GameObjects.Graphics | null = null;
+
   /** Generated hull sprite images keyed by blockout vehicle ID. */
   private vehicleHullSprites = new Map<string, Phaser.GameObjects.Image>();
 
@@ -376,6 +387,16 @@ export class BlockoutVehicleRenderer {
    */
   syncFromState(vehicles: BlockoutVehicleState[]): void {
     const activeIds = new Set<string>();
+
+    // fixup-5: ensure the shared ground-ring decal layer exists and clear it
+    // ONCE per frame (each vehicle appends its ring below). Depth is just below
+    // BLOCKOUT_DEPTH so all rings render under every hull sprite (which sit at
+    // BLOCKOUT_DEPTH + orderIdx - 0.5).
+    if (!this.groundRingGraphics) {
+      this.groundRingGraphics = this.scene.add.graphics();
+      this.groundRingGraphics.setDepth(BLOCKOUT_DEPTH - 1);
+    }
+    this.groundRingGraphics.clear();
 
     for (const vehicle of vehicles) {
       activeIds.add(vehicle.id);
@@ -791,12 +812,16 @@ export class BlockoutVehicleRenderer {
     // detached. Gameplay center/hitbox/range/pathfinding are unchanged; this is
     // purely the ring's visual radius.
     const ringRadius = getHullSelectionRingRadiusTiles(vehicle.bodyId);
+    // fixup-5: rings draw on the shared ground-ring layer (below hulls), not on
+    // the per-vehicle graphics `g` (which is at/above the hull). Falls back to
+    // `g` defensively if the layer is somehow absent.
+    const ringG = this.groundRingGraphics ?? g;
     if (isSelected) {
       const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 800) / 800 * Math.PI * 2);
       const alpha = 0.6 + 0.4 * pulse;
 
-      g.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
-      drawProjectedGroundRing(g, cx, cy, ringRadius, this.offset, 24);
+      ringG.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
+      drawProjectedGroundRing(ringG, cx, cy, ringRadius, this.offset, 24);
 
       // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity.
       // VEHICLE-RENDER-UNIFY-01-VH fixup: gate behind an EXPLICIT debug
@@ -840,8 +865,8 @@ export class BlockoutVehicleRenderer {
     // fixup-5: hover ring also scales to the hull footprint (slightly tighter
     // than the selection ring) so it reads as belonging to the hull body.
     if (isHovered && !isSelected) {
-      g.lineStyle(1.5, HOVER_RING_COLOR, HOVER_RING_ALPHA);
-      drawProjectedGroundRing(g, cx, cy, ringRadius * 0.9, this.offset, 20);
+      ringG.lineStyle(1.5, HOVER_RING_COLOR, HOVER_RING_ALPHA);
+      drawProjectedGroundRing(ringG, cx, cy, ringRadius * 0.9, this.offset, 20);
     }
 
     // ── ARENA-03H+: Target indicator (enemy being targeted by selected ally) ──
@@ -849,8 +874,8 @@ export class BlockoutVehicleRenderer {
     if (isTargeted && !isSelected) {
       const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 600) / 600 * Math.PI * 2);
       const alpha = 0.5 + 0.5 * pulse;
-      g.lineStyle(2, 0xff4444, alpha); // Red targeting ring
-      drawProjectedGroundRing(g, cx, cy, ringRadius, this.offset, 24);
+      ringG.lineStyle(2, 0xff4444, alpha); // Red targeting ring (ground layer)
+      drawProjectedGroundRing(ringG, cx, cy, ringRadius, this.offset, 24);
 
       // Small crosshair in center
       const crossSize = 0.12;
@@ -1493,6 +1518,12 @@ export class BlockoutVehicleRenderer {
       g.destroy();
     }
     this.vehicleGraphics.clear();
+
+    // fixup-5: tear down the shared ground-ring decal layer.
+    if (this.groundRingGraphics) {
+      this.groundRingGraphics.destroy();
+      this.groundRingGraphics = null;
+    }
 
     for (const [, label] of this.debugLabels) {
       label.destroy();
