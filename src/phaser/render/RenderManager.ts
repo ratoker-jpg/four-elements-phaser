@@ -4,7 +4,7 @@
  * Owns all render orchestration previously in GameScene:
  *   - renderer field ownership;
  *   - construction order (create());
- *   - per-frame sync order (syncFromState());
+ *   - per-frame sync order (syncCivilRenderState / syncBlockoutInputVisualState / syncBlockoutRenderState);
  *   - selected/hovered/targeted visual state sync;
  *   - destroy/shutdown order.
  *
@@ -20,7 +20,7 @@
  *
  * Design principle: RenderManager does NOT call gameplay logic.
  * It only syncs render state from GameState. GameScene calls
- * RenderManager.syncFromState() after all gameplay updates are done.
+ * RenderManager phase methods after all gameplay updates are done.
  *
  * Lifecycle order is preserved exactly from the original GameScene.
  */
@@ -95,7 +95,7 @@ export interface RenderManagerCreateOptions {
  *
  * Stage 4: extracted from GameScene to reduce its orchestration burden.
  * GameScene creates RenderManager, calls create() with options, then
- * calls syncFromState() each frame after gameplay updates, and
+ * calls phase methods each frame after gameplay updates, and
  * destroy() on shutdown.
  */
 export class RenderManager {
@@ -224,13 +224,7 @@ export class RenderManager {
     }
   }
 
-  /**
-   * Sync all renderers from game state.
-   * Called once per frame from GameScene.update() AFTER all gameplay
-   * updates (civil loop, blockout movement, AI, combat) are done.
-   *
-   * Preserves exact sync order from original GameScene.update().
-   */
+  // FIXUP-2: old syncFromState() replaced with 3 phase methods below.
   /**
    * FIXUP-1: Phase 1 — sync civil render state.
    *
@@ -413,6 +407,24 @@ export class RenderManager {
    */
   getIndustrialExtendedBounds(): Phaser.Geom.Rectangle | null {
     return this.industrialFrameRenderer?.getExtendedBounds() ?? null;
+  }
+
+
+  /**
+   * FIXUP-2: Toggle sandbox HUD help overlay.
+   * Called from GameScene when help hotkey is pressed.
+   */
+  toggleSandboxHelp(): void {
+    this.blockoutSandboxHudRenderer?.toggleHelp();
+  }
+
+  /**
+   * FIXUP-2: Toggle camera projection debug overlay.
+   * Called from GameScene when calibration hotkey is pressed.
+   * Returns new visibility state.
+   */
+  toggleCameraProjectionDebug(): boolean {
+    return this.cameraProjectionDebugRenderer?.toggle() ?? false;
   }
 
   /**
