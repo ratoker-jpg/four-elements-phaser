@@ -99,17 +99,13 @@ export class GameScene extends Phaser.Scene {
   private get terrainRenderer() { return this.renderManager?.terrainRenderer ?? null; }
   private get industrialFrameRenderer() { return this.renderManager?.industrialFrameRenderer ?? null; }
   private get entityRenderer() { return this.renderManager?.entityRenderer ?? null; }
-  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
+  // Stage 4: getters below provide access to renderers still needed by
+  // GameScene for input controller wiring, camera bounds, and devtools panel
+  // callbacks. All other renderer access is delegated to RenderManager phase
+  // methods (syncCivilRenderState / syncBlockoutInputVisualState / syncBlockoutRenderState)
+  // and bridge methods (setSelectedVehicleId / toggleSandboxHelp / toggleCameraProjectionDebug).
   private get feedbackRenderer() { return this.renderManager?.feedbackRenderer ?? null; }
-  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
   private get debugOverlayRenderer() { return this.renderManager?.debugOverlayRenderer ?? null; }
-  // Stage 4 FIXUP-2: getter removed (visual state owned by RenderManager)
-  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
-  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
-  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
-  // Stage 4 FIXUP-2: getter removed (sync owned by RenderManager)
-  // Stage 4 FIXUP-2: getter removed (visual state owned by RenderManager)
-  // Stage 4 FIXUP-2: getter removed (visual state owned by RenderManager)
   private get assetPreviewTool() { return this.renderManager?.assetPreviewTool ?? null; }
   private get assetPreviewPanel() { return this.renderManager?.assetPreviewPanel ?? null; }
 
