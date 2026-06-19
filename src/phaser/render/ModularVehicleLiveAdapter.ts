@@ -56,6 +56,7 @@ import {
 import {
   resolveTurretMuzzlesForDir,
   getTurretMuzzleProfile,
+  getMuzzleDir16Override,
 } from '../../config/directionalTurretProfiles';
 import { dir16ToScreenAngle } from '../../modular/blockoutToModularVisual';
 import { getHullVisualOffsetPx } from '../../config/hullVisualProfiles';
@@ -87,18 +88,23 @@ function getModularVisualCenterOffset(hullId: string): { dx: number; dy: number 
 
 /**
  * Compute a muzzle screen point from a base point (turret pivot or sprite
- * centre) using the per-turret TURRET_MUZZLE_PROFILE, projected along the
- * SCREEN direction of the resolved `turretDir16`.
+ * centre) using the per-turret muzzle data.
  *
- *   forward = dir16ToScreenAngle(turretDir16)
- *   lateral = forward rotated 90° clockwise in screen space (y-down): (-fy, fx)
- *   muzzle  = base + forward·muzzleForwardPx + lateral·muzzleLateralPx
- *             + (0, muzzleVerticalPx)
+ * ARENA-VISUAL-COMBAT-FIX-01 fixup-7: priority order is now:
+ *   1. Per-dir16 screen offset override (TURRET_MUZZLE_DIR16_OVERRIDE) —
+ *      direct (dx, dy) from PNG measurement, bypassing the broken
+ *      forwardPx + dir16ToScreenAngle decomposition entirely.
+ *   2. Flat TURRET_MUZZLE_PROFILE forward/lateral/vertical decomposition
+ *      (legacy fallback for turrets without per-dir16 data).
+ *
+ * The per-dir16 override is the preferred path for all Arena turrets (except
+ * Smoky which uses Priority-1 3DS data via resolveTurretMuzzlesForDir). The
+ * flat forwardPx approach is systematically wrong for diagonal directions
+ * because `dir16ToScreenAngle` does not match the actual barrel direction
+ * in the isometric PNG.
  *
  * Exported as a pure function so the muzzle math is unit-testable without a
- * live Phaser scene. This is the fixup-6 fallback shared by getModularBarrelTip
- * Priority 2 (pivot base) and Priority 3 (sprite-centre base). Priority 1
- * (Smoky real per-direction data) bypasses it.
+ * live Phaser scene.
  *
  * Direction comes from dir16 — NOT the raw runtime turret angle — so the
  * muzzle aligns with the visible (quantised) barrel PNG in both rest and
@@ -109,6 +115,18 @@ export function computeModularMuzzlePoint(
   turretId: string,
   turretDir16: number,
 ): { x: number; y: number } {
+  // Fixup-7 Priority A: per-dir16 screen offset from PNG measurement.
+  // Direct (dx, dy) bypasses the broken forward + dir16ToScreenAngle math.
+  const dirOverride = getMuzzleDir16Override(turretId, turretDir16);
+  if (dirOverride) {
+    return {
+      x: base.x + dirOverride.dx,
+      y: base.y + dirOverride.dy,
+    };
+  }
+
+  // Fixup-7 Priority B: flat forward/lateral/vertical decomposition.
+  // Legacy fallback for turrets without per-dir16 overrides.
   const profile = getTurretMuzzleProfile(turretId);
   const a = dir16ToScreenAngle(turretDir16);
   const fx = Math.cos(a);

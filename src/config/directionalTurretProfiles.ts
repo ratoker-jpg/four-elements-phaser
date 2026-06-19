@@ -369,6 +369,150 @@ export function getTurretMuzzleProfile(turretId: string): TurretMuzzleProfile {
   return TURRET_MUZZLE_PROFILE[turretId] ?? DEFAULT_TURRET_MUZZLE_PROFILE;
 }
 
+// ── Per-dir16 muzzle screen offsets (ARENA-VISUAL-COMBAT-FIX-01 fixup-7) ──
+
+/**
+ * A screen-space (dx, dy) offset from the composition pivot point to the
+ * muzzle tip, for one turret direction.
+ *
+ * This replaces the broken `forwardPx + dir16ToScreenAngle` approach, which
+ * assumed the barrel direction in screen space matches the theoretical
+ * isometric angle. It does NOT: the isometric projection makes barrels in
+ * cardinal PNG directions (E, S, W, N) appear at different screen angles
+ * than `dir16ToScreenAngle` predicts, and the forward distance varies
+ * significantly per direction.
+ *
+ * Source: automated measurement of forward-most non-transparent pixel in each
+ * cyan-m0 turret PNG, converted from source pixels to screen pixels via
+ * displayScale (0.16). The "forward-most" pixel is direction-dependent:
+ *   - dir00 (E): rightmost pixel
+ *   - dir04 (S): bottommost pixel
+ *   - dir08 (W): leftmost pixel
+ *   - dir12 (N): topmost pixel
+ *   - diagonals: pixel that maximises the forward component
+ *
+ * These are approximate — they measure the bounding edge, not the exact
+ * barrel tip geometry — but they are dramatically more accurate than the
+ * flat forwardPx approach, which systematically misplaced the muzzle by
+ * 5-15 screen pixels for diagonal directions.
+ *
+ * TEMPORARY until real per-direction muzzle markers are exported from 3DS
+ * for every turret (like Smoky's SMOKY_M01_DIRECTIONAL_PROFILE). When that
+ * data exists, resolveTurretMuzzlesForDir() (Priority 1) takes over and
+ * this table is only the Priority-2 fallback.
+ */
+export interface MuzzleDir16Override {
+  /** Screen-pixel offset from composition pivot to muzzle tip. */
+  dx: number;
+  dy: number;
+}
+
+/**
+ * Per-turret, per-dir16 muzzle screen offsets measured from actual PNG assets.
+ *
+ * Keyed by turretId → dir16 index → {dx, dy} in screen pixels from pivot.
+ * When a turret has an entry here, `computeModularMuzzlePoint` uses these
+ * direct offsets instead of the flat forward/lateral/vertical decomposition,
+ * eliminating the systematic isometric projection error.
+ *
+ * Smoky is NOT listed here because it has real 3DS-projected per-direction
+ * muzzle data (SMOKY_M01_DIRECTIONAL_PROFILE / SMOKY_M23_DIRECTIONAL_PROFILE)
+ * which is consumed via resolveTurretMuzzlesForDir() at Priority 1.
+ */
+export const TURRET_MUZZLE_DIR16_OVERRIDE: Record<string, Record<number, MuzzleDir16Override>> = {
+  thunder: {
+     0: { dx: 23, dy: -13 },  1: { dx: 29, dy:  -6 },  2: { dx: 31, dy:  -1 },
+     3: { dx:  1, dy:   4 },  4: { dx: 21, dy:   7 },  5: { dx:-10, dy:   0 },
+     6: { dx: -9, dy:   2 },  7: { dx:-13, dy:   5 },  8: { dx:-23, dy:   3 },
+     9: { dx:-29, dy:  -2 }, 10: { dx:-31, dy:  -6 }, 11: { dx:-29, dy: -11 },
+    12: { dx:-22, dy: -15 }, 13: { dx: 11, dy:  -3 }, 14: { dx:  1, dy: -18 },
+    15: { dx: 13, dy: -16 },
+  },
+  railgun: {
+     0: { dx: 28, dy: -15 },  1: { dx: 36, dy:  -9 },  2: { dx: 39, dy:  -3 },
+     3: { dx:  3, dy:   4 },  4: { dx: 27, dy:   8 },  5: { dx:-10, dy:  -1 },
+     6: { dx: -1, dy:  12 },  7: { dx:-16, dy:   9 },  8: { dx:-29, dy:   5 },
+     9: { dx:-37, dy:   0 }, 10: { dx:-39, dy:  -5 }, 11: { dx:-36, dy: -11 },
+    12: { dx:-27, dy: -16 }, 13: { dx:  8, dy:  -7 }, 14: { dx:  1, dy: -20 },
+    15: { dx: 16, dy: -18 },
+  },
+  firebird: {
+     0: { dx: 23, dy: -12 },  1: { dx: 29, dy:  -7 },  2: { dx: 31, dy:  -2 },
+     3: { dx:  6, dy:   4 },  4: { dx: 20, dy:   6 },  5: { dx:-11, dy:  -3 },
+     6: { dx: -8, dy:   4 },  7: { dx:-13, dy:   6 },  8: { dx:-23, dy:   3 },
+     9: { dx:-29, dy:  -1 }, 10: { dx:-31, dy:  -5 }, 11: { dx:-28, dy:  -9 },
+    12: { dx:-21, dy: -13 }, 13: { dx:  6, dy:  -7 }, 14: { dx:  1, dy: -16 },
+    15: { dx: 13, dy: -15 },
+  },
+  freeze: {
+     0: { dx: 24, dy: -12 },  1: { dx: 29, dy:  -6 },  2: { dx: 30, dy:  -1 },
+     3: { dx: 26, dy:   3 },  4: { dx: 19, dy:   6 },  5: { dx: -7, dy:   1 },
+     6: { dx: -3, dy:   9 },  7: { dx:-15, dy:   6 },  8: { dx:-24, dy:   3 },
+     9: { dx:-30, dy:  -1 }, 10: { dx:-31, dy:  -6 }, 11: { dx:-28, dy: -10 },
+    12: { dx:-21, dy: -14 }, 13: { dx:  9, dy:  -5 }, 14: { dx:  3, dy: -17 },
+    15: { dx: 15, dy: -15 },
+  },
+  isida: {
+     0: { dx: 16, dy:  -6 },  1: { dx: 19, dy:  -4 },  2: { dx: 20, dy:  -1 },
+     3: { dx:  4, dy:   4 },  4: { dx:  1, dy:   4 },  5: { dx: -9, dy:   0 },
+     6: { dx: -7, dy:   2 },  7: { dx:-11, dy:   3 },  8: { dx:-16, dy:   2 },
+     9: { dx:-18, dy:  -2 }, 10: { dx:-18, dy:  -5 }, 11: { dx:  2, dy:  -9 },
+    12: { dx:-11, dy:  -9 }, 13: { dx:  6, dy:  -8 }, 14: { dx:  4, dy: -10 },
+    15: { dx: 11, dy:  -8 },
+  },
+  vulcan_b: {
+     0: { dx: 15, dy: -12 },  1: { dx: 18, dy:  -7 },  2: { dx: 19, dy:  -4 },
+     3: { dx:  3, dy:   4 },  4: { dx: -1, dy:   4 },  5: { dx: -8, dy:   0 },
+     6: { dx: -8, dy:   3 },  7: { dx:-10, dy:  -1 },  8: { dx:-15, dy:  -4 },
+     9: { dx:-18, dy:  -6 }, 10: { dx:-19, dy:  -9 }, 11: { dx:-18, dy: -12 },
+    12: { dx:-14, dy: -14 }, 13: { dx: 11, dy:  -7 }, 14: { dx:  2, dy: -15 },
+    15: { dx: 10, dy:  -4 },
+  },
+  twins: {
+     0: { dx: 23, dy:  -8 },  1: { dx: 25, dy:  -3 },  2: { dx: 24, dy:   1 },
+     3: { dx: 19, dy:   4 },  4: { dx: 12, dy:   7 },  5: { dx:-13, dy:  -2 },
+     6: { dx: -7, dy:   7 },  7: { dx:-17, dy:   4 },  8: { dx:-23, dy:   1 },
+     9: { dx:-25, dy:  -3 }, 10: { dx:-24, dy:  -7 }, 11: { dx:-20, dy: -10 },
+    12: { dx:-13, dy: -13 }, 13: { dx: 11, dy:  -5 }, 14: { dx:  7, dy: -14 },
+    15: { dx: 17, dy: -10 },
+  },
+  ricochet: {
+     0: { dx: 19, dy: -10 },  1: { dx: 24, dy:  -5 },  2: { dx: 25, dy:  -2 },
+     3: { dx: -3, dy:   4 },  4: { dx: 14, dy:   5 },  5: { dx:-10, dy:   1 },
+     6: { dx:-10, dy:   1 },  7: { dx:-11, dy:   4 },  8: { dx:-19, dy:   2 },
+     9: { dx:-24, dy:  -1 }, 10: { dx:-25, dy:  -5 }, 11: { dx:  0, dy:  -9 },
+    12: { dx:-14, dy: -12 }, 13: { dx:  9, dy:  -4 }, 14: { dx:  1, dy: -13 },
+    15: { dx: 11, dy: -13 },
+  },
+  hammer: {
+     0: { dx: 18, dy: -10 },  1: { dx: 18, dy:  -1 },  2: { dx: 23, dy:  -2 },
+     3: { dx:  4, dy:   5 },  4: { dx: 13, dy:   7 },  5: { dx:-11, dy:  -1 },
+     6: { dx: -9, dy:   3 },  7: { dx:-11, dy:   4 },  8: { dx:-18, dy:   1 },
+     9: { dx:-22, dy:  -3 }, 10: { dx:-23, dy:  -7 }, 11: { dx:-21, dy: -10 },
+    12: { dx:-16, dy: -13 }, 13: { dx:  4, dy:  -9 }, 14: { dx:  1, dy: -15 },
+    15: { dx: 11, dy: -12 },
+  },
+};
+
+/**
+ * Resolve the per-dir16 muzzle screen offset for a turret and direction.
+ *
+ * Returns {dx, dy} in screen pixels from the composition pivot if the
+ * turret has measured per-direction data, or null if no override exists
+ * (caller falls back to computeModularMuzzlePoint with flat forwardPx).
+ *
+ * Pure, no side effects, no Phaser imports.
+ */
+export function getMuzzleDir16Override(
+  turretId: string,
+  dir16: number,
+): MuzzleDir16Override | null {
+  const dirMap = TURRET_MUZZLE_DIR16_OVERRIDE[turretId];
+  if (!dirMap) return null;
+  const normalized = normalizeDir16(dir16);
+  return dirMap[normalized] ?? null;
+}
+
 // ── Profile registry ───────────────────────────────────────────────
 
 /**

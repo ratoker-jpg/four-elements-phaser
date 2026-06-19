@@ -32,6 +32,7 @@ import {
   getTurretMuzzleProfile,
   DEFAULT_TURRET_MUZZLE_PROFILE,
   TURRET_MUZZLE_PROFILE,
+  getMuzzleDir16Override,
 } from '../config/directionalTurretProfiles';
 import { computeModularMuzzlePoint } from '../phaser/render/ModularVehicleLiveAdapter';
 import { getHullSelectionRingRadiusTiles } from '../phaser/render/blockoutVehicleGeometry';
@@ -52,8 +53,8 @@ describe('fixup-6: HULL_VISUAL_PROFILE helper', () => {
   it('returns an explicit profile for a known QA hull', () => {
     const wasp = getHullVisualProfile('wasp');
     expect(wasp).toBe(HULL_VISUAL_PROFILE.wasp);
-    expect(wasp.visualOffsetPx).toEqual({ x: 0, y: 0 });
-    expect(wasp.ringScale).toBe(1.0);
+    expect(wasp.visualOffsetPx).toEqual({ x: 0, y: 1 });
+    expect(wasp.ringScale).toBe(1.6);
   });
 
   it('falls back safely for an unknown hull', () => {
@@ -64,8 +65,12 @@ describe('fixup-6: HULL_VISUAL_PROFILE helper', () => {
   });
 
   it('all QA hulls start at the metadata-centred {0,0} baseline (no guessed offset)', () => {
+    // fixup-7 calibrated offsets from PNG centroid measurements; they are
+    // small (0-2px) but no longer all {0,0}.
     for (const id of ['wasp', 'hornet', 'hunter', 'viking', 'dictator', 'titan', 'mammoth']) {
-      expect(getHullVisualOffsetPx(id)).toEqual({ x: 0, y: 0 });
+      const offset = getHullVisualOffsetPx(id);
+      expect(Math.abs(offset.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(offset.y)).toBeLessThanOrEqual(2);
     }
   });
 
@@ -215,28 +220,28 @@ describe('fixup-6: TURRET_MUZZLE_PROFILE + muzzle point', () => {
   });
 
   it('rest muzzle aligns with the hull/turret direction (dir from dir16)', () => {
-    // Hull at rest facing grid East → dir4 (screen SE, angle π/4). The muzzle
-    // forward direction must match dir16ToScreenAngle(4).
+    // Hull at rest facing grid East → dir4 (screen SE). fixup-7: thunder uses
+    // per-dir16 override, so the muzzle is base + dirOverride rather than the
+    // flat forwardPx decomposition.
     const dir16 = 4;
-    const a = dir16ToScreenAngle(dir16);
     const m = computeModularMuzzlePoint(BASE, 'thunder', dir16);
-    // The forward component dominates (lateral 0 for thunder); muzzle lies
-    // along angle a from the base (ignoring the small vertical correction).
-    const profile = getTurretMuzzleProfile('thunder');
-    const expectedX = BASE.x + Math.cos(a) * profile.muzzleForwardPx;
-    expect(m.x).toBeCloseTo(expectedX, 5);
+    const override = getMuzzleDir16Override('thunder', dir16);
+    expect(override).not.toBeNull();
+    expect(m.x).toBeCloseTo(BASE.x + override!.dx, 5);
+    expect(m.y).toBeCloseTo(BASE.y + override!.dy, 5);
   });
 
   it('attack muzzle uses the target-facing turret direction', () => {
-    // Aiming screen NE → dir0. Muzzle forward should be along dir16ToScreenAngle(0).
+    // Aiming screen NE → dir0. fixup-7: thunder uses per-dir16 override.
     const r = blockoutToModularVisual({
       bodyId: 'wasp', weaponId: 'thunder', faction: 'cyan', modificationLevel: 0,
       bodyAngle: 0, turretAngle: -Math.PI / 4, turretAiming: true,
     });
     const m = computeModularMuzzlePoint(BASE, 'thunder', r.turretDir16);
-    const a = dir16ToScreenAngle(r.turretDir16);
-    const profile = getTurretMuzzleProfile('thunder');
-    expect(m.x).toBeCloseTo(BASE.x + Math.cos(a) * profile.muzzleForwardPx, 5);
+    const override = getMuzzleDir16Override('thunder', r.turretDir16);
+    expect(override).not.toBeNull();
+    expect(m.x).toBeCloseTo(BASE.x + override!.dx, 5);
+    expect(m.y).toBeCloseTo(BASE.y + override!.dy, 5);
   });
 
   it('dir16ToScreenAngle is the inverse of screenAngleToModularDir16', () => {

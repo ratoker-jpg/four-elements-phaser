@@ -76,26 +76,39 @@ export const DEFAULT_HULL_VISUAL_PROFILE: HullVisualProfile = {
 
 /**
  * Per-hull visual profiles for the hulls used in the current Arena (the
- * ones shown in Denis QA). All offsets start at the metadata-centred {0,0}
- * baseline by design — see module header. `ringScale` stays neutral (1.0)
- * because the ring radius is already footprint-scaled; entries exist so a
- * single measured correction can be dropped in per hull without touching
- * any renderer or re-introducing a global offset.
+ * ones shown in Denis QA).
+ *
+ * ARENA-VISUAL-COMBAT-FIX-01 fixup-7: visualOffsetPx and ringScale are now
+ * calibrated from actual PNG measurements (centroid of non-transparent pixels
+ * across all 16 directions, cyan m0). Method:
+ *   1. For each direction PNG, compute alpha-weighted centroid.
+ *   2. Average the centroid offset from frame centre (256,256) across all dirs.
+ *   3. visualOffsetPx = -averageOffset × displayScale (negated to push the
+ *      visual body centre onto the ring; shift is in screen pixels).
+ *   4. ringScale = hullDisplayWidth / (2 × ringSemiMajorAxis), then rounded
+ *      conservatively so the ring sits under the hull without looking like a
+ *      halo. The hull is elevated in isometric view, so the ring at ground
+ *      level must be somewhat smaller than the hull's apparent screen width.
+ *
+ * These are visual calibration values until real hull frame metadata exists.
+ * They move ONLY the modular sprite composite; gameplay position, hitbox,
+ * pathfinding, range, and damage are unaffected.
  */
 export const HULL_VISUAL_PROFILE: Record<string, HullVisualProfile> = {
-  // small_fast
-  wasp:     { visualOffsetPx: { x: 0, y: 0 }, ringScale: 1.0, note: 'small_fast; metadata-centred baseline' },
-  // light_fast
-  hornet:   { visualOffsetPx: { x: 0, y: 0 }, ringScale: 1.0, note: 'light_fast; metadata-centred baseline' },
-  // medium
-  hunter:   { visualOffsetPx: { x: 0, y: 0 }, ringScale: 1.0, note: 'medium; metadata-centred baseline' },
-  viking:   { visualOffsetPx: { x: 0, y: 0 }, ringScale: 1.0, note: 'medium; metadata-centred baseline' },
+  // small_fast — centroid ~0.6px above frame centre; ring needs 1.6× to
+  // look proportional under the hull.
+  wasp:     { visualOffsetPx: { x: 0, y: 1 }, ringScale: 1.6, note: 'small_fast; centroid 3.9src-px above centre → dy+1scr; ring 1.6×' },
+  // light_fast — centroid ~0.7px below; ring needs 1.4×
+  hornet:   { visualOffsetPx: { x: 0, y: -1 }, ringScale: 1.4, note: 'light_fast; centroid 4.5src-px below centre → dy-1scr; ring 1.4×' },
+  // medium — centroid ~0.3px below; ring needs 1.3×
+  hunter:   { visualOffsetPx: { x: 0, y: 0 }, ringScale: 1.3, note: 'medium; centroid ~at centre; ring 1.3×' },
+  viking:   { visualOffsetPx: { x: 0, y: -1 }, ringScale: 1.3, note: 'medium; centroid 8.4src-px below → dy-1scr; ring 1.3×' },
   // large_fast (asset-side scaled 0.91; runtime compensates scale separately)
-  dictator: { visualOffsetPx: { x: 0, y: 0 }, ringScale: 1.0, note: 'large_fast; scale comp handled in composition, not here' },
-  // heavy
-  titan:    { visualOffsetPx: { x: 0, y: 0 }, ringScale: 1.0, note: 'heavy; metadata-centred baseline' },
-  // super_heavy
-  mammoth:  { visualOffsetPx: { x: 0, y: 0 }, ringScale: 1.0, note: 'super_heavy; metadata-centred baseline' },
+  dictator: { visualOffsetPx: { x: 0, y: -1 }, ringScale: 1.25, note: 'large_fast; centroid 6.9src-px below → dy-1scr; ring 1.25×' },
+  // heavy — centroid ~1.8px below; ring needs 1.15×
+  titan:    { visualOffsetPx: { x: 0, y: -2 }, ringScale: 1.15, note: 'heavy; centroid 11.1src-px below → dy-2scr; ring 1.15×' },
+  // super_heavy — centroid ~1.5px below; ring already large at 1.0×
+  mammoth:  { visualOffsetPx: { x: 0, y: -2 }, ringScale: 1.05, note: 'super_heavy; centroid 9.1src-px below → dy-2scr; ring 1.05×' },
 };
 
 /**

@@ -29,6 +29,7 @@ import {
   getHullSelectionRingRadiusTiles,
   SELECTION_RING_FOOTPRINT_MARGIN,
 } from '../phaser/render/blockoutVehicleGeometry';
+import { getHullRingScale } from '../config/hullVisualProfiles';
 import {
   debugRenderFlags,
   resetDebugRenderFlags,
@@ -70,17 +71,22 @@ describe('fixup-5: getHullSelectionRingRadiusTiles (selection ring visual anchor
   });
 
   it('ring radius scales monotonically with body footprint', () => {
-    const wasp = getHullSelectionRingRadiusTiles('wasp');     // 16x10
-    const hornet = getHullSelectionRingRadiusTiles('hornet'); // 18x12
-    const hunter = getHullSelectionRingRadiusTiles('hunter'); // 22x14
-    expect(wasp).toBeLessThan(hornet);
+    const wasp = getHullSelectionRingRadiusTiles('wasp');     // 16x10, ringScale=1.6
+    const hornet = getHullSelectionRingRadiusTiles('hornet'); // 18x12, ringScale=1.4
+    const hunter = getHullSelectionRingRadiusTiles('hunter'); // 22x14, ringScale=1.3
+    // ringScale can invert adjacent hulls (wasp 1.6 > hornet 1.4 makes wasp ring
+    // slightly larger than hornet), but the overall trend holds: light < medium.
+    expect(wasp).toBeLessThan(hunter);
     expect(hornet).toBeLessThan(hunter);
   });
 
   it('unknown hull falls back to the medium-body default radius', () => {
     const unknown = getHullSelectionRingRadiusTiles('not-a-real-hull');
-    const medium = getHullSelectionRingRadiusTiles('hunter'); // medium shape
-    expect(unknown).toBeCloseTo(medium, 6);
+    // Unknown hulls use medium body size (max(22,14)/2=11) with DEFAULT ringScale=1.0,
+    // not the hull-specific calibrated ringScale (hunter uses 1.3).
+    const PROJ_TILE_W = 76;
+    const expected = (11 / PROJ_TILE_W) * SELECTION_RING_FOOTPRINT_MARGIN;
+    expect(unknown).toBeCloseTo(expected, 6);
   });
 
   it('medium ring is notably smaller than the old fixed 0.65-tile ellipse', () => {
@@ -89,10 +95,11 @@ describe('fixup-5: getHullSelectionRingRadiusTiles (selection ring visual anchor
   });
 
   it('radius matches the documented footprint formula', () => {
-    // max(w,h)/2 in pixels → tiles (PROJ_TILE_W=76) * margin.
-    // mammoth: max(32,22)/2 = 16 → 16/76 * margin.
+    // max(w,h)/2 in pixels → tiles (PROJ_TILE_W=76) * margin * ringScale.
+    // mammoth: max(32,22)/2 = 16 → 16/76 * margin * ringScale.
     const PROJ_TILE_W = 76;
-    const expected = (16 / PROJ_TILE_W) * SELECTION_RING_FOOTPRINT_MARGIN;
+    const ringScale = getHullRingScale('mammoth');
+    const expected = (16 / PROJ_TILE_W) * SELECTION_RING_FOOTPRINT_MARGIN * ringScale;
     expect(getHullSelectionRingRadiusTiles('mammoth')).toBeCloseTo(expected, 6);
   });
 });
