@@ -694,7 +694,15 @@ export class GameScene extends Phaser.Scene {
       // Sync selection from input controller
       const sel = this.inputController?.getSelection() ?? null;
       this.visualHudCore.setSelection(sel);
-      this.visualHudCore.update(this.gameState);
+
+      // VISUAL-MINIMAP-03: Feed camera data + offset for minimap rendering
+      const cam = this.cameras.main;
+      const cameraData = {
+        worldView: { x: cam.worldView.x, y: cam.worldView.y, width: cam.worldView.width, height: cam.worldView.height },
+        zoom: cam.zoom,
+      };
+      const offset = this._offset ? { x: this._offset.x, y: this._offset.y } : { x: 0, y: 0 };
+      this.visualHudCore.update(this.gameState, cameraData, offset);
     }
 
     // ARENA-01H+: Update ArenaMenu (primary Arena UX)

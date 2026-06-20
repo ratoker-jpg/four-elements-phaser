@@ -8,8 +8,11 @@
  * VISUAL-COMMAND-PANEL-02: Command panel is now a real, context-sensitive
  * panel that shows build/produce/stop actions based on the current selection.
  *
- * Architecture: DOM-only (no Phaser UI objects). The minimap slot is a
- * placeholder for a future Phaser second-camera viewport.
+ * VISUAL-MINIMAP-03: Minimap is now a real canvas-based minimap with
+ * entity markers and camera viewport rectangle.
+ *
+ * Architecture: DOM-only (no Phaser UI objects for the HUD panels).
+ * The minimap uses a Canvas 2D element inside the HUD minimap slot.
  *
  * The HUD bar is positioned at the bottom of the screen. The main camera
  * viewport is reduced by HUD_BAR_HEIGHT so game content is never hidden.
@@ -21,7 +24,7 @@ import { HUD_BAR_HEIGHT } from './hudLayout';
 import { HudResourceStrip } from './HudResourceStrip';
 import { HudSelectionPanel } from './HudSelectionPanel';
 import { HudCommandPanel, type CommandExecuteCallback } from './HudCommandPanel';
-import { HudMinimapPlaceholder } from './HudMinimapPlaceholder';
+import { HudMinimap, type MinimapCameraData, type MinimapOffset } from './HudMinimap';
 
 export class VisualHudCore {
   private root!: HTMLDivElement;
@@ -30,7 +33,7 @@ export class VisualHudCore {
   private resourceStrip = new HudResourceStrip();
   private selectionPanel = new HudSelectionPanel();
   private commandPanel = new HudCommandPanel();
-  private minimapSlot = new HudMinimapPlaceholder();
+  private minimapSlot = new HudMinimap();
 
   /** Current selection state — updated by GameInputController. */
   private currentSelection: UnitSelection = null;
@@ -58,11 +61,15 @@ export class VisualHudCore {
     document.body.appendChild(this.root);
   }
 
-  update(state: GameState): void {
+  update(
+    state: GameState,
+    cameraData: MinimapCameraData | null = null,
+    offset: MinimapOffset = { x: 0, y: 0 },
+  ): void {
     this.resourceStrip.update(state);
     this.selectionPanel.update(state, this.currentSelection);
     this.commandPanel.update(state, this.currentSelection);
-    this.minimapSlot.update();
+    this.minimapSlot.update(state, cameraData, offset);
   }
 
   /** Update the current selection (called by GameInputController). */
