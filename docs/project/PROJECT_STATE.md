@@ -10,14 +10,15 @@ Updated: 2026-06-20
 ## Current mode
 
 ```text
-VISUAL ROADMAP — AUDIT/DESIGN MODE.
+VISUAL ROADMAP — AoE4-INSPIRED UX REDESIGN MODE.
 
 Renderer unification Stage 1-4 is closed.
-PR #304 Arena visual/combat fix is merged and accepted by Denis manual QA with one known follow-up.
-Issue #305 tracks the known Wasp+Smoky muzzle-origin follow-up.
-The current selected direction is Visual Roadmap.
-The next operational task is VISUAL-AUDIT-01 / VISUAL-HUD-AUDIT as docs/design only.
-No HUD/runtime implementation starts automatically.
+PR #304 Arena visual/combat fix is merged and accepted by Denis manual QA.
+PRs #308-#310 (HUD core, command panel, minimap) are merged as technical prototypes.
+Denis rejected the current HUD/command panel/minimap direction visually and UX-wise.
+Direction changed: AoE4-inspired RTS UX redesign replaces the "continue integrating existing HUD" plan.
+Current operational task: VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 (docs/design PR, awaiting Denis acceptance).
+No HUD runtime implementation starts until Denis accepts the redesign roadmap.
 ```
 
 Current direction:
@@ -33,7 +34,9 @@ accepted RenderManager / GameScene orchestration baseline
 +
 accepted Arena visual/combat fix baseline
 +
-Visual Roadmap audit/design next
+AoE4-inspired UX redesign roadmap (awaiting Denis acceptance)
++
+PRs #308-#310 are technical prototypes, not final accepted UX
 ```
 
 Closed / accepted cycles:
@@ -70,7 +73,7 @@ docs/project/AI_GRAPHIFY_WORKFLOW.md
 docs/project/VISUAL_ROADMAP.md
 docs/project/VISUAL_SYSTEM_AUDIT.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
-docs/project/VISUAL_ROADMAP_ACTIVATION_2026_06_20.md
+docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md
 ```
 
 Render/vehicle baseline references:
@@ -185,31 +188,48 @@ GameScene no longer directly owns most renderer fields.
 4. [DONE] VEHICLE-RENDER-UNIFY-04-VH (PR #302) — Stage 4 GameScene render orchestration cleanup.
 5. [DONE] ARENA-VISUAL-COMBAT-FIX-01-HIGH (PR #304) — Arena visual/combat fix accepted.
 6. [OPEN FOLLOW-UP] #305 — Smoky muzzle origin on Wasp hull only.
-7. [ACTIVE NEXT] VISUAL-AUDIT-01 / VISUAL-HUD-AUDIT — docs/design only.
+7. [DONE] VISUAL-HUD-AUDIT (PR #307) — HUD audit/design document.
+8. [DONE] VISUAL-HUD-CORE-01-HIGHPLUS (PR #308) — Bottom HUD core prototype.
+9. [DONE] VISUAL-COMMAND-PANEL-02-HIGHPLUS (PR #309) — Command panel MVP prototype.
+10. [DONE] VISUAL-MINIMAP-03-VERYHIGH (PR #310) — Minimap MVP prototype.
+11. [ACTIVE NEXT] VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — AoE4-inspired UX redesign roadmap (docs/design PR, awaiting Denis acceptance).
 ```
 
 ---
 
 ## Next implementation direction
 
-There is no automatic implementation task after #304.
+The selected direction is AoE4-inspired UX redesign for the HUD.
 
-The selected direction is Visual Roadmap, but the first step is audit/design:
+Denis rejected the current HUD/command panel/minimap direction (PRs #308-#310).
+Those PRs are treated as technical prototypes, not final UX.
+
+The current step is the redesign roadmap:
 
 ```text
-VISUAL-HUD-AUDIT
-  Type: docs/design.
-  Runtime implementation: blocked until audit accepted.
-  Denis visual approval: required before HUD runtime PR.
+VISUAL-AOE4-UX-REDESIGN-ROADMAP-01
+  Type: docs/design PR.
+  Status: awaiting Denis acceptance.
+  Deliverable: docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md
+  Runtime implementation: blocked until Denis accepts the roadmap.
 ```
 
-Candidate future Visual Roadmap slices after HUD audit:
+After roadmap acceptance, implementation sequence:
 
 ```text
-- HUD shell implementation;
-- minimap implementation;
-- selected-unit/building info panel;
-- command/action/hotkey panel;
+1. VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — docs/design (current)
+2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — restructure bottom bar layout
+3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4x3 grid + grid hotkeys
+4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap
+5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9
+6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts
+7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (can parallel with 2-6)
+8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit)
+```
+
+Other future Visual Roadmap slices (not HUD-focused):
+
+```text
 - terrain/industrial map visual pass;
 - resource field visual refresh;
 - main menu visual refresh;
@@ -236,7 +256,13 @@ Do not start implementation if:
 - task adds new URL debug/test modes instead of using Arena/debug UI;
 - task touches combat, movement, economy, mapgen, pathfinding, save-load, bot/AI during Visual Roadmap work;
 - task asks Denis to do local repo context work that can run in GitHub;
-- task turns Codex from read-only local auditor into executor without explicit approval.
+- task turns Codex from read-only local auditor into executor without explicit approval;
+- task continues polishing the current HUD (#308-#310) as final until redesign spec is accepted;
+- task implements HUD integration cleanup (VISUAL-HUD-INTEGRATION-04 is cancelled);
+- task copies AoE4 assets or exact layout;
+- task implements fog without a prior accepted audit;
+- task mixes control groups with current 1/2/3 build hotkeys without resolving the conflict;
+- task merges High+ visual PRs without Denis manual visual approval.
 ```
 
 ---

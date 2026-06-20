@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: Visual Roadmap selected after Arena visual/combat fix  
+Status: AoE4-inspired UX redesign roadmap — awaiting Denis acceptance
 Project: Four Elements Phaser  
-Updated: 2026-06-20 (post-#304 merge / Visual Roadmap activation)
+Updated: 2026-06-20
 
 ---
 
@@ -36,86 +36,111 @@ Renderer unification Stage 1-4 is CLOSED.
 #302 VEHICLE-RENDER-UNIFY-04-VH
   Status: MERGED.
   Result: Stage 4 completed and manually QA-accepted by Denis.
-  Scope completed:
-    - RenderManager owns renderer construction, phased sync, visual bridges, and destroy;
-    - GameScene keeps scene lifecycle, gameplay state, UI/menu callbacks, input, camera, placement, save/load;
-    - renderer unification roadmap is not active work anymore.
 
 #304 ARENA-VISUAL-COMBAT-FIX-01-HIGH
-  Status: MERGED on 2026-06-20.
-  Merge commit: f788dc16b8396319bfb6033838d98b025ac1dadb.
-  Result: Arena visual/combat fix accepted by Denis manual QA with one explicit known follow-up.
-  Accepted scope:
-    - obstacle debug labels / geometry hidden from default view;
-    - target-lock / enemy indicators gated behind debug flags;
-    - friendly fire disabled for same-team allies;
-    - modular hull-in-cell / selection-ring placement improved;
-    - turret rest/aim direction split clarified;
-    - most muzzle/VFX origins improved.
+  Status: MERGED.
+  Result: Arena visual/combat fix accepted by Denis manual QA.
 
-#305 Follow-up: calibrate Smoky muzzle origin on Wasp hull
-  Status: OPEN follow-up issue.
-  Scope: only Smoky muzzle origin on Wasp hull.
-  Not a blocker for Visual Roadmap unless a task touches Wasp+Smoky muzzle/VFX.
+#307 VISUAL-HUD-AUDIT
+  Status: MERGED.
+  Result: HUD audit/design document accepted.
+
+#308 VISUAL-HUD-CORE-01-HIGHPLUS (+ FIXUP-1, FIXUP-2)
+  Status: MERGED (DRAFT PR).
+  Result: Bottom RTS HUD core prototype — camera safe-area, input guard, resource strip, selection panel, command panel placeholder.
+
+#309 VISUAL-COMMAND-PANEL-02-HIGHPLUS (+ FIXUP-1)
+  Status: MERGED (DRAFT PR).
+  Result: Command panel MVP — context-sensitive commands, descriptorMap, aria-disabled.
+
+#310 VISUAL-MINIMAP-03-VERYHIGH (+ FIXUP-1)
+  Status: MERGED (DRAFT PR).
+  Result: Minimap MVP — Canvas 2D, entity markers, 4-corner camera viewport.
 ```
+
+**Direction change: Denis rejected the current HUD/command panel/minimap direction visually and UX-wise.** PRs #308–#310 are treated as technical prototypes, not an accepted final UX direction. The new direction is AoE4-inspired RTS UX redesign.
 
 ---
 
 ## Active next step (single)
 
 ```text
-VISUAL-AUDIT-01 / VISUAL-HUD-AUDIT
-  Risk: Low for audit/design; Very High only when implementation starts.
-  Type: docs/design first.
-  Goal: design the next Visual Roadmap slice before runtime implementation.
-  Primary target: HUD/minimap/command layout audit.
+VISUAL-AOE4-UX-REDESIGN-ROADMAP-01
+  Risk: Low — docs/design only.
+  Type: docs-only PR.
+  Goal: define AoE4-inspired UX redesign roadmap that replaces
+        the "continue integrating existing HUD" plan.
+  Primary deliverable:
+    docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md
 
-  Required output before implementation:
-    - current HUD inventory;
-    - target RTS HUD layout;
-    - minimap design constraints;
-    - selected-unit/building panel design;
-    - command/actions/hotkey panel design;
-    - implementation split;
-    - manual visual approval gate.
+  Status: PR open, awaiting Denis acceptance.
 
-  No runtime implementation in this step.
-  No HUD code before GPT review + Denis visual approval.
+  No runtime implementation until Denis accepts the roadmap.
+  No HUD code changes until the redesign spec is accepted.
 ```
 
 ---
 
-## Visual Roadmap activation
+## Direction change: from HUD integration to AoE4-like UX redesign
 
-Denis selected Visual Roadmap as the next direction after #304. The next work should start with audit/design, not code.
+The current HUD implementation (PRs #308–#310) is a functional technical prototype but was rejected as the final UX direction by Denis. Key issues:
 
-Recommended first slice:
+1. No stable command surface (flat 3-column grid, not a stable command card)
+2. Hotkey badges are afterthoughts, not spatially mapped
+3. Number keys 1/2/3 overloaded for build commands (conflicts with control groups)
+4. Minimap is passive (no click-to-camera interaction)
+5. Selection panel is text-only and shallow
+6. No feedback/alert system
+7. PlaytestHud still coexists (duplicate UI)
+8. Layout feels prototype/debug-like
+9. No fog/vision layer
+10. No control groups
+
+The new direction rebuilds the roadmap around AoE4-like RTS UX principles:
+- Stable bottom command surface with 4×3 command card grid
+- Q/W/E/R/A/S/D/F/Z/X/C/V hotkey spatial mapping
+- Number keys reserved for control groups
+- Interactive minimap (click-to-camera)
+- Rich selection panel
+- Status/toast alert lane
+- Fog/vision as strategic layer
+
+See `docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md` for the full redesign spec.
+
+---
+
+## Roadmap after acceptance
+
+If Denis accepts the roadmap, the implementation sequence is:
 
 ```text
-VISUAL-HUD-AUDIT
-  Why first:
-    - V7 HUD/minimap is one of the largest remaining visible gaps;
-    - current PlaytestHud/debug-style UI does not match the target RTS layout;
-    - HUD can be designed independently before touching terrain/assets.
-
-  Target layout from Visual Roadmap:
-    - bottom-left minimap;
-    - bottom-center selected unit/building information;
-    - bottom-right command/actions/hotkeys.
+1. VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — docs/design (THIS STEP)
+2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — restructure bottom bar layout
+3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 grid + grid hotkeys
+4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap
+5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9
+6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts
+7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (can parallel with 2-6)
+8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit)
 ```
+
+Each step requires Denis manual visual approval before merge.
 
 ---
 
 ## What is not next by default
 
 ```text
+- Do not continue polishing the current HUD (#308-#310) as final.
+- Do not implement HUD integration cleanup (VISUAL-HUD-INTEGRATION-04 is cancelled).
+- Do not copy AoE4 assets or exact layout.
+- Do not implement fog without audit.
+- Do not mix control groups with current 1/2/3 build hotkeys without resolving conflict.
+- Do not implement minimap interaction until input contract is explicit.
+- Do not merge High+ visual PRs without Denis manual visual approval.
 - Do not continue renderer unification by inertia.
 - Do not reopen #304 inside Visual Roadmap.
-- Do not treat #305 as a Visual Roadmap blocker unless the task touches Wasp+Smoky muzzle/VFX.
-- Do not start HUD runtime implementation before VISUAL-HUD-AUDIT is accepted.
-- Do not start terrain runtime integration before a visual direction/design is accepted.
-- Do not start new asset generation before an asset spec is accepted.
-- Do not start menu background/civil unit refresh before the active Visual Roadmap slice is selected.
+- Do not start HUD runtime implementation before the redesign roadmap is accepted.
 ```
 
 ---
@@ -151,6 +176,7 @@ If build/Playwright is blocked in GLM/Codex/Opus environment, report it honestly
 - no old Wasp M0 preload;
 - z-depth unchanged around units/buildings/resources unless explicitly in scope;
 - HUD/minimap/command layout approved by Denis before merge.
+- AoE4-like UX redesign roadmap accepted by Denis before implementation starts.
 ```
 
 ---
@@ -169,6 +195,7 @@ If build/Playwright is blocked in GLM/Codex/Opus environment, report it honestly
 - Do not touch composeModularVehicle() placement/math without explicit Denis approval.
 - Do not touch combat, movement, economy, pathfinding, save-load, bot/AI, or mapgen as part of Visual Roadmap/HUD work.
 - Do not rewrite RenderManager/GameScene lifecycle without a concrete bug or accepted audit.
+- Do not continue polishing current HUD as final until redesign spec is accepted.
 ```
 
 ---
@@ -180,6 +207,6 @@ AGENTS.md
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/VISUAL_ROADMAP.md
-docs/project/VISUAL_SYSTEM_AUDIT.md
+docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 ```
