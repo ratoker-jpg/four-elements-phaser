@@ -18,7 +18,7 @@ This audit inventories every existing UI/HUD component, defines the target layou
 
 ### Key findings
 
-1. **Current HUD is entirely DOM-based.** PlaytestHud, ArenaMenu, PauseMenu, DevtoolsPanel, AssetViewerPanel, and ModularVehicleDevtoolsPanel are all pure HTML/CSS overlays with `position: fixed`. Only BlockoutSandboxHudRenderer and DebugOverlayRenderer use Phaser GameObjects. This is architecturally clean and should be preserved for the new HUD — the bottom bar should be DOM, with the minimap as the sole Phaser-rendered component.
+1. **Standard player-facing HUD is mostly DOM-based; Arena/debug overlays include Phaser GameObjects.** PlaytestHud, ArenaMenu, PauseMenu, DevtoolsPanel, AssetViewerPanel, and ModularVehicleDevtoolsPanel are all pure HTML/CSS overlays with `position: fixed`. BlockoutSandboxHudRenderer (Arena/dev help + vehicle status) and DebugOverlayRenderer (passability/footprint/resource markers) use Phaser GameObjects (Text and Graphics respectively). This mixed architecture is architecturally clean for the new HUD: the bottom bar should be DOM, with the minimap as the sole new Phaser-rendered component.
 
 2. **No minimap exists.** The game has no strategic overview. Adding a minimap is the single highest-impact HUD change. The recommended approach is a Phaser second-camera viewport, which automatically renders a zoomed-out view of the entire map without custom rendering.
 
@@ -121,6 +121,23 @@ The bottom bar occupies the full width of the screen at a fixed height. Recommen
 
 These are initial proportions. The selection panel and command panel should flex to fill available width, with the minimap at fixed size.
 
+### 3.3a HUD/camera contract
+
+**Main camera viewport excludes the bottom HUD height.** The Phaser canvas renders the game world in the main camera viewport, which is sized to `canvas.height - HUD_BAR_HEIGHT` (approximately `canvas.height - 180px`). The DOM bottom bar overlays the lower portion of the canvas, covering it visually, but the main camera's `worldView` does not extend into the HUD area. This means:
+
+- The main camera's scroll bounds and worldView are reduced by the HUD bar height so the camera never scrolls content behind the HUD.
+- The game world is rendered only in the visible viewport above the HUD.
+- Camera panning near the bottom edge stops at the reduced boundary, not at the canvas edge.
+
+**Pointer input safe area.** DOM panels with `pointer-events: auto` consume pointer events in their bounding boxes. The Phaser pointer system receives events only in the area not covered by interactive DOM elements. Concretely:
+
+- The bottom bar DOM container has `pointer-events: none` on the background and `pointer-events: auto` only on interactive children (buttons, tooltips).
+- Camera edge-pan (WASD or cursor-at-edge) is unaffected because it is keyboard-driven, not pointer-driven.
+- Click-to-select and right-click-to-move are routed through the Phaser pointer system, which only fires when the pointer is over the canvas area outside DOM interactive elements.
+- Minimap pointer events are handled by the Phaser second camera viewport (see Section 4.3), not by DOM elements.
+
+**Minimap second camera placement.** The minimap second camera renders into a Phaser viewport rectangle positioned at the bottom-left of the canvas, at coordinates `(0, canvas.height - 150, 200, 150)`. The DOM minimap frame is a `position: fixed` container at the same screen position with a transparent center (so the Phaser-rendered minimap shows through) and styled border/background around the edges. The DOM frame sits on top of the Phaser viewport (higher z-index) but does not block the rendered content because its center area is transparent.
+
 ### 3.3 Panel definitions
 
 #### Panel 1: Minimap (bottom-left)
@@ -129,11 +146,11 @@ These are initial proportions. The selection panel and command panel should flex
 |-----------|-------|
 | Purpose | Strategic overview of the entire map; camera viewport indicator; unit positions |
 | Size | 200×150px (fixed) |
-| Data shown | Terrain outline, camera viewport rectangle, player units (colored dots), enemy units (if visible), buildings/resources (simplified markers) |
+| Data shown | Terrain outline, camera viewport rectangle, player/allied units (colored dots), own buildings/resources (simplified markers). Enemy units and fog of war are deferred |
 | Data source | Phaser second camera (renders same scene at low zoom); camera worldView for viewport indicator |
 | Player interactions | Click to move camera (MVP: later); viewport drag indicator (later) |
 | MVP vs later | MVP: minimap renders terrain + units + viewport rectangle. Later: click-to-move, fog of war overlay, unit type differentiation |
-| Risk | Medium — second camera doubles render pass; needs camera.ignore() for DOM/UI elements; performance must be verified for large maps |
+| Risk | High — second camera doubles render pass; requires camera.ignore() for all UI/debug Phaser elements; viewport rectangle and entity dot markers must be drawn on a Graphics layer excluded from the second camera; performance must be profiled for large maps; coordinate translation between main camera worldView and minimap viewport is error-prone |
 
 #### Panel 2: Selection panel (bottom-center-left)
 
@@ -145,7 +162,7 @@ These are initial proportions. The selection panel and command panel should flex
 | Data source | Selected entity state from GameState; building runtime data; unit runtime data; weapon cooldown/harvester state |
 | Player interactions | Click unit portrait to center camera (later); click HP bar for detail (later) |
 | MVP vs later | MVP: unit name, HP bar, faction, basic status. Later: upgrade levels, weapon detail, production progress, multi-select detail, center-camera-on-click |
-| Risk | Low — reads existing state, no gameplay logic changes needed |
+| Risk | Medium — new SelectionState module is a prerequisite; click-to-select must be wired into GameInputController without breaking existing pointer routing; selection feedback must not interfere with unit movement commands |
 
 #### Panel 3: Command/action panel (bottom-center-right)
 
@@ -157,7 +174,7 @@ These are initial proportions. The selection panel and command panel should flex
 | Data source | CommandRegistry (commands, categories, keys, enabled predicates); GameState (factory queue, build availability, production status) |
 | Player interactions | Click button → execute command; hotkey press → execute command; hover → tooltip with description + hotkey |
 | MVP vs later | MVP: migrate existing build/produce buttons from PlaytestHud; show hotkey labels; disable with reason. Later: context-sensitive panels (building selected → show production; unit selected → show move/attack/stop), button grid layout, tooltip polish |
-| Risk | Low-Medium — must not break existing hotkey wiring; CommandRegistry already provides the data model |
+| Risk | Medium — must not break existing hotkey wiring during migration; block-reason extraction from PlaytestHud is a logic move that can introduce regressions; button state must stay consistent between old PlaytestHud (still partially alive) and new CommandPanel during the transition period |
 
 #### Panel 4: Resource/status strip (bottom, full width)
 
@@ -182,7 +199,7 @@ These are initial proportions. The selection panel and command panel should flex
 | Terrain bounds | Yes | The entire playable map area rendered as a miniature |
 | Camera viewport rectangle | Yes | White/bright rectangle showing what the main camera sees |
 | Player units | Yes | Colored dots (faction color) for each player-owned unit/building |
-| Enemy units (if visible) | No | Deferred — requires fog of war integration. Show all units in MVP for simplicity |
+| Enemy units | No | Deferred — requires visibility/fog-of-war state which does not exist yet. MVP shows only player/allied units and own buildings/resources. Enemy handling is added when FOG-01 provides a visibility query API |
 | Buildings/resources | Yes | Simplified markers for buildings and resource nodes |
 | Fog of war | No | FOG-01 is a separate task. Minimap can add fog overlay later |
 
@@ -198,22 +215,37 @@ This is a natural follow-up after the minimap renders correctly. Estimated compl
 
 ### 4.3 Expected technical approach
 
-**Recommended: Phaser second camera.**
+**Recommended: Hybrid — Phaser second camera for terrain/background + Phaser Graphics overlay for entity dots and viewport rectangle.**
 
-Phaser 4.1.0 supports multiple cameras per scene. A second camera with a small viewport in the bottom-left corner renders the entire map at a fixed zoom level. This approach:
+The minimap rendering is split into two layers:
 
-- Renders all scene objects automatically (no custom drawing)
-- Is Phaser-idiomatic (no DOM canvas synchronization)
-- Requires camera.ignore() for UI elements that should not appear in the minimap
-- Adds one render pass per frame (negligible for current sprite count)
-- Supports camera viewport rectangle overlay (draw the main camera's worldView bounds on the minimap)
+1. **Second camera** renders the simplified game world (terrain, buildings, resource nodes) into a small viewport at the bottom-left of the canvas. This camera shows the full map at a fixed zoom level. All UI/debug Phaser elements (BlockoutSandboxHudRenderer text, DebugOverlayRenderer graphics, selection rings, HP bars if rendered as Phaser objects) must be excluded via `camera.ignore()`.
+
+2. **Graphics overlay** (a single Phaser `Graphics` object positioned in the minimap viewport area, scrollFactor=0, excluded from the main camera) draws:
+   - **Entity dots**: Small colored circles at each player/allied unit's world position translated to minimap coordinates. Faction-colored dots for units, distinct markers for buildings.
+   - **Camera viewport rectangle**: A bright rectangle showing the main camera's current `worldView` bounds, translated to minimap coordinates.
+
+This hybrid approach avoids relying on entity sprites being visible at the second camera's low zoom level (they may be too small or incorrectly scaled). The Graphics overlay gives precise control over dot size and color, and the viewport rectangle is always crisp.
+
+**What the second camera must ignore**: All Phaser GameObjects that are UI/debug overlays, including:
+- `BlockoutSandboxHudRenderer` text objects (scrollFactor=0)
+- `DebugOverlayRenderer` graphics objects
+- Selection rings, HP bars, weapon VFX markers rendered as Phaser objects
+- Any future Phaser-rendered UI elements
+
+**Coordinate translation**: Entity world position `(worldX, worldY)` → minimap position `(minimapX, minimapY)`:
+```
+minimapX = viewportX + (worldX / mapWidthTiles) * viewportWidth
+minimapY = viewportY + (worldY / mapHeightTiles) * viewportHeight
+```
+This assumes the second camera shows the full map. The translation is linear and does not require isometric projection because the second camera already renders the isometric view.
 
 Alternative approaches (not recommended for MVP):
 
 | Approach | Pros | Cons |
 |----------|------|------|
 | DOM Canvas | Isolated from Phaser | Manual synchronization every frame; no automatic entity rendering; higher maintenance |
-| Phaser Graphics + simplified model | Full control over what appears | Must manually translate world coordinates to minimap coordinates for every entity; duplicates rendering logic |
+| Pure second camera (no Graphics overlay) | Simplest — all automatic | Entity sprites may be invisible at low zoom; no control over dot size/color; viewport rectangle must be a Phaser object excluded from the main camera |
 
 ### 4.4 Risks
 
@@ -524,9 +556,9 @@ All HUD data reads should go through existing GameState accessors. If GameState 
 | Detail | Value |
 |--------|-------|
 | Files likely touched | New: `src/phaser/ui/HudShell.ts`; Modified: `src/phaser/GameScene.ts` (create/shutdown wiring) |
-| Risk level | Very low |
-| Validation | Visual: bottom bar appears with empty panel outlines; typecheck; existing tests pass |
-| Manual QA | Bottom bar visible, game viewport shrinks to accommodate, no overlap with existing PlaytestHud (which still exists at this point) |
+| Risk level | Medium — touches GameScene camera setup and introduces a safe-area contract between the main camera and the DOM HUD bar. If the safe-area calculation is wrong, the camera will scroll content behind the HUD or the game viewport will be too small |
+| Validation | Visual: bottom bar appears with empty panel outlines; game viewport correctly excludes HUD bar height; camera scroll bounds reduced; typecheck; existing tests pass |
+| Manual QA | Bottom bar visible; game viewport does not extend behind the HUD; camera panning stops at correct boundaries; no overlap with existing PlaytestHud (which still exists at this point) |
 
 ### PR 2: Resource strip migration
 
@@ -546,9 +578,9 @@ All HUD data reads should go through existing GameState accessors. If GameState 
 | Detail | Value |
 |--------|-------|
 | Files likely touched | New: `src/phaser/ui/SelectionPanel.ts`, `src/state/selectionState.ts`; Modified: `src/phaser/ui/HudShell.ts`, `src/phaser/input/GameInputController.ts` (add click-to-select), `src/phaser/GameScene.ts` |
-| Risk level | Low-Medium |
-| Validation | Clicking a unit/building updates the selection panel; typecheck; existing tests pass |
-| Manual QA | Select unit → name/HP appears in panel; select building → name/HP appears; click empty space → "No selection"; game functions unchanged |
+| Risk level | Medium — new SelectionState module must be designed to avoid coupling with gameplay logic; click-to-select wiring in GameInputController changes pointer routing and must not break unit movement, building placement, or camera controls. Any pointer event priority bug could make the game unplayable |
+| Validation | Clicking a unit/building updates the selection panel; clicking empty space clears selection; right-click still issues move commands; build/produce still work; typecheck; existing tests pass |
+| Manual QA | Select unit → name/HP appears in panel; select building → name/HP appears; click empty space → "No selection"; right-click still moves units; build/produce still work; game functions unchanged |
 
 ### PR 4: Command panel MVP
 
@@ -557,8 +589,8 @@ All HUD data reads should go through existing GameState accessors. If GameState 
 | Detail | Value |
 |--------|-------|
 | Files likely touched | New: `src/phaser/ui/CommandPanel.ts`, `src/state/buildBlockReasons.ts` (extracted); Modified: `src/phaser/ui/PlaytestHud.ts` (remove build/produce sections), `src/phaser/ui/HudShell.ts` |
-| Risk level | Low-Medium |
-| Validation | Build/produce buttons work from command panel; hotkeys still work; disabled states correct; typecheck; existing tests pass |
+| Risk level | Medium — block-reason extraction from PlaytestHud is a logic move that can introduce regressions if any condition is missed; during the transition both PlaytestHud and CommandPanel may coexist and must not double-execute commands; hotkey wiring must remain functional throughout migration |
+| Validation | Build/produce buttons work from command panel; hotkeys still work; disabled states match old PlaytestHud exactly; factory queue displays correctly; cancel works; typecheck; existing tests pass |
 | Manual QA | Build/produce from command panel works identically to old PlaytestHud; hotkeys (B, 1, 2, 3, P, F, N, G) still work; factory queue displays; cancel works |
 
 ### PR 5: Minimap MVP
@@ -568,9 +600,9 @@ All HUD data reads should go through existing GameState accessors. If GameState 
 | Detail | Value |
 |--------|-------|
 | Files likely touched | New: `src/phaser/ui/MinimapController.ts`; Modified: `src/phaser/ui/HudShell.ts` (minimap frame), `src/phaser/GameScene.ts` (camera setup), `src/phaser/render/RenderManager.ts` |
-| Risk level | Medium |
-| Validation | Minimap shows entire map; units visible as dots; viewport rectangle tracks main camera; performance acceptable; typecheck; existing tests pass |
-| Manual QA | Minimap renders in bottom-left; scrolling main camera moves viewport rectangle on minimap; all units visible; no UI elements appear in minimap; frame rate stable |
+| Risk level | High — second camera introduces a full additional render pass; camera.ignore() must exclude all UI/debug elements or they will appear in the minimap; Graphics overlay for entity dots and viewport rectangle requires correct world-to-minimap coordinate translation; performance impact must be profiled on large maps; the minimap viewport position must be coordinated with the DOM minimap frame (pixel-perfect alignment) |
+| Validation | Minimap shows terrain via second camera; entity dots render at correct positions via Graphics overlay; viewport rectangle tracks main camera scroll; no UI/debug elements leak into minimap; performance acceptable (profile FPS before and after); typecheck; existing tests pass |
+| Manual QA | Minimap renders in bottom-left; entity dots at correct positions; scrolling main camera moves viewport rectangle on minimap; player/allied units visible; no UI/debug elements appear in minimap; frame rate stable |
 
 ### PR 6: Dev/debug UI separation
 
@@ -682,9 +714,11 @@ This ordering ensures that each PR is independently shippable and testable, and 
 All HUD work must comply with `CAMERA_PROJECTION_CONTRACT.md`:
 
 - The minimap second camera uses the same isometric projection as the main camera
+- The main camera viewport is reduced by the HUD bar height so game content is never hidden behind the DOM bottom bar
 - Selection rings and HP bars continue to use ground-plane projection
 - No screen-space circles for ground markers
 - The HUD DOM layer does not participate in Phaser projection — it is pure screen-space
+- Entity dots on the minimap Graphics overlay use a linear world-to-minimap coordinate translation (no isometric projection needed — the second camera already renders the isometric view)
 
 ## Appendix D: Arena mode coexistence
 
