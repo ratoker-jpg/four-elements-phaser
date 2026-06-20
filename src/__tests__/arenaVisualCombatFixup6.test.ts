@@ -53,7 +53,7 @@ describe('fixup-6: HULL_VISUAL_PROFILE helper', () => {
   it('returns an explicit profile for a known QA hull', () => {
     const wasp = getHullVisualProfile('wasp');
     expect(wasp).toBe(HULL_VISUAL_PROFILE.wasp);
-    expect(wasp.visualOffsetPx).toEqual({ x: 0, y: 1 });
+    expect(wasp.visualOffsetPx).toEqual({ x: 0, y: -17 });
     expect(wasp.ringScale).toBe(1.6);
   });
 
@@ -64,13 +64,15 @@ describe('fixup-6: HULL_VISUAL_PROFILE helper', () => {
     expect(unknown.ringScale).toBe(1.0);
   });
 
-  it('all QA hulls start at the metadata-centred {0,0} baseline (no guessed offset)', () => {
-    // fixup-7 calibrated offsets from PNG centroid measurements; they are
-    // small (0-2px) but no longer all {0,0}.
+  it('all QA hulls have measured footprint anchor offset (fixup-8: ~16-17 px vertical)', () => {
+    // fixup-8 calibrated offsets from Codex audit measured footprint errors;
+    // they are significant (16-17 px) because the ground footprint is
+    // consistently below the alpha centroid / frame center.
     for (const id of ['wasp', 'hornet', 'hunter', 'viking', 'dictator', 'titan', 'mammoth']) {
       const offset = getHullVisualOffsetPx(id);
       expect(Math.abs(offset.x)).toBeLessThanOrEqual(1);
-      expect(Math.abs(offset.y)).toBeLessThanOrEqual(2);
+      expect(Math.abs(offset.y)).toBeGreaterThanOrEqual(10);
+      expect(Math.abs(offset.y)).toBeLessThanOrEqual(20);
     }
   });
 

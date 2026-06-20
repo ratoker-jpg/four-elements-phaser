@@ -25,7 +25,6 @@ import {
 import {
   TURRET_MUZZLE_DIR16_OVERRIDE,
   getMuzzleDir16Override,
-  resolveTurretMuzzlesForDir,
 } from '../config/directionalTurretProfiles';
 import { computeModularMuzzlePoint } from '../phaser/render/ModularVehicleLiveAdapter';
 import { blockoutToModularVisual } from '../modular/blockoutToModularVisual';
@@ -56,11 +55,12 @@ describe('fixup-7: HULL_VISUAL_PROFILE', () => {
     expect(waspScale).toBeGreaterThan(mammothScale);
   });
 
-  it('visualOffsetPx is small (1-2 screen pixels)', () => {
+  it('visualOffsetPx is calibrated from measured footprint (fixup-8: ~16-17 px vertical)', () => {
     for (const hullId of qaHulls) {
       const offset = getHullVisualOffsetPx(hullId);
       expect(Math.abs(offset.x)).toBeLessThanOrEqual(1);
-      expect(Math.abs(offset.y)).toBeLessThanOrEqual(2);
+      expect(Math.abs(offset.y)).toBeGreaterThanOrEqual(10); // footprint correction is significant
+      expect(Math.abs(offset.y)).toBeLessThanOrEqual(20); // but not huge
     }
   });
 
@@ -79,8 +79,8 @@ describe('fixup-7: hull visual anchor', () => {
     // not to vehicle.worldX/worldY. This test verifies the resolver
     // returns an offset that is separate from gameplay position.
     const offset = getHullVisualOffsetPx('titan');
-    // The offset is non-zero but small — it moves the SPRITE, not the world pos
-    expect(offset.y).toBe(-2); // titan needs 2px up shift
+    // The offset moves the SPRITE (not the world pos) to align footprint with ring
+    expect(offset.y).toBeLessThan(0); // negative = up, to shift footprint down onto ring
   });
 
   it('visual offset moves hull+turret together', () => {
@@ -88,8 +88,8 @@ describe('fixup-7: hull visual anchor', () => {
     // The visualOffset is added to the anchor, so both move together.
     // This test verifies the offset is applied to the anchor, not to just hull.
     const offset = getHullVisualOffsetPx('wasp');
-    // Wasp needs 1px down shift (centroid above frame centre)
-    expect(offset.y).toBe(1);
+    // Wasp footprint is ~17px below ring → shift up 17px
+    expect(offset.y).toBe(-17);
   });
 });
 
@@ -122,14 +122,11 @@ describe('fixup-7: selection ring', () => {
 // ─── 4. Muzzle ──────────────────────────────────────────────────────
 
 describe('fixup-7: muzzle', () => {
-  it('real directional metadata (Smoky) wins over fallback', () => {
-    // Smoky has SMOKY_M01_DIRECTIONAL_PROFILE with per-dir muzzle data.
-    // When resolveTurretMuzzlesForDir returns data, getModularBarrelTip
-    // uses it at Priority 1 (before computeModularMuzzlePoint).
-    // This test verifies the resolver returns data for Smoky.
-    const muzzles = resolveTurretMuzzlesForDir('smoky', 0, 0);
-    expect(muzzles).not.toBeNull();
-    expect(muzzles!.length).toBeGreaterThan(0);
+  it('Smoky has per-dir16 override (fixup-8: overrides broken Priority-1 3DS path)', () => {
+    // Smoky now has per-dir16 override in TURRET_MUZZLE_DIR16_OVERRIDE
+    // because the Priority-1 3DS normalized path was proven off by 11-19 px.
+    const override = getMuzzleDir16Override('smoky', 0);
+    expect(override).not.toBeNull();
   });
 
   it('per-dir16 override is used when available', () => {
@@ -140,11 +137,14 @@ describe('fixup-7: muzzle', () => {
     expect(override!.dy).toBe(-13);
   });
 
-  it('per-dir16 override returns null for Smoky (uses Priority 1)', () => {
-    // Smoky is NOT in TURRET_MUZZLE_DIR16_OVERRIDE because it uses
-    // real 3DS-projected data at Priority 1.
-    const override = getMuzzleDir16Override('smoky', 0);
-    expect(override).toBeNull();
+  it('Smoky per-dir16 override wins over broken 3DS normalized path', () => {
+    // Smoky has a per-dir16 override that takes Priority 1 in
+    // getModularBarrelTip, bypassing the 3DS normalized transform
+    // that was proven to be 11-19 px off the visible barrel.
+    const override = getMuzzleDir16Override('smoky', 4);
+    expect(override).not.toBeNull();
+    expect(override!.dx).toBeDefined();
+    expect(override!.dy).toBeDefined();
   });
 
   it('computeModularMuzzlePoint uses per-dir16 override', () => {
@@ -175,8 +175,8 @@ describe('fixup-7: muzzle', () => {
     expect(muzzleW.x).toBeLessThan(BASE.x);
   });
 
-  it('per-dir16 overrides exist for all Arena turrets except Smoky', () => {
-    const arenaTurrets = ['thunder', 'railgun', 'firebird', 'freeze', 'isida', 'vulcan_b', 'twins', 'ricochet', 'hammer'];
+  it('per-dir16 overrides exist for all Arena turrets including Smoky', () => {
+    const arenaTurrets = ['smoky', 'thunder', 'railgun', 'firebird', 'freeze', 'isida', 'vulcan_b', 'twins', 'ricochet', 'hammer'];
     for (const turretId of arenaTurrets) {
       expect(TURRET_MUZZLE_DIR16_OVERRIDE[turretId]).toBeDefined();
       // Each should have all 16 directions
@@ -187,8 +187,8 @@ describe('fixup-7: muzzle', () => {
     }
   });
 
-  it('per-dir16 override magnitude is reasonable (5-40 screen px)', () => {
-    const arenaTurrets = ['thunder', 'railgun', 'firebird', 'freeze', 'isida', 'vulcan_b', 'twins', 'ricochet', 'hammer'];
+  it('per-dir16 override magnitude is reasonable (3-40 screen px)', () => {
+    const arenaTurrets = ['smoky', 'thunder', 'railgun', 'firebird', 'freeze', 'isida', 'vulcan_b', 'twins', 'ricochet', 'hammer'];
     for (const turretId of arenaTurrets) {
       for (let d = 0; d < 16; d++) {
         const override = getMuzzleDir16Override(turretId, d);

@@ -415,11 +415,26 @@ export interface MuzzleDir16Override {
  * direct offsets instead of the flat forward/lateral/vertical decomposition,
  * eliminating the systematic isometric projection error.
  *
- * Smoky is NOT listed here because it has real 3DS-projected per-direction
- * muzzle data (SMOKY_M01_DIRECTIONAL_PROFILE / SMOKY_M23_DIRECTIONAL_PROFILE)
- * which is consumed via resolveTurretMuzzlesForDir() at Priority 1.
+ * ARENA-VISUAL-COMBAT-FIX-01 fixup-8: Smoky is NOW listed here because the
+ * Codex visual audit proved the Priority-1 3DS-normalized muzzle path
+ * (resolveTurretMuzzlesForDir + turret-position transform) produces
+ * systematically wrong results — 11–19 px off the visible barrel tip.
+ * The per-dir16 PNG-measured override replaces it until the 3DS metadata
+ * pipeline is corrected. When that happens, resolveTurretMuzzlesForDir()
+ * should be fixed at source and the Smoky override can be removed.
  */
 export const TURRET_MUZZLE_DIR16_OVERRIDE: Record<string, Record<number, MuzzleDir16Override>> = {
+  // ─── Smoky (fixup-8: override broken Priority-1 3DS normalized path) ───
+  // Audit errors: dir00 +11.6,+10.2; dir04 -19.2,+6.1; dir08 -11.2,-5.5; dir12 +19.2,-1.3
+  // PNG-measured forward-most pixel offsets replace the 3DS normalized transform.
+  smoky: {
+     0: { dx: 20, dy: -11 },  1: { dx: 25, dy:  -6 },  2: { dx: 27, dy:  -3 },
+     3: { dx:  3, dy:   3 },  4: { dx: 18, dy:   5 },  5: { dx: -9, dy:  -2 },
+     6: { dx: -6, dy:   2 },  7: { dx:-11, dy:   5 },  8: { dx:-20, dy:   3 },
+     9: { dx:-25, dy:  -1 }, 10: { dx:-27, dy:  -5 }, 11: { dx: -4, dy:  -9 },
+    12: { dx:-19, dy: -12 }, 13: { dx:  8, dy:  -4 }, 14: { dx:  0, dy: -15 },
+    15: { dx: 11, dy: -13 },
+  },
   thunder: {
      0: { dx: 23, dy: -13 },  1: { dx: 29, dy:  -6 },  2: { dx: 31, dy:  -1 },
      3: { dx:  1, dy:   4 },  4: { dx: 21, dy:   7 },  5: { dx:-10, dy:   0 },

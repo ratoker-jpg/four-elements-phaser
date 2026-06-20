@@ -942,42 +942,50 @@ export class ModularVehicleLiveAdapter {
     const weaponId = state.lastVisual?.turretId ?? '';
     const turretDir16 = state.lastTurretDir16;
     const plan = state.lastPlan;
+
+    // ARENA-VISUAL-COMBAT-FIX-01 fixup-8: priority order revised.
+    // The Codex visual audit proved the Priority-1 3DS-normalized path
+    // (resolveTurretMuzzlesForDir + turret-position transform) produces
+    // systematically wrong results for Smoky (11–19 px off visible barrel).
+    // The per-dir16 PNG-measured override now takes top priority. The 3DS
+    // normalized path is demoted to Priority 2 and only used when no
+    // per-dir16 override exists for the turret.
+
+    // Priority 1 (fixup-8): Per-dir16 screen offset override.
+    // Direct (dx, dy) from PNG measurement, bypassing both the broken
+    // 3DS normalized transform AND the flat forwardPx decomposition.
+    // Currently active for all Arena turrets including Smoky.
+    if (plan && plan.pivotScreen) {
+      const dirOverride = getMuzzleDir16Override(weaponId, turretDir16);
+      if (dirOverride) {
+        return {
+          x: plan.pivotScreen.x + dirOverride.dx,
+          y: plan.pivotScreen.y + dirOverride.dy,
+        };
+      }
+    }
+
+    // Priority 2: Directional muzzle profile (per-direction 3DS projection data).
+    // Only reached when no per-dir16 override exists for this turret.
+    // NOTE: Smoky has a per-dir16 override now, so this path is NOT reached
+    // for Smoky. When the 3DS metadata pipeline is corrected, the Smoky
+    // override can be removed and this path will take over.
+    const muzzleProfile = resolveTurretMuzzlesForDir(weaponId, 0, turretDir16);
     const turretDisplaySize = plan?.turret.displaySize
       ?? (MODULAR_FRAME_SIZE * MODULAR_VEHICLE_BASE_SCALE);
-
-    // Priority 1: Directional muzzle profile (per-direction 3DS projection data)
-    const muzzleProfile = resolveTurretMuzzlesForDir(weaponId, 0, turretDir16);
     if (muzzleProfile && muzzleProfile.length > 0 && plan) {
-      // The muzzle position is in normalized sprite-space (0..1).
-      // Transform to screen-space using the turret sprite placement:
-      //   muzzleScreen = turretPosition + (muzzleNorm - origin) * displaySize
       const muzzleNorm = muzzleProfile[0].position;
       const muzzleScreenX = plan.turret.position.x + (muzzleNorm.x - plan.turret.origin.x) * turretDisplaySize;
       const muzzleScreenY = plan.turret.position.y + (muzzleNorm.y - plan.turret.origin.y) * turretDisplaySize;
       return { x: muzzleScreenX, y: muzzleScreenY };
     }
 
-    // Priority 2: Composition pivot-aware + TURRET_MUZZLE_PROFILE fallback.
-    //
-    // ARENA-VISUAL-COMBAT-FIX-01 fixup-6 root cause F: the barrel direction
-    // is derived from the resolved `turretDir16` (via dir16ToScreenAngle),
-    // NOT the raw runtime `turretAngle`. `turretAngle` is grid-space while
-    // the turret rests, so the old `cos/sin(turretAngle)` pointed the muzzle
-    // sideways/above the hull at rest. dir16 is the single source of truth
-    // for which turret PNG frame is on screen, so the muzzle now starts at
-    // the visible barrel in BOTH rest and attack.
-    //
-    // The offset uses the explicit per-turret TURRET_MUZZLE_PROFILE
-    // (forward along the barrel, lateral 90° CW, vertical screen-Y) relative
-    // to pivotScreen (composition socket/pivot alignment), instead of a bare
-    // forward length. Temporary until real per-direction muzzle markers are
-    // exported for every turret (Smoky already has them → Priority 1).
+    // Priority 3: Composition pivot-aware + TURRET_MUZZLE_PROFILE fallback.
     if (plan && plan.pivotScreen) {
       return computeModularMuzzlePoint(plan.pivotScreen, weaponId, turretDir16);
     }
 
-    // Priority 3: Last-resort fallback — turret sprite center + profile offset
-    // along the dir16 screen direction. Used only when no plan is stored.
+    // Priority 4: Last-resort fallback — turret sprite center + profile offset.
     const spriteCenter = { x: state.turretSprite.x, y: state.turretSprite.y };
     return computeModularMuzzlePoint(spriteCenter, weaponId, turretDir16);
   }
