@@ -311,3 +311,84 @@ describe('HUD-CORE-FIXUP-1: shouldUseBottomHudSafeArea', () => {
     expect(viewportH).toBe(canvasHeight - HUD_BAR_HEIGHT); // reduced viewport
   });
 });
+
+// ─── 6. Input guard respects bottom HUD active state (FIXUP-2) ──
+
+describe('HUD-CORE-FIXUP-2: isPointerInHud respects isBottomHudActive', () => {
+  /** Arena mode context: no bottom HUD, full canvas interactive. */
+  const arenaCtx: ArenaModeContext = {
+    arenaMode: true,
+    runCivilLoop: false,
+    showPlaytestHud: false,
+    showArenaMenu: true,
+    createObstaclesOnReset: false,
+  };
+
+  /** Normal game context: bottom HUD enabled, bottom area blocked. */
+  const normalCtx: ArenaModeContext = {
+    arenaMode: false,
+    runCivilLoop: true,
+    showPlaytestHud: true,
+    showArenaMenu: false,
+    createObstaclesOnReset: true,
+  };
+
+  /**
+   * Simulate the isPointerInHud logic from GameInputController:
+   *   if (!isBottomHudActive()) return false;
+   *   return isScreenPointInHud(pointerY, canvasHeight);
+   */
+  function simulatedIsPointerInHud(
+    pointerY: number,
+    canvasHeight: number,
+    bottomHudActive: boolean,
+  ): boolean {
+    if (!bottomHudActive) return false;
+    return isScreenPointInHud(pointerY, canvasHeight);
+  }
+
+  it('bottom HUD active + pointer in bottom 180px => blocked', () => {
+    const canvasHeight = 1080;
+    const active = shouldUseBottomHudSafeArea(normalCtx);
+    expect(active).toBe(true);
+    // Pointer near the very bottom of the canvas
+    expect(simulatedIsPointerInHud(canvasHeight - 1, canvasHeight, active)).toBe(true);
+    // Pointer at the top edge of the HUD bar
+    expect(simulatedIsPointerInHud(canvasHeight - HUD_BAR_HEIGHT, canvasHeight, active)).toBe(true);
+  });
+
+  it('bottom HUD inactive + pointer in bottom 180px => NOT blocked', () => {
+    const canvasHeight = 1080;
+    const active = shouldUseBottomHudSafeArea(arenaCtx);
+    expect(active).toBe(false);
+    // Same Y coordinates that would be blocked with HUD active
+    expect(simulatedIsPointerInHud(canvasHeight - 1, canvasHeight, active)).toBe(false);
+    expect(simulatedIsPointerInHud(canvasHeight - HUD_BAR_HEIGHT, canvasHeight, active)).toBe(false);
+  });
+
+  it('pointerup inside HUD clears pending click only when HUD is active', () => {
+    // When HUD is active, isPointerInHud returns true → cancelPendingClick() fires.
+    // When HUD is inactive, isPointerInHud returns false → normal click processing.
+    const canvasHeight = 1080;
+    const pointerY = canvasHeight - 50; // well inside HUD area
+
+    // HUD active: pointer is in HUD → click would be cancelled
+    const hudActive = shouldUseBottomHudSafeArea(normalCtx);
+    expect(simulatedIsPointerInHud(pointerY, canvasHeight, hudActive)).toBe(true);
+
+    // HUD inactive: pointer is NOT treated as in HUD → click processes normally
+    const hudInactive = shouldUseBottomHudSafeArea(arenaCtx);
+    expect(simulatedIsPointerInHud(pointerY, canvasHeight, hudInactive)).toBe(false);
+  });
+
+  it('Arena/no bottom HUD — full canvas remains interactive at all Y positions', () => {
+    const canvasHeight = 1080;
+    const active = shouldUseBottomHudSafeArea(arenaCtx);
+    // Test several Y positions across the full canvas
+    expect(simulatedIsPointerInHud(0, canvasHeight, active)).toBe(false);
+    expect(simulatedIsPointerInHud(canvasHeight / 2, canvasHeight, active)).toBe(false);
+    expect(simulatedIsPointerInHud(canvasHeight - 1, canvasHeight, active)).toBe(false);
+    expect(simulatedIsPointerInHud(canvasHeight - HUD_BAR_HEIGHT, canvasHeight, active)).toBe(false);
+    expect(simulatedIsPointerInHud(canvasHeight - HUD_BAR_HEIGHT - 1, canvasHeight, active)).toBe(false);
+  });
+});

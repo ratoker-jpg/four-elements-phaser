@@ -88,6 +88,10 @@ export interface GameInputDeps {
   isArenaMode?: () => boolean;
   /** CORE-STEP-05H+: CameraControls reference for wiring arrow key debug overlay predicate. */
   cameraControls?: { isDebugOverlayActive: () => boolean };
+  /** VISUAL-HUD-CORE-01-FIXUP-2: Whether the bottom RTS HUD bar is active.
+   *  When false, isPointerInHud() always returns false so the bottom
+   *  canvas area remains fully interactive (e.g. Arena mode). */
+  isBottomHudActive?: () => boolean;
 }
 
 // ─── Selection highlight constants ─────────────────────────────────
@@ -121,6 +125,7 @@ export class GameInputController {
   private setPausedCb: (paused: boolean) => void;
   private isPlacementActive: () => boolean;
   private isArenaMode: () => boolean;
+  private isBottomHudActive: () => boolean;
 
   // ARCH-05X: Unit selection state
   private selectedUnit: UnitSelection = null;
@@ -162,6 +167,7 @@ export class GameInputController {
     this.setPausedCb = deps.setPaused;
     this.isPlacementActive = deps.isPlacementActive ?? (() => false);
     this.isArenaMode = deps.isArenaMode ?? (() => false);
+    this.isBottomHudActive = deps.isBottomHudActive ?? (() => true);
 
     // Create selection highlight graphics
     this.selectionHighlight = this.scene.add.graphics();
@@ -387,11 +393,13 @@ export class GameInputController {
   }
 
   /**
-   * VISUAL-HUD-CORE-01: Check whether a pointer event's screen position
-   * falls inside the bottom HUD bar. Used to prevent map command routing
-   * when the player clicks on HUD panels.
+   * VISUAL-HUD-CORE-01-FIXUP-2: Check whether a pointer event's screen
+   * position falls inside the bottom HUD bar. Returns false immediately
+   * when the bottom HUD is not active (e.g. Arena mode), so the full
+   * canvas remains interactive.
    */
   private isPointerInHud(pointer: Phaser.Input.Pointer): boolean {
+    if (!this.isBottomHudActive()) return false;
     const canvasHeight = this.scene.game.canvas.height;
     return isScreenPointInHud(pointer.y, canvasHeight);
   }

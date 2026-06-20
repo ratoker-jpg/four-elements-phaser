@@ -583,6 +583,10 @@ export class GameScene extends Phaser.Scene {
       // CORE-STEP-05H+: Arena mode flag and CameraControls reference
       isArenaMode: () => this.arenaMode,
       cameraControls: this.cameraControls,
+      // VISUAL-HUD-CORE-01-FIXUP-2: Bottom HUD active gate — same source of
+      // truth as camera safe-area. When false, isPointerInHud() returns false
+      // and the full canvas remains interactive (Arena mode).
+      isBottomHudActive: () => shouldUseBottomHudSafeArea(this.arenaCtx),
     });
 
     // Wire PlaytestHud callbacks to delegate to the input controller
