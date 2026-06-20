@@ -55,12 +55,12 @@ describe('fixup-7: HULL_VISUAL_PROFILE', () => {
     expect(waspScale).toBeGreaterThan(mammothScale);
   });
 
-  it('visualOffsetPx is calibrated from measured footprint (fixup-8: ~16-17 px vertical)', () => {
+  it('visualOffsetPx is calibrated from moderated footprint (fixup-9: ~8-10 px vertical)', () => {
     for (const hullId of qaHulls) {
       const offset = getHullVisualOffsetPx(hullId);
       expect(Math.abs(offset.x)).toBeLessThanOrEqual(1);
-      expect(Math.abs(offset.y)).toBeGreaterThanOrEqual(10); // footprint correction is significant
-      expect(Math.abs(offset.y)).toBeLessThanOrEqual(20); // but not huge
+      expect(Math.abs(offset.y)).toBeGreaterThanOrEqual(8); // footprint correction is moderate
+      expect(Math.abs(offset.y)).toBeLessThanOrEqual(10); // not too much
     }
   });
 
@@ -88,8 +88,8 @@ describe('fixup-7: hull visual anchor', () => {
     // The visualOffset is added to the anchor, so both move together.
     // This test verifies the offset is applied to the anchor, not to just hull.
     const offset = getHullVisualOffsetPx('wasp');
-    // Wasp footprint is ~17px below ring → shift up 17px
-    expect(offset.y).toBe(-17);
+    // Fixup-9: moderated from -17 (too high) to -9
+    expect(offset.y).toBe(-9);
   });
 });
 

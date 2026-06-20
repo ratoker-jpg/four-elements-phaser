@@ -78,43 +78,40 @@ export const DEFAULT_HULL_VISUAL_PROFILE: HullVisualProfile = {
  * Per-hull visual profiles for the hulls used in the current Arena (the
  * ones shown in Denis QA).
  *
- * ARENA-VISUAL-COMBAT-FIX-01 fixup-8: visualOffsetPx is now calibrated from
- * MEASURED HULL GROUND-FOOTPRINT position vs. ring center, not from the
- * alpha centroid. The Codex visual audit (2026-06-20) found that the hull
- * ground-footprint center is consistently ~16–19 screen px BELOW the
- * gameplay/ring center for all hulls. The fixup-7 alpha-centroid approach
- * yielded only 1–2 px offsets because the centroid averages in the upper
- * body/turret-base area, pulling the "centre" up toward the visual middle
- * of the sprite rather than toward the ground contact.
+ * ARENA-VISUAL-COMBAT-FIX-01 fixup-9: visualOffsetPx moderated from the
+ * fixup-8 values (-16/–17) to -8/–10. Fixup-8 used the full measured
+ * footprint-to-ring offset (~17 px), which over-corrected: the hull sat
+ * too HIGH above the selection ring. The correct offset is approximately
+ * half the measured distance because the PNG frame center already sits
+ * closer to the visual ground contact than the raw footprint measurement
+ * suggested — the alpha centroid pull (upper body) accounts for roughly
+ * half the distance.
  *
- * Method (fixup-8):
- *   1. Codex audit measured the offset from ring center to hull ground
- *      footprint center per direction, per hull.
- *   2. The consistent vertical component is ~17 px (footprint below ring).
- *      To align the footprint with the ring, the hull composite must shift
- *      UP by that amount (negative Y in screen space).
- *   3. Horizontal components mirror by direction and partially cancel when
- *      averaged, so they are set to 0 for simplicity.
- *   4. ringScale remains from fixup-7 (footprint-proportional ring sizing).
+ * Method history:
+ *   - fixup-7: alpha centroid → 1–2 px offsets (under-corrected, hull too low)
+ *   - fixup-8: full footprint measurement → ~17 px (over-corrected, hull too high)
+ *   - fixup-9: moderated to ~8–10 px (midpoint between the two methods)
+ *
+ * ringScale remains from fixup-7 (footprint-proportional ring sizing).
  *
  * These are visual calibration values until real hull frame metadata exists.
  * They move ONLY the modular sprite composite; gameplay position, hitbox,
  * pathfinding, range, and damage are unaffected.
  */
 export const HULL_VISUAL_PROFILE: Record<string, HullVisualProfile> = {
-  // small_fast — audit: footprint 15.8-19.0 px below ring; shift up 17 px.
-  wasp:     { visualOffsetPx: { x: 0, y: -17 }, ringScale: 1.6, note: 'small_fast; footprint ~17px below ring → dy-17; ring 1.6×' },
-  // light_fast — extrapolate similar isometric offset
-  hornet:   { visualOffsetPx: { x: 0, y: -16 }, ringScale: 1.4, note: 'light_fast; extrapolated ~16px below ring → dy-16; ring 1.4×' },
-  // medium — extrapolate similar isometric offset
-  hunter:   { visualOffsetPx: { x: 0, y: -16 }, ringScale: 1.3, note: 'medium; extrapolated ~16px below ring → dy-16; ring 1.3×' },
-  viking:   { visualOffsetPx: { x: 0, y: -16 }, ringScale: 1.3, note: 'medium; extrapolated ~16px below ring → dy-16; ring 1.3×' },
-  // large_fast — extrapolate
-  dictator: { visualOffsetPx: { x: 0, y: -17 }, ringScale: 1.25, note: 'large_fast; extrapolated ~17px below ring → dy-17; ring 1.25×' },
-  // heavy — extrapolate
-  titan:    { visualOffsetPx: { x: 0, y: -17 }, ringScale: 1.15, note: 'heavy; extrapolated ~17px below ring → dy-17; ring 1.15×' },
-  // super_heavy — audit: footprint 15.5-19.3 px below ring; shift up 17 px.
-  mammoth:  { visualOffsetPx: { x: 0, y: -17 }, ringScale: 1.05, note: 'super_heavy; footprint ~17px below ring → dy-17; ring 1.05×' },
+  // small_fast — fixup-9: moderated from dy-17 (too high) to dy-9.
+  wasp:     { visualOffsetPx: { x: 0, y: -9 }, ringScale: 1.6, note: 'small_fast; fixup-9 moderated dy-17→dy-9; ring 1.6×' },
+  // light_fast — fixup-9: moderated from dy-16 (too high) to dy-8.
+  hornet:   { visualOffsetPx: { x: 0, y: -8 }, ringScale: 1.4, note: 'light_fast; fixup-9 moderated dy-16→dy-8; ring 1.4×' },
+  // medium — fixup-9: moderated from dy-16 (too high) to dy-8.
+  hunter:   { visualOffsetPx: { x: 0, y: -8 }, ringScale: 1.3, note: 'medium; fixup-9 moderated dy-16→dy-8; ring 1.3×' },
+  viking:   { visualOffsetPx: { x: 0, y: -8 }, ringScale: 1.3, note: 'medium; fixup-9 moderated dy-16→dy-8; ring 1.3×' },
+  // large_fast — fixup-9: moderated from dy-17 (too high) to dy-10.
+  dictator: { visualOffsetPx: { x: 0, y: -10 }, ringScale: 1.25, note: 'large_fast; fixup-9 moderated dy-17→dy-10; ring 1.25×' },
+  // heavy — fixup-9: moderated from dy-17 (too high) to dy-10.
+  titan:    { visualOffsetPx: { x: 0, y: -10 }, ringScale: 1.15, note: 'heavy; fixup-9 moderated dy-17→dy-10; ring 1.15×' },
+  // super_heavy — fixup-9: moderated from dy-17 (too high) to dy-10.
+  mammoth:  { visualOffsetPx: { x: 0, y: -10 }, ringScale: 1.05, note: 'super_heavy; fixup-9 moderated dy-17→dy-10; ring 1.05×' },
 };
 
 /**
