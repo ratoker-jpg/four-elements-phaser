@@ -393,6 +393,14 @@ export class GameInputController {
   }
 
   /**
+   * VISUAL-COMMAND-PANEL-02: Show a status message via the HUD.
+   * Delegates to the showStatus callback provided by GameScene.
+   */
+  showStatus(message: string, success: boolean): void {
+    this.showStatusCb(message, success);
+  }
+
+  /**
    * VISUAL-HUD-CORE-01-FIXUP-2: Check whether a pointer event's screen
    * position falls inside the bottom HUD bar. Returns false immediately
    * when the bottom HUD is not active (e.g. Arena mode), so the full

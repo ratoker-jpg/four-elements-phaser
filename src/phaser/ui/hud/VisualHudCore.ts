@@ -2,8 +2,11 @@
  * VisualHudCore — bottom RTS HUD bar composing all panel slots.
  *
  * VISUAL-HUD-CORE-01: The bottom bar layout:
- *   [Minimap slot] [Selection panel] [Command panel placeholder]
+ *   [Minimap slot] [Selection panel] [Command panel]
  *   [Resource strip — full width]
+ *
+ * VISUAL-COMMAND-PANEL-02: Command panel is now a real, context-sensitive
+ * panel that shows build/produce/stop actions based on the current selection.
  *
  * Architecture: DOM-only (no Phaser UI objects). The minimap slot is a
  * placeholder for a future Phaser second-camera viewport.
@@ -17,7 +20,7 @@ import type { UnitSelection } from '../../../state/unitSelection';
 import { HUD_BAR_HEIGHT } from './hudLayout';
 import { HudResourceStrip } from './HudResourceStrip';
 import { HudSelectionPanel } from './HudSelectionPanel';
-import { HudCommandPanelPlaceholder } from './HudCommandPanelPlaceholder';
+import { HudCommandPanel, type CommandExecuteCallback } from './HudCommandPanel';
 import { HudMinimapPlaceholder } from './HudMinimapPlaceholder';
 
 export class VisualHudCore {
@@ -26,13 +29,13 @@ export class VisualHudCore {
 
   private resourceStrip = new HudResourceStrip();
   private selectionPanel = new HudSelectionPanel();
-  private commandPanel = new HudCommandPanelPlaceholder();
+  private commandPanel = new HudCommandPanel();
   private minimapSlot = new HudMinimapPlaceholder();
 
   /** Current selection state — updated by GameInputController. */
   private currentSelection: UnitSelection = null;
 
-  create(): void {
+  create(onCommand?: CommandExecuteCallback): void {
     this.root = document.createElement('div');
     this.root.id = 'visual-hud-core';
     this.root.innerHTML = this.css();
@@ -47,7 +50,7 @@ export class VisualHudCore {
 
     this.minimapSlot.create(this.panelRow);
     this.selectionPanel.create(this.panelRow);
-    this.commandPanel.create(this.panelRow);
+    this.commandPanel.create(this.panelRow, onCommand);
     this.resourceStrip.create(stripRow);
 
     this.root.appendChild(this.panelRow);
@@ -58,7 +61,7 @@ export class VisualHudCore {
   update(state: GameState): void {
     this.resourceStrip.update(state);
     this.selectionPanel.update(state, this.currentSelection);
-    this.commandPanel.update();
+    this.commandPanel.update(state, this.currentSelection);
     this.minimapSlot.update();
   }
 

@@ -1,0 +1,339 @@
+/**
+ * VISUAL-COMMAND-PANEL-02 tests.
+ *
+ * Targeted tests for:
+ *   - Command panel view model: context → command descriptors
+ *   - Build commands: availability, disabled reasons, costs
+ *   - Production commands: availability, disabled reasons
+ *   - Stop command for harvester/builder
+ *   - No selection → safe empty state
+ *   - Unknown entity → no crash
+ */
+
+import { describe, it, expect } from 'vitest';
+import {
+  buildCommandPanelViewModel,
+} from '../phaser/ui/hud/commandPanelViewModel';
+import type { UnitSelection } from '../state/unitSelection';
+import type { GameState } from '../state/types';
+import {
+  isScreenPointInHud,
+  shouldUseBottomHudSafeArea,
+} from '../phaser/ui/hud/hudLayout';
+import type { ArenaModeContext } from '../state/arenaModeContext';
+
+// ─── Test helpers ──────────────────────────────────────────────────
+
+/** Create a minimal Normal Game state with enough economy for most commands. */
+function createNormalGameState(overrides?: Partial<GameState['economy']>): GameState {
+  return {
+    mapWidth: 40,
+    mapHeight: 40,
+    mapData: {
+      hq: { tx: 5, ty: 5 },
+      buildings: [],
+      builders: [
+        { id: 'builder-1', ftx: 6, fty: 6, phase: 'idle', busy: false, manualMove: false },
+      ],
+      constructionSites: [],
+      terrain: [],
+    },
+    harvesters: [],
+    playerFaction: 'cyan',
+    economy: {
+      raw: 100,
+      matter: 200,
+      elements: { cyan: 50, green: 0, yellow: 0, purple: 0 },
+      rawCap: 500,
+      matterCap: 500,
+      elementCap: 300,
+      powerGenerated: 10,
+      powerConsumed: 0,
+      separators: [],
+      ...overrides,
+    },
+    production: {
+      factories: [],
+    },
+    ...({} as Partial<GameState>),
+  } as unknown as GameState;
+}
+
+/** Create a game state with a factory for production tests. */
+function createGameStateWithFactory(): GameState {
+  const state = createNormalGameState();
+  state.mapData.buildings = [
+    { type: 'units-factory', tx: 10, ty: 10 },
+  ];
+  state.production.factories = [
+    {
+      tx: 10,
+      ty: 10,
+      queue: [],
+      active: false,
+    },
+  ];
+  return state;
+}
+
+/** Create a game state with insufficient resources. */
+function createBrokeGameState(): GameState {
+  return createNormalGameState({
+    matter: 5,
+    elements: { cyan: 0, green: 0, yellow: 0, purple: 0 },
+  });
+}
+
+// ─── 1. No selection → empty/neutral command panel ─────────────────
+
+describe('COMMAND-PANEL-02: no selection', () => {
+  it('returns context kind "none" with no selection', () => {
+    const state = createGameStateWithFactory();
+    const vm = buildCommandPanelViewModel(state, null);
+    expect(vm.contextKind).toBe('none');
+  });
+
+  it('shows production commands even with no selection (global)', () => {
+    const state = createGameStateWithFactory();
+    const vm = buildCommandPanelViewModel(state, null);
+    const prodCmds = vm.commands.filter(c => c.category === 'produce');
+    expect(prodCmds.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('production commands have correct labels', () => {
+    const state = createGameStateWithFactory();
+    const vm = buildCommandPanelViewModel(state, null);
+    const labels = vm.commands.filter(c => c.category === 'produce').map(c => c.label);
+    expect(labels).toContain('Builder');
+    expect(labels).toContain('Harvester');
+  });
+});
+
+// ─── 2. Builder selection → build commands appear ──────────────────
+
+describe('COMMAND-PANEL-02: builder selection', () => {
+  const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+
+  it('returns context kind "builder"', () => {
+    const state = createNormalGameState();
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    expect(vm.contextKind).toBe('builder');
+  });
+
+  it('shows 6 build commands for gameplay-ready buildings', () => {
+    const state = createNormalGameState();
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    const buildCmds = vm.commands.filter(c => c.category === 'build');
+    expect(buildCmds.length).toBe(6);
+  });
+
+  it('build commands include expected command IDs', () => {
+    const state = createNormalGameState();
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    const buildIds = vm.commands.filter(c => c.category === 'build').map(c => c.id);
+    expect(buildIds).toContain('build-separator');
+    expect(buildIds).toContain('build-raw-storage');
+    expect(buildIds).toContain('build-units-factory');
+  });
+
+  it('build commands have cost display', () => {
+    const state = createNormalGameState();
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    const buildCmds = vm.commands.filter(c => c.category === 'build');
+    for (const cmd of buildCmds) {
+      expect(cmd.cost).toBeTruthy();
+    }
+  });
+
+  it('build commands have hotkey labels', () => {
+    const state = createNormalGameState();
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    const buildCmds = vm.commands.filter(c => c.category === 'build');
+    for (const cmd of buildCmds) {
+      expect(cmd.hotkey).toBeTruthy();
+    }
+  });
+});
+
+// ─── 3. Insufficient resources → build command disabled with reason ─
+
+describe('COMMAND-PANEL-02: resource-gated build commands', () => {
+  const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+
+  it('build commands are disabled when matter is insufficient', () => {
+    const state = createBrokeGameState();
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    const buildCmds = vm.commands.filter(c => c.category === 'build');
+    // All build commands should be disabled (5 matter < any building cost)
+    // OR no idle builder
+    const enabledCmds = buildCmds.filter(c => c.state === 'enabled');
+    expect(enabledCmds.length).toBe(0);
+  });
+
+  it('disabled build commands have a disabled reason', () => {
+    const state = createBrokeGameState();
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    const disabledCmds = vm.commands.filter(c => c.state === 'disabled');
+    for (const cmd of disabledCmds) {
+      expect(cmd.disabledReason).toBeTruthy();
+    }
+  });
+});
+
+// ─── 4. Sufficient resources → build command enabled ───────────────
+
+describe('COMMAND-PANEL-02: sufficient resources', () => {
+  const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+
+  it('build commands are enabled when resources are sufficient', () => {
+    const state = createNormalGameState();
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    const buildCmds = vm.commands.filter(c => c.category === 'build');
+    const enabledCmds = buildCmds.filter(c => c.state === 'enabled');
+    // With 200 matter, at least some buildings should be affordable
+    expect(enabledCmds.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── 5. Factory/building selection → production commands ────────────
+
+describe('COMMAND-PANEL-02: production commands', () => {
+  const harvesterSelection: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+
+  it('harvester selection shows production commands', () => {
+    const state = createGameStateWithFactory();
+    // Need a harvester in state for valid selection
+    state.harvesters = [
+      { id: 'harvester-1', ftx: 7, fty: 7, phase: 'idle', faction: 'cyan' } as any,
+    ];
+    const vm = buildCommandPanelViewModel(state, harvesterSelection);
+    const prodCmds = vm.commands.filter(c => c.category === 'produce');
+    expect(prodCmds.length).toBe(2);
+  });
+
+  it('production commands are disabled when no factory exists', () => {
+    const state = createNormalGameState(); // no factories
+    state.harvesters = [
+      { id: 'harvester-1', ftx: 7, fty: 7, phase: 'idle', faction: 'cyan' } as any,
+    ];
+    const vm = buildCommandPanelViewModel(state, harvesterSelection);
+    const prodCmds = vm.commands.filter(c => c.category === 'produce');
+    for (const cmd of prodCmds) {
+      expect(cmd.state).toBe('disabled');
+    }
+  });
+
+  it('production commands are enabled when factory exists and resources sufficient', () => {
+    const state = createGameStateWithFactory();
+    state.harvesters = [
+      { id: 'harvester-1', ftx: 7, fty: 7, phase: 'idle', faction: 'cyan' } as any,
+    ];
+    const vm = buildCommandPanelViewModel(state, harvesterSelection);
+    const prodCmds = vm.commands.filter(c => c.category === 'produce');
+    const enabledProd = prodCmds.filter(c => c.state === 'enabled');
+    expect(enabledProd.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── 6. Combat unit / unknown entity → safe state ──────────────────
+
+describe('COMMAND-PANEL-02: unknown entity safety', () => {
+  it('returns safe empty state for null selection', () => {
+    const state = createNormalGameState();
+    const vm = buildCommandPanelViewModel(state, null);
+    expect(vm.contextKind).toBe('none');
+    // Should not crash
+    expect(vm.commands).toBeDefined();
+  });
+});
+
+// ─── 7. Harvester selection shows stop command ─────────────────────
+
+describe('COMMAND-PANEL-02: harvester stop command', () => {
+  const harvesterSelection: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+
+  it('harvester selection shows stop command', () => {
+    const state = createNormalGameState();
+    state.harvesters = [
+      { id: 'harvester-1', ftx: 7, fty: 7, phase: 'idle', faction: 'cyan' } as any,
+    ];
+    const vm = buildCommandPanelViewModel(state, harvesterSelection);
+    const stopCmd = vm.commands.find(c => c.id === 'unit-stop');
+    expect(stopCmd).toBeDefined();
+    expect(stopCmd!.label).toBe('Stop');
+    expect(stopCmd!.hotkey).toBe('S');
+    expect(stopCmd!.state).toBe('enabled');
+  });
+
+  it('builder selection does NOT show stop command', () => {
+    const state = createNormalGameState();
+    const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    const stopCmd = vm.commands.find(c => c.id === 'unit-stop');
+    expect(stopCmd).toBeUndefined();
+  });
+});
+
+// ─── 8. Command click safety (pointer-in-HUD guard still works) ───
+
+describe('COMMAND-PANEL-02: HUD input guard intact', () => {
+  it('isScreenPointInHud still works for bottom HUD area', () => {
+    const canvasHeight = 1080;
+    expect(isScreenPointInHud(canvasHeight - 1, canvasHeight)).toBe(true);
+    expect(isScreenPointInHud(0, canvasHeight)).toBe(false);
+  });
+
+  it('shouldUseBottomHudSafeArea still gates correctly', () => {
+    const arenaCtx: ArenaModeContext = {
+      arenaMode: true,
+      runCivilLoop: false,
+      showPlaytestHud: false,
+      showArenaMenu: true,
+      createObstaclesOnReset: false,
+    };
+    expect(shouldUseBottomHudSafeArea(arenaCtx)).toBe(false);
+  });
+});
+
+// ─── 9. Command descriptor integrity ───────────────────────────────
+
+describe('COMMAND-PANEL-02: descriptor integrity', () => {
+  it('all descriptors have required fields', () => {
+    const state = createNormalGameState();
+    const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+
+    for (const cmd of vm.commands) {
+      expect(cmd.id).toBeTruthy();
+      expect(cmd.label).toBeTruthy();
+      expect(cmd.state).toMatch(/^(enabled|disabled|hidden)$/);
+      expect(cmd.category).toMatch(/^(build|produce|unit-action|building-action)$/);
+      expect(typeof cmd.tooltip).toBe('string');
+      expect(typeof cmd.disabledReason).toBe('string');
+      expect(typeof cmd.cost).toBe('string');
+      expect(typeof cmd.hotkey).toBe('string');
+    }
+  });
+
+  it('enabled commands have empty disabledReason', () => {
+    const state = createNormalGameState();
+    const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+
+    const enabledCmds = vm.commands.filter(c => c.state === 'enabled');
+    for (const cmd of enabledCmds) {
+      expect(cmd.disabledReason).toBe('');
+    }
+  });
+
+  it('disabled commands have non-empty disabledReason', () => {
+    const state = createBrokeGameState();
+    const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+
+    const disabledCmds = vm.commands.filter(c => c.state === 'disabled');
+    for (const cmd of disabledCmds) {
+      expect(cmd.disabledReason).toBeTruthy();
+    }
+  });
+});

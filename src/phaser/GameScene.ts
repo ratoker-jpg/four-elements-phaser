@@ -6,6 +6,8 @@ import { GameInputController } from './input/GameInputController';
 import { PlaytestHud } from './ui/PlaytestHud';
 import { VisualHudCore } from './ui/hud/VisualHudCore';
 import { HUD_BAR_HEIGHT, shouldUseBottomHudSafeArea } from './ui/hud/hudLayout';
+import { commandRegistry } from '../state/commandRegistry';
+import { stopUnitCommand } from '../state/unitCommands';
 
 import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric';
 import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
@@ -320,11 +322,29 @@ export class GameScene extends Phaser.Scene {
 
     // VISUAL-HUD-CORE-01: Create bottom RTS HUD (Normal Game only)
     if (this.arenaCtx.showPlaytestHud) {
+      // VISUAL-COMMAND-PANEL-02: Wire command execution through the
+      // command registry so HUD button clicks use the same execution
+      // path as hotkeys — requestBuild / requestQueueUnit / stopUnit.
+      const onCommand = (commandId: string) => {
+        // Use the registry's execute which respects enabled predicates
+        // and calls the wired callbacks.
+        const executed = commandRegistry.execute(commandId);
+        if (!executed) {
+          // Command not found or not enabled — try unit-stop as special case
+          if (commandId === 'unit-stop') {
+            const sel = this.inputController?.getSelection() ?? null;
+            if (sel) {
+              const result = stopUnitCommand(this.gameState, sel);
+              this.inputController?.showStatus(result.ok ? 'Stopped' : result.reason, result.ok);
+            }
+          }
+        }
+      };
       this.visualHudCore = new VisualHudCore();
-      this.visualHudCore.create();
+      this.visualHudCore.create(onCommand);
       // Hide the old PlaytestHud economy section since the new HUD
-      // resource strip now shows the same data. Build/produce/factory
-      // controls remain in the old sidebar until command panel is wired.
+      // resource strip and command panel now provide the same functionality.
+      // Build/produce/factory controls are now in the bottom HUD command panel.
       this.playtestHud?.hideEconomySection();
     }
 
