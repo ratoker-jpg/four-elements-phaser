@@ -9,7 +9,7 @@ import type { UnitSelection, SelectableUnit } from '../../state/unitSelection';
 import {
   clearSelection, isUnitSelected,
   selectMany, getSelectionTypeBreakdown,
-  hasHarvesterInSelection, getSelectionCenter,
+  hasHarvesterInSelection, getSelectionCenterTile,
 } from '../../state/unitSelection';
 import { issueManualMove, stopUnitCommand, issueMultiMoveCommand, stopUnitsCommand } from '../../state/unitCommands';
 import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
@@ -195,8 +195,10 @@ export class GameInputController {
     this.selectionHighlight.setDepth(150);
 
     // Create drag-select rectangle graphics
+    // FIXUP-1: setScrollFactor(0) so rect renders in screen space
     this.selectionRect = this.scene.add.graphics();
     this.selectionRect.setDepth(160);
+    this.selectionRect.setScrollFactor(0);
 
     // Prevent browser context menu on the game canvas only
     this.contextmenuHandler = (e: Event) => e.preventDefault();
@@ -495,11 +497,30 @@ export class GameInputController {
     this.selectionRect.strokeRect(x, y, w, h);
   }
 
-  /** Finalize drag-select: find all own units within the screen-space rectangle. */
+  /**
+   * FIXUP-1: Convert a world-space position to screen-space.
+   *
+   * World coords = tileToScreen(ftx, fty) + offset (the Phaser render position).
+   * Screen coords = position on the game canvas, accounting for camera scroll & zoom.
+   */
+  private worldToScreen(worldX: number, worldY: number): { sx: number; sy: number } {
+    const cam = this.scene.cameras.main;
+    const sx = (worldX - cam.worldView.x) * cam.zoom;
+    const sy = (worldY - cam.worldView.y) * cam.zoom;
+    return { sx, sy };
+  }
+
+  /** Finalize drag-select: find all own units within the screen-space rectangle.
+   *
+   * FIXUP-1: Drag rect is in screen space (pointer coords). Unit positions
+   * are now projected to screen space via worldToScreen() so the comparison
+   * is coordinate-space consistent regardless of camera scroll/zoom.
+   */
   private finalizeDragSelect(): void {
     const gameState = this.getGameState();
     const canvasHeight = this.scene.game.canvas.height;
 
+    // Drag rect in screen space (pointer coords)
     const left = Math.min(this._dragStartX, this._dragEndX);
     const top = Math.min(this._dragStartY, this._dragEndY);
     const right = Math.max(this._dragStartX, this._dragEndX);
@@ -508,23 +529,25 @@ export class GameInputController {
     const selectedUnits: SelectableUnit[] = [];
     const shiftHeld = this.scene.input.keyboard?.addKey('SHIFT')?.isDown ?? false;
 
-    // Check builders
+    // Check builders — convert world positions to screen space
     for (const b of gameState.mapData.builders) {
-      const screenPos = tileToScreen(b.ftx, b.fty);
-      const sx = screenPos.x + this.offset.x;
-      const sy = screenPos.y + this.offset.y;
+      const worldPos = tileToScreen(b.ftx, b.fty);
+      const worldX = worldPos.x + this.offset.x;
+      const worldY = worldPos.y + this.offset.y;
+      const { sx, sy } = this.worldToScreen(worldX, worldY);
 
-      // Check if in rectangle and not behind HUD
+      // Compare screen-space unit position against screen-space drag rect
       if (sx >= left && sx <= right && sy >= top && sy <= bottom && !isScreenPointInHud(sy, canvasHeight)) {
         selectedUnits.push({ kind: 'builder', id: b.id });
       }
     }
 
-    // Check harvesters
+    // Check harvesters — convert world positions to screen space
     for (const h of gameState.harvesters) {
-      const screenPos = tileToScreen(h.ftx, h.fty);
-      const sx = screenPos.x + this.offset.x;
-      const sy = screenPos.y + this.offset.y;
+      const worldPos = tileToScreen(h.ftx, h.fty);
+      const worldX = worldPos.x + this.offset.x;
+      const worldY = worldPos.y + this.offset.y;
+      const { sx, sy } = this.worldToScreen(worldX, worldY);
 
       if (sx >= left && sx <= right && sy >= top && sy <= bottom && !isScreenPointInHud(sy, canvasHeight)) {
         selectedUnits.push({ kind: 'harvester', id: h.id });
@@ -584,23 +607,30 @@ export class GameInputController {
 
     const selectedUnits: SelectableUnit[] = [];
 
+    // FIXUP-1: Use world-space for worldView.contains (correct) and
+    // screen-space for isScreenPointInHud (was using world Y — now fixed).
     if (target.unitKind === 'builder') {
       for (const b of gameState.mapData.builders) {
-        const screenPos = tileToScreen(b.ftx, b.fty);
-        const sx = screenPos.x + this.offset.x;
-        const sy = screenPos.y + this.offset.y;
-        // Check if visible in camera viewport and not behind HUD
-        if (cam.worldView.contains(sx, sy) && !isScreenPointInHud(sy, canvasHeight)) {
-          selectedUnits.push({ kind: 'builder', id: b.id });
+        const worldPos = tileToScreen(b.ftx, b.fty);
+        const worldX = worldPos.x + this.offset.x;
+        const worldY = worldPos.y + this.offset.y;
+        if (cam.worldView.contains(worldX, worldY)) {
+          const { sy } = this.worldToScreen(worldX, worldY);
+          if (!isScreenPointInHud(sy, canvasHeight)) {
+            selectedUnits.push({ kind: 'builder', id: b.id });
+          }
         }
       }
     } else if (target.unitKind === 'harvester') {
       for (const h of gameState.harvesters) {
-        const screenPos = tileToScreen(h.ftx, h.fty);
-        const sx = screenPos.x + this.offset.x;
-        const sy = screenPos.y + this.offset.y;
-        if (cam.worldView.contains(sx, sy) && !isScreenPointInHud(sy, canvasHeight)) {
-          selectedUnits.push({ kind: 'harvester', id: h.id });
+        const worldPos = tileToScreen(h.ftx, h.fty);
+        const worldX = worldPos.x + this.offset.x;
+        const worldY = worldPos.y + this.offset.y;
+        if (cam.worldView.contains(worldX, worldY)) {
+          const { sy } = this.worldToScreen(worldX, worldY);
+          if (!isScreenPointInHud(sy, canvasHeight)) {
+            selectedUnits.push({ kind: 'harvester', id: h.id });
+          }
         }
       }
     }
@@ -992,10 +1022,13 @@ export class GameInputController {
         this.showSelectionStatus();
 
         // Double-tap: center camera on group
+        // FIXUP-1: getSelectionCenterTile returns tile-space {tx, ty};
+        // convert to world coords here (camera/input layer) via tileToScreen + offset.
         if (shouldCenter) {
-          const center = getSelectionCenter(groupSelection, gameState);
-          if (center && this.cameraControls) {
-            this.cameraControls.centerOn(center.x + this.offset.x, center.y + this.offset.y);
+          const tileCenter = getSelectionCenterTile(groupSelection, gameState);
+          if (tileCenter && this.cameraControls) {
+            const worldPos = tileToScreen(tileCenter.tx, tileCenter.ty);
+            this.cameraControls.centerOn(worldPos.x + this.offset.x, worldPos.y + this.offset.y);
           }
         }
       }

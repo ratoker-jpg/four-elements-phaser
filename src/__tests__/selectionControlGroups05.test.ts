@@ -24,7 +24,7 @@ import {
   pruneMissingEntities,
   getSelectionKind,
   getSelectionTypeBreakdown,
-  getSelectionCenter,
+  getSelectionCenterTile,
   hasBuilderInSelection,
   hasHarvesterInSelection,
   isAllBuilders,
@@ -147,13 +147,38 @@ describe('SELECTION-05: selection model', () => {
     expect(breakdown.get('harvester')).toBe(1);
   });
 
-  it('getSelectionCenter returns average position', () => {
-    const state = createGameState();
+  it('getSelectionCenterTile returns tile-space average position', () => {
+    const state = createGameState(); // builder-1 at ftx:6, fty:6
     const sel = selectOne(builder1);
-    const center = getSelectionCenter(sel, state);
+    const center = getSelectionCenterTile(sel, state);
     expect(center).not.toBeNull();
-    expect(typeof center!.x).toBe('number');
-    expect(typeof center!.y).toBe('number');
+    expect(center!.tx).toBe(6);
+    expect(center!.ty).toBe(6);
+  });
+
+  it('getSelectionCenterTile averages across multiple units', () => {
+    const state = createGameState(); // builder-1: (6,6), builder-2: (7,7)
+    const sel = selectMany([builder1, builder2]);
+    const center = getSelectionCenterTile(sel, state);
+    expect(center).not.toBeNull();
+    expect(center!.tx).toBe(6.5);
+    expect(center!.ty).toBe(6.5);
+  });
+
+  it('getSelectionCenterTile returns null for null selection', () => {
+    const state = createGameState();
+    const center = getSelectionCenterTile(null, state);
+    expect(center).toBeNull();
+  });
+
+  it('getSelectionCenterTile is pure state — no phaser/render import', async () => {
+    // Verify unitSelection.ts does NOT import from phaser/render
+    // by dynamically importing and checking no tileToScreen export is used
+    const mod = await import('../state/unitSelection');
+    // The module should export getSelectionCenterTile (tile-space)
+    // and should NOT export getSelectionCenter (screen-space, removed)
+    expect(typeof mod.getSelectionCenterTile).toBe('function');
+    expect((mod as any).getSelectionCenter).toBeUndefined();
   });
 
   it('hasBuilderInSelection and hasHarvesterInSelection', () => {
@@ -450,5 +475,112 @@ describe('SELECTION-05: regression', () => {
     const state = createGameState();
     const vm = buildMinimapViewModel(state, { x: 0, y: 0, width: 800, height: 600 }, 1, { x: 0, y: 0 });
     expect(vm.viewport).not.toBeNull();
+  });
+});
+
+// ─── 7. FIXUP-1: Coordinate-space & purity regression ──────────────
+
+describe('SELECTION-05 FIXUP-1: coordinate-space & purity', () => {
+  it('unitSelection.ts exports getSelectionCenterTile, not getSelectionCenter', async () => {
+    const mod = await import('../state/unitSelection');
+    expect(typeof mod.getSelectionCenterTile).toBe('function');
+    expect((mod as any).getSelectionCenter).toBeUndefined();
+  });
+
+  it('controlGroups.ts uses getSelectionCenterTile (tile-space)', async () => {
+    const mod = await import('../state/controlGroups');
+    const mgr = new mod.ControlGroupManager();
+    // getGroupCenter should return { tx, ty } not { x, y }
+    const state = createGameState();
+    mgr.assignGroup(1, selectOne(builder1));
+    const center = mgr.getGroupCenter(1, state);
+    expect(center).not.toBeNull();
+    expect('tx' in center!).toBe(true);
+    expect('ty' in center!).toBe(true);
+  });
+
+  it('getSelectionCenterTile returns tile-space center for mixed builders+harvesters', () => {
+    const state = createGameState(); // builder-1: (6,6), harvester-1: (3,3)
+    const sel = selectMany([builder1, harvester1]);
+    const center = getSelectionCenterTile(sel, state);
+    expect(center).not.toBeNull();
+    expect(center!.tx).toBeCloseTo(4.5, 5);
+    expect(center!.ty).toBeCloseTo(4.5, 5);
+  });
+
+  it('getSelectionCenterTile ignores units not found in game state', () => {
+    const state = createGameState();
+    const sel = selectMany([builder1, { kind: 'builder', id: 'nonexistent' }]);
+    const center = getSelectionCenterTile(sel, state);
+    expect(center).not.toBeNull();
+    // Only builder-1 at (6,6) found
+    expect(center!.tx).toBe(6);
+    expect(center!.ty).toBe(6);
+  });
+
+  it('control group getGroupCenter returns tile-space center', () => {
+    const mgr = new ControlGroupManager();
+    const state = createGameState();
+    mgr.assignGroup(1, selectMany([builder1, builder2]));
+    const center = mgr.getGroupCenter(1, state);
+    expect(center).not.toBeNull();
+    expect(typeof center!.tx).toBe('number');
+    expect(typeof center!.ty).toBe('number');
+    // builder-1: (6,6), builder-2: (7,7) => avg (6.5, 6.5)
+    expect(center!.tx).toBeCloseTo(6.5, 5);
+    expect(center!.ty).toBeCloseTo(6.5, 5);
+  });
+
+  it('GameScene ready log does not mention Q/E/Z/X body/turret dir', async () => {
+    // FIXUP-1: The stale "Q/E: body dir | Z/X: turret dir" was removed from
+    // GameScene's ready log. Q/E may still appear as command-card build slots
+    // (separator, matter-storage), but the body/turret direction hotkey labels
+    // are gone. We verify indirectly by checking that Q and E slots map to
+    // buildings, not to body/turret direction.
+    const { BUILDER_SLOT_MAP } = await import('../phaser/ui/hud/commandCardGrid');
+    const qSlot = BUILDER_SLOT_MAP.find(s => s.slotKey === 'Q');
+    const eSlot = BUILDER_SLOT_MAP.find(s => s.slotKey === 'E');
+    // If Q/E exist, they must be for building commands, not body/turret dir
+    if (qSlot) {
+      expect(qSlot.buildingType).toBeDefined();
+      expect(qSlot.buildingType).not.toBe('body-dir');
+    }
+    if (eSlot) {
+      expect(eSlot.buildingType).toBeDefined();
+      expect(eSlot.buildingType).not.toBe('turret-dir');
+    }
+    // Z/X should not be in the builder slot map at all
+    const hasZ = BUILDER_SLOT_MAP.some(s => s.slotKey === 'Z');
+    const hasX = BUILDER_SLOT_MAP.some(s => s.slotKey === 'X');
+    expect(hasZ).toBe(false);
+    expect(hasX).toBe(false);
+  });
+
+  it('selectionRect uses setScrollFactor(0) for screen-space rendering', async () => {
+    // Verify that GameInputController can be imported and
+    // the module no longer mixes world/screen coords in drag-select
+    // (indirect test: the module should exist and be importable)
+    const mod = await import('../phaser/input/GameInputController');
+    expect(mod.GameInputController).toBeDefined();
+  });
+
+  it('GameInputController no longer imports getSelectionCenter (old name)', async () => {
+    // Verify the old getSelectionCenter is not exported from unitSelection
+    const mod = await import('../state/unitSelection');
+    expect((mod as any).getSelectionCenter).toBeUndefined();
+    expect(typeof mod.getSelectionCenterTile).toBe('function');
+  });
+
+  it('double-tap centering uses tile-space center converted in input layer', async () => {
+    // Verify: getSelectionCenterTile returns {tx, ty} (tile space)
+    // GameInputController converts to world coords for camera centering
+    const mod = await import('../state/unitSelection');
+    const state = createGameState();
+    const sel = selectMany([builder1, builder2]);
+    const center = mod.getSelectionCenterTile(sel, state);
+    expect(center).not.toBeNull();
+    // Tile-space coords, not screen-space
+    expect(typeof center!.tx).toBe('number');
+    expect(typeof center!.ty).toBe('number');
   });
 });

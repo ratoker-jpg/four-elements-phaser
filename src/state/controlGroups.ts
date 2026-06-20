@@ -22,7 +22,7 @@ import {
   type SelectableUnit,
   selectMany,
   pruneMissingEntities,
-  getSelectionCenter,
+  getSelectionCenterTile,
 } from './unitSelection';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -87,13 +87,13 @@ export class ControlGroupManager {
     return this.groups.get(numberKey);
   }
 
-  /** Get the center position of a control group. */
-  getGroupCenter(numberKey: number, state: GameState): { x: number; y: number } | null {
+  /** Get the center position of a control group in tile space. */
+  getGroupCenter(numberKey: number, state: GameState): { tx: number; ty: number } | null {
     const group = this.groups.get(numberKey);
     if (!group || group.units.length === 0) return null;
 
     const selection = selectMany(group.units);
     const pruned = pruneMissingEntities(selection, state);
-    return getSelectionCenter(pruned, state);
+    return getSelectionCenterTile(pruned, state);
   }
 }

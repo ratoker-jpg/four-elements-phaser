@@ -14,7 +14,6 @@
  */
 
 import type { GameState } from './types';
-import { tileToScreen } from '../phaser/render/isometric';
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -168,8 +167,14 @@ export function getSelectionTypeBreakdown(selection: UnitSelection): Map<string,
   return breakdown;
 }
 
-/** Get the center point of the selection (average of all unit positions). */
-export function getSelectionCenter(selection: UnitSelection, state: GameState): { x: number; y: number } | null {
+/**
+ * Get the center point of the selection in tile space (average of all unit positions).
+ *
+ * FIXUP-1: Returns tile-space {tx, ty} to keep this module free of
+ * phaser/render imports. Convert to world/screen coords in the
+ * camera/input layer (GameInputController) where tileToScreen lives.
+ */
+export function getSelectionCenterTile(selection: UnitSelection, state: GameState): { tx: number; ty: number } | null {
   if (!selection) return null;
 
   let sumTx = 0;
@@ -196,10 +201,7 @@ export function getSelectionCenter(selection: UnitSelection, state: GameState): 
 
   if (count === 0) return null;
 
-  const avgTx = sumTx / count;
-  const avgTy = sumTy / count;
-  const screenPos = tileToScreen(avgTx, avgTy);
-  return { x: screenPos.x, y: screenPos.y };
+  return { tx: sumTx / count, ty: sumTy / count };
 }
 
 /** Whether any selected unit is a builder. */
