@@ -313,10 +313,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
-    // COMMAND-CARD-REBUILD-03: Camera reset moved from R to HOME.
+    // COMMAND-CARD-REBUILD-03: Camera reset key is HOME.
     // R is now the grid hotkey for build-element-storage.
-    // Legacy R key will still work as camera reset during migration
-    // via a separate keydown listener below.
     this.cameraControls.bindResetKey('HOME', this.hqWorldX, this.hqWorldY);
 
     // ARENA-01H+: Arena mode uses ArenaMenu instead of PlaytestHud
