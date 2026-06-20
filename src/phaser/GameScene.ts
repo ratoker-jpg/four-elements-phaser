@@ -4,6 +4,8 @@ import { RenderManager } from './render/RenderManager';
 import { CameraControls } from './input/CameraControls';
 import { GameInputController } from './input/GameInputController';
 import { PlaytestHud } from './ui/PlaytestHud';
+import { VisualHudCore } from './ui/hud/VisualHudCore';
+import { HUD_BAR_HEIGHT, shouldUseBottomHudSafeArea } from './ui/hud/hudLayout';
 
 import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric';
 import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
@@ -113,6 +115,7 @@ export class GameScene extends Phaser.Scene {
   private cameraControls: CameraControls | null = null;
   private inputController: GameInputController | null = null;
   private playtestHud: PlaytestHud | null = null;
+  private visualHudCore: VisualHudCore | null = null;
   private pauseMenu: PauseMenu | null = null;
   private gameState!: GameState;
   private hqWorldX: number = 0;
@@ -299,12 +302,30 @@ export class GameScene extends Phaser.Scene {
       this.hqWorldX = hqScreen.x + offset.x;
       this.hqWorldY = hqScreen.y + offset.y;
     }
+    // VISUAL-HUD-CORE-01-FIXUP-1: Apply camera safe-area BEFORE centerOn
+    // so the viewport is already reduced when centering computes the offset.
+    // Only apply in Normal Game mode (showPlaytestHud); Arena keeps full viewport.
+    if (shouldUseBottomHudSafeArea(this.arenaCtx)) {
+      const cam = this.cameras.main;
+      cam.setViewport(cam.x, cam.y, cam.width, cam.height - HUD_BAR_HEIGHT);
+    }
+
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
 
     // ARENA-01H+: Arena mode uses ArenaMenu instead of PlaytestHud
     if (this.arenaCtx.showPlaytestHud) {
       this.playtestHud = new PlaytestHud();
+    }
+
+    // VISUAL-HUD-CORE-01: Create bottom RTS HUD (Normal Game only)
+    if (this.arenaCtx.showPlaytestHud) {
+      this.visualHudCore = new VisualHudCore();
+      this.visualHudCore.create();
+      // Hide the old PlaytestHud economy section since the new HUD
+      // resource strip now shows the same data. Build/produce/factory
+      // controls remain in the old sidebar until command panel is wired.
+      this.playtestHud?.hideEconomySection();
     }
 
     // ARENA-01H+: Create ArenaMenu if in Arena mode
@@ -562,6 +583,10 @@ export class GameScene extends Phaser.Scene {
       // CORE-STEP-05H+: Arena mode flag and CameraControls reference
       isArenaMode: () => this.arenaMode,
       cameraControls: this.cameraControls,
+      // VISUAL-HUD-CORE-01-FIXUP-2: Bottom HUD active gate — same source of
+      // truth as camera safe-area. When false, isPointerInHud() returns false
+      // and the full canvas remains interactive (Arena mode).
+      isBottomHudActive: () => shouldUseBottomHudSafeArea(this.arenaCtx),
     });
 
     // Wire PlaytestHud callbacks to delegate to the input controller
@@ -642,6 +667,14 @@ export class GameScene extends Phaser.Scene {
     // 6. Update PlaytestHud panel (ARENA-01H+: only in Normal Game)
     if (this.playtestHud) {
       this.playtestHud.update(this.gameState);
+    }
+
+    // VISUAL-HUD-CORE-01: Update bottom RTS HUD
+    if (this.visualHudCore) {
+      // Sync selection from input controller
+      const sel = this.inputController?.getSelection() ?? null;
+      this.visualHudCore.setSelection(sel);
+      this.visualHudCore.update(this.gameState);
     }
 
     // ARENA-01H+: Update ArenaMenu (primary Arena UX)
@@ -1191,6 +1224,8 @@ export class GameScene extends Phaser.Scene {
     this.pauseMenu = null;
     this.playtestHud?.destroy();
     this.playtestHud = null;
+    this.visualHudCore?.destroy();
+    this.visualHudCore = null;
     this.cameraControls?.destroy();
     this.paused = false;
   }

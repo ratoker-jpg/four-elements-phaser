@@ -639,8 +639,16 @@ export class PlaytestHud {
   }
 
   /**
-   * Remove the HUD DOM overlay and clean up.
+   * VISUAL-HUD-CORE-01: Hide the economy readout section because
+   * the new bottom HUD resource strip now displays resources.
+   * The build/produce/factory/status sections remain visible.
    */
+  hideEconomySection(): void {
+    if (this.economyEl) {
+      this.economyEl.style.display = 'none';
+    }
+  }
+
   destroy(): void {
     this.tooltipManager.destroy();
     if (this.statusTimer) {

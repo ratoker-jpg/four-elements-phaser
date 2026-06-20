@@ -12,6 +12,7 @@ import { issueManualMove, stopUnitCommand } from '../../state/unitCommands';
 // It was only used by the legacy tuner hotkeys (Q/E/Z/X), which are gone.
 import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
 import { commandRegistry, registerMvpCommands } from '../../state/commandRegistry';
+import { isScreenPointInHud } from '../ui/hud/hudLayout';
 import type { EntityRenderer } from '../render/EntityRenderer';
 import type { FeedbackRenderer } from '../render/FeedbackRenderer';
 import type { PauseMenu } from '../ui/PauseMenu';
@@ -87,6 +88,10 @@ export interface GameInputDeps {
   isArenaMode?: () => boolean;
   /** CORE-STEP-05H+: CameraControls reference for wiring arrow key debug overlay predicate. */
   cameraControls?: { isDebugOverlayActive: () => boolean };
+  /** VISUAL-HUD-CORE-01-FIXUP-2: Whether the bottom RTS HUD bar is active.
+   *  When false, isPointerInHud() always returns false so the bottom
+   *  canvas area remains fully interactive (e.g. Arena mode). */
+  isBottomHudActive?: () => boolean;
 }
 
 // ─── Selection highlight constants ─────────────────────────────────
@@ -120,6 +125,7 @@ export class GameInputController {
   private setPausedCb: (paused: boolean) => void;
   private isPlacementActive: () => boolean;
   private isArenaMode: () => boolean;
+  private isBottomHudActive: () => boolean;
 
   // ARCH-05X: Unit selection state
   private selectedUnit: UnitSelection = null;
@@ -161,6 +167,7 @@ export class GameInputController {
     this.setPausedCb = deps.setPaused;
     this.isPlacementActive = deps.isPlacementActive ?? (() => false);
     this.isArenaMode = deps.isArenaMode ?? (() => false);
+    this.isBottomHudActive = deps.isBottomHudActive ?? (() => true);
 
     // Create selection highlight graphics
     this.selectionHighlight = this.scene.add.graphics();
@@ -378,7 +385,31 @@ export class GameInputController {
     this.scene.input.on('pointermove', this.boundPointermove);
   }
 
+  /**
+   * VISUAL-HUD-CORE-01: Expose current selection for the HUD selection panel.
+   */
+  getSelection(): UnitSelection {
+    return this.selectedUnit;
+  }
+
+  /**
+   * VISUAL-HUD-CORE-01-FIXUP-2: Check whether a pointer event's screen
+   * position falls inside the bottom HUD bar. Returns false immediately
+   * when the bottom HUD is not active (e.g. Arena mode), so the full
+   * canvas remains interactive.
+   */
+  private isPointerInHud(pointer: Phaser.Input.Pointer): boolean {
+    if (!this.isBottomHudActive()) return false;
+    const canvasHeight = this.scene.game.canvas.height;
+    return isScreenPointInHud(pointer.y, canvasHeight);
+  }
+
   private onPointerdown(pointer: Phaser.Input.Pointer): void {
+    // VISUAL-HUD-CORE-01: Ignore pointer events that start inside the HUD bar.
+    // The HUD DOM panels consume their own clicks, but this guard prevents
+    // Phaser from also processing the event as a map click/drag.
+    if (this.isPointerInHud(pointer)) return;
+
     if (pointer.leftButtonDown()) {
       this._clickStartX = pointer.x;
       this._clickStartY = pointer.y;
@@ -391,6 +422,14 @@ export class GameInputController {
   }
 
   private onPointerup(pointer: Phaser.Input.Pointer): void {
+    // VISUAL-HUD-CORE-01-FIXUP-1: Also ignore pointer-up in HUD area,
+    // but clear any pending click state so it does not leak into the
+    // next pointer-down/up cycle.
+    if (this.isPointerInHud(pointer)) {
+      this.cancelPendingClick();
+      return;
+    }
+
     const button = this._clickButton;
     this._clickButton = 'none';
 
@@ -415,6 +454,15 @@ export class GameInputController {
     // Update cursor feedback based on hover target
     this._lastPointerX = pointer.x;
     this._lastPointerY = pointer.y;
+  }
+
+  /**
+   * VISUAL-HUD-CORE-01-FIXUP-1: Clear any pending click/drag state.
+   * Called when a pointer-up occurs inside the HUD area so that a
+   * stale _clickButton does not leak into the next pointer-down/up cycle.
+   */
+  private cancelPendingClick(): void {
+    this._clickButton = 'none';
   }
 
   /** Last pointer position for cursor feedback. */
