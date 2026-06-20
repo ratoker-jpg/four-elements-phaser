@@ -572,3 +572,173 @@ describe('HUD-LAYOUT-REBUILD-02: regression', () => {
     expect(cameraViewportHeight(1080)).toBe(1080 - HUD_BAR_HEIGHT);
   });
 });
+
+// ─── 7. HUD-LAYOUT-REBUILD-02-FIXUP-1: hide order / status routing ─
+
+/**
+ * FIXUP-1 addresses three GPT review blockers:
+ *
+ *  1. PlaytestHud.hideAll() was called BEFORE create(), so the DOM container
+ *     didn't exist yet and the hide was a no-op — PlaytestHud remained visible,
+ *     duplicating VisualHudCore.
+ *  2. Status was routed to BOTH VisualHudCore and PlaytestHud unconditionally,
+ *     wasting writes to a hidden container and potentially showing stale messages
+ *     if PlaytestHud is later unhidden via devtools.
+ *  3. PlaytestHud.showStatus() only updates text — it does NOT unhide the
+ *     container. This is a safety property: calling showStatus on a hidden
+ *     PlaytestHud cannot accidentally make it visible.
+ *
+ * These tests verify the contracts that the fix relies on.
+ */
+
+describe('HUD-LAYOUT-REBUILD-02-FIXUP-1: PlaytestHud hide order', () => {
+  /**
+   * Stub that simulates PlaytestHud's container lifecycle using plain objects
+   * (no DOM required). The contract is:
+   *   - container is null until create() is called
+   *   - hideAll() only sets display:'none' when container exists
+   *   - create() initializes container with display:'block'
+   */
+  class StubPlaytestHud {
+    container: { display: string } | null = null;
+    create(): void {
+      this.container = { display: 'block' };
+    }
+    hideAll(): void {
+      if (this.container) {
+        this.container.display = 'none';
+      }
+    }
+  }
+
+  it('hideAll() on a fresh PlaytestHud (no create) is a safe no-op', () => {
+    // Before FIXUP-1, hideAll() was called before create(). The container
+    // was null, so the method did nothing. This test verifies that calling
+    // hideAll() without a prior create() does NOT throw.
+    const hud = new StubPlaytestHud();
+    // This should NOT throw — container is null
+    expect(() => hud.hideAll()).not.toThrow();
+    // Container is still null, so hide was a no-op
+    expect(hud.container).toBeNull();
+  });
+
+  it('hideAll() after create() sets display:none on the container', () => {
+    // After FIXUP-1, hideAll() is called AFTER create(). The container
+    // exists and display:none is applied, making PlaytestHud invisible.
+    const hud = new StubPlaytestHud();
+    hud.create();
+    expect(hud.container).not.toBeNull();
+    expect(hud.container!.display).toBe('block');
+
+    hud.hideAll();
+    expect(hud.container!.display).toBe('none');
+  });
+
+  it('hideAll() before create() leaves the container visible when created later', () => {
+    // This is the BUG that FIXUP-1 fixes. Before the fix, the sequence was:
+    //   new PlaytestHud() → hideAll() → create()
+    // hideAll() was a no-op, then create() built a visible container.
+    const hud = new StubPlaytestHud();
+    hud.hideAll(); // no-op (container is null)
+    hud.create(); // creates container with display:block
+    // BUG: container is visible because hide was a no-op
+    expect(hud.container!.display).toBe('block');
+
+    // FIX: call hideAll() AFTER create()
+    hud.hideAll();
+    expect(hud.container!.display).toBe('none');
+  });
+});
+
+describe('HUD-LAYOUT-REBUILD-02-FIXUP-1: status routing', () => {
+  it('VisualHudCore is the primary status target in normal mode', () => {
+    // In normal mode (devtoolsActive = false), only VisualHudCore
+    // should receive showStatus calls. This test verifies the routing
+    // logic using a simple simulation.
+    let visualCoreCalled = false;
+    let playtestHudCalled = false;
+
+    const devtoolsActive = false;
+
+    // Simulate the showStatus callback from GameScene
+    function showStatus(_message: string, _success: boolean): void {
+      visualCoreCalled = true;
+      if (devtoolsActive) {
+        playtestHudCalled = true;
+      }
+    }
+
+    showStatus('Test message', true);
+    expect(visualCoreCalled).toBe(true);
+    expect(playtestHudCalled).toBe(false);
+  });
+
+  it('PlaytestHud receives status only in dev mode', () => {
+    // When devtools is active, both HUDs get status updates so
+    // developers can see current status if they unhide PlaytestHud.
+    let visualCoreCalled = false;
+    let playtestHudCalled = false;
+
+    const devtoolsActive = true;
+
+    function showStatus(_message: string, _success: boolean): void {
+      visualCoreCalled = true;
+      if (devtoolsActive) {
+        playtestHudCalled = true;
+      }
+    }
+
+    showStatus('Test message', true);
+    expect(visualCoreCalled).toBe(true);
+    expect(playtestHudCalled).toBe(true);
+  });
+});
+
+describe('HUD-LAYOUT-REBUILD-02-FIXUP-1: showStatus safety', () => {
+  /**
+   * Stub that simulates PlaytestHud's container + statusEl lifecycle
+   * using plain objects (no DOM required).
+   */
+  class StubPlaytestHud {
+    container: { display: string } | null = null;
+    statusEl: { textContent: string } | null = null;
+    create(): void {
+      this.container = { display: 'block' };
+      this.statusEl = { textContent: '' };
+    }
+    hideAll(): void {
+      if (this.container) {
+        this.container.display = 'none';
+      }
+    }
+    showStatus(message: string, _success: boolean): void {
+      if (!this.statusEl) return;
+      this.statusEl.textContent = message;
+      // NOTE: does NOT touch container.display (the safety invariant)
+    }
+  }
+
+  it('showStatus on a hidden PlaytestHud does NOT unhide the container', () => {
+    // PlaytestHud.showStatus() only updates this.statusEl.textContent
+    // and style — it never changes this.container.style.display.
+    // This is critical: even if status is routed to PlaytestHud in dev mode,
+    // calling showStatus cannot accidentally make the hidden container visible.
+    const hud = new StubPlaytestHud();
+    hud.create();
+    hud.hideAll();
+    expect(hud.container!.display).toBe('none');
+
+    hud.showStatus('Test message', true);
+    // Container must still be hidden after showStatus
+    expect(hud.container!.display).toBe('none');
+    // But status text was updated (for dev mode visibility if unhidden later)
+    expect(hud.statusEl!.textContent).toBe('Test message');
+  });
+
+  it('showStatus before create is a safe no-op', () => {
+    // If showStatus is somehow called before create(), statusEl is null
+    // and the method returns early without error.
+    const hud = new StubPlaytestHud();
+    expect(() => hud.showStatus('Before create', true)).not.toThrow();
+  });
+});

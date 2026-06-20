@@ -316,10 +316,10 @@ export class GameScene extends Phaser.Scene {
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
 
     // ARENA-01H+: Arena mode uses ArenaMenu instead of PlaytestHud
-    // HUD-LAYOUT-REBUILD-02: PlaytestHud is hidden in Normal Game mode
-    // when the rebuilt VisualHudCore is active. PlaytestHud is only
-    // created for dev/debug access (F10 toggle) — its visible sections
-    // are collapsed to avoid duplicate UI.
+    // HUD-LAYOUT-REBUILD-02-FIXUP-1: PlaytestHud is created and wired
+    // normally, then immediately hidden in Normal Game mode after its
+    // create() call. The hide must happen AFTER create() so the DOM
+    // container exists. VisualHudCore is the primary player-facing HUD.
     if (this.arenaCtx.showPlaytestHud) {
       this.playtestHud = new PlaytestHud();
     }
@@ -343,11 +343,8 @@ export class GameScene extends Phaser.Scene {
       };
       this.visualHudCore = new VisualHudCore();
       this.visualHudCore.create(onCommand);
-      // Hide the old PlaytestHud completely — the rebuilt HUD now
-      // provides all player-facing UI. PlaytestHud is only kept
-      // as a debug tool accessible via devtools toggle.
-      this.playtestHud?.hideEconomySection();
-      this.playtestHud?.hideAll();
+      // NOTE: PlaytestHud.hideAll() is called AFTER create() below
+      // (after playtestHud.create() is called in the wiring section).
     }
 
     // ARENA-01H+: Create ArenaMenu if in Arena mode
@@ -594,10 +591,14 @@ export class GameScene extends Phaser.Scene {
       entityRenderer: this.entityRenderer!,
       feedbackRenderer: this.feedbackRenderer!,
       showStatus: (message: string, success: boolean) => {
-        // HUD-LAYOUT-REBUILD-02: Route status to the rebuilt HUD's
-        // status lane (primary) and PlaytestHud (fallback for dev).
+        // HUD-LAYOUT-REBUILD-02-FIXUP-1: VisualHudCore is the primary
+        // status target. PlaytestHud is only updated in dev mode so that
+        // developers who unhide it via devtools see current status.
+        // Previously both were always called, writing to a hidden container.
         this.visualHudCore?.showStatus(message, success);
-        this.playtestHud?.showStatus(message, success);
+        if (this.devtoolsActive) {
+          this.playtestHud?.showStatus(message, success);
+        }
       },
       pauseMenu: this.pauseMenu,
       debugOverlayRenderer: this.debugOverlayRenderer,
@@ -627,6 +628,11 @@ export class GameScene extends Phaser.Scene {
         (unitType: ProducibleUnitType) => this.inputController!.requestQueueUnit(unitType),
         cancelHandler,
       );
+      // FIXUP-1: Hide PlaytestHud AFTER create() so the DOM container exists.
+      // Before this fix, hideAll() was called before create(), making it a no-op
+      // and leaving PlaytestHud visible as a duplicate of VisualHudCore.
+      this.playtestHud.hideEconomySection();
+      this.playtestHud.hideAll();
     }
 
     // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
