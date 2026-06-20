@@ -78,7 +78,7 @@ FEEDBACK-ALERTS-06-HIGHPLUS
     6. Minimap ping support for targeted feedback.
     7. HUD status lane with severity color coding.
   Branch: visual/feedback-alerts-06
-  Base: visual/selection-control-groups-05 (includes #312, #313, #314, #315)
+  Base: main (includes #312, #313, #314, #315)
   Status: DRAFT PR, pending GPT review + Denis manual QA.
 
   Previous steps:

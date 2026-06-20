@@ -13,7 +13,7 @@ import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric
 import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
 import { updateConstructionSiteProgress } from '../state/construction';
-import { assignIdleBuilders, updateBuilders } from '../state/builder';
+import { constructionCompleted } from '../state/feedbackHelpers'; import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '../state/types';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
@@ -700,16 +700,15 @@ export class GameScene extends Phaser.Scene {
       updateBuilders(this.gameState, delta);
 
       // 4. Advance construction site progress (only for sites with active builder)
-      // FIXUP-1: Snapshot site metadata before progress for tileTarget in feedback
-      for (const site of this.gameState.mapData.constructionSites) {
-        const siteId = `site-${site.id}`;
-        const siteTx = site.tx;
-        const siteTy = site.ty;
+      // FIXUP-2: Snapshot metadata before iterating (updateConstructionSiteProgress splices completed sites).
+      const siteSnapshots = this.gameState.mapData.constructionSites.map(s => ({ id: s.id, tx: s.tx, ty: s.ty, type: s.type }));
+      for (const snap of siteSnapshots) {
+        const siteId = `site-${snap.id}`;
         const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
         if (result.completed) {
           console.log(`[GameScene] Construction completed: ${result.buildingId}`);
-          // FEEDBACK-ALERTS-06 + FIXUP-1: Show construction complete feedback with tileTarget
-          this.inputController?.showFeedback('success', `Здание построено`, 'construction-complete', { tx: siteTx, ty: siteTy });
+          const fb = constructionCompleted(snap.type);
+          this.inputController?.showFeedback(fb.type, fb.message, 'construction-complete', { tx: snap.tx, ty: snap.ty });
         }
       }
     }

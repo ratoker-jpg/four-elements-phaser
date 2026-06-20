@@ -63,10 +63,18 @@ export interface CancelRequestResult {
   message: string;
 }
 
-/** Result of a build request, used for status feedback. */
+/** Result of a build request, used for status feedback.
+ * FIXUP-2: Extended with buildingType, tileTarget, code for typed feedback.
+ */
 export interface BuildRequestResult {
   success: boolean;
   message: string;
+  /** FIXUP-2: Building type for typed feedback (success and failure). */
+  buildingType?: string;
+  /** FIXUP-2: Tile target for minimap ping on success. */
+  tileTarget?: { tx: number; ty: number };
+  /** FIXUP-2: Failure code for typed feedback (e.g. 'no-idle-builder', 'not-buildable'). */
+  code?: string;
 }
 
 /** Result of a production request, used for status feedback. */

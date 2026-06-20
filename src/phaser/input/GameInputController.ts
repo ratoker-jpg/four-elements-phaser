@@ -35,7 +35,7 @@ import {
 } from '../../state/commandRouter';
 import { ControlGroupManager } from '../../state/controlGroups';
 import { FeedbackStore, type FeedbackSeverity } from '../../state/feedbackStore';
-import { controlGroupAssigned, controlGroupEmpty, controlGroupRecalled } from '../../state/feedbackHelpers';
+import { controlGroupAssigned, controlGroupEmpty, controlGroupRecalled, constructionStarted, buildBlockFeedback } from '../../state/feedbackHelpers';
 
 /** FIXUP-1: Typed feedback params — single object for dedupe-aware feedback. */
 export interface FeedbackParams {
@@ -314,7 +314,27 @@ export class GameInputController {
       if (cmd) {
         cmd.execute = () => {
           const result = this.requestBuild(buildingType);
-          this.showStatusCb(result.message, result.success);
+          if (result.success) {
+            // FIXUP-2: Build success → typed feedback via pushFeedback
+            const fb = constructionStarted(result.buildingType!);
+            this.pushFeedback({
+              type: fb.type,
+              message: fb.message,
+              code: 'build-started',
+              dedupeKey: `build-started-${result.buildingType}`,
+              tileTarget: result.tileTarget,
+            });
+          } else {
+            // FIXUP-2: Build failure → typed feedback via pushFeedback
+            const blockCode = (result.code ?? 'unknown') as 'no-idle-builder' | 'insufficient-matter' | 'not-buildable';
+            const fb = buildBlockFeedback(blockCode);
+            this.pushFeedback({
+              type: fb.type,
+              message: fb.message,
+              code: `build-fail-${result.code}`,
+              dedupeKey: `build-fail-${result.buildingType}-${result.code}`,
+            });
+          }
         };
       }
     };
@@ -350,14 +370,36 @@ export class GameInputController {
     }
 
     // SELECTION-CONTROL-GROUPS-05: Only B and P legacy aliases remain
-    const legacyAliases: [string, () => void][] = [
-      ['build-separator-legacy',      () => { const r = this.requestBuild('separator'); this.showStatusCb(r.message, r.success); }],
-      ['build-power-plant-legacy',   () => { const r = this.requestBuild('power-plant'); this.showStatusCb(r.message, r.success); }],
+    // FIXUP-2: Legacy aliases also use typed feedback
+    const legacyAliases: [string, BuildingType][] = [
+      ['build-separator-legacy', 'separator'],
+      ['build-power-plant-legacy', 'power-plant'],
     ];
-    for (const [aliasId, execute] of legacyAliases) {
+    for (const [aliasId, buildingType] of legacyAliases) {
       const cmd = commandRegistry.get(aliasId);
       if (cmd) {
-        cmd.execute = execute;
+        cmd.execute = () => {
+          const result = this.requestBuild(buildingType);
+          if (result.success) {
+            const fb = constructionStarted(result.buildingType!);
+            this.pushFeedback({
+              type: fb.type,
+              message: fb.message,
+              code: 'build-started',
+              dedupeKey: `build-started-${result.buildingType}`,
+              tileTarget: result.tileTarget,
+            });
+          } else {
+            const blockCode = (result.code ?? 'unknown') as 'no-idle-builder' | 'insufficient-matter' | 'not-buildable';
+            const fb = buildBlockFeedback(blockCode);
+            this.pushFeedback({
+              type: fb.type,
+              message: fb.message,
+              code: `build-fail-${result.code}`,
+              dedupeKey: `build-fail-${result.buildingType}-${result.code}`,
+            });
+          }
+        };
       }
     }
   }
@@ -368,26 +410,26 @@ export class GameInputController {
     const gameState = this.getGameState();
 
     if (isVisualReadyBuilding(buildingType)) {
-      return { success: false, message: `${buildingType} is not buildable yet` };
+      return { success: false, message: `${buildingType} is not buildable yet`, buildingType, code: 'not-buildable' };
     }
 
     const hasIdleBuilder = gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
     if (!hasIdleBuilder) {
-      return { success: false, message: 'no idle builder' };
+      return { success: false, message: 'no idle builder', buildingType, code: 'no-idle-builder' };
     }
 
     const site = findBuildSiteNearPlayerBuildings(gameState, buildingType);
     if (!site.ok) {
-      return { success: false, message: `no valid build site` };
+      return { success: false, message: `no valid build site`, buildingType, code: 'no-build-site' };
     }
 
     const result = placeConstructionSite(gameState, buildingType, site.tx, site.ty);
     if (result.ok) {
       console.log(`[GameScene] Construction site placed: ${result.siteId} at (${site.tx},${site.ty})`);
-      return { success: true, message: `${buildingType} site placed` };
+      return { success: true, message: `${buildingType} site placed`, buildingType, tileTarget: { tx: site.tx, ty: site.ty } };
     } else {
       console.warn(`[GameScene] Placement failed at (${site.tx},${site.ty}): ${result.reason}`);
-      return { success: false, message: `placement failed: ${result.reason}` };
+      return { success: false, message: `placement failed: ${result.reason}`, buildingType, code: result.reason };
     }
   }
 
