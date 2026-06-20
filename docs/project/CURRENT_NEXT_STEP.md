@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: COMMAND-CARD-REBUILD-03 — AoE4-inspired command card with grid hotkeys
+Status: SELECTION-CONTROL-GROUPS-05 — RTS selection model + control groups
 Project: Four Elements Phaser  
 Updated: 2026-06-21
 

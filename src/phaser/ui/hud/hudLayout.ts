@@ -81,6 +81,23 @@ export function isScreenPointInHud(screenY: number, canvasHeight: number): boole
 }
 
 /**
+ * FIXUP-2: Whether a screen-space Y coordinate falls inside the *active* bottom HUD area.
+ *
+ * This is the HUD-aware version of isScreenPointInHud. It respects the HUD/input contract:
+ *   - bottom HUD active  => bottom HUD blocks world selection/input
+ *   - bottom HUD inactive => full canvas remains interactive
+ *
+ * @param screenY - Screen-space Y coordinate (0 = top of canvas)
+ * @param canvasHeight - Total canvas height in pixels
+ * @param hudActive - Whether the bottom HUD is currently shown/active
+ * @returns true if the point is inside the bottom HUD bar AND the HUD is active
+ */
+export function isScreenYInActiveHudArea(screenY: number, canvasHeight: number, hudActive: boolean): boolean {
+  if (!hudActive) return false;
+  return isScreenPointInHud(screenY, canvasHeight);
+}
+
+/**
  * Compute the main camera viewport height (game area above the HUD).
  *
  * The bottom HUD is the ONLY camera safe-area. The top-left resource

@@ -14,7 +14,7 @@ import {
 import { issueManualMove, stopUnitCommand, issueMultiMoveCommand, stopUnitsCommand } from '../../state/unitCommands';
 import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
 import { commandRegistry, registerMvpCommands } from '../../state/commandRegistry';
-import { isScreenPointInHud } from '../ui/hud/hudLayout';
+import { isScreenPointInHud, isScreenYInActiveHudArea } from '../ui/hud/hudLayout';
 import { buildCommandCardViewModel } from '../ui/hud/commandPanelViewModel';
 import { ALL_SLOT_KEYS, type SlotKey } from '../ui/hud/commandCardGrid';
 import type { EntityRenderer } from '../render/EntityRenderer';
@@ -386,6 +386,18 @@ export class GameInputController {
     return isScreenPointInHud(pointer.y, canvasHeight);
   }
 
+  /**
+   * FIXUP-2: Whether a screen Y coordinate falls inside the *active* bottom HUD area.
+   *
+   * Delegates to the pure isScreenYInActiveHudArea helper from hudLayout.
+   * Respects the HUD/input contract:
+   *   - bottom HUD active  => bottom HUD blocks world selection/input
+   *   - bottom HUD inactive => full canvas remains interactive
+   */
+  private isScreenYInActiveHud(screenY: number): boolean {
+    return isScreenYInActiveHudArea(screenY, this.scene.game.canvas.height, this.isBottomHudActive());
+  }
+
   private onPointerdown(pointer: Phaser.Input.Pointer): void {
     if (this.isPointerInHud(pointer)) return;
 
@@ -518,7 +530,6 @@ export class GameInputController {
    */
   private finalizeDragSelect(): void {
     const gameState = this.getGameState();
-    const canvasHeight = this.scene.game.canvas.height;
 
     // Drag rect in screen space (pointer coords)
     const left = Math.min(this._dragStartX, this._dragEndX);
@@ -536,8 +547,8 @@ export class GameInputController {
       const worldY = worldPos.y + this.offset.y;
       const { sx, sy } = this.worldToScreen(worldX, worldY);
 
-      // Compare screen-space unit position against screen-space drag rect
-      if (sx >= left && sx <= right && sy >= top && sy <= bottom && !isScreenPointInHud(sy, canvasHeight)) {
+      // FIXUP-2: Use isScreenYInActiveHud to respect HUD active gate
+      if (sx >= left && sx <= right && sy >= top && sy <= bottom && !this.isScreenYInActiveHud(sy)) {
         selectedUnits.push({ kind: 'builder', id: b.id });
       }
     }
@@ -549,7 +560,8 @@ export class GameInputController {
       const worldY = worldPos.y + this.offset.y;
       const { sx, sy } = this.worldToScreen(worldX, worldY);
 
-      if (sx >= left && sx <= right && sy >= top && sy <= bottom && !isScreenPointInHud(sy, canvasHeight)) {
+      // FIXUP-2: Use isScreenYInActiveHud to respect HUD active gate
+      if (sx >= left && sx <= right && sy >= top && sy <= bottom && !this.isScreenYInActiveHud(sy)) {
         selectedUnits.push({ kind: 'harvester', id: h.id });
       }
     }
@@ -603,12 +615,11 @@ export class GameInputController {
     // Select all units of the same type in viewport
     const gameState = this.getGameState();
     const cam = this.scene.cameras.main;
-    const canvasHeight = this.scene.game.canvas.height;
 
     const selectedUnits: SelectableUnit[] = [];
 
-    // FIXUP-1: Use world-space for worldView.contains (correct) and
-    // screen-space for isScreenPointInHud (was using world Y — now fixed).
+    // FIXUP-1: Use world-space for worldView.contains (correct).
+    // FIXUP-2: Use isScreenYInActiveHud to respect HUD active gate.
     if (target.unitKind === 'builder') {
       for (const b of gameState.mapData.builders) {
         const worldPos = tileToScreen(b.ftx, b.fty);
@@ -616,7 +627,7 @@ export class GameInputController {
         const worldY = worldPos.y + this.offset.y;
         if (cam.worldView.contains(worldX, worldY)) {
           const { sy } = this.worldToScreen(worldX, worldY);
-          if (!isScreenPointInHud(sy, canvasHeight)) {
+          if (!this.isScreenYInActiveHud(sy)) {
             selectedUnits.push({ kind: 'builder', id: b.id });
           }
         }
@@ -628,7 +639,7 @@ export class GameInputController {
         const worldY = worldPos.y + this.offset.y;
         if (cam.worldView.contains(worldX, worldY)) {
           const { sy } = this.worldToScreen(worldX, worldY);
-          if (!isScreenPointInHud(sy, canvasHeight)) {
+          if (!this.isScreenYInActiveHud(sy)) {
             selectedUnits.push({ kind: 'harvester', id: h.id });
           }
         }
