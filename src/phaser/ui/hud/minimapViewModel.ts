@@ -16,6 +16,7 @@
 
 import type { GameState, BuildingType } from '../../../state/types';
 import { HUD_MINIMAP_WIDTH, HUD_MINIMAP_HEIGHT } from './hudLayout';
+import { screenToTile } from '../../render/isometric';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -120,14 +121,21 @@ export function tileToMinimap(
 /**
  * Transform a camera world-view rectangle to minimap viewport rectangle.
  *
- * The camera world-view is in screen pixel coordinates. We convert it
- * to tile coordinates first, then to minimap coordinates.
+ * VISUAL-MINIMAP-03-FIXUP-1: Converts ALL FOUR corners of the camera
+ * worldView from screen-space to tile-space, then computes the axis-
+ * aligned bounding box in tile coordinates. This is necessary because
+ * the isometric projection means an axis-aligned screen rectangle does
+ * NOT map to a tile-space rectangle — only two diagonal corners would
+ * miss the full extent.
+ *
+ * Uses the shared screenToTile() projection helper from isometric.ts
+ * instead of hardcoded halfW/halfH constants.
  *
  * @param worldView - Camera world view { x, y, width, height }
  * @param offset - Map origin offset { x, y }
  * @param mapWidth - Map width in tiles
  * @param mapHeight - Map height in tiles
- * @param zoom - Camera zoom level
+ * @param _zoom - Camera zoom level (reserved for future use)
  * @returns Minimap viewport rectangle, or null if invalid
  */
 export function cameraWorldViewToMinimapViewport(
@@ -141,26 +149,36 @@ export function cameraWorldViewToMinimapViewport(
     return null;
   }
 
-  // We need screenToTile to convert camera corners back to tile coords.
-  // Import the function to avoid circular deps — use the same formula.
-  const halfW = 38; // TILE_W / 2
-  const halfH = 19; // TILE_H / 2
+  // All four corners of the camera worldView in screen-space,
+  // offset-subtracted to get raw screen coordinates (matching the
+  // coordinate space that screenToTile expects).
+  const corners: Array<{ sx: number; sy: number }> = [
+    { sx: worldView.x - offset.x,                        sy: worldView.y - offset.y },                         // top-left
+    { sx: worldView.x + worldView.width - offset.x,      sy: worldView.y - offset.y },                         // top-right
+    { sx: worldView.x - offset.x,                        sy: worldView.y + worldView.height - offset.y },      // bottom-left
+    { sx: worldView.x + worldView.width - offset.x,      sy: worldView.y + worldView.height - offset.y },      // bottom-right
+  ];
 
-  // Camera corners in screen space (subtract offset to get raw screen)
-  const sx1 = worldView.x - offset.x;
-  const sy1 = worldView.y - offset.y;
-  const sx2 = worldView.x + worldView.width - offset.x;
-  const sy2 = worldView.y + worldView.height - offset.y;
+  // Convert all four corners to tile coordinates
+  let minTx = Infinity, maxTx = -Infinity;
+  let minTy = Infinity, maxTy = -Infinity;
+  for (const { sx, sy } of corners) {
+    const tile = screenToTile(sx, sy);
+    minTx = Math.min(minTx, tile.x);
+    maxTx = Math.max(maxTx, tile.x);
+    minTy = Math.min(minTy, tile.y);
+    maxTy = Math.max(maxTy, tile.y);
+  }
 
-  // Convert to tile coordinates
-  const tx1 = Math.max(0, (sx1 / halfW + sy1 / halfH) / 2);
-  const ty1 = Math.max(0, (sy1 / halfH - sx1 / halfW) / 2);
-  const tx2 = Math.min(mapWidth, (sx2 / halfW + sy2 / halfH) / 2);
-  const ty2 = Math.min(mapHeight, (sy2 / halfH - sx2 / halfW) / 2);
+  // Clamp to map bounds
+  minTx = Math.max(0, minTx);
+  minTy = Math.max(0, minTy);
+  maxTx = Math.min(mapWidth, maxTx);
+  maxTy = Math.min(mapHeight, maxTy);
 
-  // Convert tile corners to minimap coordinates
-  const topLeft = tileToMinimap(tx1, ty1, mapWidth, mapHeight);
-  const bottomRight = tileToMinimap(tx2, ty2, mapWidth, mapHeight);
+  // Convert tile bounding box to minimap coordinates
+  const topLeft = tileToMinimap(minTx, minTy, mapWidth, mapHeight);
+  const bottomRight = tileToMinimap(maxTx, maxTy, mapWidth, mapHeight);
 
   return {
     x: topLeft.x,
