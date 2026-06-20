@@ -14,6 +14,7 @@ import {
   minimapToTileClamped,
   type MinimapViewModel,
   type MinimapMarker,
+  type MinimapPing,
 } from './minimapViewModel';
 import { tileToScreen } from '../../render/isometric';
 
@@ -44,6 +45,9 @@ export class HudMinimap {
   private pointerCaptured = false;
 
   private offset: MinimapOffset = { x: 0, y: 0 };
+
+  /** FEEDBACK-ALERTS-06: Active minimap pings. */
+  private pings: MinimapPing[] = [];
 
   private cachedMapWidth = 0;
   private cachedMapHeight = 0;
@@ -111,6 +115,17 @@ export class HudMinimap {
 
   setOffset(offset: MinimapOffset): void {
     this.offset = offset;
+  }
+
+  /** FEEDBACK-ALERTS-06: Add a minimap ping. */
+  addPing(ping: MinimapPing): void {
+    this.pings.push(ping);
+  }
+
+  /** FEEDBACK-ALERTS-06: Expire old pings. */
+  expirePings(): void {
+    const now = Date.now();
+    this.pings = this.pings.filter(p => now - p.birthTime < p.lifetime);
   }
 
   destroy(): void {
@@ -260,6 +275,26 @@ export class HudMinimap {
     if (vm.viewport) {
       this.drawViewport(ctx, vm.viewport);
     }
+
+    // 7. FEEDBACK-ALERTS-06: Render pings as pulsing rings
+    this.expirePings();
+    const now = Date.now();
+    // Merge view model pings with locally-added pings
+    const allPings = [...this.pings, ...vm.pings];
+    for (const ping of allPings) {
+      const age = now - ping.birthTime;
+      if (age > ping.lifetime) continue;
+      const progress = age / ping.lifetime;
+      const alpha = 1 - progress;
+      const radius = 4 + progress * 6; // expanding ring
+      const pos = tileToMinimap(ping.tx, ping.ty, vm.mapWidth, vm.mapHeight);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+      // Parse ping.color and apply alpha
+      ctx.strokeStyle = this.colorWithAlpha(ping.color, alpha);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
   }
 
   private drawGrid(
@@ -342,6 +377,23 @@ export class HudMinimap {
     ctx.strokeStyle = '#d4a574';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(vp.x, vp.y, vp.width, vp.height);
+  }
+
+  /**
+   * FEEDBACK-ALERTS-06: Apply alpha to a CSS color string.
+   * Supports hex (#rrggbb) and named colors.
+   */
+  private colorWithAlpha(color: string, alpha: number): string {
+    const a = Math.max(0, Math.min(1, alpha)).toFixed(2);
+    // Handle hex colors (#rrggbb)
+    if (color.startsWith('#') && color.length === 7) {
+      const r = parseInt(color.slice(1, 3), 16);
+      const g = parseInt(color.slice(3, 5), 16);
+      const b = parseInt(color.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${a})`;
+    }
+    // Fallback: just append alpha (works for named colors that canvas understands)
+    return color;
   }
 
   // ─── CSS ────────────────────────────────────────────────────────

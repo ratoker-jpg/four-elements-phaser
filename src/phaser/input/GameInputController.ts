@@ -34,6 +34,8 @@ import {
   type CursorFeedbackState,
 } from '../../state/commandRouter';
 import { ControlGroupManager } from '../../state/controlGroups';
+import { FeedbackStore, type FeedbackSeverity } from '../../state/feedbackStore';
+import { controlGroupAssigned, controlGroupEmpty, controlGroupRecalled } from '../../state/feedbackHelpers';
 
 /**
  * GameInputController — extracts input handling and command dispatch from GameScene.
@@ -86,6 +88,8 @@ export interface GameInputDeps {
   cameraControls?: { isDebugOverlayActive: () => boolean; centerOn: (worldX: number, worldY: number) => void };
   /** VISUAL-HUD-CORE-01-FIXUP-2: Whether the bottom RTS HUD bar is active. */
   isBottomHudActive?: () => boolean;
+  /** FEEDBACK-ALERTS-06: Callback to push typed feedback to VisualHudCore. */
+  showFeedback?: (type: FeedbackSeverity, message: string, code?: string, dedupeKey?: string) => void;
 }
 
 // ─── Selection highlight constants ─────────────────────────────────
@@ -114,6 +118,12 @@ export class GameInputController {
   private entityRenderer: EntityRenderer;
   private feedbackRenderer: FeedbackRenderer;
   private showStatusCb: (message: string, success: boolean) => void;
+  /** FEEDBACK-ALERTS-06: Callback to push typed feedback to VisualHudCore. */
+  private showFeedbackCb: ((type: FeedbackSeverity, message: string, code?: string, dedupeKey?: string) => void) | null;
+  /** FEEDBACK-ALERTS-06: Local feedback store for deduplication and idle worker tracking. */
+  private feedbackStore: FeedbackStore;
+  /** FEEDBACK-ALERTS-06: Timestamp of last idle worker alert. */
+  private lastIdleWorkerAlertTime: number = 0;
   private pauseMenu: PauseMenu;
   private devtoolsPanel: DevtoolsPanel | null;
   private assetPreviewTool: AssetPreviewTool | null;
@@ -177,6 +187,8 @@ export class GameInputController {
     this.entityRenderer = deps.entityRenderer;
     this.feedbackRenderer = deps.feedbackRenderer;
     this.showStatusCb = deps.showStatus;
+    this.showFeedbackCb = deps.showFeedback ?? null;
+    this.feedbackStore = new FeedbackStore();
     this.pauseMenu = deps.pauseMenu;
     this.devtoolsPanel = deps.devtoolsPanel;
     this.assetPreviewTool = deps.assetPreviewTool;
@@ -225,12 +237,51 @@ export class GameInputController {
   }
 
   /**
-   * Update selection highlight and cursor feedback each frame.
+   * Update selection highlight, cursor feedback, and idle worker detection each frame.
    * Called from GameScene.update().
    */
   update(): void {
     this.updateSelectionHighlight();
     this.updateCursorFeedback();
+    this.expireFeedback();
+    this.checkIdleWorkers();
+  }
+
+  /** FEEDBACK-ALERTS-06: Expire old feedback messages. */
+  private expireFeedback(): void {
+    this.feedbackStore.expireMessages();
+  }
+
+  /** FEEDBACK-ALERTS-06: Check for idle workers and emit feedback periodically. */
+  private checkIdleWorkers(): void {
+    const now = Date.now();
+    // Only check every 10 seconds
+    if (now - this.lastIdleWorkerAlertTime < 10000) return;
+
+    const gameState = this.getGameState();
+    // Count idle builders (not busy, phase idle)
+    const idleBuilders = gameState.mapData.builders.filter(b => b.phase === 'idle' && !b.busy).length;
+    // Count idle harvesters
+    const idleHarvesters = gameState.harvesters.filter(h => h.phase === 'idle').length;
+    const totalIdle = idleBuilders + idleHarvesters;
+
+    if (totalIdle > 0) {
+      const msg = `Холостых рабочих: ${totalIdle}`;
+      this.showFeedbackCb?.('info', msg, 'idle-workers', 'idle-workers');
+    }
+    this.lastIdleWorkerAlertTime = now;
+  }
+
+  /**
+   * FEEDBACK-ALERTS-06: Push typed feedback to both the local store and VisualHudCore.
+   * Also shows the message in the status lane for immediate feedback.
+   */
+  private pushFeedback(type: FeedbackSeverity, message: string, code?: string, dedupeKey?: string): void {
+    this.feedbackStore.addFeedback({ type, message, code, dedupeKey });
+    this.showFeedbackCb?.(type, message, code, dedupeKey);
+    // Also show via the legacy status callback for backward compat
+    const isSuccess = type === 'success' || type === 'info';
+    this.showStatusCb(message, isSuccess);
   }
 
   // ─── Command registry wiring (HOTKEYS-01) ────────────────────────
@@ -371,6 +422,13 @@ export class GameInputController {
 
   showStatus(message: string, success: boolean): void {
     this.showStatusCb(message, success);
+  }
+
+  /**
+   * FEEDBACK-ALERTS-06: Show typed feedback from external callers (e.g. GameScene).
+   */
+  showFeedback(type: FeedbackSeverity, message: string, code?: string): void {
+    this.pushFeedback(type, message, code);
   }
 
   /**
@@ -1021,7 +1079,9 @@ export class GameInputController {
       this.controlGroupManager.assignGroup(numberKey, this.selection);
       if (this.selection) {
         const count = this.selection.units.length;
-        this.showStatusCb(`Группа ${numberKey}: ${count} юнит(ов)`, true);
+        // FEEDBACK-ALERTS-06: Typed feedback for group assign
+        const fb = controlGroupAssigned(numberKey, count);
+        this.pushFeedback(fb.type, fb.message, `group-assign-${numberKey}`, `group-assign-${numberKey}`);
       }
     } else {
       // Number: recall group
@@ -1031,6 +1091,10 @@ export class GameInputController {
       if (groupSelection) {
         this.selection = groupSelection;
         this.showSelectionStatus();
+
+        // FEEDBACK-ALERTS-06: Typed feedback for group recall
+        const fb = controlGroupRecalled(numberKey, groupSelection.units.length);
+        this.pushFeedback(fb.type, fb.message, `group-recall-${numberKey}`, `group-recall-${numberKey}`);
 
         // Double-tap: center camera on group
         // FIXUP-1: getSelectionCenterTile returns tile-space {tx, ty};
@@ -1042,6 +1106,10 @@ export class GameInputController {
             this.cameraControls.centerOn(worldPos.x + this.offset.x, worldPos.y + this.offset.y);
           }
         }
+      } else {
+        // FEEDBACK-ALERTS-06: Empty group recall — show warning
+        const fb = controlGroupEmpty(numberKey);
+        this.pushFeedback(fb.type, fb.message, `empty-group-${numberKey}`, `group-empty-${numberKey}`);
       }
     }
   }
@@ -1097,7 +1165,8 @@ export class GameInputController {
       s => s.slotKey === slotKey && s.state === 'disabled',
     );
     if (disabledSlot && disabledSlot.disabledReason) {
-      this.showStatusCb(`${disabledSlot.label}: ${disabledSlot.disabledReason}`, false);
+      // FEEDBACK-ALERTS-06: Typed feedback for disabled hotkey
+      this.pushFeedback('warning', `${disabledSlot.label}: ${disabledSlot.disabledReason}`, 'disabled-command', `disabled-${disabledSlot.commandId}`);
       return;
     }
   }
@@ -1125,7 +1194,8 @@ export class GameInputController {
         s => s.commandId === primaryId && s.state === 'disabled',
       );
       if (disabledSlot && disabledSlot.disabledReason) {
-        this.showStatusCb(`${disabledSlot.label}: ${disabledSlot.disabledReason}`, false);
+        // FEEDBACK-ALERTS-06: Typed feedback for disabled legacy alias
+        this.pushFeedback('warning', `${disabledSlot.label}: ${disabledSlot.disabledReason}`, 'disabled-command', `disabled-${disabledSlot.commandId}`);
       }
     }
   }

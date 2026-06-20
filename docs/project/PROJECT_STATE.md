@@ -19,8 +19,8 @@ PR #311 (AoE4 UX redesign roadmap) is merged — direction accepted.
 PR #312 (HUD layout rebuild) is merged — bottom HUD rebuilt.
 Denis rejected the current HUD/command panel/minimap direction visually and UX-wise.
 Direction changed: AoE4-inspired RTS UX redesign replaces the "continue integrating existing HUD" plan.
-Current operational task: SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS (multi-select, drag-box, double-click same type, control groups 1-9 — DRAFT PR, pending GPT review + Denis manual QA).
-Previous completed task: MINIMAP-INTERACTION-04-VERYHIGHPLUS (MERGED via PR #314).
+Current operational task: FEEDBACK-ALERTS-06-HIGHPLUS (typed feedback, command errors, control group feedback, idle worker alert, minimap pings — DRAFT PR, pending GPT review + Denis manual QA).
+Previous completed task: SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS (MERGED via PR #315).
 Number keys 1–9 are now control group recall keys (legacy 1/2/3 build aliases removed).
 S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset (per #313).
 ```
@@ -48,7 +48,7 @@ COMMAND-CARD-REBUILD-03 merged via PR #313 (S=Stop, F=Factory, R=Storage, HOME=R
 +
 MINIMAP-INTERACTION-04 merged via PR #314 (click-to-camera, drag-to-pan, pointer capture)
 +
-SELECTION-CONTROL-GROUPS-05 in progress (multi-select, drag-box, control groups)
+FEEDBACK-ALERTS-06 in progress (typed feedback, command errors, minimap pings)
 ```
 
 Closed / accepted cycles:
@@ -208,7 +208,8 @@ GameScene no longer directly owns most renderer fields.
 12. [DONE] HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — Bottom HUD rebuild (merged PR #312).
 13. [DONE] COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 command card grid + grid hotkeys (merged PR #313).
 14. [DONE] MINIMAP-INTERACTION-04-VERYHIGHPLUS — minimap camera interaction (MERGED PR #314).
-15. [ACTIVE NEXT] SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select, drag-box, control groups (DRAFT PR, pending GPT review + Denis manual QA).
+15. [DONE] SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select, drag-box, control groups (MERGED PR #315).
+16. [ACTIVE NEXT] FEEDBACK-ALERTS-06-HIGHPLUS — typed feedback, command errors, idle worker, minimap pings (DRAFT PR, pending GPT review + Denis manual QA).
 ```
 
 ---
@@ -220,15 +221,14 @@ The selected direction is AoE4-inspired UX redesign for the HUD.
 Denis rejected the current HUD/command panel/minimap direction (PRs #308-#310).
 Those PRs are treated as technical prototypes, not final UX.
 
-The current step is SELECTION-CONTROL-GROUPS-05:
+The current step is FEEDBACK-ALERTS-06:
 
 ```text
-SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS
+FEEDBACK-ALERTS-06-HIGHPLUS
   Type: implementation PR (DRAFT).
   Status: pending GPT review + Denis manual QA.
-  Branch: visual/selection-control-groups-05
-  Features: multi-select, drag-box, double-click same type, control groups 1-9.
-  Removed: legacy number key build aliases (1/2/3).
+  Branch: visual/feedback-alerts-06
+  Features: typed feedback, command errors, control group feedback, idle worker alert, minimap pings.
   Deferred: fog, enemy markers, edge pan, attack-move, formations.
 ```
 
@@ -248,8 +248,8 @@ After roadmap acceptance, implementation sequence:
 2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — restructure bottom bar layout
 3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4x3 grid + grid hotkeys
 4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap
-5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9
-6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts
+5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9 (MERGED)
+6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts (THIS STEP)
 7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (can parallel with 2-6)
 8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit)
 ```

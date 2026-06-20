@@ -36,6 +36,9 @@ import {
 /** Callback type for command execution. */
 export type CommandExecuteCallback = (commandId: string) => void;
 
+/** FEEDBACK-ALERTS-06: Callback type for feedback events from disabled command clicks. */
+export type FeedbackCallback = (event: { type: string; message: string; code?: string }) => void;
+
 export class HudCommandPanel {
   private container!: HTMLDivElement;
   private gridEl!: HTMLDivElement;
@@ -46,6 +49,9 @@ export class HudCommandPanel {
   /** Callback to execute a command by id. */
   private onCommand?: CommandExecuteCallback;
 
+  /** FEEDBACK-ALERTS-06: Callback for feedback events from disabled command clicks. */
+  private onFeedback?: FeedbackCallback;
+
   /** Current view model for diff checking. */
   private currentVm: CommandCardViewModel | null = null;
 
@@ -55,8 +61,9 @@ export class HudCommandPanel {
    */
   private descriptorMap: Map<string, CommandCardSlot> = new Map();
 
-  create(parent: HTMLElement, onCommand?: CommandExecuteCallback): void {
+  create(parent: HTMLElement, onCommand?: CommandExecuteCallback, onFeedback?: FeedbackCallback): void {
     this.onCommand = onCommand;
+    this.onFeedback = onFeedback;
 
     this.container = document.createElement('div');
     this.container.id = 'hud-command-panel';
@@ -155,7 +162,13 @@ export class HudCommandPanel {
       e.stopPropagation();
       e.preventDefault();
       const currentSlot = this.descriptorMap.get(btn.dataset.commandId ?? '');
-      if (!currentSlot || currentSlot.state !== 'enabled') return;
+      if (!currentSlot || currentSlot.state !== 'enabled') {
+        // FEEDBACK-ALERTS-06: Show feedback for disabled command click
+        if (currentSlot && currentSlot.state === 'disabled') {
+          this.onFeedback?.({ type: 'warning', message: `${currentSlot.label}: ${currentSlot.disabledReason}`, code: 'disabled-command' });
+        }
+        return;
+      }
       this.onCommand?.(currentSlot.commandId);
     });
 

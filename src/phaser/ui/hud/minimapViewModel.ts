@@ -33,6 +33,15 @@ export interface MinimapViewportRect {
   height: number;
 }
 
+/** FEEDBACK-ALERTS-06: Minimap ping for feedback events with tile targets. */
+export interface MinimapPing {
+  tx: number;
+  ty: number;
+  color: string;
+  birthTime: number; // timestamp (Date.now())
+  lifetime: number;  // ms, default 2000
+}
+
 export interface MinimapViewModel {
   mapWidth: number;
   mapHeight: number;
@@ -40,6 +49,8 @@ export interface MinimapViewModel {
   viewport: MinimapViewportRect | null;
   /** SELECTION-CONTROL-GROUPS-05: All selected entity IDs. */
   selectedEntityIds: string[];
+  /** FEEDBACK-ALERTS-06: Active minimap pings. */
+  pings: MinimapPing[];
 }
 
 // ─── Color constants ────────────────────────────────────────────────
@@ -277,5 +288,6 @@ export function buildMinimapViewModel(
     markers,
     viewport,
     selectedEntityIds,
+    pings: [],  // FEEDBACK-ALERTS-06: Pings are injected by the caller
   };
 }

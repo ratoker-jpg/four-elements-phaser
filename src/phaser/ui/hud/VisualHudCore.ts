@@ -39,9 +39,10 @@ import {
 } from './hudLayout';
 import { HudResourceStrip } from './HudResourceStrip';
 import { HudSelectionPanel } from './HudSelectionPanel';
-import { HudCommandPanel, type CommandExecuteCallback } from './HudCommandPanel';
+import { HudCommandPanel, type CommandExecuteCallback, type FeedbackCallback } from './HudCommandPanel';
 import { HudMinimap, type MinimapCameraData, type MinimapOffset } from './HudMinimap';
 import { HudStatusLane } from './HudStatusLane';
+import { FeedbackStore, type FeedbackMessage } from '../../../state/feedbackStore';
 
 export class VisualHudCore {
   private root!: HTMLDivElement;
@@ -56,6 +57,9 @@ export class VisualHudCore {
 
   /** Current selection state — updated by GameInputController. */
   private currentSelection: UnitSelection = null;
+
+  /** FEEDBACK-ALERTS-06: Feedback store for typed feedback messages. */
+  private feedbackStore = new FeedbackStore();
 
   create(onCommand?: CommandExecuteCallback): void {
     // Resource strip: top-left overlay (NOT in bottom bar)
@@ -74,9 +78,18 @@ export class VisualHudCore {
     const statusRow = document.createElement('div');
     statusRow.id = 'vhc-status-row';
 
+    // FEEDBACK-ALERTS-06: Feedback callback for disabled command clicks
+    const feedbackCb: FeedbackCallback = (event) => {
+      this.feedbackStore.addFeedback({
+        type: event.type as 'info' | 'success' | 'warning' | 'error',
+        message: event.message,
+        code: event.code,
+      });
+    };
+
     this.minimapSlot.create(this.panelRow);
     this.selectionPanel.create(this.panelRow);
-    this.commandPanel.create(this.panelRow, onCommand);
+    this.commandPanel.create(this.panelRow, onCommand, feedbackCb);
     this.statusLane.create(statusRow);
 
     this.root.appendChild(this.panelRow);
@@ -94,6 +107,13 @@ export class VisualHudCore {
     this.commandPanel.update(state, this.currentSelection);
     // MINIMAP-INTERACTION-04: Pass selection to minimap for selected entity highlighting
     this.minimapSlot.update(state, cameraData, offset, this.currentSelection);
+
+    // FEEDBACK-ALERTS-06: Expire old feedback messages and show current message
+    this.feedbackStore.expireMessages();
+    const currentMsg = this.feedbackStore.getCurrentMessage();
+    if (currentMsg) {
+      this.statusLane.showFeedback(currentMsg);
+    }
   }
 
   /** Update the current selection (called by GameInputController). */
@@ -106,7 +126,44 @@ export class VisualHudCore {
    * Called from GameScene via the showStatus callback.
    */
   showStatus(message: string, success: boolean): void {
+    // FEEDBACK-ALERTS-06: Also push to FeedbackStore for typed rendering
+    this.feedbackStore.addFeedback({
+      type: success ? 'success' : 'warning',
+      message,
+    });
+    // Also directly show in status lane for immediate feedback
     this.statusLane.showStatus(message, success);
+  }
+
+  /** FEEDBACK-ALERTS-06: Get the feedback store for external access. */
+  getFeedbackStore(): FeedbackStore {
+    return this.feedbackStore;
+  }
+
+  /** FEEDBACK-ALERTS-06: Add a feedback message to the store and show it. */
+  addFeedback(params: {
+    type: 'info' | 'success' | 'warning' | 'error';
+    message: string;
+    code?: string;
+    tileTarget?: { tx: number; ty: number };
+    duration?: number;
+    dedupeKey?: string;
+  }): FeedbackMessage | null {
+    const msg = this.feedbackStore.addFeedback(params);
+    if (msg) {
+      this.statusLane.showFeedback(msg);
+      // If the message has a tile target, add a minimap ping
+      if (msg.tileTarget) {
+        this.minimapSlot.addPing({
+          tx: msg.tileTarget.tx,
+          ty: msg.tileTarget.ty,
+          color: this.severityToPingColor(msg.type),
+          birthTime: msg.timestamp,
+          lifetime: msg.duration,
+        });
+      }
+    }
+    return msg;
   }
 
   /** MINIMAP-INTERACTION-04: Set callback for camera centering (passed to HudMinimap). */
@@ -125,10 +182,21 @@ export class VisualHudCore {
     this.commandPanel.destroy();
     this.minimapSlot.destroy();
     this.statusLane.destroy();
+    this.feedbackStore.clear();
     this.root?.remove();
   }
 
   // ─── Private ────────────────────────────────────────────────────
+
+  /** FEEDBACK-ALERTS-06: Map severity to minimap ping color. */
+  private severityToPingColor(type: 'info' | 'success' | 'warning' | 'error'): string {
+    switch (type) {
+      case 'success': return '#4ade80';
+      case 'warning': return '#fbbf24';
+      case 'error': return '#f87171';
+      case 'info': return '#60a5fa';
+    }
+  }
 
   private css(): string {
     return `<style>

@@ -611,6 +611,10 @@ export class GameScene extends Phaser.Scene {
           this.playtestHud?.showStatus(message, success);
         }
       },
+      // FEEDBACK-ALERTS-06: Typed feedback callback to VisualHudCore
+      showFeedback: (type, message, code, dedupeKey) => {
+        this.visualHudCore?.addFeedback({ type, message, code, dedupeKey });
+      },
       pauseMenu: this.pauseMenu,
       debugOverlayRenderer: this.debugOverlayRenderer,
       devtoolsPanel: this.devtoolsPanel,
@@ -701,6 +705,8 @@ export class GameScene extends Phaser.Scene {
         const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
         if (result.completed) {
           console.log(`[GameScene] Construction completed: ${result.buildingId}`);
+          // FEEDBACK-ALERTS-06: Show construction complete feedback
+          this.inputController?.showFeedback('success', 'Здание построено', 'construction-complete');
         }
       }
     }
