@@ -13,6 +13,8 @@ import { issueManualMove, stopUnitCommand } from '../../state/unitCommands';
 import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
 import { commandRegistry, registerMvpCommands } from '../../state/commandRegistry';
 import { isScreenPointInHud } from '../ui/hud/hudLayout';
+import { buildCommandCardViewModel } from '../ui/hud/commandPanelViewModel';
+import { ALL_SLOT_KEYS, type SlotKey } from '../ui/hud/commandCardGrid';
 import type { EntityRenderer } from '../render/EntityRenderer';
 import type { FeedbackRenderer } from '../render/FeedbackRenderer';
 import type { PauseMenu } from '../ui/PauseMenu';
@@ -216,57 +218,29 @@ export class GameInputController {
    * them to actual gameplay actions.
    */
   private wireCommandCallbacks(): void {
-    const buildSeparator = commandRegistry.get('build-separator');
-    if (buildSeparator) {
-      buildSeparator.execute = () => {
-        const result = this.requestBuild('separator');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
+    // ── COMMAND-CARD-REBUILD-03: Grid hotkey command wiring ──
+    // Primary grid hotkeys: Q/W/E/R/A/S/Z for build/stop commands.
+    // Each is wired to its corresponding gameplay action.
 
-    const buildFactory = commandRegistry.get('build-units-factory');
-    if (buildFactory) {
-      buildFactory.execute = () => {
-        const result = this.requestBuild('units-factory');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
+    const wireBuild = (commandId: string, buildingType: BuildingType) => {
+      const cmd = commandRegistry.get(commandId);
+      if (cmd) {
+        cmd.execute = () => {
+          const result = this.requestBuild(buildingType);
+          this.showStatusCb(result.message, result.success);
+        };
+      }
+    };
 
-    const buildRawStorage = commandRegistry.get('build-raw-storage');
-    if (buildRawStorage) {
-      buildRawStorage.execute = () => {
-        const result = this.requestBuild('raw-storage');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
-
-    const buildMatterStorage = commandRegistry.get('build-matter-storage');
-    if (buildMatterStorage) {
-      buildMatterStorage.execute = () => {
-        const result = this.requestBuild('matter-storage');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
-
-    const buildElementStorage = commandRegistry.get('build-element-storage');
-    if (buildElementStorage) {
-      buildElementStorage.execute = () => {
-        const result = this.requestBuild('element-storage');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
-
-    const buildPowerPlant = commandRegistry.get('build-power-plant');
-    if (buildPowerPlant) {
-      buildPowerPlant.execute = () => {
-        const result = this.requestBuild('power-plant');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
+    wireBuild('build-separator', 'separator');
+    wireBuild('build-raw-storage', 'raw-storage');
+    wireBuild('build-matter-storage', 'matter-storage');
+    wireBuild('build-element-storage', 'element-storage');
+    wireBuild('build-power-plant', 'power-plant');
+    wireBuild('build-units-factory', 'units-factory');
 
     // NOTE: build-energy-plant is intentionally NOT wired because
     // energy-plant is visual-ready only — no gameplay mechanic yet.
-    // Players must not accidentally build a non-functional building.
 
     const produceBuilder = commandRegistry.get('produce-builder');
     if (produceBuilder) {
@@ -282,6 +256,34 @@ export class GameInputController {
         const result = this.requestQueueUnit('harvester');
         this.showStatusCb(result.message, result.success);
       };
+    }
+
+    // ── Unit stop command ──
+    const unitStop = commandRegistry.get('unit-stop');
+    if (unitStop) {
+      unitStop.execute = () => {
+        this.handleStopKey();
+      };
+    }
+
+    // ── COMMAND-CARD-REBUILD-03: Legacy alias wiring ──
+    // Each legacy alias executes the same action as its primary counterpart.
+    // These are temporary during the hotkey migration period.
+    //
+    // FIXUP-2: Removed build-units-factory-legacy and unit-stop-legacy.
+    // S=Stop and F=Factory are now PRIMARY grid hotkeys, not legacy aliases.
+    const legacyAliases: [string, () => void][] = [
+      ['build-separator-legacy',      () => { const r = this.requestBuild('separator'); this.showStatusCb(r.message, r.success); }],
+      ['build-raw-storage-legacy',    () => { const r = this.requestBuild('raw-storage'); this.showStatusCb(r.message, r.success); }],
+      ['build-matter-storage-legacy', () => { const r = this.requestBuild('matter-storage'); this.showStatusCb(r.message, r.success); }],
+      ['build-element-storage-legacy',() => { const r = this.requestBuild('element-storage'); this.showStatusCb(r.message, r.success); }],
+      ['build-power-plant-legacy',   () => { const r = this.requestBuild('power-plant'); this.showStatusCb(r.message, r.success); }],
+    ];
+    for (const [aliasId, execute] of legacyAliases) {
+      const cmd = commandRegistry.get(aliasId);
+      if (cmd) {
+        cmd.execute = execute;
+      }
     }
   }
 
@@ -782,27 +784,35 @@ export class GameInputController {
     // implemented as an explicit devtools panel control, not as global
     // keyboard hotkeys that mutate shared tuner state.
 
-    // ── Build & Production hotkeys (HOTKEYS-01: dispatched via command registry) ──
-    // Register keyboard listeners for each build/produce command.
-    // The registry is the source-of-truth for key bindings.
-    const buildCommands = commandRegistry.findByCategory('build');
-    for (const cmd of buildCommands) {
-      kb.on(`keydown-${cmd.key}`, () => {
-        commandRegistry.execute(cmd.id);
+    // ── COMMAND-CARD-REBUILD-03-FIXUP-1: Contextual hotkey dispatcher ──
+    // Instead of registering one keydown listener per command (which causes
+    // duplicate-key bugs like S firing both build-units-factory and
+    // unit-stop-legacy), we register a SINGLE dispatcher per key.
+    // FIXUP-2: With S=Stop and F=Factory as primary grid hotkeys, the
+    // duplicate-key conflict is structurally eliminated.
+    // The dispatcher:
+    //   1. Builds the current CommandCardViewModel from GameState + selection.
+    //   2. Finds an enabled slot whose hotkey matches the pressed key.
+    //   3. Executes exactly that slot.commandId via the registry.
+    //   4. If no grid slot matches, tries legacy aliases contextually.
+    //   5. Never executes more than one command per keydown.
+
+    // Grid hotkeys: Q/W/E/R/A/S/D/F/Z/X/C/V
+    for (const slotKey of ALL_SLOT_KEYS) {
+      kb.on(`keydown-${slotKey}`, () => {
+        this.dispatchCommandCardHotkey(slotKey);
       });
     }
 
-    const produceCommands = commandRegistry.findByCategory('produce');
-    for (const cmd of produceCommands) {
-      kb.on(`keydown-${cmd.key}`, () => {
-        commandRegistry.execute(cmd.id);
+    // Legacy alias hotkeys: B/P/ONE/TWO/THREE
+    // FIXUP-2: F is no longer a legacy alias — it's the primary grid key for
+    // build-units-factory. F is already registered above as a grid slot.
+    const legacyKeys = ['B', 'P', 'ONE', 'TWO', 'THREE'];
+    for (const key of legacyKeys) {
+      kb.on(`keydown-${key}`, () => {
+        this.dispatchLegacyAlias(key);
       });
     }
-
-    // ── CORE-STEP-05H+: S key — stop selected unit ────────────
-    kb.on('keydown-S', () => {
-      this.handleStopKey();
-    });
 
     // ── Devtools toggle (F10 / backtick) ─────────────────────
     kb.on('keydown-F10', () => {
@@ -857,6 +867,105 @@ export class GameInputController {
       }
       case 'no-op':
         break;
+    }
+  }
+
+  // ─── Contextual command-card hotkey dispatcher (FIXUP-1) ────────
+
+  /**
+   * COMMAND-CARD-REBUILD-03-FIXUP-1: Contextual hotkey dispatcher.
+   *
+   * Instead of executing commands directly from the registry (which fires
+   * ALL commands bound to a key regardless of context), this method:
+   *   1. Builds the current CommandCardViewModel from state + selection.
+   *   2. Finds an enabled slot whose hotkey matches the pressed key.
+   *   3. Executes exactly that one command via the registry.
+   *   4. If no enabled grid slot matches, does nothing.
+   *
+   * This prevents the S-key bug where both build-units-factory and
+   * unit-stop-legacy would fire simultaneously. FIXUP-2 structurally
+   * eliminates this: S=Stop (primary), F=Factory (primary).
+   *
+   * @param slotKey - The grid slot key (Q/W/E/R/A/S/D/F/Z/X/C/V) that was pressed.
+   */
+  private dispatchCommandCardHotkey(slotKey: SlotKey): void {
+    const gameState = this.getGameState();
+    const vm = buildCommandCardViewModel(gameState, this.selectedUnit);
+
+    // Find a matching enabled slot in the command card
+    const matchingSlot = vm.slots.find(
+      s => s.slotKey === slotKey && s.state === 'enabled',
+    );
+
+    if (matchingSlot && matchingSlot.commandId) {
+      // Execute exactly one command via the registry (which has the wired callback)
+      commandRegistry.execute(matchingSlot.commandId);
+      return;
+    }
+
+    // If a disabled slot matched, optionally show the disabled reason
+    const disabledSlot = vm.slots.find(
+      s => s.slotKey === slotKey && s.state === 'disabled',
+    );
+    if (disabledSlot && disabledSlot.disabledReason) {
+      this.showStatusCb(`${disabledSlot.label}: ${disabledSlot.disabledReason}`, false);
+      return;
+    }
+
+    // No matching enabled or disabled slot — key does nothing for current context.
+    // This is intentional: pressing D/F/X/C/V when nothing is assigned is a no-op.
+  }
+
+  /**
+   * Dispatch a legacy alias hotkey (B/P/F/1/2/3).
+   *
+   * Legacy aliases only execute if the current command card has an enabled
+   * slot whose commandId matches the legacy's primary counterpart. This
+   * prevents legacy aliases from bypassing the command-card context.
+   *
+   * Legacy alias mapping (FIXUP-2: F removed — it's now a primary grid key):
+   *   B → build-separator (if enabled in current grid)
+   *   P → build-power-plant (if enabled in current grid)
+   *   ONE → build-raw-storage (if enabled in current grid)
+   *   TWO → build-matter-storage (if enabled in current grid)
+   *   THREE → build-element-storage (if enabled in current grid)
+   *   F → handled via grid slot dispatch (not here — F is primary grid key for Factory)
+   *   S → handled via grid slot dispatch (not here — S is primary grid key for Stop)
+   *
+   * @param key - The Phaser key code string for the pressed key.
+   */
+  private dispatchLegacyAlias(key: string): void {
+    const gameState = this.getGameState();
+    const vm = buildCommandCardViewModel(gameState, this.selectedUnit);
+
+    // Map legacy keys to their primary command IDs
+    const legacyToPrimary: Record<string, string> = {
+      'B': 'build-separator',
+      'P': 'build-power-plant',
+      'ONE': 'build-raw-storage',
+      'TWO': 'build-matter-storage',
+      'THREE': 'build-element-storage',
+    };
+
+    const primaryId = legacyToPrimary[key];
+    if (!primaryId) return;
+
+    // Only execute if the primary command is enabled in the current grid
+    const matchingSlot = vm.slots.find(
+      s => s.commandId === primaryId && s.state === 'enabled',
+    );
+
+    if (matchingSlot) {
+      commandRegistry.execute(primaryId);
+    } else {
+      // Check if it's disabled (show reason) vs not in grid at all (no-op)
+      const disabledSlot = vm.slots.find(
+        s => s.commandId === primaryId && s.state === 'disabled',
+      );
+      if (disabledSlot && disabledSlot.disabledReason) {
+        this.showStatusCb(`${disabledSlot.label}: ${disabledSlot.disabledReason}`, false);
+      }
+      // If no slot at all (e.g. factory not in harvester grid), silently no-op
     }
   }
 

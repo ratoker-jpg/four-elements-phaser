@@ -313,7 +313,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
-    this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
+    // COMMAND-CARD-REBUILD-03: Camera reset key is HOME.
+    // R is now the grid hotkey for build-element-storage.
+    this.cameraControls.bindResetKey('HOME', this.hqWorldX, this.hqWorldY);
 
     // ARENA-01H+: Arena mode uses ArenaMenu instead of PlaytestHud
     // HUD-LAYOUT-REBUILD-02-FIXUP-1: PlaytestHud is created and wired

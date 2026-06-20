@@ -3,7 +3,7 @@
 Status: active operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Updated: 2026-06-20
+Updated: 2026-06-21
 
 ---
 
@@ -15,10 +15,13 @@ VISUAL ROADMAP — AoE4-INSPIRED UX REDESIGN MODE.
 Renderer unification Stage 1-4 is closed.
 PR #304 Arena visual/combat fix is merged and accepted by Denis manual QA.
 PRs #308-#310 (HUD core, command panel, minimap) are merged as technical prototypes.
+PR #311 (AoE4 UX redesign roadmap) is merged — direction accepted.
+PR #312 (HUD layout rebuild) is merged — bottom HUD rebuilt.
 Denis rejected the current HUD/command panel/minimap direction visually and UX-wise.
 Direction changed: AoE4-inspired RTS UX redesign replaces the "continue integrating existing HUD" plan.
-Current operational task: VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 (docs/design PR, awaiting Denis acceptance).
-No HUD runtime implementation starts until Denis accepts the redesign roadmap.
+Current operational task: COMMAND-CARD-REBUILD-03-VERYHIGHPLUS (4×3 grid + grid hotkeys).
+Number keys 1–9 are reserved for future control groups.
+Old build hotkeys (B/P/1/2/3/S) remain temporarily as backward-compatible aliases.
 ```
 
 Current direction:
@@ -34,9 +37,13 @@ accepted RenderManager / GameScene orchestration baseline
 +
 accepted Arena visual/combat fix baseline
 +
-AoE4-inspired UX redesign roadmap (awaiting Denis acceptance)
+AoE4-inspired UX redesign roadmap (accepted)
 +
 PRs #308-#310 are technical prototypes, not final accepted UX
++
+PR #312 HUD layout rebuild accepted
++
+COMMAND-CARD-REBUILD-03 in progress (4×3 grid + grid hotkeys)
 ```
 
 Closed / accepted cycles:
@@ -192,7 +199,9 @@ GameScene no longer directly owns most renderer fields.
 8. [DONE] VISUAL-HUD-CORE-01-HIGHPLUS (PR #308) — Bottom HUD core prototype.
 9. [DONE] VISUAL-COMMAND-PANEL-02-HIGHPLUS (PR #309) — Command panel MVP prototype.
 10. [DONE] VISUAL-MINIMAP-03-VERYHIGH (PR #310) — Minimap MVP prototype.
-11. [ACTIVE NEXT] VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — AoE4-inspired UX redesign roadmap (docs/design PR, awaiting Denis acceptance).
+11. [DONE] VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — AoE4-inspired UX redesign roadmap (merged).
+12. [DONE] HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — Bottom HUD rebuild (merged PR #312).
+13. [ACTIVE NEXT] COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 command card grid + grid hotkeys.
 ```
 
 ---

@@ -240,12 +240,12 @@ describe('COMMAND-PANEL-02-FIXUP-1: harvester selection', () => {
     expect(vm.commands[0].id).toBe('unit-stop');
   });
 
-  it('builder selection does NOT show stop command', () => {
+  it('builder selection DOES show stop command (FIXUP-2: S = Stop for all units)', () => {
     const state = createNormalGameState();
     const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
     const vm = buildCommandPanelViewModel(state, builderSelection);
     const stopCmd = vm.commands.find(c => c.id === 'unit-stop');
-    expect(stopCmd).toBeUndefined();
+    expect(stopCmd).toBeDefined();
   });
 });
 
