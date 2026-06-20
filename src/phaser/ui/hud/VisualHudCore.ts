@@ -16,6 +16,13 @@
  *     Current commands render inside this area temporarily.
  *   - Status lane: minimal status message area at the bottom of the HUD.
  *
+ * VISUAL-MINIMAP-03: Minimap is a real canvas-based minimap with
+ * entity markers and camera viewport rectangle.
+ *
+ * MINIMAP-INTERACTION-04: Wires camera center callback to HudMinimap
+ * for click-to-camera and drag-to-pan. Passes selection to minimap
+ * for selected entity highlighting.
+ *
  * The main camera viewport is reduced by HUD_BAR_HEIGHT so game
  * content is never hidden behind the bottom HUD bar.
  */
@@ -85,7 +92,8 @@ export class VisualHudCore {
     this.resourceStrip.update(state);
     this.selectionPanel.update(state, this.currentSelection);
     this.commandPanel.update(state, this.currentSelection);
-    this.minimapSlot.update(state, cameraData, offset);
+    // MINIMAP-INTERACTION-04: Pass selection to minimap for selected entity highlighting
+    this.minimapSlot.update(state, cameraData, offset, this.currentSelection);
   }
 
   /** Update the current selection (called by GameInputController). */
@@ -99,6 +107,16 @@ export class VisualHudCore {
    */
   showStatus(message: string, success: boolean): void {
     this.statusLane.showStatus(message, success);
+  }
+
+  /** MINIMAP-INTERACTION-04: Set callback for camera centering (passed to HudMinimap). */
+  setCameraCenterCallback(cb: (worldX: number, worldY: number) => void): void {
+    this.minimapSlot.setCameraCenterCallback(cb);
+  }
+
+  /** MINIMAP-INTERACTION-04: Set the map offset for minimap coordinate transforms. */
+  setMinimapOffset(offset: MinimapOffset): void {
+    this.minimapSlot.setOffset(offset);
   }
 
   destroy(): void {

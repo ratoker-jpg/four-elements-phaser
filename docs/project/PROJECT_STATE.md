@@ -19,9 +19,10 @@ PR #311 (AoE4 UX redesign roadmap) is merged — direction accepted.
 PR #312 (HUD layout rebuild) is merged — bottom HUD rebuilt.
 Denis rejected the current HUD/command panel/minimap direction visually and UX-wise.
 Direction changed: AoE4-inspired RTS UX redesign replaces the "continue integrating existing HUD" plan.
-Current operational task: COMMAND-CARD-REBUILD-03-VERYHIGHPLUS (4×3 grid + grid hotkeys).
+Current operational task: MINIMAP-INTERACTION-04-VERYHIGHPLUS (click-to-camera, drag-to-pan, selected marker highlight, input isolation — DRAFT PR, pending GPT review + Denis manual QA).
+Previous completed task: COMMAND-CARD-REBUILD-03-VERYHIGHPLUS (4×3 grid + grid hotkeys, MERGED via PR #313).
 Number keys 1–9 are reserved for future control groups.
-Old build hotkeys (B/P/1/2/3/S) remain temporarily as backward-compatible aliases.
+S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset (per #313).
 ```
 
 Current direction:
@@ -43,7 +44,9 @@ PRs #308-#310 are technical prototypes, not final accepted UX
 +
 PR #312 HUD layout rebuild accepted
 +
-COMMAND-CARD-REBUILD-03 in progress (4×3 grid + grid hotkeys)
+COMMAND-CARD-REBUILD-03 merged via PR #313 (S=Stop, F=Factory, R=Storage, HOME=Reset)
++
+MINIMAP-INTERACTION-04 in progress (click-to-camera, drag-to-pan, selected highlight)
 ```
 
 Closed / accepted cycles:
@@ -201,7 +204,8 @@ GameScene no longer directly owns most renderer fields.
 10. [DONE] VISUAL-MINIMAP-03-VERYHIGH (PR #310) — Minimap MVP prototype.
 11. [DONE] VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — AoE4-inspired UX redesign roadmap (merged).
 12. [DONE] HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — Bottom HUD rebuild (merged PR #312).
-13. [ACTIVE NEXT] COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 command card grid + grid hotkeys.
+13. [DONE] COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 command card grid + grid hotkeys (merged PR #313).
+14. [ACTIVE NEXT] MINIMAP-INTERACTION-04-VERYHIGHPLUS — minimap camera interaction (DRAFT PR, pending GPT review + Denis manual QA).
 ```
 
 ---
@@ -213,14 +217,24 @@ The selected direction is AoE4-inspired UX redesign for the HUD.
 Denis rejected the current HUD/command panel/minimap direction (PRs #308-#310).
 Those PRs are treated as technical prototypes, not final UX.
 
-The current step is the redesign roadmap:
+The current step is MINIMAP-INTERACTION-04:
+
+```text
+MINIMAP-INTERACTION-04-VERYHIGHPLUS
+  Type: implementation PR (DRAFT).
+  Status: pending GPT review + Denis manual QA.
+  Branch: visual/minimap-interaction-04
+  Features: click-to-camera, drag-to-pan, selected marker highlight, input isolation.
+  Deferred: fog, enemy markers, control groups.
+```
+
+Previous step (still awaiting acceptance):
 
 ```text
 VISUAL-AOE4-UX-REDESIGN-ROADMAP-01
   Type: docs/design PR.
   Status: awaiting Denis acceptance.
   Deliverable: docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md
-  Runtime implementation: blocked until Denis accepts the roadmap.
 ```
 
 After roadmap acceptance, implementation sequence:
@@ -269,7 +283,7 @@ Do not start implementation if:
 - task continues polishing the current HUD (#308-#310) as final until redesign spec is accepted;
 - task implements HUD integration cleanup (VISUAL-HUD-INTEGRATION-04 is cancelled);
 - task copies AoE4 assets or exact layout;
-- task implements fog without a prior accepted audit;
+- task implements minimap interaction beyond MINIMAP-INTERACTION-04 scope (fog, enemy markers, control groups);
 - task mixes control groups with current 1/2/3 build hotkeys without resolving the conflict;
 - task merges High+ visual PRs without Denis manual visual approval.
 ```
