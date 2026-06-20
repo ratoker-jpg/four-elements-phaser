@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: post-PR #302 renderer-unification baseline; docs sync is the current operational step  
+Status: Visual Roadmap selected after Arena visual/combat fix  
 Project: Four Elements Phaser  
-Updated: 2026-06-18 (post-#302 merge docs sync)
+Updated: 2026-06-20 (post-#304 merge / Visual Roadmap activation)
 
 ---
 
@@ -19,138 +19,108 @@ What should GPT/GLM/Opus/Codex do next by default?
 ## Current baseline
 
 ```text
+Renderer unification Stage 1-4 is CLOSED.
+
 #297 VEHICLE-RENDER-UNIFY-AUDIT
-  Status: MERGED on 2026-06-16.
+  Status: MERGED.
   Result: accepted 4-stage vehicle render unification roadmap.
 
 #298 VEHICLE-RENDER-UNIFY-01-VH
-  Status: MERGED on 2026-06-17.
+  Status: MERGED.
   Result: Stage 1 + Stage 2 completed and manually QA-accepted by Denis.
-  Scope completed:
-    - canonical faction resolver;
-    - no silent cyan fallback in live render path;
-    - sticky no-flicker behavior after modular success;
-    - debug render artifacts OFF by default;
-    - turret-to-cursor default OFF unless explicitly enabled;
-    - Arena + normal runtime parity through shared adapter contract.
-
-#299 DOCS-SYNC-POST-298
-  Status: MERGED on 2026-06-17.
-  Result: docs updated after #298.
 
 #300 VEHICLE-RENDER-UNIFY-03-VH
-  Status: MERGED on 2026-06-17.
+  Status: MERGED.
   Result: Stage 3 completed and manually QA-accepted by Denis.
-  Merge commit: e8295d37acb9a5905bf2f140f1780e5764e0e5af.
-  Scope completed:
-    - legacy pilot Wasp/Smoky preload removed;
-    - pilotVehicleLazyLoad deleted;
-    - pilotTurretComposition deleted;
-    - ModularTankDebugOverlay / offset tuner removed;
-    - legacy offset tables and tunerState removed from worldConfig;
-    - getWaspHullKey/getSmokyTurretKey removed from production render path;
-    - canonical requestModularVehicleSet() now starts Phaser loader on demand;
-    - loadArenaVisualAssets() no longer preloads modular vehicle sets;
-    - neutral loading placeholder remains explicit first-load fallback.
-
-#301 DOCS-SYNC-POST-300
-  Status: MERGED on 2026-06-18.
-  Result: docs updated after #300.
 
 #302 VEHICLE-RENDER-UNIFY-04-VH
-  Status: MERGED on 2026-06-18.
+  Status: MERGED.
   Result: Stage 4 completed and manually QA-accepted by Denis.
-  Merge commit: e55d731485e18cea7e5cdcd48f695fba8afdfe81.
-  Validation before merge:
-    - GitHub Actions: Pages / Graphify / QA Smoke success;
-    - npm test in PR report: 92 files / 4683 tests;
-    - Denis manual visual QA: passed.
   Scope completed:
-    - RenderManager added;
-    - GameScene no longer directly owns most renderer fields;
-    - renderer construction moved to RenderManager;
-    - phased renderer sync moved to RenderManager;
-    - visual bridge callbacks route through RenderManager;
-    - renderer destroy order preserves original GameScene shutdown order;
-    - gameplay, placement, economy, pathfinding, save-load, mapgen were not part of Stage 4.
-```
+    - RenderManager owns renderer construction, phased sync, visual bridges, and destroy;
+    - GameScene keeps scene lifecycle, gameplay state, UI/menu callbacks, input, camera, placement, save/load;
+    - renderer unification roadmap is not active work anymore.
 
-Stage 1, Stage 2, Stage 3, and Stage 4 are now merged baseline. Treat the vehicle render unification roadmap as accepted/closed, not active work.
+#304 ARENA-VISUAL-COMBAT-FIX-01-HIGH
+  Status: MERGED on 2026-06-20.
+  Merge commit: f788dc16b8396319bfb6033838d98b025ac1dadb.
+  Result: Arena visual/combat fix accepted by Denis manual QA with one explicit known follow-up.
+  Accepted scope:
+    - obstacle debug labels / geometry hidden from default view;
+    - target-lock / enemy indicators gated behind debug flags;
+    - friendly fire disabled for same-team allies;
+    - modular hull-in-cell / selection-ring placement improved;
+    - turret rest/aim direction split clarified;
+    - most muzzle/VFX origins improved.
+
+#305 Follow-up: calibrate Smoky muzzle origin on Wasp hull
+  Status: OPEN follow-up issue.
+  Scope: only Smoky muzzle origin on Wasp hull.
+  Not a blocker for Visual Roadmap unless a task touches Wasp+Smoky muzzle/VFX.
+```
 
 ---
 
 ## Active next step (single)
 
 ```text
-DOCS-SYNC-POST-302
-  Risk: Low.
-  Type: docs-only.
-  Goal: update source-of-truth docs after PR #302 merge.
-  Files:
-    - docs/project/CURRENT_NEXT_STEP.md
-    - docs/project/PROJECT_STATE.md
-  No runtime code.
-  No tests.
-  No assets.
-```
+VISUAL-AUDIT-01 / VISUAL-HUD-AUDIT
+  Risk: Low for audit/design; Very High only when implementation starts.
+  Type: docs/design first.
+  Goal: design the next Visual Roadmap slice before runtime implementation.
+  Primary target: HUD/minimap/command layout audit.
 
-After this docs sync merges, there is no automatic Stage 5.
+  Required output before implementation:
+    - current HUD inventory;
+    - target RTS HUD layout;
+    - minimap design constraints;
+    - selected-unit/building panel design;
+    - command/actions/hotkey panel design;
+    - implementation split;
+    - manual visual approval gate.
 
-Next work must be selected explicitly by Denis. Good candidates:
-
-```text
-1. Post-render baseline hardening / visual regression checklist.
-2. Next gameplay/product roadmap audit.
-3. Next asset pipeline/runtime task.
-4. New feature direction chosen by Denis.
-```
-
-Do not continue renderer unification by inertia.
-
----
-
-## Roadmap state
-
-Accepted roadmap references:
-
-```text
-docs/project/VEHICLE_RENDER_UNIFICATION_AUDIT_2026_06_16.md
-docs/project/VEHICLE_RENDER_UNIFICATION_ROADMAP_2026_06_16.md
-```
-
-Current roadmap status:
-
-```text
-Stage 1: DONE / MERGED via #298.
-Stage 2: DONE / MERGED via #298; Denis manual QA accepted.
-Stage 3: DONE / MERGED via #300; Denis manual QA accepted.
-Stage 4: DONE / MERGED via #302; Denis manual QA accepted.
-Renderer unification roadmap: CLOSED after post-#302 docs sync.
+  No runtime implementation in this step.
+  No HUD code before GPT review + Denis visual approval.
 ```
 
 ---
 
-## Current renderer baseline
+## Visual Roadmap activation
+
+Denis selected Visual Roadmap as the next direction after #304. The next work should start with audit/design, not code.
+
+Recommended first slice:
 
 ```text
-- Modular PNG is the default live vehicle render path when assets are available.
-- Valid factions cyan/green/yellow/purple pass through the canonical faction resolver.
-- Missing/invalid faction fallback is diagnostic, not silent cyan recolor.
-- Debug artifacts are OFF by default.
-- No old Wasp M0 forced default/preloaded visual.
-- pilotVehicleLazyLoad is deleted.
-- pilotTurretComposition is deleted.
-- ModularTankDebugOverlay / offset tuner is deleted.
-- loadArenaVisualAssets() does not preload modular vehicle sets.
-- requestModularVehicleSet() owns on-demand Phaser loader start.
-- Neutral loading placeholder remains the explicit first-load fallback.
-- RenderManager owns renderer construction, phased sync, visual bridges, and destroy.
-- GameScene keeps scene lifecycle, gameplay state, UI/menu callbacks, input, camera, placement, save/load.
+VISUAL-HUD-AUDIT
+  Why first:
+    - V7 HUD/minimap is one of the largest remaining visible gaps;
+    - current PlaytestHud/debug-style UI does not match the target RTS layout;
+    - HUD can be designed independently before touching terrain/assets.
+
+  Target layout from Visual Roadmap:
+    - bottom-left minimap;
+    - bottom-center selected unit/building information;
+    - bottom-right command/actions/hotkeys.
 ```
 
 ---
 
-## Required validation for future render-adjacent work
+## What is not next by default
+
+```text
+- Do not continue renderer unification by inertia.
+- Do not reopen #304 inside Visual Roadmap.
+- Do not treat #305 as a Visual Roadmap blocker unless the task touches Wasp+Smoky muzzle/VFX.
+- Do not start HUD runtime implementation before VISUAL-HUD-AUDIT is accepted.
+- Do not start terrain runtime integration before a visual direction/design is accepted.
+- Do not start new asset generation before an asset spec is accepted.
+- Do not start menu background/civil unit refresh before the active Visual Roadmap slice is selected.
+```
+
+---
+
+## Required validation for future implementation work
 
 Minimum:
 
@@ -161,31 +131,26 @@ npm run build
 npm run qa:smoke
 git diff --check
 secret/token scan
+GitHub Actions final status
 ```
 
-If build/Playwright is blocked in GLM environment, report it honestly and check GitHub Actions directly.
+If build/Playwright is blocked in GLM/Codex/Opus environment, report it honestly and check GitHub Actions directly.
 
-Manual QA for render-adjacent implementation:
+---
+
+## Manual QA gates for Visual Roadmap implementation
 
 ```text
-- standard game mode;
-- devtools Arena mode;
+- default game mode boots;
+- devtools/Arena mode still boots;
 - no default debug artifacts;
-- all 4 factions render correctly;
+- no broken modular vehicles;
+- no regression to #304 accepted Arena visuals;
 - no silent cyan recolor;
-- no old Wasp M0 forced as default visual;
-- no persistent blockout cubes after loading settles;
-- no missing turret when generated turret asset exists;
-- no flicker back to blockout/cubes;
-- representative hulls: wasp, hunter, titan, dictator;
-- representative turrets: smoky, ricochet, railgun, thunder;
-- Dictator +9% hull remains correct; turret is not scaled by +9%;
-- z-depth unchanged around buildings/resources;
-- placement unchanged;
-- devtools panels still open/work;
-- asset preview still works;
-- pause/menu flow still works;
-- scene restart/shutdown does not leak or crash.
+- no full modular matrix preload;
+- no old Wasp M0 preload;
+- z-depth unchanged around units/buildings/resources unless explicitly in scope;
+- HUD/minimap/command layout approved by Denis before merge.
 ```
 
 ---
@@ -193,21 +158,17 @@ Manual QA for render-adjacent implementation:
 ## Still in force (rules)
 
 ```text
-- Do not continue PR #263 / Wasp+Smoky offset recovery by inertia.
-- Do not continue PR #274/#275 failed generated turret composition path.
-- Do not re-enable ENABLE_PILOT_GENERATED_TURRET_COMPOSITION.
 - Do not restore pilotVehicleLazyLoad or old Wasp M0 preload.
 - Do not restore pilotTurretComposition.
 - Do not restore ModularTankDebugOverlay / offset tuner.
 - Do not preload the full modular matrix.
-- Do not use a combined hull×turret production matrix.
+- Do not use a combined hull x turret production matrix.
 - Do not add new query-string visual test modes.
 - Do not turn preview calibration offsets into production constants without audit.
 - Do not blindly reuse PR #296 mount-slot / forward-back drift model.
 - Do not touch composeModularVehicle() placement/math without explicit Denis approval.
-- Do not touch combat, movement, economy, pathfinding, save-load, bot/AI,
-  or mapgen as part of render cleanup work.
-- Do not rewrite RenderManager/GameScene lifecycle again without a concrete bug or accepted audit.
+- Do not touch combat, movement, economy, pathfinding, save-load, bot/AI, or mapgen as part of Visual Roadmap/HUD work.
+- Do not rewrite RenderManager/GameScene lifecycle without a concrete bug or accepted audit.
 ```
 
 ---
@@ -218,26 +179,7 @@ Manual QA for render-adjacent implementation:
 AGENTS.md
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
-docs/project/GPT_WORKFLOW.md
-docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
-docs/project/AI_GRAPHIFY_WORKFLOW.md
-docs/project/VEHICLE_RENDER_UNIFICATION_AUDIT_2026_06_16.md
-docs/project/VEHICLE_RENDER_UNIFICATION_ROADMAP_2026_06_16.md
-docs/project/VEHICLE_RENDER_UNIFY_03_VH_IMPLEMENTATION_REPORT_2026_06_17.md
-docs/project/VEHICLE_RENDER_UNIFY_04_VH_IMPLEMENTATION_REPORT_2026_06_18.md
-```
-
-Agent-specific:
-
-```text
-GPT:   docs/project/GPT_PROJECT_LEAD_INSTRUCTIONS.md
-GLM:   docs/project/GLM_EXECUTOR_RULES.md
-Opus:  docs/project/OPUS_ARCHITECT_AUDIT_RULES.md
-Codex: docs/project/CODEX_LOCAL_AUDITOR_RULES.md
-```
-
-For visual/world-space/rendering/asset tasks:
-
-```text
+docs/project/VISUAL_ROADMAP.md
+docs/project/VISUAL_SYSTEM_AUDIT.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 ```
