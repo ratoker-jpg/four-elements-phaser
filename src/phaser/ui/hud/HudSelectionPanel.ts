@@ -1,8 +1,11 @@
 /**
- * HUD Selection Panel — shows selected unit/building info.
+ * HUD Selection Panel — selected unit/building info for AoE4-inspired UX.
  *
- * VISUAL-HUD-CORE-01: Read-only display of selection data.
- * Does not modify game state or selection logic.
+ * HUD-LAYOUT-REBUILD-02: Rebuilt with clearer spacing and hierarchy.
+ * Empty state looks intentional with a clear "No selection" indicator.
+ * Builder/harvester current data is preserved.
+ *
+ * This module does NOT modify game state or selection logic.
  */
 
 import type { GameState } from '../../../state/types';
@@ -69,7 +72,6 @@ export class HudSelectionPanel {
       const pct = Math.max(0, Math.min(100, (vm.hpCurrent / vm.hpMax) * 100));
       this.hpFill.style.width = `${pct}%`;
       this.hpText.textContent = `${vm.hpCurrent}/${vm.hpMax}`;
-      // Color: green > 60%, yellow > 30%, red <= 30%
       this.hpFill.style.background = pct > 60 ? '#4ade80' : pct > 30 ? '#facc15' : '#ef4444';
     } else {
       this.hpBar.style.display = 'none';
@@ -82,58 +84,73 @@ export class HudSelectionPanel {
         display: flex;
         flex-direction: column;
         justify-content: center;
-        padding: 8px 12px;
+        padding: 10px 16px;
         height: 100%;
         min-width: 0;
       }
       #hsp-empty {
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
         height: 100%;
-        color: #606060;
+        gap: 4px;
+      }
+      #hsp-empty-icon {
+        font-size: 18px;
+        color: rgba(212, 165, 116, 0.2);
+        line-height: 1;
+      }
+      #hsp-empty-text {
+        color: #505050;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        font-size: 13px;
+        font-size: 12px;
         font-style: italic;
+        letter-spacing: 0.3px;
       }
       #hsp-content {
         display: none;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       }
       #hsp-header {
         display: flex;
-        align-items: center;
-        gap: 8px;
+        align-items: baseline;
+        gap: 10px;
       }
       #hsp-name {
-        font-size: 14px;
+        font-size: 16px;
         font-weight: 700;
-        color: #e0e0e0;
+        color: #e8e8e8;
+        letter-spacing: 0.3px;
       }
       #hsp-kind {
         font-size: 11px;
-        color: #888;
+        color: #808080;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.8px;
+        font-weight: 500;
       }
       #hsp-faction {
         font-size: 11px;
         color: #d4a574;
         margin-left: auto;
+        font-weight: 600;
+        text-transform: capitalize;
       }
       #hsp-hp-bar {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
       }
       #hsp-hp-track {
         flex: 1;
-        height: 6px;
-        background: rgba(255,255,255,0.1);
-        border-radius: 3px;
+        height: 8px;
+        background: rgba(255,255,255,0.08);
+        border-radius: 4px;
         overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.06);
       }
       #hsp-hp-fill {
         height: 100%;
@@ -144,21 +161,26 @@ export class HudSelectionPanel {
       }
       #hsp-hp-text {
         font-size: 11px;
-        color: #a0a0a0;
+        color: #b0b0b0;
         font-variant-numeric: tabular-nums;
         min-width: 50px;
         text-align: right;
+        font-weight: 500;
       }
       #hsp-status {
         font-size: 12px;
         color: #909090;
+        font-weight: 400;
       }
     </style>`;
   }
 
   private html(): string {
     return `
-      <div id="hsp-empty">No unit selected</div>
+      <div id="hsp-empty">
+        <span id="hsp-empty-icon">&#9673;</span>
+        <span id="hsp-empty-text">No selection</span>
+      </div>
       <div id="hsp-content">
         <div id="hsp-header">
           <span id="hsp-name">—</span>

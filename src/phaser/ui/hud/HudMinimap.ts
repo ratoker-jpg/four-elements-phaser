@@ -213,11 +213,7 @@ export class HudMinimap {
         display: flex;
         align-items: center;
         justify-content: center;
-        width: ${HUD_MINIMAP_WIDTH}px;
-        height: ${HUD_MINIMAP_HEIGHT}px;
         flex-shrink: 0;
-        background: rgba(5, 8, 12, 0.9);
-        border-right: 1px solid rgba(212, 165, 116, 0.2);
         pointer-events: auto;
         user-select: none;
         cursor: default;

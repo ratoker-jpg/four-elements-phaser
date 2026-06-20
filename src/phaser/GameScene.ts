@@ -316,21 +316,22 @@ export class GameScene extends Phaser.Scene {
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
 
     // ARENA-01H+: Arena mode uses ArenaMenu instead of PlaytestHud
+    // HUD-LAYOUT-REBUILD-02-FIXUP-1: PlaytestHud is created and wired
+    // normally, then immediately hidden in Normal Game mode after its
+    // create() call. The hide must happen AFTER create() so the DOM
+    // container exists. VisualHudCore is the primary player-facing HUD.
     if (this.arenaCtx.showPlaytestHud) {
       this.playtestHud = new PlaytestHud();
     }
 
-    // VISUAL-HUD-CORE-01: Create bottom RTS HUD (Normal Game only)
+    // HUD-LAYOUT-REBUILD-02: Create rebuilt AoE4-inspired bottom HUD
+    // (Normal Game only). Arena mode keeps full viewport.
     if (this.arenaCtx.showPlaytestHud) {
-      // VISUAL-COMMAND-PANEL-02: Wire command execution through the
-      // command registry so HUD button clicks use the same execution
-      // path as hotkeys — requestBuild / requestQueueUnit / stopUnit.
+      // Wire command execution through the command registry so HUD
+      // button clicks use the same execution path as hotkeys.
       const onCommand = (commandId: string) => {
-        // Use the registry's execute which respects enabled predicates
-        // and calls the wired callbacks.
         const executed = commandRegistry.execute(commandId);
         if (!executed) {
-          // Command not found or not enabled — try unit-stop as special case
           if (commandId === 'unit-stop') {
             const sel = this.inputController?.getSelection() ?? null;
             if (sel) {
@@ -342,10 +343,8 @@ export class GameScene extends Phaser.Scene {
       };
       this.visualHudCore = new VisualHudCore();
       this.visualHudCore.create(onCommand);
-      // Hide the old PlaytestHud economy section since the new HUD
-      // resource strip and command panel now provide the same functionality.
-      // Build/produce/factory controls are now in the bottom HUD command panel.
-      this.playtestHud?.hideEconomySection();
+      // NOTE: PlaytestHud.hideAll() is called AFTER create() below
+      // (after playtestHud.create() is called in the wiring section).
     }
 
     // ARENA-01H+: Create ArenaMenu if in Arena mode
@@ -591,7 +590,16 @@ export class GameScene extends Phaser.Scene {
       getGameState: () => this.gameState,
       entityRenderer: this.entityRenderer!,
       feedbackRenderer: this.feedbackRenderer!,
-      showStatus: (message: string, success: boolean) => this.playtestHud?.showStatus(message, success),
+      showStatus: (message: string, success: boolean) => {
+        // HUD-LAYOUT-REBUILD-02-FIXUP-1: VisualHudCore is the primary
+        // status target. PlaytestHud is only updated in dev mode so that
+        // developers who unhide it via devtools see current status.
+        // Previously both were always called, writing to a hidden container.
+        this.visualHudCore?.showStatus(message, success);
+        if (this.devtoolsActive) {
+          this.playtestHud?.showStatus(message, success);
+        }
+      },
       pauseMenu: this.pauseMenu,
       debugOverlayRenderer: this.debugOverlayRenderer,
       devtoolsPanel: this.devtoolsPanel,
@@ -620,6 +628,11 @@ export class GameScene extends Phaser.Scene {
         (unitType: ProducibleUnitType) => this.inputController!.requestQueueUnit(unitType),
         cancelHandler,
       );
+      // FIXUP-1: Hide PlaytestHud AFTER create() so the DOM container exists.
+      // Before this fix, hideAll() was called before create(), making it a no-op
+      // and leaving PlaytestHud visible as a duplicate of VisualHudCore.
+      this.playtestHud.hideEconomySection();
+      this.playtestHud.hideAll();
     }
 
     // Register DOM cleanup on scene shutdown so Phaser handles lifecycle
