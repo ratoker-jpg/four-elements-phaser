@@ -10,6 +10,8 @@
  *   - Selected entity marker gets a bright cyan ring with pulse effect
  *   - Marker rendering order: resources → buildings → units → selected → viewport
  *   - All pointer events stopPropagation — never leak to game canvas
+ *   - Pointer capture on drag start; pointerleave does NOT cancel captured drag
+ *   - pointercancel and lostpointercapture clean up drag state
  */
 
 import type { GameState } from '../../../state/types';
@@ -55,6 +57,9 @@ export class HudMinimap {
   private dragStartX = 0;
   private dragStartY = 0;
 
+  /** Track whether pointer capture is active — prevents pointerleave from killing drag. */
+  private pointerCaptured = false;
+
   /** Current map offset for coordinate transforms. */
   private offset: MinimapOffset = { x: 0, y: 0 };
 
@@ -67,12 +72,16 @@ export class HudMinimap {
   private boundPointerMove: (e: PointerEvent) => void;
   private boundPointerUp: (e: PointerEvent) => void;
   private boundPointerLeave: (e: PointerEvent) => void;
+  private boundPointerCancel: (e: PointerEvent) => void;
+  private boundLostPointerCapture: (e: PointerEvent) => void;
 
   constructor() {
     this.boundPointerDown = this.handlePointerDown.bind(this);
     this.boundPointerMove = this.handlePointerMove.bind(this);
     this.boundPointerUp = this.handlePointerUp.bind(this);
     this.boundPointerLeave = this.handlePointerLeave.bind(this);
+    this.boundPointerCancel = this.handlePointerCancel.bind(this);
+    this.boundLostPointerCapture = this.handleLostPointerCapture.bind(this);
   }
 
   create(parent: HTMLElement, onCameraCenter?: (worldX: number, worldY: number) => void): void {
@@ -99,6 +108,8 @@ export class HudMinimap {
     this.canvas.addEventListener('pointermove', this.boundPointerMove);
     this.canvas.addEventListener('pointerup', this.boundPointerUp);
     this.canvas.addEventListener('pointerleave', this.boundPointerLeave);
+    this.canvas.addEventListener('pointercancel', this.boundPointerCancel);
+    this.canvas.addEventListener('lostpointercapture', this.boundLostPointerCapture);
   }
 
   update(state: GameState, cameraData: MinimapCameraData | null, offset: MinimapOffset, selection?: UnitSelection): void {
@@ -131,6 +142,8 @@ export class HudMinimap {
     this.canvas?.removeEventListener('pointermove', this.boundPointerMove);
     this.canvas?.removeEventListener('pointerup', this.boundPointerUp);
     this.canvas?.removeEventListener('pointerleave', this.boundPointerLeave);
+    this.canvas?.removeEventListener('pointercancel', this.boundPointerCancel);
+    this.canvas?.removeEventListener('lostpointercapture', this.boundLostPointerCapture);
     this.container?.remove();
   }
 
@@ -140,8 +153,12 @@ export class HudMinimap {
     e.stopPropagation();
     e.preventDefault();
     // Capture pointer so drag continues even if pointer leaves canvas
-    // briefly during fast movement. pointerup will release capture.
-    try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore if not supported */ }
+    // briefly during fast movement. pointerup/pointercancel/lostpointercapture
+    // will release capture.
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      this.pointerCaptured = true;
+    } catch { /* ignore if not supported */ }
     this.isDragging = true;
     this.dragStarted = false;
     this.dragStartX = e.offsetX;
@@ -170,6 +187,7 @@ export class HudMinimap {
     e.stopPropagation();
     // Release pointer capture (set in handlePointerDown)
     try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    this.pointerCaptured = false;
 
     if (!this.dragStarted && this.onCameraCenter) {
       const worldPos = this.minimapPixelToWorld(e.offsetX, e.offsetY);
@@ -184,6 +202,28 @@ export class HudMinimap {
 
   private handlePointerLeave(e: PointerEvent): void {
     e.stopPropagation();
+    // Do NOT cancel drag if pointer is captured — captured pointer
+    // may fire pointerleave when it moves outside the element, but
+    // the drag should continue until pointerup/pointercancel/lostpointercapture.
+    // Only cancel drag on pointerleave if capture is NOT active.
+    if (this.pointerCaptured) {
+      return; // pointer is captured — drag continues
+    }
+    this.isDragging = false;
+    this.dragStarted = false;
+  }
+
+  private handlePointerCancel(e: PointerEvent): void {
+    e.stopPropagation();
+    this.pointerCaptured = false;
+    this.isDragging = false;
+    this.dragStarted = false;
+  }
+
+  private handleLostPointerCapture(e: PointerEvent): void {
+    e.stopPropagation();
+    this.pointerCaptured = false;
+    // If capture is lost unexpectedly, clean up drag state to avoid stale state.
     this.isDragging = false;
     this.dragStarted = false;
   }

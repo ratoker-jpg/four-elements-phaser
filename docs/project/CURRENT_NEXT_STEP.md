@@ -66,7 +66,8 @@ Renderer unification Stage 1-4 is CLOSED.
 
 ```text
 MINIMAP-INTERACTION-04-VERYHIGHPLUS
-  Risk: Medium — new pointer interaction on minimap canvas.
+  Risk: Very High+ — new pointer interaction on minimap canvas, pointer capture
+        lifecycle, input isolation boundary against game commands.
   Type: implementation PR (DRAFT, not ready for merge).
   Goal: make minimap an RTS camera control tool.
   Features:

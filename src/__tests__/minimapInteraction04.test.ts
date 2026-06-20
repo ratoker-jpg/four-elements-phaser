@@ -444,51 +444,27 @@ describe('MINIMAP-INTERACTION-04 FIXUP-1: post-rebase contract', () => {
   });
 });
 
-// ─── 8. FIXUP-1: DOM event isolation tests ────────────────────────
+// ─── 8. FIXUP-1: DOM event isolation tests (structural) ───────────
+// Full jsdom DOM event/state tests moved to minimapInteraction04Dom.test.ts
+// (FIXUP-2) which uses @vitest-environment jsdom for real DOM testing.
 
-describe('MINIMAP-INTERACTION-04 FIXUP-1: DOM event isolation', () => {
-  it('stopPropagation pattern: all 4 pointer event handlers must exist', async () => {
-    // HudMinimap has 4 handlers: pointerdown, pointermove, pointerup, pointerleave.
-    // Each calls e.stopPropagation() to prevent leaking to game canvas.
-    // We verify the handler methods exist on the prototype (they are private
-    // but we use `as any` for structural verification).
+describe('MINIMAP-INTERACTION-04 FIXUP-1: structural handler checks', () => {
+  it('all 6 pointer event handlers must exist (down/move/up/leave/cancel/lostcapture)', async () => {
     const { HudMinimap } = await import('../phaser/ui/hud/HudMinimap');
     const proto = HudMinimap.prototype as any;
     expect(proto.handlePointerDown).toBeDefined();
     expect(proto.handlePointerMove).toBeDefined();
     expect(proto.handlePointerUp).toBeDefined();
     expect(proto.handlePointerLeave).toBeDefined();
-  });
-
-  it('pointer capture pattern: setPointerCapture on pointerdown, releasePointerCapture on pointerup', async () => {
-    // Verify the HudMinimap class is importable and has the expected structure.
-    const { HudMinimap } = await import('../phaser/ui/hud/HudMinimap');
-    expect(HudMinimap).toBeDefined();
-    // Pointer capture is in handlePointerDown (set) and handlePointerUp (release).
-    // Verified by code review — structural test confirms class exists.
-  });
-
-  it('pointerleave also calls stopPropagation for full isolation', async () => {
-    // pointerleave handler should also isolate events
-    const { HudMinimap } = await import('../phaser/ui/hud/HudMinimap');
-    expect((HudMinimap.prototype as any).handlePointerLeave).toBeDefined();
-    // Verified by code review: handlePointerLeave calls e.stopPropagation()
+    expect(proto.handlePointerCancel).toBeDefined();
+    expect(proto.handleLostPointerCapture).toBeDefined();
   });
 
   it('click vs drag: sub-threshold movement is a click, not a drag', () => {
-    // Drag threshold is 3px. Movement of 2px should be a click, 4px should be a drag.
     const THRESHOLD = 3;
-    // Sub-threshold: should be click
-    const dx1 = 2, dy1 = 0;
-    expect(Math.abs(dx1) > THRESHOLD || Math.abs(dy1) > THRESHOLD).toBe(false);
-    // Above threshold: should be drag
-    const dx2 = 4, dy2 = 0;
-    expect(Math.abs(dx2) > THRESHOLD || Math.abs(dy2) > THRESHOLD).toBe(true);
-    // Diagonal sub-threshold
-    const dx3 = 2, dy3 = 2;
-    expect(Math.abs(dx3) > THRESHOLD || Math.abs(dy3) > THRESHOLD).toBe(false);
-    // Diagonal above threshold
-    const dx4 = 2, dy4 = 4;
-    expect(Math.abs(dx4) > THRESHOLD || Math.abs(dy4) > THRESHOLD).toBe(true);
+    expect(Math.abs(2) > THRESHOLD).toBe(false);
+    expect(Math.abs(4) > THRESHOLD).toBe(true);
+    expect(Math.abs(2) > THRESHOLD || Math.abs(2) > THRESHOLD).toBe(false);
+    expect(Math.abs(2) > THRESHOLD || Math.abs(4) > THRESHOLD).toBe(true);
   });
 });
