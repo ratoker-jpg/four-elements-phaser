@@ -16,7 +16,7 @@ import {
   buildCommandPanelViewModel,
   produceCommandDesc,
 } from '../phaser/ui/hud/commandPanelViewModel';
-import type { UnitSelection } from '../state/unitSelection';
+import { selectBuilder, selectHarvester } from '../state/unitSelection';
 import type { GameState } from '../state/types';
 import {
   isScreenPointInHud,
@@ -128,7 +128,7 @@ describe('COMMAND-PANEL-02-FIXUP-1: no selection', () => {
 // ─── 2. Builder selection → build commands appear ──────────────────
 
 describe('COMMAND-PANEL-02: builder selection', () => {
-  const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+  const builderSelection = selectBuilder('builder-1');
 
   it('returns context kind "builder"', () => {
     const state = createNormalGameState();
@@ -174,7 +174,7 @@ describe('COMMAND-PANEL-02: builder selection', () => {
 // ─── 3. Insufficient resources → build command disabled with reason ─
 
 describe('COMMAND-PANEL-02: resource-gated build commands', () => {
-  const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+  const builderSelection = selectBuilder('builder-1');
 
   it('build commands are disabled when matter is insufficient', () => {
     const state = createBrokeGameState();
@@ -197,7 +197,7 @@ describe('COMMAND-PANEL-02: resource-gated build commands', () => {
 // ─── 4. Sufficient resources → build command enabled ───────────────
 
 describe('COMMAND-PANEL-02: sufficient resources', () => {
-  const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+  const builderSelection = selectBuilder('builder-1');
 
   it('build commands are enabled when resources are sufficient', () => {
     const state = createNormalGameState();
@@ -211,7 +211,7 @@ describe('COMMAND-PANEL-02: sufficient resources', () => {
 // ─── 5. Harvester selection → stop only (FIXUP-1) ──────────────────
 
 describe('COMMAND-PANEL-02-FIXUP-1: harvester selection', () => {
-  const harvesterSelection: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+  const harvesterSelection = selectHarvester('harvester-1');
 
   it('harvester selection shows stop command', () => {
     const state = createGameStateWithHarvester();
@@ -242,7 +242,7 @@ describe('COMMAND-PANEL-02-FIXUP-1: harvester selection', () => {
 
   it('builder selection DOES show stop command (FIXUP-2: S = Stop for all units)', () => {
     const state = createNormalGameState();
-    const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const builderSelection = selectBuilder('builder-1');
     const vm = buildCommandPanelViewModel(state, builderSelection);
     const stopCmd = vm.commands.find(c => c.id === 'unit-stop');
     expect(stopCmd).toBeDefined();
@@ -264,7 +264,7 @@ describe('COMMAND-PANEL-02: unknown entity safety', () => {
 // ─── 7. Descriptor freshness — disabled → enabled transition (FIXUP-1) ─
 
 describe('COMMAND-PANEL-02-FIXUP-1: descriptor freshness', () => {
-  const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+  const builderSelection = selectBuilder('builder-1');
 
   it('command transitions from disabled to enabled when resources change', () => {
     // Start with insufficient resources
@@ -298,7 +298,7 @@ describe('COMMAND-PANEL-02-FIXUP-1: descriptor freshness', () => {
 // ─── 8. Disabled tooltip reason available (FIXUP-1) ────────────────
 
 describe('COMMAND-PANEL-02-FIXUP-1: disabled tooltip', () => {
-  const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+  const builderSelection = selectBuilder('builder-1');
 
   it('disabled command has tooltip with disabled reason', () => {
     const state = createBrokeGameState();
@@ -346,7 +346,7 @@ describe('COMMAND-PANEL-02: HUD input guard intact', () => {
 describe('COMMAND-PANEL-02: descriptor integrity', () => {
   it('all descriptors have required fields', () => {
     const state = createNormalGameState();
-    const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const builderSelection = selectBuilder('builder-1');
     const vm = buildCommandPanelViewModel(state, builderSelection);
 
     for (const cmd of vm.commands) {
@@ -363,7 +363,7 @@ describe('COMMAND-PANEL-02: descriptor integrity', () => {
 
   it('enabled commands have empty disabledReason', () => {
     const state = createNormalGameState();
-    const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const builderSelection = selectBuilder('builder-1');
     const vm = buildCommandPanelViewModel(state, builderSelection);
 
     const enabledCmds = vm.commands.filter(c => c.state === 'enabled');
@@ -374,7 +374,7 @@ describe('COMMAND-PANEL-02: descriptor integrity', () => {
 
   it('disabled commands have non-empty disabledReason', () => {
     const state = createBrokeGameState();
-    const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const builderSelection = selectBuilder('builder-1');
     const vm = buildCommandPanelViewModel(state, builderSelection);
 
     const disabledCmds = vm.commands.filter(c => c.state === 'disabled');

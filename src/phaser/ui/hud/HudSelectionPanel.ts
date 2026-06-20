@@ -1,11 +1,9 @@
 /**
  * HUD Selection Panel — selected unit/building info for AoE4-inspired UX.
  *
- * HUD-LAYOUT-REBUILD-02: Rebuilt with clearer spacing and hierarchy.
- * Empty state looks intentional with a clear "No selection" indicator.
- * Builder/harvester current data is preserved.
- *
- * This module does NOT modify game state or selection logic.
+ * SELECTION-CONTROL-GROUPS-05: Extended for multi-select:
+ * - Shows count + typeBreakdown for multi-select
+ * - Shows "N units selected" as status
  */
 
 import type { GameState } from '../../../state/types';
@@ -23,6 +21,8 @@ export class HudSelectionPanel {
   private statusEl!: HTMLSpanElement;
   private emptyEl!: HTMLDivElement;
   private contentEl!: HTMLDivElement;
+  private countEl!: HTMLSpanElement;
+  private breakdownEl!: HTMLSpanElement;
 
   create(parent: HTMLElement): void {
     this.container = document.createElement('div');
@@ -39,6 +39,8 @@ export class HudSelectionPanel {
     this.statusEl = this.container.querySelector('#hsp-status')!;
     this.emptyEl = this.container.querySelector('#hsp-empty')!;
     this.contentEl = this.container.querySelector('#hsp-content')!;
+    this.countEl = this.container.querySelector('#hsp-count')!;
+    this.breakdownEl = this.container.querySelector('#hsp-breakdown')!;
   }
 
   update(state: GameState, selection: UnitSelection): void {
@@ -49,8 +51,6 @@ export class HudSelectionPanel {
   destroy(): void {
     this.container?.remove();
   }
-
-  // ─── Private ────────────────────────────────────────────────────
 
   private applyViewModel(vm: SelectionViewModel): void {
     if (!vm.hasSelection) {
@@ -66,6 +66,17 @@ export class HudSelectionPanel {
     this.kindEl.textContent = vm.kind;
     this.factionEl.textContent = vm.faction;
     this.statusEl.textContent = vm.status;
+
+    // SELECTION-CONTROL-GROUPS-05: Show count and breakdown for multi-select
+    if (vm.count > 1) {
+      this.countEl.textContent = `${vm.count}`;
+      this.countEl.style.display = 'inline';
+      this.breakdownEl.textContent = vm.typeBreakdown;
+      this.breakdownEl.style.display = 'inline';
+    } else {
+      this.countEl.style.display = 'none';
+      this.breakdownEl.style.display = 'none';
+    }
 
     if (vm.hpCurrent !== null && vm.hpMax !== null && vm.hpMax > 0) {
       this.hpBar.style.display = 'flex';
@@ -139,6 +150,21 @@ export class HudSelectionPanel {
         font-weight: 600;
         text-transform: capitalize;
       }
+      #hsp-count {
+        display: none;
+        font-size: 12px;
+        font-weight: 700;
+        color: #00ffff;
+        background: rgba(0, 255, 255, 0.1);
+        padding: 1px 6px;
+        border-radius: 3px;
+      }
+      #hsp-breakdown {
+        display: none;
+        font-size: 11px;
+        color: #a0a0a0;
+        font-weight: 400;
+      }
       #hsp-hp-bar {
         display: flex;
         align-items: center;
@@ -185,7 +211,11 @@ export class HudSelectionPanel {
         <div id="hsp-header">
           <span id="hsp-name">—</span>
           <span id="hsp-kind">—</span>
+          <span id="hsp-count">—</span>
           <span id="hsp-faction">—</span>
+        </div>
+        <div>
+          <span id="hsp-breakdown">—</span>
         </div>
         <div id="hsp-hp-bar">
           <div id="hsp-hp-track"><div id="hsp-hp-fill"></div></div>

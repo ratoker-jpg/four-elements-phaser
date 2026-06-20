@@ -19,9 +19,9 @@ PR #311 (AoE4 UX redesign roadmap) is merged — direction accepted.
 PR #312 (HUD layout rebuild) is merged — bottom HUD rebuilt.
 Denis rejected the current HUD/command panel/minimap direction visually and UX-wise.
 Direction changed: AoE4-inspired RTS UX redesign replaces the "continue integrating existing HUD" plan.
-Current operational task: MINIMAP-INTERACTION-04-VERYHIGHPLUS (click-to-camera, drag-to-pan, selected marker highlight, input isolation — DRAFT PR, pending GPT review + Denis manual QA).
-Previous completed task: COMMAND-CARD-REBUILD-03-VERYHIGHPLUS (4×3 grid + grid hotkeys, MERGED via PR #313).
-Number keys 1–9 are reserved for future control groups.
+Current operational task: SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS (multi-select, drag-box, double-click same type, control groups 1-9 — DRAFT PR, pending GPT review + Denis manual QA).
+Previous completed task: MINIMAP-INTERACTION-04-VERYHIGHPLUS (MERGED via PR #314).
+Number keys 1–9 are now control group recall keys (legacy 1/2/3 build aliases removed).
 S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset (per #313).
 ```
 
@@ -46,7 +46,9 @@ PR #312 HUD layout rebuild accepted
 +
 COMMAND-CARD-REBUILD-03 merged via PR #313 (S=Stop, F=Factory, R=Storage, HOME=Reset)
 +
-MINIMAP-INTERACTION-04 in progress (click-to-camera, drag-to-pan, selected highlight)
+MINIMAP-INTERACTION-04 merged via PR #314 (click-to-camera, drag-to-pan, pointer capture)
++
+SELECTION-CONTROL-GROUPS-05 in progress (multi-select, drag-box, control groups)
 ```
 
 Closed / accepted cycles:
@@ -205,7 +207,8 @@ GameScene no longer directly owns most renderer fields.
 11. [DONE] VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — AoE4-inspired UX redesign roadmap (merged).
 12. [DONE] HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — Bottom HUD rebuild (merged PR #312).
 13. [DONE] COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 command card grid + grid hotkeys (merged PR #313).
-14. [ACTIVE NEXT] MINIMAP-INTERACTION-04-VERYHIGHPLUS — minimap camera interaction (DRAFT PR, pending GPT review + Denis manual QA).
+14. [DONE] MINIMAP-INTERACTION-04-VERYHIGHPLUS — minimap camera interaction (MERGED PR #314).
+15. [ACTIVE NEXT] SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select, drag-box, control groups (DRAFT PR, pending GPT review + Denis manual QA).
 ```
 
 ---
@@ -217,15 +220,16 @@ The selected direction is AoE4-inspired UX redesign for the HUD.
 Denis rejected the current HUD/command panel/minimap direction (PRs #308-#310).
 Those PRs are treated as technical prototypes, not final UX.
 
-The current step is MINIMAP-INTERACTION-04:
+The current step is SELECTION-CONTROL-GROUPS-05:
 
 ```text
-MINIMAP-INTERACTION-04-VERYHIGHPLUS
+SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS
   Type: implementation PR (DRAFT).
   Status: pending GPT review + Denis manual QA.
-  Branch: visual/minimap-interaction-04
-  Features: click-to-camera, drag-to-pan, selected marker highlight, input isolation.
-  Deferred: fog, enemy markers, control groups.
+  Branch: visual/selection-control-groups-05
+  Features: multi-select, drag-box, double-click same type, control groups 1-9.
+  Removed: legacy number key build aliases (1/2/3).
+  Deferred: fog, enemy markers, edge pan, attack-move, formations.
 ```
 
 Previous step (still awaiting acceptance):

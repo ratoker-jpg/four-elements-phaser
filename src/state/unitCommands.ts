@@ -11,7 +11,7 @@
 import type { GameState, HarvesterState, HarvesterBlockedReason } from './types';
 import { buildOccupancyMap, isPassable, addUnitBlockers, addVehicleBlockers, isTileOccupiedByUnit } from './occupancy';
 import { findPath } from './pathfinding';
-import type { SelectableUnit } from './unitSelection';
+import type { SelectableUnit, UnitSelection } from './unitSelection';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -443,6 +443,62 @@ export function stopUnitCommand(
   }
 
   return { ok: false, reason: 'no-unit-selected' };
+}
+
+// ─── Multi-unit commands (SELECTION-CONTROL-GROUPS-05) ──────────────
+
+/**
+ * Issue a move command to all selected units.
+ *
+ * Each unit is moved independently. Results are aggregated.
+ */
+export function issueMultiMoveCommand(
+  state: GameState,
+  selection: UnitSelection,
+  tx: number,
+  ty: number,
+): { okCount: number; failCount: number } {
+  if (!selection) return { okCount: 0, failCount: 0 };
+
+  let okCount = 0;
+  let failCount = 0;
+
+  for (const unit of selection.units) {
+    const result = issueManualMove(state, unit, tx, ty);
+    if (result.ok) {
+      okCount++;
+    } else {
+      failCount++;
+    }
+  }
+
+  return { okCount, failCount };
+}
+
+/**
+ * Stop all selected units.
+ *
+ * Each unit is stopped independently. Results are aggregated.
+ */
+export function stopUnitsCommand(
+  state: GameState,
+  selection: UnitSelection,
+): { okCount: number; failCount: number } {
+  if (!selection) return { okCount: 0, failCount: 0 };
+
+  let okCount = 0;
+  let failCount = 0;
+
+  for (const unit of selection.units) {
+    const result = stopUnitCommand(state, unit);
+    if (result.ok) {
+      okCount++;
+    } else {
+      failCount++;
+    }
+  }
+
+  return { okCount, failCount };
 }
 
 // ─── Path existence check (for debug telemetry) ────────────────────

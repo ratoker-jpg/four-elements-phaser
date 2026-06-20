@@ -2,29 +2,17 @@
  * Command Panel View Model — read-only adapter that derives the 4×3
  * command card grid from GameState + UnitSelection.
  *
- * COMMAND-CARD-REBUILD-03: Rebuilt to produce a stable 4×3 command
- * card with Q/W/E/R/A/S/D/F/Z/X/C/V hotkey spatial mapping.
+ * SELECTION-CONTROL-GROUPS-05: Added multi-select context.
+ * - All builders: show full builder grid (build + Stop)
+ * - All harvesters: show Stop only
+ * - Mixed: show Stop only
  *
- * Key changes from HUD-LAYOUT-REBUILD-02:
- *   - Output is now CommandCardViewModel with 12 fixed slots
- *   - Each slot has a stable position and hotkey badge
- *   - Commands are assigned to specific grid slots, not listed in order
- *   - Empty slots are explicit (state: 'empty'), not collapsed
- *   - Old CommandPanelViewModel with flat command list is replaced
- *
- * This module does NOT modify any game state. It reads entity data,
- * economy, and status helpers to determine which commands are available,
- * which are disabled (and why), and which slots are empty.
- *
- * Architecture:
- *   selected entity → context kind → slot assignments → 12-slot grid
- *   grid slot → UI cell (hotkey badge, label, cost, state)
- *   cell click → existing command handler via commandRegistry
+ * This module does NOT modify any game state.
  */
 
 import type { GameState, BuildingType, ProducibleUnitType } from '../../../state/types';
 import type { UnitSelection } from '../../../state/unitSelection';
-import { isUnitSelected, isBuilderSelected, isHarvesterSelected } from '../../../state/unitSelection';
+import { isUnitSelected, isBuilderSelected, isHarvesterSelected, isAllBuilders, isAllHarvesters } from '../../../state/unitSelection';
 import { BUILDING_CONFIG } from '../../../state/construction';
 import {
   getBuildBlockReason,
@@ -69,14 +57,13 @@ export interface CommandDescriptor {
 
 /** @deprecated Use CommandCardViewModel */
 export interface CommandPanelViewModel {
-  contextKind: 'none' | 'builder' | 'harvester' | 'building' | 'unknown';
+  contextKind: 'none' | 'builder' | 'harvester' | 'building' | 'multi-select' | 'unknown';
   contextLabel: string;
   commands: CommandDescriptor[];
 }
 
 // ─── Buildable buildings (gameplay-ready only) ──────────────────────
 
-/** Command ID for each buildable building type. */
 const BUILD_COMMAND_IDS: Record<BuildingType, string> = {
   'separator': 'build-separator',
   'raw-storage': 'build-raw-storage',
@@ -88,7 +75,6 @@ const BUILD_COMMAND_IDS: Record<BuildingType, string> = {
   'command-relay': 'build-command-relay',
 };
 
-/** Producible unit types with their command IDs. */
 export const PRODUCE_COMMANDS: { unitType: ProducibleUnitType; commandId: string }[] = [
   { unitType: 'builder', commandId: 'produce-builder' },
   { unitType: 'harvester', commandId: 'produce-harvester' },
@@ -96,7 +82,6 @@ export const PRODUCE_COMMANDS: { unitType: ProducibleUnitType; commandId: string
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-/** Format building cost as a display string. */
 function formatBuildCost(buildingType: BuildingType): string {
   const config = BUILDING_CONFIG[buildingType];
   if (!config) return '';
@@ -105,7 +90,6 @@ function formatBuildCost(buildingType: BuildingType): string {
   return parts.join(', ');
 }
 
-/** Format production cost as a display string. */
 function formatProduceCost(unitType: ProducibleUnitType): string {
   if (unitType === 'builder') {
     return `${BUILDER_PRODUCTION_MATTER_COST} M, ${BUILDER_PRODUCTION_ELEMENT_COST} E`;
@@ -115,24 +99,12 @@ function formatProduceCost(unitType: ProducibleUnitType): string {
 
 // ─── Context-specific grid builders ─────────────────────────────────
 
-/**
- * Build command card grid for builder selection.
- *
- * Slot assignments (stable for muscle memory):
- *   Q: Separator    W: Raw Storage   E: Matter Storage  R: Element Storage
- *   A: Power Plant  S: Stop          D: (empty)          F: Units Factory
- *   Z: (empty)      X: (empty)       C: (empty)          V: (empty)
- *
- * FIXUP-2: Denis decision — Stop MUST be on S. Factory moved S→F. Z empty/future.
- */
 function builderGrid(state: GameState): CommandCardSlot[] {
   let grid = emptyGrid();
 
-  // Assign build commands to their stable slots
   for (const mapping of BUILDER_SLOT_MAP) {
     const buildingType = mapping.buildingType as BuildingType;
 
-    // Skip visual-ready buildings (energy-plant, etc.)
     if (isVisualReadyBuilding(buildingType)) continue;
 
     const commandId = BUILD_COMMAND_IDS[buildingType];
@@ -154,7 +126,6 @@ function builderGrid(state: GameState): CommandCardSlot[] {
     );
   }
 
-  // S slot: Stop command (STOP_SLOT = 'S' per FIXUP-2 Denis decision)
   grid = assignSlot(
     grid, STOP_SLOT,
     'unit-stop', 'Stop',
@@ -165,18 +136,9 @@ function builderGrid(state: GameState): CommandCardSlot[] {
   return grid;
 }
 
-/**
- * Build command card grid for harvester selection.
- *
- * Slot assignments:
- *   Q–R: all empty
- *   A: (empty)       S: Stop          D: (empty)          F: (empty)
- *   Z–V: all empty
- */
 function harvesterGrid(_state: GameState): CommandCardSlot[] {
   let grid = emptyGrid();
 
-  // S slot: Stop command (STOP_SLOT = 'S')
   grid = assignSlot(
     grid, STOP_SLOT,
     'unit-stop', 'Stop',
@@ -188,23 +150,38 @@ function harvesterGrid(_state: GameState): CommandCardSlot[] {
 }
 
 /**
- * Build command card grid for no selection.
+ * SELECTION-CONTROL-GROUPS-05: Build command card grid for multi-select.
  *
- * All slots empty.
+ * - All builders: show full builder grid (build + Stop)
+ * - All harvesters: show Stop only
+ * - Mixed: show Stop only
  */
+function multiSelectGrid(state: GameState, selection: UnitSelection): CommandCardSlot[] {
+  if (!selection) return emptyGrid();
+
+  if (isAllBuilders(selection)) {
+    return builderGrid(state);
+  }
+
+  // All harvesters or mixed: show Stop only
+  let grid = emptyGrid();
+
+  grid = assignSlot(
+    grid, STOP_SLOT,
+    'unit-stop', 'Stop',
+    'enabled', '', '', 'Stop all selected units  [S]',
+    'unit-action',
+  );
+
+  return grid;
+}
+
 function emptySelectionGrid(): CommandCardSlot[] {
   return emptyGrid();
 }
 
 // ─── Main view model builder ────────────────────────────────────────
 
-/**
- * Build the command card view model from current game state and selection.
- *
- * COMMAND-CARD-REBUILD-03: Returns a 12-slot grid where each slot has
- * a stable position and hotkey badge. This is a pure function — no side
- * effects, no state mutation.
- */
 export function buildCommandCardViewModel(
   state: GameState,
   selection: UnitSelection,
@@ -217,6 +194,16 @@ export function buildCommandCardViewModel(
     };
   }
 
+  // Multi-select
+  if (selection.kind === 'multi') {
+    return {
+      contextKind: 'multi-select',
+      contextLabel: isAllBuilders(selection) ? 'Builders' : isAllHarvesters(selection) ? 'Harvesters' : 'Multiple Units',
+      slots: multiSelectGrid(state, selection),
+    };
+  }
+
+  // Single selection
   if (isBuilderSelected(selection)) {
     return {
       contextKind: 'builder',
@@ -233,7 +220,6 @@ export function buildCommandCardViewModel(
     };
   }
 
-  // Unknown selection type — safe empty grid
   return {
     contextKind: 'unknown',
     contextLabel: '',
@@ -244,10 +230,6 @@ export function buildCommandCardViewModel(
 // ─── Legacy compatibility ───────────────────────────────────────────
 
 /**
- * Legacy view model builder — converts CommandCardViewModel to the old
- * flat CommandPanelViewModel format. Used by old HudCommandPanel during
- * migration. Will be removed when the new command card UI is complete.
- *
  * @deprecated Use buildCommandCardViewModel instead.
  */
 export function buildCommandPanelViewModel(
@@ -256,7 +238,6 @@ export function buildCommandPanelViewModel(
 ): CommandPanelViewModel {
   const cardVm = buildCommandCardViewModel(state, selection);
 
-  // Convert grid slots to flat command list (non-empty only)
   const commands: CommandDescriptor[] = [];
   for (const slot of cardVm.slots) {
     if (slot.state === 'empty') continue;
@@ -279,11 +260,6 @@ export function buildCommandPanelViewModel(
   };
 }
 
-/**
- * Build a production-command descriptor for a unit type.
- *
- * Exported for future building/factory selection context.
- */
 export function produceCommandDesc(
   unitType: ProducibleUnitType,
   state: GameState,
@@ -303,7 +279,6 @@ export function produceCommandDesc(
   }
   const commandId = entry.commandId;
   const displayName = unitType.charAt(0).toUpperCase() + unitType.slice(1);
-  // Use grid hotkey for production commands when assigned to a slot
   const cost = formatProduceCost(unitType);
   const blockReason = getProductionBlockReason(state, unitType);
   const enabled = blockReason === null;
@@ -323,16 +298,11 @@ export function produceCommandDesc(
   };
 }
 
-/**
- * Get the slot key for a given command ID in a specific context.
- * Returns undefined if the command is not assigned to any slot.
- */
 export function getCommandSlotKey(
   commandId: string,
   contextKind: CommandCardViewModel['contextKind'],
 ): SlotKey | undefined {
-  // Builder context: check BUILDER_SLOT_MAP
-  if (contextKind === 'builder') {
+  if (contextKind === 'builder' || contextKind === 'multi-select') {
     for (const mapping of BUILDER_SLOT_MAP) {
       const buildingType = mapping.buildingType as BuildingType;
       const cmdId = BUILD_COMMAND_IDS[buildingType];
@@ -341,7 +311,6 @@ export function getCommandSlotKey(
     if (commandId === 'unit-stop') return STOP_SLOT;
   }
 
-  // Harvester context
   if (contextKind === 'harvester') {
     if (commandId === 'unit-stop') return STOP_SLOT;
   }

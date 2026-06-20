@@ -105,7 +105,7 @@ export class CameraControls {
 
   /**
    * Reset camera to a specific world position and zoom level 1.0.
-   * Used by the R hotkey to snap back to HQ.
+   * Used by the HOME hotkey to snap back to HQ.
    */
   resetTo(worldX: number, worldY: number): void {
     this.camera.setZoom(1.0);

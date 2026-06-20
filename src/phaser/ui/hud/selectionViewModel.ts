@@ -2,21 +2,24 @@
  * Selection view model — read-only adapter that extracts display data
  * from GameState for the selection panel.
  *
- * VISUAL-HUD-CORE-01: This module does NOT modify any game state.
- * It reads entity data and formats it for display.
+ * SELECTION-CONTROL-GROUPS-05: Extended for multi-select:
+ * - count: total selected units
+ * - kind: 'multi' for multiple units
+ * - typeBreakdown: e.g. "3 Builders, 2 Harvesters"
+ * - HP: averaged across selected units
  */
 
 import type { GameState, BuilderPlacement, HarvesterState } from '../../../state/types';
 import type { UnitSelection } from '../../../state/unitSelection';
-import { isUnitSelected, isBuilderSelected, isHarvesterSelected } from '../../../state/unitSelection';
+import { isUnitSelected, isBuilderSelected, isHarvesterSelected, getSelectionTypeBreakdown, getPrimarySelection } from '../../../state/unitSelection';
 
 export interface SelectionViewModel {
   /** Whether anything is selected. */
   hasSelection: boolean;
   /** Display name of the selected entity. */
   name: string;
-  /** Entity kind: 'builder' | 'harvester' | 'building' | 'none'. */
-  kind: 'builder' | 'harvester' | 'building' | 'none';
+  /** Entity kind: 'builder' | 'harvester' | 'building' | 'multi' | 'none'. */
+  kind: 'builder' | 'harvester' | 'building' | 'multi' | 'none';
   /** Faction of the selected entity. */
   faction: string;
   /** HP current value, or null if not applicable. */
@@ -25,6 +28,10 @@ export interface SelectionViewModel {
   hpMax: number | null;
   /** Basic status text. */
   status: string;
+  /** SELECTION-CONTROL-GROUPS-05: Total selected unit count. */
+  count: number;
+  /** SELECTION-CONTROL-GROUPS-05: Type breakdown string, e.g. "3 Builders, 2 Harvesters". */
+  typeBreakdown: string;
 }
 
 const EMPTY_SELECTION: SelectionViewModel = {
@@ -35,11 +42,10 @@ const EMPTY_SELECTION: SelectionViewModel = {
   hpCurrent: null,
   hpMax: null,
   status: 'No selection',
+  count: 0,
+  typeBreakdown: '',
 };
 
-/**
- * Derive a human-readable status from a builder's phase.
- */
 function builderStatus(builder: BuilderPlacement): string {
   switch (builder.phase) {
     case 'building': return 'Building';
@@ -49,9 +55,6 @@ function builderStatus(builder: BuilderPlacement): string {
   }
 }
 
-/**
- * Derive a human-readable status from a harvester's phase.
- */
 function harvesterStatus(harvester: HarvesterState): string {
   switch (harvester.phase) {
     case 'gathering': return 'Gathering';
@@ -64,10 +67,18 @@ function harvesterStatus(harvester: HarvesterState): string {
   }
 }
 
+/** Build a type breakdown string from the breakdown map. */
+function formatTypeBreakdown(breakdown: Map<string, number>): string {
+  const parts: string[] = [];
+  const bc = breakdown.get('builder') ?? 0;
+  const hc = breakdown.get('harvester') ?? 0;
+  if (bc > 0) parts.push(`${bc} Builder${bc !== 1 ? 's' : ''}`);
+  if (hc > 0) parts.push(`${hc} Harvester${hc !== 1 ? 's' : ''}`);
+  return parts.join(', ');
+}
+
 /**
  * Build a selection view model from the current game state and unit selection.
- *
- * This is a pure function — no side effects, no state mutation.
  */
 export function buildSelectionViewModel(
   state: GameState,
@@ -77,8 +88,28 @@ export function buildSelectionViewModel(
     return EMPTY_SELECTION;
   }
 
+  // Multi-select
+  if (selection.kind === 'multi') {
+    const breakdown = getSelectionTypeBreakdown(selection);
+    const count = selection.units.length;
+    return {
+      hasSelection: true,
+      name: 'Multiple Units',
+      kind: 'multi',
+      faction: state.playerFaction,
+      hpCurrent: null,
+      hpMax: null,
+      status: `${count} unit${count !== 1 ? 's' : ''} selected`,
+      count,
+      typeBreakdown: formatTypeBreakdown(breakdown),
+    };
+  }
+
+  // Single selection
   if (isBuilderSelected(selection)) {
-    const builder = state.mapData.builders.find((b: BuilderPlacement) => b.id === selection.id);
+    const primary = getPrimarySelection(selection);
+    if (!primary) return EMPTY_SELECTION;
+    const builder = state.mapData.builders.find((b: BuilderPlacement) => b.id === primary.id);
     if (!builder) return EMPTY_SELECTION;
 
     return {
@@ -89,11 +120,15 @@ export function buildSelectionViewModel(
       hpCurrent: null,
       hpMax: null,
       status: builderStatus(builder),
+      count: 1,
+      typeBreakdown: '',
     };
   }
 
   if (isHarvesterSelected(selection)) {
-    const harvester = state.harvesters.find((h: HarvesterState) => h.id === selection.id);
+    const primary = getPrimarySelection(selection);
+    if (!primary) return EMPTY_SELECTION;
+    const harvester = state.harvesters.find((h: HarvesterState) => h.id === primary.id);
     if (!harvester) return EMPTY_SELECTION;
 
     return {
@@ -104,6 +139,8 @@ export function buildSelectionViewModel(
       hpCurrent: null,
       hpMax: null,
       status: harvesterStatus(harvester),
+      count: 1,
+      typeBreakdown: '',
     };
   }
 

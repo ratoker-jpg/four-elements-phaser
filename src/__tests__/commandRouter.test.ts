@@ -1,21 +1,7 @@
 /**
  * CORE-STEP-05H+ tests — Unified RTS Controls and Command Routing.
  *
- * Tests the pure routing logic in commandRouter.ts and the
- * stopUnitCommand in unitCommands.ts.
- *
- * Coverage:
- * - LMB never issues move/attack/harvest command
- * - RMB with no selected unit is no-op
- * - RMB ground with selected unit issues move command
- * - RMB resource with selected harvester issues harvest command
- * - RMB resource with non-harvester issues move command
- * - RMB enemy with selected combat unit issues attack command
- * - S stops selected civil unit command
- * - S clears selected combat target-lock (via routing)
- * - Esc priority: active mode cancel before pause
- * - Cursor feedback returns expected state
- * - Command confirmation type from route result
+ * SELECTION-CONTROL-GROUPS-05: Updated for multi-select UnitSelection.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -40,11 +26,11 @@ function groundTarget(tx = 5, ty = 5): ClickTarget {
 }
 
 function ownHarvesterTarget(id = 'h1', tx = 3, ty = 3): ClickTarget {
-  return { kind: 'own-harvester', id, tx, ty };
+  return { kind: 'own-harvester', id, unitKind: 'harvester', tx, ty };
 }
 
 function ownBuilderTarget(id = 'b1', tx = 4, ty = 4): ClickTarget {
-  return { kind: 'own-builder', id, tx, ty };
+  return { kind: 'own-builder', id, unitKind: 'builder', tx, ty };
 }
 
 function resourceTarget(id = 'r1', tx = 6, ty = 6): ClickTarget {
@@ -59,6 +45,11 @@ function ownBuildingTarget(id = 'bld1', tx = 2, ty = 2): ClickTarget {
   return { kind: 'own-building', id, tx, ty };
 }
 
+// Helper to create a blockout vehicle selection
+function blockoutVehicleSelection(vehicleId: string): UnitSelection {
+  return { kind: 'single', units: [{ kind: 'harvester', id: vehicleId }], primaryId: vehicleId };
+}
+
 // ─── LMB routing tests ───────────────────────────────────────────────
 
 describe('CORE-STEP-05H+ commandRouter — LMB routing', () => {
@@ -66,8 +57,9 @@ describe('CORE-STEP-05H+ commandRouter — LMB routing', () => {
     const result = routeLmbClick(ownHarvesterTarget(), null);
     expect(result.action).toBe('select');
     if (result.action === 'select') {
-      expect(result.selection!.kind).toBe('harvester');
-      expect(result.selection!.id).toBe('h1');
+      expect(result.selection!.kind).toBe('single');
+      expect(result.selection!.units[0].kind).toBe('harvester');
+      expect(result.selection!.units[0].id).toBe('h1');
     }
   });
 
@@ -75,8 +67,9 @@ describe('CORE-STEP-05H+ commandRouter — LMB routing', () => {
     const result = routeLmbClick(ownBuilderTarget(), null);
     expect(result.action).toBe('select');
     if (result.action === 'select') {
-      expect(result.selection!.kind).toBe('builder');
-      expect(result.selection!.id).toBe('b1');
+      expect(result.selection!.kind).toBe('single');
+      expect(result.selection!.units[0].kind).toBe('builder');
+      expect(result.selection!.units[0].id).toBe('b1');
     }
   });
 
@@ -96,7 +89,7 @@ describe('CORE-STEP-05H+ commandRouter — LMB routing', () => {
   });
 
   it('LMB on ground with selection → deselect', () => {
-    const sel: UnitSelection = { kind: 'harvester', id: 'h1' };
+    const sel = selectHarvester('h1');
     const result = routeLmbClick(groundTarget(), sel);
     expect(result.action).toBe('deselect');
   });
@@ -173,7 +166,7 @@ describe('CORE-STEP-05H+ commandRouter — RMB routing', () => {
   });
 
   it('RMB enemy with blockout vehicle selected → attack', () => {
-    const sel: UnitSelection = { kind: 'harvester', id: 'blockout-vehicle-1' };
+    const sel = blockoutVehicleSelection('blockout-vehicle-1');
     const result = routeRmbClick(enemyUnitTarget('e1'), sel);
     expect(result.action).toBe('attack');
     if (result.action === 'attack') {
@@ -235,28 +228,26 @@ describe('CORE-STEP-05H+ commandRouter — S key routing', () => {
     expect(result.action).toBe('no-op');
   });
 
-  it('S with selected harvester → stop', () => {
+  it('S with selected harvester → stop with unitIds', () => {
     const sel = selectHarvester('h1');
     const result = routeSKey(sel);
     expect(result.action).toBe('stop');
     if (result.action === 'stop') {
-      expect(result.unitId).toBe('h1');
-      expect(result.unitKind).toBe('harvester');
+      expect(result.unitIds).toContain('h1');
     }
   });
 
-  it('S with selected builder → stop', () => {
+  it('S with selected builder → stop with unitIds', () => {
     const sel = selectBuilder('b1');
     const result = routeSKey(sel);
     expect(result.action).toBe('stop');
     if (result.action === 'stop') {
-      expect(result.unitId).toBe('b1');
-      expect(result.unitKind).toBe('builder');
+      expect(result.unitIds).toContain('b1');
     }
   });
 
   it('S with blockout vehicle → clear-target-lock', () => {
-    const sel: UnitSelection = { kind: 'harvester', id: 'blockout-vehicle-1' };
+    const sel = blockoutVehicleSelection('blockout-vehicle-1');
     const result = routeSKey(sel);
     expect(result.action).toBe('clear-target-lock');
     if (result.action === 'clear-target-lock') {
@@ -340,7 +331,7 @@ describe('CORE-STEP-05H+ commandRouter — Cursor feedback', () => {
   });
 
   it('Selected combat + enemy in Arena → attack cursor', () => {
-    const sel: UnitSelection = { kind: 'harvester', id: 'blockout-vehicle-1' };
+    const sel = blockoutVehicleSelection('blockout-vehicle-1');
     const result = determineCursorFeedback(enemyUnitTarget(), sel, true);
     expect(result).toBe('attack');
   });
@@ -374,7 +365,7 @@ describe('CORE-STEP-05H+ commandRouter — Command confirmation', () => {
   });
 
   it('Attack route → attack confirmation', () => {
-    const sel: UnitSelection = { kind: 'harvester', id: 'blockout-vehicle-1' };
+    const sel = blockoutVehicleSelection('blockout-vehicle-1');
     const routeResult = routeRmbClick(enemyUnitTarget('e1'), sel);
     const confirmationType = getConfirmationType(routeResult);
     expect(confirmationType).toBe('attack');
@@ -419,19 +410,10 @@ describe('CORE-STEP-05H+ unitCommands — stopUnitCommand', () => {
 
 describe('CORE-STEP-05H+ Camera — MMB pan contract', () => {
   it('CameraControls class uses middleButtonDown for drag start (structural)', () => {
-    // This verifies the routing contract: only MMB starts camera pan
-    // The source file check is done via vitest -- the test framework
-    // can read source files at test time
-    // Structural tests are covered by manual QA + the test above
-    // that LMB never moves camera (verified by the commandRouter
-    // never routing LMB to move/harvest/attack commands)
     expect(true).toBe(true);
   });
 
   it('Arrow keys pan camera when debug overlay is NOT active (structural)', () => {
-    // Arrow key camera pan is verified by the CameraControls
-    // having the isDebugOverlayActive predicate that gates
-    // arrow key processing. Manual QA confirms arrow key panning.
     expect(true).toBe(true);
   });
 });
@@ -440,11 +422,9 @@ describe('CORE-STEP-05H+ Camera — MMB pan contract', () => {
 
 describe('CORE-STEP-05H+ Arena — LMB enemy no-op + RMB target-lock', () => {
   it('LMB on enemy never transfers control (pure routing)', () => {
-    // Verified by routeLmbClick returning 'no-op' for enemy targets
     const result = routeLmbClick(enemyUnitTarget(), null);
     expect(result.action).toBe('no-op');
 
-    // Also no-op when ally is selected (inspect only)
     const result2 = routeLmbClick(enemyUnitTarget(), selectHarvester('h1'));
     expect(result2.action).toBe('no-op');
   });
@@ -455,7 +435,7 @@ describe('CORE-STEP-05H+ Arena — LMB enemy no-op + RMB target-lock', () => {
   });
 
   it('S clears target-lock (routing returns clear-target-lock)', () => {
-    const sel: UnitSelection = { kind: 'harvester', id: 'blockout-vehicle-1' };
+    const sel = blockoutVehicleSelection('blockout-vehicle-1');
     const result = routeSKey(sel);
     expect(result.action).toBe('clear-target-lock');
   });

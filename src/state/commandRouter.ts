@@ -7,6 +7,11 @@
  * - S = stop selected unit / clear command
  * - Esc = context priority chain
  *
+ * SELECTION-CONTROL-GROUPS-05: Updated for multi-select:
+ * - routeLmbClick returns multi-aware UnitSelection
+ * - routeRmbClick works with multi-selection (move/harvest all selected)
+ * - routeSKey stops all selected units
+ *
  * All functions are pure — no Phaser, no DOM, no mutation of
  * game state beyond what the caller does based on the route result.
  *
@@ -14,7 +19,8 @@
  * result from a given input event, selected unit, and click target.
  */
 
-import type { UnitSelection } from './unitSelection';
+import type { UnitSelection, SelectableUnit } from './unitSelection';
+import { selectOne, toggleInSelection } from './unitSelection';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -34,6 +40,8 @@ export interface ClickTarget {
   kind: ClickTargetKind;
   /** Entity ID if applicable (unit, building). */
   id?: string;
+  /** Entity kind (for same-type double-click). */
+  unitKind?: 'builder' | 'harvester';
   /** Tile X of click position. */
   tx: number;
   /** Tile Y of click position. */
@@ -43,6 +51,8 @@ export interface ClickTarget {
 /** Result of routing an LMB click. */
 export type LmbRouteResult =
   | { action: 'select'; selection: UnitSelection }
+  | { action: 'add-to-selection'; selection: UnitSelection }
+  | { action: 'toggle-in-selection'; selection: UnitSelection }
   | { action: 'deselect' }
   | { action: 'no-op' };
 
@@ -56,7 +66,7 @@ export type RmbRouteResult =
 
 /** Result of routing an S key press. */
 export type SKeyRouteResult =
-  | { action: 'stop'; unitId: string; unitKind: 'harvester' | 'builder' | 'combat-vehicle' }
+  | { action: 'stop'; unitIds: string[] }
   | { action: 'clear-target-lock'; unitId: string }
   | { action: 'no-op' };
 
@@ -81,42 +91,44 @@ export type CursorFeedbackState =
 /**
  * Route an LMB click. LMB is for selection/inspection only.
  *
- * Rules:
- * - Own harvester → select
- * - Own builder → select
- * - Own combat vehicle → select (in Arena mode)
- * - Own building → inspect (select if supported)
- * - Enemy → no-op (inspect only, no control transfer)
- * - Resource → no-op
- * - Ground → deselect (if something selected) or no-op
+ * SELECTION-CONTROL-GROUPS-05: Supports multi-select:
+ * - Shift+click on own unit → add to selection
+ * - Click on own unit → select that unit (replacing previous selection)
+ * - Click on ground → deselect
  *
  * LMB must NEVER: move units, attack, harvest, pan camera, fire weapons.
  */
 export function routeLmbClick(
   target: ClickTarget,
   currentSelection: UnitSelection,
+  shiftHeld: boolean = false,
 ): LmbRouteResult {
   switch (target.kind) {
-    case 'own-harvester':
-      return { action: 'select', selection: { kind: 'harvester', id: target.id! } };
-    case 'own-builder':
-      return { action: 'select', selection: { kind: 'builder', id: target.id! } };
+    case 'own-harvester': {
+      const unit: SelectableUnit = { kind: 'harvester', id: target.id! };
+      if (shiftHeld) {
+        return { action: 'toggle-in-selection', selection: toggleInSelection(currentSelection, unit) };
+      }
+      return { action: 'select', selection: selectOne(unit) };
+    }
+    case 'own-builder': {
+      const unit: SelectableUnit = { kind: 'builder', id: target.id! };
+      if (shiftHeld) {
+        return { action: 'toggle-in-selection', selection: toggleInSelection(currentSelection, unit) };
+      }
+      return { action: 'select', selection: selectOne(unit) };
+    }
     case 'own-combat-vehicle':
       // Combat vehicles are selected in Arena mode via BlockoutVehicleInputController.
-      // This route is provided for future unified selection model.
-      return { action: 'select', selection: { kind: 'harvester', id: target.id! } };
+      return { action: 'select', selection: selectOne({ kind: 'harvester', id: target.id! }) };
     case 'own-building':
-      // Building inspection — select if architecture supports it
-      return { action: 'select', selection: { kind: 'builder', id: target.id! } };
+      return { action: 'select', selection: selectOne({ kind: 'builder', id: target.id! }) };
     case 'enemy-unit':
     case 'enemy-building':
-      // Enemy: inspect/target info only, no control transfer
       return { action: 'no-op' };
     case 'resource':
-      // LMB on resource does NOT harvest
       return { action: 'no-op' };
     case 'ground':
-      // LMB on ground: deselect if something is selected, otherwise no-op
       if (currentSelection !== null) {
         return { action: 'deselect' };
       }
@@ -129,15 +141,9 @@ export function routeLmbClick(
 /**
  * Route an RMB click. RMB is for commands only.
  *
- * Rules:
- * - No selected unit → no-op
- * - Ground + selected unit → move command
- * - Resource + selected harvester → harvest command
- * - Resource + selected non-harvester → move command (approach resource)
- * - Enemy + selected combat unit → attack / target-lock
- * - Enemy + selected non-combat unit → move command (approach enemy)
- * - Own unit/building → no-op (don't command toward own stuff)
- * - RMB must NOT: pan camera, select units, inspect as primary action
+ * SELECTION-CONTROL-GROUPS-05: Works with multi-selection.
+ * - Move commands apply to all selected units
+ * - Harvest applies if any selected unit is a harvester
  */
 export function routeRmbClick(
   target: ClickTarget,
@@ -150,31 +156,28 @@ export function routeRmbClick(
 
   switch (target.kind) {
     case 'ground': {
-      // RMB on ground with any selected unit → move
       return { action: 'move', tx: target.tx, ty: target.ty };
     }
 
     case 'resource': {
-      // RMB on resource with harvester → harvest
-      if (currentSelection.kind === 'harvester') {
+      // If any harvester is selected, harvest; otherwise move toward
+      const hasHarvester = currentSelection.units.some(u => u.kind === 'harvester');
+      if (hasHarvester) {
         return { action: 'harvest', tx: target.tx, ty: target.ty, resourceId: target.id };
       }
-      // Non-harvester → move toward the resource position
       return { action: 'move', tx: target.tx, ty: target.ty };
     }
 
     case 'enemy-unit': {
       // RMB on enemy with combat unit → attack / target-lock
-      if (currentSelection.kind === 'harvester' && currentSelection.id.startsWith('blockout-')) {
-        // Blockout vehicle selected → attack command
+      const hasBlockout = currentSelection.units.some(u => u.kind === 'harvester' && u.id.startsWith('blockout-'));
+      if (hasBlockout) {
         return { action: 'attack', tx: target.tx, ty: target.ty, targetId: target.id! };
       }
-      // Civil unit → move toward enemy position (no attack capability)
       return { action: 'move', tx: target.tx, ty: target.ty };
     }
 
     case 'enemy-building': {
-      // RMB on enemy building → move toward (no attack for civil units yet)
       return { action: 'move', tx: target.tx, ty: target.ty };
     }
 
@@ -182,7 +185,6 @@ export function routeRmbClick(
     case 'own-builder':
     case 'own-combat-vehicle':
     case 'own-building': {
-      // RMB on own entity → no-op (don't command toward own stuff)
       return { action: 'no-op', reason: 'own-entity' };
     }
   }
@@ -190,12 +192,6 @@ export function routeRmbClick(
 
 /**
  * Route an RMB click in Arena mode for combat vehicles.
- *
- * Rules:
- * - No selected ally → no-op
- * - Ground + selected ally → move
- * - Enemy + selected ally → attack / target-lock
- * - Ally + selected ally → no-op
  */
 export function routeRmbClickArena(
   target: ClickTarget,
@@ -224,13 +220,9 @@ export function routeRmbClickArena(
 // ─── S key routing ──────────────────────────────────────────────────
 
 /**
- * Route an S key press. S stops the selected unit and clears its command.
+ * Route an S key press. S stops all selected units and clears their commands.
  *
- * Rules:
- * - No selected unit → no-op
- * - Harvester: stop current command (clear manual move, auto-gather target)
- * - Builder: stop current command
- * - Combat vehicle: stop movement AND clear target-lock
+ * SELECTION-CONTROL-GROUPS-05: Returns all unit IDs to stop.
  */
 export function routeSKey(
   currentSelection: UnitSelection,
@@ -239,16 +231,18 @@ export function routeSKey(
     return { action: 'no-op' };
   }
 
-  if (currentSelection.kind === 'harvester') {
-    // Check if it's a blockout vehicle (combat) — clear target-lock
-    if (currentSelection.id.startsWith('blockout-')) {
-      return { action: 'clear-target-lock', unitId: currentSelection.id };
+  const unitIds: string[] = [];
+
+  for (const u of currentSelection.units) {
+    if (u.kind === 'harvester' && u.id.startsWith('blockout-')) {
+      // Blockout vehicle — clear target-lock
+      return { action: 'clear-target-lock', unitId: u.id };
     }
-    return { action: 'stop', unitId: currentSelection.id, unitKind: 'harvester' };
+    unitIds.push(u.id);
   }
 
-  if (currentSelection.kind === 'builder') {
-    return { action: 'stop', unitId: currentSelection.id, unitKind: 'builder' };
+  if (unitIds.length > 0) {
+    return { action: 'stop', unitIds };
   }
 
   return { action: 'no-op' };
@@ -256,20 +250,6 @@ export function routeSKey(
 
 // ─── Esc priority routing ───────────────────────────────────────────
 
-/**
- * Route an Esc key press with context priority.
- *
- * Priority order:
- * 1. Cancel active placement/build/command mode
- * 2. Deselect selected unit/object
- * 3. Close open overlay/menu
- * 4. Toggle pause menu (only when nothing else consumes Esc)
- *
- * @param isPlacementActive - Whether placement mode is active
- * @param hasSelection - Whether a unit/object is currently selected
- * @param isOverlayOpen - Whether an overlay/menu is open (e.g., devtools)
- * @returns The highest-priority Esc action
- */
 export function routeEscKey(
   isPlacementActive: boolean,
   hasSelection: boolean,
@@ -291,8 +271,6 @@ export function routeEscKey(
 
 /**
  * Determine the cursor feedback state based on current selection and hover target.
- *
- * Used by the input layer to update the CSS cursor or visual indicator.
  */
 export function determineCursorFeedback(
   hoverTarget: ClickTarget | null,
@@ -300,7 +278,6 @@ export function determineCursorFeedback(
   isArenaMode: boolean,
 ): CursorFeedbackState {
   if (currentSelection === null) {
-    // No selection — default cursor; own entities get select cursor
     if (hoverTarget && (
       hoverTarget.kind === 'own-harvester' ||
       hoverTarget.kind === 'own-builder' ||
@@ -316,20 +293,23 @@ export function determineCursorFeedback(
     return 'default';
   }
 
-  // Selected unit + hover target → context cursor
   switch (hoverTarget.kind) {
     case 'ground':
       return 'move';
-    case 'resource':
-      if (currentSelection.kind === 'harvester' && !currentSelection.id.startsWith('blockout-')) {
+    case 'resource': {
+      const hasHarvester = currentSelection.units.some(u => u.kind === 'harvester' && !u.id.startsWith('blockout-'));
+      if (hasHarvester) {
         return 'harvest';
       }
       return 'move';
-    case 'enemy-unit':
-      if (isArenaMode || currentSelection.id.startsWith('blockout-')) {
+    }
+    case 'enemy-unit': {
+      const hasBlockout = currentSelection.units.some(u => u.id.startsWith('blockout-'));
+      if (isArenaMode || hasBlockout) {
         return 'attack';
       }
       return 'move';
+    }
     case 'enemy-building':
       return 'move';
     case 'own-harvester':
@@ -347,7 +327,6 @@ export type CommandConfirmationType = 'move' | 'harvest' | 'attack';
 
 /**
  * Determine the command confirmation type from an RMB route result.
- * Returns null if no confirmation should be shown.
  */
 export function getConfirmationType(routeResult: RmbRouteResult): CommandConfirmationType | null {
   switch (routeResult.action) {

@@ -35,18 +35,20 @@ describe('unit selection', () => {
   it('selectBuilder creates builder selection', () => {
     const sel = selectBuilder('builder-0');
     expect(sel).not.toBeNull();
-    expect(sel!.kind).toBe('builder');
-    if (sel!.kind === 'builder') {
-      expect(sel.id).toBe('builder-0');
+    expect(sel!.kind).toBe('single');
+    if (sel!.kind === 'single') {
+      expect(sel.units[0].kind).toBe('builder');
+      expect(sel.units[0].id).toBe('builder-0');
     }
   });
 
   it('selectHarvester creates harvester selection', () => {
     const sel = selectHarvester('h-0');
     expect(sel).not.toBeNull();
-    expect(sel!.kind).toBe('harvester');
-    if (sel!.kind === 'harvester') {
-      expect(sel.id).toBe('h-0');
+    expect(sel!.kind).toBe('single');
+    if (sel!.kind === 'single') {
+      expect(sel.units[0].kind).toBe('harvester');
+      expect(sel.units[0].id).toBe('h-0');
     }
   });
 
@@ -223,7 +225,7 @@ describe('manual move command', () => {
 
     const sel = selectHarvester(h.id);
     // Try to move onto HQ (which is impassable)
-    const result = issueManualMove(state, sel, state.mapData.hq.tx, state.mapData.hq.ty);
+    const result = issueManualMove(state, sel.units[0], state.mapData.hq.tx, state.mapData.hq.ty);
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -255,7 +257,7 @@ describe('manual move command', () => {
     if (targetTx < 0) return; // no valid target found
 
     const sel = selectHarvester(h.id);
-    const result = issueManualMove(state, sel, targetTx, targetTy);
+    const result = issueManualMove(state, sel.units[0], targetTx, targetTy);
 
     expect(result.ok).toBe(true);
   });
@@ -287,7 +289,7 @@ describe('manual move command', () => {
     if (targetTx < 0) return;
 
     const sel = selectHarvester(h.id);
-    const result = issueManualMove(state, sel, targetTx, targetTy);
+    const result = issueManualMove(state, sel.units[0], targetTx, targetTy);
 
     if (result.ok) {
       // Cargo must be preserved
@@ -323,7 +325,7 @@ describe('manual move command', () => {
     if (targetTx < 0) return;
 
     const sel = selectBuilder(state.mapData.builders[0].id);
-    const result = issueManualMove(state, sel, targetTx, targetTy);
+    const result = issueManualMove(state, sel.units[0], targetTx, targetTy);
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -391,7 +393,7 @@ describe('ARCH-05X hardening: typed fields (no as any)', () => {
     if (targetTx < 0) return;
 
     const sel = selectHarvester(h.id);
-    const result = issueManualMove(state, sel, targetTx, targetTy);
+    const result = issueManualMove(state, sel.units[0], targetTx, targetTy);
     if (!result.ok) return;
 
     // Path should be stored in typed fields, not hidden `as any` properties
@@ -425,7 +427,7 @@ describe('ARCH-05X hardening: typed fields (no as any)', () => {
     if (targetTx < 0) return;
 
     const sel = selectBuilder(state.mapData.builders[0].id);
-    const result = issueManualMove(state, sel, targetTx, targetTy);
+    const result = issueManualMove(state, sel.units[0], targetTx, targetTy);
     if (!result.ok) return;
 
     // manualMove should be a typed field, not a hidden `as any` property
@@ -731,7 +733,7 @@ describe('ARCH-05X hardening: units block each other', () => {
     builder.fty = occupiedTy;
 
     const sel = selectHarvester(h.id);
-    const result = issueManualMove(state, sel, occupiedTx, occupiedTy);
+    const result = issueManualMove(state, sel.units[0], occupiedTx, occupiedTy);
 
     // Should be rejected because tile is occupied by the builder
     expect(result.ok).toBe(false);
@@ -840,7 +842,7 @@ describe('RESOURCE-01: depleted resource retargeting', () => {
 
     // A harvester should be able to issue a manual move to the depleted tile
     const sel = selectHarvester(h.id);
-    const result = issueManualMove(state, sel, nearResource.tx, nearResource.ty);
+    const result = issueManualMove(state, sel.units[0], nearResource.tx, nearResource.ty);
     // The result may fail for other reasons (no path, occupied), but should NOT
     // fail with 'target-impassable'
     if (!result.ok && result.reason === 'target-impassable') {
@@ -884,7 +886,7 @@ describe('RESOURCE-01: depleted resource retargeting', () => {
     }
 
     const sel = selectHarvester(h.id);
-    const result = issueManualMove(state, sel, resource.tx, resource.ty);
+    const result = issueManualMove(state, sel.units[0], resource.tx, resource.ty);
 
     // Should succeed or fail for a non-impassable reason (e.g., occupied by self)
     if (!result.ok) {

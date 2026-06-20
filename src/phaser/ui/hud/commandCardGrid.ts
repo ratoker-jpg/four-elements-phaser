@@ -126,8 +126,8 @@ export interface CommandCardSlot {
 
 /** The full command card view model — 12 fixed slots. */
 export interface CommandCardViewModel {
-  /** Context kind — what's selected. */
-  contextKind: 'none' | 'builder' | 'harvester' | 'building' | 'unknown';
+  /** Context kind — what's selected. SELECTION-CONTROL-GROUPS-05: Added 'multi-select'. */
+  contextKind: 'none' | 'builder' | 'harvester' | 'building' | 'multi-select' | 'unknown';
   /** Context label — e.g. 'Builder', 'Units Factory', or empty. */
   contextLabel: string;
   /** All 12 grid slots in row-major order. Empty slots have state 'empty'. */

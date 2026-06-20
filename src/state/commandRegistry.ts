@@ -245,7 +245,7 @@ const MVP_COMMAND_DEFS: CommandDef[] = [
 /**
  * COMMAND-CARD-REBUILD-03: Backward-compatible alias hotkeys.
  *
- * These register the OLD hotkey bindings (B, P, 1, 2, 3) as aliases
+ * These register the OLD hotkey bindings (B, P) as aliases
  * that map to the same command IDs as the new grid hotkeys. During the
  * migration period, both old and new hotkeys work simultaneously.
  *
@@ -254,16 +254,13 @@ const MVP_COMMAND_DEFS: CommandDef[] = [
  * not legacy aliases. There is no need for legacy entries for keys that
  * ARE the primary command-card hotkeys.
  *
- * The old number-key build hotkeys (1/2/3) are temporary aliases that
- * MUST be removed when control groups are implemented (SELECTION-CONTROL-GROUPS-05).
- * Number keys 1-9 are reserved for future control groups.
+ * SELECTION-CONTROL-GROUPS-05: Removed ONE/TWO/THREE legacy aliases.
+ * Number keys 1-9 are now used for control group recall/assign.
+ * Only B and P legacy aliases remain (they don't conflict with number keys).
  */
 const LEGACY_ALIAS_DEFS: CommandDef[] = [
   { id: 'build-separator-legacy',      label: 'Build Separator (legacy)',       key: 'B',   category: 'build' },
   { id: 'build-power-plant-legacy',    label: 'Build Power Plant (legacy)',     key: 'P',   category: 'build' },
-  { id: 'build-raw-storage-legacy',    label: 'Build Raw Storage (legacy)',     key: 'ONE', category: 'build' },
-  { id: 'build-matter-storage-legacy', label: 'Build Matter Storage (legacy)',   key: 'TWO', category: 'build' },
-  { id: 'build-element-storage-legacy',label: 'Build Element Storage (legacy)', key: 'THREE', category: 'build' },
 ];
 
 /**

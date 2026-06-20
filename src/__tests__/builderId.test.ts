@@ -117,9 +117,10 @@ describe('BUILDER-ID: builder IDs are unique', () => {
 describe('BUILDER-ID: selection uses builder ID', () => {
   it('selectBuilder creates a selection with builder id', () => {
     const sel = selectBuilder('builder-0');
-    expect(sel.kind).toBe('builder');
-    if (sel.kind === 'builder') {
-      expect(sel.id).toBe('builder-0');
+    expect(sel.kind).toBe('single');
+    if (sel.kind === 'single') {
+      expect(sel.units[0].kind).toBe('builder');
+      expect(sel.units[0].id).toBe('builder-0');
     }
   });
 
@@ -127,7 +128,7 @@ describe('BUILDER-ID: selection uses builder ID', () => {
     const sel = selectBuilder('builder-42');
     expect(isBuilderSelected(sel)).toBe(true);
     if (isBuilderSelected(sel)) {
-      expect(sel.id).toBe('builder-42');
+      expect(sel.units[0].id).toBe('builder-42');
     }
   });
 
@@ -135,9 +136,10 @@ describe('BUILDER-ID: selection uses builder ID', () => {
     const state = makeStateWithBuilders(3);
     const builder = state.mapData.builders[1];
     const sel = selectBuilder(builder.id);
-    expect(sel.kind).toBe('builder');
-    if (sel.kind === 'builder') {
-      expect(sel.id).toBe(builder.id);
+    expect(sel.kind).toBe('single');
+    if (sel.kind === 'single') {
+      expect(sel.units[0].kind).toBe('builder');
+      expect(sel.units[0].id).toBe(builder.id);
     }
   });
 });

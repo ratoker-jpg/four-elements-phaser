@@ -25,7 +25,7 @@ import type { GameState } from '../state/types';
 import {
   buildSelectionViewModel,
 } from '../phaser/ui/hud/selectionViewModel';
-import type { UnitSelection } from '../state/unitSelection';
+import { selectBuilder, selectHarvester } from '../state/unitSelection';
 
 // ─── 1. HUD layout constants ──────────────────────────────────────
 
@@ -112,7 +112,7 @@ describe('HUD-CORE: selection view model', () => {
       playerFaction: 'cyan',
     } as any;
 
-    const selection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const selection = selectBuilder('builder-1');
     const vm = buildSelectionViewModel(mockState, selection);
 
     expect(vm.hasSelection).toBe(true);
@@ -135,7 +135,7 @@ describe('HUD-CORE: selection view model', () => {
       playerFaction: 'cyan',
     } as any;
 
-    const selection: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const selection = selectHarvester('harvester-1');
     const vm = buildSelectionViewModel(mockState, selection);
 
     expect(vm.hasSelection).toBe(true);
@@ -152,7 +152,7 @@ describe('HUD-CORE: selection view model', () => {
       playerFaction: 'cyan',
     } as any;
 
-    const selection: UnitSelection = { kind: 'builder', id: 'nonexistent' };
+    const selection = selectBuilder('nonexistent');
     const vm = buildSelectionViewModel(mockState, selection);
 
     expect(vm.hasSelection).toBe(false);
@@ -165,7 +165,7 @@ describe('HUD-CORE: selection view model', () => {
       playerFaction: 'cyan',
     } as any;
 
-    const selection: UnitSelection = { kind: 'harvester', id: 'nonexistent' };
+    const selection = selectHarvester('nonexistent');
     const vm = buildSelectionViewModel(mockState, selection);
 
     expect(vm.hasSelection).toBe(false);
@@ -186,7 +186,7 @@ describe('HUD-CORE: selection view model', () => {
       playerFaction: 'cyan',
     } as any;
 
-    const selection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const selection = selectBuilder('builder-1');
     const vm = buildSelectionViewModel(mockState, selection);
 
     expect(vm.status).toBe('Building');
@@ -207,7 +207,7 @@ describe('HUD-CORE: selection view model', () => {
       playerFaction: 'cyan',
     } as any;
 
-    const selection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const selection = selectBuilder('builder-1');
     const vm = buildSelectionViewModel(mockState, selection);
 
     expect(vm.status).toBe('Moving');
@@ -226,7 +226,7 @@ describe('HUD-CORE: selection view model', () => {
       playerFaction: 'cyan',
     } as any;
 
-    const selection: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const selection = selectHarvester('harvester-1');
     const vm = buildSelectionViewModel(mockState, selection);
 
     expect(vm.status).toBe('Returning');
@@ -522,14 +522,14 @@ describe('HUD-LAYOUT-REBUILD-02: regression', () => {
     const empty = buildSelectionViewModel(state, null);
     expect(empty.hasSelection).toBe(false);
 
-    const builderSel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const builderSel = selectBuilder('builder-1');
     const builderVm = buildSelectionViewModel(state, builderSel);
     expect(builderVm.hasSelection).toBe(true);
     expect(builderVm.kind).toBe('builder');
 
     // Harvester: need to add one to the state
     state.harvesters = [{ id: 'h1', ftx: 7, fty: 7, faction: 'cyan', phase: 'idle' } as any];
-    const harvesterSel: UnitSelection = { kind: 'harvester', id: 'h1' };
+    const harvesterSel = selectHarvester('h1');
     const harvesterVm = buildSelectionViewModel(state, harvesterSel);
     expect(harvesterVm.hasSelection).toBe(true);
     expect(harvesterVm.kind).toBe('harvester');
@@ -537,19 +537,19 @@ describe('HUD-LAYOUT-REBUILD-02: regression', () => {
 
   it('command panel still renders builder/harvester commands', () => {
     const state = createLayoutTestState();
-    const builderSel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const builderSel = selectBuilder('builder-1');
     const builderVm = buildCommandPanelViewModel(state, builderSel);
     expect(builderVm.contextKind).toBe('builder');
     expect(builderVm.commands.length).toBeGreaterThan(0);
 
-    const harvesterSel: UnitSelection = { kind: 'harvester', id: 'h1' };
+    const harvesterSel = selectHarvester('h1');
     const harvesterVm = buildCommandPanelViewModel(state, harvesterSel);
     expect(harvesterVm.contextKind).toBe('harvester');
   });
 
   it('disabled command behavior remains guarded', () => {
     const state = createBrokeLayoutState();
-    const builderSel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const builderSel = selectBuilder('builder-1');
     const vm = buildCommandPanelViewModel(state, builderSel);
     for (const cmd of vm.commands) {
       expect(['enabled', 'disabled', 'hidden']).toContain(cmd.state);
