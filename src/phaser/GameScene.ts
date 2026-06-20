@@ -4,6 +4,8 @@ import { RenderManager } from './render/RenderManager';
 import { CameraControls } from './input/CameraControls';
 import { GameInputController } from './input/GameInputController';
 import { PlaytestHud } from './ui/PlaytestHud';
+import { VisualHudCore } from './ui/hud/VisualHudCore';
+import { HUD_BAR_HEIGHT } from './ui/hud/hudLayout';
 
 import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric';
 import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
@@ -113,6 +115,7 @@ export class GameScene extends Phaser.Scene {
   private cameraControls: CameraControls | null = null;
   private inputController: GameInputController | null = null;
   private playtestHud: PlaytestHud | null = null;
+  private visualHudCore: VisualHudCore | null = null;
   private pauseMenu: PauseMenu | null = null;
   private gameState!: GameState;
   private hqWorldX: number = 0;
@@ -306,6 +309,23 @@ export class GameScene extends Phaser.Scene {
     if (this.arenaCtx.showPlaytestHud) {
       this.playtestHud = new PlaytestHud();
     }
+
+    // VISUAL-HUD-CORE-01: Create bottom RTS HUD (Normal Game only)
+    if (this.arenaCtx.showPlaytestHud) {
+      this.visualHudCore = new VisualHudCore();
+      this.visualHudCore.create();
+      // Hide the old PlaytestHud economy section since the new HUD
+      // resource strip now shows the same data. Build/produce/factory
+      // controls remain in the old sidebar until command panel is wired.
+      this.playtestHud?.hideEconomySection();
+    }
+
+    // VISUAL-HUD-CORE-01: Camera safe-area — reduce viewport height so
+    // game content does not render under the bottom HUD bar.
+    // The main camera's scroll bounds are NOT changed (the game world is
+    // still full-size). Only the visible viewport is shortened.
+    const cam = this.cameras.main;
+    cam.setViewport(cam.x, cam.y, cam.width, cam.height - HUD_BAR_HEIGHT);
 
     // ARENA-01H+: Create ArenaMenu if in Arena mode
     if (this.arenaCtx.showArenaMenu) {
@@ -642,6 +662,14 @@ export class GameScene extends Phaser.Scene {
     // 6. Update PlaytestHud panel (ARENA-01H+: only in Normal Game)
     if (this.playtestHud) {
       this.playtestHud.update(this.gameState);
+    }
+
+    // VISUAL-HUD-CORE-01: Update bottom RTS HUD
+    if (this.visualHudCore) {
+      // Sync selection from input controller
+      const sel = this.inputController?.getSelection() ?? null;
+      this.visualHudCore.setSelection(sel);
+      this.visualHudCore.update(this.gameState);
     }
 
     // ARENA-01H+: Update ArenaMenu (primary Arena UX)
@@ -1191,6 +1219,8 @@ export class GameScene extends Phaser.Scene {
     this.pauseMenu = null;
     this.playtestHud?.destroy();
     this.playtestHud = null;
+    this.visualHudCore?.destroy();
+    this.visualHudCore = null;
     this.cameraControls?.destroy();
     this.paused = false;
   }

@@ -12,6 +12,7 @@ import { issueManualMove, stopUnitCommand } from '../../state/unitCommands';
 // It was only used by the legacy tuner hotkeys (Q/E/Z/X), which are gone.
 import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
 import { commandRegistry, registerMvpCommands } from '../../state/commandRegistry';
+import { isScreenPointInHud } from '../ui/hud/hudLayout';
 import type { EntityRenderer } from '../render/EntityRenderer';
 import type { FeedbackRenderer } from '../render/FeedbackRenderer';
 import type { PauseMenu } from '../ui/PauseMenu';
@@ -378,7 +379,29 @@ export class GameInputController {
     this.scene.input.on('pointermove', this.boundPointermove);
   }
 
+  /**
+   * VISUAL-HUD-CORE-01: Expose current selection for the HUD selection panel.
+   */
+  getSelection(): UnitSelection {
+    return this.selectedUnit;
+  }
+
+  /**
+   * VISUAL-HUD-CORE-01: Check whether a pointer event's screen position
+   * falls inside the bottom HUD bar. Used to prevent map command routing
+   * when the player clicks on HUD panels.
+   */
+  private isPointerInHud(pointer: Phaser.Input.Pointer): boolean {
+    const canvasHeight = this.scene.game.canvas.height;
+    return isScreenPointInHud(pointer.y, canvasHeight);
+  }
+
   private onPointerdown(pointer: Phaser.Input.Pointer): void {
+    // VISUAL-HUD-CORE-01: Ignore pointer events that start inside the HUD bar.
+    // The HUD DOM panels consume their own clicks, but this guard prevents
+    // Phaser from also processing the event as a map click/drag.
+    if (this.isPointerInHud(pointer)) return;
+
     if (pointer.leftButtonDown()) {
       this._clickStartX = pointer.x;
       this._clickStartY = pointer.y;
@@ -391,6 +414,9 @@ export class GameInputController {
   }
 
   private onPointerup(pointer: Phaser.Input.Pointer): void {
+    // VISUAL-HUD-CORE-01: Also ignore pointer-up in HUD area
+    if (this.isPointerInHud(pointer)) return;
+
     const button = this._clickButton;
     this._clickButton = 'none';
 
