@@ -1,110 +1,65 @@
 /**
  * Minimap View Model — pure TypeScript transform and marker logic.
  *
- * VISUAL-MINIMAP-03: Derives minimap markers and viewport rectangle
- * from game state and camera, without any Phaser or DOM dependency.
- *
- * MINIMAP-INTERACTION-04: Adds minimapToTile inverse transform,
- * selectedEntityId on markers, and selection-aware marker building.
- *
- * Architecture:
- *   tile coords ↔ minimap coords (scaled 2D grid, no isometric)
- *   camera worldView → minimap viewport rectangle
- *   entities → colored markers
- *
- * The minimap is a top-down 2D grid view. Tile (0,0) is top-left.
- * This avoids isometric distortion on the minimap and is consistent
- * with how players expect a minimap to look in an RTS.
+ * SELECTION-CONTROL-GROUPS-05: Changed selectedEntityId (single) to
+ * selectedEntityIds (array) to support multi-select highlighting.
+ * ALL markers whose entityId is in selectedEntityIds get highlighted.
  */
 
 import type { GameState, BuildingType } from '../../../state/types';
 import type { UnitSelection } from '../../../state/unitSelection';
+import { getSelectedIds } from '../../../state/unitSelection';
 import { HUD_MINIMAP_WIDTH, HUD_MINIMAP_HEIGHT } from './hudLayout';
 import { screenToTile } from '../../render/isometric';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-/** A single marker on the minimap. */
 export interface MinimapMarker {
-  /** Tile X position. */
   tx: number;
-  /** Tile Y position. */
   ty: number;
-  /** Marker color (CSS color string). */
   color: string;
-  /** Marker size in minimap pixels (diameter for circle, side for rect). */
   size: number;
-  /** Marker shape. */
   shape: 'circle' | 'rect';
-  /** Optional label for debugging. */
   label?: string;
-  /** MINIMAP-INTERACTION-04: Entity ID for selection matching. */
   entityId?: string;
-  /** MINIMAP-INTERACTION-04: Set when this marker's entity is selected. */
+  /** Set when this marker's entity is selected. */
   selectedEntityId?: string;
 }
 
-/** Camera viewport rectangle on the minimap. */
 export interface MinimapViewportRect {
-  /** Minimap X of viewport top-left. */
   x: number;
-  /** Minimap Y of viewport top-left. */
   y: number;
-  /** Viewport width in minimap pixels. */
   width: number;
-  /** Viewport height in minimap pixels. */
   height: number;
 }
 
-/** The full minimap view model. */
 export interface MinimapViewModel {
-  /** Map width in tiles. */
   mapWidth: number;
-  /** Map height in tiles. */
   mapHeight: number;
-  /** Entity markers. */
   markers: MinimapMarker[];
-  /** Camera viewport rectangle (null if camera not available). */
   viewport: MinimapViewportRect | null;
-  /** MINIMAP-INTERACTION-04: Currently selected entity ID. */
-  selectedEntityId: string | null;
+  /** SELECTION-CONTROL-GROUPS-05: All selected entity IDs. */
+  selectedEntityIds: string[];
 }
 
 // ─── Color constants ────────────────────────────────────────────────
 
-/** Marker colors by entity type. */
 const COLORS = {
-  /** Player HQ. */
   hq: '#4ade80',
-  /** Player buildings (generic). */
   building: '#60a5fa',
-  /** Player construction sites. */
   construction: '#facc15',
-  /** Builder unit. */
   builder: '#a78bfa',
-  /** Harvester unit. */
   harvester: '#34d399',
-  /** Resource node. */
   resource: '#f97316',
-  /** Resource node (depleted). */
   resourceDepleted: '#404040',
-  /** Camera viewport rectangle. */
   viewportStroke: '#d4a574',
   viewportFill: 'rgba(212, 165, 116, 0.08)',
 } as const;
 
 // ─── Transform helpers ──────────────────────────────────────────────
 
-/** Internal padding constant used by both tileToMinimap and minimapToTile. */
 const MINIMAP_PADDING = 4;
 
-/**
- * Transform a tile coordinate to minimap pixel coordinate.
- *
- * The minimap is a top-down 2D view where (0,0) maps to the top-left
- * corner and (mapW-1, mapH-1) maps to the bottom-right. Padding of 4px
- * on each side ensures markers at the edges are not clipped.
- */
 export function tileToMinimap(
   tx: number,
   ty: number,
@@ -124,18 +79,6 @@ export function tileToMinimap(
   };
 }
 
-/**
- * MINIMAP-INTERACTION-04: Transform minimap pixel coordinates to tile coordinates.
- *
- * This is the inverse of tileToMinimap. It converts a click/drag position
- * on the minimap canvas back to tile coordinates.
- *
- * @param mx - Minimap pixel X
- * @param my - Minimap pixel Y
- * @param mapWidth - Map width in tiles
- * @param mapHeight - Map height in tiles
- * @returns Tile coordinates { tx, ty } (may be outside map bounds)
- */
 export function minimapToTile(
   mx: number,
   my: number,
@@ -155,10 +98,6 @@ export function minimapToTile(
   };
 }
 
-/**
- * MINIMAP-INTERACTION-04: Transform minimap pixel coordinates to tile coordinates,
- * clamped to [0, mapWidth] and [0, mapHeight].
- */
 export function minimapToTileClamped(
   mx: number,
   my: number,
@@ -172,16 +111,6 @@ export function minimapToTileClamped(
   };
 }
 
-/**
- * Transform a camera world-view rectangle to minimap viewport rectangle.
- *
- * VISUAL-MINIMAP-03-FIXUP-1: Converts ALL FOUR corners of the camera
- * worldView from screen-space to tile-space, then computes the axis-
- * aligned bounding box in tile coordinates. This is necessary because
- * the isometric projection means an axis-aligned screen rectangle does
- * NOT map to a tile-space rectangle — only two diagonal corners would
- * miss the full extent.
- */
 export function cameraWorldViewToMinimapViewport(
   worldView: { x: number; y: number; width: number; height: number },
   offset: { x: number; y: number },
@@ -228,7 +157,6 @@ export function cameraWorldViewToMinimapViewport(
 
 // ─── Marker builders ────────────────────────────────────────────────
 
-/** Building type color mapping. */
 function buildingColor(type: BuildingType): string {
   switch (type) {
     case 'units-factory': return '#818cf8';
@@ -238,12 +166,6 @@ function buildingColor(type: BuildingType): string {
   }
 }
 
-/**
- * Build minimap markers from game state.
- *
- * MINIMAP-INTERACTION-04: Each builder/harvester marker includes an
- * `entityId` field so selection can be matched to markers.
- */
 export function buildMinimapMarkers(state: GameState): MinimapMarker[] {
   const markers: MinimapMarker[] = [];
 
@@ -314,9 +236,8 @@ export function buildMinimapMarkers(state: GameState): MinimapMarker[] {
 /**
  * Build the complete minimap view model.
  *
- * MINIMAP-INTERACTION-04: Accepts optional `selection` parameter.
- * When a builder or harvester is selected, sets the matching marker's
- * `selectedEntityId` and increases its size for highlighting.
+ * SELECTION-CONTROL-GROUPS-05: Uses selectedEntityIds array.
+ * ALL markers whose entityId is in the array get highlighted.
  */
 export function buildMinimapViewModel(
   state: GameState,
@@ -328,12 +249,13 @@ export function buildMinimapViewModel(
   const markers = buildMinimapMarkers(state);
   let viewport: MinimapViewportRect | null = null;
 
-  let selectedEntityId: string | null = null;
-  if (selection) {
-    selectedEntityId = selection.id;
+  const selectedEntityIds: string[] = selection ? getSelectedIds(selection) : [];
+
+  if (selectedEntityIds.length > 0) {
+    const idSet = new Set(selectedEntityIds);
     for (const marker of markers) {
-      if (marker.entityId === selection.id) {
-        marker.selectedEntityId = selection.id;
+      if (marker.entityId && idSet.has(marker.entityId)) {
+        marker.selectedEntityId = marker.entityId;
         marker.size += 2;
       }
     }
@@ -354,6 +276,6 @@ export function buildMinimapViewModel(
     mapHeight: state.mapHeight,
     markers,
     viewport,
-    selectedEntityId,
+    selectedEntityIds,
   };
 }

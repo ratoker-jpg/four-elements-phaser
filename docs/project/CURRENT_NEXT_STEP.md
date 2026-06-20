@@ -65,29 +65,29 @@ Renderer unification Stage 1-4 is CLOSED.
 ## Active next step (single)
 
 ```text
-MINIMAP-INTERACTION-04-VERYHIGHPLUS
-  Risk: Very High+ — new pointer interaction on minimap canvas, pointer capture
-        lifecycle, input isolation boundary against game commands.
+SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS
+  Risk: Very High+ — changes fundamental input model from single-select to
+        multi-select + control groups. Number keys repurposed from build to groups.
   Type: implementation PR (DRAFT, not ready for merge).
-  Goal: make minimap an RTS camera control tool.
+  Goal: implement RTS selection/control-group MVP.
   Features:
-    1. Click-to-camera: click minimap → camera centers on that world position.
-    2. Drag-to-pan: drag on minimap → camera pans continuously.
-    3. Selected marker highlight: cyan pulse ring around selected unit marker.
-    4. Marker priority: resources → buildings → units → selected → viewport.
-    5. Input isolation: all minimap pointer events stopPropagation().
-    6. No fog, no enemy logic, no control groups (deferred).
-  Branch: visual/minimap-interaction-04
-  Base: origin/main (includes #312 HUD-LAYOUT-REBUILD-02 and #313 COMMAND-CARD-REBUILD-03)
+    1. Multi-selection state (SingleSelection | MultiSelection | null).
+    2. Drag-box selection (LMB drag on map selects units in rectangle).
+    3. Double-click same type (select all visible units of same type).
+    4. Control groups: Ctrl+1..9 assign, 1..9 recall, double-tap centers camera.
+    5. Command card multi-select (common safe commands, especially Stop).
+    6. Selection panel multi-select (count + type breakdown).
+    7. Minimap multi-marker highlight.
+    8. Number keys 1-9 now reserved for control groups (legacy 1/2/3 build aliases removed).
+  Branch: visual/selection-control-groups-05
+  Base: origin/main (includes #312, #313, #314)
   Status: DRAFT PR, pending GPT review + Denis manual QA.
 
   Previous steps:
     #312 HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS: MERGED.
-      Result: Bottom HUD rebuilt with AoE4-inspired layout, resource strip
-              top-left overlay, PlaytestHud hidden in normal mode.
     #313 COMMAND-CARD-REBUILD-03-VERYHIGHPLUS: MERGED.
-      Result: 4×3 grid hotkeys (Q/W/E/R/A/S/D/F/Z/X/C/V),
-              S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset.
+    #314 MINIMAP-INTERACTION-04-VERYHIGHPLUS: MERGED.
+      Result: click-to-camera, drag-to-pan, selected marker highlight, pointer capture.
 ```
 
 ---
@@ -128,8 +128,8 @@ If Denis accepts the roadmap, the implementation sequence is:
 1. VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — docs/design (awaiting Denis acceptance)
 2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — restructure bottom bar layout
 3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 grid + grid hotkeys
-4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap (THIS STEP — DRAFT PR)
-5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9
+4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap (MERGED)
+5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9 (THIS STEP — DRAFT PR)
 6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts
 7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (can parallel with 2-6)
 8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit)
@@ -151,10 +151,11 @@ Each step requires Denis manual visual approval before merge.
 - Do not merge High+ visual PRs without Denis manual visual approval.
 - Do not continue renderer unification by inertia.
 - Do not reopen #304 inside Visual Roadmap.
-- Do not remove legacy build hotkey aliases (B/P/1/2/3) until control groups
-  are implemented (SELECTION-CONTROL-GROUPS-05). S is primary Stop (not legacy).
-- Do not use number keys 1-9 for any new feature — they are reserved for control groups.
-  Legacy number aliases (1/2/3) must be removed before control groups land.
+- Do not remove legacy build hotkey aliases (B/P) until control groups
+  are implemented and accepted. Number key aliases (1/2/3) have been removed
+  as part of SELECTION-CONTROL-GROUPS-05.
+- Number keys 1-9 are now control group recall keys. Do not reassign them
+  to other features. Legacy number build aliases are permanently removed.
 ```
 
 ---

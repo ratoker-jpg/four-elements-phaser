@@ -21,7 +21,7 @@ import {
 } from '../phaser/ui/hud/minimapViewModel';
 import { HUD_MINIMAP_WIDTH, HUD_MINIMAP_HEIGHT } from '../phaser/ui/hud/hudLayout';
 import type { GameState } from '../state/types';
-import type { UnitSelection } from '../state/unitSelection';
+import { selectBuilder, selectHarvester } from '../state/unitSelection';
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -231,9 +231,9 @@ describe('MINIMAP-INTERACTION-04: drag-to-pan', () => {
 describe('MINIMAP-INTERACTION-04: selected marker highlight', () => {
   it('selected builder marker is highlighted', () => {
     const state = createGameState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildMinimapViewModel(state, null, 1, { x: 0, y: 0 }, sel);
-    expect(vm.selectedEntityId).toBe('builder-1');
+    expect(vm.selectedEntityIds).toEqual(['builder-1']);
     const highlighted = vm.markers.find(m => m.selectedEntityId === 'builder-1');
     expect(highlighted).toBeDefined();
     expect(highlighted!.entityId).toBe('builder-1');
@@ -242,9 +242,9 @@ describe('MINIMAP-INTERACTION-04: selected marker highlight', () => {
 
   it('selected harvester marker is highlighted', () => {
     const state = createGameState();
-    const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const sel = selectHarvester('harvester-1');
     const vm = buildMinimapViewModel(state, null, 1, { x: 0, y: 0 }, sel);
-    expect(vm.selectedEntityId).toBe('harvester-1');
+    expect(vm.selectedEntityIds).toEqual(['harvester-1']);
     const highlighted = vm.markers.find(m => m.selectedEntityId === 'harvester-1');
     expect(highlighted).toBeDefined();
     expect(highlighted!.entityId).toBe('harvester-1');
@@ -254,7 +254,7 @@ describe('MINIMAP-INTERACTION-04: selected marker highlight', () => {
   it('no selection => no highlighted marker', () => {
     const state = createGameState();
     const vm = buildMinimapViewModel(state, null, 1, { x: 0, y: 0 });
-    expect(vm.selectedEntityId).toBeNull();
+    expect(vm.selectedEntityIds).toEqual([]);
     const highlighted = vm.markers.find(m => m.selectedEntityId);
     expect(highlighted).toBeUndefined();
   });
@@ -262,7 +262,7 @@ describe('MINIMAP-INTERACTION-04: selected marker highlight', () => {
   it('null selection => no highlighted marker', () => {
     const state = createGameState();
     const vm = buildMinimapViewModel(state, null, 1, { x: 0, y: 0 }, null);
-    expect(vm.selectedEntityId).toBeNull();
+    expect(vm.selectedEntityIds).toEqual([]);
   });
 
   it('missing marker state => no crash', () => {
@@ -272,9 +272,9 @@ describe('MINIMAP-INTERACTION-04: selected marker highlight', () => {
         builders: [], // no builders
       },
     });
-    const sel: UnitSelection = { kind: 'builder', id: 'nonexistent-builder' };
+    const sel = selectBuilder('nonexistent-builder');
     const vm = buildMinimapViewModel(state, null, 1, { x: 0, y: 0 }, sel);
-    expect(vm.selectedEntityId).toBe('nonexistent-builder');
+    expect(vm.selectedEntityIds).toEqual(['nonexistent-builder']);
     // No crash, just no marker highlighted
     const highlighted = vm.markers.find(m => m.selectedEntityId);
     expect(highlighted).toBeUndefined();
@@ -315,7 +315,7 @@ describe('MINIMAP-INTERACTION-04: input isolation', () => {
     // Verify by checking that the view model builds correctly
     // with and without selection.
     const state = createGameState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildMinimapViewModel(state, null, 1, { x: 0, y: 0 }, sel);
     expect(vm.markers.length).toBeGreaterThan(0);
   });

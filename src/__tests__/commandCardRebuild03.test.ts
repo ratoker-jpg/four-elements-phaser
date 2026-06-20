@@ -39,6 +39,7 @@ import {
 } from '../phaser/ui/hud/hudLayout';
 import type { GameState } from '../state/types';
 import type { UnitSelection } from '../state/unitSelection';
+import { selectBuilder, selectHarvester } from '../state/unitSelection';
 
 // ─── 1. Grid model ────────────────────────────────────────────────
 
@@ -191,7 +192,7 @@ describe('COMMAND-CARD-03: builder context', () => {
 
   it('builder selection produces build commands in expected slots', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildCommandCardViewModel(state, sel);
 
     expect(vm.contextKind).toBe('builder');
@@ -220,7 +221,7 @@ describe('COMMAND-CARD-03: builder context', () => {
 
   it('insufficient resources disables command with reason', () => {
     const state = createBrokeState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildCommandCardViewModel(state, sel);
 
     // Build commands should be disabled
@@ -231,7 +232,7 @@ describe('COMMAND-CARD-03: builder context', () => {
 
   it('sufficient resources enables commands', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildCommandCardViewModel(state, sel);
 
     const qSlot = vm.slots.find(s => s.slotKey === 'Q')!;
@@ -240,7 +241,7 @@ describe('COMMAND-CARD-03: builder context', () => {
 
   it('visual-ready buildings are not active commands', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildCommandCardViewModel(state, sel);
 
     // Energy-plant is visual-ready, should not appear
@@ -250,7 +251,7 @@ describe('COMMAND-CARD-03: builder context', () => {
 
   it('empty slots exist for unassigned grid positions', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildCommandCardViewModel(state, sel);
 
     // D, Z, X, C, V should be empty in builder context
@@ -289,7 +290,7 @@ describe('COMMAND-CARD-03: harvester context', () => {
 
   it('harvester shows Stop in stable S slot (FIXUP-2: S = Stop)', () => {
     const state = createHarvesterState();
-    const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const sel = selectHarvester('harvester-1');
     const vm = buildCommandCardViewModel(state, sel);
 
     expect(vm.contextKind).toBe('harvester');
@@ -302,7 +303,7 @@ describe('COMMAND-CARD-03: harvester context', () => {
 
   it('unsupported actions do not appear as active', () => {
     const state = createHarvesterState();
-    const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const sel = selectHarvester('harvester-1');
     const vm = buildCommandCardViewModel(state, sel);
 
     // Only S has a command; all other slots are empty (FIXUP-2: Stop is on S, not Z)
@@ -357,7 +358,7 @@ describe('COMMAND-CARD-03: no-selection and production context', () => {
     // Factory selection is not yet supported in UnitSelection,
     // so factory commands should not appear for any current context.
     const state = createState();
-    const builderSel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const builderSel = selectBuilder('builder-1');
     // Add a builder so we have a valid selection
     state.mapData.builders = [{ id: 'builder-1', ftx: 6, fty: 6, phase: 'idle', busy: false, manualMove: false } as any];
 
@@ -521,7 +522,7 @@ describe('COMMAND-CARD-03: regression', () => {
 
   it('legacy buildCommandPanelViewModel still works', () => {
     const state = createLayoutTestState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildCommandPanelViewModel(state, sel);
 
     expect(vm.contextKind).toBe('builder');
@@ -538,11 +539,11 @@ describe('COMMAND-CARD-03: regression', () => {
     const vm1 = buildCommandCardViewModel(state, null);
     expect(vm1.slots).toHaveLength(12);
 
-    const vm2 = buildCommandCardViewModel(state, { kind: 'builder', id: 'builder-1' });
+    const vm2 = buildCommandCardViewModel(state, selectBuilder('builder-1'));
     expect(vm2.slots).toHaveLength(12);
 
     state.harvesters = [{ id: 'h1', ftx: 7, fty: 7, faction: 'cyan', phase: 'idle' } as any];
-    const vm3 = buildCommandCardViewModel(state, { kind: 'harvester', id: 'h1' });
+    const vm3 = buildCommandCardViewModel(state, selectHarvester('h1'));
     expect(vm3.slots).toHaveLength(12);
   });
 
@@ -650,7 +651,7 @@ describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
 
   it('S with builder selection => executes unit-stop exactly once (FIXUP-2: S = Stop)', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const result = simulateDispatch('S', state, sel);
 
     expect(result.executedCommandId).toBe('unit-stop');
@@ -659,7 +660,7 @@ describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
 
   it('S with harvester selection => executes unit-stop exactly once (FIXUP-2: S = Stop)', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const sel = selectHarvester('harvester-1');
     const result = simulateDispatch('S', state, sel);
 
     // FIXUP-2: S is Stop in harvester context too
@@ -669,7 +670,7 @@ describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
 
   it('Z with harvester selection => no-op (FIXUP-2: Z is empty/future)', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const sel = selectHarvester('harvester-1');
     const result = simulateDispatch('Z', state, sel);
 
     // FIXUP-2: Z is no longer Stop — it's empty/future
@@ -692,7 +693,7 @@ describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
     // is structurally eliminated. No two active commands share key S.
     // The contextual dispatcher still ensures max one command per keydown.
     const state = createRichState();
-    const builderSel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const builderSel = selectBuilder('builder-1');
 
     // S dispatch returns exactly one command: Stop
     const sResult = simulateDispatch('S', state, builderSel);
@@ -707,7 +708,7 @@ describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
 
   it('disabled command for pressed key does not execute', () => {
     const state = createBrokeState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const result = simulateDispatch('Q', state, sel);
 
     expect(result.executedCommandId).toBeNull();
@@ -736,7 +737,7 @@ describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
     // With builder selected, the Q slot has build-separator enabled.
     // The legacy dispatcher checks if build-separator is enabled in the grid.
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildCommandCardViewModel(state, sel);
 
     const separatorSlot = vm.slots.find(s => s.commandId === 'build-separator');
@@ -755,7 +756,7 @@ describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
     // HOME is camera reset.
     // This test verifies the intent; actual key binding is in GameScene.
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildCommandCardViewModel(state, sel);
 
     // R slot should be build-element-storage, not camera reset
@@ -845,7 +846,7 @@ describe('COMMAND-CARD-03-FIXUP-2: Denis decision — S=Stop, F=Factory', () => 
 
   it('builder + S executes Stop exactly once', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const result = simulateDispatch('S', state, sel);
     expect(result.executedCommandId).toBe('unit-stop');
     expect(result.executedCount).toBe(1);
@@ -853,7 +854,7 @@ describe('COMMAND-CARD-03-FIXUP-2: Denis decision — S=Stop, F=Factory', () => 
 
   it('builder + F executes build-units-factory exactly once', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const result = simulateDispatch('F', state, sel);
     expect(result.executedCommandId).toBe('build-units-factory');
     expect(result.executedCount).toBe(1);
@@ -861,7 +862,7 @@ describe('COMMAND-CARD-03-FIXUP-2: Denis decision — S=Stop, F=Factory', () => 
 
   it('builder + Z executes nothing (Z is empty/future)', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const result = simulateDispatch('Z', state, sel);
     expect(result.executedCommandId).toBeNull();
     expect(result.executedCount).toBe(0);
@@ -871,7 +872,7 @@ describe('COMMAND-CARD-03-FIXUP-2: Denis decision — S=Stop, F=Factory', () => 
 
   it('harvester + S executes Stop exactly once', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const sel = selectHarvester('harvester-1');
     const result = simulateDispatch('S', state, sel);
     expect(result.executedCommandId).toBe('unit-stop');
     expect(result.executedCount).toBe(1);
@@ -879,7 +880,7 @@ describe('COMMAND-CARD-03-FIXUP-2: Denis decision — S=Stop, F=Factory', () => 
 
   it('harvester + F executes nothing', () => {
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const sel = selectHarvester('harvester-1');
     const result = simulateDispatch('F', state, sel);
     expect(result.executedCommandId).toBeNull();
     expect(result.executedCount).toBe(0);
@@ -907,7 +908,7 @@ describe('COMMAND-CARD-03-FIXUP-2: Denis decision — S=Stop, F=Factory', () => 
     // Stop is always enabled when a unit is selected, but we test the
     // guard logic: if a slot were disabled, it should not execute.
     const state = createRichState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const vm = buildCommandCardViewModel(state, sel);
     const sSlot = vm.slots.find(s => s.slotKey === 'S')!;
     // Stop should be enabled — confirm it's not disabled
@@ -921,7 +922,7 @@ describe('COMMAND-CARD-03-FIXUP-2: Denis decision — S=Stop, F=Factory', () => 
 
   it('disabled Factory does not execute', () => {
     const state = createBrokeState();
-    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const sel = selectBuilder('builder-1');
     const result = simulateDispatch('F', state, sel);
     expect(result.executedCommandId).toBeNull();
     expect(result.executedCount).toBe(0);
@@ -931,11 +932,11 @@ describe('COMMAND-CARD-03-FIXUP-2: Denis decision — S=Stop, F=Factory', () => 
 
   it('Z does not execute Stop (regression: Z was Stop before FIXUP-2)', () => {
     const state = createRichState();
-    const builderSel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const builderSel = selectBuilder('builder-1');
     const result1 = simulateDispatch('Z', state, builderSel);
     expect(result1.executedCommandId).toBeNull();
 
-    const harvesterSel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const harvesterSel = selectHarvester('harvester-1');
     const result2 = simulateDispatch('Z', state, harvesterSel);
     expect(result2.executedCommandId).toBeNull();
   });

@@ -7,7 +7,7 @@ import { PlaytestHud } from './ui/PlaytestHud';
 import { VisualHudCore } from './ui/hud/VisualHudCore';
 import { HUD_BAR_HEIGHT, shouldUseBottomHudSafeArea } from './ui/hud/hudLayout';
 import { commandRegistry } from '../state/commandRegistry';
-import { stopUnitCommand } from '../state/unitCommands';
+import { stopUnitCommand, stopUnitsCommand } from '../state/unitCommands';
 
 import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric';
 import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
@@ -337,8 +337,13 @@ export class GameScene extends Phaser.Scene {
           if (commandId === 'unit-stop') {
             const sel = this.inputController?.getSelection() ?? null;
             if (sel) {
-              const result = stopUnitCommand(this.gameState, sel);
-              this.inputController?.showStatus(result.ok ? 'Stopped' : result.reason, result.ok);
+              if (sel.kind === 'single') {
+                const result = stopUnitCommand(this.gameState, sel.units[0]);
+                this.inputController?.showStatus(result.ok ? 'Stopped' : result.reason, result.ok);
+              } else if (sel.kind === 'multi') {
+                const result = stopUnitsCommand(this.gameState, sel);
+                this.inputController?.showStatus(result.okCount > 0 ? `${result.okCount} stopped` : 'Cannot stop', result.okCount > 0);
+              }
             }
           }
         }
@@ -671,7 +676,7 @@ export class GameScene extends Phaser.Scene {
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
-      `Drag: pan | Wheel: zoom | HOME: reset camera | T: debug overlay | S: Stop | F: Factory | R: Element Storage | Q/E: body dir | Z/X: turret dir | 1-9: reserved for control groups`,
+      `Drag: pan | Wheel: zoom | HOME: reset camera | T: debug overlay | S: Stop | F: Factory | R: Element Storage | Q/E: body dir | Z/X: turret dir | 1-9: control groups | Ctrl+1-9: assign group`,
     );
   }
 

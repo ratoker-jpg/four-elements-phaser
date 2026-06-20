@@ -1,17 +1,8 @@
 /**
  * HUD Minimap — interactive minimap renderer in the bottom-left HUD slot.
  *
- * VISUAL-MINIMAP-03: Canvas-based minimap showing entity markers
- * and camera viewport rectangle.
- *
- * MINIMAP-INTERACTION-04: Adds click-to-camera and drag-to-pan:
- *   - Click on minimap → center camera on clicked world position
- *   - Drag on minimap → pan camera in real time
- *   - Selected entity marker gets a bright cyan ring with pulse effect
- *   - Marker rendering order: resources → buildings → units → selected → viewport
- *   - All pointer events stopPropagation — never leak to game canvas
- *   - Pointer capture on drag start; pointerleave does NOT cancel captured drag
- *   - pointercancel and lostpointercapture clean up drag state
+ * SELECTION-CONTROL-GROUPS-05: Highlights ALL selected entity markers
+ * with cyan rings, not just one.
  */
 
 import type { GameState } from '../../../state/types';
@@ -26,21 +17,16 @@ import {
 } from './minimapViewModel';
 import { tileToScreen } from '../../render/isometric';
 
-/** Camera data needed for minimap viewport rectangle. */
 export interface MinimapCameraData {
-  /** Camera world view rectangle. */
   worldView: { x: number; y: number; width: number; height: number };
-  /** Camera zoom level. */
   zoom: number;
 }
 
-/** Map origin offset for coordinate transforms. */
 export interface MinimapOffset {
   x: number;
   y: number;
 }
 
-/** Drag threshold in pixels — movement below this is a click. */
 const DRAG_THRESHOLD = 3;
 
 export class HudMinimap {
@@ -48,26 +34,20 @@ export class HudMinimap {
   private canvas!: HTMLCanvasElement;
   private ctx!: CanvasRenderingContext2D;
 
-  /** MINIMAP-INTERACTION-04: Callback to center the camera on a world position. */
   private onCameraCenter: ((worldX: number, worldY: number) => void) | null = null;
 
-  /** MINIMAP-INTERACTION-04: Drag state. */
   private isDragging = false;
   private dragStarted = false;
   private dragStartX = 0;
   private dragStartY = 0;
 
-  /** Track whether pointer capture is active — prevents pointerleave from killing drag. */
   private pointerCaptured = false;
 
-  /** Current map offset for coordinate transforms. */
   private offset: MinimapOffset = { x: 0, y: 0 };
 
-  /** Cached map dimensions from last update. */
   private cachedMapWidth = 0;
   private cachedMapHeight = 0;
 
-  /** Bound pointer handlers for cleanup. */
   private boundPointerDown: (e: PointerEvent) => void;
   private boundPointerMove: (e: PointerEvent) => void;
   private boundPointerUp: (e: PointerEvent) => void;
@@ -102,8 +82,6 @@ export class HudMinimap {
     this.container.appendChild(this.canvas);
     parent.appendChild(this.container);
 
-    // Interactive pointer handlers: click-to-camera, drag-to-pan.
-    // All events stopPropagation so they never leak to the game canvas.
     this.canvas.addEventListener('pointerdown', this.boundPointerDown);
     this.canvas.addEventListener('pointermove', this.boundPointerMove);
     this.canvas.addEventListener('pointerup', this.boundPointerUp);
@@ -127,12 +105,10 @@ export class HudMinimap {
     this.render(vm);
   }
 
-  /** Set callback for camera centering (click-to-camera / drag-to-pan). */
   setCameraCenterCallback(cb: (worldX: number, worldY: number) => void): void {
     this.onCameraCenter = cb;
   }
 
-  /** Set the map offset for coordinate transforms. */
   setOffset(offset: MinimapOffset): void {
     this.offset = offset;
   }
@@ -152,9 +128,6 @@ export class HudMinimap {
   private handlePointerDown(e: PointerEvent): void {
     e.stopPropagation();
     e.preventDefault();
-    // Capture pointer so drag continues even if pointer leaves canvas
-    // briefly during fast movement. pointerup/pointercancel/lostpointercapture
-    // will release capture.
     try {
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
       this.pointerCaptured = true;
@@ -186,7 +159,6 @@ export class HudMinimap {
 
   private handlePointerUp(e: PointerEvent): void {
     e.stopPropagation();
-    // Release pointer capture (set in handlePointerDown)
     try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
     this.pointerCaptured = false;
 
@@ -203,12 +175,8 @@ export class HudMinimap {
 
   private handlePointerLeave(e: PointerEvent): void {
     e.stopPropagation();
-    // Do NOT cancel drag if pointer is captured — captured pointer
-    // may fire pointerleave when it moves outside the element, but
-    // the drag should continue until pointerup/pointercancel/lostpointercapture.
-    // Only cancel drag on pointerleave if capture is NOT active.
     if (this.pointerCaptured) {
-      return; // pointer is captured — drag continues
+      return;
     }
     this.isDragging = false;
     this.dragStarted = false;
@@ -224,15 +192,10 @@ export class HudMinimap {
   private handleLostPointerCapture(e: PointerEvent): void {
     e.stopPropagation();
     this.pointerCaptured = false;
-    // If capture is lost unexpectedly, clean up drag state to avoid stale state.
     this.isDragging = false;
     this.dragStarted = false;
   }
 
-  /**
-   * Convert minimap canvas pixel position to world coordinates.
-   * Uses minimapToTileClamped → tileToScreen.
-   */
   private minimapPixelToWorld(mx: number, my: number): { worldX: number; worldY: number } | null {
     if (this.cachedMapWidth <= 0 || this.cachedMapHeight <= 0) return null;
 
@@ -284,8 +247,8 @@ export class HudMinimap {
       }
     }
 
-    // 5. Selected entity marker highlight (bright cyan ring with pulse)
-    if (vm.selectedEntityId) {
+    // 5. SELECTION-CONTROL-GROUPS-05: Highlight ALL selected entity markers
+    if (vm.selectedEntityIds.length > 0) {
       for (const marker of vm.markers) {
         if (marker.selectedEntityId) {
           this.drawSelectedHighlight(ctx, marker, vm.mapWidth, vm.mapHeight);
@@ -347,7 +310,8 @@ export class HudMinimap {
   }
 
   /**
-   * Draw a bright cyan ring around the selected marker with pulse effect.
+   * SELECTION-CONTROL-GROUPS-05: Draw a bright cyan ring around a selected marker.
+   * Called for each selected marker (supports multi-select).
    */
   private drawSelectedHighlight(
     ctx: CanvasRenderingContext2D,
