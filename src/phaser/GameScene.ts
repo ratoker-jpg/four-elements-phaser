@@ -345,6 +345,10 @@ export class GameScene extends Phaser.Scene {
       };
       this.visualHudCore = new VisualHudCore();
       this.visualHudCore.create(onCommand);
+      // MINIMAP-INTERACTION-04: Wire camera center callback for minimap click/drag
+      this.visualHudCore.setCameraCenterCallback((worldX, worldY) => {
+        this.cameraControls?.centerOn(worldX, worldY);
+      });
       // NOTE: PlaytestHud.hideAll() is called AFTER create() below
       // (after playtestHud.create() is called in the wiring section).
     }

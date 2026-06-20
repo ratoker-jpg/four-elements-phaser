@@ -65,18 +65,28 @@ Renderer unification Stage 1-4 is CLOSED.
 ## Active next step (single)
 
 ```text
-COMMAND-CARD-REBUILD-03-VERYHIGHPLUS
-  Risk: Very High — hotkey remapping changes fundamental input behavior.
-  Type: Implementation PR (DRAFT).
-  Goal: Rebuild command panel as a stable 4×3 grid with Q/W/E/R/A/S/D/F/Z/X/C/V
-        hotkey badges. Migrate build/produce hotkeys from number keys and B/P/N/G
-        to grid positions. Reserve number keys 1-9 for future control groups.
-  Status: PR open, awaiting GPT review + Denis manual visual QA.
+MINIMAP-INTERACTION-04-VERYHIGHPLUS
+  Risk: Medium — new pointer interaction on minimap canvas.
+  Type: implementation PR (DRAFT, not ready for merge).
+  Goal: make minimap an RTS camera control tool.
+  Features:
+    1. Click-to-camera: click minimap → camera centers on that world position.
+    2. Drag-to-pan: drag on minimap → camera pans continuously.
+    3. Selected marker highlight: cyan pulse ring around selected unit marker.
+    4. Marker priority: resources → buildings → units → selected → viewport.
+    5. Input isolation: all minimap pointer events stopPropagation().
+    6. No fog, no enemy logic, no control groups (deferred).
+  Branch: visual/minimap-interaction-04
+  Base: origin/main (includes #312 HUD-LAYOUT-REBUILD-02 and #313 COMMAND-CARD-REBUILD-03)
+  Status: DRAFT PR, pending GPT review + Denis manual QA.
 
-  #312 HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS
-    Status: MERGED.
-    Result: Bottom HUD rebuilt with AoE4-inspired layout, resource strip
-            top-left overlay, PlaytestHud hidden in normal mode.
+  Previous steps:
+    #312 HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS: MERGED.
+      Result: Bottom HUD rebuilt with AoE4-inspired layout, resource strip
+              top-left overlay, PlaytestHud hidden in normal mode.
+    #313 COMMAND-CARD-REBUILD-03-VERYHIGHPLUS: MERGED.
+      Result: 4×3 grid hotkeys (Q/W/E/R/A/S/D/F/Z/X/C/V),
+              S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset.
 ```
 
 ---
@@ -114,10 +124,10 @@ See `docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md` for the full re
 If Denis accepts the roadmap, the implementation sequence is:
 
 ```text
-1. VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — docs/design (THIS STEP)
+1. VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — docs/design (awaiting Denis acceptance)
 2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — restructure bottom bar layout
 3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 grid + grid hotkeys
-4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap
+4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap (THIS STEP — DRAFT PR)
 5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9
 6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts
 7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (can parallel with 2-6)
@@ -136,7 +146,7 @@ Each step requires Denis manual visual approval before merge.
 - Do not copy AoE4 assets or exact layout.
 - Do not implement fog without audit.
 - Do not mix control groups with current 1/2/3 build hotkeys without resolving conflict.
-- Do not implement minimap interaction until input contract is explicit.
+- Do not implement minimap interaction beyond MINIMAP-INTERACTION-04 scope (no fog, no enemy markers, no control groups).
 - Do not merge High+ visual PRs without Denis manual visual approval.
 - Do not continue renderer unification by inertia.
 - Do not reopen #304 inside Visual Roadmap.
