@@ -8,6 +8,8 @@
  * is reduced by HUD_BAR_HEIGHT so game content is never hidden behind it.
  */
 
+import type { ArenaModeContext } from '../../../state/arenaModeContext';
+
 /** Total height of the bottom HUD bar in CSS pixels. */
 export const HUD_BAR_HEIGHT = 180;
 
@@ -22,8 +24,21 @@ export const HUD_RESOURCE_STRIP_HEIGHT = 30;
 export const HUD_PANEL_HEIGHT = HUD_BAR_HEIGHT - HUD_RESOURCE_STRIP_HEIGHT; // 150
 
 /**
+ * Whether the bottom RTS HUD bar should be shown and the camera
+ * safe-area should be applied. The bottom HUD is only enabled in
+ * Normal Game mode (showPlaytestHud === true). Arena mode uses
+ * its own top-right panel and must keep the full camera viewport.
+ */
+export function shouldUseBottomHudSafeArea(arenaCtx: ArenaModeContext): boolean {
+  return arenaCtx.showPlaytestHud;
+}
+
+/**
  * Check whether a screen-space Y coordinate falls inside the HUD bar.
  * Used by input routing to prevent map commands when clicking on HUD.
+ *
+ * Only meaningful when the bottom HUD is actually shown
+ * (shouldUseBottomHudSafeArea returns true).
  *
  * @param screenY - Screen-space Y coordinate (0 = top of canvas)
  * @param canvasHeight - Total canvas height in pixels

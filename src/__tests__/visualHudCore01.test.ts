@@ -17,7 +17,9 @@ import {
   HUD_PANEL_HEIGHT,
   isScreenPointInHud,
   cameraViewportHeight,
+  shouldUseBottomHudSafeArea,
 } from '../phaser/ui/hud/hudLayout';
+import type { ArenaModeContext } from '../state/arenaModeContext';
 import {
   buildSelectionViewModel,
 } from '../phaser/ui/hud/selectionViewModel';
@@ -260,5 +262,52 @@ describe('HUD-CORE: resource strip reads without mutation', () => {
     expect(originalEconomy.raw).toBe(100);
     expect(originalEconomy.matter).toBe(50);
     expect(originalEconomy.elements.cyan).toBe(30);
+  });
+});
+
+// ─── 5. shouldUseBottomHudSafeArea gating ────────────────────────
+
+describe('HUD-CORE-FIXUP-1: shouldUseBottomHudSafeArea', () => {
+  /** Arena mode context: no bottom HUD, full viewport. */
+  const arenaCtx: ArenaModeContext = {
+    arenaMode: true,
+    runCivilLoop: false,
+    showPlaytestHud: false,
+    showArenaMenu: true,
+    createObstaclesOnReset: false,
+  };
+
+  /** Normal game context: bottom HUD enabled, reduced viewport. */
+  const normalCtx: ArenaModeContext = {
+    arenaMode: false,
+    runCivilLoop: true,
+    showPlaytestHud: true,
+    showArenaMenu: false,
+    createObstaclesOnReset: true,
+  };
+
+  it('returns false for Arena mode — full camera viewport', () => {
+    expect(shouldUseBottomHudSafeArea(arenaCtx)).toBe(false);
+  });
+
+  it('returns true for Normal Game mode — reduced camera viewport', () => {
+    expect(shouldUseBottomHudSafeArea(normalCtx)).toBe(true);
+  });
+
+  it('cameraViewportHeight is NOT applied when shouldUseBottomHudSafeArea is false', () => {
+    // Simulate the GameScene logic: only subtract HUD_BAR_HEIGHT when gated.
+    const canvasHeight = 1080;
+    const viewportH = shouldUseBottomHudSafeArea(arenaCtx)
+      ? cameraViewportHeight(canvasHeight)
+      : canvasHeight;
+    expect(viewportH).toBe(canvasHeight); // full viewport
+  });
+
+  it('cameraViewportHeight IS applied when shouldUseBottomHudSafeArea is true', () => {
+    const canvasHeight = 1080;
+    const viewportH = shouldUseBottomHudSafeArea(normalCtx)
+      ? cameraViewportHeight(canvasHeight)
+      : canvasHeight;
+    expect(viewportH).toBe(canvasHeight - HUD_BAR_HEIGHT); // reduced viewport
   });
 });

@@ -5,7 +5,7 @@ import { CameraControls } from './input/CameraControls';
 import { GameInputController } from './input/GameInputController';
 import { PlaytestHud } from './ui/PlaytestHud';
 import { VisualHudCore } from './ui/hud/VisualHudCore';
-import { HUD_BAR_HEIGHT } from './ui/hud/hudLayout';
+import { HUD_BAR_HEIGHT, shouldUseBottomHudSafeArea } from './ui/hud/hudLayout';
 
 import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric';
 import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
@@ -302,6 +302,14 @@ export class GameScene extends Phaser.Scene {
       this.hqWorldX = hqScreen.x + offset.x;
       this.hqWorldY = hqScreen.y + offset.y;
     }
+    // VISUAL-HUD-CORE-01-FIXUP-1: Apply camera safe-area BEFORE centerOn
+    // so the viewport is already reduced when centering computes the offset.
+    // Only apply in Normal Game mode (showPlaytestHud); Arena keeps full viewport.
+    if (shouldUseBottomHudSafeArea(this.arenaCtx)) {
+      const cam = this.cameras.main;
+      cam.setViewport(cam.x, cam.y, cam.width, cam.height - HUD_BAR_HEIGHT);
+    }
+
     this.cameraControls.centerOn(this.hqWorldX, this.hqWorldY);
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
 
@@ -319,13 +327,6 @@ export class GameScene extends Phaser.Scene {
       // controls remain in the old sidebar until command panel is wired.
       this.playtestHud?.hideEconomySection();
     }
-
-    // VISUAL-HUD-CORE-01: Camera safe-area — reduce viewport height so
-    // game content does not render under the bottom HUD bar.
-    // The main camera's scroll bounds are NOT changed (the game world is
-    // still full-size). Only the visible viewport is shortened.
-    const cam = this.cameras.main;
-    cam.setViewport(cam.x, cam.y, cam.width, cam.height - HUD_BAR_HEIGHT);
 
     // ARENA-01H+: Create ArenaMenu if in Arena mode
     if (this.arenaCtx.showArenaMenu) {

@@ -414,8 +414,13 @@ export class GameInputController {
   }
 
   private onPointerup(pointer: Phaser.Input.Pointer): void {
-    // VISUAL-HUD-CORE-01: Also ignore pointer-up in HUD area
-    if (this.isPointerInHud(pointer)) return;
+    // VISUAL-HUD-CORE-01-FIXUP-1: Also ignore pointer-up in HUD area,
+    // but clear any pending click state so it does not leak into the
+    // next pointer-down/up cycle.
+    if (this.isPointerInHud(pointer)) {
+      this.cancelPendingClick();
+      return;
+    }
 
     const button = this._clickButton;
     this._clickButton = 'none';
@@ -441,6 +446,15 @@ export class GameInputController {
     // Update cursor feedback based on hover target
     this._lastPointerX = pointer.x;
     this._lastPointerY = pointer.y;
+  }
+
+  /**
+   * VISUAL-HUD-CORE-01-FIXUP-1: Clear any pending click/drag state.
+   * Called when a pointer-up occurs inside the HUD area so that a
+   * stale _clickButton does not leak into the next pointer-down/up cycle.
+   */
+  private cancelPendingClick(): void {
+    this._clickButton = 'none';
   }
 
   /** Last pointer position for cursor feedback. */
