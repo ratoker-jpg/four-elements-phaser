@@ -100,8 +100,13 @@ const BUILD_COMMAND_IDS: Record<BuildingType, string> = {
   'command-relay': 'build-command-relay',
 };
 
-/** Producible unit types with their command IDs. */
-const PRODUCE_COMMANDS: { unitType: ProducibleUnitType; commandId: string }[] = [
+/** Producible unit types with their command IDs.
+ *
+ * VISUAL-COMMAND-PANEL-02-FIXUP-1: Production commands are deferred
+ * until building/factory selection is supported in UnitSelection.
+ * Kept as a reference for future implementation.
+ */
+export const PRODUCE_COMMANDS: { unitType: ProducibleUnitType; commandId: string }[] = [
   { unitType: 'builder', commandId: 'produce-builder' },
   { unitType: 'harvester', commandId: 'produce-harvester' },
 ];
@@ -152,8 +157,13 @@ function buildCommandDesc(
   };
 }
 
-/** Build a production-command descriptor for a unit type. */
-function produceCommandDesc(
+/**
+ * Build a production-command descriptor for a unit type.
+ *
+ * VISUAL-COMMAND-PANEL-02-FIXUP-1: Exported for future building/factory
+ * selection context. Not used in current builder/harvester contexts.
+ */
+export function produceCommandDesc(
   unitType: ProducibleUnitType,
   state: GameState,
 ): CommandDescriptor {
@@ -207,12 +217,16 @@ function builderCommands(state: GameState): CommandDescriptor[] {
   return commands;
 }
 
-/** Commands for harvester selection — stop + produce. */
-function harvesterCommands(state: GameState): CommandDescriptor[] {
-  const commands: CommandDescriptor[] = [];
-
-  // Stop command
-  commands.push({
+/** Commands for harvester selection — stop only.
+ *
+ * VISUAL-COMMAND-PANEL-02-FIXUP-1: Production commands removed from
+ * harvester context. Producing units requires selecting a factory
+ * building, which is not yet supported in UnitSelection. Showing
+ * production here was scope creep — it allowed producing without
+ * an explicit production context.
+ */
+function harvesterCommands(_state: GameState): CommandDescriptor[] {
+  return [{
     id: 'unit-stop',
     label: 'Stop',
     hotkey: 'S',
@@ -221,25 +235,7 @@ function harvesterCommands(state: GameState): CommandDescriptor[] {
     cost: '',
     tooltip: 'Stop current action',
     category: 'unit-action',
-  });
-
-  // Production commands (global — any factory can produce)
-  for (const { unitType } of PRODUCE_COMMANDS) {
-    commands.push(produceCommandDesc(unitType, state));
-  }
-
-  return commands;
-}
-
-/** Commands when nothing is selected — production only (global). */
-function noSelectionCommands(state: GameState): CommandDescriptor[] {
-  const commands: CommandDescriptor[] = [];
-
-  for (const { unitType } of PRODUCE_COMMANDS) {
-    commands.push(produceCommandDesc(unitType, state));
-  }
-
-  return commands;
+  }];
 }
 
 // ─── Main view model builder ────────────────────────────────────────
@@ -256,10 +252,10 @@ export function buildCommandPanelViewModel(
   selection: UnitSelection,
 ): CommandPanelViewModel {
   if (!isUnitSelected(selection)) {
-    return {
-      ...EMPTY_VM,
-      commands: noSelectionCommands(state),
-    };
+    // VISUAL-COMMAND-PANEL-02-FIXUP-1: No selection => empty panel.
+    // Production commands were removed — producing without a selected
+    // production context is scope creep.
+    return EMPTY_VM;
   }
 
   if (isBuilderSelected(selection)) {

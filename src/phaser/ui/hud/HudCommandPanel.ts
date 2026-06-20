@@ -4,9 +4,15 @@
  * VISUAL-COMMAND-PANEL-02: Replaces the placeholder with real command
  * buttons that reflect the current selection context:
  *
- *   - No selection: production commands (global)
+ *   - No selection: empty/neutral panel
  *   - Builder: build actions (6 gameplay-ready buildings)
- *   - Harvester: stop + production commands
+ *   - Harvester: stop command only
+ *
+ * VISUAL-COMMAND-PANEL-02-FIXUP-1 fixes:
+ *   - Stale command descriptors: click handler reads from descriptor map
+ *     instead of closing over initial descriptor.
+ *   - Disabled tooltip: uses aria-disabled + CSS instead of native disabled
+ *     so hover/mouse events still fire on disabled buttons.
  *
  * Each button shows: label, hotkey, cost, enabled/disabled state.
  * Tooltips show the disabled reason when a command is unavailable.
@@ -38,6 +44,12 @@ export class HudCommandPanel {
   /** Current view model for diff checking. */
   private currentVm: CommandPanelViewModel | null = null;
 
+  /**
+   * FIXUP-1: Map of current command descriptors by commandId.
+   * Click handlers read from this map instead of closing over stale descriptors.
+   */
+  private descriptorMap: Map<string, CommandDescriptor> = new Map();
+
   create(parent: HTMLElement, onCommand?: CommandExecuteCallback): void {
     this.onCommand = onCommand;
 
@@ -57,6 +69,12 @@ export class HudCommandPanel {
 
     // Update context label
     this.contextEl.textContent = vm.contextLabel || 'Commands';
+
+    // FIXUP-1: Update the descriptor map so click handlers use fresh state
+    this.descriptorMap.clear();
+    for (const cmd of vm.commands) {
+      this.descriptorMap.set(cmd.id, cmd);
+    }
 
     // Rebuild buttons if command list changed
     if (!this.vmEquals(this.currentVm, vm)) {
@@ -112,17 +130,23 @@ export class HudCommandPanel {
     btn.dataset.commandId = cmd.id;
     this.applyCommandToButton(btn, cmd);
 
-    // Click handler — invoke command callback, stop propagation
+    // FIXUP-1: Click handler reads current descriptor from map, not closure.
+    // This ensures that if a command transitions from disabled → enabled,
+    // the click handler will execute based on the latest state.
     btn.addEventListener('click', (e: MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      if (cmd.state !== 'enabled') return;
-      this.onCommand?.(cmd.id);
+      const currentCmd = this.descriptorMap.get(btn.dataset.commandId ?? '');
+      if (!currentCmd || currentCmd.state !== 'enabled') return;
+      this.onCommand?.(currentCmd.id);
     });
 
-    // Mouse enter/leave for tooltip
+    // FIXUP-1: Tooltip reads current descriptor from map on hover,
+    // not stale closure. This works because we use aria-disabled
+    // instead of native disabled — hover events fire on all buttons.
     btn.addEventListener('mouseenter', () => {
-      this.showTooltip(cmd);
+      const currentCmd = this.descriptorMap.get(btn.dataset.commandId ?? '');
+      if (currentCmd) this.showTooltip(currentCmd);
     });
     btn.addEventListener('mouseleave', () => {
       this.hideTooltip();
@@ -133,8 +157,16 @@ export class HudCommandPanel {
 
   private applyCommandToButton(btn: HTMLButtonElement, cmd: CommandDescriptor): void {
     const isDisabled = cmd.state === 'disabled';
-    btn.disabled = isDisabled;
+
+    // FIXUP-1: Use aria-disabled + CSS instead of native disabled.
+    // Native disabled prevents hover/mouseenter events in some browsers,
+    // which breaks tooltip display for disabled commands.
+    btn.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
     btn.classList.toggle('hcp-btn--disabled', isDisabled);
+
+    // Remove native disabled — we control clickability via aria-disabled
+    // and our click handler checks descriptor state.
+    btn.removeAttribute('disabled');
 
     // Label + hotkey
     btn.innerHTML = this.buttonInnerHTML(cmd);
@@ -234,25 +266,25 @@ export class HudCommandPanel {
         transition: background 0.15s ease, border-color 0.15s ease;
         pointer-events: auto;
       }
-      .hcp-btn:hover:not(:disabled) {
+      .hcp-btn:hover:not(.hcp-btn--disabled) {
         background: rgba(212, 165, 116, 0.18);
         border-color: rgba(212, 165, 116, 0.5);
       }
-      .hcp-btn:active:not(:disabled) {
+      .hcp-btn:active:not(.hcp-btn--disabled) {
         background: rgba(212, 165, 116, 0.28);
       }
       .hcp-btn:focus-visible {
         outline: 2px solid #d4a574;
         outline-offset: 1px;
       }
-      .hcp-btn--disabled,
-      .hcp-btn:disabled {
+      /* FIXUP-1: aria-disabled styling replaces native :disabled.
+         This ensures hover events still fire for tooltip display. */
+      .hcp-btn--disabled {
         opacity: 0.45;
         cursor: not-allowed;
         color: #707070;
       }
-      .hcp-btn--disabled:hover,
-      .hcp-btn:disabled:hover {
+      .hcp-btn--disabled:hover {
         background: rgba(212, 165, 116, 0.05);
         border-color: rgba(212, 165, 116, 0.15);
       }

@@ -4,15 +4,17 @@
  * Targeted tests for:
  *   - Command panel view model: context → command descriptors
  *   - Build commands: availability, disabled reasons, costs
- *   - Production commands: availability, disabled reasons
  *   - Stop command for harvester/builder
- *   - No selection → safe empty state
- *   - Unknown entity → no crash
+ *   - No selection → empty/neutral command panel (FIXUP-1)
+ *   - Disabled → enabled state transition (FIXUP-1)
+ *   - Descriptor map freshness (FIXUP-1)
+ *   - Disabled tooltip behavior (FIXUP-1)
  */
 
 import { describe, it, expect } from 'vitest';
 import {
   buildCommandPanelViewModel,
+  produceCommandDesc,
 } from '../phaser/ui/hud/commandPanelViewModel';
 import type { UnitSelection } from '../state/unitSelection';
 import type { GameState } from '../state/types';
@@ -84,28 +86,42 @@ function createBrokeGameState(): GameState {
   });
 }
 
-// ─── 1. No selection → empty/neutral command panel ─────────────────
+/** Create a game state with a harvester. */
+function createGameStateWithHarvester(overrides?: Partial<GameState['economy']>): GameState {
+  const state = createNormalGameState(overrides);
+  state.harvesters = [
+    { id: 'harvester-1', ftx: 7, fty: 7, phase: 'idle', faction: 'cyan' } as any,
+  ];
+  return state;
+}
 
-describe('COMMAND-PANEL-02: no selection', () => {
+// ─── 1. No selection → empty/neutral command panel (FIXUP-1) ────────
+
+describe('COMMAND-PANEL-02-FIXUP-1: no selection', () => {
   it('returns context kind "none" with no selection', () => {
     const state = createGameStateWithFactory();
     const vm = buildCommandPanelViewModel(state, null);
     expect(vm.contextKind).toBe('none');
   });
 
-  it('shows production commands even with no selection (global)', () => {
+  it('FIXUP-1: returns empty commands with no selection — no global production', () => {
+    const state = createGameStateWithFactory();
+    const vm = buildCommandPanelViewModel(state, null);
+    expect(vm.commands.length).toBe(0);
+  });
+
+  it('FIXUP-1: no production commands without selection context', () => {
     const state = createGameStateWithFactory();
     const vm = buildCommandPanelViewModel(state, null);
     const prodCmds = vm.commands.filter(c => c.category === 'produce');
-    expect(prodCmds.length).toBeGreaterThanOrEqual(2);
+    expect(prodCmds.length).toBe(0);
   });
 
-  it('production commands have correct labels', () => {
-    const state = createGameStateWithFactory();
+  it('FIXUP-1: no build commands without selection context', () => {
+    const state = createNormalGameState();
     const vm = buildCommandPanelViewModel(state, null);
-    const labels = vm.commands.filter(c => c.category === 'produce').map(c => c.label);
-    expect(labels).toContain('Builder');
-    expect(labels).toContain('Harvester');
+    const buildCmds = vm.commands.filter(c => c.category === 'build');
+    expect(buildCmds.length).toBe(0);
   });
 });
 
@@ -164,8 +180,6 @@ describe('COMMAND-PANEL-02: resource-gated build commands', () => {
     const state = createBrokeGameState();
     const vm = buildCommandPanelViewModel(state, builderSelection);
     const buildCmds = vm.commands.filter(c => c.category === 'build');
-    // All build commands should be disabled (5 matter < any building cost)
-    // OR no idle builder
     const enabledCmds = buildCmds.filter(c => c.state === 'enabled');
     expect(enabledCmds.length).toBe(0);
   });
@@ -190,79 +204,40 @@ describe('COMMAND-PANEL-02: sufficient resources', () => {
     const vm = buildCommandPanelViewModel(state, builderSelection);
     const buildCmds = vm.commands.filter(c => c.category === 'build');
     const enabledCmds = buildCmds.filter(c => c.state === 'enabled');
-    // With 200 matter, at least some buildings should be affordable
     expect(enabledCmds.length).toBeGreaterThan(0);
   });
 });
 
-// ─── 5. Factory/building selection → production commands ────────────
+// ─── 5. Harvester selection → stop only (FIXUP-1) ──────────────────
 
-describe('COMMAND-PANEL-02: production commands', () => {
-  const harvesterSelection: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
-
-  it('harvester selection shows production commands', () => {
-    const state = createGameStateWithFactory();
-    // Need a harvester in state for valid selection
-    state.harvesters = [
-      { id: 'harvester-1', ftx: 7, fty: 7, phase: 'idle', faction: 'cyan' } as any,
-    ];
-    const vm = buildCommandPanelViewModel(state, harvesterSelection);
-    const prodCmds = vm.commands.filter(c => c.category === 'produce');
-    expect(prodCmds.length).toBe(2);
-  });
-
-  it('production commands are disabled when no factory exists', () => {
-    const state = createNormalGameState(); // no factories
-    state.harvesters = [
-      { id: 'harvester-1', ftx: 7, fty: 7, phase: 'idle', faction: 'cyan' } as any,
-    ];
-    const vm = buildCommandPanelViewModel(state, harvesterSelection);
-    const prodCmds = vm.commands.filter(c => c.category === 'produce');
-    for (const cmd of prodCmds) {
-      expect(cmd.state).toBe('disabled');
-    }
-  });
-
-  it('production commands are enabled when factory exists and resources sufficient', () => {
-    const state = createGameStateWithFactory();
-    state.harvesters = [
-      { id: 'harvester-1', ftx: 7, fty: 7, phase: 'idle', faction: 'cyan' } as any,
-    ];
-    const vm = buildCommandPanelViewModel(state, harvesterSelection);
-    const prodCmds = vm.commands.filter(c => c.category === 'produce');
-    const enabledProd = prodCmds.filter(c => c.state === 'enabled');
-    expect(enabledProd.length).toBeGreaterThan(0);
-  });
-});
-
-// ─── 6. Combat unit / unknown entity → safe state ──────────────────
-
-describe('COMMAND-PANEL-02: unknown entity safety', () => {
-  it('returns safe empty state for null selection', () => {
-    const state = createNormalGameState();
-    const vm = buildCommandPanelViewModel(state, null);
-    expect(vm.contextKind).toBe('none');
-    // Should not crash
-    expect(vm.commands).toBeDefined();
-  });
-});
-
-// ─── 7. Harvester selection shows stop command ─────────────────────
-
-describe('COMMAND-PANEL-02: harvester stop command', () => {
+describe('COMMAND-PANEL-02-FIXUP-1: harvester selection', () => {
   const harvesterSelection: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
 
   it('harvester selection shows stop command', () => {
-    const state = createNormalGameState();
-    state.harvesters = [
-      { id: 'harvester-1', ftx: 7, fty: 7, phase: 'idle', faction: 'cyan' } as any,
-    ];
+    const state = createGameStateWithHarvester();
     const vm = buildCommandPanelViewModel(state, harvesterSelection);
     const stopCmd = vm.commands.find(c => c.id === 'unit-stop');
     expect(stopCmd).toBeDefined();
     expect(stopCmd!.label).toBe('Stop');
     expect(stopCmd!.hotkey).toBe('S');
     expect(stopCmd!.state).toBe('enabled');
+  });
+
+  it('FIXUP-1: harvester selection does NOT show production commands', () => {
+    const state = createGameStateWithFactory();
+    state.harvesters = [
+      { id: 'harvester-1', ftx: 7, fty: 7, phase: 'idle', faction: 'cyan' } as any,
+    ];
+    const vm = buildCommandPanelViewModel(state, harvesterSelection);
+    const prodCmds = vm.commands.filter(c => c.category === 'produce');
+    expect(prodCmds.length).toBe(0);
+  });
+
+  it('FIXUP-1: harvester selection shows only stop command', () => {
+    const state = createGameStateWithHarvester();
+    const vm = buildCommandPanelViewModel(state, harvesterSelection);
+    expect(vm.commands.length).toBe(1);
+    expect(vm.commands[0].id).toBe('unit-stop');
   });
 
   it('builder selection does NOT show stop command', () => {
@@ -274,7 +249,78 @@ describe('COMMAND-PANEL-02: harvester stop command', () => {
   });
 });
 
-// ─── 8. Command click safety (pointer-in-HUD guard still works) ───
+// ─── 6. Unknown entity → safe empty state ──────────────────────────
+
+describe('COMMAND-PANEL-02: unknown entity safety', () => {
+  it('returns safe empty state for null selection', () => {
+    const state = createNormalGameState();
+    const vm = buildCommandPanelViewModel(state, null);
+    expect(vm.contextKind).toBe('none');
+    expect(vm.commands).toBeDefined();
+    expect(vm.commands.length).toBe(0);
+  });
+});
+
+// ─── 7. Descriptor freshness — disabled → enabled transition (FIXUP-1) ─
+
+describe('COMMAND-PANEL-02-FIXUP-1: descriptor freshness', () => {
+  const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+
+  it('command transitions from disabled to enabled when resources change', () => {
+    // Start with insufficient resources
+    const brokeState = createBrokeGameState();
+    const vmDisabled = buildCommandPanelViewModel(brokeState, builderSelection);
+    const separatorDisabled = vmDisabled.commands.find(c => c.id === 'build-separator');
+    expect(separatorDisabled).toBeDefined();
+    expect(separatorDisabled!.state).toBe('disabled');
+
+    // Now with sufficient resources
+    const richState = createNormalGameState();
+    const vmEnabled = buildCommandPanelViewModel(richState, builderSelection);
+    const separatorEnabled = vmEnabled.commands.find(c => c.id === 'build-separator');
+    expect(separatorEnabled).toBeDefined();
+    expect(separatorEnabled!.state).toBe('enabled');
+  });
+
+  it('disabled command has disabledReason that clears when enabled', () => {
+    const brokeState = createBrokeGameState();
+    const vmDisabled = buildCommandPanelViewModel(brokeState, builderSelection);
+    const separatorDisabled = vmDisabled.commands.find(c => c.id === 'build-separator');
+    expect(separatorDisabled!.disabledReason).toBeTruthy();
+
+    const richState = createNormalGameState();
+    const vmEnabled = buildCommandPanelViewModel(richState, builderSelection);
+    const separatorEnabled = vmEnabled.commands.find(c => c.id === 'build-separator');
+    expect(separatorEnabled!.disabledReason).toBe('');
+  });
+});
+
+// ─── 8. Disabled tooltip reason available (FIXUP-1) ────────────────
+
+describe('COMMAND-PANEL-02-FIXUP-1: disabled tooltip', () => {
+  const builderSelection: UnitSelection = { kind: 'builder', id: 'builder-1' };
+
+  it('disabled command has tooltip with disabled reason', () => {
+    const state = createBrokeGameState();
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    const disabledCmds = vm.commands.filter(c => c.state === 'disabled');
+    for (const cmd of disabledCmds) {
+      expect(cmd.tooltip).toContain(cmd.disabledReason);
+    }
+  });
+
+  it('disabled command has disabledReason string available for tooltip', () => {
+    const state = createBrokeGameState();
+    const vm = buildCommandPanelViewModel(state, builderSelection);
+    const separatorCmd = vm.commands.find(c => c.id === 'build-separator');
+    expect(separatorCmd).toBeDefined();
+    expect(separatorCmd!.disabledReason).toBeTruthy();
+    // The tooltip should include both the label and the reason
+    expect(separatorCmd!.tooltip).toBeTruthy();
+  });
+});
+
+// ─── 9. HUD input guard still works ────────────────────────────────
 
 describe('COMMAND-PANEL-02: HUD input guard intact', () => {
   it('isScreenPointInHud still works for bottom HUD area', () => {
@@ -295,7 +341,7 @@ describe('COMMAND-PANEL-02: HUD input guard intact', () => {
   });
 });
 
-// ─── 9. Command descriptor integrity ───────────────────────────────
+// ─── 10. Command descriptor integrity ──────────────────────────────
 
 describe('COMMAND-PANEL-02: descriptor integrity', () => {
   it('all descriptors have required fields', () => {
@@ -335,5 +381,32 @@ describe('COMMAND-PANEL-02: descriptor integrity', () => {
     for (const cmd of disabledCmds) {
       expect(cmd.disabledReason).toBeTruthy();
     }
+  });
+});
+
+// ─── 11. produceCommandDesc is available for future building context ─
+
+describe('COMMAND-PANEL-02-FIXUP-1: produceCommandDesc available', () => {
+  it('produceCommandDesc creates valid descriptor for builder unit', () => {
+    const state = createGameStateWithFactory();
+    const desc = produceCommandDesc('builder', state);
+    expect(desc.id).toBe('produce-builder');
+    expect(desc.category).toBe('produce');
+    expect(desc.label).toBeTruthy();
+    expect(desc.cost).toBeTruthy();
+  });
+
+  it('produceCommandDesc creates valid descriptor for harvester unit', () => {
+    const state = createGameStateWithFactory();
+    const desc = produceCommandDesc('harvester', state);
+    expect(desc.id).toBe('produce-harvester');
+    expect(desc.category).toBe('produce');
+  });
+
+  it('produceCommandDesc marks disabled when no factory', () => {
+    const state = createNormalGameState(); // no factories
+    const desc = produceCommandDesc('builder', state);
+    expect(desc.state).toBe('disabled');
+    expect(desc.disabledReason).toBeTruthy();
   });
 });
