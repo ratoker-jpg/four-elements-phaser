@@ -161,14 +161,24 @@ These should be treated as frozen prototype — functional but not final.
 - Main camera viewport height = `canvas.height - BOTTOM_BAR_HEIGHT`
 - Camera scroll bounds are clamped so the camera never shows content behind the bar
 - `setViewport` is called before `centerOn` (already fixed in PR #308)
-- Edge-pan camera when cursor is near screen edges (additive to current keyboard pan)
+- **Edge-pan is deferred.** Edge-pan (camera moves when cursor is near screen edges) is NOT in scope for HUD-LAYOUT-REBUILD-02 or any current step. Edge-pan belongs to a later camera/selection controls task that should be designed after the drag-selection and control-group input contract is clear. Do not implement edge-pan during any HUD layout step.
+
+### C.4.1 Top-left resource strip safe-area contract
+
+The resource strip moves from the bottom HUD bar to the top-left corner of the screen. This creates a DOM overlay above the game viewport, but it does **NOT** create a top camera safe-area.
+
+Contract:
+- **No top camera safe-area.** The main camera viewport is reduced only by the bottom HUD bar height. The camera viewport starts at the top of the canvas (y=0). The resource strip overlays the game viewport from above.
+- **Resource strip is a read-only DOM overlay.** It renders on top of the game canvas using `position: fixed; top: 0; left: 0` with `pointer-events: none` on the container. Only intentionally interactive elements within the strip (future: click for detail popup) have `pointer-events: auto`.
+- **Pointer-events do not block map input.** The resource strip's `pointer-events: none` container ensures that clicks, drags, and scroll events pass through to the Phaser canvas underneath. The bottom HUD bar remains the only screen region where camera safe-area and input blocking apply.
+- **Bottom HUD owns the only camera safe-area.** The single source of truth for camera viewport reduction is `canvas.height - BOTTOM_BAR_HEIGHT`. No other UI element creates a camera safe-area.
 
 ### C.5 Input safe zones
 
 - Bottom bar: `pointer-events: none` on background, `pointer-events: auto` on interactive children only
 - Minimap: click/drag consumed by minimap handler; no click fallthrough to game canvas
 - Command card buttons: click consumed; no fallthrough
-- Resource strip: read-only (MVP), no pointer consumption
+- Resource strip: read-only (MVP), `pointer-events: none` container, no pointer consumption; only future interactive children would have `pointer-events: auto`
 - Status lane: click on alert = focus/acknowledge (future); no fallthrough
 
 ---
@@ -234,9 +244,15 @@ These MUST be remapped. Proposed mapping:
 | `Esc` | Pause/deselect | Unchanged |
 
 **Migration plan:**
-1. Phase 1: Add Q/W/E/R/A/S/D/F/Z/X/C/V hotkey definitions to command registry alongside current hotkeys. Both sets work simultaneously during transition.
-2. Phase 2: Remove old 1/2/3/B/P/N/G hotkey bindings once the command card is the primary interaction surface.
+1. Phase 1: Add Q/W/E/R/A/S/D/F/Z/X/C/V hotkey definitions to command registry alongside current hotkeys. Both sets work simultaneously during transition. Old hotkeys (B, P, N, G, 1, 2, 3) can remain temporarily so no player action is lost.
+2. Phase 2: Remove old 1/2/3/B/P/N/G hotkey bindings once the command card is the primary interaction surface AND control groups are implemented. Old number-key build hotkeys must be removed after command card and control groups are accepted — they must not remain as a permanent alternative.
 3. Phase 3: Implement control groups on 1–9 keys.
+
+**Hotkey transition constraints:**
+- B/P/N/G and 1/2/3 can remain temporarily during migration for backward compatibility.
+- The final UX reserves 1–9 exclusively for control groups. Old build/produce hotkeys on number keys must be removed after the command card and control groups are both accepted by Denis.
+- No new feature should depend on old number-key build hotkeys. Any new code that needs build hotkeys must use the grid Q/W/E/R/A/S/D/F/Z/X/C/V mapping.
+- The dual-binding period is strictly transitional — it ends when Step 5 (SELECTION-CONTROL-GROUPS-05) is accepted.
 
 ### D.4 Disabled state rules
 
@@ -389,7 +405,12 @@ Fog/vision is a **separate audit item** that must be designed before any code is
 - Buildings provide vision in a radius around their position
 - Units provide vision in a smaller radius
 - HQ provides the largest vision radius
-- Vision is computed per-frame based on entity positions
+- Visibility computation strategy is **TBD** in FOG-VISION-AUDIT-07. Possible strategies include:
+  - Per-frame: recompute all visibility every frame (simple but potentially expensive on large maps)
+  - Throttled: recompute at a fixed interval (e.g., every 100ms) rather than every frame
+  - Incremental: only recompute when an entity moves or a visibility source changes
+  - Dirty-region: mark tiles as dirty when a vision source enters/leaves and recompute only those
+- The chosen strategy must balance correctness, performance, and map size. Do not prescribe per-frame computation before the audit evaluates performance constraints.
 
 ### G.4 Minimap fog
 
@@ -417,7 +438,7 @@ Fog/vision is a **separate audit item** that must be designed before any code is
 
 ### G.8 Why separate audit is required before code
 
-- Fog/vision touches: game state (new explored-tiles map), entity system (vision radius), renderer (fog overlay), minimap (fog layer), save/load (new data), networking (future), and performance (per-frame visibility computation for potentially large maps)
+- Fog/vision touches: game state (new explored-tiles map), entity system (vision radius), renderer (fog overlay), minimap (fog layer), save/load (new data), networking (future), and performance (visibility computation cost depends on chosen strategy and map size — see Section G.3)
 - The implementation scope is large enough to warrant its own audit with risk assessment and staged rollout
 - Rushing fog implementation without audit risks performance regressions, save-format breakage, and UX issues
 
@@ -486,7 +507,7 @@ Fog/vision is a **separate audit item** that must be designed before any code is
 |-----------|-------|
 | **Goal** | Rebuild the bottom HUD layout to match the new spec: resource strip to top-left, larger minimap slot, command card area, selection panel, status/toast lane. Remove PlaytestHud from normal game mode. |
 | **Scope** | Restructure `VisualHudCore`, `hudLayout`, CSS; move resource strip to top-left; add status/toast lane placeholder; gate PlaytestHud behind dev flag in normal game mode |
-| **Non-goals** | Command card redesign (Step 3). Minimap interaction (Step 4). Control groups (Step 5). Fog/vision (Steps 7–8). |
+| **Non-goals** | Command card redesign (Step 3). Minimap interaction (Step 4). Control groups (Step 5). Fog/vision (Steps 7–8). Edge-pan camera (deferred — belongs to a later camera/selection controls task). |
 | **Likely files touched** | `src/phaser/ui/hud/VisualHudCore.ts`, `src/phaser/ui/hud/hudLayout.ts`, `src/phaser/ui/hud/HudResourceStrip.ts`, `src/phaser/GameScene.ts`, `src/phaser/ui/PlaytestHud.ts` (gating), `src/phaser/ui/hud/HudMinimap.ts` (resize) |
 | **Risk** | High — layout restructuring affects camera safe-area, input safe zones, all panel positions. Must not break existing input routing. |
 | **Dependencies** | Step 1 accepted |
@@ -581,7 +602,7 @@ Fog/vision is a **separate audit item** that must be designed before any code is
 | Attribute | Value |
 |-----------|-------|
 | **Goal** | Implement fog/vision system based on accepted audit (Step 7). Three visibility states. Minimap fog. Devtools bypass. Save/load support. |
-| **Scope** | Depends on audit results. Likely: explored-tiles map in GameState; per-frame visibility computation; fog overlay renderer; minimap fog layer; devtools toggle; save/load format extension |
+| **Scope** | Depends on audit results. Likely: explored-tiles map in GameState; visibility computation (strategy TBD per audit); fog overlay renderer; minimap fog layer; devtools toggle; save/load format extension |
 | **Non-goals** | Depends on audit |
 | **Likely files touched** | Depends on audit. Likely: GameState, new FogVisionSystem, EntityRenderer, HudMinimap, minimapViewModel, GameScene, save/load system |
 | **Risk** | Very High — affects game state, rendering, save format, performance. Must be staged carefully. |
@@ -609,6 +630,34 @@ Fog/vision is a **separate audit item** that must be designed before any code is
 7. **Do not merge High+ visual PRs without Denis manual visual approval.** Every visual/HUD step (2–6, 8) requires Denis to visually inspect the result before merging. Automated tests are necessary but not sufficient for visual/UX changes.
 
 8. **Do not change the input model (number keys, S key, ESC chain) without explicit Denis approval.** The hotkey remapping in Step 3 and the control group assignment in Step 5 change fundamental input behavior. Denis must approve these changes explicitly.
+
+---
+
+## L. What we reuse from #308–#310 vs what we rebuild
+
+PRs #308–#310 are technical prototypes with working code. This section clarifies which parts are reusable scaffolding and which must be rebuilt for the new UX direction.
+
+### L.1 Reuse (keep and adapt)
+
+| Component | Source | Why reusable |
+|-----------|--------|-------------|
+| **HUD input safe-area / click-through guard** | `hudLayout.ts`: `isScreenPointInHud()`, `shouldUseBottomHudSafeArea()`, `cameraViewportHeight()` | Architecture is correct — bottom bar owns the only camera safe-area; pointer guard prevents map clicks through HUD. Compatible with new layout if dimensions change. |
+| **descriptorMap / fresh command descriptor pattern** | `HudCommandPanel.ts`: `descriptorMap` ensures click handlers read fresh state, not stale closures | The stale-closure fix is a general pattern that applies regardless of grid layout. Reuse in new command card. |
+| **aria-disabled disabled command behavior** | `HudCommandPanel.ts`: `aria-disabled` + CSS instead of native `disabled` | Enables hover/tooltip on disabled buttons. Pattern is UX-correct and should carry forward. |
+| **Minimap 4-corner camera viewport math** | `minimapViewModel.ts`: `cameraWorldViewToMinimapViewport()` using `screenToTile()` for all 4 corners | The isometric projection math is correct and was specifically fixed in FIXUP-1. Reuse for larger minimap. |
+| **Existing tests as regression baseline** | `visualHudCore01.test.ts`, `commandPanel02.test.ts`, `minimap03.test.ts` | 82 tests covering layout, command panel, minimap. Serve as regression baseline. Tests for removed components will be replaced; tests for reused components will be extended. |
+| **commandRegistry / commandRouter architecture** | `commandRegistry.ts`, `commandRouter.ts` | Singleton registry with categories, key bindings, execute callbacks. Pure routing functions. Architecture is sound — extend with new grid hotkey definitions. |
+
+### L.2 Rebuild (replace with new design)
+
+| Component | Source | Why rebuild |
+|-----------|--------|-------------|
+| **3-column command panel layout** | `HudCommandPanel.ts`: `grid-template-columns: repeat(3, 1fr)` | The new design requires a stable 4×3 grid with spatial hotkey mapping. The 3-column auto-flow layout cannot be adapted — it must be replaced with a fixed 4×3 grid. |
+| **Current bottom bar proportions** | `hudLayout.ts`: `HUD_BAR_HEIGHT=180`, minimap 200×150, resource strip at bottom | Dimensions change: bar height grows, minimap grows, resource strip moves to top-left. Layout constants must be recalculated. |
+| **Passive minimap interaction model** | `HudMinimap.ts`: pointer events consumed but no click-to-camera | The new design requires interactive minimap (click-to-camera). The current passive model must be replaced with an active one. |
+| **Resource strip placement** | `HudResourceStrip.ts`: full-width strip at bottom of bar | Moves to top-left corner. CSS layout, positioning, and pointer-events contract all change. |
+| **Prototype styling** | All HUD components: generic Segoe UI, flat dark background, minimal hierarchy | The current styling is debug/prototype quality. New design requires industrial RTS aesthetic with readable typography, visual hierarchy, and proper button states. |
+| **Shallow selection panel layout** | `HudSelectionPanel.ts`: name, kind, faction, HP bar, status | Too shallow for the new design. Needs: unit portrait area, production queue preview (factory), multi-select summary, idle worker status. Layout must be restructured. |
 
 ---
 
