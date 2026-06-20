@@ -151,9 +151,10 @@ Each step requires Denis manual visual approval before merge.
 - Do not merge High+ visual PRs without Denis manual visual approval.
 - Do not continue renderer unification by inertia.
 - Do not reopen #304 inside Visual Roadmap.
-- Do not remove old hotkey aliases (B/P/1/2/3/S) until COMMAND-CARD-REBUILD-03
-  is accepted by Denis AND control groups are implemented (SELECTION-CONTROL-GROUPS-05).
+- Do not remove legacy build hotkey aliases (B/P/1/2/3) until control groups
+  are implemented (SELECTION-CONTROL-GROUPS-05). S is primary Stop (not legacy).
 - Do not use number keys 1-9 for any new feature — they are reserved for control groups.
+  Legacy number aliases (1/2/3) must be removed before control groups land.
 ```
 
 ---

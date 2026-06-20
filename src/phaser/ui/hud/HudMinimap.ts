@@ -166,8 +166,9 @@ export class HudMinimap {
   }
 
   private handlePointerMove(e: PointerEvent): void {
-    if (!this.isDragging) return;
     e.stopPropagation();
+    e.preventDefault();
+    if (!this.isDragging) return;
 
     const dx = e.offsetX - this.dragStartX;
     const dy = e.offsetY - this.dragStartY;

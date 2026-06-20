@@ -671,7 +671,7 @@ export class GameScene extends Phaser.Scene {
       `Size: ${s.mapWidth}x${s.mapHeight} | ` +
       `Harvesters: ${s.harvesters.length} | ` +
       `Resources: ${s.resourceNodes.length} | ` +
-      `Drag: pan | Wheel: zoom | R: reset camera | T: debug overlay | B/P/F: build | N: queue builder | G: queue harvester | Q/E: body dir | Z/X: turret dir`,
+      `Drag: pan | Wheel: zoom | HOME: reset camera | T: debug overlay | S: Stop | F: Factory | R: Element Storage | Q/E: body dir | Z/X: turret dir | 1-9: reserved for control groups`,
     );
   }
 

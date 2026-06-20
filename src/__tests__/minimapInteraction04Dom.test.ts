@@ -91,6 +91,17 @@ describe('MINIMAP-INTERACTION-04 FIXUP-2: DOM event/state tests', () => {
     expect(spy).toHaveBeenCalled();
   });
 
+  it('pointermove without drag still calls stopPropagation (input isolation)', () => {
+    // No pointerdown — just a hover move over the minimap.
+    // stopPropagation must still fire so the event doesn't leak to game canvas.
+    const moveEvent = createPointerEvent('pointermove', { offsetX: 80, offsetY: 40 });
+    const spy = vi.spyOn(moveEvent, 'stopPropagation');
+    canvas.dispatchEvent(moveEvent);
+    expect(spy).toHaveBeenCalled();
+    // No camera callback should fire (no drag)
+    expect(cameraCallbackCalls.length).toBe(0);
+  });
+
   it('pointerup calls stopPropagation', () => {
     canvas.dispatchEvent(createPointerEvent('pointerdown', { offsetX: 50, offsetY: 50 }));
     const upEvent = createPointerEvent('pointerup', { offsetX: 50, offsetY: 50 });
