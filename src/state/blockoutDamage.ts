@@ -226,7 +226,22 @@ function getVehicleHitRadius(vehicle: BlockoutVehicleState): number {
   return Math.max(bodySize.w, bodySize.h) / 2 + 8; // 8px padding like input controller
 }
 
-// ─── Hit detection functions ───────────────────────────────────────
+// ─── Team filtering ───────────────────────────────────────────────
+
+/**
+ * Returns true if the candidate vehicle is a same-team ally of the firing vehicle.
+ * Same-team allies must never be damaged by the firing vehicle.
+ * The firing vehicle itself is NOT a same-team ally (self-damage is handled separately).
+ *
+ * ARENA-VISUAL-COMBAT-FIX-01: friendly fire must be disabled.
+ */
+function isSameTeamAlly(
+  firingVehicle: BlockoutVehicleState,
+  candidate: BlockoutVehicleState,
+): boolean {
+  if (candidate.id === firingVehicle.id) return false; // self is not an ally for this check
+  return candidate.team === firingVehicle.team;
+}
 
 /**
  * Find the nearest non-destroyed, non-firing vehicle along aim line within tolerance and range.
@@ -247,6 +262,7 @@ export function findDirectHitTarget(
   for (const vehicle of vehicles) {
     if (vehicle.isDestroyed) continue;
     if (vehicle.id === firingVehicle.id) continue;
+    if (isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01: no friendly fire
 
     const bodyCenter = computeBodyWorldCenter(vehicle, offset);
     const hitRadius = getVehicleHitRadius(vehicle);
@@ -279,6 +295,9 @@ export function findSplashTargets(
 
   for (const vehicle of vehicles) {
     if (vehicle.isDestroyed) continue;
+
+    // ARENA-VISUAL-COMBAT-FIX-01: same-team allies never take splash damage
+    if (isSameTeamAlly(firingVehicle, vehicle)) continue;
 
     const bodyCenter = computeBodyWorldCenter(vehicle, offset);
     const hitRadius = getVehicleHitRadius(vehicle);
@@ -316,6 +335,7 @@ export function findPenetrationTargets(
   for (const vehicle of vehicles) {
     if (vehicle.isDestroyed) continue;
     if (vehicle.id === firingVehicle.id) continue;
+    if (isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01
 
     const bodyCenter = computeBodyWorldCenter(vehicle, offset);
     const hitRadius = getVehicleHitRadius(vehicle);
@@ -349,6 +369,7 @@ export function findConeTargets(
   for (const vehicle of vehicles) {
     if (vehicle.isDestroyed) continue;
     if (vehicle.id === firingVehicle.id) continue;
+    if (isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01
 
     const bodyCenter = computeBodyWorldCenter(vehicle, offset);
     if (isPointInCone(bodyCenter.x, bodyCenter.y, originX, originY, aimAngle, rangePx, halfAngleRad)) {
@@ -378,6 +399,7 @@ export function findBeamTargets(
   for (const vehicle of vehicles) {
     if (vehicle.isDestroyed) continue;
     if (vehicle.id === firingVehicle.id) continue;
+    if (isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01
 
     const bodyCenter = computeBodyWorldCenter(vehicle, offset);
     const hitRadius = getVehicleHitRadius(vehicle);
@@ -419,6 +441,7 @@ export function findShotgunTargets(
     for (const vehicle of vehicles) {
       if (vehicle.isDestroyed) continue;
       if (vehicle.id === firingVehicle.id) continue;
+      if (isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01
 
       const bodyCenter = computeBodyWorldCenter(vehicle, offset);
       const hitRadius = getVehicleHitRadius(vehicle);
@@ -482,6 +505,7 @@ export function findRicochetTargets(
   for (const vehicle of vehicles) {
     if (vehicle.isDestroyed) continue;
     if (vehicle.id === firingVehicle.id) continue;
+    if (isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01
     if (hitVehicleIds.has(vehicle.id)) continue;
 
     const bodyCenter = computeBodyWorldCenter(vehicle, offset);
@@ -571,7 +595,7 @@ export function applyBlockoutWeaponDamage(
         let bestTarget: BlockoutVehicleState | null = null;
         let bestDist = Infinity;
         for (const vehicle of vehicles) {
-          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id || isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01: no friendly fire
           const hitResult = checkDirectHit(firingVehicle, vehicle, groundAimAngle, firingVehicle.weaponId);
           if (hitResult.isHit) {
             const dist = groundDistanceTiles(firingVehicle, vehicle);
@@ -638,7 +662,7 @@ export function applyBlockoutWeaponDamage(
         const impactTileY = (impactNoOffsetY / halfH - impactNoOffsetX / halfW) / 2;
         const forgiveness = getAimForgiveness(firingVehicle.weaponId);
         const splashRadiusTiles = forgiveness.splashRadiusTiles || weaponCfg.damage.splashRadius;
-        const splashTargets = findProjectedSplashTargets(firingVehicle.id, vehicles, impactTileX, impactTileY, splashRadiusTiles, weaponCfg.damage.selfDamageScale ?? 0);
+        const splashTargets = findProjectedSplashTargets(firingVehicle.id, vehicles, impactTileX, impactTileY, splashRadiusTiles, weaponCfg.damage.selfDamageScale ?? 0, firingVehicle.team);
         const baseAmount = mLevelDamage();
         for (const target of splashTargets) {
           const bodyCenter = computeBodyWorldCenter(target, offset);
@@ -678,7 +702,7 @@ export function applyBlockoutWeaponDamage(
         // sort by ground-plane distance, apply pierceCount.
         const candidates: { vehicle: BlockoutVehicleState; dist: number }[] = [];
         for (const vehicle of vehicles) {
-          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id || isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01: no friendly fire
           const hitResult = checkDirectHit(firingVehicle, vehicle, groundAimAngle, firingVehicle.weaponId);
           if (hitResult.isHit) {
             const dist = groundDistanceTiles(firingVehicle, vehicle);
@@ -722,7 +746,7 @@ export function applyBlockoutWeaponDamage(
         const tickMs = profile.tickMs ?? 50;
         const amount = dps * tickMs / 1000;
         for (const vehicle of vehicles) {
-          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id || isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01: no friendly fire
           if (checkConeHit(firingVehicle, vehicle, groundAimAngle, forgiveness.coneHalfAngleDeg, rangeInfo.maxRange)) {
             const bodyCenter = computeBodyWorldCenter(vehicle, offset);
             if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) continue;
@@ -763,7 +787,7 @@ export function applyBlockoutWeaponDamage(
         const tickMs = profile.tickMs ?? 50;
         const amount = dps * tickMs / 1000;
         for (const vehicle of vehicles) {
-          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id || isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01: no friendly fire
           const hitResult = checkDirectHit(firingVehicle, vehicle, groundAimAngle, firingVehicle.weaponId);
           if (hitResult.isHit) {
             const bodyCenter = computeBodyWorldCenter(vehicle, offset);
@@ -796,7 +820,7 @@ export function applyBlockoutWeaponDamage(
         let bestTarget: BlockoutVehicleState | null = null;
         let bestDist = Infinity;
         for (const vehicle of vehicles) {
-          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id || isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01: no friendly fire
           const hitResult = checkDirectHit(firingVehicle, vehicle, groundAimAngle, firingVehicle.weaponId);
           if (hitResult.isHit) {
             const dist = groundDistanceTiles(firingVehicle, vehicle);
@@ -837,7 +861,7 @@ export function applyBlockoutWeaponDamage(
         let bestTarget: BlockoutVehicleState | null = null;
         let bestDist = Infinity;
         for (const vehicle of vehicles) {
-          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+          if (vehicle.isDestroyed || vehicle.id === firingVehicle.id || isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01: no friendly fire
           const hitResult = checkDirectHit(firingVehicle, vehicle, groundAimAngle, firingVehicle.weaponId);
           if (hitResult.isHit) {
             const dist = groundDistanceTiles(firingVehicle, vehicle);
@@ -921,7 +945,7 @@ export function applyBlockoutWeaponDamage(
           const pelletScreenAngle = aimAngle - halfAngleRad + fraction * 2 * halfAngleRad;
           const pelletGroundAngle = screenAngleToGroundAngle(pelletScreenAngle);
           for (const vehicle of vehicles) {
-            if (vehicle.isDestroyed || vehicle.id === firingVehicle.id) continue;
+            if (vehicle.isDestroyed || vehicle.id === firingVehicle.id || isSameTeamAlly(firingVehicle, vehicle)) continue; // ARENA-VISUAL-COMBAT-FIX-01: no friendly fire
             if (checkConeHit(firingVehicle, vehicle, pelletGroundAngle, forgiveness.coneHalfAngleDeg, rangeInfo.maxRange)) {
               const bodyCenter = computeBodyWorldCenter(vehicle, offset);
               if (obstacles.length > 0 && isLineOfFireBlocked(obstacles, barrelTipX, barrelTipY, bodyCenter.x, bodyCenter.y)) continue;

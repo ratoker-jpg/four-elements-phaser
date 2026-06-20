@@ -383,6 +383,7 @@ export function findSplashTargets(
   impactTileY: number,
   splashRadiusTiles: number,
   selfDamageScale: number = 0,
+  firingVehicleTeam?: string, // ARENA-VISUAL-COMBAT-FIX-01: team for friendly fire exclusion
 ): BlockoutVehicleState[] {
   const result: BlockoutVehicleState[] = [];
 
@@ -391,6 +392,9 @@ export function findSplashTargets(
 
     // Skip self if self-damage is disabled
     if (vehicle.id === firingVehicleId && selfDamageScale === 0) continue;
+
+    // ARENA-VISUAL-COMBAT-FIX-01: same-team allies never take splash damage
+    if (firingVehicleTeam && vehicle.id !== firingVehicleId && vehicle.team === firingVehicleTeam) continue;
 
     if (checkSplashHit(impactTileX, impactTileY, vehicle, splashRadiusTiles)) {
       result.push(vehicle);

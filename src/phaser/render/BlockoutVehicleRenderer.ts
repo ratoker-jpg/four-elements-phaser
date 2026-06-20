@@ -20,6 +20,7 @@ import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import {
   computeBodyWorldCenter,
   computeProjectedBlockoutVehicleGeometry,
+  getHullSelectionRingRadiusTiles,
   BLOCKOUT_VEHICLE_BODY_Z,
   BLOCKOUT_TURRET_Z_OFFSET,
   BLOCKOUT_TURRET_BOX_HEIGHT,
@@ -147,8 +148,10 @@ const SELECTION_RING_COLOR = 0xffd700;
 /** Selection highlight ring line width. */
 const SELECTION_RING_WIDTH = 2.5;
 
-/** Selection ring radius in world/tile units. PROJECTION-01. */
-const SELECTION_RING_WORLD_RADIUS = 0.65;
+// ARENA-VISUAL-COMBAT-FIX-01 fixup-5: the fixed SELECTION_RING_WORLD_RADIUS
+// (0.65 tiles) was removed. Selection/target/hover ring radii are now derived
+// per-hull from the body footprint via getHullSelectionRingRadiusTiles() so the
+// ring sits snugly under the hull instead of as a large detached ellipse.
 
 /** BLOCKOUT-10H+: Direction arrow length in pixels (extends from selection ring edge). */
 const DIRECTION_ARROW_LENGTH = 12;
@@ -161,9 +164,6 @@ const HOVER_RING_COLOR = 0xffffff;
 
 /** Hover marker ring alpha. */
 const HOVER_RING_ALPHA = 0.3;
-
-/** Hover ring radius in world/tile units. PROJECTION-01. */
-const HOVER_RING_WORLD_RADIUS = 0.5;
 
 /** Aim line color for selected vehicle. */
 const AIM_LINE_COLOR = 0xff4444;
@@ -261,6 +261,17 @@ export class BlockoutVehicleRenderer {
 
   /** ARENA-03H+: Currently targeted vehicle ID (for target indicator rendering). */
   private _targetedVehicleId: string | null = null;
+
+  /**
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-5: shared ground-plane decal layer for
+   * selection / hover / target rings. These rings must render BEHIND/BELOW the
+   * hull sprites so the hull visually sits inside the ring. The per-vehicle
+   * `vehicleGraphics` layer sits at/above the hull depth (it also carries HP
+   * bars and the procedural turret, which must be on top), so the rings cannot
+   * live there. This single shared graphics object is depth-sorted just below
+   * all hull sprites and is cleared once per frame.
+   */
+  private groundRingGraphics: Phaser.GameObjects.Graphics | null = null;
 
   /** Generated hull sprite images keyed by blockout vehicle ID. */
   private vehicleHullSprites = new Map<string, Phaser.GameObjects.Image>();
@@ -376,6 +387,16 @@ export class BlockoutVehicleRenderer {
    */
   syncFromState(vehicles: BlockoutVehicleState[]): void {
     const activeIds = new Set<string>();
+
+    // fixup-5: ensure the shared ground-ring decal layer exists and clear it
+    // ONCE per frame (each vehicle appends its ring below). Depth is just below
+    // BLOCKOUT_DEPTH so all rings render under every hull sprite (which sit at
+    // BLOCKOUT_DEPTH + orderIdx - 0.5).
+    if (!this.groundRingGraphics) {
+      this.groundRingGraphics = this.scene.add.graphics();
+      this.groundRingGraphics.setDepth(BLOCKOUT_DEPTH - 1);
+    }
+    this.groundRingGraphics.clear();
 
     for (const vehicle of vehicles) {
       activeIds.add(vehicle.id);
@@ -783,12 +804,24 @@ export class BlockoutVehicleRenderer {
     }
 
     // ── Selection highlight ring (projected ground-plane) ────────
+    // ARENA-VISUAL-COMBAT-FIX-01 fixup-5: the ring is drawn around the GAMEPLAY
+    // CENTER (cx,cy) — which is the hull ground-contact under the modular
+    // `world_origin_projects_to_frame_center` policy — and its RADIUS is scaled
+    // to the hull footprint via getHullSelectionRingRadiusTiles(). Previously a
+    // single fixed 0.65-tile radius made the ring ~2x the hull and look
+    // detached. Gameplay center/hitbox/range/pathfinding are unchanged; this is
+    // purely the ring's visual radius.
+    const ringRadius = getHullSelectionRingRadiusTiles(vehicle.bodyId);
+    // fixup-5: rings draw on the shared ground-ring layer (below hulls), not on
+    // the per-vehicle graphics `g` (which is at/above the hull). Falls back to
+    // `g` defensively if the layer is somehow absent.
+    const ringG = this.groundRingGraphics ?? g;
     if (isSelected) {
       const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 800) / 800 * Math.PI * 2);
       const alpha = 0.6 + 0.4 * pulse;
 
-      g.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
-      drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
+      ringG.lineStyle(SELECTION_RING_WIDTH, SELECTION_RING_COLOR, alpha);
+      drawProjectedGroundRing(ringG, cx, cy, ringRadius, this.offset, 24);
 
       // BLOCKOUT-10H+: Direction arrow outside the ring for orientation clarity.
       // VEHICLE-RENDER-UNIFY-01-VH fixup: gate behind an EXPLICIT debug
@@ -801,7 +834,7 @@ export class BlockoutVehicleRenderer {
       if (debugRenderFlags.directionArrow) {
         // Use screen-space arrow from body center along body angle
         // Approximate ring edge in screen space for arrow placement
-        const ringEdgeDist = SELECTION_RING_WORLD_RADIUS * 38; // approximate pixel distance
+        const ringEdgeDist = ringRadius * 38; // approximate pixel distance
         const arrowBaseX = cx + Math.cos(bodyAngle) * ringEdgeDist;
         const arrowBaseY = cy + Math.sin(bodyAngle) * ringEdgeDist;
         const arrowTipX = cx + Math.cos(bodyAngle) * (ringEdgeDist + DIRECTION_ARROW_LENGTH);
@@ -829,9 +862,11 @@ export class BlockoutVehicleRenderer {
     }
 
     // ── Hover marker (projected ground-plane) ────────────────────
+    // fixup-5: hover ring also scales to the hull footprint (slightly tighter
+    // than the selection ring) so it reads as belonging to the hull body.
     if (isHovered && !isSelected) {
-      g.lineStyle(1.5, HOVER_RING_COLOR, HOVER_RING_ALPHA);
-      drawProjectedGroundRing(g, cx, cy, HOVER_RING_WORLD_RADIUS, this.offset, 20);
+      ringG.lineStyle(1.5, HOVER_RING_COLOR, HOVER_RING_ALPHA);
+      drawProjectedGroundRing(ringG, cx, cy, ringRadius * 0.9, this.offset, 20);
     }
 
     // ── ARENA-03H+: Target indicator (enemy being targeted by selected ally) ──
@@ -839,8 +874,8 @@ export class BlockoutVehicleRenderer {
     if (isTargeted && !isSelected) {
       const pulse = 0.5 + 0.5 * Math.sin((this.scene.time.now % 600) / 600 * Math.PI * 2);
       const alpha = 0.5 + 0.5 * pulse;
-      g.lineStyle(2, 0xff4444, alpha); // Red targeting ring
-      drawProjectedGroundRing(g, cx, cy, SELECTION_RING_WORLD_RADIUS, this.offset, 24);
+      ringG.lineStyle(2, 0xff4444, alpha); // Red targeting ring (ground layer)
+      drawProjectedGroundRing(ringG, cx, cy, ringRadius, this.offset, 24);
 
       // Small crosshair in center
       const crossSize = 0.12;
@@ -849,8 +884,11 @@ export class BlockoutVehicleRenderer {
     }
 
     // ── CORE-STEP-07H+: Target-lock status indicator on attacker ──
-    // Show a small colored dot above the turret when this vehicle has an active target-lock
-    if (vehicle.targetVehicleId && !vehicle.isDestroyed) {
+    // ARENA-VISUAL-COMBAT-FIX-01: Gated behind debugRenderFlags.targetLockIndicator.
+    // Previously always drawn when vehicle.targetVehicleId was truthy —
+    // a stray yellow pixel visible in default Arena view. Now hidden by
+    // default; devtools must explicitly opt in.
+    if (debugRenderFlags.targetLockIndicator && vehicle.targetVehicleId && !vehicle.isDestroyed) {
       // Target-lock active: show yellow dot above turret
       const lockIndicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.3;
       const tilePosLocal = unprojectScreenToGround(cx, cy, this.offset);
@@ -860,7 +898,11 @@ export class BlockoutVehicleRenderer {
     }
 
     // ── ARENA-03H+: Enemy team indicator (small red diamond above HP bar) ──
-    if (vehicle.team === 'enemy' && !vehicle.isDestroyed) {
+    // ARENA-VISUAL-COMBAT-FIX-01: Gated behind debugRenderFlags.enemyTeamIndicator.
+    // Previously always drawn when vehicle.team === 'enemy' — a stray red
+    // diamond visible in default Arena view. Now hidden by default; devtools
+    // must explicitly opt in.
+    if (debugRenderFlags.enemyTeamIndicator && vehicle.team === 'enemy' && !vehicle.isDestroyed) {
       const indicatorZ = BLOCKOUT_VEHICLE_BODY_Z + BLOCKOUT_TURRET_Z_OFFSET + 0.2;
       const indicatorPos = projectWorldPoint(tilePos.x, tilePos.y, indicatorZ, this.offset);
       const indicatorSize = 0.08;
@@ -1215,11 +1257,21 @@ export class BlockoutVehicleRenderer {
       } // end if (!hasGenTurret) — procedural turret box
 
       // Barrel line (using shared barrelStartScreen/barrelTipScreen — PROJECTION-01 fixup #3)
-      g.lineStyle(barrelWidth, BARREL_COLOR, 1);
-      g.beginPath();
-      g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
-      g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
-      g.strokePath();
+      // ARENA-VISUAL-COMBAT-FIX-01 fixup-5: skip the procedural gray barrel
+      // line when a modular/generated turret PNG is active. The modular turret
+      // sprite already draws its own barrel; the procedural line (dark gray
+      // BARREL_COLOR 0x555555) is positioned from BLOCKOUT geometry at the
+      // elevated barrel-Z, so for a modular tank it floats above/beside the
+      // hull as a stray gray marker — the exact "gray/black marker above the
+      // tank" Denis reported. It is only meaningful for the pure-blockout
+      // fallback path (no generated turret), so gate it on !hasGenTurret.
+      if (!hasGenTurret) {
+        g.lineStyle(barrelWidth, BARREL_COLOR, 1);
+        g.beginPath();
+        g.moveTo(barrelStartScreen.x, barrelStartScreen.y);
+        g.lineTo(barrelTipScreen.x, barrelTipScreen.y);
+        g.strokePath();
+      }
 
       // ── Aim line for selected vehicle ─────────────────────────────
       // VEHICLE-RENDER-UNIFY-01-VH fixup: gate behind an EXPLICIT debug
@@ -1467,6 +1519,12 @@ export class BlockoutVehicleRenderer {
     }
     this.vehicleGraphics.clear();
 
+    // fixup-5: tear down the shared ground-ring decal layer.
+    if (this.groundRingGraphics) {
+      this.groundRingGraphics.destroy();
+      this.groundRingGraphics = null;
+    }
+
     for (const [, label] of this.debugLabels) {
       label.destroy();
     }
@@ -1521,5 +1579,32 @@ export class BlockoutVehicleRenderer {
    */
   clearModularVehicleRender(): void {
     this.modularAdapter.hideAll();
+  }
+
+  // ─── Modular barrel tip delegation (ARENA-VISUAL-COMBAT-FIX-01 Fix 6) ──
+
+  /**
+   * Compute the barrel tip screen position for a modular-rendered vehicle.
+   *
+   * Delegates to ModularVehicleLiveAdapter.getModularBarrelTip(). Returns
+   * null if the vehicle is not using modular rendering, in which case the
+   * caller should fall back to the blockout geometry barrel tip computation.
+   *
+   * @param vehicleId - The vehicle ID
+   * @param turretAngle - Current turret angle in radians
+   * @returns Screen-space barrel tip, or null if not using modular rendering
+   */
+  getModularBarrelTip(vehicleId: string, turretAngle: number): { x: number; y: number } | null {
+    return this.modularAdapter.getModularBarrelTip(vehicleId, turretAngle);
+  }
+
+  /**
+   * Check whether a vehicle is currently using modular rendering.
+   *
+   * Used by GameScene to decide whether to use the modular barrel tip
+   * computation vs. the blockout geometry barrel tip.
+   */
+  isVehicleUsingModularRender(vehicleId: string): boolean {
+    return this.modularAdapter.isUsingModularRender(vehicleId);
   }
 }

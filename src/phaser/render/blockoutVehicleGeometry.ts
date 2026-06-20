@@ -20,6 +20,7 @@ import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import { getBodyProfile } from '../../config/blockoutBodyData';
 import { getWeaponProfile } from '../../config/blockoutWeaponData';
 import { unprojectScreenToGround, projectGroundPoint, projectWorldPoint, PROJ_TILE_W } from '../../config/cameraProjectionContract';
+import { getHullRingScale } from '../../config/hullVisualProfiles';
 import type { IsoPoint } from './isometric';
 
 // ─── Body pixel size by blockoutShape ──────────────────────────────
@@ -147,6 +148,58 @@ export function computeBodyWorldCenter(
 export function getBodyPixelSize(bodyId: string): { w: number; h: number } {
   const bodyProfile = getBodyProfile(bodyId);
   return bodyProfile ? SHAPE_SIZE_MAP[bodyProfile.blockoutShape] : DEFAULT_BODY_SIZE;
+}
+
+// ─── Selection ring footprint anchor (ARENA-VISUAL-COMBAT-FIX-01 fixup-5) ──
+
+/**
+ * Margin multiplier applied to the body footprint half-extent to size the
+ * selection ring. >1 so the ring sits just OUTSIDE the visible hull footprint
+ * (a snug ring "under" the body) rather than a large detached ellipse.
+ *
+ * Tuned so a medium hull (w22/h14) gets a ring radius of roughly
+ *   (22/2 / 76) * 2.4 ≈ 0.35 tiles
+ * which reads as a footprint ring rather than the old fixed 0.65-tile ellipse
+ * that was ~2x the hull and looked detached in Denis QA.
+ */
+export const SELECTION_RING_FOOTPRINT_MARGIN = 2.4;
+
+/**
+ * Compute the selection-ring radius (in tile units) for a hull, scaled by the
+ * hull body footprint so light hulls get a smaller ring and heavy hulls a
+ * larger one. Unknown hulls fall back to the default medium body size.
+ *
+ * IMPORTANT — three distinct anchors (do not conflate):
+ *   - GAMEPLAY CENTER: vehicle.worldX/worldY (+ map offset) = `cx,cy`. This is
+ *     the ground-contact / tile center used for selection hit-testing,
+ *     movement, pathfinding, range and damage. It NEVER moves for visuals.
+ *   - VISUAL HULL ANCHOR: where the hull sprite is placed. Under the modular
+ *     `world_origin_projects_to_frame_center` policy the hull origin (0.5,0.5)
+ *     is placed at the gameplay center, so the hull's ground contact lands
+ *     exactly on `cx,cy`.
+ *   - SELECTION RING VISUAL ANCHOR: the ground-plane point the ring is drawn
+ *     around. It is the SAME `cx,cy` (so the ring sits under the hull
+ *     footprint), but its RADIUS is derived here from the hull footprint
+ *     instead of a single fixed constant.
+ *
+ * This is a visual helper only; it does not affect any gameplay center,
+ * hitbox, movement, range or damage computation.
+ *
+ * @param bodyId - Body profile ID (modular hull id maps 1:1 to a body profile)
+ * @returns Selection ring radius in tile units
+ */
+export function getHullSelectionRingRadiusTiles(bodyId: string): number {
+  const size = getBodyPixelSize(bodyId);
+  // Half-extent in pixels → tile units (matches the body geometry convention
+  // where body half-extent in tiles = bodySize / PROJ_TILE_W).
+  const halfExtentPx = Math.max(size.w, size.h) / 2;
+  // ARENA-VISUAL-COMBAT-FIX-01 fixup-6: apply the per-hull ringScale from the
+  // HULL_VISUAL_PROFILE so the selection ring is explicitly hull-profile
+  // dependent (the footprint already encodes weight; ringScale is the
+  // documented per-hull fine-tune hook). Defaults to 1.0 for every current
+  // Arena hull, so the footprint formula is preserved.
+  const ringScale = getHullRingScale(bodyId);
+  return (halfExtentPx / PROJ_TILE_W) * SELECTION_RING_FOOTPRINT_MARGIN * ringScale;
 }
 
 // ─── Shared turret constants (PROJECTION-01 fixup) ──────────────────

@@ -17,6 +17,7 @@ import type { BlockoutVehicleState } from '../../state/blockoutVehicleState';
 import type { BlockoutDamageEvent } from '../../state/blockoutDamage';
 import { getDamageEvents } from '../../state/blockoutDamage';
 import { computeBodyWorldCenter, getBodyPixelSize } from './blockoutVehicleGeometry';
+import { debugRenderFlags } from '../../config/debugRenderFlags';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -90,7 +91,10 @@ export class BlockoutDamageRenderer {
       const alpha = Math.max(0, 1 - t);
 
       // Hit marker (small circle at damage point)
-      this.renderHitMarker(event, alpha);
+      // ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Gated behind damageHitMarker flag.
+      if (debugRenderFlags.damageHitMarker) {
+        this.renderHitMarker(event, alpha);
+      }
 
       // Floating damage number
       this.renderDamageNumber(event, t, alpha);

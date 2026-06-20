@@ -52,6 +52,7 @@ import { AssetPreviewPanel } from '../dev/AssetPreviewPanel';
 import { ModularVehicleDevtoolsPanel } from '../dev/ModularVehicleDevtoolsPanel';
 
 import type { ArenaModeContext } from '../../state/arenaModeContext';
+import { debugRenderFlags } from '../../config/debugRenderFlags';
 
 /**
  * Options passed to RenderManager.create().
@@ -291,8 +292,16 @@ export class RenderManager {
     if (this.blockoutDamageRenderer && devtoolsActive && state.blockoutVehicles) {
       this.blockoutDamageRenderer.syncFromState(timeNow, state.blockoutVehicles);
     }
-    if (this.blockoutObstacleRenderer && devtoolsActive && state.blockoutObstacles) {
+    // ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Gate obstacle geometry behind
+    // explicit debugRenderFlags.obstacleGeometry (default false).
+    // Default Arena should not show obstacle objects. The combat/blocking
+    // system is preserved; only visual rendering is suppressed.
+    if (this.blockoutObstacleRenderer && devtoolsActive && state.blockoutObstacles && debugRenderFlags.obstacleGeometry) {
       this.blockoutObstacleRenderer.syncFromState(state.blockoutObstacles);
+    } else if (this.blockoutObstacleRenderer && state.blockoutObstacles) {
+      // Even when geometry is hidden, clean up stale graphics from any
+      // previous frame where the flag was true.
+      this.blockoutObstacleRenderer.syncFromState([]);
     }
     if (this.blockoutUpgradeRenderer && devtoolsActive && state.blockoutVehicles) {
       this.blockoutUpgradeRenderer.syncFromState(state.blockoutVehicles, selectedVehicleId);

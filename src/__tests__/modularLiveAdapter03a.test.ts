@@ -84,31 +84,38 @@ describe('factionToModularFactionId', () => {
 
 // ─── runtimeAngleToDir16 ──────────────────────────────────────────
 
-describe('runtimeAngleToDir16', () => {
-  it('maps angle 0 → dir0 (East)', () => {
-    expect(runtimeAngleToDir16(0)).toBe(0);
+describe('runtimeAngleToDir16 (deprecated, delegates to screenAngleToModularDir16)', () => {
+  // ARENA-VISUAL-COMBAT-FIX-01 fixup-4: runtimeAngleToDir16 now delegates to
+  // screenAngleToModularDir16 (turret/screen convention with +π/4 offset).
+  // The old tests assumed the shared function mapped angle 0 → dir0, but
+  // with the +π/4 screen-angle offset, angle 0 → dir2 (E compass).
+  // For hull/grid-body angles, use gridBodyAngleToModularDir16 instead.
+  it('maps angle 0 → dir2 (E compass, screen right)', () => {
+    expect(runtimeAngleToDir16(0)).toBe(2);
   });
 
-  it('maps π/2 → dir4 (South)', () => {
-    expect(runtimeAngleToDir16(Math.PI / 2)).toBe(4);
+  it('maps π/4 → dir4 (SE compass, screen bottom-right)', () => {
+    expect(runtimeAngleToDir16(Math.PI / 4)).toBe(4);
   });
 
-  it('maps π → dir8 (West)', () => {
-    expect(runtimeAngleToDir16(Math.PI)).toBe(8);
+  it('maps π/2 → dir6 (S compass, screen down)', () => {
+    expect(runtimeAngleToDir16(Math.PI / 2)).toBe(6);
   });
 
-  it('maps 3π/2 → dir12 (North)', () => {
-    expect(runtimeAngleToDir16(3 * Math.PI / 2)).toBe(12);
+  it('maps 3π/4 → dir8 (SW compass, screen bottom-left)', () => {
+    expect(runtimeAngleToDir16(3 * Math.PI / 4)).toBe(8);
   });
 
-  it('maps 2π back to dir0', () => {
-    expect(runtimeAngleToDir16(2 * Math.PI)).toBe(0);
+  it('maps 7π/4 → dir0 (NE compass, screen top-right)', () => {
+    expect(runtimeAngleToDir16(7 * Math.PI / 4)).toBe(0);
   });
 
-  it('handles negative angles', () => {
-    // -π/2 should wrap to 3π/2 → dir12 (North)
-    const result = runtimeAngleToDir16(-Math.PI / 2);
-    expect(result).toBe(12);
+  it('maps 2π → dir2 (same as angle 0)', () => {
+    expect(runtimeAngleToDir16(2 * Math.PI)).toBe(2);
+  });
+
+  it('handles negative angles: -π/4 → dir0 (NE)', () => {
+    expect(runtimeAngleToDir16(-Math.PI / 4)).toBe(0);
   });
 
   it('produces values in range 0..15', () => {
@@ -138,8 +145,8 @@ describe('blockoutToModularVisual', () => {
     expect(result.visual!.faction).toBe('cyan');
     expect(result.visual!.hullMod).toBe('m0');
     expect(result.visual!.turretMod).toBe('m0');
-    expect(result.hullDir16).toBe(0);
-    expect(result.turretDir16).toBe(2); // π/4 → dir2 (SE)
+    expect(result.hullDir16).toBe(4);  // grid bodyAngle=0 → dir4 (SE) — grid east
+    expect(result.turretDir16).toBe(4); // screen turretAngle=π/4 → dir4 (SE compass)
     expect(result.failReason).toBeNull();
   });
 
@@ -275,8 +282,9 @@ describe('end-to-end: blockout → modular render plan', () => {
     });
 
     expect(plan.available).toBe(true);
-    expect(plan.hull.textureKey).toBe('modular_hull_wasp_cyan_m0_dir00');
-    expect(plan.turret.textureKey).toBe('generated_turret_smoky_cyan_m0_dir00');
+    // bodyAngle=0 → hullDir16=4 (grid east), turretAngle=0 → turretDir16=2 (screen right)
+    expect(plan.hull.textureKey).toBe('modular_hull_wasp_cyan_m0_dir04');
+    expect(plan.turret.textureKey).toBe('generated_turret_smoky_cyan_m0_dir02');
     expect(plan.hull.position.x).toBe(400);
     expect(plan.hull.position.y).toBe(300);
   });

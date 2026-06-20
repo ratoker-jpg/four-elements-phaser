@@ -40,6 +40,8 @@ import {
   composeModularVehicle,
   type ModularRenderPlan,
   type ScreenPoint,
+  MODULAR_FRAME_SIZE,
+  MODULAR_VEHICLE_BASE_SCALE,
 } from '../../modular/modularVehicleComposition';
 import type { ModularVehicleVisual } from '../../modular/modularVehicleVisual';
 import {
@@ -51,6 +53,92 @@ import {
 import {
   resolveFactionOrDiagnosticFallback,
 } from '../../modular/factionResolver';
+import {
+  resolveTurretMuzzlesForDir,
+  getTurretMuzzleProfile,
+  getMuzzleDir16Override,
+} from '../../config/directionalTurretProfiles';
+import { dir16ToScreenAngle } from '../../modular/blockoutToModularVisual';
+import { getHullVisualOffsetPx } from '../../config/hullVisualProfiles';
+
+// ─── Visual center offset (hullVisualAnchor) ───────────────────────
+
+/**
+ * Get the per-hull visual center offset (hullVisualAnchor correction) for a
+ * hull ID, as {dx,dy} screen pixels.
+ *
+ * ARENA-VISUAL-COMBAT-FIX-01 fixup-6: the offset table now lives in the
+ * single, documented HULL_VISUAL_PROFILE (src/config/hullVisualProfiles.ts)
+ * instead of a private map here, so the hullVisualAnchor is no longer a
+ * "random global offset" sprinkled across the adapter. The profile keeps the
+ * metadata-centred {0,0} baseline (fixup-4/5 proved that guessing {dy:12}
+ * made centering worse), but it is now an explicit per-hull concept that can
+ * receive a SINGLE measured correction without code churn.
+ *
+ * This shift moves the entire modular composite (hull + turret together). It
+ * does NOT move worldX/worldY, the selection ring, the hitbox, range, or
+ * damage — only the modular sprites.
+ */
+function getModularVisualCenterOffset(hullId: string): { dx: number; dy: number } {
+  const off = getHullVisualOffsetPx(hullId);
+  return { dx: off.x, dy: off.y };
+}
+
+// ─── Muzzle point math (ARENA-VISUAL-COMBAT-FIX-01 fixup-6) ─────────
+
+/**
+ * Compute a muzzle screen point from a base point (turret pivot or sprite
+ * centre) using the per-turret muzzle data.
+ *
+ * ARENA-VISUAL-COMBAT-FIX-01 fixup-7: priority order is now:
+ *   1. Per-dir16 screen offset override (TURRET_MUZZLE_DIR16_OVERRIDE) —
+ *      direct (dx, dy) from PNG measurement, bypassing the broken
+ *      forwardPx + dir16ToScreenAngle decomposition entirely.
+ *   2. Flat TURRET_MUZZLE_PROFILE forward/lateral/vertical decomposition
+ *      (legacy fallback for turrets without per-dir16 data).
+ *
+ * The per-dir16 override is the preferred path for all Arena turrets (except
+ * Smoky which uses Priority-1 3DS data via resolveTurretMuzzlesForDir). The
+ * flat forwardPx approach is systematically wrong for diagonal directions
+ * because `dir16ToScreenAngle` does not match the actual barrel direction
+ * in the isometric PNG.
+ *
+ * Exported as a pure function so the muzzle math is unit-testable without a
+ * live Phaser scene.
+ *
+ * Direction comes from dir16 — NOT the raw runtime turret angle — so the
+ * muzzle aligns with the visible (quantised) barrel PNG in both rest and
+ * attack.
+ */
+export function computeModularMuzzlePoint(
+  base: { x: number; y: number },
+  turretId: string,
+  turretDir16: number,
+): { x: number; y: number } {
+  // Fixup-7 Priority A: per-dir16 screen offset from PNG measurement.
+  // Direct (dx, dy) bypasses the broken forward + dir16ToScreenAngle math.
+  const dirOverride = getMuzzleDir16Override(turretId, turretDir16);
+  if (dirOverride) {
+    return {
+      x: base.x + dirOverride.dx,
+      y: base.y + dirOverride.dy,
+    };
+  }
+
+  // Fixup-7 Priority B: flat forward/lateral/vertical decomposition.
+  // Legacy fallback for turrets without per-dir16 overrides.
+  const profile = getTurretMuzzleProfile(turretId);
+  const a = dir16ToScreenAngle(turretDir16);
+  const fx = Math.cos(a);
+  const fy = Math.sin(a);
+  const lx = -fy;
+  const ly = fx;
+  return {
+    x: base.x + fx * profile.muzzleForwardPx + lx * profile.muzzleLateralPx,
+    y: base.y + fy * profile.muzzleForwardPx + ly * profile.muzzleLateralPx
+      + profile.muzzleVerticalPx,
+  };
+}
 
 // ─── Feature flag ──────────────────────────────────────────────────
 
@@ -120,6 +208,18 @@ interface ModularSpriteState {
    *   - destroy() clears all state.
    */
   stickyModularSuccess: boolean;
+  /**
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Store last render plan for
+   * muzzle/VFX origin computation. The plan contains socketScreen and
+   * pivotScreen positions computed from composition metadata, which are
+   * more accurate than turret sprite center + flat barrel length.
+   */
+  lastPlan: ModularRenderPlan | null;
+  /**
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Store last turret dir16 for
+   * muzzle profile lookup via directionalTurretProfiles.
+   */
+  lastTurretDir16: number;
 }
 
 // ─── 03B: Pending normal-runtime entity state for retry ────────────
@@ -210,6 +310,12 @@ export class ModularVehicleLiveAdapter {
       modificationLevel: vehicle.modificationLevel,
       bodyAngle: vehicle.bodyAngle,
       turretAngle: vehicle.turretAngle,
+      // ARENA-VISUAL-COMBAT-FIX-01 fixup-6 root cause D: only treat
+      // turretAngle as a screen-space AIM angle when there is an active
+      // target. With no target the turret rests parallel to the hull, so the
+      // mapper reuses hullDir16 instead of mis-mapping the grid-space rest
+      // angle through the screen offset (which pointed the turret sideways).
+      turretAiming: vehicle.targetVehicleId != null,
     });
 
     if (!mapped.visual) {
@@ -230,9 +336,16 @@ export class ModularVehicleLiveAdapter {
     const bodyImpulseX = -Math.cos(bodyAngle) * recoilBodyOffset;
     const bodyImpulseY = -Math.sin(bodyAngle) * recoilBodyOffset;
 
+    // ARENA-VISUAL-COMBAT-FIX-01 Fix 3: Apply per-hull visual center offset.
+    // This shifts the entire modular composite (hull + turret) so the tank
+    // appears visually centered in its selection ring. Without this, the
+    // isometric artwork sits offset from the ring because the visual body
+    // center is not at the PNG frame center.
+    const visualOffset = getModularVisualCenterOffset(mapped.visual.hullId);
+
     const anchor: ScreenPoint = {
-      x: vehicle.worldX + this.offset.x + bodyImpulseX,
-      y: vehicle.worldY + this.offset.y + bodyImpulseY,
+      x: vehicle.worldX + this.offset.x + bodyImpulseX + visualOffset.dx,
+      y: vehicle.worldY + this.offset.y + bodyImpulseY + visualOffset.dy,
     };
 
     // Compose the render plan using the accepted composition API
@@ -254,7 +367,7 @@ export class ModularVehicleLiveAdapter {
 
     // Only apply the plan and claim modular when textures are fully available.
     if (plan.available) {
-      this.applyPlan(vehicle.id, plan);
+      this.applyPlan(vehicle.id, plan, mapped.turretDir16);
       this.setSticky(vehicle.id, mapped.visual);
       return {
         usedModular: true,
@@ -353,12 +466,19 @@ export class ModularVehicleLiveAdapter {
     // Request lazy-load of the modular vehicle set
     requestModularVehicleSet(this.scene, mapped.visual);
 
+    // ARENA-VISUAL-COMBAT-FIX-01 Fix 3: Apply per-hull visual center offset.
+    const visualOffset = getModularVisualCenterOffset(mapped.visual.hullId);
+    const adjustedAnchor: ScreenPoint = {
+      x: anchor.x + visualOffset.dx,
+      y: anchor.y + visualOffset.dy,
+    };
+
     // Compose the render plan
     const plan = composeModularVehicle({
       visual: mapped.visual,
       hullDir16: mapped.hullDir16,
       turretDir16: mapped.turretDir16,
-      anchor,
+      anchor: adjustedAnchor,
       textureExists: (key: string) => this.scene.textures.exists(key),
     });
 
@@ -369,7 +489,7 @@ export class ModularVehicleLiveAdapter {
 
     // Only apply the plan and claim modular when textures are fully available.
     if (plan.available) {
-      this.applyPlan(entity.id, plan);
+      this.applyPlan(entity.id, plan, mapped.turretDir16);
       this.setSticky(entity.id, mapped.visual);
       // Clear any pending retry — we succeeded
       this.pendingCombat = null;
@@ -469,12 +589,19 @@ export class ModularVehicleLiveAdapter {
     // Re-trigger lazy-load (idempotent — requestModularVehicleSet deduplicates)
     requestModularVehicleSet(this.scene, mapped.visual);
 
+    // ARENA-VISUAL-COMBAT-FIX-01 Fix 3: Apply per-hull visual center offset.
+    const visualOffset = getModularVisualCenterOffset(mapped.visual.hullId);
+    const adjustedAnchor: ScreenPoint = {
+      x: p.anchor.x + visualOffset.dx,
+      y: p.anchor.y + visualOffset.dy,
+    };
+
     // Re-compose the plan
     const plan = composeModularVehicle({
       visual: mapped.visual,
       hullDir16: mapped.hullDir16,
       turretDir16: mapped.turretDir16,
-      anchor: p.anchor,
+      anchor: adjustedAnchor,
       textureExists: (key: string) => this.scene.textures.exists(key),
     });
 
@@ -484,7 +611,7 @@ export class ModularVehicleLiveAdapter {
     }
 
     // Assets ready — apply the plan
-    this.applyPlan(p.entityId, plan);
+    this.applyPlan(p.entityId, plan, mapped.turretDir16);
     this.setNormalRuntimeDepth(p.entityId, p.depth);
     this.setSticky(p.entityId, mapped.visual);
     this.pendingCombat = null;
@@ -527,16 +654,23 @@ export class ModularVehicleLiveAdapter {
     turretDir16: number,
     anchor: ScreenPoint,
   ): void {
+    // ARENA-VISUAL-COMBAT-FIX-01 Fix 3: Apply per-hull visual center offset.
+    const visualOffset = getModularVisualCenterOffset(visual.hullId);
+    const adjustedAnchor: ScreenPoint = {
+      x: anchor.x + visualOffset.dx,
+      y: anchor.y + visualOffset.dy,
+    };
+
     const plan = composeModularVehicle({
       visual,
       hullDir16: hullDir16 as any,
       turretDir16: turretDir16 as any,
-      anchor,
+      anchor: adjustedAnchor,
       textureExists: (key: string) => this.scene.textures.exists(key),
     });
 
     if (plan.available) {
-      this.applyPlan(vehicleId, plan);
+      this.applyPlan(vehicleId, plan, turretDir16);
     }
   }
 
@@ -545,7 +679,7 @@ export class ModularVehicleLiveAdapter {
   /**
    * Apply a ModularRenderPlan to create/update world-space sprites.
    */
-  private applyPlan(vehicleId: string, plan: ModularRenderPlan): void {
+  private applyPlan(vehicleId: string, plan: ModularRenderPlan, turretDir16?: number): void {
     let state = this.vehicleModularSprites.get(vehicleId);
     if (!state) {
       state = {
@@ -555,6 +689,8 @@ export class ModularVehicleLiveAdapter {
         lastTurretKey: null,
         lastVisual: null,
         stickyModularSuccess: false,
+        lastPlan: null,
+        lastTurretDir16: 0,
       };
       this.vehicleModularSprites.set(vehicleId, state);
     }
@@ -601,6 +737,12 @@ export class ModularVehicleLiveAdapter {
       if (state.turretSprite) {
         state.turretSprite.setVisible(false);
       }
+    }
+
+    // ARENA-VISUAL-COMBAT-FIX-01 fixup-4: Store plan for muzzle computation
+    state.lastPlan = plan;
+    if (turretDir16 !== undefined) {
+      state.lastTurretDir16 = turretDir16;
     }
   }
 
@@ -757,5 +899,104 @@ export class ModularVehicleLiveAdapter {
     }
     this.vehicleModularSprites.clear();
     this.pendingCombat = null;
+  }
+
+  // ─── Modular barrel tip (ARENA-VISUAL-COMBAT-FIX-01 fixup-4/6) ──────
+
+  /**
+   * Compute the barrel tip / muzzle screen position for a modular-rendered
+   * vehicle. This is the SINGLE muzzlePoint used by both the VFX origin and
+   * the damage origin (GameScene.computeBarrelTip), so the tracer/flash and
+   * the hit math start from the same point.
+   *
+   * Priority:
+   *   1. Directional muzzle profile (directionalTurretProfiles) — uses
+   *      per-direction normalized muzzle position from 3DS projection data,
+   *      transformed to screen space via the composition plan's turret
+   *      placement. Most accurate for supported weapons (currently Smoky).
+   *   2. Composition pivot-aware + TURRET_MUZZLE_PROFILE fallback — uses
+   *      pivotScreen from the render plan (socket/pivot alignment) as the
+   *      base, offset by the explicit per-turret muzzle profile along the
+   *      SCREEN direction of turretDir16 (fixup-6 root cause F).
+   *   3. Last-resort fallback — turret sprite center + the same profile
+   *      offset. Used only when no plan is stored.
+   *
+   * ARENA-VISUAL-COMBAT-FIX-01 fixup-6: the muzzle direction is derived from
+   * the resolved `turretDir16`, NOT the raw runtime turret angle. `turretAngle`
+   * is retained in the signature for API/caller compatibility but is no longer
+   * read — at rest it is grid-space, which previously pointed the muzzle
+   * sideways/above the hull.
+   *
+   * @param vehicleId - The vehicle ID to compute the barrel tip for
+   * @param _turretAngle - Retained for API compatibility; not read (see above)
+   * @returns Screen-space muzzle position, or null if the vehicle has no
+   *          modular turret sprite (not using modular rendering)
+   */
+  getModularBarrelTip(
+    vehicleId: string,
+    _turretAngle: number,
+  ): { x: number; y: number } | null {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    if (!state?.turretSprite) return null;
+
+    const weaponId = state.lastVisual?.turretId ?? '';
+    const turretDir16 = state.lastTurretDir16;
+    const plan = state.lastPlan;
+
+    // ARENA-VISUAL-COMBAT-FIX-01 fixup-8: priority order revised.
+    // The Codex visual audit proved the Priority-1 3DS-normalized path
+    // (resolveTurretMuzzlesForDir + turret-position transform) produces
+    // systematically wrong results for Smoky (11–19 px off visible barrel).
+    // The per-dir16 PNG-measured override now takes top priority. The 3DS
+    // normalized path is demoted to Priority 2 and only used when no
+    // per-dir16 override exists for the turret.
+
+    // Priority 1 (fixup-8): Per-dir16 screen offset override.
+    // Direct (dx, dy) from PNG measurement, bypassing both the broken
+    // 3DS normalized transform AND the flat forwardPx decomposition.
+    // Currently active for all Arena turrets including Smoky.
+    if (plan && plan.pivotScreen) {
+      const dirOverride = getMuzzleDir16Override(weaponId, turretDir16);
+      if (dirOverride) {
+        return {
+          x: plan.pivotScreen.x + dirOverride.dx,
+          y: plan.pivotScreen.y + dirOverride.dy,
+        };
+      }
+    }
+
+    // Priority 2: Directional muzzle profile (per-direction 3DS projection data).
+    // Only reached when no per-dir16 override exists for this turret.
+    // NOTE: Smoky has a per-dir16 override now, so this path is NOT reached
+    // for Smoky. When the 3DS metadata pipeline is corrected, the Smoky
+    // override can be removed and this path will take over.
+    const muzzleProfile = resolveTurretMuzzlesForDir(weaponId, 0, turretDir16);
+    const turretDisplaySize = plan?.turret.displaySize
+      ?? (MODULAR_FRAME_SIZE * MODULAR_VEHICLE_BASE_SCALE);
+    if (muzzleProfile && muzzleProfile.length > 0 && plan) {
+      const muzzleNorm = muzzleProfile[0].position;
+      const muzzleScreenX = plan.turret.position.x + (muzzleNorm.x - plan.turret.origin.x) * turretDisplaySize;
+      const muzzleScreenY = plan.turret.position.y + (muzzleNorm.y - plan.turret.origin.y) * turretDisplaySize;
+      return { x: muzzleScreenX, y: muzzleScreenY };
+    }
+
+    // Priority 3: Composition pivot-aware + TURRET_MUZZLE_PROFILE fallback.
+    if (plan && plan.pivotScreen) {
+      return computeModularMuzzlePoint(plan.pivotScreen, weaponId, turretDir16);
+    }
+
+    // Priority 4: Last-resort fallback — turret sprite center + profile offset.
+    const spriteCenter = { x: state.turretSprite.x, y: state.turretSprite.y };
+    return computeModularMuzzlePoint(spriteCenter, weaponId, turretDir16);
+  }
+
+  /**
+   * Check whether a vehicle is currently using modular rendering.
+   * Used by GameScene to decide whether to use the modular barrel tip
+   * computation vs. the blockout geometry barrel tip.
+   */
+  isUsingModularRender(vehicleId: string): boolean {
+    const state = this.vehicleModularSprites.get(vehicleId);
+    return state != null && state.turretSprite != null && state.stickyModularSuccess;
   }
 }
