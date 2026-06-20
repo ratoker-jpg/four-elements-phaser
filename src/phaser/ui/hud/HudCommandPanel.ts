@@ -1,32 +1,37 @@
 /**
- * HUD Command Panel — command card area for AoE4-inspired UX.
+ * HUD Command Panel — AoE4-inspired 4×3 command card with grid hotkeys.
  *
- * HUD-LAYOUT-REBUILD-02: Rebuilt to visually reserve a 4×3 command
- * card grid. Current builder/harvester commands render inside the new
- * area temporarily. The final QWER/ASDF/ZXCV hotkey migration is
- * NOT implemented in this PR — that belongs to COMMAND-CARD-REBUILD-03.
+ * COMMAND-CARD-REBUILD-03: Rebuilt as a stable 4×3 command card grid
+ * with Q/W/E/R/A/S/D/F/Z/X/C/V hotkey badges. Each slot has a fixed
+ * position matching the keyboard spatial layout for muscle memory.
  *
  * Key design decisions:
- *   - Grid is 4 columns × 3 rows (12 slots total)
- *   - Empty slots show as subtle grid cells, not fake buttons
- *   - Hotkey badges are visible but use current hotkeys (not QWER)
+ *   - 12 fixed slots, each with a stable slot key and hotkey badge
+ *   - Empty slots show as subtle grid cells (not fake buttons)
+ *   - Hotkey badges are prominent and always visible
+ *   - Commands are assigned to specific grid slots by context
  *   - descriptorMap pattern is preserved for fresh click state
  *   - aria-disabled pattern is preserved for tooltip-on-disabled
+ *   - Tooltips show: name, hotkey, cost, disabled reason
  *
- * What is TEMPORARY (will change in COMMAND-CARD-REBUILD-03):
- *   - Hotkey labels show current bindings (B, 1, 2, etc.)
- *   - Slot positions don't follow QWER spatial layout yet
- *   - Commands fill left-to-right, not by grid slot category
+ * Slot layout (matching keyboard spatial layout):
+ *   Row 1: Q  W  E  R
+ *   Row 2: A  S  D  F
+ *   Row 3: Z  X  C  V
  */
 
 import type { GameState } from '../../../state/types';
 import type { UnitSelection } from '../../../state/unitSelection';
 import {
-  buildCommandPanelViewModel,
-  type CommandDescriptor,
-  type CommandPanelViewModel,
+  buildCommandCardViewModel,
 } from './commandPanelViewModel';
-import { COMMAND_CARD_COLS, COMMAND_CARD_ROWS } from './hudLayout';
+import {
+  GRID_COLS,
+  GRID_ROWS,
+  type SlotKey,
+  type CommandCardViewModel,
+  type CommandCardSlot,
+} from './commandCardGrid';
 
 /** Callback type for command execution. */
 export type CommandExecuteCallback = (commandId: string) => void;
@@ -42,13 +47,13 @@ export class HudCommandPanel {
   private onCommand?: CommandExecuteCallback;
 
   /** Current view model for diff checking. */
-  private currentVm: CommandPanelViewModel | null = null;
+  private currentVm: CommandCardViewModel | null = null;
 
   /**
    * Map of current command descriptors by commandId.
    * Click handlers read from this map instead of closing over stale descriptors.
    */
-  private descriptorMap: Map<string, CommandDescriptor> = new Map();
+  private descriptorMap: Map<string, CommandCardSlot> = new Map();
 
   create(parent: HTMLElement, onCommand?: CommandExecuteCallback): void {
     this.onCommand = onCommand;
@@ -65,23 +70,24 @@ export class HudCommandPanel {
   }
 
   update(state: GameState, selection: UnitSelection): void {
-    const vm = buildCommandPanelViewModel(state, selection);
+    const vm = buildCommandCardViewModel(state, selection);
 
     // Update context label
     this.contextEl.textContent = vm.contextLabel || 'Commands';
 
     // Update the descriptor map so click handlers use fresh state
     this.descriptorMap.clear();
-    for (const cmd of vm.commands) {
-      this.descriptorMap.set(cmd.id, cmd);
+    for (const slot of vm.slots) {
+      if (slot.state !== 'empty' && slot.commandId) {
+        this.descriptorMap.set(slot.commandId, slot);
+      }
     }
 
-    // Rebuild buttons if command list changed
+    // Rebuild grid if context changed; otherwise update states in place
     if (!this.vmEquals(this.currentVm, vm)) {
       this.rebuildGrid(vm);
       this.currentVm = vm;
     } else {
-      // Even if list is the same, update enabled/disabled states
       this.updateStates(vm);
     }
   }
@@ -92,11 +98,13 @@ export class HudCommandPanel {
 
   // ─── Private ────────────────────────────────────────────────────
 
-  private rebuildGrid(vm: CommandPanelViewModel): void {
+  private rebuildGrid(vm: CommandCardViewModel): void {
     // Clear existing content
     this.gridEl.innerHTML = '';
 
-    if (vm.commands.length === 0) {
+    // Check if all slots are empty
+    const hasAnyCommand = vm.slots.some((s: CommandCardSlot) => s.state !== 'empty');
+    if (!hasAnyCommand) {
       this.emptyEl.style.display = 'flex';
       this.gridEl.style.display = 'none';
       return;
@@ -105,54 +113,56 @@ export class HudCommandPanel {
     this.emptyEl.style.display = 'none';
     this.gridEl.style.display = 'grid';
 
-    // Fill active command slots
-    for (const cmd of vm.commands) {
-      if (cmd.state === 'hidden') continue;
-      this.gridEl.appendChild(this.createButton(cmd));
-    }
-
-    // Fill remaining slots as empty grid cells
-    const activeCount = vm.commands.filter(c => c.state !== 'hidden').length;
-    const totalSlots = COMMAND_CARD_COLS * COMMAND_CARD_ROWS;
-    for (let i = activeCount; i < totalSlots; i++) {
-      const slot = document.createElement('div');
-      slot.className = 'hcp-slot-empty';
-      this.gridEl.appendChild(slot);
+    // Build all 12 slots in grid order
+    for (const slot of vm.slots) {
+      if (slot.state === 'empty') {
+        this.gridEl.appendChild(this.createEmptySlot(slot.slotKey));
+      } else {
+        this.gridEl.appendChild(this.createCommandSlot(slot));
+      }
     }
   }
 
-  private updateStates(vm: CommandPanelViewModel): void {
+  private updateStates(vm: CommandCardViewModel): void {
     const buttons = this.gridEl.querySelectorAll<HTMLButtonElement>('.hcp-btn');
-    const visibleCmds = vm.commands.filter(c => c.state !== 'hidden');
     let btnIdx = 0;
 
-    for (const cmd of visibleCmds) {
+    for (const slot of vm.slots) {
+      if (slot.state === 'empty') continue;
       if (btnIdx >= buttons.length) break;
       const btn = buttons[btnIdx];
-      this.applyCommandToButton(btn, cmd);
+      this.applySlotToButton(btn, slot);
       btnIdx++;
     }
   }
 
-  private createButton(cmd: CommandDescriptor): HTMLButtonElement {
+  private createEmptySlot(slotKey: SlotKey): HTMLDivElement {
+    const cell = document.createElement('div');
+    cell.className = 'hcp-slot-empty';
+    cell.dataset.slotKey = slotKey;
+    return cell;
+  }
+
+  private createCommandSlot(slot: CommandCardSlot): HTMLButtonElement {
     const btn = document.createElement('button');
     btn.className = 'hcp-btn';
-    btn.dataset.commandId = cmd.id;
-    this.applyCommandToButton(btn, cmd);
+    btn.dataset.commandId = slot.commandId;
+    btn.dataset.slotKey = slot.slotKey;
+    this.applySlotToButton(btn, slot);
 
     // Click handler reads current descriptor from map, not closure.
     btn.addEventListener('click', (e: MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      const currentCmd = this.descriptorMap.get(btn.dataset.commandId ?? '');
-      if (!currentCmd || currentCmd.state !== 'enabled') return;
-      this.onCommand?.(currentCmd.id);
+      const currentSlot = this.descriptorMap.get(btn.dataset.commandId ?? '');
+      if (!currentSlot || currentSlot.state !== 'enabled') return;
+      this.onCommand?.(currentSlot.commandId);
     });
 
     // Tooltip reads current descriptor from map on hover.
     btn.addEventListener('mouseenter', () => {
-      const currentCmd = this.descriptorMap.get(btn.dataset.commandId ?? '');
-      if (currentCmd) this.showTooltip(currentCmd);
+      const currentSlot = this.descriptorMap.get(btn.dataset.commandId ?? '');
+      if (currentSlot) this.showTooltip(currentSlot);
     });
     btn.addEventListener('mouseleave', () => {
       this.hideTooltip();
@@ -161,34 +171,32 @@ export class HudCommandPanel {
     return btn;
   }
 
-  private applyCommandToButton(btn: HTMLButtonElement, cmd: CommandDescriptor): void {
-    const isDisabled = cmd.state === 'disabled';
+  private applySlotToButton(btn: HTMLButtonElement, slot: CommandCardSlot): void {
+    const isDisabled = slot.state === 'disabled';
 
     // Use aria-disabled + CSS instead of native disabled.
     btn.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
     btn.classList.toggle('hcp-btn--disabled', isDisabled);
     btn.removeAttribute('disabled');
 
-    // Label + hotkey + cost
-    btn.innerHTML = this.buttonInnerHTML(cmd);
-    btn.title = cmd.tooltip;
+    // Label + hotkey badge + cost
+    btn.innerHTML = this.slotInnerHTML(slot);
+    btn.title = slot.tooltip;
   }
 
-  private buttonInnerHTML(cmd: CommandDescriptor): string {
-    let html = `<span class="hcp-btn-label">${this.escapeHtml(cmd.label)}</span>`;
-    if (cmd.hotkey) {
-      html += `<span class="hcp-btn-hotkey">${this.escapeHtml(cmd.hotkey)}</span>`;
-    }
-    if (cmd.cost) {
-      html += `<span class="hcp-btn-cost">${this.escapeHtml(cmd.cost)}</span>`;
+  private slotInnerHTML(slot: CommandCardSlot): string {
+    let html = `<span class="hcp-btn-hotkey">${this.escapeHtml(slot.hotkey)}</span>`;
+    html += `<span class="hcp-btn-label">${this.escapeHtml(slot.label)}</span>`;
+    if (slot.cost) {
+      html += `<span class="hcp-btn-cost">${this.escapeHtml(slot.cost)}</span>`;
     }
     return html;
   }
 
-  private showTooltip(cmd: CommandDescriptor): void {
-    let text = cmd.tooltip;
-    if (cmd.state === 'disabled' && cmd.disabledReason) {
-      text = `${cmd.label} — ${cmd.disabledReason}`;
+  private showTooltip(slot: CommandCardSlot): void {
+    let text = slot.tooltip;
+    if (slot.state === 'disabled' && slot.disabledReason) {
+      text = `${slot.label} [${slot.hotkey}] — ${slot.disabledReason}`;
     }
     this.tooltipEl.textContent = text;
     this.tooltipEl.style.display = 'block';
@@ -199,12 +207,13 @@ export class HudCommandPanel {
   }
 
   /** Shallow equality check to avoid unnecessary DOM rebuilds. */
-  private vmEquals(a: CommandPanelViewModel | null, b: CommandPanelViewModel): boolean {
+  private vmEquals(a: CommandCardViewModel | null, b: CommandCardViewModel): boolean {
     if (!a) return false;
     if (a.contextKind !== b.contextKind) return false;
-    if (a.commands.length !== b.commands.length) return false;
-    for (let i = 0; i < a.commands.length; i++) {
-      if (a.commands[i].id !== b.commands[i].id) return false;
+    // Check if any slot's command or state changed
+    for (let i = 0; i < a.slots.length; i++) {
+      if (a.slots[i].commandId !== b.slots[i].commandId) return false;
+      if (a.slots[i].state !== b.slots[i].state) return false;
     }
     return true;
   }
@@ -222,7 +231,7 @@ export class HudCommandPanel {
       #hud-command-panel {
         display: flex;
         flex-direction: column;
-        padding: 6px 8px;
+        padding: 4px 6px;
         height: 100%;
         min-width: 0;
         position: relative;
@@ -231,8 +240,8 @@ export class HudCommandPanel {
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 4px;
-        padding-bottom: 4px;
+        margin-bottom: 2px;
+        padding-bottom: 2px;
         border-bottom: 1px solid rgba(212, 165, 116, 0.1);
       }
       #hcp-context {
@@ -245,8 +254,8 @@ export class HudCommandPanel {
       }
       #hcp-grid {
         display: grid;
-        grid-template-columns: repeat(${COMMAND_CARD_COLS}, 1fr);
-        grid-template-rows: repeat(${COMMAND_CARD_ROWS}, 1fr);
+        grid-template-columns: repeat(${GRID_COLS}, 1fr);
+        grid-template-rows: repeat(${GRID_ROWS}, 1fr);
         gap: 3px;
         flex: 1;
         align-content: stretch;
@@ -256,8 +265,8 @@ export class HudCommandPanel {
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 2px;
-        padding: 3px 4px;
+        gap: 1px;
+        padding: 2px 3px;
         background: rgba(212, 165, 116, 0.06);
         border: 1px solid rgba(212, 165, 116, 0.2);
         border-radius: 3px;
@@ -268,6 +277,7 @@ export class HudCommandPanel {
         user-select: none;
         transition: background 0.15s ease, border-color 0.15s ease;
         pointer-events: auto;
+        position: relative;
       }
       .hcp-btn:hover:not(.hcp-btn--disabled) {
         background: rgba(212, 165, 116, 0.15);
@@ -289,24 +299,33 @@ export class HudCommandPanel {
         background: rgba(212, 165, 116, 0.04);
         border-color: rgba(212, 165, 116, 0.12);
       }
+      .hcp-btn-hotkey {
+        position: absolute;
+        top: 1px;
+        left: 3px;
+        font-size: 8px;
+        font-weight: 700;
+        color: #d4a574;
+        background: rgba(212, 165, 116, 0.12);
+        padding: 0 3px;
+        border-radius: 2px;
+        line-height: 1.3;
+        letter-spacing: 0.5px;
+      }
+      .hcp-btn--disabled .hcp-btn-hotkey {
+        color: #806040;
+        background: rgba(212, 165, 116, 0.06);
+      }
       .hcp-btn-label {
         font-weight: 600;
-        font-size: 10px;
+        font-size: 9px;
         text-transform: uppercase;
         letter-spacing: 0.3px;
         line-height: 1.2;
-      }
-      .hcp-btn-hotkey {
-        font-size: 9px;
-        color: #909090;
-        line-height: 1.2;
-        font-weight: 600;
-        background: rgba(255,255,255,0.06);
-        padding: 0 3px;
-        border-radius: 2px;
+        margin-top: 8px;
       }
       .hcp-btn-cost {
-        font-size: 8px;
+        font-size: 7px;
         color: #808080;
         line-height: 1.2;
       }
@@ -332,7 +351,7 @@ export class HudCommandPanel {
         white-space: nowrap;
         z-index: 20;
         pointer-events: none;
-        max-width: 260px;
+        max-width: 300px;
         overflow: hidden;
         text-overflow: ellipsis;
       }
@@ -358,7 +377,7 @@ export class HudCommandPanel {
       </div>
       <div id="hcp-grid"></div>
       <div id="hcp-tooltip"></div>
-      <div id="hcp-empty" style="display:none;">No commands available</div>
+      <div id="hcp-empty" style="display:none;">No selection</div>
     `;
   }
 }

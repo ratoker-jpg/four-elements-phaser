@@ -11,7 +11,7 @@ import { issueManualMove, stopUnitCommand } from '../../state/unitCommands';
 // Stage 3 retirement: ModularTankDirection import removed from worldConfig.
 // It was only used by the legacy tuner hotkeys (Q/E/Z/X), which are gone.
 import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
-import { commandRegistry, registerMvpCommands } from '../../state/commandRegistry';
+import { commandRegistry, registerMvpCommands, type CommandCategory } from '../../state/commandRegistry';
 import { isScreenPointInHud } from '../ui/hud/hudLayout';
 import type { EntityRenderer } from '../render/EntityRenderer';
 import type { FeedbackRenderer } from '../render/FeedbackRenderer';
@@ -216,57 +216,29 @@ export class GameInputController {
    * them to actual gameplay actions.
    */
   private wireCommandCallbacks(): void {
-    const buildSeparator = commandRegistry.get('build-separator');
-    if (buildSeparator) {
-      buildSeparator.execute = () => {
-        const result = this.requestBuild('separator');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
+    // ── COMMAND-CARD-REBUILD-03: Grid hotkey command wiring ──
+    // Primary grid hotkeys: Q/W/E/R/A/S/Z for build/stop commands.
+    // Each is wired to its corresponding gameplay action.
 
-    const buildFactory = commandRegistry.get('build-units-factory');
-    if (buildFactory) {
-      buildFactory.execute = () => {
-        const result = this.requestBuild('units-factory');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
+    const wireBuild = (commandId: string, buildingType: BuildingType) => {
+      const cmd = commandRegistry.get(commandId);
+      if (cmd) {
+        cmd.execute = () => {
+          const result = this.requestBuild(buildingType);
+          this.showStatusCb(result.message, result.success);
+        };
+      }
+    };
 
-    const buildRawStorage = commandRegistry.get('build-raw-storage');
-    if (buildRawStorage) {
-      buildRawStorage.execute = () => {
-        const result = this.requestBuild('raw-storage');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
-
-    const buildMatterStorage = commandRegistry.get('build-matter-storage');
-    if (buildMatterStorage) {
-      buildMatterStorage.execute = () => {
-        const result = this.requestBuild('matter-storage');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
-
-    const buildElementStorage = commandRegistry.get('build-element-storage');
-    if (buildElementStorage) {
-      buildElementStorage.execute = () => {
-        const result = this.requestBuild('element-storage');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
-
-    const buildPowerPlant = commandRegistry.get('build-power-plant');
-    if (buildPowerPlant) {
-      buildPowerPlant.execute = () => {
-        const result = this.requestBuild('power-plant');
-        this.showStatusCb(result.message, result.success);
-      };
-    }
+    wireBuild('build-separator', 'separator');
+    wireBuild('build-raw-storage', 'raw-storage');
+    wireBuild('build-matter-storage', 'matter-storage');
+    wireBuild('build-element-storage', 'element-storage');
+    wireBuild('build-power-plant', 'power-plant');
+    wireBuild('build-units-factory', 'units-factory');
 
     // NOTE: build-energy-plant is intentionally NOT wired because
     // energy-plant is visual-ready only — no gameplay mechanic yet.
-    // Players must not accidentally build a non-functional building.
 
     const produceBuilder = commandRegistry.get('produce-builder');
     if (produceBuilder) {
@@ -282,6 +254,33 @@ export class GameInputController {
         const result = this.requestQueueUnit('harvester');
         this.showStatusCb(result.message, result.success);
       };
+    }
+
+    // ── Unit stop command ──
+    const unitStop = commandRegistry.get('unit-stop');
+    if (unitStop) {
+      unitStop.execute = () => {
+        this.handleStopKey();
+      };
+    }
+
+    // ── COMMAND-CARD-REBUILD-03: Legacy alias wiring ──
+    // Each legacy alias executes the same action as its primary counterpart.
+    // These are temporary during the hotkey migration period.
+    const legacyAliases: [string, () => void][] = [
+      ['build-separator-legacy',      () => { const r = this.requestBuild('separator'); this.showStatusCb(r.message, r.success); }],
+      ['build-raw-storage-legacy',    () => { const r = this.requestBuild('raw-storage'); this.showStatusCb(r.message, r.success); }],
+      ['build-matter-storage-legacy', () => { const r = this.requestBuild('matter-storage'); this.showStatusCb(r.message, r.success); }],
+      ['build-element-storage-legacy',() => { const r = this.requestBuild('element-storage'); this.showStatusCb(r.message, r.success); }],
+      ['build-power-plant-legacy',   () => { const r = this.requestBuild('power-plant'); this.showStatusCb(r.message, r.success); }],
+      ['build-units-factory-legacy', () => { const r = this.requestBuild('units-factory'); this.showStatusCb(r.message, r.success); }],
+      ['unit-stop-legacy',           () => { this.handleStopKey(); }],
+    ];
+    for (const [aliasId, execute] of legacyAliases) {
+      const cmd = commandRegistry.get(aliasId);
+      if (cmd) {
+        cmd.execute = execute;
+      }
     }
   }
 
@@ -782,27 +781,23 @@ export class GameInputController {
     // implemented as an explicit devtools panel control, not as global
     // keyboard hotkeys that mutate shared tuner state.
 
-    // ── Build & Production hotkeys (HOTKEYS-01: dispatched via command registry) ──
-    // Register keyboard listeners for each build/produce command.
+    // ── COMMAND-CARD-REBUILD-03: Grid hotkey keyboard wiring ──
+    // Register keyboard listeners for all registered commands by category.
     // The registry is the source-of-truth for key bindings.
-    const buildCommands = commandRegistry.findByCategory('build');
-    for (const cmd of buildCommands) {
-      kb.on(`keydown-${cmd.key}`, () => {
-        commandRegistry.execute(cmd.id);
-      });
+    // Grid hotkeys: Q/W/E/R/A/S/D/F/Z/X/C/V for command card
+    // Legacy aliases: B/P/F/ONE/TWO/THREE/S for backward compatibility
+    const categoriesToWire: CommandCategory[] = ['build', 'produce', 'unit-action'];
+    for (const category of categoriesToWire) {
+      const commands = commandRegistry.findByCategory(category);
+      for (const cmd of commands) {
+        kb.on(`keydown-${cmd.key}`, () => {
+          commandRegistry.execute(cmd.id);
+        });
+      }
     }
 
-    const produceCommands = commandRegistry.findByCategory('produce');
-    for (const cmd of produceCommands) {
-      kb.on(`keydown-${cmd.key}`, () => {
-        commandRegistry.execute(cmd.id);
-      });
-    }
-
-    // ── CORE-STEP-05H+: S key — stop selected unit ────────────
-    kb.on('keydown-S', () => {
-      this.handleStopKey();
-    });
+    // S key is now handled via unit-stop-legacy (registered above).
+    // The old explicit S handler is removed — it routes through the registry.
 
     // ── Devtools toggle (F10 / backtick) ─────────────────────
     kb.on('keydown-F10', () => {

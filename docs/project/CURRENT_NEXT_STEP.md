@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: AoE4-inspired UX redesign roadmap — awaiting Denis acceptance
+Status: COMMAND-CARD-REBUILD-03 — AoE4-inspired command card with grid hotkeys
 Project: Four Elements Phaser  
-Updated: 2026-06-20
+Updated: 2026-06-21
 
 ---
 
@@ -65,18 +65,18 @@ Renderer unification Stage 1-4 is CLOSED.
 ## Active next step (single)
 
 ```text
-VISUAL-AOE4-UX-REDESIGN-ROADMAP-01
-  Risk: Low — docs/design only.
-  Type: docs-only PR.
-  Goal: define AoE4-inspired UX redesign roadmap that replaces
-        the "continue integrating existing HUD" plan.
-  Primary deliverable:
-    docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md
+COMMAND-CARD-REBUILD-03-VERYHIGHPLUS
+  Risk: Very High — hotkey remapping changes fundamental input behavior.
+  Type: Implementation PR (DRAFT).
+  Goal: Rebuild command panel as a stable 4×3 grid with Q/W/E/R/A/S/D/F/Z/X/C/V
+        hotkey badges. Migrate build/produce hotkeys from number keys and B/P/N/G
+        to grid positions. Reserve number keys 1-9 for future control groups.
+  Status: PR open, awaiting GPT review + Denis manual visual QA.
 
-  Status: PR open, awaiting Denis acceptance.
-
-  No runtime implementation until Denis accepts the roadmap.
-  No HUD code changes until the redesign spec is accepted.
+  #312 HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS
+    Status: MERGED.
+    Result: Bottom HUD rebuilt with AoE4-inspired layout, resource strip
+            top-left overlay, PlaytestHud hidden in normal mode.
 ```
 
 ---
@@ -140,7 +140,9 @@ Each step requires Denis manual visual approval before merge.
 - Do not merge High+ visual PRs without Denis manual visual approval.
 - Do not continue renderer unification by inertia.
 - Do not reopen #304 inside Visual Roadmap.
-- Do not start HUD runtime implementation before the redesign roadmap is accepted.
+- Do not remove old hotkey aliases (B/P/1/2/3/S) until COMMAND-CARD-REBUILD-03
+  is accepted by Denis AND control groups are implemented (SELECTION-CONTROL-GROUPS-05).
+- Do not use number keys 1-9 for any new feature — they are reserved for control groups.
 ```
 
 ---
