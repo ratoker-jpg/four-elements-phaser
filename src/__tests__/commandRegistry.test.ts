@@ -326,17 +326,19 @@ describe('registerMvpCommands', () => {
     commandRegistry.clear();
   });
 
-  it('registers all 10 MVP commands (build-energy-plant removed for visual-ready guard)', () => {
+  it('registers all 11 primary MVP commands + 5 legacy aliases (FIXUP-2)', () => {
     registerMvpCommands();
     const cmds = commandRegistry.list();
-    expect(cmds).toHaveLength(10);
+    // FIXUP-2: 11 primary commands + 5 legacy aliases = 16 total
+    // (Removed build-units-factory-legacy and unit-stop-legacy)
+    expect(cmds).toHaveLength(16);
   });
 
-  it('registers camera-reset with key R', () => {
+  it('registers camera-reset with key HOME (FIXUP-1: moved from R to HOME)', () => {
     registerMvpCommands();
     const cmd = commandRegistry.get('camera-reset');
     expect(cmd).toBeDefined();
-    expect(cmd!.key).toBe('R');
+    expect(cmd!.key).toBe('HOME');
     expect(cmd!.category).toBe('camera');
   });
 
@@ -348,14 +350,22 @@ describe('registerMvpCommands', () => {
     expect(cmd!.category).toBe('menu');
   });
 
-  it('registers build commands with correct keys', () => {
+  it('registers build commands with correct grid keys (FIXUP-2: S=Stop, F=Factory)', () => {
     registerMvpCommands();
-    expect(commandRegistry.get('build-separator')!.key).toBe('B');
+    // Primary grid keys
+    expect(commandRegistry.get('build-separator')!.key).toBe('Q');
+    expect(commandRegistry.get('build-raw-storage')!.key).toBe('W');
+    expect(commandRegistry.get('build-matter-storage')!.key).toBe('E');
+    expect(commandRegistry.get('build-element-storage')!.key).toBe('R');
+    expect(commandRegistry.get('build-power-plant')!.key).toBe('A');
     expect(commandRegistry.get('build-units-factory')!.key).toBe('F');
-    expect(commandRegistry.get('build-power-plant')!.key).toBe('P');
-    expect(commandRegistry.get('build-raw-storage')!.key).toBe('ONE');
-    expect(commandRegistry.get('build-matter-storage')!.key).toBe('TWO');
-    expect(commandRegistry.get('build-element-storage')!.key).toBe('THREE');
+    expect(commandRegistry.get('unit-stop')!.key).toBe('S');
+    // Legacy aliases
+    expect(commandRegistry.get('build-separator-legacy')!.key).toBe('B');
+    expect(commandRegistry.get('build-power-plant-legacy')!.key).toBe('P');
+    expect(commandRegistry.get('build-raw-storage-legacy')!.key).toBe('ONE');
+    expect(commandRegistry.get('build-matter-storage-legacy')!.key).toBe('TWO');
+    expect(commandRegistry.get('build-element-storage-legacy')!.key).toBe('THREE');
   });
 
   it('does not register build-energy-plant (visual-ready guard)', () => {
@@ -375,17 +385,22 @@ describe('registerMvpCommands', () => {
     expect(conflicts).toHaveLength(0);
   });
 
-  it('Escape and R commands do not conflict with other commands', () => {
+  it('HOME and ESC commands do not conflict with other commands (FIXUP-1)', () => {
     registerMvpCommands();
     // ESC should only map to pause-menu
     const escCmds = commandRegistry.list().filter(c => c.key === 'ESC');
     expect(escCmds).toHaveLength(1);
     expect(escCmds[0].id).toBe('pause-menu');
 
-    // R should only map to camera-reset
+    // HOME should only map to camera-reset (FIXUP-1: moved from R)
+    const homeCmds = commandRegistry.list().filter(c => c.key === 'HOME');
+    expect(homeCmds).toHaveLength(1);
+    expect(homeCmds[0].id).toBe('camera-reset');
+
+    // R should only map to build-element-storage (grid hotkey)
     const rCmds = commandRegistry.list().filter(c => c.key === 'R');
     expect(rCmds).toHaveLength(1);
-    expect(rCmds[0].id).toBe('camera-reset');
+    expect(rCmds[0].id).toBe('build-element-storage');
   });
 
   it('command labels and hotkeys are stable', () => {
@@ -403,10 +418,10 @@ describe('registerMvpCommands', () => {
   // ─── Idempotency tests (PR #111 fixup — Issue 1) ─────────────
 
   describe('idempotency', () => {
-    it('calling registerMvpCommands() twice keeps exactly 10 commands (build-energy-plant removed)', () => {
+    it('calling registerMvpCommands() twice keeps exactly 16 commands (FIXUP-2: 11 primary + 5 legacy)', () => {
       registerMvpCommands();
       registerMvpCommands();
-      expect(commandRegistry.list()).toHaveLength(10);
+      expect(commandRegistry.list()).toHaveLength(16);
     });
 
     it('second call does not create duplicate key conflicts', () => {
@@ -466,7 +481,7 @@ describe('registerMvpCommands', () => {
 
       const afterReregister = commandRegistry.get('build-separator')!;
       expect(afterReregister.label).toBe('Build Separator');
-      expect(afterReregister.key).toBe('B');
+      expect(afterReregister.key).toBe('Q'); // FIXUP-2: grid key Q
       expect(afterReregister.category).toBe('build');
       expect(afterReregister.execute).toBeDefined();
       expect(afterReregister.enabled).toBeDefined();
@@ -485,14 +500,14 @@ describe('ensureMvpCommandsRegistered', () => {
 
   it('registers MVP commands when registry is empty', () => {
     ensureMvpCommandsRegistered();
-    expect(commandRegistry.list()).toHaveLength(10);
+    expect(commandRegistry.list()).toHaveLength(16);
   });
 
-  it('is idempotent — repeated calls keep exactly 10 commands', () => {
+  it('is idempotent — repeated calls keep exactly 16 commands', () => {
     ensureMvpCommandsRegistered();
     ensureMvpCommandsRegistered();
     ensureMvpCommandsRegistered();
-    expect(commandRegistry.list()).toHaveLength(10);
+    expect(commandRegistry.list()).toHaveLength(16);
   });
 
   it('does not remove existing execute callbacks', () => {
@@ -515,14 +530,16 @@ describe('getMvpCommandHotkey', () => {
 
   it('returns correct hotkey for registered MVP command', () => {
     registerMvpCommands();
-    expect(getMvpCommandHotkey('build-separator')).toBe('B');
-    expect(getMvpCommandHotkey('camera-reset')).toBe('R');
+    expect(getMvpCommandHotkey('build-separator')).toBe('Q');
+    expect(getMvpCommandHotkey('camera-reset')).toBe('HOME');
     expect(getMvpCommandHotkey('pause-menu')).toBe('ESC');
+    expect(getMvpCommandHotkey('unit-stop')).toBe('S');
+    expect(getMvpCommandHotkey('build-units-factory')).toBe('F');
   });
 
   it('resolves hotkey even when registry was empty before call', () => {
     // Simulates PlaytestHud creating buttons before GameInputController
-    expect(getMvpCommandHotkey('build-separator')).toBe('B');
+    expect(getMvpCommandHotkey('build-separator')).toBe('Q');
     expect(getMvpCommandHotkey('produce-builder')).toBe('N');
   });
 
@@ -535,7 +552,7 @@ describe('getMvpCommandHotkey', () => {
     getMvpCommandHotkey('build-separator');
     getMvpCommandHotkey('build-separator');
     getMvpCommandHotkey('produce-builder');
-    expect(commandRegistry.list()).toHaveLength(10);
+    expect(commandRegistry.list()).toHaveLength(16);
   });
 });
 

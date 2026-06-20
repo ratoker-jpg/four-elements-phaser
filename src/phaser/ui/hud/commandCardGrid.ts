@@ -198,11 +198,14 @@ export function assignSlot(
  * Builder context slot assignment.
  *
  * Row 1 (Q/W/E/R): Core build commands
- * Row 2 (A/S/D/F): Advanced build commands
- * Row 3 (Z/X/C/V): Utility — Stop in Z slot
+ * Row 2 (A/S/D/F): S = Stop (mandatory RTS), F = Units Factory
+ * Row 3 (Z/X/C/V): All empty/future slots
  *
  * Slot positions are STABLE for muscle memory.
  * If a building doesn't exist yet, the slot is empty (not shuffled).
+ *
+ * FIXUP-2: Denis decision — Stop MUST be on S (standard RTS behavior).
+ * Factory moved from S to F. Z is now empty/future.
  */
 export const BUILDER_SLOT_MAP: { slotKey: SlotKey; buildingType: string }[] = [
   { slotKey: 'Q', buildingType: 'separator' },
@@ -210,18 +213,19 @@ export const BUILDER_SLOT_MAP: { slotKey: SlotKey; buildingType: string }[] = [
   { slotKey: 'E', buildingType: 'matter-storage' },
   { slotKey: 'R', buildingType: 'element-storage' },
   { slotKey: 'A', buildingType: 'power-plant' },
-  { slotKey: 'S', buildingType: 'units-factory' },
-  // D, F: future buildings
-  // Z: Stop command
+  { slotKey: 'F', buildingType: 'units-factory' },
+  // S: reserved for Stop command (STOP_SLOT)
+  // D: future building
+  // Z/X/C/V: future slots
 ];
 
-/** Slot key for the Stop command in any unit context. */
-export const STOP_SLOT: SlotKey = 'Z';
+/** Slot key for the Stop command in any unit context. S = Stop (mandatory RTS). */
+export const STOP_SLOT: SlotKey = 'S';
 
 /**
  * Harvester context slot assignment.
  *
- * Only the Stop command occupies slot Z.
+ * Only the Stop command occupies slot S.
  * All other slots are empty.
  */
 

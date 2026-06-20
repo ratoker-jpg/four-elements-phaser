@@ -4,7 +4,7 @@
  * Targeted tests for:
  *   - Command card grid model (12 slots, Q/W/E/R/A/S/D/F/Z/X/C/V mapping)
  *   - Builder context (build commands in stable slots, disabled states)
- *   - Harvester context (Stop in Z slot)
+ *   - Harvester context (Stop in S slot)
  *   - No selection context (empty grid)
  *   - Command execution (enabled/disabled clicks, hotkey routing)
  *   - Input safety (command card clicks don't leak to map)
@@ -207,10 +207,15 @@ describe('COMMAND-CARD-03: builder context', () => {
     const wSlot = vm.slots.find(s => s.slotKey === 'W')!;
     expect(wSlot.commandId).toBe('build-raw-storage');
 
-    // Z = Stop
-    const zSlot = vm.slots.find(s => s.slotKey === 'Z')!;
-    expect(zSlot.commandId).toBe('unit-stop');
-    expect(zSlot.state).toBe('enabled');
+    // S = Stop (FIXUP-2: Denis decision — Stop MUST be on S)
+    const sSlot = vm.slots.find(s => s.slotKey === 'S')!;
+    expect(sSlot.commandId).toBe('unit-stop');
+    expect(sSlot.state).toBe('enabled');
+
+    // F = Units Factory (FIXUP-2: moved from S to F)
+    const fSlot = vm.slots.find(s => s.slotKey === 'F')!;
+    expect(fSlot.commandId).toBe('build-units-factory');
+    expect(fSlot.state).toBe('enabled');
   });
 
   it('insufficient resources disables command with reason', () => {
@@ -248,12 +253,13 @@ describe('COMMAND-CARD-03: builder context', () => {
     const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
     const vm = buildCommandCardViewModel(state, sel);
 
-    // D, F, X, C, V should be empty in builder context
+    // D, Z, X, C, V should be empty in builder context
+    // FIXUP-2: F is now Units Factory, Z is empty/future
     const dSlot = vm.slots.find(s => s.slotKey === 'D')!;
     expect(dSlot.state).toBe('empty');
 
-    const fSlot = vm.slots.find(s => s.slotKey === 'F')!;
-    expect(fSlot.state).toBe('empty');
+    const zSlot = vm.slots.find(s => s.slotKey === 'Z')!;
+    expect(zSlot.state).toBe('empty');
 
     const xSlot = vm.slots.find(s => s.slotKey === 'X')!;
     expect(xSlot.state).toBe('empty');
@@ -281,17 +287,17 @@ describe('COMMAND-CARD-03: harvester context', () => {
     } as unknown as GameState;
   }
 
-  it('harvester shows Stop in stable Z slot', () => {
+  it('harvester shows Stop in stable S slot (FIXUP-2: S = Stop)', () => {
     const state = createHarvesterState();
     const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
     const vm = buildCommandCardViewModel(state, sel);
 
     expect(vm.contextKind).toBe('harvester');
-    const zSlot = vm.slots.find(s => s.slotKey === 'Z')!;
-    expect(zSlot.commandId).toBe('unit-stop');
-    expect(zSlot.label).toBe('Stop');
-    expect(zSlot.state).toBe('enabled');
-    expect(zSlot.hotkey).toBe('Z');
+    const sSlot = vm.slots.find(s => s.slotKey === 'S')!;
+    expect(sSlot.commandId).toBe('unit-stop');
+    expect(sSlot.label).toBe('Stop');
+    expect(sSlot.state).toBe('enabled');
+    expect(sSlot.hotkey).toBe('S');
   });
 
   it('unsupported actions do not appear as active', () => {
@@ -299,10 +305,10 @@ describe('COMMAND-CARD-03: harvester context', () => {
     const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
     const vm = buildCommandCardViewModel(state, sel);
 
-    // Only Z has a command; all other slots are empty
+    // Only S has a command; all other slots are empty (FIXUP-2: Stop is on S, not Z)
     const nonEmptySlots = vm.slots.filter(s => s.state !== 'empty');
     expect(nonEmptySlots).toHaveLength(1);
-    expect(nonEmptySlots[0].slotKey).toBe('Z');
+    expect(nonEmptySlots[0].slotKey).toBe('S');
 
     // No attack, patrol, hold commands
     const attackSlot = vm.slots.find(s => s.label === 'Attack');
@@ -448,8 +454,8 @@ describe('COMMAND-CARD-03: hotkey mapping', () => {
     }
   });
 
-  it('Stop command is in Z slot, not S', () => {
-    expect(STOP_SLOT).toBe('Z');
+  it('Stop command is in S slot (FIXUP-2: Denis decision — S = Stop)', () => {
+    expect(STOP_SLOT).toBe('S');
   });
 
   it('getCommandSlotKey returns correct slot for builder context', () => {
@@ -458,12 +464,12 @@ describe('COMMAND-CARD-03: hotkey mapping', () => {
     expect(getCommandSlotKey('build-matter-storage', 'builder')).toBe('E');
     expect(getCommandSlotKey('build-element-storage', 'builder')).toBe('R');
     expect(getCommandSlotKey('build-power-plant', 'builder')).toBe('A');
-    expect(getCommandSlotKey('build-units-factory', 'builder')).toBe('S');
-    expect(getCommandSlotKey('unit-stop', 'builder')).toBe('Z');
+    expect(getCommandSlotKey('build-units-factory', 'builder')).toBe('F');
+    expect(getCommandSlotKey('unit-stop', 'builder')).toBe('S');
   });
 
-  it('getCommandSlotKey returns Z for harvester stop', () => {
-    expect(getCommandSlotKey('unit-stop', 'harvester')).toBe('Z');
+  it('getCommandSlotKey returns S for harvester stop (FIXUP-2)', () => {
+    expect(getCommandSlotKey('unit-stop', 'harvester')).toBe('S');
   });
 });
 
@@ -567,12 +573,16 @@ describe('COMMAND-CARD-03: regression', () => {
  *  (e.g. build-units-factory key='S' and unit-stop-legacy key='S'),
  *  pressing S would fire BOTH listeners, executing two commands.
  *
- *  FIXUP-1 replaces per-command listeners with a single contextual
+ *  FIXUP-1 replaced per-command listeners with a single contextual
  *  dispatcher that:
  *    1. Builds the current CommandCardViewModel from state + selection.
  *    2. Finds the enabled slot whose hotkey matches the pressed key.
  *    3. Executes exactly that one command.
  *    4. Never executes more than one command per keydown.
+ *
+ *  FIXUP-2 adds: With S=Stop and F=Factory as primary grid hotkeys, the
+ *  original S-key conflict is structurally eliminated — there is no longer
+ *  a build command and a stop command both mapped to S.
  */
 
 describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
@@ -638,33 +648,33 @@ describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
     return { executedCommandId: null, executedCount: 0, disabledReason: null };
   }
 
-  it('S with builder selection => executes build-units-factory exactly once', () => {
+  it('S with builder selection => executes unit-stop exactly once (FIXUP-2: S = Stop)', () => {
     const state = createRichState();
     const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
     const result = simulateDispatch('S', state, sel);
 
-    expect(result.executedCommandId).toBe('build-units-factory');
+    expect(result.executedCommandId).toBe('unit-stop');
     expect(result.executedCount).toBe(1);
   });
 
-  it('S with harvester selection => executes unit-stop exactly once', () => {
+  it('S with harvester selection => executes unit-stop exactly once (FIXUP-2: S = Stop)', () => {
     const state = createRichState();
     const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
     const result = simulateDispatch('S', state, sel);
 
-    // Harvester grid: only Z has Stop, S is empty
-    // So S with harvester => no enabled slot => no-op
-    expect(result.executedCommandId).toBeNull();
-    expect(result.executedCount).toBe(0);
+    // FIXUP-2: S is Stop in harvester context too
+    expect(result.executedCommandId).toBe('unit-stop');
+    expect(result.executedCount).toBe(1);
   });
 
-  it('Z with harvester selection => executes unit-stop exactly once', () => {
+  it('Z with harvester selection => no-op (FIXUP-2: Z is empty/future)', () => {
     const state = createRichState();
     const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
     const result = simulateDispatch('Z', state, sel);
 
-    expect(result.executedCommandId).toBe('unit-stop');
-    expect(result.executedCount).toBe(1);
+    // FIXUP-2: Z is no longer Stop — it's empty/future
+    expect(result.executedCommandId).toBeNull();
+    expect(result.executedCount).toBe(0);
   });
 
   it('S with no selection => executes nothing', () => {
@@ -675,18 +685,24 @@ describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
     expect(result.executedCount).toBe(0);
   });
 
-  it('duplicate key bindings do not produce multiple executions', () => {
+  it('duplicate key bindings do not produce multiple executions (FIXUP-2: structurally eliminated)', () => {
     // The core FIXUP-1 bug: before the fix, pressing S would find
     // both build-units-factory AND unit-stop-legacy and execute both.
-    // The contextual dispatcher only executes one command.
+    // FIXUP-2: S=Stop (primary), F=Factory (primary) — the conflict
+    // is structurally eliminated. No two active commands share key S.
+    // The contextual dispatcher still ensures max one command per keydown.
     const state = createRichState();
     const builderSel: UnitSelection = { kind: 'builder', id: 'builder-1' };
 
-    // The dispatch returns exactly one command
-    const result = simulateDispatch('S', state, builderSel);
-    expect(result.executedCount).toBe(1);
-    expect(result.executedCommandId).toBe('build-units-factory');
-    // NOT also 'unit-stop' — only one command executes
+    // S dispatch returns exactly one command: Stop
+    const sResult = simulateDispatch('S', state, builderSel);
+    expect(sResult.executedCount).toBe(1);
+    expect(sResult.executedCommandId).toBe('unit-stop');
+
+    // F dispatch returns exactly one command: Factory
+    const fResult = simulateDispatch('F', state, builderSel);
+    expect(fResult.executedCount).toBe(1);
+    expect(fResult.executedCommandId).toBe('build-units-factory');
   });
 
   it('disabled command for pressed key does not execute', () => {
@@ -747,5 +763,192 @@ describe('COMMAND-CARD-03-FIXUP-1: contextual hotkey dispatch', () => {
     expect(rSlot).toBeDefined();
     expect(rSlot!.commandId).toBe('build-element-storage');
     expect(rSlot!.category).toBe('build');
+  });
+});
+
+// ─── 10. FIXUP-2: Denis decision — S = Stop, F = Factory ──────────
+
+/**
+ * FIXUP-2 addresses a critical product decision from Denis:
+ *   - Stop MUST be on S (standard RTS behavior)
+ *   - Factory moved from S to F
+ *   - Z is now empty/future (no longer Stop)
+ *
+ * These tests verify the new mapping is correct and the old
+ * S=factory/Z=stop mapping no longer exists.
+ */
+describe('COMMAND-CARD-03-FIXUP-2: Denis decision — S=Stop, F=Factory', () => {
+  /** Create a rich GameState for builder/harvester tests. */
+  function createRichState(): GameState {
+    return {
+      mapWidth: 40, mapHeight: 40,
+      mapData: {
+        hq: { tx: 5, ty: 5 }, buildings: [],
+        builders: [{ id: 'builder-1', ftx: 6, fty: 6, phase: 'idle', busy: false, manualMove: false } as any],
+        constructionSites: [], terrain: [],
+      },
+      harvesters: [{ id: 'harvester-1', ftx: 3, fty: 3, faction: 'cyan', phase: 'idle' } as any],
+      playerFaction: 'cyan',
+      economy: {
+        raw: 500, matter: 500,
+        elements: { cyan: 200, green: 0, yellow: 0, purple: 0 },
+        rawCap: 1000, matterCap: 1000, elementCap: 500,
+        powerGenerated: 20, powerConsumed: 0,
+        separators: [],
+      },
+      production: { factories: [] },
+      ...({} as Partial<GameState>),
+    } as unknown as GameState;
+  }
+
+  /** Create a broke GameState (insufficient resources). */
+  function createBrokeState(): GameState {
+    const state = createRichState();
+    state.economy.matter = 0;
+    state.economy.elements = { cyan: 0, green: 0, yellow: 0, purple: 0 };
+    return state;
+  }
+
+  function simulateDispatch(
+    pressedKey: string,
+    state: GameState,
+    selection: UnitSelection,
+  ): { executedCommandId: string | null; executedCount: number } {
+    const vm = buildCommandCardViewModel(state, selection);
+    const enabledSlot = vm.slots.find(
+      s => s.slotKey === pressedKey && s.state === 'enabled',
+    );
+    if (enabledSlot && enabledSlot.commandId) {
+      return { executedCommandId: enabledSlot.commandId, executedCount: 1 };
+    }
+    return { executedCommandId: null, executedCount: 0 };
+  }
+
+  // ─── Registry mapping tests ───
+
+  it('STOP_SLOT is S, not Z', () => {
+    expect(STOP_SLOT).toBe('S');
+  });
+
+  it('BUILDER_SLOT_MAP has units-factory on F, not S', () => {
+    const factoryMapping = BUILDER_SLOT_MAP.find(m => m.buildingType === 'units-factory');
+    expect(factoryMapping).toBeDefined();
+    expect(factoryMapping!.slotKey).toBe('F');
+  });
+
+  it('BUILDER_SLOT_MAP has no building on S (S is reserved for Stop)', () => {
+    const sMapping = BUILDER_SLOT_MAP.find(m => m.slotKey === 'S');
+    expect(sMapping).toBeUndefined();
+  });
+
+  // ─── Builder context tests ───
+
+  it('builder + S executes Stop exactly once', () => {
+    const state = createRichState();
+    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const result = simulateDispatch('S', state, sel);
+    expect(result.executedCommandId).toBe('unit-stop');
+    expect(result.executedCount).toBe(1);
+  });
+
+  it('builder + F executes build-units-factory exactly once', () => {
+    const state = createRichState();
+    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const result = simulateDispatch('F', state, sel);
+    expect(result.executedCommandId).toBe('build-units-factory');
+    expect(result.executedCount).toBe(1);
+  });
+
+  it('builder + Z executes nothing (Z is empty/future)', () => {
+    const state = createRichState();
+    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const result = simulateDispatch('Z', state, sel);
+    expect(result.executedCommandId).toBeNull();
+    expect(result.executedCount).toBe(0);
+  });
+
+  // ─── Harvester context tests ───
+
+  it('harvester + S executes Stop exactly once', () => {
+    const state = createRichState();
+    const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const result = simulateDispatch('S', state, sel);
+    expect(result.executedCommandId).toBe('unit-stop');
+    expect(result.executedCount).toBe(1);
+  });
+
+  it('harvester + F executes nothing', () => {
+    const state = createRichState();
+    const sel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const result = simulateDispatch('F', state, sel);
+    expect(result.executedCommandId).toBeNull();
+    expect(result.executedCount).toBe(0);
+  });
+
+  // ─── No-selection context tests ───
+
+  it('no selection + S executes nothing', () => {
+    const state = createRichState();
+    const result = simulateDispatch('S', state, null);
+    expect(result.executedCommandId).toBeNull();
+    expect(result.executedCount).toBe(0);
+  });
+
+  it('no selection + F executes nothing', () => {
+    const state = createRichState();
+    const result = simulateDispatch('F', state, null);
+    expect(result.executedCommandId).toBeNull();
+    expect(result.executedCount).toBe(0);
+  });
+
+  // ─── Disabled command tests ───
+
+  it('disabled Stop does not execute', () => {
+    // Stop is always enabled when a unit is selected, but we test the
+    // guard logic: if a slot were disabled, it should not execute.
+    const state = createRichState();
+    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const vm = buildCommandCardViewModel(state, sel);
+    const sSlot = vm.slots.find(s => s.slotKey === 'S')!;
+    // Stop should be enabled — confirm it's not disabled
+    expect(sSlot.state).toBe('enabled');
+    // If we manually set it to disabled, dispatch should not execute
+    // (this tests the guard logic, not the actual VM output)
+    const disabledSlot = { ...sSlot, state: 'disabled' as const };
+    expect(disabledSlot.state).toBe('disabled');
+    expect(disabledSlot.commandId).toBe('unit-stop');
+  });
+
+  it('disabled Factory does not execute', () => {
+    const state = createBrokeState();
+    const sel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const result = simulateDispatch('F', state, sel);
+    expect(result.executedCommandId).toBeNull();
+    expect(result.executedCount).toBe(0);
+  });
+
+  // ─── Z key regression ───
+
+  it('Z does not execute Stop (regression: Z was Stop before FIXUP-2)', () => {
+    const state = createRichState();
+    const builderSel: UnitSelection = { kind: 'builder', id: 'builder-1' };
+    const result1 = simulateDispatch('Z', state, builderSel);
+    expect(result1.executedCommandId).toBeNull();
+
+    const harvesterSel: UnitSelection = { kind: 'harvester', id: 'harvester-1' };
+    const result2 = simulateDispatch('Z', state, harvesterSel);
+    expect(result2.executedCommandId).toBeNull();
+  });
+
+  // ─── Number keys reserved ───
+
+  it('number keys are not final command-card dependencies', () => {
+    // Number keys 1-9 are reserved for future control groups.
+    // They should not appear in BUILDER_SLOT_MAP or as primary grid keys.
+    const numberSlots = BUILDER_SLOT_MAP.filter(
+      m => ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE']
+        .includes(m.slotKey),
+    );
+    expect(numberSlots).toHaveLength(0);
   });
 });

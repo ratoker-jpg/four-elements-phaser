@@ -211,10 +211,10 @@ export const commandRegistry = new CommandRegistry();
  * The old `key` field (B, P, 1, 2, 3, etc.) remains as a backward-compatible
  * alias during the migration period.
  *
- * Grid key mapping:
+ * Grid key mapping (FIXUP-2: Denis decision — S = Stop, F = Factory):
  *   Q: build-separator    W: build-raw-storage    E: build-matter-storage  R: build-element-storage
- *   A: build-power-plant  S: build-units-factory  D: (future)               F: (future)
- *   Z: unit-stop          X: (future)              C: (future)               V: (future)
+ *   A: build-power-plant  S: unit-stop             D: (future)               F: build-units-factory
+ *   Z: (future)           X: (future)              C: (future)               V: (future)
  */
 const MVP_COMMAND_DEFS: CommandDef[] = [
   { id: 'camera-reset', label: 'Camera Reset', key: 'HOME', category: 'camera' },
@@ -222,18 +222,19 @@ const MVP_COMMAND_DEFS: CommandDef[] = [
 
   // ── Build commands: grid key = primary, old key = backward-compatible alias ──
   // Grid: Q=separator, W=raw-storage, E=matter-storage, R=element-storage
-  //       A=power-plant, S=units-factory
+  //       A=power-plant, F=units-factory
+  //       S=stop (not a build command — see unit-action below)
   { id: 'build-separator',     label: 'Build Separator',       key: 'Q', category: 'build' },
   { id: 'build-raw-storage',   label: 'Build Raw Storage',     key: 'W', category: 'build' },
   { id: 'build-matter-storage',label: 'Build Matter Storage',  key: 'E', category: 'build' },
   { id: 'build-element-storage',label:'Build Element Storage',  key: 'R', category: 'build' },
   { id: 'build-power-plant',  label: 'Build Power Plant',     key: 'A', category: 'build' },
   // build-energy-plant removed — visual-ready only.
-  { id: 'build-units-factory',label: 'Build Units Factory',   key: 'S', category: 'build' },
+  { id: 'build-units-factory',label: 'Build Units Factory',   key: 'F', category: 'build' },
 
   // ── Unit action commands ──
-  // Grid: Z=stop
-  { id: 'unit-stop',          label: 'Stop',                  key: 'Z', category: 'unit-action' },
+  // Grid: S=stop (mandatory RTS behavior — Denis decision FIXUP-2)
+  { id: 'unit-stop',          label: 'Stop',                  key: 'S', category: 'unit-action' },
 
   // ── Production commands: grid key = primary, old key = backward-compatible alias ──
   // Production commands currently have no grid slot assigned (factory selection not ready)
@@ -244,9 +245,14 @@ const MVP_COMMAND_DEFS: CommandDef[] = [
 /**
  * COMMAND-CARD-REBUILD-03: Backward-compatible alias hotkeys.
  *
- * These register the OLD hotkey bindings (B, P, 1, 2, 3, F) as aliases
+ * These register the OLD hotkey bindings (B, P, 1, 2, 3) as aliases
  * that map to the same command IDs as the new grid hotkeys. During the
  * migration period, both old and new hotkeys work simultaneously.
+ *
+ * FIXUP-2: Removed `unit-stop-legacy` (key S) and `build-units-factory-legacy`
+ * (key F) because S and F are now PRIMARY grid hotkeys (S=Stop, F=Factory),
+ * not legacy aliases. There is no need for legacy entries for keys that
+ * ARE the primary command-card hotkeys.
  *
  * The old number-key build hotkeys (1/2/3) are temporary aliases that
  * MUST be removed when control groups are implemented (SELECTION-CONTROL-GROUPS-05).
@@ -255,11 +261,9 @@ const MVP_COMMAND_DEFS: CommandDef[] = [
 const LEGACY_ALIAS_DEFS: CommandDef[] = [
   { id: 'build-separator-legacy',      label: 'Build Separator (legacy)',       key: 'B',   category: 'build' },
   { id: 'build-power-plant-legacy',    label: 'Build Power Plant (legacy)',     key: 'P',   category: 'build' },
-  { id: 'build-units-factory-legacy',  label: 'Build Units Factory (legacy)',   key: 'F',   category: 'build' },
   { id: 'build-raw-storage-legacy',    label: 'Build Raw Storage (legacy)',     key: 'ONE', category: 'build' },
   { id: 'build-matter-storage-legacy', label: 'Build Matter Storage (legacy)',   key: 'TWO', category: 'build' },
   { id: 'build-element-storage-legacy',label: 'Build Element Storage (legacy)', key: 'THREE', category: 'build' },
-  { id: 'unit-stop-legacy',            label: 'Stop (legacy)',                   key: 'S',   category: 'unit-action' },
 ];
 
 /**

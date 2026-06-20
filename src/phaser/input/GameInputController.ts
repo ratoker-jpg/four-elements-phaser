@@ -269,14 +269,15 @@ export class GameInputController {
     // ── COMMAND-CARD-REBUILD-03: Legacy alias wiring ──
     // Each legacy alias executes the same action as its primary counterpart.
     // These are temporary during the hotkey migration period.
+    //
+    // FIXUP-2: Removed build-units-factory-legacy and unit-stop-legacy.
+    // S=Stop and F=Factory are now PRIMARY grid hotkeys, not legacy aliases.
     const legacyAliases: [string, () => void][] = [
       ['build-separator-legacy',      () => { const r = this.requestBuild('separator'); this.showStatusCb(r.message, r.success); }],
       ['build-raw-storage-legacy',    () => { const r = this.requestBuild('raw-storage'); this.showStatusCb(r.message, r.success); }],
       ['build-matter-storage-legacy', () => { const r = this.requestBuild('matter-storage'); this.showStatusCb(r.message, r.success); }],
       ['build-element-storage-legacy',() => { const r = this.requestBuild('element-storage'); this.showStatusCb(r.message, r.success); }],
       ['build-power-plant-legacy',   () => { const r = this.requestBuild('power-plant'); this.showStatusCb(r.message, r.success); }],
-      ['build-units-factory-legacy', () => { const r = this.requestBuild('units-factory'); this.showStatusCb(r.message, r.success); }],
-      ['unit-stop-legacy',           () => { this.handleStopKey(); }],
     ];
     for (const [aliasId, execute] of legacyAliases) {
       const cmd = commandRegistry.get(aliasId);
@@ -787,6 +788,8 @@ export class GameInputController {
     // Instead of registering one keydown listener per command (which causes
     // duplicate-key bugs like S firing both build-units-factory and
     // unit-stop-legacy), we register a SINGLE dispatcher per key.
+    // FIXUP-2: With S=Stop and F=Factory as primary grid hotkeys, the
+    // duplicate-key conflict is structurally eliminated.
     // The dispatcher:
     //   1. Builds the current CommandCardViewModel from GameState + selection.
     //   2. Finds an enabled slot whose hotkey matches the pressed key.
@@ -801,10 +804,9 @@ export class GameInputController {
       });
     }
 
-    // Legacy alias hotkeys: B/P/F/ONE/TWO/THREE
-    // F is also a grid slot (empty for builder, no command for harvester/none)
-    // so it's already registered above. The legacy F alias will be handled
-    // inside dispatchCommandCardHotkey's legacy fallback.
+    // Legacy alias hotkeys: B/P/ONE/TWO/THREE
+    // FIXUP-2: F is no longer a legacy alias — it's the primary grid key for
+    // build-units-factory. F is already registered above as a grid slot.
     const legacyKeys = ['B', 'P', 'ONE', 'TWO', 'THREE'];
     for (const key of legacyKeys) {
       kb.on(`keydown-${key}`, () => {
@@ -881,7 +883,8 @@ export class GameInputController {
    *   4. If no enabled grid slot matches, does nothing.
    *
    * This prevents the S-key bug where both build-units-factory and
-   * unit-stop-legacy would fire simultaneously.
+   * unit-stop-legacy would fire simultaneously. FIXUP-2 structurally
+   * eliminates this: S=Stop (primary), F=Factory (primary).
    *
    * @param slotKey - The grid slot key (Q/W/E/R/A/S/D/F/Z/X/C/V) that was pressed.
    */
@@ -920,14 +923,14 @@ export class GameInputController {
    * slot whose commandId matches the legacy's primary counterpart. This
    * prevents legacy aliases from bypassing the command-card context.
    *
-   * Legacy alias mapping:
+   * Legacy alias mapping (FIXUP-2: F removed — it's now a primary grid key):
    *   B → build-separator (if enabled in current grid)
    *   P → build-power-plant (if enabled in current grid)
    *   ONE → build-raw-storage (if enabled in current grid)
    *   TWO → build-matter-storage (if enabled in current grid)
    *   THREE → build-element-storage (if enabled in current grid)
-   *   F → build-units-factory (if enabled in current grid)
-   *   S → handled via grid slot dispatch (not here)
+   *   F → handled via grid slot dispatch (not here — F is primary grid key for Factory)
+   *   S → handled via grid slot dispatch (not here — S is primary grid key for Stop)
    *
    * @param key - The Phaser key code string for the pressed key.
    */
@@ -939,7 +942,6 @@ export class GameInputController {
     const legacyToPrimary: Record<string, string> = {
       'B': 'build-separator',
       'P': 'build-power-plant',
-      'F': 'build-units-factory',
       'ONE': 'build-raw-storage',
       'TWO': 'build-matter-storage',
       'THREE': 'build-element-storage',

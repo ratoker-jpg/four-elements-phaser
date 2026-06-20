@@ -120,8 +120,10 @@ function formatProduceCost(unitType: ProducibleUnitType): string {
  *
  * Slot assignments (stable for muscle memory):
  *   Q: Separator    W: Raw Storage   E: Matter Storage  R: Element Storage
- *   A: Power Plant  S: Units Factory D: (empty)          F: (empty)
- *   Z: Stop         X: (empty)       C: (empty)          V: (empty)
+ *   A: Power Plant  S: Stop          D: (empty)          F: Units Factory
+ *   Z: (empty)      X: (empty)       C: (empty)          V: (empty)
+ *
+ * FIXUP-2: Denis decision — Stop MUST be on S. Factory moved S→F. Z empty/future.
  */
 function builderGrid(state: GameState): CommandCardSlot[] {
   let grid = emptyGrid();
@@ -152,11 +154,11 @@ function builderGrid(state: GameState): CommandCardSlot[] {
     );
   }
 
-  // Z slot: Stop command
+  // S slot: Stop command (STOP_SLOT = 'S' per FIXUP-2 Denis decision)
   grid = assignSlot(
     grid, STOP_SLOT,
     'unit-stop', 'Stop',
-    'enabled', '', '', 'Stop current action  [Z]',
+    'enabled', '', '', 'Stop current action  [S]',
     'unit-action',
   );
 
@@ -167,18 +169,18 @@ function builderGrid(state: GameState): CommandCardSlot[] {
  * Build command card grid for harvester selection.
  *
  * Slot assignments:
- *   Q–F: all empty
- *   Z: Stop
- *   X–V: all empty
+ *   Q–R: all empty
+ *   A: (empty)       S: Stop          D: (empty)          F: (empty)
+ *   Z–V: all empty
  */
 function harvesterGrid(_state: GameState): CommandCardSlot[] {
   let grid = emptyGrid();
 
-  // Z slot: Stop command
+  // S slot: Stop command (STOP_SLOT = 'S')
   grid = assignSlot(
     grid, STOP_SLOT,
     'unit-stop', 'Stop',
-    'enabled', '', '', 'Stop current action  [Z]',
+    'enabled', '', '', 'Stop current action  [S]',
     'unit-action',
   );
 
