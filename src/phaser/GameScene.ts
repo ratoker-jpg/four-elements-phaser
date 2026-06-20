@@ -316,21 +316,22 @@ export class GameScene extends Phaser.Scene {
     this.cameraControls.bindResetKey('R', this.hqWorldX, this.hqWorldY);
 
     // ARENA-01H+: Arena mode uses ArenaMenu instead of PlaytestHud
+    // HUD-LAYOUT-REBUILD-02: PlaytestHud is hidden in Normal Game mode
+    // when the rebuilt VisualHudCore is active. PlaytestHud is only
+    // created for dev/debug access (F10 toggle) — its visible sections
+    // are collapsed to avoid duplicate UI.
     if (this.arenaCtx.showPlaytestHud) {
       this.playtestHud = new PlaytestHud();
     }
 
-    // VISUAL-HUD-CORE-01: Create bottom RTS HUD (Normal Game only)
+    // HUD-LAYOUT-REBUILD-02: Create rebuilt AoE4-inspired bottom HUD
+    // (Normal Game only). Arena mode keeps full viewport.
     if (this.arenaCtx.showPlaytestHud) {
-      // VISUAL-COMMAND-PANEL-02: Wire command execution through the
-      // command registry so HUD button clicks use the same execution
-      // path as hotkeys — requestBuild / requestQueueUnit / stopUnit.
+      // Wire command execution through the command registry so HUD
+      // button clicks use the same execution path as hotkeys.
       const onCommand = (commandId: string) => {
-        // Use the registry's execute which respects enabled predicates
-        // and calls the wired callbacks.
         const executed = commandRegistry.execute(commandId);
         if (!executed) {
-          // Command not found or not enabled — try unit-stop as special case
           if (commandId === 'unit-stop') {
             const sel = this.inputController?.getSelection() ?? null;
             if (sel) {
@@ -342,10 +343,11 @@ export class GameScene extends Phaser.Scene {
       };
       this.visualHudCore = new VisualHudCore();
       this.visualHudCore.create(onCommand);
-      // Hide the old PlaytestHud economy section since the new HUD
-      // resource strip and command panel now provide the same functionality.
-      // Build/produce/factory controls are now in the bottom HUD command panel.
+      // Hide the old PlaytestHud completely — the rebuilt HUD now
+      // provides all player-facing UI. PlaytestHud is only kept
+      // as a debug tool accessible via devtools toggle.
       this.playtestHud?.hideEconomySection();
+      this.playtestHud?.hideAll();
     }
 
     // ARENA-01H+: Create ArenaMenu if in Arena mode
@@ -591,7 +593,12 @@ export class GameScene extends Phaser.Scene {
       getGameState: () => this.gameState,
       entityRenderer: this.entityRenderer!,
       feedbackRenderer: this.feedbackRenderer!,
-      showStatus: (message: string, success: boolean) => this.playtestHud?.showStatus(message, success),
+      showStatus: (message: string, success: boolean) => {
+        // HUD-LAYOUT-REBUILD-02: Route status to the rebuilt HUD's
+        // status lane (primary) and PlaytestHud (fallback for dev).
+        this.visualHudCore?.showStatus(message, success);
+        this.playtestHud?.showStatus(message, success);
+      },
       pauseMenu: this.pauseMenu,
       debugOverlayRenderer: this.debugOverlayRenderer,
       devtoolsPanel: this.devtoolsPanel,

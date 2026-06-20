@@ -1,23 +1,22 @@
 /**
- * HUD Command Panel — context-sensitive command buttons for the bottom HUD.
+ * HUD Command Panel — command card area for AoE4-inspired UX.
  *
- * VISUAL-COMMAND-PANEL-02: Replaces the placeholder with real command
- * buttons that reflect the current selection context:
+ * HUD-LAYOUT-REBUILD-02: Rebuilt to visually reserve a 4×3 command
+ * card grid. Current builder/harvester commands render inside the new
+ * area temporarily. The final QWER/ASDF/ZXCV hotkey migration is
+ * NOT implemented in this PR — that belongs to COMMAND-CARD-REBUILD-03.
  *
- *   - No selection: empty/neutral panel
- *   - Builder: build actions (6 gameplay-ready buildings)
- *   - Harvester: stop command only
+ * Key design decisions:
+ *   - Grid is 4 columns × 3 rows (12 slots total)
+ *   - Empty slots show as subtle grid cells, not fake buttons
+ *   - Hotkey badges are visible but use current hotkeys (not QWER)
+ *   - descriptorMap pattern is preserved for fresh click state
+ *   - aria-disabled pattern is preserved for tooltip-on-disabled
  *
- * VISUAL-COMMAND-PANEL-02-FIXUP-1 fixes:
- *   - Stale command descriptors: click handler reads from descriptor map
- *     instead of closing over initial descriptor.
- *   - Disabled tooltip: uses aria-disabled + CSS instead of native disabled
- *     so hover/mouse events still fire on disabled buttons.
- *
- * Each button shows: label, hotkey, cost, enabled/disabled state.
- * Tooltips show the disabled reason when a command is unavailable.
- * Clicking an enabled button invokes the existing command handler.
- * Clicking inside the panel does NOT leak to map click/select/move.
+ * What is TEMPORARY (will change in COMMAND-CARD-REBUILD-03):
+ *   - Hotkey labels show current bindings (B, 1, 2, etc.)
+ *   - Slot positions don't follow QWER spatial layout yet
+ *   - Commands fill left-to-right, not by grid slot category
  */
 
 import type { GameState } from '../../../state/types';
@@ -27,6 +26,7 @@ import {
   type CommandDescriptor,
   type CommandPanelViewModel,
 } from './commandPanelViewModel';
+import { COMMAND_CARD_COLS, COMMAND_CARD_ROWS } from './hudLayout';
 
 /** Callback type for command execution. */
 export type CommandExecuteCallback = (commandId: string) => void;
@@ -45,7 +45,7 @@ export class HudCommandPanel {
   private currentVm: CommandPanelViewModel | null = null;
 
   /**
-   * FIXUP-1: Map of current command descriptors by commandId.
+   * Map of current command descriptors by commandId.
    * Click handlers read from this map instead of closing over stale descriptors.
    */
   private descriptorMap: Map<string, CommandDescriptor> = new Map();
@@ -70,7 +70,7 @@ export class HudCommandPanel {
     // Update context label
     this.contextEl.textContent = vm.contextLabel || 'Commands';
 
-    // FIXUP-1: Update the descriptor map so click handlers use fresh state
+    // Update the descriptor map so click handlers use fresh state
     this.descriptorMap.clear();
     for (const cmd of vm.commands) {
       this.descriptorMap.set(cmd.id, cmd);
@@ -93,7 +93,7 @@ export class HudCommandPanel {
   // ─── Private ────────────────────────────────────────────────────
 
   private rebuildGrid(vm: CommandPanelViewModel): void {
-    // Clear existing buttons
+    // Clear existing content
     this.gridEl.innerHTML = '';
 
     if (vm.commands.length === 0) {
@@ -105,9 +105,19 @@ export class HudCommandPanel {
     this.emptyEl.style.display = 'none';
     this.gridEl.style.display = 'grid';
 
+    // Fill active command slots
     for (const cmd of vm.commands) {
       if (cmd.state === 'hidden') continue;
       this.gridEl.appendChild(this.createButton(cmd));
+    }
+
+    // Fill remaining slots as empty grid cells
+    const activeCount = vm.commands.filter(c => c.state !== 'hidden').length;
+    const totalSlots = COMMAND_CARD_COLS * COMMAND_CARD_ROWS;
+    for (let i = activeCount; i < totalSlots; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'hcp-slot-empty';
+      this.gridEl.appendChild(slot);
     }
   }
 
@@ -130,9 +140,7 @@ export class HudCommandPanel {
     btn.dataset.commandId = cmd.id;
     this.applyCommandToButton(btn, cmd);
 
-    // FIXUP-1: Click handler reads current descriptor from map, not closure.
-    // This ensures that if a command transitions from disabled → enabled,
-    // the click handler will execute based on the latest state.
+    // Click handler reads current descriptor from map, not closure.
     btn.addEventListener('click', (e: MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
@@ -141,9 +149,7 @@ export class HudCommandPanel {
       this.onCommand?.(currentCmd.id);
     });
 
-    // FIXUP-1: Tooltip reads current descriptor from map on hover,
-    // not stale closure. This works because we use aria-disabled
-    // instead of native disabled — hover events fire on all buttons.
+    // Tooltip reads current descriptor from map on hover.
     btn.addEventListener('mouseenter', () => {
       const currentCmd = this.descriptorMap.get(btn.dataset.commandId ?? '');
       if (currentCmd) this.showTooltip(currentCmd);
@@ -158,17 +164,12 @@ export class HudCommandPanel {
   private applyCommandToButton(btn: HTMLButtonElement, cmd: CommandDescriptor): void {
     const isDisabled = cmd.state === 'disabled';
 
-    // FIXUP-1: Use aria-disabled + CSS instead of native disabled.
-    // Native disabled prevents hover/mouseenter events in some browsers,
-    // which breaks tooltip display for disabled commands.
+    // Use aria-disabled + CSS instead of native disabled.
     btn.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
     btn.classList.toggle('hcp-btn--disabled', isDisabled);
-
-    // Remove native disabled — we control clickability via aria-disabled
-    // and our click handler checks descriptor state.
     btn.removeAttribute('disabled');
 
-    // Label + hotkey
+    // Label + hotkey + cost
     btn.innerHTML = this.buttonInnerHTML(cmd);
     btn.title = cmd.tooltip;
   }
@@ -176,7 +177,7 @@ export class HudCommandPanel {
   private buttonInnerHTML(cmd: CommandDescriptor): string {
     let html = `<span class="hcp-btn-label">${this.escapeHtml(cmd.label)}</span>`;
     if (cmd.hotkey) {
-      html += `<span class="hcp-btn-hotkey">[${this.escapeHtml(cmd.hotkey)}]</span>`;
+      html += `<span class="hcp-btn-hotkey">${this.escapeHtml(cmd.hotkey)}</span>`;
     }
     if (cmd.cost) {
       html += `<span class="hcp-btn-cost">${this.escapeHtml(cmd.cost)}</span>`;
@@ -229,36 +230,38 @@ export class HudCommandPanel {
       #hcp-header {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         margin-bottom: 4px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid rgba(212, 165, 116, 0.1);
       }
       #hcp-context {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        font-size: 11px;
-        font-weight: 600;
+        font-size: 10px;
+        font-weight: 700;
         color: #d4a574;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 1px;
       }
       #hcp-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(${COMMAND_CARD_COLS}, 1fr);
+        grid-template-rows: repeat(${COMMAND_CARD_ROWS}, 1fr);
         gap: 3px;
         flex: 1;
-        align-content: start;
+        align-content: stretch;
       }
       .hcp-btn {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 1px;
-        min-height: 32px;
-        padding: 2px 4px;
-        background: rgba(212, 165, 116, 0.08);
-        border: 1px solid rgba(212, 165, 116, 0.25);
+        gap: 2px;
+        padding: 3px 4px;
+        background: rgba(212, 165, 116, 0.06);
+        border: 1px solid rgba(212, 165, 116, 0.2);
         border-radius: 3px;
-        color: #e0e0e0;
+        color: #d8d8d8;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         font-size: 10px;
         cursor: pointer;
@@ -267,26 +270,24 @@ export class HudCommandPanel {
         pointer-events: auto;
       }
       .hcp-btn:hover:not(.hcp-btn--disabled) {
-        background: rgba(212, 165, 116, 0.18);
-        border-color: rgba(212, 165, 116, 0.5);
+        background: rgba(212, 165, 116, 0.15);
+        border-color: rgba(212, 165, 116, 0.45);
       }
       .hcp-btn:active:not(.hcp-btn--disabled) {
-        background: rgba(212, 165, 116, 0.28);
+        background: rgba(212, 165, 116, 0.25);
       }
       .hcp-btn:focus-visible {
         outline: 2px solid #d4a574;
         outline-offset: 1px;
       }
-      /* FIXUP-1: aria-disabled styling replaces native :disabled.
-         This ensures hover events still fire for tooltip display. */
       .hcp-btn--disabled {
-        opacity: 0.45;
+        opacity: 0.4;
         cursor: not-allowed;
-        color: #707070;
+        color: #606060;
       }
       .hcp-btn--disabled:hover {
-        background: rgba(212, 165, 116, 0.05);
-        border-color: rgba(212, 165, 116, 0.15);
+        background: rgba(212, 165, 116, 0.04);
+        border-color: rgba(212, 165, 116, 0.12);
       }
       .hcp-btn-label {
         font-weight: 600;
@@ -296,14 +297,24 @@ export class HudCommandPanel {
         line-height: 1.2;
       }
       .hcp-btn-hotkey {
-        font-size: 8px;
-        color: #888;
+        font-size: 9px;
+        color: #909090;
         line-height: 1.2;
+        font-weight: 600;
+        background: rgba(255,255,255,0.06);
+        padding: 0 3px;
+        border-radius: 2px;
       }
       .hcp-btn-cost {
         font-size: 8px;
-        color: #a0a0a0;
+        color: #808080;
         line-height: 1.2;
+      }
+      /* Empty grid slot — subtle cell, no interactive element */
+      .hcp-slot-empty {
+        background: rgba(212, 165, 116, 0.02);
+        border: 1px solid rgba(212, 165, 116, 0.06);
+        border-radius: 3px;
       }
       #hcp-tooltip {
         display: none;
@@ -311,29 +322,31 @@ export class HudCommandPanel {
         bottom: 100%;
         left: 50%;
         transform: translateX(-50%);
-        background: rgba(20, 24, 32, 0.95);
+        background: rgba(16, 20, 28, 0.96);
         border: 1px solid rgba(212, 165, 116, 0.4);
         border-radius: 4px;
-        padding: 4px 8px;
+        padding: 5px 10px;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         font-size: 11px;
         color: #e0e0e0;
         white-space: nowrap;
         z-index: 20;
         pointer-events: none;
-        max-width: 250px;
+        max-width: 260px;
         overflow: hidden;
         text-overflow: ellipsis;
       }
       #hcp-empty {
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
         height: 100%;
-        color: #505050;
+        color: #404040;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         font-size: 11px;
         font-style: italic;
+        letter-spacing: 0.3px;
       }
     </style>`;
   }

@@ -649,6 +649,17 @@ export class PlaytestHud {
     }
   }
 
+  /**
+   * HUD-LAYOUT-REBUILD-02: Hide the entire PlaytestHud so it does not
+   * visually duplicate the rebuilt AoE4-inspired HUD. PlaytestHud remains
+   * in the DOM for devtools access but is invisible to the player.
+   */
+  hideAll(): void {
+    if (this.container) {
+      this.container.style.display = 'none';
+    }
+  }
+
   destroy(): void {
     this.tooltipManager.destroy();
     if (this.statusTimer) {
