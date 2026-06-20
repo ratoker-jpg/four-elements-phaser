@@ -612,8 +612,8 @@ export class GameScene extends Phaser.Scene {
         }
       },
       // FEEDBACK-ALERTS-06: Typed feedback callback to VisualHudCore
-      showFeedback: (type, message, code, dedupeKey) => {
-        this.visualHudCore?.addFeedback({ type, message, code, dedupeKey });
+      showFeedback: (params) => {
+        this.visualHudCore?.addFeedback(params);
       },
       pauseMenu: this.pauseMenu,
       debugOverlayRenderer: this.debugOverlayRenderer,
@@ -700,13 +700,16 @@ export class GameScene extends Phaser.Scene {
       updateBuilders(this.gameState, delta);
 
       // 4. Advance construction site progress (only for sites with active builder)
-      const siteIds = this.gameState.mapData.constructionSites.map(s => `site-${s.id}`);
-      for (const siteId of siteIds) {
+      // FIXUP-1: Snapshot site metadata before progress for tileTarget in feedback
+      for (const site of this.gameState.mapData.constructionSites) {
+        const siteId = `site-${site.id}`;
+        const siteTx = site.tx;
+        const siteTy = site.ty;
         const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
         if (result.completed) {
           console.log(`[GameScene] Construction completed: ${result.buildingId}`);
-          // FEEDBACK-ALERTS-06: Show construction complete feedback
-          this.inputController?.showFeedback('success', 'Здание построено', 'construction-complete');
+          // FEEDBACK-ALERTS-06 + FIXUP-1: Show construction complete feedback with tileTarget
+          this.inputController?.showFeedback('success', `Здание построено`, 'construction-complete', { tx: siteTx, ty: siteTy });
         }
       }
     }

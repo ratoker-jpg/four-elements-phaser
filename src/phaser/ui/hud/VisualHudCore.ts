@@ -61,6 +61,9 @@ export class VisualHudCore {
   /** FEEDBACK-ALERTS-06: Feedback store for typed feedback messages. */
   private feedbackStore = new FeedbackStore();
 
+  /** FIXUP-1: Track last shown feedback ID to avoid re-rendering same message. */
+  private lastShownFeedbackId: number = -1;
+
   create(onCommand?: CommandExecuteCallback): void {
     // Resource strip: top-left overlay (NOT in bottom bar)
     this.resourceStrip.create();
@@ -79,11 +82,14 @@ export class VisualHudCore {
     statusRow.id = 'vhc-status-row';
 
     // FEEDBACK-ALERTS-06: Feedback callback for disabled command clicks
+    // FIXUP-1: Pass through dedupeKey from command panel
     const feedbackCb: FeedbackCallback = (event) => {
-      this.feedbackStore.addFeedback({
+      this.addFeedback({
         type: event.type as 'info' | 'success' | 'warning' | 'error',
         message: event.message,
         code: event.code,
+        dedupeKey: event.dedupeKey,
+        duration: event.duration,
       });
     };
 
@@ -109,10 +115,20 @@ export class VisualHudCore {
     this.minimapSlot.update(state, cameraData, offset, this.currentSelection);
 
     // FEEDBACK-ALERTS-06: Expire old feedback messages and show current message
+    // FIXUP-1: Only re-render when message id changes to avoid resetting timer
     this.feedbackStore.expireMessages();
     const currentMsg = this.feedbackStore.getCurrentMessage();
     if (currentMsg) {
-      this.statusLane.showFeedback(currentMsg);
+      if (currentMsg.id !== this.lastShownFeedbackId) {
+        this.lastShownFeedbackId = currentMsg.id;
+        this.statusLane.showFeedback(currentMsg);
+      }
+    } else {
+      // No current message — clear the lane if it was showing something
+      if (this.lastShownFeedbackId !== -1) {
+        this.lastShownFeedbackId = -1;
+        this.statusLane.clear();
+      }
     }
   }
 
@@ -124,14 +140,10 @@ export class VisualHudCore {
   /**
    * Show a status message in the status lane.
    * Called from GameScene via the showStatus callback.
+   * FIXUP-1: Legacy callers go directly to status lane — do NOT push to FeedbackStore
+   * to avoid double-adding. Typed feedback uses addFeedback() as the single source of truth.
    */
   showStatus(message: string, success: boolean): void {
-    // FEEDBACK-ALERTS-06: Also push to FeedbackStore for typed rendering
-    this.feedbackStore.addFeedback({
-      type: success ? 'success' : 'warning',
-      message,
-    });
-    // Also directly show in status lane for immediate feedback
     this.statusLane.showStatus(message, success);
   }
 
@@ -140,7 +152,10 @@ export class VisualHudCore {
     return this.feedbackStore;
   }
 
-  /** FEEDBACK-ALERTS-06: Add a feedback message to the store and show it. */
+  /** FEEDBACK-ALERTS-06: Add a feedback message to the store and show it.
+   * FIXUP-1: If deduped (returns null), do not show anything.
+   * Also updates lastShownFeedbackId so update() won't re-render.
+   */
   addFeedback(params: {
     type: 'info' | 'success' | 'warning' | 'error';
     message: string;
@@ -151,6 +166,7 @@ export class VisualHudCore {
   }): FeedbackMessage | null {
     const msg = this.feedbackStore.addFeedback(params);
     if (msg) {
+      this.lastShownFeedbackId = msg.id;
       this.statusLane.showFeedback(msg);
       // If the message has a tile target, add a minimap ping
       if (msg.tileTarget) {

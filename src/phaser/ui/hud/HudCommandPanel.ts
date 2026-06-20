@@ -37,7 +37,7 @@ import {
 export type CommandExecuteCallback = (commandId: string) => void;
 
 /** FEEDBACK-ALERTS-06: Callback type for feedback events from disabled command clicks. */
-export type FeedbackCallback = (event: { type: string; message: string; code?: string }) => void;
+export type FeedbackCallback = (event: { type: string; message: string; code?: string; dedupeKey?: string; duration?: number }) => void;
 
 export class HudCommandPanel {
   private container!: HTMLDivElement;
@@ -163,9 +163,9 @@ export class HudCommandPanel {
       e.preventDefault();
       const currentSlot = this.descriptorMap.get(btn.dataset.commandId ?? '');
       if (!currentSlot || currentSlot.state !== 'enabled') {
-        // FEEDBACK-ALERTS-06: Show feedback for disabled command click
+        // FEEDBACK-ALERTS-06 + FIXUP-1: Show feedback for disabled command click with dedupeKey
         if (currentSlot && currentSlot.state === 'disabled') {
-          this.onFeedback?.({ type: 'warning', message: `${currentSlot.label}: ${currentSlot.disabledReason}`, code: 'disabled-command' });
+          this.onFeedback?.({ type: 'warning', message: `${currentSlot.label}: ${currentSlot.disabledReason}`, code: 'disabled-command', dedupeKey: `disabled-${currentSlot.commandId}` });
         }
         return;
       }
