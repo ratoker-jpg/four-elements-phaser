@@ -16,6 +16,7 @@ import type {
   GameState,
   HarvesterState,
   ResourceNodeState,
+  ModularCombatUnit,
 } from './types';
 import {
   SEP_RAW_COST,
@@ -699,7 +700,8 @@ function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState
     // Queued units do NOT count toward cap, but spawning a completed
     // item must recheck the live unit count. If cap is reached, the
     // completed item stays in queue and retries on later ticks.
-    const liveUnitCount = state.mapData.builders.length + state.harvesters.length;
+    // Phase 2: combat units count toward the cap.
+    const liveUnitCount = state.mapData.builders.length + state.harvesters.length + state.combatUnits.length;
     if (liveUnitCount >= DEFAULT_UNIT_CAP) {
       break;
     }
@@ -715,6 +717,8 @@ function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState
       spawnBuilder(state, spawnPos.tx, spawnPos.ty);
     } else if (item.unitType === 'harvester') {
       spawnHarvesterUnit(state, spawnPos.tx, spawnPos.ty);
+    } else if (item.unitType === 'wasp-smoky') {
+      spawnCombatUnit(state, spawnPos.tx, spawnPos.ty);
     }
 
     factory.queue.shift();
@@ -830,6 +834,36 @@ function spawnHarvesterUnit(state: GameState, tx: number, ty: number): void {
     tx,
     ty,
     faction: state.playerFaction,
+  });
+}
+
+/**
+ * Phase 2: Spawn a wasp+smoky combat unit at the given tile position.
+ *
+ * Creates a ModularCombatUnit and a corresponding RenderableEntity.
+ * Combat units count toward DEFAULT_UNIT_CAP.
+ */
+function spawnCombatUnit(state: GameState, tx: number, ty: number): void {
+  const id = `combat-unit-${tx}-${ty}-${Date.now()}`;
+  const combatUnit: ModularCombatUnit = {
+    tx,
+    ty,
+    bodyId: 'wasp',
+    weaponId: 'smoky',
+    mod: 'm0',
+    faction: state.playerFaction,
+    id,
+  };
+  state.combatUnits.push(combatUnit);
+
+  state.entities.push({
+    id,
+    kind: 'modular-combat',
+    tx,
+    ty,
+    faction: state.playerFaction,
+    dir: 2,        // default body facing: South
+    turretDir: 2,  // default turret facing: South
   });
 }
 

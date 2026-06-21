@@ -10,18 +10,17 @@ Updated: 2026-06-22
 ## Current mode
 
 ```text
-RTS FOUNDATION ROADMAP — Phase 1 (Validation Baseline / Red Gates) code red gates resolved.
+RTS FOUNDATION ROADMAP — Phase 2 (Unit Factory Combat Production) ACTIVE.
 
 PR #322 merged. FINAL_RTS_FOUNDATION roadmap accepted as source-of-truth direction.
 PR #323 completed P1A source-of-truth docs.
+PR #324 merged Phase 1 Validation Baseline Closure Pack.
 Phase 0 (Roadmap/Audit) is CLOSED.
-Phase 1 code red gates are resolved. Final closure requires PR #324 merged and
-build/smoke confirmed in CI or Denis environment.
-CI confirmed: build-and-deploy PASS, qa-smoke PASS, Graphify PASS (GitHub Actions run 27917869231).
-Phase 2+ implementation is BLOCKED until PR #324 is merged.
+Phase 1 (Validation Baseline / Red Gates) is CLOSED via PR #324.
+Phase 2 (Unit Factory Combat Production Foundation) is ACTIVE.
+Phase 3+ remains blocked until Phase 2 is merged/accepted.
 
-Previous completed cycle: AOE4-UX-POLISH-PASS-09-HIGHPLUS (MERGED via PR #319).
-Previous completed docs cycle: FINAL-RTS-FOUNDATION-ROADMAP-AUDIT-01 (MERGED via PR #322).
+Previous completed cycle: Phase 1 Validation Baseline (MERGED via PR #324).
 
 Number keys 1-9 are control group recall keys.
 Ctrl+1-9 assigns control groups.
@@ -31,7 +30,7 @@ S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset.
 Current direction:
 
 ```text
-FINAL_RTS_FOUNDATION roadmap — Phase 1 active
+FINAL_RTS_FOUNDATION roadmap — Phase 2 active
 +
 Graphify-first AI workflow
 +
@@ -262,12 +261,9 @@ GameScene no longer directly owns most renderer fields.
 18. [DONE] FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog of war implementation (merged PR #318).
 19. [DONE] AOE4-UX-POLISH-PASS-09-HIGHPLUS — final AoE4-inspired RTS UX polish (merged PR #319).
 20. [DONE] FINAL-RTS-FOUNDATION-ROADMAP-AUDIT-01 — RTS Foundation roadmap + audit docs (merged PR #322).
-21. [ACTIVE] RTS-FND-P1A — Phase 1 source-of-truth docs + validation baseline status.
-22. [PENDING] P1B — command alias contract alignment.
-23. [PENDING] P1C — qa:smoke Windows-safe launcher.
-24. [PENDING] P1D — combat hit-model failures.
-25. [PENDING] P1E — Vite advisory maintenance PR.
-26. [PENDING] P1F — Phase 1 closure.
+21. [DONE] RTS-FND-P1A — Phase 1 source-of-truth docs + validation baseline status (merged PR #323).
+22. [DONE] RTS-FND-P1 — Phase 1 Validation Baseline Closure Pack (merged PR #324).
+23. [ACTIVE] RTS-FND-P2 — Unit Factory Combat Production Foundation.
 ```
 
 ---

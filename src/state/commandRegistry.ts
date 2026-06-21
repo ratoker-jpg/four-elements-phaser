@@ -240,6 +240,7 @@ const MVP_COMMAND_DEFS: CommandDef[] = [
   // Production commands currently have no grid slot assigned (factory selection not ready)
   { id: 'produce-builder',    label: 'Train Builder',         key: 'N', category: 'produce' },
   { id: 'produce-harvester',  label: 'Train Harvester',       key: 'G', category: 'produce' },
+  { id: 'produce-wasp-smoky', label: 'Wasp+Smoky M0',         key: 'C', category: 'produce' },
 ];
 
 /**

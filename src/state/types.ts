@@ -10,6 +10,7 @@
 
 import type { BlockoutObstacleState } from './blockoutObstacleState';
 import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
+import type { BodyId, WeaponId } from '../config/blockoutProfiles';
 import type { VisionState } from './visibility';
 
 // ─── Terrain ────────────────────────────────────────────────────────
@@ -141,14 +142,18 @@ export interface ConstructionSitePlacement {
 
 // ─── Extra Starter Units (not from saved map) ──────────────────────
 
-/** Modular combat unit configuration. State-only until visual assets exist. */
+/** Modification level for modular combat units. */
+export type ModLevel = 'm0' | 'm1' | 'm2' | 'm3';
+
+/** Modular combat unit configuration. Phase 2: uses BodyId/WeaponId for flexible composition. */
 export interface ModularCombatUnit {
   tx: number;
   ty: number;
-  chassis: 'wasp';
-  weapon: 'smoky';
-  mod: 'm0';
+  bodyId: BodyId;
+  weaponId: WeaponId;
+  mod: ModLevel;
   faction: Faction;
+  id: string;
 }
 
 // ─── Map Data ───────────────────────────────────────────────────────
@@ -404,7 +409,7 @@ export const START_MATTER = 120;
 // ─── Production State (ARCH-01F) ────────────────────────────────────
 
 /** Unit types that can be produced by a units-factory. */
-export type ProducibleUnitType = 'builder' | 'harvester';
+export type ProducibleUnitType = 'builder' | 'harvester' | 'wasp-smoky';
 
 /** A single item in a factory production queue. */
 export interface ProductionQueueItem {
@@ -473,6 +478,10 @@ export interface GameState {
   // ── ARCH-01F: Production state ────────────────────────────────
   /** Production state for all units-factories. */
   production: ProductionState;
+
+  // ── Phase 2: Combat units ──────────────────────────────────────
+  /** All combat units produced by factories. Phase 2: wasp-smoky and future presets. */
+  combatUnits: ModularCombatUnit[];
 
   // ── FOG-VISION-08: Vision/fog state ────────────────────────────
   /** Vision state for fog of war. Explored grid persists in saves; visible grid is recomputed. */

@@ -23,8 +23,8 @@ import { normalizeVisionForLoadedState } from './visibility';
 /** localStorage key for the save slots array. */
 const SAVE_STORAGE_KEY = 'four-elements-save-slots';
 
-/** Current save format version. FOG-VISION-08: bumped to 2 for vision state. */
-const SAVE_VERSION = 2;
+/** Current save format version. Phase 2: bumped to 3 for combatUnits field. */
+const SAVE_VERSION = 3;
 
 /** Maximum number of save slots. */
 export const MAX_SAVE_SLOTS = 5;
@@ -60,6 +60,7 @@ export interface SaveSummary {
   resourcesCount: number;
   buildingsCount: number;
   harvestersCount: number;
+  combatUnitsCount: number;
 }
 
 /** Full save slot payload: metadata + serialized game state. */
@@ -158,12 +159,12 @@ function writeSlots(slots: SaveSlot[]): boolean {
   return storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(slots));
 }
 
-/** Validate a single slot has the required structure. Accepts version 1 and 2. */
+/** Validate a single slot has the required structure. Accepts version 1, 2, and 3. */
 function isValidSlot(slot: unknown): slot is SaveSlot {
   if (typeof slot !== 'object' || slot === null) return false;
   const s = slot as Record<string, unknown>;
-  // FOG-VISION-08: Accept both v1 (no vision) and v2 (with vision)
-  if (s.version !== 1 && s.version !== 2) return false;
+  // Accept v1 (no vision), v2 (with vision), v3 (with combatUnits)
+  if (s.version !== 1 && s.version !== 2 && s.version !== 3) return false;
   if (typeof s.id !== 'string') return false;
   if (typeof s.createdAt !== 'string') return false;
   if (typeof s.updatedAt !== 'string') return false;
@@ -324,7 +325,7 @@ export function loadGame(slotId: string): LoadResult {
     return { success: false, message: 'Save not found' };
   }
 
-  if (slot.version !== SAVE_VERSION && slot.version !== 1) {
+  if (slot.version !== SAVE_VERSION && slot.version !== 1 && slot.version !== 2) {
     return { success: false, message: `Save version ${slot.version} not supported` };
   }
 
@@ -346,6 +347,11 @@ export function loadGame(slotId: string): LoadResult {
   // builders with existing IDs are preserved.
   if (gs.mapData?.builders) {
     ensureBuilderIds(gs.mapData);
+  }
+
+  // Phase 2: Migrate old saves without combatUnits field
+  if (!gs.combatUnits) {
+    gs.combatUnits = [];
   }
 
   // FOG-VISION-08 FIXUP-1: Normalize vision state for all saves (v1 and v2).
@@ -390,6 +396,7 @@ function buildSummary(gs: GameState): SaveSummary {
     resourcesCount: gs.resourceNodes.filter(r => !r.depleted).length,
     buildingsCount: gs.mapData.buildings.length,
     harvestersCount: gs.harvesters.length,
+    combatUnitsCount: gs.combatUnits.length,
   };
 }
 
@@ -409,6 +416,9 @@ export function formatSaveSlotSummary(summary: SaveSummary): string {
   }
   if (summary.harvestersCount > 0) {
     parts.push(`Hrv: ${summary.harvestersCount}`);
+  }
+  if (summary.combatUnitsCount > 0) {
+    parts.push(`Cmb: ${summary.combatUnitsCount}`);
   }
   return parts.join(' | ');
 }

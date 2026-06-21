@@ -326,13 +326,13 @@ describe('registerMvpCommands', () => {
     commandRegistry.clear();
   });
 
-  it('registers all 11 primary MVP commands + 2 legacy aliases (SELECTION-CONTROL-GROUPS-05)', () => {
+  it('registers all 12 primary MVP commands + 2 legacy aliases (SELECTION-CONTROL-GROUPS-05)', () => {
     registerMvpCommands();
     const cmds = commandRegistry.list();
     // SELECTION-CONTROL-GROUPS-05: Removed ONE/TWO/THREE legacy aliases.
     // Number keys 1-9 are now used for control group recall/assign.
     // 11 primary commands + 2 legacy aliases (B, P) = 13 total
-    expect(cmds).toHaveLength(13);
+    expect(cmds).toHaveLength(14);
   });
 
   it('registers camera-reset with key HOME (FIXUP-1: moved from R to HOME)', () => {
@@ -421,10 +421,10 @@ describe('registerMvpCommands', () => {
   // ─── Idempotency tests (PR #111 fixup — Issue 1) ─────────────
 
   describe('idempotency', () => {
-    it('calling registerMvpCommands() twice keeps exactly 13 commands (SELECTION-CONTROL-GROUPS-05: 11 primary + 2 legacy)', () => {
+    it('calling registerMvpCommands() twice keeps exactly 13 commands (SELECTION-CONTROL-GROUPS-05: 12 primary + 2 legacy)', () => {
       registerMvpCommands();
       registerMvpCommands();
-      expect(commandRegistry.list()).toHaveLength(13);
+      expect(commandRegistry.list()).toHaveLength(14);
     });
 
     it('second call does not create duplicate key conflicts', () => {
@@ -503,14 +503,14 @@ describe('ensureMvpCommandsRegistered', () => {
 
   it('registers MVP commands when registry is empty', () => {
     ensureMvpCommandsRegistered();
-    expect(commandRegistry.list()).toHaveLength(13);
+    expect(commandRegistry.list()).toHaveLength(14);
   });
 
   it('is idempotent — repeated calls keep exactly 13 commands', () => {
     ensureMvpCommandsRegistered();
     ensureMvpCommandsRegistered();
     ensureMvpCommandsRegistered();
-    expect(commandRegistry.list()).toHaveLength(13);
+    expect(commandRegistry.list()).toHaveLength(14);
   });
 
   it('does not remove existing execute callbacks', () => {
@@ -555,7 +555,7 @@ describe('getMvpCommandHotkey', () => {
     getMvpCommandHotkey('build-separator');
     getMvpCommandHotkey('build-separator');
     getMvpCommandHotkey('produce-builder');
-    expect(commandRegistry.list()).toHaveLength(13);
+    expect(commandRegistry.list()).toHaveLength(14);
   });
 });
 

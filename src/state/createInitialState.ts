@@ -8,6 +8,7 @@ import type {
   EconomyState,
   SeparatorRuntimeState,
   ProductionState,
+  ModularCombatUnit,
 } from './types';
 import {
   START_RAW,
@@ -150,6 +151,9 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     hqPosition,
     nextConstructionId: 0,
     production: arenaMode ? { factories: [] } : createInitialProduction(mapData),
+
+    // Phase 2: combat units — empty at start (produced via factory)
+    combatUnits: [],
 
     // FOG-VISION-08: Initialize vision state and compute initial visibility
     vision: createInitialVisionState(mapData.width, mapData.height),
@@ -477,14 +481,7 @@ function createExtraModularCombat(
   mapData: MapData,
   extraHarvesters: Array<{ tx: number; ty: number; faction: Faction }>,
   faction: Faction,
-): Array<{
-  tx: number;
-  ty: number;
-  chassis: 'wasp';
-  weapon: 'smoky';
-  mod: 'm0';
-  faction: Faction;
-}> {
+): ModularCombatUnit[] {
   const occupied = buildStarterOccupiedSet(mapData, extraHarvesters);
   const hq = mapData.hq;
 
@@ -509,10 +506,11 @@ function createExtraModularCombat(
     return [{
       tx: candidate.tx,
       ty: candidate.ty,
-      chassis: 'wasp',
-      weapon: 'smoky',
+      bodyId: 'wasp',
+      weaponId: 'smoky',
       mod: 'm0',
       faction,
+      id: `combat-unit-${candidate.tx}-${candidate.ty}`,
     }];
   }
 

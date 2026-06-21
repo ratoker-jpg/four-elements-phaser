@@ -91,6 +91,7 @@ function makeTestState(overrides?: {
     playerFaction: 'cyan',
     extraHarvesters: [],
     extraModularCombat: [],
+    combatUnits: [],
     harvesters: [],
     resourceNodes: resources,
     economy: { raw: 30, matter: 120, elements: { cyan: 0, green: 0, yellow: 0, purple: 0 }, powerGenerated: 10, powerConsumed: 0, separators: [], rawCap: 200, matterCap: 200, elementCap: 200 } as EconomyState,
@@ -432,6 +433,7 @@ describe('CORE-STEP-03C: validateMap — generated resourceClass validation', ()
       playerFaction: 'cyan',
       extraHarvesters: [],
       extraModularCombat: [],
+    combatUnits: [],
       harvesters: [],
       resourceNodes: nodes,
       economy: { raw: 30, matter: 120, elements: { cyan: 0, green: 0, yellow: 0, purple: 0 }, powerGenerated: 10, powerConsumed: 0, separators: [], rawCap: 200, matterCap: 200, elementCap: 200 } as EconomyState,
@@ -514,6 +516,7 @@ describe('CORE-STEP-03C: validateMap — generated resourceClass validation', ()
       playerFaction: 'cyan',
       extraHarvesters: [],
       extraModularCombat: [],
+    combatUnits: [],
       harvesters: [],
       resourceNodes: [
         { id: 'r-0', tx: 8, ty: 8, resourceType: 'small', footprint: 1, remainingRaw: 20, depleted: false },

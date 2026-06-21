@@ -99,6 +99,7 @@ function makeTestState(overrides?: {
     playerFaction: 'cyan',
     extraHarvesters: [],
     extraModularCombat: [],
+    combatUnits: [],
     harvesters: [],
     resourceNodes: [],
     economy,

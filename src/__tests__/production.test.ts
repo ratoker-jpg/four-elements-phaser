@@ -73,6 +73,7 @@ function makeStateWithFactory(overrides?: {
     playerFaction: 'cyan',
     extraHarvesters: [],
     extraModularCombat: [],
+    combatUnits: [],
     harvesters: [],
     resourceNodes: [],
     economy,
@@ -1086,5 +1087,190 @@ describe('FIX-04: cancelFactoryQueueItem', () => {
     // Run update — harvester should start progressing
     updateGameState(state, 200);
     expect(factory.queue[0].progress).toBeGreaterThan(0);
+  });
+});
+
+// ─── Phase 2: wasp-smoky combat unit production ────────────────────
+
+describe('Phase 2: wasp-smoky combat unit production', () => {
+  it('startUnitProduction succeeds for wasp-smoky when factory exists and resources sufficient', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    const result = startUnitProduction(state, 10, 10, 'wasp-smoky');
+    expect(result.ok).toBe(true);
+  });
+
+  it('wasp-smoky cost deduction is correct (45 matter, 10 element)', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    const matterBefore = state.economy.matter;
+    const elementBefore = state.economy.elements.cyan;
+
+    const result = startUnitProduction(state, 10, 10, 'wasp-smoky');
+    expect(result.ok).toBe(true);
+
+    expect(state.economy.matter).toBe(matterBefore - WASP_SMOKY_TOTAL_MATTER_COST);
+    expect(state.economy.elements.cyan).toBe(elementBefore - WASP_SMOKY_TOTAL_ELEMENT_COST);
+
+    const factory = state.production.factories[0];
+    expect(factory.queue.length).toBe(1);
+    expect(factory.queue[0].unitType).toBe('wasp-smoky');
+    expect(factory.queue[0].durationMs).toBe(WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS);
+  });
+
+  it('queue limit still enforced for wasp-smoky', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    startUnitProduction(state, 10, 10, 'builder');
+    startUnitProduction(state, 10, 10, 'harvester');
+
+    const result = startUnitProduction(state, 10, 10, 'wasp-smoky');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('queue-full');
+    }
+  });
+
+  it('cancel works for wasp-smoky', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    startUnitProduction(state, 10, 10, 'wasp-smoky');
+
+    const result = cancelFactoryQueueItem(state, 10, 10, 0);
+    expect(result.ok).toBe(true);
+
+    const factory = state.production.factories[0];
+    expect(factory.queue.length).toBe(0);
+  });
+
+  it('blocked reason: insufficient matter for wasp-smoky', () => {
+    const state = makeStateWithFactory({ matter: 20, elementUnits: 50 });
+    const result = startUnitProduction(state, 10, 10, 'wasp-smoky');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('insufficient-matter');
+    }
+  });
+
+  it('blocked reason: insufficient element for wasp-smoky', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 5 });
+    const result = startUnitProduction(state, 10, 10, 'wasp-smoky');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('insufficient-element');
+    }
+  });
+
+  it('blocked reason: unit cap reached prevents wasp-smoky', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    // Fill to cap
+    for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
+      state.mapData.builders.push({
+        id: `builder-cap-${i}`,
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    const result = startUnitProduction(state, 10, 10, 'wasp-smoky');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('unit-cap-reached');
+    }
+  });
+
+  it('processFactorySpawns creates a ModularCombatUnit with correct bodyId/weaponId/mod', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    startUnitProduction(state, 10, 10, 'wasp-smoky');
+
+    const factory = state.production.factories[0];
+
+    // Complete the item
+    factory.queue[0].completed = true;
+    factory.queue[0].progress = 1;
+    factory.queue[0].elapsedMs = factory.queue[0].durationMs;
+
+    updateGameState(state, 200);
+
+    // Should have spawned a combat unit
+    expect(state.combatUnits.length).toBe(1);
+    const combatUnit = state.combatUnits[0];
+    expect(combatUnit.bodyId).toBe('wasp');
+    expect(combatUnit.weaponId).toBe('smoky');
+    expect(combatUnit.mod).toBe('m0');
+    expect(combatUnit.faction).toBe('cyan');
+    expect(combatUnit.id).toBeTruthy();
+    expect(factory.queue.length).toBe(0);
+  });
+
+  it('combat units count toward unit cap', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    // Add some combat units
+    for (let i = 0; i < 5; i++) {
+      state.combatUnits.push({
+        tx: 5 + i, ty: 5,
+        bodyId: 'wasp', weaponId: 'smoky', mod: 'm0',
+        faction: 'cyan', id: `combat-${i}`,
+      });
+    }
+    // Add 5 builders to reach cap (5 + 5 = 10 = DEFAULT_UNIT_CAP)
+    for (let i = 0; i < 5; i++) {
+      state.mapData.builders.push({
+        id: `builder-cap-${i}`,
+        tx: 5 + i, ty: 5,
+        busy: false, phase: 'idle',
+        path: [], pathIndex: 0,
+        ftx: 5 + i, fty: 5,
+        targetTx: 5 + i, targetTy: 5,
+        assignedSiteId: -1,
+      });
+    }
+
+    const result = startUnitProduction(state, 10, 10, 'builder');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('unit-cap-reached');
+    }
+  });
+
+  it('builder/harvester production still works after wasp-smoky changes', () => {
+    const state = makeStateWithFactory({ matter: 500, elementUnits: 200 });
+    const resultBuilder = startUnitProduction(state, 10, 10, 'builder');
+    expect(resultBuilder.ok).toBe(true);
+
+    const resultHarvester = startUnitProduction(state, 10, 10, 'harvester');
+    expect(resultHarvester.ok).toBe(true);
+
+    const factory = state.production.factories[0];
+    expect(factory.queue.length).toBe(2);
+    expect(factory.queue[0].unitType).toBe('builder');
+    expect(factory.queue[1].unitType).toBe('harvester');
+  });
+
+  it('spawn-time cap recheck includes combat units', () => {
+    const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
+    startUnitProduction(state, 10, 10, 'wasp-smoky');
+
+    const factory = state.production.factories[0];
+    factory.queue[0].completed = true;
+    factory.queue[0].progress = 1;
+    factory.queue[0].elapsedMs = factory.queue[0].durationMs;
+
+    // Fill cap with combat units so spawn is blocked
+    for (let i = 0; i < DEFAULT_UNIT_CAP; i++) {
+      state.combatUnits.push({
+        tx: 5 + i, ty: 5,
+        bodyId: 'wasp', weaponId: 'smoky', mod: 'm0',
+        faction: 'cyan', id: `combat-cap-${i}`,
+      });
+    }
+
+    updateGameState(state, 200);
+
+    // Combat unit should NOT have been spawned (cap reached)
+    expect(state.combatUnits.length).toBe(DEFAULT_UNIT_CAP);
+    // Queue item should still be there
+    expect(factory.queue.length).toBe(1);
+    expect(factory.queue[0].completed).toBe(true);
   });
 });

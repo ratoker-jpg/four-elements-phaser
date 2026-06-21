@@ -107,6 +107,7 @@ const BUILD_BUTTONS: Array<{ buildingType: BuildingType; label: string; commandI
 const PRODUCTION_BUTTONS: Array<{ unitType: ProducibleUnitType; label: string; commandId: string }> = [
   { unitType: 'builder', label: t('hud_builder'), commandId: 'produce-builder' },
   { unitType: 'harvester', label: t('hud_harvesterUnit'), commandId: 'produce-harvester' },
+  { unitType: 'wasp-smoky', label: t('hud_waspSmoky'), commandId: 'produce-wasp-smoky' },
 ];
 
 /**
@@ -474,6 +475,7 @@ export class PlaytestHud {
       const prodTooltipKey: Record<string, string> = {
         'builder': 'tooltip_produceBuilder',
         'harvester': 'tooltip_produceHarvester',
+        'wasp-smoky': 'tooltip_produceWaspSmoky',
       };
       const pTooltipKey = prodTooltipKey[def.unitType];
       if (pTooltipKey) {

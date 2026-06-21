@@ -182,6 +182,7 @@ const TOOLTIP_STRINGS = {
   tooltip_buildFactory: 'Фабрика производит строителей и сборщиков.',
   tooltip_produceBuilder: 'Строитель возводит здания на подготовленных площадках.',
   tooltip_produceHarvester: 'Сборщик добывает сырьё и доставляет на базу.',
+  tooltip_produceWaspSmoky: 'Боевая единица: лёгкий корпус Васп с пушкой Смоки.',
   // Arena composer tooltips
   tooltip_composerBody: 'Корпус определяет запас здоровья и скорость юнита.',
   tooltip_composerWeapon: 'Пушка определяет тип и урон оружия.',
@@ -267,6 +268,7 @@ const HUD_STRINGS = {
   hud_cmdMove: 'Движение',
   hud_cmdHarvest: 'Добыча',
   hud_cmdAttack: 'Атака',
+  hud_waspSmoky: 'Васп+Смоки M0',
 } as const;
 
 // ─── Status label strings ───────────────────────────────────────────
@@ -287,6 +289,7 @@ const STATUS_STRINGS = {
   status_noBuilder: 'Нет строителя',
   status_notBuildable: 'Не строится',
   status_noFactory: 'Нет фабрики',
+  status_waspSmoky: 'Васп+Смоки',
   status_moving: 'Идёт',
   status_gathering: 'Сбор',
   status_returning: 'Возврат',

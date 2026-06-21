@@ -341,6 +341,14 @@ export class GameInputController {
       };
     }
 
+    const produceWaspSmoky = commandRegistry.get('produce-wasp-smoky');
+    if (produceWaspSmoky) {
+      produceWaspSmoky.execute = () => {
+        const result = this.requestQueueUnit('wasp-smoky');
+        this.showStatusCb(result.message, result.success);
+      };
+    }
+
     const unitStop = commandRegistry.get('unit-stop');
     if (unitStop) {
       unitStop.execute = () => {

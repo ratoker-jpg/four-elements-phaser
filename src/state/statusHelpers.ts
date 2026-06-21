@@ -41,6 +41,8 @@ import {
   BUILDER_PRODUCTION_ELEMENT_COST,
   HARVESTER_PRODUCTION_MATTER_COST,
   HARVESTER_PRODUCTION_ELEMENT_COST,
+  WASP_SMOKY_TOTAL_MATTER_COST,
+  WASP_SMOKY_TOTAL_ELEMENT_COST,
   QUEUE_LIMIT,
   DEFAULT_UNIT_CAP,
 } from './types';
@@ -120,6 +122,7 @@ export type FactoryStatus =
   | 'idle'
   | 'producing-builder'
   | 'producing-harvester'
+  | 'producing-wasp-smoky'
   | 'blocked-no-matter'
   | 'blocked-no-element'
   | 'blocked-queue-full'
@@ -146,9 +149,11 @@ export function getFactoryStatus(
   // Check if currently producing
   const activeItem = factory.queue.find(item => !item.completed);
   if (activeItem && factory.active) {
-    return activeItem.unitType === 'builder'
-      ? 'producing-builder'
-      : 'producing-harvester';
+    switch (activeItem.unitType) {
+      case 'builder': return 'producing-builder';
+      case 'harvester': return 'producing-harvester';
+      case 'wasp-smoky': return 'producing-wasp-smoky';
+    }
   }
 
   // If there's an unfinished item but factory is not active, it's power-blocked.
@@ -166,12 +171,8 @@ export function getFactoryStatus(
 
   // If a specific unit type was requested, check affordability
   if (nextUnitType) {
-    const matterCost = nextUnitType === 'builder'
-      ? BUILDER_PRODUCTION_MATTER_COST
-      : HARVESTER_PRODUCTION_MATTER_COST;
-    const elementCost = nextUnitType === 'builder'
-      ? BUILDER_PRODUCTION_ELEMENT_COST
-      : HARVESTER_PRODUCTION_ELEMENT_COST;
+    const matterCost = getMatterCostForType(nextUnitType);
+    const elementCost = getElementCostForType(nextUnitType);
 
     if (state.economy.matter < matterCost) {
       return 'blocked-no-matter';
@@ -387,17 +388,13 @@ export function getProductionBlockReason(
   }
 
   // Check matter cost
-  const matterCost = unitType === 'builder'
-    ? BUILDER_PRODUCTION_MATTER_COST
-    : HARVESTER_PRODUCTION_MATTER_COST;
+  const matterCost = getMatterCostForType(unitType);
   if (state.economy.matter < matterCost) {
     return 'insufficient-matter';
   }
 
   // Check element cost
-  const elementCost = unitType === 'builder'
-    ? BUILDER_PRODUCTION_ELEMENT_COST
-    : HARVESTER_PRODUCTION_ELEMENT_COST;
+  const elementCost = getElementCostForType(unitType);
   if (state.economy.elements[state.playerFaction] < elementCost) {
     return 'insufficient-element';
   }
@@ -410,11 +407,31 @@ export function getProductionBlockReason(
   return null;
 }
 
+// ─── Cost lookup helpers (shared by getFactoryStatus and getProductionBlockReason) ──
+
+/** Get matter cost for a producible unit type. */
+function getMatterCostForType(unitType: ProducibleUnitType): number {
+  switch (unitType) {
+    case 'builder': return BUILDER_PRODUCTION_MATTER_COST;
+    case 'harvester': return HARVESTER_PRODUCTION_MATTER_COST;
+    case 'wasp-smoky': return WASP_SMOKY_TOTAL_MATTER_COST;
+  }
+}
+
+/** Get element cost for a producible unit type. */
+function getElementCostForType(unitType: ProducibleUnitType): number {
+  switch (unitType) {
+    case 'builder': return BUILDER_PRODUCTION_ELEMENT_COST;
+    case 'harvester': return HARVESTER_PRODUCTION_ELEMENT_COST;
+    case 'wasp-smoky': return WASP_SMOKY_TOTAL_ELEMENT_COST;
+  }
+}
+
 // ─── Unit cap helpers (FIX-03) ─────────────────────────────────────────
 
-/** Count current player civil units (builders + harvesters). */
+/** Count current player civil units (builders + harvesters + combat units). */
 export function getUnitCount(state: GameState): number {
-  return state.mapData.builders.length + state.harvesters.length;
+  return state.mapData.builders.length + state.harvesters.length + state.combatUnits.length;
 }
 
 /** Get the current unit cap for the player. Sandbox MVP: fixed DEFAULT_UNIT_CAP. */
@@ -581,6 +598,7 @@ export function factoryStatusLabel(status: FactoryStatus): string {
     case 'idle': return t('status_idle');
     case 'producing-builder': return t('status_builder');
     case 'producing-harvester': return t('status_harvester');
+    case 'producing-wasp-smoky': return t('status_waspSmoky');
     case 'blocked-no-matter': return t('status_noMatter');
     case 'blocked-no-element': return t('status_noElement');
     case 'blocked-queue-full': return t('status_queueFull');

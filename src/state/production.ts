@@ -32,6 +32,9 @@ import {
   HARVESTER_PRODUCTION_MATTER_COST,
   HARVESTER_PRODUCTION_ELEMENT_COST,
   HARVESTER_PRODUCTION_DURATION_MS,
+  WASP_SMOKY_TOTAL_MATTER_COST,
+  WASP_SMOKY_TOTAL_ELEMENT_COST,
+  WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS,
   DEFAULT_UNIT_CAP,
 } from './types';
 
@@ -70,6 +73,7 @@ function getMatterCost(unitType: ProducibleUnitType): number {
   switch (unitType) {
     case 'builder': return BUILDER_PRODUCTION_MATTER_COST;
     case 'harvester': return HARVESTER_PRODUCTION_MATTER_COST;
+    case 'wasp-smoky': return WASP_SMOKY_TOTAL_MATTER_COST;
   }
 }
 
@@ -78,6 +82,7 @@ function getElementCost(unitType: ProducibleUnitType): number {
   switch (unitType) {
     case 'builder': return BUILDER_PRODUCTION_ELEMENT_COST;
     case 'harvester': return HARVESTER_PRODUCTION_ELEMENT_COST;
+    case 'wasp-smoky': return WASP_SMOKY_TOTAL_ELEMENT_COST;
   }
 }
 
@@ -86,6 +91,7 @@ function getProductionDuration(unitType: ProducibleUnitType): number {
   switch (unitType) {
     case 'builder': return BUILDER_PRODUCTION_DURATION_MS;
     case 'harvester': return HARVESTER_PRODUCTION_DURATION_MS;
+    case 'wasp-smoky': return WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS;
   }
 }
 
@@ -139,7 +145,8 @@ export function startUnitProduction(
   }
 
   // 5. Check unit cap — block queueing if already at cap
-  const currentUnitCount = state.mapData.builders.length + state.harvesters.length;
+  // Phase 2: combat units count toward the cap
+  const currentUnitCount = state.mapData.builders.length + state.harvesters.length + state.combatUnits.length;
   if (currentUnitCount >= DEFAULT_UNIT_CAP) {
     return { ok: false, reason: 'unit-cap-reached' };
   }

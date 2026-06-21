@@ -332,6 +332,7 @@ describe('formatSaveSlotSummary', () => {
       resourcesCount: 3,
       buildingsCount: 0,
       harvestersCount: 0,
+      combatUnitsCount: 0,
     };
     const result = formatSaveSlotSummary(summary);
     expect(result).toContain('Raw: 42');
@@ -350,6 +351,7 @@ describe('formatSaveSlotSummary', () => {
       resourcesCount: 3,
       buildingsCount: 0,
       harvestersCount: 0,
+      combatUnitsCount: 0,
     };
     const result = formatSaveSlotSummary(summary);
     expect(result).toContain('Power: 9/25');
@@ -364,6 +366,7 @@ describe('formatSaveSlotSummary', () => {
       resourcesCount: 2,
       buildingsCount: 5,
       harvestersCount: 3,
+      combatUnitsCount: 0,
     };
     const result = formatSaveSlotSummary(summary);
     expect(result).toContain('Bldgs: 5');
@@ -379,6 +382,7 @@ describe('formatSaveSlotSummary', () => {
       resourcesCount: 2,
       buildingsCount: 0,
       harvestersCount: 0,
+      combatUnitsCount: 0,
     };
     const result = formatSaveSlotSummary(summary);
     expect(result).not.toContain('Bldgs');

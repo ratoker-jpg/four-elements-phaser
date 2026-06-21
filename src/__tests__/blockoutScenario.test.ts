@@ -75,6 +75,7 @@ function createTestGameState(): GameState {
     playerFaction: 'cyan',
     extraHarvesters: [],
     extraModularCombat: [],
+    combatUnits: [],
     harvesters: [
       {
         id: 'harvester-1',
