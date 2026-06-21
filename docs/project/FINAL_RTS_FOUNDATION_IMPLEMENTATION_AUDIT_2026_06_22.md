@@ -1,6 +1,6 @@
 # FINAL_RTS_FOUNDATION_IMPLEMENTATION_AUDIT_2026_06_22.md
 
-Status: active implementation audit  
+Status: proposed / pending Denis+GPT acceptance
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-06-22
@@ -11,26 +11,25 @@ Date: 2026-06-22
 
 This document audits the current implementation state of the Four Elements Phaser repository against the requirements of the RTS Foundation Roadmap (`FINAL_RTS_FOUNDATION_ROADMAP_2026_06_22.md`). For each roadmap topic, it identifies what exists, what is missing, what must be built, and what risks exist.
 
-This audit is the baseline reference for all implementation work in the RTS Foundation roadmap. It should not be re-derived for each phase — phases should reference this audit and update it only if facts change.
+This audit is the baseline reference for all implementation work in the RTS Foundation roadmap, once accepted. It should not be re-derived for each phase — phases should reference this audit and update it only if facts change. Until the roadmap is accepted by Denis and GPT, this audit is a proposal and implementation facts should be re-validated before any code work begins.
 
 ---
 
 ## 2. Repository facts
 
 ```text
-Source files:     119 .ts files in src/
-Test files:       107 test files
-Total tests:      ~5253
-Passing:          ~5225
-Failing:          ~28 (pre-existing, in 4 files unrelated to RTS foundation)
-Phaser version:   4.1.0
-Build system:     Vite
+Source files:     119 .ts files in src/       (reported from prior repo scan)
+Test files:       107 test files               (reported from prior repo scan)
+Total tests:      ~5253                        (previously observed, needs validation)
+Passing:          ~5225                        (previously observed, needs validation)
+Failing:          ~28                          (previously observed, needs validation)
+Phaser version:   4.1.0                        (verified in package.json)
+Build system:     Vite                         (verified)
 Renderer:         WebGL-only (no Canvas fallback)
 Camera:           Fixed isometric / axonometric 2.5D
 ```
 
-Known pre-existing test failures (not caused by this roadmap):
-- `blockoutDamage`, `blockoutObstacles`, `coreEconomyLoop` — these predate the AoE4 UX work and are not regressions.
+Note: Test counts were observed during a prior automated scan and have not been re-validated for this audit. Before any implementation phase begins, run `npm test` and record the actual current count. Known pre-existing test failures previously observed in `blockoutDamage`, `blockoutObstacles`, `coreEconomyLoop` — these predated the AoE4 UX work and were not regressions. Re-verify before implementation.
 
 ---
 
@@ -192,7 +191,9 @@ Known pre-existing test failures (not caused by this roadmap):
 - `StartingUnitConfig`: 2 harvesters, 1 builder, 1 Wasp+Smoky M0.
 - Spawn logic for starter combat unit using modular vehicle system.
 - Position validation near HQ, collision avoidance between starting units.
-- Early-game loop verification (harvest → build → produce → upgrade).
+- Early-game loop verification (harvest → build → produce → move).
+
+**Dependency note**: Phase 6 does NOT depend on Phase 7 (mirrored maps). Starting units work on the current map generator. Phase 7 will later re-validate positions against mirrored layouts as a follow-up.
 
 **Risk**: Medium. The modular vehicle system already handles combat unit creation. The gap is initialization code and position logic.
 
@@ -247,6 +248,8 @@ Known pre-existing test failures (not caused by this roadmap):
 - No builder-centric site selection (current logic prefers sites near player buildings, not near the builder).
 - No build mode input handling.
 
+**Denis approval gate**: Phase 8 changes the builder placement model from auto-site-selection (near HQ/existing buildings) to player click-to-place (near builder). This is a significant UX change. Phase 8 implementation must not begin until Denis has explicitly approved the click-to-place interaction model. If Denis prefers to keep auto-placement for now, Phase 8 should be deferred or its scope reduced to builder-proximity validation only (no click-to-place preview).
+
 **What must be built (Phase 8)**:
 - Builder-centric placement model: site validation near builder, not near HQ.
 - Click-to-place preview: projected ground-plane diamond following cursor (using `CAMERA_PROJECTION_CONTRACT.md`).
@@ -255,7 +258,7 @@ Known pre-existing test failures (not caused by this roadmap):
 - Builder movement to adjacent site before construction begins.
 - Auto-assignment improvement (nearest idle builder to site).
 
-**Risk**: Medium. The construction system is well-structured; the gap is the input handling and preview rendering. The `CAMERA_PROJECTION_CONTRACT.md` ground-plane projection functions are already available.
+**Risk**: Medium. The construction system is well-structured; the gap is the input handling and preview rendering. The `CAMERA_PROJECTION_CONTRACT.md` ground-plane projection functions are already available. However, the UX model change requires Denis approval before implementation.
 
 ---
 
@@ -477,7 +480,7 @@ The project is Russian-only for user-facing text. English keys are internal IDs 
 | Complete cost/queue rules | No structured cost table, missing tooltips | Medium |
 | Starting units | No starter combat unit, no config type | Medium |
 | Mirrored map generation | No mirroring, no production obstacles | High |
-| Builder local placement | No click-to-place, no preview, builder-centric logic missing | Medium |
+| Builder local placement | No click-to-place, no preview, builder-centric logic missing. Requires Denis approval for UX model change. | Medium |
 | Building shadows | No building shadows, no light direction model | Medium |
 | Movement feel | Tank movement disabled, dust unused for combat units | Medium |
 | Fullscreen | No fullscreen toggle at all | Low |
@@ -494,12 +497,12 @@ The project is Russian-only for user-facing text. English keys are internal IDs 
 | 0 (this audit) | Yes | None | Docs-only |
 | 1 (factory production) | Yes | None | `ProducibleUnitType` extension is well-scoped |
 | 2 (hull+turret selection) | Yes | None after Phase 1 | Reference: `ArenaUnitComposer` |
-| 3 (hull upgrade) | Yes | None after Phase 1 | Data model exists |
-| 4 (turret upgrade) | Yes | None after Phase 3 | Follows hull upgrade pattern |
+| 3 (hull upgrade) | Yes | None after Phase 1 | Data model exists. Can be deferred past Phase 6 for earlier playable loop. |
+| 4 (turret upgrade) | Yes | None after Phase 3 | Follows hull upgrade pattern. Can be deferred past Phase 6 for earlier playable loop. |
 | 5 (cost/queue/Russian) | Yes | None after Phases 2-4 | Content-heavy |
-| 6 (starting units) | Yes | None after Phases 1-5 | Initialization code |
-| 7 (mirrored map + obstacles) | Yes | None | Independent of Phases 1-6 in code |
-| 8 (builder placement) | Yes | Phase 7 for map validation | Depends on valid map geometry |
+| 6 (starting units) | Yes | None after Phases 1-5 | Initialization code. Does NOT depend on Phase 7 (mirrored maps). |
+| 7 (mirrored map + obstacles) | Yes | None | Independent of Phases 1-6 in code. Re-validates Phase 6 placements as follow-up. |
+| 8 (builder placement) | Yes, after Denis approval | Denis approval gate + Phase 7 for map validation | Click-to-place UX model requires Denis explicit approval before implementation begins. |
 | 9 (shadows) | Yes | None | Projection infrastructure exists |
 | 10 (movement feel) | Yes | Phase 1 for combat units | Tanks need to exist first |
 | 11 (fullscreen/hotkeys) | Yes | None | Low-risk, mostly browser API |

@@ -1,6 +1,6 @@
 # FINAL_RTS_FOUNDATION_ROADMAP_2026_06_22.md
 
-Status: active roadmap  
+Status: proposed / pending Denis+GPT acceptance
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
 Date: 2026-06-22
@@ -11,7 +11,7 @@ Date: 2026-06-22
 
 This roadmap defines the full RTS foundation implementation sequence that must be completed **before** any Enemy AI work begins. It covers unit production, hull/turret selection and upgrades, map generation, builder placement, visual polish, and input hardening — everything a human player needs to play a complete early-game loop against no opponent.
 
-The roadmap replaces the ad-hoc "NEXT-ROADMAP-DECISION" state and becomes the single active implementation queue until Phase 13 closes.
+Once accepted by Denis and GPT, this roadmap replaces the ad-hoc "NEXT-ROADMAP-DECISION" state and becomes the single active implementation queue until Phase 13 closes. Until then, it is a proposal and no implementation work should begin.
 
 ---
 
@@ -307,7 +307,9 @@ Phase ordering rationale:
 
 ### Phase 6 — Starting units and early-game loop
 
-**Goal**: When a new game starts, the player is given starting units: 2 harvesters, 1 builder, 1 starter tank (Wasp hull + Smoky turret, M0). This enables a complete early-game loop: harvest → build → produce → upgrade.
+**Goal**: When a new game starts, the player is given starting units: 2 harvesters, 1 builder, 1 starter tank (Wasp hull + Smoky turret, M0). This enables a minimal early-game loop: harvest → build → produce → move.
+
+**Dependency note**: Phase 6 does **not** depend on Phase 7 (mirrored maps). Starting units are placed near HQ using current map generation. When Phase 7 introduces mirrored maps, starting unit positions will be re-validated against the symmetric layout, but Phase 6 must work independently on the current map generator.
 
 **Current state**:
 - Game starts with HQ, some harvesters, and basic economy. Exact starting unit composition needs verification and adjustment.
@@ -323,7 +325,7 @@ Phase ordering rationale:
 4. Starting units should be placed on walkable tiles adjacent to HQ, with collision avoidance between starting units.
 5. Verify the early-game loop works end-to-end:
    - Harvesters gather resources → builder constructs factory → factory produces combat units → combat units can be selected and moved.
-6. Starting unit positions should respect the mirrored map (Phase 7) so both players have equivalent starting conditions.
+6. Starting unit positions use the current map generator. Phase 7 will later add mirrored map validation, which may adjust placement logic, but Phase 6 must not block on Phase 7.
 
 **Key files to modify**:
 - `src/state/initialGameState.ts` or game initialization code — spawn starting units.
@@ -339,13 +341,15 @@ Phase ordering rationale:
 **Non-goals**:
 - No enemy starting units (Enemy AI is separate).
 - No balance pass for starting unit count (Phase 12).
-- No map changes (Phase 7).
+- No mirrored map requirement (Phase 7 will re-validate later).
 
 ---
 
 ### Phase 7 — Balanced mirrored map generation and obstacles/ruins
 
 **Goal**: Generate fair/mirrored maps where both players have equivalent resource access and starting positions, plus richer obstacle types that create tactical gameplay.
+
+**Dependency note**: Phase 7 is independent of Phases 1–6 in code. When Phase 7 introduces mirrored maps, Phase 6 starting unit placement should be re-validated against the symmetric layout, but this is a follow-up adjustment, not a blocking dependency.
 
 **Current state**:
 - `generatedMap.ts` uses Mulberry32 PRNG, patch-based terrain, and 6-class resource anchors.
@@ -404,6 +408,8 @@ Phase ordering rationale:
 ---
 
 ### Phase 8 — Builder local construction placement
+
+**Denis approval gate**: Phase 8 changes the builder placement model from auto-site-selection (near HQ/existing buildings) to player click-to-place (near builder). This is a significant UX change. Phase 8 implementation must not begin until Denis has explicitly approved the click-to-place interaction model. If Denis prefers to keep auto-placement for now, Phase 8 should be deferred or its scope reduced to builder-proximity validation only (no click-to-place preview).
 
 **Goal**: Builders construct buildings near themselves, not near HQ. The player moves a builder to a desired location, then the builder builds there.
 
@@ -722,18 +728,28 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
                                                         v
                                                       Phase 6
                                                         │
-Phase 7 ──────────────────────────────────────────> Phase 8
+                                            [Denis approval gate]
+                                                        │
+Phase 7 ─────────────────────────────(re-validates Phase 6 placements)──> Phase 8
     │                                                 │
     v                                                 v
 Phase 9 ──> Phase 10 ──> Phase 11 ──> Phase 12 ──> Phase 13
 ```
 
+Dependency clarifications:
+- Phase 6 does NOT depend on Phase 7. Starting units work on the current map generator.
+- Phase 7 re-validates Phase 6 starting unit positions against mirrored maps, but this is a follow-up adjustment, not a prerequisite.
+- Phase 8 has a Denis approval gate before implementation begins (click-to-place UX model).
+- Phase 8 benefits from Phase 7 map validation but does not strictly require it.
+
 Parallelism opportunities:
-- Phase 7 (map) is independent of Phases 1-6 in code and can start in parallel.
+- Phase 7 (map) is independent of Phases 1–6 in code and can start in parallel.
 - Phase 9 (shadows) and Phase 10 (movement feel) are independent and can run in parallel.
 - Phase 11 (input/fullscreen) is low-risk and can overlap with Phases 9-10.
 
-Critical path: Phase 1 → 2 → 3 → 4 → 5 → 6 → 8 → 12 → 13
+Critical path: Phase 1 → 2 → 3 → 4 → 5 → 6 → [Denis approval] → 8 → 12 → 13
+
+Recommended early-game loop milestone: After Phase 6, the player has a minimal playable loop (harvest → build → produce → move). Phases 3–4 (hull/turret M0-M3 upgrades) enrich this loop but are not required for the first "something works end-to-end" milestone. If Denis wants a faster early demo, Phases 3–4 can be deferred after Phase 6 and the early-game loop validated first.
 
 ---
 
