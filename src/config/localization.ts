@@ -545,6 +545,28 @@ const BUILDING_ROLE_STRINGS = {
   building_role_defense_tower: 'Оборона базы (ещё не реализовано)',
 } as const;
 
+// ─── Feedback strings (FEEDBACK-ALERTS-06) ──────────────────────────
+
+const FEEDBACK_STRINGS = {
+  fb_noBuilder: 'Нет свободного строителя',
+  fb_noMatter: 'Недостаточно энергии',
+  fb_notBuildable: 'Нельзя построить',
+  fb_noFactory: 'Нет фабрики',
+  fb_queueFull: 'Очередь полна',
+  fb_noElement: 'Недостаточно элемента',
+  fb_unitCap: 'Лимит юнитов',
+  fb_groupAssigned: 'Группа {group}: {count} юнит(ов)',
+  fb_groupEmpty: 'Группа {group} пуста',
+  fb_groupRecalled: 'Группа {group}: {count} юнит(ов)',
+  fb_buildStarted: 'Строительство начато: {type}',
+  fb_buildComplete: 'Здание построено: {type}',
+  fb_noSelection: 'Нет выбранных юнитов',
+  fb_commandUnavailable: 'Команда недоступна',
+  fb_idleWorkers: 'Холостых рабочих: {count}',
+  fb_noBuildSite: 'Нет места для строительства',
+  fb_buildFailed: 'Строительство невозможно',
+} as const;
+
 // ─── Combined string map ─────────────────────────────────────────────
 
 /**
@@ -574,6 +596,7 @@ export const LOCALIZED_STRINGS = {
   ...RESOURCE_CLASS_DESC_STRINGS,
   ...BUILDING_STRINGS,
   ...BUILDING_ROLE_STRINGS,
+  ...FEEDBACK_STRINGS,
 } as const;
 
 // ─── Lookup function ─────────────────────────────────────────────────

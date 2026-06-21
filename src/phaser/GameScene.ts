@@ -13,6 +13,7 @@ import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric
 import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
 import { updateConstructionSiteProgress } from '../state/construction';
+import { constructionCompleted } from '../state/feedbackHelpers';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '../state/types';
 import { validateMap } from '../state/mapValidation';
@@ -611,6 +612,10 @@ export class GameScene extends Phaser.Scene {
           this.playtestHud?.showStatus(message, success);
         }
       },
+      // FEEDBACK-ALERTS-06: Typed feedback callback to VisualHudCore
+      showFeedback: (params) => {
+        this.visualHudCore?.addFeedback(params);
+      },
       pauseMenu: this.pauseMenu,
       debugOverlayRenderer: this.debugOverlayRenderer,
       devtoolsPanel: this.devtoolsPanel,
@@ -696,11 +701,15 @@ export class GameScene extends Phaser.Scene {
       updateBuilders(this.gameState, delta);
 
       // 4. Advance construction site progress (only for sites with active builder)
-      const siteIds = this.gameState.mapData.constructionSites.map(s => `site-${s.id}`);
-      for (const siteId of siteIds) {
+      // FIXUP-2: Snapshot metadata before iterating (updateConstructionSiteProgress splices completed sites).
+      const siteSnapshots = this.gameState.mapData.constructionSites.map(s => ({ id: s.id, tx: s.tx, ty: s.ty, type: s.type }));
+      for (const snap of siteSnapshots) {
+        const siteId = `site-${snap.id}`;
         const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
         if (result.completed) {
           console.log(`[GameScene] Construction completed: ${result.buildingId}`);
+          const fb = constructionCompleted(snap.type);
+          this.inputController?.showFeedback(fb.type, fb.message, 'construction-complete', { tx: snap.tx, ty: snap.ty });
         }
       }
     }

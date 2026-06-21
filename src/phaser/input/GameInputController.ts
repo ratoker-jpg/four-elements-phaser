@@ -34,6 +34,18 @@ import {
   type CursorFeedbackState,
 } from '../../state/commandRouter';
 import { ControlGroupManager } from '../../state/controlGroups';
+import { FeedbackStore, type FeedbackSeverity } from '../../state/feedbackStore';
+import { controlGroupAssigned, controlGroupEmpty, controlGroupRecalled, constructionStarted, buildFailureFeedback } from '../../state/feedbackHelpers';
+
+/** FIXUP-1: Typed feedback params — single object for dedupe-aware feedback. */
+export interface FeedbackParams {
+  type: FeedbackSeverity;
+  message: string;
+  code?: string;
+  dedupeKey?: string;
+  tileTarget?: { tx: number; ty: number };
+  duration?: number;
+}
 
 /**
  * GameInputController — extracts input handling and command dispatch from GameScene.
@@ -86,6 +98,8 @@ export interface GameInputDeps {
   cameraControls?: { isDebugOverlayActive: () => boolean; centerOn: (worldX: number, worldY: number) => void };
   /** VISUAL-HUD-CORE-01-FIXUP-2: Whether the bottom RTS HUD bar is active. */
   isBottomHudActive?: () => boolean;
+  /** FEEDBACK-ALERTS-06: Callback to push typed feedback to VisualHudCore. */
+  showFeedback?: (params: FeedbackParams) => void;
 }
 
 // ─── Selection highlight constants ─────────────────────────────────
@@ -114,6 +128,12 @@ export class GameInputController {
   private entityRenderer: EntityRenderer;
   private feedbackRenderer: FeedbackRenderer;
   private showStatusCb: (message: string, success: boolean) => void;
+  /** FEEDBACK-ALERTS-06: Callback to push typed feedback to VisualHudCore. */
+  private showFeedbackCb: ((params: FeedbackParams) => void) | null;
+  /** FEEDBACK-ALERTS-06: Local feedback store for deduplication and idle worker tracking. */
+  private feedbackStore: FeedbackStore;
+  /** FEEDBACK-ALERTS-06: Timestamp of last idle worker alert. */
+  private lastIdleWorkerAlertTime: number = 0;
   private pauseMenu: PauseMenu;
   private devtoolsPanel: DevtoolsPanel | null;
   private assetPreviewTool: AssetPreviewTool | null;
@@ -177,6 +197,8 @@ export class GameInputController {
     this.entityRenderer = deps.entityRenderer;
     this.feedbackRenderer = deps.feedbackRenderer;
     this.showStatusCb = deps.showStatus;
+    this.showFeedbackCb = deps.showFeedback ?? null;
+    this.feedbackStore = new FeedbackStore();
     this.pauseMenu = deps.pauseMenu;
     this.devtoolsPanel = deps.devtoolsPanel;
     this.assetPreviewTool = deps.assetPreviewTool;
@@ -225,12 +247,63 @@ export class GameInputController {
   }
 
   /**
-   * Update selection highlight and cursor feedback each frame.
+   * Update selection highlight, cursor feedback, and idle worker detection each frame.
    * Called from GameScene.update().
    */
   update(): void {
     this.updateSelectionHighlight();
     this.updateCursorFeedback();
+    this.expireFeedback();
+    this.checkIdleWorkers();
+  }
+
+  /** FEEDBACK-ALERTS-06: Expire old feedback messages. */
+  private expireFeedback(): void {
+    this.feedbackStore.expireMessages();
+  }
+
+  /** FEEDBACK-ALERTS-06: Check for idle workers and emit feedback periodically. */
+  private checkIdleWorkers(): void {
+    const now = Date.now();
+    // Only check every 10 seconds
+    if (now - this.lastIdleWorkerAlertTime < 10000) return;
+
+    const gameState = this.getGameState();
+    // Count idle builders (not busy, phase idle)
+    const idleBuilders = gameState.mapData.builders.filter(b => b.phase === 'idle' && !b.busy).length;
+    // Count idle harvesters
+    const idleHarvesters = gameState.harvesters.filter(h => h.phase === 'idle').length;
+    const totalIdle = idleBuilders + idleHarvesters;
+
+    if (totalIdle > 0) {
+      const msg = `Холостых рабочих: ${totalIdle}`;
+      this.pushFeedback({ type: 'info', message: msg, code: 'idle-workers', dedupeKey: 'idle-workers' });
+    }
+    this.lastIdleWorkerAlertTime = now;
+  }
+
+  /**
+   * FIXUP-1: Push typed feedback — single primary path.
+   *
+   * - If VisualHudCore feedback callback is available, use it as the
+   *   single source of truth (it owns the FeedbackStore + status lane).
+   * - If addFeedback() returns null (deduped), do NOT show anything.
+   * - Do NOT call legacy showStatusCb for typed feedback — VisualHudCore
+   *   handles rendering.
+   * - Local feedbackStore is only used as fallback when no VisualHudCore.
+   */
+  private pushFeedback(params: FeedbackParams): void {
+    if (this.showFeedbackCb) {
+      // Primary path: VisualHudCore.addFeedback() handles dedupe + render
+      this.showFeedbackCb(params);
+    } else {
+      // Fallback: local store + legacy status callback (no VisualHudCore)
+      const msg = this.feedbackStore.addFeedback(params);
+      if (msg) {
+        const isSuccess = msg.type === 'success' || msg.type === 'info';
+        this.showStatusCb(msg.message, isSuccess);
+      }
+    }
   }
 
   // ─── Command registry wiring (HOTKEYS-01) ────────────────────────
@@ -240,8 +313,7 @@ export class GameInputController {
       const cmd = commandRegistry.get(commandId);
       if (cmd) {
         cmd.execute = () => {
-          const result = this.requestBuild(buildingType);
-          this.showStatusCb(result.message, result.success);
+          this.emitBuildResultFeedback(this.requestBuild(buildingType));
         };
       }
     };
@@ -277,15 +349,45 @@ export class GameInputController {
     }
 
     // SELECTION-CONTROL-GROUPS-05: Only B and P legacy aliases remain
-    const legacyAliases: [string, () => void][] = [
-      ['build-separator-legacy',      () => { const r = this.requestBuild('separator'); this.showStatusCb(r.message, r.success); }],
-      ['build-power-plant-legacy',   () => { const r = this.requestBuild('power-plant'); this.showStatusCb(r.message, r.success); }],
+    // FIXUP-3: Legacy aliases share emitBuildResultFeedback helper
+    const legacyAliases: [string, BuildingType][] = [
+      ['build-separator-legacy', 'separator'],
+      ['build-power-plant-legacy', 'power-plant'],
     ];
-    for (const [aliasId, execute] of legacyAliases) {
+    for (const [aliasId, buildingType] of legacyAliases) {
       const cmd = commandRegistry.get(aliasId);
       if (cmd) {
-        cmd.execute = execute;
+        cmd.execute = () => {
+          this.emitBuildResultFeedback(this.requestBuild(buildingType));
+        };
       }
+    }
+  }
+
+  /**
+   * FIXUP-3: Emit typed feedback for a build request result.
+   * Shared by primary wireBuild() and B/P legacy aliases.
+   * Uses buildFailureFeedback() which is exhaustive/safe — no unsafe cast.
+   */
+  private emitBuildResultFeedback(result: BuildRequestResult): void {
+    if (result.success) {
+      const fb = constructionStarted(result.buildingType!);
+      this.pushFeedback({
+        type: fb.type,
+        message: fb.message,
+        code: 'build-started',
+        dedupeKey: `build-started-${result.buildingType}`,
+        tileTarget: result.tileTarget,
+      });
+    } else {
+      // FIXUP-3: Safe exhaustive mapper — handles all codes, no unsafe cast
+      const fb = buildFailureFeedback(result.code);
+      this.pushFeedback({
+        type: fb.type,
+        message: fb.message,
+        code: `build-fail-${result.code ?? 'unknown'}`,
+        dedupeKey: `build-fail-${result.buildingType}-${result.code ?? 'unknown'}`,
+      });
     }
   }
 
@@ -295,26 +397,26 @@ export class GameInputController {
     const gameState = this.getGameState();
 
     if (isVisualReadyBuilding(buildingType)) {
-      return { success: false, message: `${buildingType} is not buildable yet` };
+      return { success: false, message: `${buildingType} is not buildable yet`, buildingType, code: 'not-buildable' };
     }
 
     const hasIdleBuilder = gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
     if (!hasIdleBuilder) {
-      return { success: false, message: 'no idle builder' };
+      return { success: false, message: 'no idle builder', buildingType, code: 'no-idle-builder' };
     }
 
     const site = findBuildSiteNearPlayerBuildings(gameState, buildingType);
     if (!site.ok) {
-      return { success: false, message: `no valid build site` };
+      return { success: false, message: `no valid build site`, buildingType, code: 'no-build-site' };
     }
 
     const result = placeConstructionSite(gameState, buildingType, site.tx, site.ty);
     if (result.ok) {
       console.log(`[GameScene] Construction site placed: ${result.siteId} at (${site.tx},${site.ty})`);
-      return { success: true, message: `${buildingType} site placed` };
+      return { success: true, message: `${buildingType} site placed`, buildingType, tileTarget: { tx: site.tx, ty: site.ty } };
     } else {
       console.warn(`[GameScene] Placement failed at (${site.tx},${site.ty}): ${result.reason}`);
-      return { success: false, message: `placement failed: ${result.reason}` };
+      return { success: false, message: `placement failed: ${result.reason}`, buildingType, code: result.reason };
     }
   }
 
@@ -371,6 +473,14 @@ export class GameInputController {
 
   showStatus(message: string, success: boolean): void {
     this.showStatusCb(message, success);
+  }
+
+  /**
+   * FEEDBACK-ALERTS-06: Show typed feedback from external callers (e.g. GameScene).
+   * FIXUP-1: Accepts FeedbackParams for full dedupe/tileTarget support.
+   */
+  showFeedback(type: FeedbackSeverity, message: string, code?: string, tileTarget?: { tx: number; ty: number }): void {
+    this.pushFeedback({ type, message, code, tileTarget });
   }
 
   /**
@@ -1021,7 +1131,9 @@ export class GameInputController {
       this.controlGroupManager.assignGroup(numberKey, this.selection);
       if (this.selection) {
         const count = this.selection.units.length;
-        this.showStatusCb(`Группа ${numberKey}: ${count} юнит(ов)`, true);
+        // FEEDBACK-ALERTS-06: Typed feedback for group assign
+        const fb = controlGroupAssigned(numberKey, count);
+        this.pushFeedback({ type: fb.type, message: fb.message, code: `group-assign-${numberKey}`, dedupeKey: `group-assign-${numberKey}` });
       }
     } else {
       // Number: recall group
@@ -1031,6 +1143,10 @@ export class GameInputController {
       if (groupSelection) {
         this.selection = groupSelection;
         this.showSelectionStatus();
+
+        // FEEDBACK-ALERTS-06: Typed feedback for group recall
+        const fb = controlGroupRecalled(numberKey, groupSelection.units.length);
+        this.pushFeedback({ type: fb.type, message: fb.message, code: `group-recall-${numberKey}`, dedupeKey: `group-recall-${numberKey}` });
 
         // Double-tap: center camera on group
         // FIXUP-1: getSelectionCenterTile returns tile-space {tx, ty};
@@ -1042,6 +1158,10 @@ export class GameInputController {
             this.cameraControls.centerOn(worldPos.x + this.offset.x, worldPos.y + this.offset.y);
           }
         }
+      } else {
+        // FEEDBACK-ALERTS-06: Empty group recall — show warning
+        const fb = controlGroupEmpty(numberKey);
+        this.pushFeedback({ type: fb.type, message: fb.message, code: `empty-group-${numberKey}`, dedupeKey: `group-empty-${numberKey}` });
       }
     }
   }
@@ -1097,7 +1217,8 @@ export class GameInputController {
       s => s.slotKey === slotKey && s.state === 'disabled',
     );
     if (disabledSlot && disabledSlot.disabledReason) {
-      this.showStatusCb(`${disabledSlot.label}: ${disabledSlot.disabledReason}`, false);
+      // FEEDBACK-ALERTS-06: Typed feedback for disabled hotkey
+      this.pushFeedback({ type: 'warning', message: `${disabledSlot.label}: ${disabledSlot.disabledReason}`, code: 'disabled-command', dedupeKey: `disabled-${disabledSlot.commandId}` });
       return;
     }
   }
@@ -1125,7 +1246,8 @@ export class GameInputController {
         s => s.commandId === primaryId && s.state === 'disabled',
       );
       if (disabledSlot && disabledSlot.disabledReason) {
-        this.showStatusCb(`${disabledSlot.label}: ${disabledSlot.disabledReason}`, false);
+        // FEEDBACK-ALERTS-06: Typed feedback for disabled legacy alias
+        this.pushFeedback({ type: 'warning', message: `${disabledSlot.label}: ${disabledSlot.disabledReason}`, code: 'disabled-command', dedupeKey: `disabled-${disabledSlot.commandId}` });
       }
     }
   }

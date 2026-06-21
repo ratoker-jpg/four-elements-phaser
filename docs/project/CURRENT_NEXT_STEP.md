@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: SELECTION-CONTROL-GROUPS-05 — RTS selection model + control groups
+Status: FEEDBACK-ALERTS-06 — RTS feedback layer, status toasts, command errors, minimap pings
 Project: Four Elements Phaser  
 Updated: 2026-06-21
 
@@ -65,29 +65,28 @@ Renderer unification Stage 1-4 is CLOSED.
 ## Active next step (single)
 
 ```text
-SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS
-  Risk: Very High+ — changes fundamental input model from single-select to
-        multi-select + control groups. Number keys repurposed from build to groups.
+FEEDBACK-ALERTS-06-HIGHPLUS
+  Risk: High+ — adds a new feedback layer across HUD, input, minimap.
   Type: implementation PR (DRAFT, not ready for merge).
-  Goal: implement RTS selection/control-group MVP.
+  Goal: implement RTS feedback/alert MVP.
   Features:
-    1. Multi-selection state (SingleSelection | MultiSelection | null).
-    2. Drag-box selection (LMB drag on map selects units in rectangle).
-    3. Double-click same type (select all visible units of same type).
-    4. Control groups: Ctrl+1..9 assign, 1..9 recall, double-tap centers camera.
-    5. Command card multi-select (common safe commands, especially Stop).
-    6. Selection panel multi-select (count + type breakdown).
-    7. Minimap multi-marker highlight.
-    8. Number keys 1-9 now reserved for control groups (legacy 1/2/3 build aliases removed).
-  Branch: visual/selection-control-groups-05
-  Base: origin/main (includes #312, #313, #314)
+    1. Typed feedback model (info/success/warning/error) with deduplication.
+    2. Command failure feedback (disabled click, insufficient resources, empty group).
+    3. Control group feedback (assign/recall/empty group).
+    4. Build/production start/complete feedback where safely detectable.
+    5. Idle worker alert MVP (periodic check, deduped).
+    6. Minimap ping support for targeted feedback.
+    7. HUD status lane with severity color coding.
+  Branch: visual/feedback-alerts-06
+  Base: main (includes #312, #313, #314, #315)
   Status: DRAFT PR, pending GPT review + Denis manual QA.
 
   Previous steps:
     #312 HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS: MERGED.
     #313 COMMAND-CARD-REBUILD-03-VERYHIGHPLUS: MERGED.
     #314 MINIMAP-INTERACTION-04-VERYHIGHPLUS: MERGED.
-      Result: click-to-camera, drag-to-pan, selected marker highlight, pointer capture.
+    #315 SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS: MERGED.
+      Result: multi-select, drag-box, double-click same type, control groups 1-9.
 ```
 
 ---
@@ -129,8 +128,8 @@ If Denis accepts the roadmap, the implementation sequence is:
 2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — restructure bottom bar layout
 3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 grid + grid hotkeys
 4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap (MERGED)
-5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9 (THIS STEP — DRAFT PR)
-6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts
+5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9 (MERGED)
+6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts (THIS STEP — DRAFT PR)
 7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (can parallel with 2-6)
 8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit)
 ```
