@@ -223,7 +223,7 @@ export class VisualHudCore {
         right: 0;
         height: ${HUD_BAR_HEIGHT}px;
         background: rgba(10, 14, 20, 0.96);
-        border-top: 2px solid rgba(212, 165, 116, 0.35);
+        border-top: 2px solid rgba(212, 165, 116, 0.3);
         z-index: 15;
         display: flex;
         flex-direction: column;
@@ -257,7 +257,7 @@ export class VisualHudCore {
         height: ${HUD_MINIMAP_HEIGHT}px;
         flex-shrink: 0;
         background: rgba(4, 6, 10, 0.92);
-        border-right: 1px solid rgba(212, 165, 116, 0.2);
+        border-right: 1px solid rgba(212, 165, 116, 0.15);
         pointer-events: auto;
         user-select: none;
         cursor: default;

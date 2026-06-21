@@ -31,7 +31,7 @@ import { getTileVisibility, type VisionState } from '../../state/visibility';
 const UNEXPLORED_COLOR = 0x080c14;
 
 /** Alpha for unexplored tiles. */
-const UNEXPLORED_ALPHA = 0.92;
+const UNEXPLORED_ALPHA = 0.95;
 
 /** Color for explored-but-not-visible tiles (dimmed). */
 const EXPLORED_COLOR = 0x0a1020;

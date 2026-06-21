@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: FOG-VISION-IMPLEMENTATION-08 — Fog of war and vision system implementation
+Status: AOE4-UX-POLISH-PASS-09-HIGHPLUS — Final AoE4-inspired RTS UX polish
 Project: Four Elements Phaser  
 Updated: 2026-06-22
 
@@ -65,12 +65,12 @@ Renderer unification Stage 1-4 is CLOSED.
 ## Active next step (single)
 
 ```text
-FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS
-  Risk: Very High+ — implement fog of war and vision system.
+AOE4-UX-POLISH-PASS-09-HIGHPLUS
+  Risk: High+ — final AoE4-inspired RTS UX polish pass.
   Type: Implementation PR (DRAFT, not ready for merge until GPT review + Denis QA).
-  Goal: implement full fog/vision system per audit document.
-  Deliverable: working fog of war with minimap integration
-  Branch: fog/vision-implementation-08
+  Goal: focused polish pass across the implemented AoE4-like RTS UX layer.
+  Deliverable: polished, cohesive HUD/minimap/fog/selection/feedback UX
+  Branch: ux/polish-pass-09
   Base: main
   Status: DRAFT PR, pending GPT review + Denis manual QA.
 
@@ -81,16 +81,13 @@ FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS
     #315 SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS: MERGED.
     #316 FEEDBACK-ALERTS-06-HIGHPLUS: MERGED.
     #317 FOG-VISION-AUDIT-07-HIGHPLUS-DOCS: MERGED (design audit accepted).
+    #318 FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS: MERGED (fog of war + vision system).
 
-  Implementation checkpoints (all in one PR):
-    Checkpoint 1: state/grid foundation ✓
-    Checkpoint 2: render fog overlay ✓
-    Checkpoint 3: minimap fog integration ✓
-    Checkpoint 4: selection/input/save integration ✓
-    Checkpoint 5: docs/tests/QA hardening ✓
+  This is NOT a new feature roadmap.
+  This is a visual/UX hardening pass: readability, consistency, cohesion.
 
-  Arena mode: fog is NOT applied in Arena (all tiles explored+visible).
-  Next likely task after merge: AOE4-UX-POLISH-PASS-09-HIGHPLUS or fog fixup if QA finds issues.
+  Next likely task after merge: visual QA fixup if Denis finds issues,
+  or close AoE4 UX roadmap slice and move to next roadmap decision.
 ```
 
 ---
@@ -135,7 +132,8 @@ All steps 1–6 are merged. Step 7 is the current active step:
 5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — MERGED via PR #315
 6. FEEDBACK-ALERTS-06-HIGHPLUS — MERGED via PR #316
 7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (MERGED via PR #317)
-8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (DRAFT PR #318, one PR with internal checkpoints)
+8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (MERGED PR #318)
+9. AOE4-UX-POLISH-PASS-09-HIGHPLUS — UX polish (DRAFT PR, current step)
 ```
 
 Each step requires Denis manual visual approval before merge.

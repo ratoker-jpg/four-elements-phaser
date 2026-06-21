@@ -227,6 +227,7 @@ export class HudCommandPanel {
     for (let i = 0; i < a.slots.length; i++) {
       if (a.slots[i].commandId !== b.slots[i].commandId) return false;
       if (a.slots[i].state !== b.slots[i].state) return false;
+      if (a.slots[i].disabledReason !== b.slots[i].disabledReason) return false;
     }
     return true;
   }
@@ -304,7 +305,7 @@ export class HudCommandPanel {
         outline-offset: 1px;
       }
       .hcp-btn--disabled {
-        opacity: 0.4;
+        opacity: 0.5;
         cursor: not-allowed;
         color: #606060;
       }
@@ -338,14 +339,14 @@ export class HudCommandPanel {
         margin-top: 8px;
       }
       .hcp-btn-cost {
-        font-size: 7px;
-        color: #808080;
+        font-size: 9px;
+        color: #a0a0a0;
         line-height: 1.2;
       }
       /* Empty grid slot — subtle cell, no interactive element */
       .hcp-slot-empty {
         background: rgba(212, 165, 116, 0.02);
-        border: 1px solid rgba(212, 165, 116, 0.06);
+        border: 1px solid rgba(212, 165, 116, 0.1);
         border-radius: 3px;
       }
       #hcp-tooltip {
