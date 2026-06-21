@@ -3,7 +3,7 @@
 Status: active operational project state  
 Project: Four Elements Phaser  
 Repo: `ratoker-jpg/four-elements-phaser`  
-Updated: 2026-06-21
+Updated: 2026-06-22
 
 ---
 
@@ -258,8 +258,8 @@ Implementation sequence (completed + active):
 4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — MERGED via PR #314
 5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — MERGED via PR #315
 6. FEEDBACK-ALERTS-06-HIGHPLUS — MERGED via PR #316
-7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (THIS STEP, DRAFT PR #317)
-8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit, split into 08A–08D)
+7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (MERGED via PR #317)
+8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (DRAFT PR #318, one PR with internal checkpoints)
 ```
 
 Other future Visual Roadmap slices (not HUD-focused):

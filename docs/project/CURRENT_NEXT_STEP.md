@@ -1,8 +1,8 @@
 # CURRENT_NEXT_STEP.md
 
-Status: FOG-VISION-AUDIT-07 — Fog of war and vision system design audit
+Status: FOG-VISION-IMPLEMENTATION-08 — Fog of war and vision system implementation
 Project: Four Elements Phaser  
-Updated: 2026-06-21
+Updated: 2026-06-22
 
 ---
 
@@ -134,8 +134,8 @@ All steps 1–6 are merged. Step 7 is the current active step:
 4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — MERGED via PR #314
 5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — MERGED via PR #315
 6. FEEDBACK-ALERTS-06-HIGHPLUS — MERGED via PR #316
-7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (THIS STEP, DRAFT PR #317)
-8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit, split into 08A–08D)
+7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (MERGED via PR #317)
+8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (DRAFT PR #318, one PR with internal checkpoints)
 ```
 
 Each step requires Denis manual visual approval before merge.
