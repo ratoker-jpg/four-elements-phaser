@@ -24,6 +24,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { createInitialVisionState } from '../state/visibility';
 import {
   createBlockoutObstacle,
   resetBlockoutObstacleIdCounter,
@@ -100,6 +101,7 @@ function createTestGameState(): GameState {
     hqPosition: { tx: 4, ty: 4 },
     nextConstructionId: 0,
     production: { factories: [] },
+    vision: createInitialVisionState(48, 48),
   };
 }
 

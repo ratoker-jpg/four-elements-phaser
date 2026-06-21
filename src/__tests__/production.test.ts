@@ -27,7 +27,7 @@ import {
   DEFAULT_UNIT_CAP,
 } from '../state/types';
 import { BUILDING_CONFIG } from '../state/construction';
-
+import { createInitialVisionState } from '../state/visibility';
 // ─── Test helpers ──────────────────────────────────────────────────
 
 /**
@@ -86,6 +86,7 @@ function makeStateWithFactory(overrides?: {
         active: false,
       }],
     },
+    vision: createInitialVisionState(48, 48),
   };
 }
 

@@ -20,6 +20,7 @@ import {
   SEPARATOR_ACTIVE_POWER_CONSUMPTION,
   UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION,
 } from '../state/types';
+import { createInitialVisionState } from '../state/visibility';
 
 // ─── Test helpers ──────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ function makeStateWithSeparator(overrides?: {
     hqPosition: { tx: 1, ty: 1 },
     nextConstructionId: 0,
     production: { factories: [] },
+    vision: createInitialVisionState(48, 48),
   };
 }
 

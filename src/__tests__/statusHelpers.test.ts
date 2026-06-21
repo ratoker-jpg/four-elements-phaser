@@ -28,6 +28,7 @@ import {
   HQ_BASE_POWER,
   DEFAULT_UNIT_CAP,
 } from '../state/types';
+import { createInitialVisionState } from '../state/visibility';
 
 // ─── Test helpers ──────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ function makeStateWithSeparator(overrides?: {
     hqPosition: { tx: 1, ty: 1 },
     nextConstructionId: 0,
     production: { factories: [] },
+    vision: createInitialVisionState(48, 48),
   };
 }
 
@@ -146,6 +148,7 @@ function makeStateWithFactory(overrides?: {
         active: overrides?.factoryActive ?? false,
       }],
     },
+    vision: createInitialVisionState(30, 30),
   };
 }
 
@@ -771,6 +774,7 @@ describe('FIX-04: hasFactorySpawnTile', () => {
       production: {
         factories: [{ tx: 1, ty: 1, queue: [], active: false }],
       },
+      vision: createInitialVisionState(5, 5),
     };
     expect(hasFactorySpawnTile(state, 1, 1)).toBe(false);
   });

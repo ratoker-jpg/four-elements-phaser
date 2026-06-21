@@ -10,7 +10,7 @@ import {
 } from '../state/construction';
 import { updateGameState } from '../state/updateGameState';
 import type { GameState, MapData, EconomyState, BuilderPlacement } from '../state/types';
-
+import { createInitialVisionState } from '../state/visibility';
 // ─── Test helpers ──────────────────────────────────────────────────
 
 /** Build a minimal GameState for builder tests. */
@@ -77,6 +77,7 @@ function makeTestState(overrides?: {
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
     production: { factories: [] },
+    vision: createInitialVisionState(48, 48),
   };
 }
 
