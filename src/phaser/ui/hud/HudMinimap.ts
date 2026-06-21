@@ -12,11 +12,13 @@ import {
   buildMinimapViewModel,
   tileToMinimap,
   minimapToTileClamped,
+  MINIMAP_PADDING,
   type MinimapViewModel,
   type MinimapMarker,
   type MinimapPing,
 } from './minimapViewModel';
 import { tileToScreen } from '../../render/isometric';
+import { getTileVisibility } from '../../../state/visibility';
 
 export interface MinimapCameraData {
   worldView: { x: number; y: number; width: number; height: number };
@@ -232,6 +234,11 @@ export class HudMinimap {
     ctx.fillStyle = '#0a0e14';
     ctx.fillRect(0, 0, w, h);
 
+    // FOG-VISION-08: Draw minimap fog layer (between background and markers)
+    if (vm.vision) {
+      this.drawMinimapFog(ctx, vm);
+    }
+
     // World bounds border
     const padding = 4;
     ctx.strokeStyle = 'rgba(212, 165, 116, 0.3)';
@@ -397,6 +404,56 @@ export class HudMinimap {
   }
 
   // ─── CSS ────────────────────────────────────────────────────────
+
+  /**
+   * FOG-VISION-08: Draw fog of war on the minimap canvas.
+   * - Unexplored tiles: dark black
+   * - Explored tiles: dark dimmed
+   * - Visible tiles: no fog (normal brightness)
+   *
+   * Uses a pixel-scale approach: for each tile, draw a small rectangle
+   * covering that tile's minimap area.
+   */
+  private drawMinimapFog(
+    ctx: CanvasRenderingContext2D,
+    vm: MinimapViewModel,
+  ): void {
+    const vision = vm.vision;
+    if (!vision) return;
+
+    const mapW = vm.mapWidth;
+    const mapH = vm.mapHeight;
+
+    // Calculate tile size on minimap
+    const drawW = HUD_MINIMAP_WIDTH - MINIMAP_PADDING * 2;
+    const drawH = HUD_MINIMAP_HEIGHT - MINIMAP_PADDING * 2;
+
+    if (mapW <= 0 || mapH <= 0 || drawW <= 0 || drawH <= 0) return;
+
+    const tileW = drawW / mapW;
+    const tileH = drawH / mapH;
+
+    // Draw fog for unexplored and explored tiles
+    for (let ty = 0; ty < mapH; ty++) {
+      for (let tx = 0; tx < mapW; tx++) {
+        const vis = getTileVisibility(vision, tx, ty);
+
+        if (vis === 'visible') continue; // No fog on visible tiles
+
+        const mx = MINIMAP_PADDING + tx * tileW;
+        const my = MINIMAP_PADDING + ty * tileH;
+
+        if (vis === 'unexplored') {
+          ctx.fillStyle = 'rgba(4, 6, 10, 0.92)';
+        } else {
+          // explored but not visible
+          ctx.fillStyle = 'rgba(8, 12, 24, 0.5)';
+        }
+
+        ctx.fillRect(mx, my, Math.ceil(tileW), Math.ceil(tileH));
+      }
+    }
+  }
 
   private css(): string {
     return `<style>

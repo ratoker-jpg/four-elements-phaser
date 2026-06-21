@@ -11,6 +11,7 @@ import type { UnitSelection } from '../../../state/unitSelection';
 import { getSelectedIds } from '../../../state/unitSelection';
 import { HUD_MINIMAP_WIDTH, HUD_MINIMAP_HEIGHT } from './hudLayout';
 import { screenToTile } from '../../render/isometric';
+import { isTileExplored, type VisionState } from '../../../state/visibility';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -51,6 +52,8 @@ export interface MinimapViewModel {
   selectedEntityIds: string[];
   /** FEEDBACK-ALERTS-06: Active minimap pings. */
   pings: MinimapPing[];
+  /** FOG-VISION-08: Vision state for minimap fog rendering. Null = no fog (Arena). */
+  vision: VisionState | null;
 }
 
 // ─── Color constants ────────────────────────────────────────────────
@@ -70,6 +73,8 @@ const COLORS = {
 // ─── Transform helpers ──────────────────────────────────────────────
 
 const MINIMAP_PADDING = 4;
+
+export { MINIMAP_PADDING };
 
 export function tileToMinimap(
   tx: number,
@@ -179,6 +184,10 @@ function buildingColor(type: BuildingType): string {
 
 export function buildMinimapMarkers(state: GameState): MinimapMarker[] {
   const markers: MinimapMarker[] = [];
+  const vision = state.vision;
+
+  // FOG-VISION-08: Own units/buildings always visible on minimap.
+  // Resources and construction sites need explored+.
 
   const hq = state.mapData.hq;
   if (hq) {
@@ -191,6 +200,7 @@ export function buildMinimapMarkers(state: GameState): MinimapMarker[] {
     });
   }
 
+  // Buildings: own buildings always shown on minimap
   for (const b of state.mapData.buildings) {
     markers.push({
       tx: b.tx + 1, ty: b.ty + 1,
@@ -200,7 +210,9 @@ export function buildMinimapMarkers(state: GameState): MinimapMarker[] {
     });
   }
 
+  // Construction sites: shown in explored+visible tiles
   for (const cs of state.mapData.constructionSites) {
+    if (vision && !isTileExplored(vision, cs.tx + 1, cs.ty + 1)) continue;
     markers.push({
       tx: cs.tx + 1, ty: cs.ty + 1,
       color: COLORS.construction,
@@ -209,6 +221,7 @@ export function buildMinimapMarkers(state: GameState): MinimapMarker[] {
     });
   }
 
+  // Builders: own units always shown
   for (const b of state.mapData.builders) {
     markers.push({
       tx: b.ftx, ty: b.fty,
@@ -219,6 +232,7 @@ export function buildMinimapMarkers(state: GameState): MinimapMarker[] {
     });
   }
 
+  // Harvesters: own units always shown
   for (const h of state.harvesters) {
     markers.push({
       tx: h.ftx, ty: h.fty,
@@ -229,9 +243,11 @@ export function buildMinimapMarkers(state: GameState): MinimapMarker[] {
     });
   }
 
+  // Resources: shown in explored+visible tiles only
   if (state.resourceNodes) {
     for (const r of state.resourceNodes) {
       if (r.depleted) continue;
+      if (vision && !isTileExplored(vision, r.tx, r.ty)) continue;
       markers.push({
         tx: r.tx, ty: r.ty,
         color: COLORS.resource,
@@ -289,5 +305,6 @@ export function buildMinimapViewModel(
     viewport,
     selectedEntityIds,
     pings: [],  // FEEDBACK-ALERTS-06: Pings are injected by the caller
+    vision: state.vision ?? null,  // FOG-VISION-08
   };
 }
