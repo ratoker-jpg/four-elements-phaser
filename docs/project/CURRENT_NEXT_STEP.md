@@ -90,7 +90,7 @@ P1E — Vite advisory maintenance [FIXED in this PR]
 
 P1F — Phase 1 closure [this PR]
   Final validation pass. All code red gates resolved. Docs updated.
-  Remaining: build must be confirmed green in CI/Denis environment.
+  Remaining: PR #324 merge only. Build, qa-smoke, and Graphify are confirmed green in CI.
 ```
 
 Default behavior:
