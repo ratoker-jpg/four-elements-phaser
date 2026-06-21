@@ -13,7 +13,8 @@ import { tileToScreen, mapOriginOffset, type IsoPoint } from './render/isometric
 import { createInitialState, stripModularCombatFromState } from '../state/createInitialState';
 import { updateGameState } from '../state/updateGameState';
 import { updateConstructionSiteProgress } from '../state/construction';
-import { constructionCompleted } from '../state/feedbackHelpers'; import { assignIdleBuilders, updateBuilders } from '../state/builder';
+import { constructionCompleted } from '../state/feedbackHelpers';
+import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '../state/types';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';

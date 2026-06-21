@@ -563,6 +563,8 @@ const FEEDBACK_STRINGS = {
   fb_noSelection: 'Нет выбранных юнитов',
   fb_commandUnavailable: 'Команда недоступна',
   fb_idleWorkers: 'Холостых рабочих: {count}',
+  fb_noBuildSite: 'Нет места для строительства',
+  fb_buildFailed: 'Строительство невозможно',
 } as const;
 
 // ─── Combined string map ─────────────────────────────────────────────

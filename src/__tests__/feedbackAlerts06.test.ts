@@ -19,6 +19,7 @@ import {
 } from '../state/feedbackStore';
 import {
   buildBlockFeedback,
+  buildFailureFeedback,
   productionBlockFeedback,
   controlGroupAssigned,
   controlGroupEmpty,
@@ -761,5 +762,123 @@ describe('FEEDBACK-06 FIXUP-2: construction completion snapshot iteration', () =
     expect(snap.tx).toBe(7);
     expect(snap.ty).toBe(11);
     expect(snap.type).toBe('power-plant');
+  });
+});
+
+// ─── 11. FIXUP-3: Exhaustive build failure feedback, no unsafe cast ───
+
+describe('FEEDBACK-06 FIXUP-3: buildFailureFeedback is exhaustive and safe', () => {
+  it('no-build-site returns valid warning feedback', () => {
+    const fb = buildFailureFeedback('no-build-site');
+    expect(fb.type).toBe('warning');
+    expect(fb.message.length).toBeGreaterThan(0);
+  });
+
+  it('placement rejection out-of-bounds returns valid warning', () => {
+    const fb = buildFailureFeedback('out-of-bounds');
+    expect(fb.type).toBe('warning');
+    expect(fb.message.length).toBeGreaterThan(0);
+  });
+
+  it('placement rejection occupied returns valid warning', () => {
+    const fb = buildFailureFeedback('occupied');
+    expect(fb.type).toBe('warning');
+    expect(fb.message.length).toBeGreaterThan(0);
+  });
+
+  it('placement rejection insufficient-resources returns valid warning', () => {
+    const fb = buildFailureFeedback('insufficient-resources');
+    expect(fb.type).toBe('warning');
+    expect(fb.message.length).toBeGreaterThan(0);
+  });
+
+  it('placement rejection unknown-building-type returns valid warning', () => {
+    const fb = buildFailureFeedback('unknown-building-type');
+    expect(fb.type).toBe('warning');
+    expect(fb.message.length).toBeGreaterThan(0);
+  });
+
+  it('unknown code returns valid generic warning, not undefined', () => {
+    const fb = buildFailureFeedback('some-future-code');
+    expect(fb.type).toBe('warning');
+    expect(fb.message.length).toBeGreaterThan(0);
+    // Should never be undefined
+    expect(fb).toBeDefined();
+    expect(typeof fb.type).toBe('string');
+    expect(typeof fb.message).toBe('string');
+  });
+
+  it('undefined code returns valid generic warning, not undefined', () => {
+    const fb = buildFailureFeedback(undefined);
+    expect(fb.type).toBe('warning');
+    expect(fb.message.length).toBeGreaterThan(0);
+    expect(fb).toBeDefined();
+  });
+
+  it('existing BuildBlockReason codes delegate to buildBlockFeedback', () => {
+    // no-idle-builder
+    const fb1 = buildFailureFeedback('no-idle-builder');
+    const expected1 = buildBlockFeedback('no-idle-builder');
+    expect(fb1.type).toBe(expected1.type);
+    expect(fb1.message).toBe(expected1.message);
+
+    // insufficient-matter
+    const fb2 = buildFailureFeedback('insufficient-matter');
+    const expected2 = buildBlockFeedback('insufficient-matter');
+    expect(fb2.type).toBe(expected2.type);
+    expect(fb2.message).toBe(expected2.message);
+
+    // not-buildable
+    const fb3 = buildFailureFeedback('not-buildable');
+    const expected3 = buildBlockFeedback('not-buildable');
+    expect(fb3.type).toBe(expected3.type);
+    expect(fb3.message).toBe(expected3.message);
+  });
+});
+
+describe('FEEDBACK-06 FIXUP-3: emitBuildResultFeedback pattern is safe', () => {
+  it('primary build command failure with no-build-site does not throw', () => {
+    // Simulate emitBuildResultFeedback for a no-build-site failure
+    const result = { success: false, message: 'no valid build site', buildingType: 'separator', code: 'no-build-site' };
+    const fb = buildFailureFeedback(result.code);
+    expect(() => {
+      const store = new FeedbackStore();
+      store.addFeedback({ type: fb.type, message: fb.message, code: `build-fail-${result.code}`, dedupeKey: `build-fail-${result.buildingType}-${result.code}` });
+    }).not.toThrow();
+  });
+
+  it('B/P legacy alias failure follows same safe path', () => {
+    // Same pattern for legacy aliases — uses same buildFailureFeedback
+    const result = { success: false, message: 'placement failed: occupied', buildingType: 'power-plant', code: 'occupied' };
+    const fb = buildFailureFeedback(result.code);
+    expect(fb.type).toBe('warning');
+    expect(fb.message.length).toBeGreaterThan(0);
+  });
+
+  it('no unsafe string cast needed in code path', () => {
+    // buildFailureFeedback accepts string | undefined — no cast required
+    const codes: (string | undefined)[] = [
+      'no-idle-builder', 'insufficient-matter', 'not-buildable',
+      'no-build-site', 'out-of-bounds', 'occupied', 'insufficient-resources',
+      'unknown-building-type', undefined, 'future-code',
+    ];
+    for (const code of codes) {
+      const fb = buildFailureFeedback(code);
+      expect(fb).toBeDefined();
+      expect(typeof fb.type).toBe('string');
+      expect(typeof fb.message).toBe('string');
+      expect(fb.message.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('existing no-idle-builder / insufficient-matter / not-buildable behavior unchanged', () => {
+    // Verify buildBlockFeedback still works as before
+    expect(buildBlockFeedback('no-idle-builder').type).toBe('warning');
+    expect(buildBlockFeedback('insufficient-matter').type).toBe('warning');
+    expect(buildBlockFeedback('not-buildable').type).toBe('error');
+    // Verify buildFailureFeedback delegates correctly
+    expect(buildFailureFeedback('no-idle-builder').type).toBe('warning');
+    expect(buildFailureFeedback('insufficient-matter').type).toBe('warning');
+    expect(buildFailureFeedback('not-buildable').type).toBe('error');
   });
 });

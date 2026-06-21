@@ -1,6 +1,7 @@
 /**
  * Feedback helpers — map game events to typed feedback messages.
  * FEEDBACK-ALERTS-06: Uses existing statusHelpers and localization.
+ * FIXUP-3: buildFailureFeedback is exhaustive/safe — no unsafe cast needed.
  */
 import { t } from '../config/localization';
 import type { FeedbackSeverity } from './feedbackStore';
@@ -12,6 +13,37 @@ export function buildBlockFeedback(reason: BuildBlockReason): { message: string;
     case 'no-idle-builder': return { message: t('fb_noBuilder'), type: 'warning' };
     case 'insufficient-matter': return { message: t('fb_noMatter'), type: 'warning' };
     case 'not-buildable': return { message: t('fb_notBuildable'), type: 'error' };
+  }
+}
+
+/**
+ * FIXUP-3: Exhaustive build failure feedback mapper.
+ *
+ * Handles ALL runtime failure codes from requestBuild(), including:
+ * - BuildBlockReason (no-idle-builder, insufficient-matter, not-buildable)
+ * - no-build-site (no valid tile found near player buildings)
+ * - PlacementRejectionReason (out-of-bounds, occupied, insufficient-resources, etc.)
+ * - Any unknown/future code — safe fallback, never throws.
+ *
+ * No unsafe type assertions needed in callers.
+ */
+export function buildFailureFeedback(code: string | undefined): { message: string; type: FeedbackSeverity } {
+  switch (code) {
+    // Standard BuildBlockReason
+    case 'no-idle-builder': return buildBlockFeedback('no-idle-builder');
+    case 'insufficient-matter': return buildBlockFeedback('insufficient-matter');
+    case 'not-buildable': return buildBlockFeedback('not-buildable');
+    // Additional runtime codes from requestBuild()
+    case 'no-build-site': return { message: t('fb_noBuildSite'), type: 'warning' };
+    // PlacementRejectionReason from placeConstructionSite()
+    case 'out-of-bounds':
+    case 'occupied':
+    case 'insufficient-resources':
+    case 'unknown-building-type':
+      return { message: t('fb_buildFailed'), type: 'warning' };
+    // Safe fallback for any unknown/future code
+    default:
+      return { message: t('fb_commandUnavailable'), type: 'warning' };
   }
 }
 

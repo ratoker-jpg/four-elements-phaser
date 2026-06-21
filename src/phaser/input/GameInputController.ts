@@ -35,7 +35,7 @@ import {
 } from '../../state/commandRouter';
 import { ControlGroupManager } from '../../state/controlGroups';
 import { FeedbackStore, type FeedbackSeverity } from '../../state/feedbackStore';
-import { controlGroupAssigned, controlGroupEmpty, controlGroupRecalled, constructionStarted, buildBlockFeedback } from '../../state/feedbackHelpers';
+import { controlGroupAssigned, controlGroupEmpty, controlGroupRecalled, constructionStarted, buildFailureFeedback } from '../../state/feedbackHelpers';
 
 /** FIXUP-1: Typed feedback params — single object for dedupe-aware feedback. */
 export interface FeedbackParams {
@@ -313,28 +313,7 @@ export class GameInputController {
       const cmd = commandRegistry.get(commandId);
       if (cmd) {
         cmd.execute = () => {
-          const result = this.requestBuild(buildingType);
-          if (result.success) {
-            // FIXUP-2: Build success → typed feedback via pushFeedback
-            const fb = constructionStarted(result.buildingType!);
-            this.pushFeedback({
-              type: fb.type,
-              message: fb.message,
-              code: 'build-started',
-              dedupeKey: `build-started-${result.buildingType}`,
-              tileTarget: result.tileTarget,
-            });
-          } else {
-            // FIXUP-2: Build failure → typed feedback via pushFeedback
-            const blockCode = (result.code ?? 'unknown') as 'no-idle-builder' | 'insufficient-matter' | 'not-buildable';
-            const fb = buildBlockFeedback(blockCode);
-            this.pushFeedback({
-              type: fb.type,
-              message: fb.message,
-              code: `build-fail-${result.code}`,
-              dedupeKey: `build-fail-${result.buildingType}-${result.code}`,
-            });
-          }
+          this.emitBuildResultFeedback(this.requestBuild(buildingType));
         };
       }
     };
@@ -370,7 +349,7 @@ export class GameInputController {
     }
 
     // SELECTION-CONTROL-GROUPS-05: Only B and P legacy aliases remain
-    // FIXUP-2: Legacy aliases also use typed feedback
+    // FIXUP-3: Legacy aliases share emitBuildResultFeedback helper
     const legacyAliases: [string, BuildingType][] = [
       ['build-separator-legacy', 'separator'],
       ['build-power-plant-legacy', 'power-plant'],
@@ -379,28 +358,36 @@ export class GameInputController {
       const cmd = commandRegistry.get(aliasId);
       if (cmd) {
         cmd.execute = () => {
-          const result = this.requestBuild(buildingType);
-          if (result.success) {
-            const fb = constructionStarted(result.buildingType!);
-            this.pushFeedback({
-              type: fb.type,
-              message: fb.message,
-              code: 'build-started',
-              dedupeKey: `build-started-${result.buildingType}`,
-              tileTarget: result.tileTarget,
-            });
-          } else {
-            const blockCode = (result.code ?? 'unknown') as 'no-idle-builder' | 'insufficient-matter' | 'not-buildable';
-            const fb = buildBlockFeedback(blockCode);
-            this.pushFeedback({
-              type: fb.type,
-              message: fb.message,
-              code: `build-fail-${result.code}`,
-              dedupeKey: `build-fail-${result.buildingType}-${result.code}`,
-            });
-          }
+          this.emitBuildResultFeedback(this.requestBuild(buildingType));
         };
       }
+    }
+  }
+
+  /**
+   * FIXUP-3: Emit typed feedback for a build request result.
+   * Shared by primary wireBuild() and B/P legacy aliases.
+   * Uses buildFailureFeedback() which is exhaustive/safe — no unsafe cast.
+   */
+  private emitBuildResultFeedback(result: BuildRequestResult): void {
+    if (result.success) {
+      const fb = constructionStarted(result.buildingType!);
+      this.pushFeedback({
+        type: fb.type,
+        message: fb.message,
+        code: 'build-started',
+        dedupeKey: `build-started-${result.buildingType}`,
+        tileTarget: result.tileTarget,
+      });
+    } else {
+      // FIXUP-3: Safe exhaustive mapper — handles all codes, no unsafe cast
+      const fb = buildFailureFeedback(result.code);
+      this.pushFeedback({
+        type: fb.type,
+        message: fb.message,
+        code: `build-fail-${result.code ?? 'unknown'}`,
+        dedupeKey: `build-fail-${result.buildingType}-${result.code ?? 'unknown'}`,
+      });
     }
   }
 
