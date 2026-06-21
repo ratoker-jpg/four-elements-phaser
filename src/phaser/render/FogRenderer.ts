@@ -39,6 +39,9 @@ const EXPLORED_COLOR = 0x0a1020;
 /** Alpha for explored tiles. */
 const EXPLORED_ALPHA = 0.55;
 
+/** Alpha for explored-but-not-visible resource sprites. */
+export const EXPLORED_RESOURCE_ALPHA = 0.5;
+
 // ─── Isometric tile half-dimensions ────────────────────────────────
 
 /** Half-width of an isometric tile in screen space. */
@@ -46,6 +49,59 @@ const HALF_W = 76 / 2;
 
 /** Half-height of an isometric tile in screen space. */
 const HALF_H = 38 / 2;
+
+// ─── Viewport tile bounds helper (pure, testable) ──────────────────
+
+/** Result of viewport tile bounds computation. */
+export interface ViewportTileBounds {
+  minTx: number;
+  minTy: number;
+  maxTx: number;
+  maxTy: number;
+}
+
+/**
+ * Compute tile coordinate bounds from 4 camera worldView corners.
+ * FIXUP-2: In isometric projection, the diamond-shaped viewport can extend
+ * tile bounds in both tx and ty beyond what topLeft/bottomRight alone predict.
+ * All 4 corners must be checked to avoid missing tiles at viewport edges.
+ *
+ * Pure function — no Phaser dependency beyond the coordinate types.
+ * Exported for testing.
+ */
+export function computeViewportTileBounds(
+  worldViewX: number,
+  worldViewY: number,
+  worldViewW: number,
+  worldViewH: number,
+  offsetX: number,
+  offsetY: number,
+  mapWidth: number,
+  mapHeight: number,
+  margin: number = 4,
+): ViewportTileBounds {
+  const corners = [
+    screenToTile(worldViewX - offsetX, worldViewY - offsetY),                         // top-left
+    screenToTile(worldViewX + worldViewW - offsetX, worldViewY - offsetY),             // top-right
+    screenToTile(worldViewX - offsetX, worldViewY + worldViewH - offsetY),             // bottom-left
+    screenToTile(worldViewX + worldViewW - offsetX, worldViewY + worldViewH - offsetY), // bottom-right
+  ];
+
+  let minTx = Infinity, minTy = Infinity, maxTx = -Infinity, maxTy = -Infinity;
+  for (const c of corners) {
+    if (c.x < minTx) minTx = c.x;
+    if (c.y < minTy) minTy = c.y;
+    if (c.x > maxTx) maxTx = c.x;
+    if (c.y > maxTy) maxTy = c.y;
+  }
+
+  return {
+    minTx: Math.max(0, Math.floor(minTx) - margin),
+    minTy: Math.max(0, Math.floor(minTy) - margin),
+    maxTx: Math.min(mapWidth - 1, Math.ceil(maxTx) + margin),
+    maxTy: Math.min(mapHeight - 1, Math.ceil(maxTy) + margin),
+  };
+}
 
 /**
  * FogRenderer — renders fog of war overlay using Phaser Graphics.
@@ -120,38 +176,25 @@ export class FogRenderer {
 
   /**
    * Render fog overlay for all tiles in the camera viewport.
+   * FIXUP-2: Uses computeViewportTileBounds() from all 4 camera corners.
    */
   private renderFog(state: GameState, vision: VisionState): void {
     this.graphics.clear();
 
-    const mapWidth = state.mapWidth;
-    const mapHeight = state.mapHeight;
     const cam = this.scene.cameras.main;
-
-    // Determine visible tile range from camera viewport
-    // Add margin to avoid fog popping at edges
-    const margin = 4;
-    const topLeft = screenToTile(
-      cam.worldView.x - this.offset.x - HALF_W * margin,
-      cam.worldView.y - this.offset.y - HALF_H * margin,
+    const wv = cam.worldView;
+    const bounds = computeViewportTileBounds(
+      wv.x, wv.y, wv.width, wv.height,
+      this.offset.x, this.offset.y,
+      state.mapWidth, state.mapHeight,
     );
-    const bottomRight = screenToTile(
-      cam.worldView.x + cam.worldView.width - this.offset.x + HALF_W * margin,
-      cam.worldView.y + cam.worldView.height - this.offset.y + HALF_H * margin,
-    );
-
-    const minTx = Math.max(0, Math.floor(topLeft.x) - margin);
-    const minTy = Math.max(0, Math.floor(topLeft.y) - margin);
-    const maxTx = Math.min(mapWidth - 1, Math.ceil(bottomRight.x) + margin);
-    const maxTy = Math.min(mapHeight - 1, Math.ceil(bottomRight.y) + margin);
 
     // Batch unexplored and explored tiles separately for fewer fillStyle calls
     // First pass: unexplored tiles
     this.graphics.fillStyle(UNEXPLORED_COLOR, UNEXPLORED_ALPHA);
-    for (let ty = minTy; ty <= maxTy; ty++) {
-      for (let tx = minTx; tx <= maxTx; tx++) {
-        const vis = getTileVisibility(vision, tx, ty);
-        if (vis === 'unexplored') {
+    for (let ty = bounds.minTy; ty <= bounds.maxTy; ty++) {
+      for (let tx = bounds.minTx; tx <= bounds.maxTx; tx++) {
+        if (getTileVisibility(vision, tx, ty) === 'unexplored') {
           this.drawTileDiamond(tx, ty);
         }
       }
@@ -159,10 +202,9 @@ export class FogRenderer {
 
     // Second pass: explored tiles
     this.graphics.fillStyle(EXPLORED_COLOR, EXPLORED_ALPHA);
-    for (let ty = minTy; ty <= maxTy; ty++) {
-      for (let tx = minTx; tx <= maxTx; tx++) {
-        const vis = getTileVisibility(vision, tx, ty);
-        if (vis === 'explored') {
+    for (let ty = bounds.minTy; ty <= bounds.maxTy; ty++) {
+      for (let tx = bounds.minTx; tx <= bounds.maxTx; tx++) {
+        if (getTileVisibility(vision, tx, ty) === 'explored') {
           this.drawTileDiamond(tx, ty);
         }
       }

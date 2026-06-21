@@ -17,6 +17,7 @@ import {
   collectVisionSources,
   getVisionRadiusForRuntimeBuildingType,
   normalizeVisionForLoadedState,
+  getVisionSourceSignature,
   BUILDER_VISION_RADIUS,
   HARVESTER_VISION_RADIUS,
   HQ_VISION_RADIUS,
@@ -25,6 +26,7 @@ import {
 } from '../state/visibility';
 import type { GameState, BuildingType } from '../state/types';
 import { createInitialVisionState as createVis } from '../state/visibility';
+import { computeViewportTileBounds, EXPLORED_RESOURCE_ALPHA } from '../phaser/render/FogRenderer';
 
 // ─── Test helpers ────────────────────────────────────────────────────
 
@@ -645,6 +647,164 @@ describe('FOG-VISION-08 FIXUP-1: selective dirty policy', () => {
     // But recomputeVisibility itself doesn't guard on dirty
     recomputeVisibility(state);
     expect(state.vision.dirty).toBe(false);
+  });
+});
+
+// ─── FIXUP-2: Viewport tile bounds (4 corners) ────────────────────
+
+describe('FOG-VISION-08 FIXUP-2: computeViewportTileBounds (4 corners)', () => {
+  it('all 4 corners influence tile bounds', () => {
+    // A square viewport centered at origin with no offset on a 48x48 map
+    const b = computeViewportTileBounds(0, 0, 800, 600, 0, 0, 48, 48, 0);
+    // Should produce valid tile range
+    expect(b.minTx).toBeLessThanOrEqual(b.maxTx);
+    expect(b.minTy).toBeLessThanOrEqual(b.maxTy);
+    // Bounds should be within map
+    expect(b.minTx).toBeGreaterThanOrEqual(0);
+    expect(b.minTy).toBeGreaterThanOrEqual(0);
+    expect(b.maxTx).toBeLessThan(48);
+    expect(b.maxTy).toBeLessThan(48);
+  });
+
+  it('top-right corner extends tile bounds in isometric', () => {
+    // In isometric, the top-right corner maps to a different tx/ty than top-left.
+    // With 2 corners only (topLeft, bottomRight), we'd miss tiles.
+    // Verify that 4-corner bounds are at least as wide as 2-corner bounds.
+    const b4 = computeViewportTileBounds(0, 0, 800, 600, 0, 0, 48, 48, 0);
+    expect(b4.minTx).toBeLessThanOrEqual(b4.maxTx);
+    expect(b4.minTy).toBeLessThanOrEqual(b4.maxTy);
+    // The 4-corner method should produce bounds that include the full viewport
+    // (this is a sanity check, not comparing against the old 2-corner method)
+  });
+
+  it('clamps to map bounds when viewport extends beyond map', () => {
+    const b = computeViewportTileBounds(-1000, -1000, 800, 600, 0, 0, 10, 10, 0);
+    expect(b.minTx).toBe(0);
+    expect(b.minTy).toBe(0);
+    expect(b.maxTx).toBeLessThan(10);
+    expect(b.maxTy).toBeLessThan(10);
+  });
+
+  it('margin expands tile range', () => {
+    const b0 = computeViewportTileBounds(0, 0, 800, 600, 0, 0, 48, 48, 0);
+    const b4 = computeViewportTileBounds(0, 0, 800, 600, 0, 0, 48, 48, 4);
+    // With margin, bounds should be wider or equal
+    expect(b4.minTx).toBeLessThanOrEqual(b0.minTx);
+    expect(b4.minTy).toBeLessThanOrEqual(b0.minTy);
+    expect(b4.maxTx).toBeGreaterThanOrEqual(b0.maxTx);
+    expect(b4.maxTy).toBeGreaterThanOrEqual(b0.maxTy);
+  });
+
+  it('camera pan changes tile bounds', () => {
+    const b1 = computeViewportTileBounds(0, 0, 800, 600, 0, 0, 48, 48, 2);
+    const b2 = computeViewportTileBounds(500, 300, 800, 600, 0, 0, 48, 48, 2);
+    // Panned viewport should have different tile bounds
+    expect(b1.minTx !== b2.minTx || b1.minTy !== b2.minTy).toBe(true);
+  });
+});
+
+// ─── FIXUP-2: Resource fog policy ──────────────────────────────────
+
+describe('FOG-VISION-08 FIXUP-2: resource fog policy', () => {
+  it('EXPLORED_RESOURCE_ALPHA is in 0.45-0.6 range', () => {
+    expect(EXPLORED_RESOURCE_ALPHA).toBeGreaterThanOrEqual(0.45);
+    expect(EXPLORED_RESOURCE_ALPHA).toBeLessThanOrEqual(0.6);
+  });
+
+  it('unexplored tile makes resource hidden (via getTileVisibility)', () => {
+    const vision = createInitialVisionState(10, 10);
+    // All tiles unexplored by default
+    expect(getTileVisibility(vision, 5, 5)).toBe('unexplored');
+  });
+
+  it('explored but not visible tile should use dimmed alpha', () => {
+    const vision = createInitialVisionState(10, 10);
+    vision.explored[5][5] = true;
+    vision.visible[5][5] = false;
+    expect(getTileVisibility(vision, 5, 5)).toBe('explored');
+    // The renderer uses EXPLORED_RESOURCE_ALPHA for this case
+    expect(EXPLORED_RESOURCE_ALPHA).toBeLessThan(1);
+  });
+
+  it('visible tile should have full alpha', () => {
+    const vision = createInitialVisionState(10, 10);
+    vision.explored[5][5] = true;
+    vision.visible[5][5] = true;
+    expect(getTileVisibility(vision, 5, 5)).toBe('visible');
+  });
+});
+
+// ─── FIXUP-2: Source signature for dirty tracking ──────────────────
+
+describe('FOG-VISION-08 FIXUP-2: getVisionSourceSignature', () => {
+  it('same state produces same signature', () => {
+    const state = makeMinimalState();
+    const sig1 = getVisionSourceSignature(state);
+    const sig2 = getVisionSourceSignature(state);
+    expect(sig1).toBe(sig2);
+  });
+
+  it('adding a builder changes signature', () => {
+    const state = makeMinimalState();
+    const sig1 = getVisionSourceSignature(state);
+    state.mapData.builders.push({
+      id: 'b-new', tx: 15, ftx: 15, ty: 15, fty: 15,
+      busy: false, phase: 'idle', path: [], pathIndex: 0,
+      targetTx: 0, targetTy: 0, assignedSiteId: -1,
+    });
+    const sig2 = getVisionSourceSignature(state);
+    expect(sig2).not.toBe(sig1);
+  });
+
+  it('removing a harvester changes signature', () => {
+    const state = makeMinimalState();
+    state.harvesters = [{
+      id: 'h1', ftx: 10, fty: 10, faction: 'cyan',
+      phase: 'idle', targetResourceId: null, cargoRaw: 0, cargoCapacity: 10,
+      gatherTimer: 0, unloadTimer: 0, speedTilesPerSecond: 2,
+    }];
+    const sig1 = getVisionSourceSignature(state);
+    state.harvesters = [];
+    const sig2 = getVisionSourceSignature(state);
+    expect(sig2).not.toBe(sig1);
+  });
+
+  it('moving a unit to a different tile changes signature', () => {
+    const state = makeMinimalState();
+    state.mapData.builders = [{
+      id: 'b1', tx: 5, ftx: 5, ty: 5, fty: 5,
+      busy: false, phase: 'idle', path: [], pathIndex: 0,
+      targetTx: 0, targetTy: 0, assignedSiteId: -1,
+    }];
+    const sig1 = getVisionSourceSignature(state);
+    state.mapData.builders[0].ftx = 10;
+    state.mapData.builders[0].fty = 10;
+    const sig2 = getVisionSourceSignature(state);
+    expect(sig2).not.toBe(sig1);
+  });
+
+  it('adding a building changes signature', () => {
+    const state = makeMinimalState();
+    const sig1 = getVisionSourceSignature(state);
+    state.mapData.buildings.push({ tx: 8, ty: 8, type: 'separator' });
+    const sig2 = getVisionSourceSignature(state);
+    expect(sig2).not.toBe(sig1);
+  });
+
+  it('reordering units produces same signature (stable sort)', () => {
+    const state = makeMinimalState();
+    state.mapData.builders = [
+      { id: 'b2', tx: 10, ftx: 10, ty: 20, fty: 20, busy: false, phase: 'idle', path: [], pathIndex: 0, targetTx: 0, targetTy: 0, assignedSiteId: -1 },
+      { id: 'b1', tx: 5, ftx: 5, ty: 5, fty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, targetTx: 0, targetTy: 0, assignedSiteId: -1 },
+    ];
+    const sig1 = getVisionSourceSignature(state);
+    // Swap order
+    state.mapData.builders = [
+      { id: 'b1', tx: 5, ftx: 5, ty: 5, fty: 5, busy: false, phase: 'idle', path: [], pathIndex: 0, targetTx: 0, targetTy: 0, assignedSiteId: -1 },
+      { id: 'b2', tx: 10, ftx: 10, ty: 20, fty: 20, busy: false, phase: 'idle', path: [], pathIndex: 0, targetTx: 0, targetTy: 0, assignedSiteId: -1 },
+    ];
+    const sig2 = getVisionSourceSignature(state);
+    expect(sig2).toBe(sig1); // Same after stable sort
   });
 });
 

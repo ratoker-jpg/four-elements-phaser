@@ -198,6 +198,35 @@ export function collectVisionSources(state: GameState): VisionSource[] {
   return sources;
 }
 
+// ─── Source signature for dirty tracking ──────────────────────────
+
+/**
+ * Compute a stable string signature from all vision sources.
+ * FIXUP-2: Replaces ad-hoc index-based position tracking which could
+ * miss add/remove/reorder/radius changes. This signature is based on
+ * collectVisionSources() sorted by type/id/tile/radius, so any change
+ * in the source set produces a different signature.
+ *
+ * Used by GameScene to detect when vision sources change between frames
+ * without having to track individual unit positions by index.
+ */
+export function getVisionSourceSignature(state: GameState): string {
+  const sources = collectVisionSources(state);
+  // Sort by sourceType, then sourceId, then position, then radius
+  sources.sort((a, b) => {
+    const st = (a.sourceType ?? '').localeCompare(b.sourceType ?? '');
+    if (st !== 0) return st;
+    const si = (a.sourceId ?? '').localeCompare(b.sourceId ?? '');
+    if (si !== 0) return si;
+    const tx = a.tx - b.tx;
+    if (tx !== 0) return tx;
+    const ty = a.ty - b.ty;
+    if (ty !== 0) return ty;
+    return a.radius - b.radius;
+  });
+  return sources.map(s => `${s.sourceType}:${s.sourceId}:${s.tx},${s.ty}:r${s.radius}`).join('|');
+}
+
 // ─── Save/load normalization ─────────────────────────────────────
 
 /**

@@ -15,7 +15,7 @@ import { updateGameState } from '../state/updateGameState';
 import { updateConstructionSiteProgress } from '../state/construction';
 import { constructionCompleted } from '../state/feedbackHelpers';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
-import { recomputeVisibility as recomputeVis } from '../state/visibility';
+import { recomputeVisibility as recomputeVis, getVisionSourceSignature } from '../state/visibility';
 import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '../state/types';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
@@ -692,9 +692,8 @@ export class GameScene extends Phaser.Scene {
 
     // ARENA-01H+: Skip civil game loop in Arena mode (no harvesters, economy, construction)
     if (this.arenaCtx.runCivilLoop) {
-      // FIXUP-1: Selective dirty — mark dirty only if unit tile changed or building completed
-      const prevBT = this.gameState.mapData.builders.map(b => Math.round(b.ftx) * 1000 + Math.round(b.fty));
-      const prevHT = this.gameState.harvesters.map(h => Math.round(h.ftx) * 1000 + Math.round(h.fty));
+      // FIXUP-2: Stable source signature — covers unit add/remove/movement/reorder/radius changes
+      const prevSig = getVisionSourceSignature(this.gameState);
       updateGameState(this.gameState, delta);
       assignIdleBuilders(this.gameState);
       updateBuilders(this.gameState, delta);
@@ -705,14 +704,12 @@ export class GameScene extends Phaser.Scene {
           console.log(`[GameScene] Construction completed: ${result.buildingId}`);
           const fb = constructionCompleted(snap.type);
           this.inputController?.showFeedback(fb.type, fb.message, 'construction-complete', { tx: snap.tx, ty: snap.ty });
-          if (this.gameState.vision) this.gameState.vision.dirty = true;
         }
       }
-      // FIXUP-1: Mark dirty if any unit changed tile
-      if (this.gameState.vision && !this.gameState.vision.dirty) {
-        const bChanged = this.gameState.mapData.builders.some((b, i) => i < prevBT.length && Math.round(b.ftx) * 1000 + Math.round(b.fty) !== prevBT[i]);
-        const hChanged = this.gameState.harvesters.some((h, i) => i < prevHT.length && Math.round(h.ftx) * 1000 + Math.round(h.fty) !== prevHT[i]);
-        if (bChanged || hChanged) this.gameState.vision.dirty = true;
+      // FIXUP-2: Mark dirty if source set changed (movement, add/remove, building completion)
+      if (this.gameState.vision) {
+        const newSig = getVisionSourceSignature(this.gameState);
+        if (newSig !== prevSig) this.gameState.vision.dirty = true;
       }
     }
 
