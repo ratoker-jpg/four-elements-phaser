@@ -184,10 +184,10 @@ Phase ordering rationale:
 - Manual QA: build factory, produce Wasp+Smoky M0, verify unit spawns.
 
 **Non-goals**:
-- No hull/turret selection UI (Phase 2).
-- No M1/M2/M3 production (Phase 3-4).
-- No cost balance pass (Phase 5).
-- No starting units (Phase 6).
+- No hull/turret selection UI (Phase 3).
+- No full M-level upgrades before Phases 4-5.
+- No cost balance pass (cost/queue rules are Phase 6; draft balance is Phase 13).
+- No starting units (Phase 7).
 - No Enemy AI.
 
 ---
@@ -224,7 +224,7 @@ Phase ordering rationale:
 - Manual QA: open factory, select hull+turret, verify cost, produce.
 
 **Non-goals**:
-- No upgrade selection (Phase 3-4).
+- No upgrade selection (Phases 4-5).
 - No combined hull x turret matrix.
 - No full asset preload.
 - No Arena changes.
@@ -262,8 +262,8 @@ Phase ordering rationale:
 - Manual QA: select tank, upgrade hull M0→M1, verify HP increase.
 
 **Non-goals**:
-- No turret upgrade (Phase 4).
-- No factory M-level selection at production time (Phase 5).
+- No turret upgrade (Phase 5).
+- No factory M-level selection at production time unless explicitly added later.
 - No visual asset import for all M-levels (that is the asset pipeline's job).
 
 ---
@@ -298,7 +298,7 @@ Phase ordering rationale:
 - Manual QA: select tank, upgrade turret M0→M1, verify damage increase.
 
 **Non-goals**:
-- No hull upgrade (already in Phase 3).
+- No hull upgrade (already in Phase 4).
 - No combined upgrade purchase.
 - No visual asset import.
 
@@ -344,7 +344,7 @@ Phase ordering rationale:
 - Manual QA: verify Russian tooltips display correctly for all production/upgrade actions.
 
 **Non-goals**:
-- No balance pass (Phase 12 does a draft balance).
+- No balance pass (Phase 13 does a draft balance).
 - No Enemy AI economy.
 - No multi-language support beyond Russian.
 
@@ -837,7 +837,7 @@ Fast-path to first playable: Phase 1 → 2 → 3 → 6 → 7 (skip Phases 4-5 up
 |------|--------|-----------|
 | Hull/turret selection UI is complex to design for isometric view | High | Start with simple list UI, iterate based on Denis feedback. Use ArenaUnitComposer as reference. |
 | Map mirroring breaks existing map generation assumptions | Medium | Implement mirroring as a post-processing step on a half-generated map. Validate with symmetry tests. |
-| Production cost balance is wrong on first pass | Low | Phase 12 is a draft balance pass. Numbers are tunable via config without code changes. |
+| Production cost balance is wrong on first pass | Low | Phase 13 is a draft balance pass. Numbers are tunable via config without code changes. |
 | Ctrl+1-9 browser conflict is not fully resolvable | Low | Test in Chrome, Firefox, Edge. Use `preventDefault()` + `stopPropagation()`. Document any remaining edge cases. |
 | Building shadows cause z-depth sorting issues | Medium | Render shadows at a dedicated depth layer below all entities. Test with multiple overlapping buildings. |
 | Save format migration breaks old saves | Medium | Version field + default values for missing fields. Test migration explicitly. |

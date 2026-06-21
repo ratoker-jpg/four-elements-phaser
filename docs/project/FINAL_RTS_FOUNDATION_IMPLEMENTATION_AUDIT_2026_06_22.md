@@ -425,7 +425,7 @@ Current save format does not include:
 - Mirrored map state.
 - Obstacle state in production maps.
 
-**Impact**: Phase 12 must add migration for new state fields. Save format needs a version field and default values for missing fields.
+**Impact**: Phase 13 must add migration for new state fields. Save format needs a version field and default values for missing fields.
 
 ### 4.2 CAMERA_PROJECTION_CONTRACT compliance
 
