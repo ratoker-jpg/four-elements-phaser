@@ -119,13 +119,80 @@ Split into four PRs: (08A) state/grid foundation + tests, (08B) render integrati
 - Strips `blockoutVehicles` and `blockoutObstacles` (dev-only)
 - **Gap:** No fog/visibility data is saved. Adding explored grid requires: (a) version bump to 2, (b) migration that creates fully-explored grid for version-1 saves, (c) serialization of explored grid.
 
-### 2.8 Current gaps summary
+### 2.8 BuildingType → production config mapping (vision radius lookup gap)
+
+**File:** `src/config/buildingRuntimeMapping.ts`
+
+The runtime system uses **hyphenated BuildingType keys** (`raw-storage`, `matter-storage`, `units-factory`) while the production config (`buildingData.ts`) uses **underscored AcceptedBuildingId keys** (`raw_storage`, `energy_storage`, `units_factory`). The canonical mapping lives in `buildingRuntimeMapping.ts`:
+
+```typescript
+// Runtime → Production mapping
+export const BUILDING_TYPE_TO_PRODUCTION_ID: Partial<Record<BuildingType, AcceptedBuildingId>> = {
+  'separator': 'separator',
+  'raw-storage': 'raw_storage',
+  'matter-storage': 'energy_storage',  // ← legacy naming: runtime "matter-storage" → production "energy_storage"
+  'element-storage': 'elements_storage',
+  'power-plant': 'power_plant',
+  'energy-plant': 'energy_reactor',   // ← visual-ready, no mechanic
+  'units-factory': 'units_factory',
+};
+
+// Reverse: Production → Runtime
+export const PRODUCTION_ID_TO_BUILDING_TYPE: Partial<Record<AcceptedBuildingId, BuildingType>> = {
+  'separator': 'separator',
+  'raw_storage': 'raw-storage',
+  'energy_storage': 'matter-storage',  // ← reverse of the legacy mapping
+  'elements_storage': 'element-storage',
+  'power_plant': 'power-plant',
+  'energy_reactor': 'energy-plant',
+  'units_factory': 'units-factory',
+};
+```
+
+**Special case:** `matter-storage` (runtime) → `energy_storage` (production). This is a legacy naming inconsistency where the runtime key uses "matter" but the production config uses "energy". The player sees "Хранилище энергии" (Energy Storage) via the display name resolution.
+
+**Relevance to fog/vision:** The fog system needs to look up `BuildingConfig.visionRadius` for each building. This radius is stored in the production config under `AcceptedBuildingId` keys. When iterating `mapData.buildings` (which use `BuildingType`), the fog system must translate through `BUILDING_TYPE_TO_PRODUCTION_ID` to find the correct production config and its `visionRadius`.
+
+**Recommended helper for fog implementation:**
+
+```typescript
+// Proposed addition to src/config/visionConfig.ts (or buildingRuntimeMapping.ts)
+
+import { BUILDING_CONFIGS } from './buildingData';
+import { BUILDING_TYPE_TO_PRODUCTION_ID } from './buildingRuntimeMapping';
+import type { BuildingType } from '../state/types';
+
+/**
+ * Get the vision radius for a runtime BuildingType.
+ * Returns 0 if the building type has no mapping or no visionRadius.
+ */
+export function getVisionRadiusForRuntimeBuildingType(buildingType: BuildingType): number {
+  const prodId = BUILDING_TYPE_TO_PRODUCTION_ID[buildingType];
+  if (prodId) {
+    const config = BUILDING_CONFIGS[prodId];
+    if (config?.visionRadius !== undefined) {
+      return config.visionRadius;
+    }
+  }
+  return 0; // Unknown or visual-only buildings get no vision
+}
+```
+
+This helper centralizes the BuildingType → production config → visionRadius lookup and should be tested in `fogVision08.test.ts`:
+
+- `getVisionRadiusForRuntimeBuildingType('separator')` → 3
+- `getVisionRadiusForRuntimeBuildingType('matter-storage')` → 2 (maps to `energy_storage`)
+- `getVisionRadiusForRuntimeBuildingType('energy-plant')` → 0 (visual-ready, no mechanic)
+- `getVisionRadiusForRuntimeBuildingType('nonexistent' as BuildingType)` → 0 (safe fallback)
+
+### 2.9 Current gaps summary
 
 | Gap | Impact |
 |-----|--------|
 | No tile visibility tracking | Cannot determine what player has seen |
 | No explored grid | Cannot show "previously seen but not visible" |
 | No vision source computation | `BuildingConfig.visionRadius` is unused config |
+| No vision radius helper bridging BuildingType → production config | Must translate through `buildingRuntimeMapping.ts` to find radii |
 | No fog rendering | All tiles and entities always visible |
 | No minimap fog | All markers always shown |
 | No selection visibility filter | Can select/click entities in fog |
@@ -294,7 +361,29 @@ When `dirty === true`:
 4. For each newly visible tile, set `explored = true`
 5. Set `dirty = false`
 
-**Performance for 48×48 map:** 2304 tiles × ~10 vision sources × ~50 tiles per radius = ~1.15M operations. This is fast enough for 60fps in JavaScript. For 64×64: ~2M operations — still acceptable.
+**Performance analysis with complexity formula:**
+
+The cost of a full recompute is:
+
+```
+C = S × (2r² + 2r + 1) + T
+```
+
+Where:
+- `S` = number of vision sources (buildings + units)
+- `r` = average vision radius (typically 3–5)
+- `2r² + 2r + 1` = number of tiles in a diamond of radius r (sum of odd numbers from 1 to 2r+1)
+- `T` = total tiles in the map (for the initial clear step)
+
+For a 48×48 map with 10 sources and average radius 4:
+```
+C = 10 × (2×16 + 8 + 1) + 2304 = 10 × 41 + 2304 = 410 + 2304 = 2714 operations
+```
+This is very fast — well under 1ms. Even with 30 sources on a 64×64 map:
+```
+C = 30 × 41 + 4096 = 1230 + 4096 = 5326 operations
+```
+Still trivially fast. The earlier estimate of ~1.15M operations was overly pessimistic because it counted per-tile per-source checks rather than directly marking diamond tiles. The actual implementation iterates only tiles within each source's diamond, not all tiles for each source.
 
 **Later optimization (deferred):**
 - Incremental update: only recalculate tiles around the source that moved
@@ -426,23 +515,43 @@ Rationale: Pings are player-initiated feedback (build started, build completed, 
 
 ## 8. Selection/input integration
 
-### 8.1 Cannot select invisible entities
+### 8.1 Selection visibility policy
 
-`detectClickTarget()` and `finalizeDragSelect()` must skip entities that are not in visible tiles:
-- Before adding a unit to selection, check `vision.visible[unit.ty][unit.tx]`
-- If the unit is in an unexplored or explored (but not visible) tile, skip it
+**MVP rule (resolves apparent contradiction with entity rendering):**
 
-### 8.2 Own units remain selectable
+The selection system uses a **two-tier visibility filter** that distinguishes between **own entities** and **future enemy entities**:
 
-Own units are always rendered (see Section 6.3), so they remain clickable even outside visible tiles. However, for consistency, own units in unexplored tiles should still be selectable since the player controls them.
+| Entity type | In visible tile | In explored (not visible) tile | In unexplored tile |
+|------------|----------------|-------------------------------|--------------------|
+| **Own units** (builders, harvesters) | Selectable ✓ | Selectable ✓ | Selectable ✓ |
+| **Own buildings** | Selectable ✓ | Selectable ✓ | Selectable ✓ |
+| **Enemy units** (future) | Selectable ✓ | Not selectable ✗ | Not selectable ✗ |
+| **Enemy buildings** (future) | Selectable ✓ | Not selectable ✗ | Not selectable ✗ |
+| **Resources** | Selectable ✓ | Selectable ✓ (last-known) | Not selectable ✗ |
 
-**MVP rule:** Own units are always selectable regardless of fog state. Only future enemy units would be filtered by visibility.
+**Rationale:** Own units are always selectable regardless of fog state because the player controls them and needs to issue commands at all times (matches AoE4 behavior). This overrides the general rule that entities in non-visible tiles are not selectable. For MVP, all entities are player-owned, so the selection filter is effectively a no-op — but the code should be structured with the two-tier check in place so enemy entities are correctly filtered when they are added later.
+
+**Implementation in `detectClickTarget()` and `finalizeDragSelect()`:**
+```typescript
+// Pseudocode for visibility-aware selection
+function isSelectable(entity, vision: VisionState, isOwnEntity: boolean): boolean {
+  if (isOwnEntity) return true;  // Own units always selectable
+  return vision.visible[entity.ty][entity.tx]; // Enemy: only if visible
+}
+```
+
+### 8.2 Click targeting
+
+`detectClickTarget()` and `finalizeDragSelect()` must apply the two-tier filter from Section 8.1:
+- **Own entities:** Always included in click/drag results, regardless of tile visibility
+- **Enemy entities (future):** Only included if `vision.visible[entity.ty][entity.tx]` is `true`
+- **Resources:** Treated as neutral — selectable in explored and visible tiles, not in unexplored
 
 ### 8.3 Drag-box respects visibility
 
-`finalizeDragSelect()` should:
-1. Add all own units in the drag rect (same as now)
-2. Skip any enemy units in the drag rect that are not in visible tiles (deferred — no enemy system yet)
+`finalizeDragSelect()` applies the same two-tier filter (Section 8.1):
+1. Add all own units in the drag rect (always, regardless of fog)
+2. Skip any enemy units in the drag rect that are not in visible tiles (deferred — no enemy system yet, but the filter should be in place)
 
 ### 8.4 Double-click same-type
 
@@ -527,6 +636,14 @@ state.vision = {
 ```
 This preserves the "everything visible" behavior of pre-fog saves.
 
+**Migration design rationale:**
+
+- **Why fully-explored?** Old saves have no explored grid. Setting all tiles to `explored = true` means the player won't see black/unexplored areas in areas they've already been playing — the game continues as if they had already explored everything. This avoids the jarring experience of suddenly seeing fog in an ongoing game.
+- **Why not fully-visible?** The `visible` grid must be recomputed from current vision sources, not set to all-true. If the player's units and buildings are clustered, only their surroundings should be visible — the rest should show as explored (dimmed). Setting `visible = all-true` would be incorrect and would be overwritten on the first recompute anyway.
+- **Why `dirty = true`?** This forces an immediate recompute of the `visible` grid on the first update cycle after loading, ensuring visibility matches current building/unit positions.
+- **Version bump to 2:** `SAVE_VERSION` in `saveGame.ts` should be incremented to `2`. The migration path is: `v1 (no vision) → v2 (with vision)`. There is no v2→v3 path yet. Future changes to the vision data model would require a v2→v3 migration.
+- **No data loss:** The migration is additive — it only adds a `vision` field. No existing save data is removed or altered.
+
 ### 10.4 Debug overlay
 
 Add new debug overlay options to `DevtoolsPanel` and `DebugOverlayRenderer`:
@@ -568,6 +685,8 @@ visionSources: boolean;      // show vision source radii
 | **Regression: selection** | Drag-box, double-click, control groups still work |
 | **Regression: feedback** | Status lane, pings, dedupe still work |
 | **Purple faction bonus** | Purple buildings have +1 vision radius |
+| **Vision radius lookup mapping** | `getVisionRadiusForRuntimeBuildingType()` returns correct radius for all BuildingTypes including `matter-storage` → `energy_storage` edge case |
+| **Arena mode isolation** | Vision system is no-op in Arena; no fog overlay, no visibility filter, no minimap fog |
 
 ### 11.2 Test file location
 
@@ -581,26 +700,30 @@ New test file: `src/__tests__/fogVision08.test.ts`
 
 **Scope:**
 - New file `src/state/visibility.ts` — `VisionState`, `TileVisibility`, `VisionSource` types
-- New file `src/config/visionConfig.ts` — vision radius constants (builder=4, harvester=5)
-- `recomputeVisibility()` pure function — full recompute from vision sources
+- New file `src/config/visionConfig.ts` — vision radius constants (builder=4, harvester=5) + `getVisionRadiusForRuntimeBuildingType()` helper (see Section 2.8)
+- `recomputeVisibility()` pure function — full recompute from vision sources (using `getVisionRadiusForRuntimeBuildingType()` for building radii)
 - `addVisionSource()` / `removeVisionSource()` helpers (or just recompute from GameState)
 - Add `vision: VisionState` to `GameState`
 - Initialize `vision` in `createInitialState()` — HQ provides starting vision
-- Tests: grid math, recompute, explored persistence, performance smoke
+- Tests: grid math, recompute, explored persistence, `getVisionRadiusForRuntimeBuildingType()` mapping correctness (see Section 2.8 test cases), performance smoke
 
 **PR risk:** Low — adds new state but doesn't change rendering or input
+
+**Arena mode:** Fog is NOT applied in Arena mode. Arena uses a completely separate combat system (`ModularCombatUnit`, `BlockoutVehicleState`) with no connection to the industrial map's building/unit model. The vision system's `recomputeVisibility()` should check `if (state.extraModularCombat?.length > 0) return;` or similar to skip Arena games. Arena PRs are out of scope for 08A–08D.
 
 ### FOG-VISION-IMPLEMENTATION-08B — Render integration
 
 **Scope:**
 - New `FogRenderer` — draws fog overlay in main scene (between terrain and entities)
 - Integrate with `RenderManager.syncCivilRenderState()`
-- EntityRenderer: toggle entity visibility based on `vision.visible` grid
+- EntityRenderer: toggle entity visibility based on `vision.visible` grid (own units always visible per Section 6.3)
 - Resource visibility: show in explored tiles, update in visible tiles
 - Debug overlay: vision grid, vision sources, reveal-all toggle
 - No minimap changes yet
 
 **PR risk:** Medium — changes rendering pipeline, could affect depth sorting
+
+**Arena mode:** FogRenderer should be a no-op in Arena mode. Arena games don't have `VisionState` or building/unit vision sources on the industrial map.
 
 ### FOG-VISION-IMPLEMENTATION-08C — Minimap fog
 
@@ -612,16 +735,20 @@ New test file: `src/__tests__/fogVision08.test.ts`
 
 **PR risk:** Medium — changes minimap rendering, could affect click accuracy
 
+**Arena mode:** No minimap fog changes in Arena. Arena minimap shows all entities as it does today.
+
 ### FOG-VISION-IMPLEMENTATION-08D — Selection/save/load integration
 
 **Scope:**
-- `detectClickTarget()` — skip non-visible entities (future enemy only)
-- `finalizeDragSelect()` — skip non-visible entities
-- Save migration: version bump to 2, explored grid serialization, v1→v2 migration
+- `detectClickTarget()` — apply two-tier visibility filter from Section 8.1 (own units always selectable, future enemies filtered)
+- `finalizeDragSelect()` — apply same two-tier filter
+- Save migration: version bump to 2, explored grid serialization, v1→v2 migration (see Section 10.3 for rationale)
 - Control group prune for fog-hidden units (deferred if no enemy system)
 - Feedback edge cases ("Target not visible" deferred)
 
 **PR risk:** Low — changes input handling but only adds filters, doesn't change core behavior
+
+**Arena mode:** No selection visibility changes in Arena. Arena selection uses the `BlockoutVehicleState` system, not the industrial map's builder/harvester model.
 
 ### Alternative split consideration
 

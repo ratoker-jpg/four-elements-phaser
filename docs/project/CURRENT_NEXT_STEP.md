@@ -116,18 +116,18 @@ See `docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md` for the full re
 
 ---
 
-## Roadmap after acceptance
+## Roadmap — implementation sequence
 
-If Denis accepts the roadmap, the implementation sequence is:
+All steps 1–6 are merged. Step 7 is the current active step:
 
 ```text
-1. VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — docs/design (awaiting Denis acceptance)
-2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — restructure bottom bar layout
-3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 grid + grid hotkeys
-4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap (MERGED)
-5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9 (MERGED)
-6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts (MERGED PR #316)
-7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (THIS STEP — DRAFT PR)
+1. VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — MERGED (direction accepted by Denis)
+2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — MERGED via PR #312
+3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — MERGED via PR #313
+4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — MERGED via PR #314
+5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — MERGED via PR #315
+6. FEEDBACK-ALERTS-06-HIGHPLUS — MERGED via PR #316
+7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (THIS STEP, DRAFT PR #317)
 8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit, split into 08A–08D)
 ```
 
