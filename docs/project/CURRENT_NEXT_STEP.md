@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: FEEDBACK-ALERTS-06 — RTS feedback layer, status toasts, command errors, minimap pings
+Status: FOG-VISION-AUDIT-07 — Fog of war and vision system design audit
 Project: Four Elements Phaser  
 Updated: 2026-06-21
 
@@ -65,28 +65,25 @@ Renderer unification Stage 1-4 is CLOSED.
 ## Active next step (single)
 
 ```text
-FEEDBACK-ALERTS-06-HIGHPLUS
-  Risk: High+ — adds a new feedback layer across HUD, input, minimap.
-  Type: implementation PR (DRAFT, not ready for merge).
-  Goal: implement RTS feedback/alert MVP.
-  Features:
-    1. Typed feedback model (info/success/warning/error) with deduplication.
-    2. Command failure feedback (disabled click, insufficient resources, empty group).
-    3. Control group feedback (assign/recall/empty group).
-    4. Build/production start/complete feedback where safely detectable.
-    5. Idle worker alert MVP (periodic check, deduped).
-    6. Minimap ping support for targeted feedback.
-    7. HUD status lane with severity color coding.
-  Branch: visual/feedback-alerts-06
-  Base: main (includes #312, #313, #314, #315)
-  Status: DRAFT PR, pending GPT review + Denis manual QA.
+FOG-VISION-AUDIT-07-HIGHPLUS-DOCS
+  Risk: High+ — audit/design for fog-of-war and vision system.
+  Type: docs-only PR (DRAFT, not ready for merge).
+  Goal: produce detailed technical design for future fog implementation.
+  Deliverable: docs/project/FOG_VISION_AUDIT_2026_06_21.md
+  Branch: docs/fog-vision-audit-07
+  Base: main
+  Status: DRAFT PR, pending GPT review + Denis approval.
 
   Previous steps:
     #312 HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS: MERGED.
     #313 COMMAND-CARD-REBUILD-03-VERYHIGHPLUS: MERGED.
     #314 MINIMAP-INTERACTION-04-VERYHIGHPLUS: MERGED.
     #315 SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS: MERGED.
-      Result: multi-select, drag-box, double-click same type, control groups 1-9.
+    #316 FEEDBACK-ALERTS-06-HIGHPLUS: MERGED.
+      Result: typed feedback, command errors, control group feedback, idle worker alert, minimap pings.
+
+  Fog is NOT yet implemented. This is a design audit only.
+  Next likely task: FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS (split into 08A–08D per audit).
 ```
 
 ---
@@ -119,19 +116,19 @@ See `docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md` for the full re
 
 ---
 
-## Roadmap after acceptance
+## Roadmap — implementation sequence
 
-If Denis accepts the roadmap, the implementation sequence is:
+All steps 1–6 are merged. Step 7 is the current active step:
 
 ```text
-1. VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — docs/design (awaiting Denis acceptance)
-2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — restructure bottom bar layout
-3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 grid + grid hotkeys
-4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap (MERGED)
-5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9 (MERGED)
-6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts (THIS STEP — DRAFT PR)
-7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (can parallel with 2-6)
-8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit)
+1. VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — MERGED (direction accepted by Denis)
+2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — MERGED via PR #312
+3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — MERGED via PR #313
+4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — MERGED via PR #314
+5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — MERGED via PR #315
+6. FEEDBACK-ALERTS-06-HIGHPLUS — MERGED via PR #316
+7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (THIS STEP, DRAFT PR #317)
+8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit, split into 08A–08D)
 ```
 
 Each step requires Denis manual visual approval before merge.
