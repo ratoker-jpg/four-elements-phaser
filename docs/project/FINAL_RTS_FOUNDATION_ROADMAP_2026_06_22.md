@@ -11,7 +11,9 @@ Date: 2026-06-22
 
 This roadmap defines the full RTS foundation implementation sequence that must be completed **before** any Enemy AI work begins. It covers unit production, hull/turret selection and upgrades, map generation, builder placement, visual polish, and input hardening — everything a human player needs to play a complete early-game loop against no opponent.
 
-Once accepted by Denis and GPT, this roadmap replaces the ad-hoc "NEXT-ROADMAP-DECISION" state and becomes the single active implementation queue until Phase 13 closes. Until then, it is a proposal and no implementation work should begin.
+Once accepted by Denis and GPT, this roadmap replaces the ad-hoc "NEXT-ROADMAP-DECISION" state and becomes the single active implementation queue until Phase 14 closes. Until then, it is a proposal and no implementation work should begin.
+
+This roadmap exists because the project currently has two disconnected halves: a working civil-economy simulator (Normal mode) and a rich combat sandbox (Arena mode) that are not connected. The RTS foundation roadmap connects them by bringing combat unit production into the normal game loop, enabling the first playable RTS experience before any strategic AI is needed.
 
 ---
 
@@ -62,31 +64,36 @@ Do not continue any of these closed roadmaps by inertia.
 | Phase | Name | Focus | Risk | PR count |
 |-------|------|-------|------|----------|
 | 0 | Roadmap/Audit only | This document + implementation audit | Low | 1 (docs) |
-| 1 | Unit factory production foundation | Extend ProducibleUnitType, production code path for combat units | Medium | 1 |
-| 2 | Hull + turret selection UI/model | Factory sub-screen to choose hull and turret | High | 1-2 |
-| 3 | Hull upgrade model | Separate hull M0-M3 progression and purchase | Medium | 1 |
-| 4 | Turret/weapon upgrade model | Separate turret M0-M3 progression and purchase | Medium | 1 |
-| 5 | Unit cost, production time, queue and Russian tooltips | Full cost table, queue rules, Russian UI labels | Medium | 1 |
-| 6 | Starting units and early-game loop | 2 harvesters, 1 builder, 1 Wasp+Smoky M0 at game start | Medium | 1 |
-| 7 | Balanced mirrored map generation and obstacles/ruins | Symmetric map, richer obstacle types | High | 1-2 |
-| 8 | Builder local construction placement | Builder builds near himself, not near HQ | Medium | 1 |
-| 9 | Shadows for units/buildings respecting camera projection | Real projected shadows for all entity types | Medium | 1 |
-| 10 | Movement feel: animations, start/stop inertia, dust | Tank movement inertia, dust VFX, no idle bobbing | Medium | 1 |
-| 11 | Fullscreen, Russian UI hardening, browser hotkey isolation, control group clarity | F11, Ctrl+1-9 browser safety, group badges | Low-Medium | 1 |
-| 12 | Final QA, balance draft, save/load compatibility, smoke/e2e scenarios | Integration QA, balance pass, save migration | Medium | 1 |
-| 13 | Handoff gate for future separate Enemy AI roadmap | Closure + AI roadmap entry point | Low | 1 (docs) |
+| 1 | Validation baseline / Red gates | Fix failing tests, qa:smoke, npm audit, command aliases before new implementation | Medium | 1-2 |
+| 2 | Unit factory production foundation | Extend ProducibleUnitType, production code path for combat units | Medium | 1 |
+| 3 | Hull + turret selection UI/model | Factory sub-screen to choose hull and turret | High | 1-2 |
+| 4 | Hull upgrade model | Separate hull M0-M3 progression and purchase | Medium | 1 |
+| 5 | Turret/weapon upgrade model | Separate turret M0-M3 progression and purchase | Medium | 1 |
+| 6 | Unit cost, production time, queue and Russian tooltips | Full cost table, queue rules, Russian UI labels | Medium | 1 |
+| 7 | Starting units and early playable loop milestone | 2 harvesters, 1 builder, 1 Wasp+Smoky M0 at game start + playable 5-10 min loop | Medium | 1 |
+| 8 | Balanced mirrored map generation and obstacles/ruins | Symmetric map, richer obstacle types | High | 1-2 |
+| 9 | Builder local construction placement | Builder builds near himself, not near HQ | Medium | 1 |
+| 10 | Shadows for units/buildings respecting camera projection | Real projected shadows for all entity types | Medium | 1 |
+| 11 | Movement feel: animations, start/stop inertia, dust | Tank movement inertia, dust VFX, no idle bobbing | Medium | 1 |
+| 12 | Fullscreen, Russian UI hardening, browser hotkey isolation, control group clarity | F11, Ctrl+1-9 browser safety, group badges | Low-Medium | 1 |
+| 13 | Final QA, balance draft, save/load compatibility, smoke/e2e scenarios | Integration QA, balance pass, save migration | Medium | 1 |
+| 14 | Handoff gate for future separate Enemy AI roadmap | Closure + next-roadmap candidates | Low | 1 (docs) |
 
-**Total estimated PRs: 13-16**
+**Total estimated PRs: 14-17**
+
+**Early Playable Loop Milestone (after Phase 7)**: Factory produces minimal combat unit presets → units can be selected and commanded → a target/objective/dummy placeholder exists → player can complete a 5-10 minute loop. Full M0-M3 separate hull/turret upgrades are NOT required for this milestone — M0-only or minimal upgrade path is sufficient. Phases 4-5 can be deferred past Phase 7 if Denis wants a faster first playable loop.
 
 Phase ordering rationale:
-- Phases 1-5 are data-model-first: production, selection, upgrades, costs — the player must be able to produce and upgrade units before anything else matters.
-- Phase 6 depends on 1-5: starting units require the production model to exist.
-- Phase 7 (map) is independent of 1-6 in code but should come before 8 (builder placement), because builder placement depends on valid map geometry.
-- Phase 8 (builder placement) depends on 7 (map) for site validation and 1-5 for builder mechanics.
-- Phase 9 (shadows) and 10 (movement feel) are visual polish that can be done after core gameplay works.
-- Phase 11 (input/fullscreen) is low-risk hardening that can run in parallel with 9-10 if needed.
-- Phase 12 is integration QA that requires all prior phases.
-- Phase 13 closes the roadmap and hands off to Enemy AI.
+- Phase 1 (validation baseline) MUST come first: no new implementation on a red baseline.
+- Phases 2-6 are data-model-first: production, selection, upgrades, costs — the player must be able to produce and upgrade units before anything else matters.
+- Phase 7 (starting units + early playable loop) depends on Phases 2-6: starting units and playable loop require the production model to exist. This is the first major milestone.
+- M0-M3 upgrades (Phases 4-5) enrich the loop but are deferrable for the first playable milestone. M0-only production is enough for the first 5-10 minute loop.
+- Phase 8 (map) is independent of Phases 2-7 in code but should come before Phase 9 (builder placement), because builder placement depends on valid map geometry.
+- Phase 9 (builder placement) depends on Phase 8 (map) for site validation and Phases 2-6 for builder mechanics.
+- Phases 10-11 (shadows, movement feel) are visual polish that can be done after core gameplay works.
+- Phase 12 (input/fullscreen) is low-risk hardening that can run in parallel with Phases 10-11 if needed.
+- Phase 13 is integration QA that requires all prior phases.
+- Phase 14 closes the roadmap and hands off to the next roadmap.
 
 ---
 
@@ -107,7 +114,45 @@ Phase ordering rationale:
 
 ---
 
-### Phase 1 — Unit factory production foundation
+### Phase 1 — Validation baseline / Red gates
+
+**Goal**: Establish a green validation baseline before any new implementation. No new feature work begins until the current test suite passes, smoke infrastructure works, and known security/debt items are triaged or explicitly accepted as known failures.
+
+**Rationale**: The Codex audit identified that `npm test` has 28 failing tests (4 files: `blockoutDamage`, `blockoutObstacles`, `commandRegistry`, `coreEconomyLoop`), `qa:smoke` fails on Windows, and `npm audit` shows a high-severity Vite advisory. Building new combat/production features on a red baseline creates risk that new failures will be invisible and pre-existing failures will be incorrectly attributed to new work.
+
+**Implementation scope**:
+1. **Fix or accept failing tests**: The 28 failing tests in `blockoutDamage.test.ts`, `blockoutObstacles.test.ts`, `commandRegistry.test.ts`, `coreEconomyLoop.test.ts` must be either fixed or explicitly documented as known-accepted failures with a tracking issue. Combat hit-model failures are especially critical — expanding combat runtime (Phase 2) on top of a broken hit model means new damage calculations cannot be trusted.
+2. **Fix or document qa:smoke Windows failure**: `qa_smoke.mjs` uses `spawn('npx')` which fails on Windows with `ENOENT`. Fix by using `shell: true` on Windows or switching to `process.execPath`/npm exec. If not fixable immediately, document as a known blocker and add a Windows workaround note.
+3. **Track Vite npm audit high severity**: Vite <=6.4.2 has a Windows fs deny bypass / launch-editor advisory. Upgrade Vite in a maintenance PR or document as accepted risk with a tracking issue. This is not a gameplay blocker but must not be silently ignored.
+4. **Align command alias contract**: `commandRegistry.ts` source and tests disagree on legacy alias behavior. Decide the canonical policy (aliases removed per PR #313 decision, or restored), align one side, and close the gap.
+5. **Update PROJECT_STATE / CURRENT_NEXT_STEP**: Do not claim implementation readiness until the baseline is accepted. Add explicit note about current validation status.
+
+**Red gate rule**: No Phase 2+ implementation PR may be opened until Phase 1 is merged or its failures are explicitly accepted by Denis as known baseline.
+
+**Key files to modify**:
+- `src/__tests__/blockoutDamage.test.ts` — fix or document failures.
+- `src/__tests__/blockoutObstacles.test.ts` — fix or document failures.
+- `src/__tests__/commandRegistry.test.ts` — align with source contract.
+- `src/__tests__/coreEconomyLoop.test.ts` — fix or document failures.
+- `tools/qa_smoke.mjs` — fix Windows spawn or document workaround.
+- `package.json` — Vite upgrade if safe.
+- `docs/project/PROJECT_STATE.md` — validation status.
+- `docs/project/CURRENT_NEXT_STEP.md` — validation status.
+
+**Validation**:
+- `npm run typecheck && npm run test && npm run build` — all pass, or failing tests explicitly accepted.
+- `npm run qa:smoke` — passes on at least one platform, Windows status documented.
+- `npm audit` — no high-severity items, or items tracked as accepted.
+
+**Non-goals**:
+- No new features.
+- No combat model rewrite.
+- No architecture refactoring.
+- Fix or document only — do not expand scope.
+
+---
+
+### Phase 2 — Unit factory production foundation
 
 **Goal**: Extend the production system so that combat units (hull+turret combos) can be produced from the Units Factory, not just civil units.
 
@@ -147,7 +192,7 @@ Phase ordering rationale:
 
 ---
 
-### Phase 2 — Hull + turret selection UI/model
+### Phase 3 — Hull + turret selection UI/model
 
 **Goal**: Players choose a hull and a turret separately inside the Units Factory production panel, following the accepted modular vehicle model (hull sprite separately + turret sprite separately + socket/pivot metadata).
 
@@ -186,7 +231,7 @@ Phase ordering rationale:
 
 ---
 
-### Phase 3 — Hull upgrade model
+### Phase 4 — Hull upgrade model
 
 **Goal**: Separate hull upgrade model where players can upgrade a unit's hull from M0 to M1/M2/M3 independently of its turret.
 
@@ -223,7 +268,7 @@ Phase ordering rationale:
 
 ---
 
-### Phase 4 — Turret/weapon upgrade model
+### Phase 5 — Turret/weapon upgrade model
 
 **Goal**: Separate turret upgrade model where players can upgrade a unit's turret from M0 to M1/M2/M3 independently of its hull.
 
@@ -259,7 +304,7 @@ Phase ordering rationale:
 
 ---
 
-### Phase 5 — Unit cost, production time, queue and Russian tooltips
+### Phase 6 — Unit cost, production time, queue and Russian tooltips
 
 **Goal**: Complete the economic model with full cost tables, production times, queue rules, and comprehensive Russian UI labels/tooltips for every production and upgrade action.
 
@@ -305,11 +350,20 @@ Phase ordering rationale:
 
 ---
 
-### Phase 6 — Starting units and early-game loop
+### Phase 7 — Starting units and early playable loop milestone
 
-**Goal**: When a new game starts, the player is given starting units: 2 harvesters, 1 builder, 1 starter tank (Wasp hull + Smoky turret, M0). This enables a minimal early-game loop: harvest → build → produce → move.
+**Goal**: When a new game starts, the player is given starting units: 2 harvesters, 1 builder, 1 starter tank (Wasp hull + Smoky turret, M0). This enables a minimal early playable loop: harvest → build → produce → move.
 
-**Dependency note**: Phase 6 does **not** depend on Phase 7 (mirrored maps). Starting units are placed near HQ using current map generation. When Phase 7 introduces mirrored maps, starting unit positions will be re-validated against the symmetric layout, but Phase 6 must work independently on the current map generator.
+**Early Playable Loop Milestone definition**: After Phase 7, the following must be true:
+- Factory can produce a minimal set of combat unit presets (at least Wasp+Smoky M0).
+- Units can be selected and commanded (move, stop) via the existing RTS input system.
+- There is a target/objective/dummy/enemy placeholder for combat units to shoot at (even a simple destructible target or static enemy spawned at game start).
+- Player can complete a 5-10 minute loop: start → harvest → build factory → produce tank → move/attack → reach a natural endpoint.
+- Full M0-M3 separate hull/turret upgrades are NOT required for this milestone. M0-only is sufficient.
+
+**Dependency note**: Phase 7 does **not** depend on Phase 8 (mirrored maps). Starting units are placed near HQ using current map generation. When Phase 8 introduces mirrored maps, starting unit positions will be re-validated against the symmetric layout, but Phase 7 must work independently on the current map generator.
+
+**M0-M3 upgrade framing**: Full separate hull/turret M0-M3 balancing (Phases 4-5) is important for long-term depth but is NOT a prerequisite for the first playable loop. M0-only production with a minimal upgrade path (e.g., one global upgrade tier) is enough for the first playable demo. Phases 4-5 can be deferred past Phase 7 if Denis wants a faster first playable milestone.
 
 **Current state**:
 - Game starts with HQ, some harvesters, and basic economy. Exact starting unit composition needs verification and adjustment.
@@ -323,9 +377,10 @@ Phase ordering rationale:
 2. On game initialization, spawn all starting units at valid positions near the player HQ.
 3. Starter combat unit uses the modular vehicle system: hull sprite + turret sprite + socket/pivot metadata. It is not a special-cased unit type — it uses the same `ModularCombatUnit` as factory-produced units.
 4. Starting units should be placed on walkable tiles adjacent to HQ, with collision avoidance between starting units.
-5. Verify the early-game loop works end-to-end:
-   - Harvesters gather resources → builder constructs factory → factory produces combat units → combat units can be selected and moved.
-6. Starting unit positions use the current map generator. Phase 7 will later add mirrored map validation, which may adjust placement logic, but Phase 6 must not block on Phase 7.
+5. Verify the early playable loop works end-to-end:
+   - Harvesters gather resources → builder constructs factory → factory produces combat units → combat units can be selected and moved → combat units can fire at a target.
+6. Add a minimal target/dummy placeholder: a destructible object or static enemy unit that combat units can attack for testing the combat loop. This is NOT an AI enemy — it is a stationary target (like a building or destructible crate).
+7. Starting unit positions use the current map generator. Phase 8 will later add mirrored map validation, which may adjust placement logic, but Phase 7 must not block on Phase 8.
 
 **Key files to modify**:
 - `src/state/initialGameState.ts` or game initialization code — spawn starting units.
@@ -336,20 +391,21 @@ Phase ordering rationale:
 **Validation**:
 - `npm run typecheck && npm run test && npm run build`
 - Unit tests for starting unit spawn, position validity.
-- Manual QA: start new game, verify 4 starting units, verify early-game loop.
+- Manual QA: start new game, verify 4 starting units, verify 5-10 minute playable loop.
 
 **Non-goals**:
 - No enemy starting units (Enemy AI is separate).
-- No balance pass for starting unit count (Phase 12).
-- No mirrored map requirement (Phase 7 will re-validate later).
+- No balance pass for starting unit count (Phase 13).
+- No mirrored map requirement (Phase 8 will re-validate later).
+- No full M0-M3 balancing required for this milestone.
 
 ---
 
-### Phase 7 — Balanced mirrored map generation and obstacles/ruins
+### Phase 8 — Balanced mirrored map generation and obstacles/ruins
 
 **Goal**: Generate fair/mirrored maps where both players have equivalent resource access and starting positions, plus richer obstacle types that create tactical gameplay.
 
-**Dependency note**: Phase 7 is independent of Phases 1–6 in code. When Phase 7 introduces mirrored maps, Phase 6 starting unit placement should be re-validated against the symmetric layout, but this is a follow-up adjustment, not a blocking dependency.
+**Dependency note**: Phase 8 is independent of Phases 2–7 in code. When Phase 8 introduces mirrored maps, Phase 7 starting unit placement should be re-validated against the symmetric layout, but this is a follow-up adjustment, not a blocking dependency.
 
 **Current state**:
 - `generatedMap.ts` uses Mulberry32 PRNG, patch-based terrain, and 6-class resource anchors.
@@ -407,9 +463,9 @@ Phase ordering rationale:
 
 ---
 
-### Phase 8 — Builder local construction placement
+### Phase 9 — Builder local construction placement
 
-**Denis approval gate**: Phase 8 changes the builder placement model from auto-site-selection (near HQ/existing buildings) to player click-to-place (near builder). This is a significant UX change. Phase 8 implementation must not begin until Denis has explicitly approved the click-to-place interaction model. If Denis prefers to keep auto-placement for now, Phase 8 should be deferred or its scope reduced to builder-proximity validation only (no click-to-place preview).
+**Denis approval gate**: Phase 9 changes the builder placement model from auto-site-selection (near HQ/existing buildings) to player click-to-place (near builder). This is a significant UX change. Phase 9 implementation must not begin until Denis has explicitly approved the click-to-place interaction model. If Denis prefers to keep auto-placement for now, Phase 9 should be deferred or its scope reduced to builder-proximity validation only (no click-to-place preview).
 
 **Goal**: Builders construct buildings near themselves, not near HQ. The player moves a builder to a desired location, then the builder builds there.
 
@@ -462,7 +518,7 @@ Phase ordering rationale:
 
 ---
 
-### Phase 9 — Shadows for units/buildings respecting camera projection
+### Phase 10 — Shadows for units/buildings respecting camera projection
 
 **Goal**: All units and buildings cast projected ground-plane shadows that respect the fixed isometric camera defined in `CAMERA_PROJECTION_CONTRACT.md`.
 
@@ -523,7 +579,7 @@ Phase ordering rationale:
 
 ---
 
-### Phase 10 — Movement feel: animations, start/stop inertia, dust
+### Phase 11 — Movement feel: animations, start/stop inertia, dust
 
 **Goal**: Tank and unit movement feels responsive and physical with start inertia, stop inertia, movement dust, directional animation, and no idle bobbing.
 
@@ -588,7 +644,7 @@ Phase ordering rationale:
 
 ---
 
-### Phase 11 — Fullscreen, Russian UI hardening, browser hotkey isolation, control group clarity
+### Phase 12 — Fullscreen, Russian UI hardening, browser hotkey isolation, control group clarity
 
 **Goal**: Add fullscreen support, ensure all Russian UI labels are consistent and complete, handle browser hotkey conflicts for Ctrl+1-9, and improve control group UI clarity.
 
@@ -644,7 +700,7 @@ Phase ordering rationale:
 
 ---
 
-### Phase 12 — Final QA, balance draft, save/load compatibility, smoke/e2e scenarios
+### Phase 13 — Final QA, balance draft, save/load compatibility, smoke/e2e scenarios
 
 **Goal**: Integration QA across all prior phases, a draft balance pass, save/load compatibility verification, and comprehensive smoke/e2e test scenarios.
 
@@ -694,62 +750,84 @@ Phase ordering rationale:
 
 ---
 
-### Phase 13 — Handoff gate for future separate Enemy AI roadmap
+### Phase 14 — Handoff gate for future next-roadmap
 
-**Goal**: Close this roadmap and prepare the handoff point for the future Enemy AI roadmap. The Enemy AI roadmap is a separate, independent roadmap that will be planned after this one closes.
+**Goal**: Close this roadmap and prepare handoff points for future roadmaps. This phase does NOT commit to a specific next roadmap — it documents candidates for Denis to choose from.
 
 **Implementation scope**:
 1. Mark this roadmap as CLOSED.
 2. Update `PROJECT_STATE.md` and `CURRENT_NEXT_STEP.md` to reflect closed RTS Foundation roadmap.
-3. Document the handoff point: what systems exist, what interfaces the Enemy AI roadmap can hook into (production system, upgrade system, map generation, movement, combat).
-4. Create a skeleton Enemy AI roadmap document that lists high-level areas (scouting, attack planning, defense positioning, economy management) without any implementation details or timing commitments.
-5. The handoff document explicitly states: Enemy AI attack/defense/scouting is a separate roadmap and must not be implemented until that roadmap is accepted.
+3. Document the handoff point: what systems exist, what interfaces future roadmaps can hook into (production system, upgrade system, map generation, movement, combat).
+
+**Next-roadmap candidates** (for Denis to choose, not implemented here):
+
+**Candidate A — Base-defense / pressure loop** (recommended as next after this roadmap):
+- Scripted waves of increasing difficulty attacking player HQ.
+- HQ damage/loss condition (if HQ destroyed, game over).
+- Defense tower activation (already defined as `deferred` in `buildingData.ts`).
+- Simple win condition: survive N waves or destroy wave spawner.
+- No full strategic AI — waves follow a predefined script with randomized unit composition.
+- This candidate connects Normal economy with Arena combat (the Opus audit's #1 recommendation) and gives the player a reason to produce combat units and defend.
+
+**Candidate B — Enemy AI strategic roadmap** (the original separate roadmap):
+- AI scouting, attack planning, defense positioning, economy management.
+- Full skirmish AI with build orders, expansion, and strategic decision-making.
+- This is a much larger scope than Candidate A and depends on a stable RTS foundation from this roadmap.
+
+**Candidate C — Asset pipeline / turret integration roadmap**:
+- Complete the Blender → isometric sprite pipeline from `UNIT_ASSET_PIPELINE_ROADMAP`.
+- Integrate all M0-M3 turret visual assets.
+- Production-quality rendering for all 7 hulls × 10 turrets × 4 factions.
+
+4. The handoff document explicitly states: the next roadmap must be chosen by Denis before any implementation begins.
 
 **Deliverables**:
 - Updated `PROJECT_STATE.md`.
 - Updated `CURRENT_NEXT_STEP.md`.
-- `ENEMY_AI_ROADMAP_SKELETON.md` (outline only, no implementation).
 - This roadmap marked CLOSED.
+- Next-roadmap candidate documentation (outline only, no implementation).
 
 **Validation**: Docs-only. No runtime validation.
 
 **Non-goals**:
 - No Enemy AI implementation.
-- No Enemy AI audit (separate task when that roadmap is planned).
-- No Enemy AI code of any kind.
+- No wave implementation.
+- No defense tower implementation.
+- No next-roadmap commitment — Denis decides.
 
 ---
 
 ## 6. Dependency graph
 
 ```text
-Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> Phase 5
-                                                        │
-                                                        v
-                                                      Phase 6
-                                                        │
-                                            [Denis approval gate]
-                                                        │
-Phase 7 ─────────────────────────────(re-validates Phase 6 placements)──> Phase 8
-    │                                                 │
-    v                                                 v
-Phase 9 ──> Phase 10 ──> Phase 11 ──> Phase 12 ──> Phase 13
+Phase 0 ──> Phase 1 (Red Gates) ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> Phase 5 ──> Phase 6
+                                                                    │
+                                                                    v
+                                                                Phase 7 (Early Playable Loop Milestone)
+                                                                    │
+                                                        [Denis approval gate]
+                                                                    │
+Phase 8 ─────────────────────────────(re-validates Phase 7 placements)──> Phase 9
+    │                                                                   │
+    v                                                                   v
+Phase 10 ──> Phase 11 ──> Phase 12 ──> Phase 13 ──> Phase 14
 ```
 
 Dependency clarifications:
-- Phase 6 does NOT depend on Phase 7. Starting units work on the current map generator.
-- Phase 7 re-validates Phase 6 starting unit positions against mirrored maps, but this is a follow-up adjustment, not a prerequisite.
-- Phase 8 has a Denis approval gate before implementation begins (click-to-place UX model).
-- Phase 8 benefits from Phase 7 map validation but does not strictly require it.
+- Phase 1 (validation baseline) is a red gate: no implementation until baseline is green or accepted.
+- Phase 7 does NOT depend on Phase 8. Starting units work on the current map generator.
+- Phase 8 re-validates Phase 7 starting unit positions against mirrored maps, but this is a follow-up adjustment, not a prerequisite.
+- Phase 9 has a Denis approval gate before implementation begins (click-to-place UX model).
+- Phase 9 benefits from Phase 8 map validation but does not strictly require it.
 
 Parallelism opportunities:
-- Phase 7 (map) is independent of Phases 1–6 in code and can start in parallel.
-- Phase 9 (shadows) and Phase 10 (movement feel) are independent and can run in parallel.
-- Phase 11 (input/fullscreen) is low-risk and can overlap with Phases 9-10.
+- Phase 8 (map) is independent of Phases 2–7 in code and can start in parallel.
+- Phase 10 (shadows) and Phase 11 (movement feel) are independent and can run in parallel.
+- Phase 12 (input/fullscreen) is low-risk and can overlap with Phases 10-11.
 
-Critical path: Phase 1 → 2 → 3 → 4 → 5 → 6 → [Denis approval] → 8 → 12 → 13
+Critical path: Phase 1 → 2 → 3 → 4 → 5 → 6 → 7 → [Denis approval] → 9 → 13 → 14
 
-Recommended early-game loop milestone: After Phase 6, the player has a minimal playable loop (harvest → build → produce → move). Phases 3–4 (hull/turret M0-M3 upgrades) enrich this loop but are not required for the first "something works end-to-end" milestone. If Denis wants a faster early demo, Phases 3–4 can be deferred after Phase 6 and the early-game loop validated first.
+Fast-path to first playable: Phase 1 → 2 → 3 → 6 → 7 (skip Phases 4-5 upgrades, defer to later). M0-only is enough for the first playable loop milestone.
 
 ---
 
@@ -782,7 +860,7 @@ secret/token scan
 
 If build/Playwright is blocked in the execution environment, report honestly and check GitHub Actions directly.
 
-For docs-only PRs (Phase 0, Phase 13), no runtime validation is needed.
+For docs-only PRs (Phase 0, Phase 14), no runtime validation is needed.
 
 ---
 
@@ -811,10 +889,91 @@ Before merging any implementation PR in this roadmap:
 
 This roadmap is CLOSED when:
 
-1. All Phases 0-13 are complete and merged.
-2. Denis has accepted the final QA pass (Phase 12).
+1. All Phases 0-14 are complete and merged.
+2. Denis has accepted the final QA pass (Phase 13).
 3. `PROJECT_STATE.md` and `CURRENT_NEXT_STEP.md` are updated.
-4. The Enemy AI roadmap skeleton exists (Phase 13).
+4. The next-roadmap candidates are documented (Phase 14).
 5. No open blockers or regressions from this roadmap's changes.
 
 After closure, any issues found should become focused fixup PRs, not a continuation of this roadmap by inertia.
+
+---
+
+## 11. GDD-lite / MVP definition
+
+**What Four Elements is**: A browser-based isometric RTS where the player manages an industrial economy, produces modular combat vehicles (hull + turret), and defends against threats on a procedurally generated map. Inspired by classic RTS games (StarCraft, C&C, AoE4) but designed for browser accessibility with Russian UI.
+
+**10-minute player loop**:
+1. Game starts: player sees HQ, harvesters, builder, and a starter tank on an industrial map.
+2. Harvesters gather raw resources. Builder constructs buildings (separator, factory, storage, power plant).
+3. Economy processes raw into energy and elements. Factory produces combat units.
+4. Player selects hull + turret in factory, queues production, waits for unit to complete.
+5. Combat units are selected, moved, and can attack targets on the map.
+6. Player explores the map, encounters obstacles and resources, expands economy.
+7. If base-defense mode is active (next roadmap): waves attack, player must defend HQ.
+
+**MVP win/loss condition**: Survive and build a force of 3+ combat units. No formal win condition in this roadmap — the playable loop milestone is "can the player complete a 5-10 minute session without getting stuck." Win/loss conditions are the next roadmap's job.
+
+**What is explicitly not included** (in this roadmap):
+- No enemy AI. No strategic opponent. No wave system. No win/lose screen.
+- No multiplayer. No campaign. No faction asymmetry in runtime.
+- No full tech tree. No A*/flow-field pathfinding rewrite.
+- No fixed timestep. No particles/VFX polish. No CSS/UI framework migration.
+
+**Why this roadmap exists before Enemy AI**: The project has two disconnected halves (economy simulator + combat sandbox). Without connecting them first, Enemy AI would be built on top of a broken integration. This roadmap creates the bridge: production → combat units → playable loop. Once the bridge works, AI has something to play against.
+
+---
+
+## 12. Audit synthesis note
+
+This roadmap incorporates findings from three project audits conducted on 2026-06-21/22 against commit `c330b602`:
+
+**Opus audit priority** (product/gameplay direction):
+- Connect Normal economy with Arena combat. The #1 product risk is that the game is not playable as an RTS because combat is trapped in the Arena sandbox.
+- The early playable loop milestone (Phase 7) directly addresses this by requiring combat unit production in Normal mode.
+- M0-only or minimal upgrade path is sufficient for the first connection. Full M0-M3 balancing can follow.
+- The base-defense / pressure loop candidate (Phase 14, Candidate A) follows the Opus recommendation for scripted waves as the safest next step after this roadmap.
+
+**Codex audit priority** (validation gates and repo health):
+- Validation baseline must be green before new implementation. The red gate (Phase 1) directly addresses this.
+- `npm test` failures (28 tests in 4 files) must be triaged. Combat hit-model failures are especially risky for Phase 2+.
+- `qa:smoke` Windows failure must be fixed or documented.
+- Vite npm audit high severity must be tracked.
+- Command alias contract must be aligned.
+- PROJECT_STATE/CURRENT_NEXT_STEP must not claim implementation readiness until baseline is accepted.
+
+**GLM audit priority** (product/GDD/MVP clarity):
+- The project needs a clear product definition and MVP win/loss condition. The GDD-lite section (Section 11) addresses this.
+- Faction asymmetry is currently cosmetic — this is acknowledged and not in scope for this roadmap.
+- Economy linearity is a known limitation — will be addressed after combat is connected.
+- Many broad ideas in the GLM audit are backlog items, not this roadmap's scope. They are captured as candidates in Phase 14 or deferred to future roadmaps.
+
+---
+
+## 13. Explicitly out of scope
+
+The following are NOT in this roadmap and must NOT be pulled into any phase:
+
+```text
+- multiplayer (lockstep, netcode, lobby);
+- full strategic AI (build orders, scouting, economy, attack planning);
+- campaign (missions, story, cutscenes);
+- full faction asymmetry (unique buildings, tech trees, mechanics per faction);
+- A*/flow-field/pathfinding rewrite (current BFS is sufficient for this scope);
+- fixed timestep simulation;
+- full tech tree (tech-lab, building prerequisites, unlock chains);
+- full M0-M3 balancing before playable loop (M0-only is sufficient for first milestone);
+- particles/VFX polish (muzzle flash, explosions, impact effects);
+- CSS/UI framework migration (current DOM HUD is functional);
+- all-faction asset import (per-set pilot only, no mass import);
+- full modular preload (selected-set loading only);
+- enemy wave system (deferred to next roadmap);
+- win/lose screen (deferred to next roadmap);
+- attack-move / formations / patrol / hold-position commands;
+- shift-queue for commands;
+- audio/SFX/music layer;
+- replay system;
+- tutorial / onboarding missions;
+- mobile/touch controls;
+- I18n/multi-language support beyond Russian.
+```

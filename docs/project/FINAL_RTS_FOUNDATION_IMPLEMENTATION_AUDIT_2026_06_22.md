@@ -495,19 +495,20 @@ The project is Russian-only for user-facing text. English keys are internal IDs 
 | Phase | Ready? | Blockers | Notes |
 |-------|--------|----------|-------|
 | 0 (this audit) | Yes | None | Docs-only |
-| 1 (factory production) | Yes | None | `ProducibleUnitType` extension is well-scoped |
-| 2 (hull+turret selection) | Yes | None after Phase 1 | Reference: `ArenaUnitComposer` |
-| 3 (hull upgrade) | Yes | None after Phase 1 | Data model exists. Can be deferred past Phase 6 for earlier playable loop. |
-| 4 (turret upgrade) | Yes | None after Phase 3 | Follows hull upgrade pattern. Can be deferred past Phase 6 for earlier playable loop. |
-| 5 (cost/queue/Russian) | Yes | None after Phases 2-4 | Content-heavy |
-| 6 (starting units) | Yes | None after Phases 1-5 | Initialization code. Does NOT depend on Phase 7 (mirrored maps). |
-| 7 (mirrored map + obstacles) | Yes | None | Independent of Phases 1-6 in code. Re-validates Phase 6 placements as follow-up. |
-| 8 (builder placement) | Yes, after Denis approval | Denis approval gate + Phase 7 for map validation | Click-to-place UX model requires Denis explicit approval before implementation begins. |
-| 9 (shadows) | Yes | None | Projection infrastructure exists |
-| 10 (movement feel) | Yes | Phase 1 for combat units | Tanks need to exist first |
-| 11 (fullscreen/hotkeys) | Yes | None | Low-risk, mostly browser API |
-| 12 (QA/balance) | Yes | All prior phases | Integration phase |
-| 13 (handoff) | Yes | Phase 12 | Docs-only |
+| 1 (validation baseline) | Yes — this is the first implementation phase | 28 failing tests, qa:smoke Windows, Vite audit, command alias drift | **Red gate**: no Phase 2+ until baseline is green or accepted |
+| 2 (factory production) | Yes, after Phase 1 | Phase 1 red gate | `ProducibleUnitType` extension is well-scoped |
+| 3 (hull+turret selection) | Yes, after Phase 2 | None after Phase 2 | Reference: `ArenaUnitComposer` |
+| 4 (hull upgrade) | Yes, after Phase 2 | None after Phase 2 | Data model exists. **Deferrable past Phase 7 for earlier playable loop.** |
+| 5 (turret upgrade) | Yes, after Phase 4 | None after Phase 4 | Follows hull upgrade pattern. **Deferrable past Phase 7 for earlier playable loop.** |
+| 6 (cost/queue/Russian) | Yes, after Phases 3-5 | None after Phases 3-5 | Content-heavy |
+| 7 (starting units + early playable loop) | Yes, after Phases 2-6 | None after Phases 2-6 | **Early Playable Loop Milestone.** Does NOT depend on Phase 8 (mirrored maps). M0-only is sufficient. |
+| 8 (mirrored map + obstacles) | Yes | None | Independent of Phases 2-7 in code. Re-validates Phase 7 placements as follow-up. |
+| 9 (builder placement) | Yes, after Denis approval | Denis approval gate + Phase 8 for map validation | Click-to-place UX model requires Denis explicit approval before implementation begins. |
+| 10 (shadows) | Yes | None | Projection infrastructure exists |
+| 11 (movement feel) | Yes | Phase 2 for combat units | Tanks need to exist first |
+| 12 (fullscreen/hotkeys) | Yes | None | Low-risk, mostly browser API |
+| 13 (QA/balance) | Yes | All prior phases | Integration phase |
+| 14 (handoff) | Yes | Phase 13 | Docs-only. Next-roadmap candidates documented. |
 
 ---
 
@@ -583,43 +584,74 @@ src/phaser/input/CameraControls.ts      — Camera pan/zoom
 
 ### High-risk items
 
-1. **Hull/turret selection UI (Phase 2)**: This is the most complex UI component. Start with a minimal list-based UI and iterate based on Denis feedback. Use `ArenaUnitComposer` as a functional reference but do not copy it — the factory panel has different requirements (costs, queue integration, production constraints).
+1. **Hull/turret selection UI (Phase 3)**: This is the most complex UI component. Start with a minimal list-based UI and iterate based on Denis feedback. Use `ArenaUnitComposer` as a functional reference but do not copy it — the factory panel has different requirements (costs, queue integration, production constraints).
 
-2. **Mirrored map generation (Phase 7)**: Map generation is already 756 lines. Adding mirroring and obstacle generation will significantly increase complexity. Recommend implementing mirroring as a post-processing step on a half-generated map rather than modifying the generation algorithm itself. Write comprehensive symmetry validation tests.
+2. **Validation baseline (Phase 1)**: 28 failing tests and a broken smoke pipeline mean new failures will be invisible. This must be resolved first — building on a red baseline is the #1 risk to the entire roadmap.
+
+3. **Mirrored map generation (Phase 8)**: Map generation is already 756 lines. Adding mirroring and obstacle generation will significantly increase complexity. Recommend implementing mirroring as a post-processing step on a half-generated map rather than modifying the generation algorithm itself. Write comprehensive symmetry validation tests.
 
 ### Medium-risk items
 
-3. **Combat unit production (Phase 1)**: The production system is well-structured for extension, but combat unit creation touches multiple state systems. Write integration tests before manual QA.
+4. **Combat unit production (Phase 2)**: The production system is well-structured for extension, but combat unit creation touches multiple state systems. Write integration tests before manual QA.
 
-4. **Shadows (Phase 9)**: Z-depth sorting with many overlapping shadows needs testing. Render all shadows at a dedicated depth layer and verify no entity appears behind its own shadow.
+5. **Shadows (Phase 10)**: Z-depth sorting with many overlapping shadows needs testing. Render all shadows at a dedicated depth layer and verify no entity appears behind its own shadow.
 
-5. **Movement feel (Phase 10)**: Tuning inertia curves requires manual playtesting. Define target values (e.g., "Wasp reaches full speed in 0.3s, Mammoth in 1.2s") before implementation.
+6. **Movement feel (Phase 11)**: Tuning inertia curves requires manual playtesting. Define target values (e.g., "Wasp reaches full speed in 0.3s, Mammoth in 1.2s") before implementation.
 
 ### Low-risk items
 
-6. **Fullscreen, hotkeys, Russian labels**: Standard implementation with well-known patterns.
+7. **Fullscreen, hotkeys, Russian labels**: Standard implementation with well-known patterns.
 
-7. **Control group badges**: Simple visual additions.
+8. **Control group badges**: Simple visual additions.
 
 ### Overall recommendation
 
-The roadmap is feasible. The critical path runs through Phases 1-2-3-4-5-6-8-12-13. Phases 7, 9, 10, and 11 can overlap with the critical path to reduce total duration. The highest-risk phases (2 and 7) should receive extra review and iterative feedback from Denis before merge.
+The roadmap is feasible. The critical path runs through Phases 1-2-3-6-7 (fast-path to first playable loop) then 4-5-8-9-13-14. The highest-risk phases (1, 3, 8) should receive extra review and iterative feedback from Denis before merge. Phase 1 (validation baseline) is a hard gate — no implementation should proceed on a red baseline.
 
 ---
 
-## 9. Out of scope (explicit non-goals for this audit)
+## 9. Explicitly out of scope
 
 ```text
-- Enemy AI attack/defense/scouting.
-- Enemy wave plan.
-- Enemy economy AI plan.
-- Enemy defense AI plan.
-- Destructible obstacles.
-- Multi-language support.
-- Custom key binding UI.
-- Performance optimization pass.
-- Arena mode changes.
-- Asset pipeline for production M-level sprites.
-- Combined hull x turret production matrix.
-- Startup preload of all modular vehicle assets.
+- multiplayer (lockstep, netcode, lobby);
+- full strategic AI (build orders, scouting, economy, attack planning);
+- campaign (missions, story, cutscenes);
+- full faction asymmetry (unique buildings, tech trees, mechanics per faction);
+- A*/flow-field/pathfinding rewrite (current BFS is sufficient for this scope);
+- fixed timestep simulation;
+- full tech tree (tech-lab, building prerequisites, unlock chains);
+- full M0-M3 balancing before playable loop (M0-only is sufficient for first milestone);
+- particles/VFX polish (muzzle flash, explosions, impact effects);
+- CSS/UI framework migration (current DOM HUD is functional);
+- all-faction asset import (per-set pilot only, no mass import);
+- full modular preload (selected-set loading only);
+- enemy wave system (deferred to next roadmap);
+- win/lose screen (deferred to next roadmap);
+- attack-move / formations / patrol / hold-position commands;
+- shift-queue for commands;
+- audio/SFX/music layer;
+- replay system;
+- tutorial / onboarding missions;
+- mobile/touch controls;
+- I18n/multi-language support beyond Russian.
 ```
+
+## 10. Audit synthesis note
+
+This audit incorporates findings from three project audits conducted on 2026-06-21/22 against commit `c330b602`:
+
+**Codex audit priority** (validation gates and repo health):
+- Validation baseline must be green before new implementation. Phase 1 (red gate) directly addresses this.
+- Combat hit-model test failures (21 in `blockoutDamage.test.ts`) are the #1 risk for expanding combat runtime.
+- Command alias contract drift between source and tests must be resolved.
+
+**Opus audit priority** (product/gameplay direction):
+- Connect Normal economy with Arena combat — the game is two disconnected halves.
+- Early playable loop milestone (Phase 7) addresses this by requiring combat unit production in Normal mode.
+- M0-only is sufficient for first playable; full M0-M3 balancing is deferrable.
+- Base-defense / pressure loop is recommended as the safest next roadmap after this one.
+
+**GLM audit priority** (product/GDD/MVP clarity):
+- Project needs a clear MVP win/loss condition. Addressed in roadmap Section 11 (GDD-lite).
+- Economy linearity and faction cosmetic-only status are acknowledged and not in this roadmap's scope.
+- Broad ideas from the GLM audit are backlog items captured as next-roadmap candidates (Phase 14).
