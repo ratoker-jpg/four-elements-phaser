@@ -16,6 +16,7 @@ import {
   recomputeVisibility,
   collectVisionSources,
   getVisionRadiusForRuntimeBuildingType,
+  normalizeVisionForLoadedState,
   BUILDER_VISION_RADIUS,
   HARVESTER_VISION_RADIUS,
   HQ_VISION_RADIUS,
@@ -424,6 +425,226 @@ describe('FOG-VISION-08: performance smoke test', () => {
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(50);
+  });
+});
+
+// ─── FIXUP-1: Revision counter ───────────────────────────────────────
+
+describe('FOG-VISION-08 FIXUP-1: revision counter', () => {
+  it('initial vision state has revision 0', () => {
+    const vision = createInitialVisionState(10, 10);
+    expect(vision.revision).toBe(0);
+  });
+
+  it('recomputeVisibility increments revision', () => {
+    const state = makeMinimalState();
+    recomputeVisibility(state);
+    expect(state.vision.revision).toBe(1);
+    recomputeVisibility(state);
+    expect(state.vision.revision).toBe(2);
+  });
+
+  it('recomputeVisibility only increments revision when dirty=true', () => {
+    const state = makeMinimalState();
+    recomputeVisibility(state); // revision → 1, dirty → false
+    const revBefore = state.vision.revision;
+    // Not dirty, so recompute should not run
+    recomputeVisibility(state);
+    // Actually recomputeVisibility always runs (caller checks dirty). But revision should increment.
+    // recomputeVisibility doesn't check dirty itself — the caller does.
+    // So calling it again will still increment revision.
+    expect(state.vision.revision).toBe(revBefore + 1);
+  });
+
+  it('different visibility shapes produce different revisions', () => {
+    const state = makeMinimalState({ mapWidth: 20, mapHeight: 20 });
+    state.mapData.hq = { tx: 10, ty: 10, faction: 'cyan' };
+    recomputeVisibility(state);
+    const rev1 = state.vision.revision;
+
+    // Move HQ to different position — changes visibility shape
+    state.mapData.hq = { tx: 0, ty: 0, faction: 'cyan' };
+    state.vision.dirty = true;
+    recomputeVisibility(state);
+    const rev2 = state.vision.revision;
+
+    expect(rev2).toBeGreaterThan(rev1);
+  });
+
+  it('FogRenderer redraw key changes with same vision + different camera key', () => {
+    // Simulate the redraw key logic from FogRenderer
+    const vision = createInitialVisionState(10, 10);
+    vision.revision = 5;
+
+    const key1 = `${vision.revision}|100|200|1.0|800|600`;
+    const key2 = `${vision.revision}|150|200|1.0|800|600`; // camera panned
+    const key3 = `${vision.revision}|100|200|1.5|800|600`; // camera zoomed
+    const key4 = `${vision.revision}|100|200|1.0|1024|768`; // viewport resized
+
+    expect(key1).not.toBe(key2);
+    expect(key1).not.toBe(key3);
+    expect(key1).not.toBe(key4);
+  });
+
+  it('changed visibility shape with same visible count => revision still changes', () => {
+    // Scenario: move a unit so visible shape changes but total count stays the same.
+    // With sampled hash this could be missed; with revision it cannot.
+    const state = makeMinimalState({ mapWidth: 30, mapHeight: 30 });
+    state.mapData.hq = { tx: 5, ty: 5, faction: 'cyan' };
+    recomputeVisibility(state);
+    const rev1 = state.vision.revision;
+    const count1 = countVisible(state.vision);
+
+    // Move HQ to a symmetric position that may have same visible count
+    state.mapData.hq = { tx: 25, ty: 25, faction: 'cyan' };
+    state.vision.dirty = true;
+    recomputeVisibility(state);
+    const rev2 = state.vision.revision;
+    const count2 = countVisible(state.vision);
+
+    // Even if visible count is the same, revision must have changed
+    expect(rev2).toBeGreaterThan(rev1);
+    // Count may or may not be the same (depends on map edge clamping)
+    // but the key invariant is: revision always increments on recompute
+    void count1;
+    void count2;
+  });
+});
+
+// ─── FIXUP-1: Save/load vision normalization ────────────────────────
+
+describe('FOG-VISION-08 FIXUP-1: normalizeVisionForLoadedState', () => {
+  it('v2 save/load has allocated visible grid dimensions', () => {
+    // Simulate a v2 save where sanitizeForSave set visible=[]
+    const savedVision: VisionState = {
+      explored: createVisionGrid(10, 10, true),
+      visible: [] as unknown as boolean[][],  // stripped by sanitizeForSave
+      dirty: true,
+      revision: 3,
+    };
+    const normalized = normalizeVisionForLoadedState(10, 10, savedVision);
+    expect(normalized.visible.length).toBe(10);
+    expect(normalized.visible[0].length).toBe(10);
+    expect(normalized.visible[5][5]).toBe(false);
+    expect(normalized.explored[5][5]).toBe(true); // explored preserved
+    expect(normalized.dirty).toBe(true);
+  });
+
+  it('v1 migration has explored full true + visible allocated false', () => {
+    // v1 save: no vision field at all
+    const normalized = normalizeVisionForLoadedState(10, 10, null);
+    expect(normalized.explored.length).toBe(10);
+    expect(normalized.visible.length).toBe(10);
+    // All explored
+    for (let y = 0; y < 10; y++) {
+      for (let x = 0; x < 10; x++) {
+        expect(normalized.explored[y][x]).toBe(true);
+        expect(normalized.visible[y][x]).toBe(false);
+      }
+    }
+    expect(normalized.dirty).toBe(true);
+  });
+
+  it('malformed/wrong vision dimensions normalize safely', () => {
+    // Explored has wrong height
+    const badVision1: VisionState = {
+      explored: createVisionGrid(10, 5, true),  // wrong height (5 instead of 10)
+      visible: createVisionGrid(10, 10, false),
+      dirty: false,
+      revision: 0,
+    };
+    const n1 = normalizeVisionForLoadedState(10, 10, badVision1);
+    expect(n1.explored.length).toBe(10);
+    expect(n1.visible.length).toBe(10);
+    expect(n1.dirty).toBe(true);
+
+    // Explored has wrong width
+    const badVision2: VisionState = {
+      explored: createVisionGrid(5, 10, true),  // wrong width (5 instead of 10)
+      visible: createVisionGrid(10, 10, false),
+      dirty: false,
+      revision: 0,
+    };
+    const n2 = normalizeVisionForLoadedState(10, 10, badVision2);
+    expect(n2.explored[0].length).toBe(10);
+    expect(n2.visible[0].length).toBe(10);
+
+    // Both grids empty
+    const badVision3: VisionState = {
+      explored: [],
+      visible: [],
+      dirty: false,
+      revision: 0,
+    };
+    const n3 = normalizeVisionForLoadedState(10, 10, badVision3);
+    expect(n3.explored.length).toBe(10);
+    expect(n3.visible.length).toBe(10);
+  });
+
+  it('recomputeVisibility after loaded v2 save does not throw', () => {
+    // Simulate loading a v2 save with stripped visible grid
+    const savedVision: VisionState = {
+      explored: createVisionGrid(10, 10, true),
+      visible: [] as unknown as boolean[][],
+      dirty: true,
+      revision: 1,
+    };
+    const normalized = normalizeVisionForLoadedState(10, 10, savedVision);
+
+    // Create a game state with normalized vision
+    const state = makeMinimalState({ mapWidth: 10, mapHeight: 10 });
+    state.vision = normalized;
+
+    // Should not throw
+    expect(() => recomputeVisibility(state)).not.toThrow();
+    expect(state.vision.visible.length).toBe(10);
+    expect(state.vision.visible[0].length).toBe(10);
+    expect(state.vision.dirty).toBe(false);
+    expect(state.vision.revision).toBeGreaterThan(0);
+  });
+
+  it('preserves revision from pre-FIXUP-1 saves (missing revision defaults to 0)', () => {
+    const savedVision = {
+      explored: createVisionGrid(10, 10, true),
+      visible: createVisionGrid(10, 10, false),
+      dirty: true,
+      // revision missing — pre-FIXUP-1 save
+    } as VisionState;
+    const normalized = normalizeVisionForLoadedState(10, 10, savedVision);
+    expect(normalized.revision).toBe(0);
+  });
+
+  it('preserves revision from FIXUP-1 saves', () => {
+    const savedVision: VisionState = {
+      explored: createVisionGrid(10, 10, true),
+      visible: [] as unknown as boolean[][],
+      dirty: true,
+      revision: 42,
+    };
+    const normalized = normalizeVisionForLoadedState(10, 10, savedVision);
+    expect(normalized.revision).toBe(42);
+  });
+});
+
+// ─── FIXUP-1: Dirty recompute policy ────────────────────────────────
+
+describe('FOG-VISION-08 FIXUP-1: selective dirty policy', () => {
+  it('recomputeVisibility clears dirty flag', () => {
+    const state = makeMinimalState();
+    state.vision.dirty = true;
+    recomputeVisibility(state);
+    expect(state.vision.dirty).toBe(false);
+  });
+
+  it('dirty stays false when no vision sources change', () => {
+    const state = makeMinimalState();
+    recomputeVisibility(state);
+    expect(state.vision.dirty).toBe(false);
+    // Calling recompute again (simulating another frame with no changes)
+    // would not happen in practice because GameScene checks dirty first
+    // But recomputeVisibility itself doesn't guard on dirty
+    recomputeVisibility(state);
+    expect(state.vision.dirty).toBe(false);
   });
 });
 

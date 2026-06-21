@@ -692,28 +692,27 @@ export class GameScene extends Phaser.Scene {
 
     // ARENA-01H+: Skip civil game loop in Arena mode (no harvesters, economy, construction)
     if (this.arenaCtx.runCivilLoop) {
-      if (this.gameState.vision) this.gameState.vision.dirty = true;
-
-      // 1. Advance game state (harvester civil loop)
+      // FIXUP-1: Selective dirty — mark dirty only if unit tile changed or building completed
+      const prevBT = this.gameState.mapData.builders.map(b => Math.round(b.ftx) * 1000 + Math.round(b.fty));
+      const prevHT = this.gameState.harvesters.map(h => Math.round(h.ftx) * 1000 + Math.round(h.fty));
       updateGameState(this.gameState, delta);
-
-      // 2. Auto-assign idle builders to pending construction sites
       assignIdleBuilders(this.gameState);
-
-      // 3. Advance builder movement (must come before construction progress)
       updateBuilders(this.gameState, delta);
-
-      // 4. Advance construction site progress (only for sites with active builder)
-      // FIXUP-2: Snapshot metadata before iterating (updateConstructionSiteProgress splices completed sites).
-      const siteSnapshots = this.gameState.mapData.constructionSites.map(s => ({ id: s.id, tx: s.tx, ty: s.ty, type: s.type }));
-      for (const snap of siteSnapshots) {
-        const siteId = `site-${snap.id}`;
-        const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
+      const siteSnaps = this.gameState.mapData.constructionSites.map(s => ({ id: s.id, tx: s.tx, ty: s.ty, type: s.type }));
+      for (const snap of siteSnaps) {
+        const result = updateConstructionSiteProgress(this.gameState, `site-${snap.id}`, delta);
         if (result.completed) {
           console.log(`[GameScene] Construction completed: ${result.buildingId}`);
           const fb = constructionCompleted(snap.type);
           this.inputController?.showFeedback(fb.type, fb.message, 'construction-complete', { tx: snap.tx, ty: snap.ty });
+          if (this.gameState.vision) this.gameState.vision.dirty = true;
         }
+      }
+      // FIXUP-1: Mark dirty if any unit changed tile
+      if (this.gameState.vision && !this.gameState.vision.dirty) {
+        const bChanged = this.gameState.mapData.builders.some((b, i) => i < prevBT.length && Math.round(b.ftx) * 1000 + Math.round(b.fty) !== prevBT[i]);
+        const hChanged = this.gameState.harvesters.some((h, i) => i < prevHT.length && Math.round(h.ftx) * 1000 + Math.round(h.fty) !== prevHT[i]);
+        if (bChanged || hChanged) this.gameState.vision.dirty = true;
       }
     }
 

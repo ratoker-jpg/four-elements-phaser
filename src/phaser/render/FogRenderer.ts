@@ -58,8 +58,11 @@ export class FogRenderer {
   private offset: IsoPoint;
   private graphics: Phaser.GameObjects.Graphics;
 
-  /** Cached vision state hash to avoid redundant redraws. */
-  private lastVisionHash: string = '';
+  /** Cached redraw key to avoid redundant redraws.
+   *  Composed of {vision.revision, camera.scrollX, scrollY, zoom, viewportW, viewportH}.
+   *  FIXUP-1: Replaces the old sampled computeVisionHash which could miss
+   *  viewport changes and visibility shape changes with same sampled count. */
+  private lastRedrawKey: string = '';
 
   /** Whether fog rendering is enabled (can be toggled for debug). */
   private _enabled: boolean = true;
@@ -83,6 +86,7 @@ export class FogRenderer {
     this._enabled = value;
     if (!value) {
       this.graphics.clear();
+      this.lastRedrawKey = ''; // Reset so re-enable triggers redraw
     }
   }
 
@@ -102,10 +106,14 @@ export class FogRenderer {
       return;
     }
 
-    // Only redraw if vision state has changed
-    const hash = this.computeVisionHash(vision);
-    if (hash === this.lastVisionHash) return;
-    this.lastVisionHash = hash;
+    // FIXUP-1: Redraw when vision revision or camera viewport changes.
+    // Uses vision.revision (monotonic counter) instead of sampled hash —
+    // eliminates false negatives where shape changes produce same sampled count.
+    // Camera key ensures viewport/zoom changes trigger redraw.
+    const cam = this.scene.cameras.main;
+    const redrawKey = `${vision.revision}|${cam.scrollX}|${cam.scrollY}|${cam.zoom}|${cam.worldView.width}|${cam.worldView.height}`;
+    if (redrawKey === this.lastRedrawKey) return;
+    this.lastRedrawKey = redrawKey;
 
     this.renderFog(state, vision);
   }
@@ -187,29 +195,10 @@ export class FogRenderer {
   }
 
   /**
-   * Compute a simple hash of the vision state for change detection.
-   * This avoids redrawing fog every frame when nothing has changed.
+   * FIXUP-1: Removed computeVisionHash(). Replaced by revision+camera key
+   * in syncFromState(). The old sampled hash could miss visibility shape
+   * changes with same sampled count and did not account for camera changes.
    */
-  private computeVisionHash(vision: VisionState): string {
-    // Quick hash: count explored and visible tiles
-    // This is fast enough for dirty-checking
-    let exploredCount = 0;
-    let visibleCount = 0;
-    const explored = vision.explored;
-    const visible = vision.visible;
-    const height = explored.length;
-    const width = height > 0 ? explored[0].length : 0;
-
-    // Sample every 4th tile for speed
-    for (let y = 0; y < height; y += 4) {
-      for (let x = 0; x < width; x += 4) {
-        if (explored[y][x]) exploredCount++;
-        if (visible[y][x]) visibleCount++;
-      }
-    }
-
-    return `${exploredCount}-${visibleCount}-${vision.dirty}`;
-  }
 
   /** Get the Phaser Graphics object (for debug overlays). */
   getGraphics(): Phaser.GameObjects.Graphics {

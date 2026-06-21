@@ -16,7 +16,7 @@
 
 import type { Faction, GameState } from './types';
 import { ensureBuilderIds } from './createInitialState';
-import { createInitialVisionState } from './visibility';
+import { normalizeVisionForLoadedState } from './visibility';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -228,11 +228,13 @@ function sanitizeForSave(gameState: GameState): GameState {
   // Create a shallow copy with transformations
   const { blockoutVehicles: _bv, blockoutObstacles: _bo, vision: _vision, ...rest } = gameState;
   
-  // FOG-VISION-08: Save only explored grid; visible is recomputed on load
+  // FOG-VISION-08: Save only explored grid; visible is recomputed on load.
+  // FIXUP-1: Persist revision so it survives save/load round-trip.
   const visionForSave = gameState.vision ? {
     explored: gameState.vision.explored,
-    visible: [],  // not saved — recomputed on load
+    visible: [],  // not saved — recomputed on load via normalizeVisionForLoadedState
     dirty: true,  // force recompute on load
+    revision: gameState.vision.revision,  // persisted so FogRenderer cache is valid after load
   } : undefined;
 
   return {
@@ -346,21 +348,15 @@ export function loadGame(slotId: string): LoadResult {
     ensureBuilderIds(gs.mapData);
   }
 
-  // FOG-VISION-08: Migrate v1 saves (no vision field) to v2.
-  // Old saves get fully-explored vision to preserve "everything visible" behavior.
-  if (!gs.vision) {
-    const mapW = gs.mapWidth ?? gs.mapData?.width ?? 48;
-    const mapH = gs.mapHeight ?? gs.mapData?.height ?? 48;
-    const vision = createInitialVisionState(mapW, mapH);
-    // Mark all tiles as explored so the game continues as before (no sudden fog)
-    for (let y = 0; y < mapH; y++) {
-      for (let x = 0; x < mapW; x++) {
-        vision.explored[y][x] = true;
-      }
-    }
-    vision.dirty = true; // Force recompute visible grid on first update
-    gs.vision = vision;
-  }
+  // FOG-VISION-08 FIXUP-1: Normalize vision state for all saves (v1 and v2).
+  // Handles: missing vision (v1 migration), empty/malformed visible grid
+  // (sanitizeForSave strips visible=[]), wrong dimensions, missing revision.
+  // Always sets dirty=true so recomputeVisibility runs on first update.
+  gs.vision = normalizeVisionForLoadedState(
+    gs.mapWidth ?? gs.mapData?.width ?? 48,
+    gs.mapHeight ?? gs.mapData?.height ?? 48,
+    gs.vision,
+  );
 
   return { success: true, message: 'Loaded', gameState: gs };
 }

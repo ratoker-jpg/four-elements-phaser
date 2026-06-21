@@ -31,6 +31,9 @@ export interface VisionState {
   visible: boolean[][];
   /** Dirty flag: set when vision sources change (unit moved, building completed). */
   dirty: boolean;
+  /** Monotonic revision counter, incremented each time recomputeVisibility() writes new data.
+   *  Used by FogRenderer to detect vision content changes without sampled hashing. */
+  revision: number;
 }
 
 /** A single vision source at a tile position. */
@@ -70,6 +73,7 @@ export function createInitialVisionState(width: number, height: number): VisionS
     explored: createVisionGrid(width, height, false),
     visible: createVisionGrid(width, height, false),
     dirty: true,
+    revision: 0,
   };
 }
 
@@ -194,6 +198,71 @@ export function collectVisionSources(state: GameState): VisionSource[] {
   return sources;
 }
 
+// ─── Save/load normalization ─────────────────────────────────────
+
+/**
+ * Normalize vision state for a loaded game.
+ *
+ * FIXUP-1: Ensures both explored and visible grids have correct dimensions
+ * after deserialization. The save format strips the visible grid
+ * (sanitizeForSave sets visible=[]), so we must recreate it on load.
+ * Also handles malformed or dimension-mismatched grids from corrupted saves.
+ *
+ * Policies:
+ * - No vision field at all: v1 migration — fully-explored, visible all false, dirty true.
+ * - Vision exists but visible missing/empty/wrong dimensions: recreate visible grid (all false).
+ * - Explored missing/wrong dimensions: recreate explored grid (all false = fresh game fog).
+ * - revision defaults to 0 if missing (pre-FIXUP-1 saves).
+ * - dirty is set to true to trigger recomputeVisibility on first update.
+ *
+ * Returns the normalized VisionState. Does not mutate the input.
+ */
+export function normalizeVisionForLoadedState(
+  mapWidth: number,
+  mapHeight: number,
+  vision?: VisionState | null,
+): VisionState {
+  if (!vision) {
+    // v1 migration: no vision field → fully-explored (no sudden fog in ongoing games)
+    const v = createInitialVisionState(mapWidth, mapHeight);
+    for (let y = 0; y < mapHeight; y++) {
+      for (let x = 0; x < mapWidth; x++) {
+        v.explored[y][x] = true;
+      }
+    }
+    v.dirty = true;
+    return v;
+  }
+
+  // Ensure explored grid has correct dimensions
+  const exploredValid =
+    Array.isArray(vision.explored) &&
+    vision.explored.length === mapHeight &&
+    vision.explored.every(row => Array.isArray(row) && row.length === mapWidth);
+
+  const explored = exploredValid
+    ? vision.explored
+    : createVisionGrid(mapWidth, mapHeight, false);
+
+  // Ensure visible grid has correct dimensions
+  // sanitizeForSave strips visible to [], so we must recreate
+  const visibleValid =
+    Array.isArray(vision.visible) &&
+    vision.visible.length === mapHeight &&
+    vision.visible.every(row => Array.isArray(row) && row.length === mapWidth);
+
+  const visible = visibleValid
+    ? vision.visible
+    : createVisionGrid(mapWidth, mapHeight, false);
+
+  return {
+    explored,
+    visible,
+    dirty: true, // Always force recompute after load
+    revision: typeof vision.revision === 'number' ? vision.revision : 0,
+  };
+}
+
 // ─── Recompute algorithm ──────────────────────────────────────────
 
 /**
@@ -245,4 +314,5 @@ export function recomputeVisibility(state: GameState): void {
   }
 
   vision.dirty = false;
+  vision.revision++;
 }
