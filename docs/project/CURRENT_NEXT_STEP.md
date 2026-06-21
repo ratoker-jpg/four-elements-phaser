@@ -65,14 +65,14 @@ Renderer unification Stage 1-4 is CLOSED.
 ## Active next step (single)
 
 ```text
-FOG-VISION-AUDIT-07-HIGHPLUS-DOCS
-  Risk: High+ — audit/design for fog-of-war and vision system.
-  Type: docs-only PR (DRAFT, not ready for merge).
-  Goal: produce detailed technical design for future fog implementation.
-  Deliverable: docs/project/FOG_VISION_AUDIT_2026_06_21.md
-  Branch: docs/fog-vision-audit-07
+FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS
+  Risk: Very High+ — implement fog of war and vision system.
+  Type: Implementation PR (DRAFT, not ready for merge until GPT review + Denis QA).
+  Goal: implement full fog/vision system per audit document.
+  Deliverable: working fog of war with minimap integration
+  Branch: fog/vision-implementation-08
   Base: main
-  Status: DRAFT PR, pending GPT review + Denis approval.
+  Status: DRAFT PR, pending GPT review + Denis manual QA.
 
   Previous steps:
     #312 HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS: MERGED.
@@ -80,10 +80,17 @@ FOG-VISION-AUDIT-07-HIGHPLUS-DOCS
     #314 MINIMAP-INTERACTION-04-VERYHIGHPLUS: MERGED.
     #315 SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS: MERGED.
     #316 FEEDBACK-ALERTS-06-HIGHPLUS: MERGED.
-      Result: typed feedback, command errors, control group feedback, idle worker alert, minimap pings.
+    #317 FOG-VISION-AUDIT-07-HIGHPLUS-DOCS: MERGED (design audit accepted).
 
-  Fog is NOT yet implemented. This is a design audit only.
-  Next likely task: FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS (split into 08A–08D per audit).
+  Implementation checkpoints (all in one PR):
+    Checkpoint 1: state/grid foundation ✓
+    Checkpoint 2: render fog overlay ✓
+    Checkpoint 3: minimap fog integration ✓
+    Checkpoint 4: selection/input/save integration ✓
+    Checkpoint 5: docs/tests/QA hardening ✓
+
+  Arena mode: fog is NOT applied in Arena (all tiles explored+visible).
+  Next likely task after merge: AOE4-UX-POLISH-PASS-09-HIGHPLUS or fog fixup if QA finds issues.
 ```
 
 ---

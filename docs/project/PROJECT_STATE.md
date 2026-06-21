@@ -19,8 +19,8 @@ PR #311 (AoE4 UX redesign roadmap) is merged — direction accepted.
 PR #312 (HUD layout rebuild) is merged — bottom HUD rebuilt.
 Denis rejected the current HUD/command panel/minimap direction visually and UX-wise.
 Direction changed: AoE4-inspired RTS UX redesign replaces the "continue integrating existing HUD" plan.
-Current operational task: FOG-VISION-AUDIT-07-HIGHPLUS-DOCS (fog of war and vision system design audit — DRAFT PR, pending GPT review + Denis approval).
-Previous completed task: FEEDBACK-ALERTS-06-HIGHPLUS (MERGED via PR #316 — typed feedback, command errors, control group feedback, idle worker alert, minimap pings).
+Current operational task: FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS (fog of war and vision system implementation — DRAFT PR, pending GPT review + Denis manual QA).
+Previous completed task: FOG-VISION-AUDIT-07-HIGHPLUS-DOCS (MERGED via PR #317 — fog of war and vision system design audit).
 Number keys 1–9 are now control group recall keys (legacy 1/2/3 build aliases removed).
 S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset (per #313).
 ```
@@ -49,7 +49,8 @@ COMMAND-CARD-REBUILD-03 merged via PR #313 (S=Stop, F=Factory, R=Storage, HOME=R
 MINIMAP-INTERACTION-04 merged via PR #314 (click-to-camera, drag-to-pan, pointer capture)
 +
 FEEDBACK-ALERTS-06 merged via PR #316 (typed feedback, command errors, minimap pings)
-FOG-VISION-AUDIT-07 in progress (fog of war and vision system design audit — docs only)
+FOG-VISION-AUDIT-07 merged via PR #317 (fog of war and vision system design audit)
+FOG-VISION-IMPLEMENTATION-08 in progress (fog of war implementation — DRAFT PR, pending review)
 ```
 
 Closed / accepted cycles:
@@ -212,7 +213,8 @@ GameScene no longer directly owns most renderer fields.
 14. [DONE] MINIMAP-INTERACTION-04-VERYHIGHPLUS — minimap camera interaction (MERGED PR #314).
 15. [DONE] SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select, drag-box, control groups (MERGED PR #315).
 16. [DONE] FEEDBACK-ALERTS-06-HIGHPLUS — typed feedback, command errors, idle worker, minimap pings (MERGED PR #316).
-17. [ACTIVE NEXT] FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog of war and vision system design audit (DRAFT PR, pending GPT review + Denis approval).
+17. [DONE] FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog of war design audit (MERGED PR #317).
+18. [ACTIVE NEXT] FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog of war implementation (DRAFT PR, pending review).
 ```
 
 ---
@@ -224,16 +226,16 @@ The selected direction is AoE4-inspired UX redesign for the HUD.
 Denis rejected the current HUD/command panel/minimap direction (PRs #308-#310).
 Those PRs are treated as technical prototypes, not final UX.
 
-The current step is FOG-VISION-AUDIT-07:
+The current step is FOG-VISION-IMPLEMENTATION-08:
 
 ```text
-FOG-VISION-AUDIT-07-HIGHPLUS-DOCS
-  Type: docs-only PR (DRAFT).
-  Status: pending GPT review + Denis approval.
-  Branch: docs/fog-vision-audit-07
-  Deliverable: docs/project/FOG_VISION_AUDIT_2026_06_21.md
-  Next likely task: FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS (split into 08A–08D per audit).
-  Fog is NOT yet implemented.
+FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS
+  Type: implementation PR (DRAFT, not ready for merge).
+  Status: pending GPT review + Denis manual QA.
+  Branch: fog/vision-implementation-08
+  Deliverable: working fog of war with minimap integration
+  Implementation: one PR with internal checkpoints (no 08A/08B/08C/08D split per Denis decision).
+  Next likely task after merge: AOE4-UX-POLISH-PASS-09-HIGHPLUS or fog fixup if QA finds issues.
 ```
 
 Previous completed steps:

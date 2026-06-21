@@ -15,7 +15,7 @@ import { updateGameState } from '../state/updateGameState';
 import { updateConstructionSiteProgress } from '../state/construction';
 import { constructionCompleted } from '../state/feedbackHelpers';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
-import { recomputeVisibility } from '../state/visibility';
+import { recomputeVisibility as recomputeVis } from '../state/visibility';
 import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '../state/types';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
@@ -692,10 +692,7 @@ export class GameScene extends Phaser.Scene {
 
     // ARENA-01H+: Skip civil game loop in Arena mode (no harvesters, economy, construction)
     if (this.arenaCtx.runCivilLoop) {
-      // FOG-VISION-08: Mark vision dirty each civil tick (units may have moved)
-      if (this.gameState.vision) {
-        this.gameState.vision.dirty = true;
-      }
+      if (this.gameState.vision) this.gameState.vision.dirty = true;
 
       // 1. Advance game state (harvester civil loop)
       updateGameState(this.gameState, delta);
@@ -720,10 +717,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // FOG-VISION-08: Recompute visibility if dirty (after unit movement + construction)
-    if (this.gameState.vision?.dirty) {
-      recomputeVisibility(this.gameState);
-    }
+    if (this.gameState.vision?.dirty) recomputeVis(this.gameState);
 
     // 5. Sync render layer (Stage 4 FIXUP-1: delegated to RenderManager)
     this.renderManager?.syncCivilRenderState(this.gameState, this.time.now);
