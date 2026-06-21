@@ -10,13 +10,15 @@ Updated: 2026-06-22
 ## Current mode
 
 ```text
-RTS FOUNDATION ROADMAP — Phase 1 (Validation Baseline / Red Gates) CLOSING.
+RTS FOUNDATION ROADMAP — Phase 1 (Validation Baseline / Red Gates) code red gates resolved.
 
 PR #322 merged. FINAL_RTS_FOUNDATION roadmap accepted as source-of-truth direction.
 PR #323 completed P1A source-of-truth docs.
 Phase 0 (Roadmap/Audit) is CLOSED.
-Phase 1 (Validation Baseline / Red Gates) is CLOSING — all code red gates resolved.
-Phase 2+ implementation is BLOCKED until Phase 1 closure PR is merged and build is confirmed green in CI.
+Phase 1 code red gates are resolved. Final closure requires PR #324 merged and
+build/smoke confirmed in CI or Denis environment.
+CI confirmed: build-and-deploy PASS, qa-smoke PASS, Graphify PASS (GitHub Actions run 27917869231).
+Phase 2+ implementation is BLOCKED until PR #324 is merged.
 
 Previous completed cycle: AOE4-UX-POLISH-PASS-09-HIGHPLUS (MERGED via PR #319).
 Previous completed docs cycle: FINAL-RTS-FOUNDATION-ROADMAP-AUDIT-01 (MERGED via PR #322).
@@ -107,12 +109,14 @@ The following validation issues were identified and their resolution status:
 Remaining environment constraint (not a code red gate):
 
 ```text
-- npm run build fails with ENOSPC in this environment (public/assets 4.7G on 9.9G disk).
-  TypeScript compilation passes. Build failure appears environment-related (ENOSPC),
-  but CI/Denis environment must confirm successful build.
+- npm run build fails with ENOSPC in GLM/Codex local environment (public/assets 4.7G on 9.9G disk).
+  This is a local disk constraint only. CI confirms build passes:
+  - build-and-deploy: PASS (GitHub Actions run 27917869231)
+  - qa-smoke: PASS (GitHub Actions run 27917869192)
+  - Graphify: PASS (GitHub Actions run 27917869212)
 ```
 
-Phase 1 red gate rule: **No Phase 2+ implementation PR may be opened until Phase 1 is closed via P1F, green, or explicitly accepted by Denis/GPT as known baseline.**
+Phase 1 red gate rule: **No Phase 2+ implementation PR may be opened until PR #324 is merged. Code red gates are resolved. Build/smoke confirmed green in CI.**
 
 ---
 
