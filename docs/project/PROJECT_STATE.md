@@ -10,19 +10,21 @@ Updated: 2026-06-22
 ## Current mode
 
 ```text
-VISUAL ROADMAP — AoE4-INSPIRED UX REDESIGN MODE.
+NEXT ROADMAP DECISION AFTER AOE4-INSPIRED UX CLOSURE.
 
 Renderer unification Stage 1-4 is closed.
 PR #304 Arena visual/combat fix is merged and accepted by Denis manual QA.
-PRs #308-#310 (HUD core, command panel, minimap) are merged as technical prototypes.
-PR #311 (AoE4 UX redesign roadmap) is merged — direction accepted.
-PR #312 (HUD layout rebuild) is merged — bottom HUD rebuilt.
-Denis rejected the current HUD/command panel/minimap direction visually and UX-wise.
-Direction changed: AoE4-inspired RTS UX redesign replaces the "continue integrating existing HUD" plan.
-Current operational task: AOE4-UX-POLISH-PASS-09-HIGHPLUS (final AoE4-inspired RTS UX polish — DRAFT PR, pending GPT review + Denis manual QA).
-Previous completed task: FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS (MERGED via PR #318 — fog of war and vision system implementation).
-Number keys 1–9 are now control group recall keys (legacy 1/2/3 build aliases removed).
-S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset (per #313).
+PRs #308-#310 are merged as technical prototypes, not final UX.
+PR #311 accepted the AoE4-inspired RTS UX redesign direction.
+PRs #312-#319 implemented and polished the AoE4-inspired UX slice.
+
+AoE4-inspired UX redesign slice: CLOSED after PR #319.
+Current operational task: NEXT-ROADMAP-DECISION.
+Previous completed task: AOE4-UX-POLISH-PASS-09-HIGHPLUS (MERGED via PR #319).
+
+Number keys 1-9 are control group recall keys.
+Ctrl+1-9 assigns control groups.
+S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset.
 ```
 
 Current direction:
@@ -38,20 +40,9 @@ accepted RenderManager / GameScene orchestration baseline
 +
 accepted Arena visual/combat fix baseline
 +
-AoE4-inspired UX redesign roadmap (accepted)
+closed AoE4-inspired RTS UX redesign slice
 +
-PRs #308-#310 are technical prototypes, not final accepted UX
-+
-PR #312 HUD layout rebuild accepted
-+
-COMMAND-CARD-REBUILD-03 merged via PR #313 (S=Stop, F=Factory, R=Storage, HOME=Reset)
-+
-MINIMAP-INTERACTION-04 merged via PR #314 (click-to-camera, drag-to-pan, pointer capture)
-+
-FEEDBACK-ALERTS-06 merged via PR #316 (typed feedback, command errors, minimap pings)
-FOG-VISION-AUDIT-07 merged via PR #317 (fog of war and vision system design audit)
-FOG-VISION-IMPLEMENTATION-08 merged via PR #318 (fog of war and vision system)
-AOE4-UX-POLISH-PASS-09 in progress (final AoE4-inspired RTS UX polish — DRAFT PR)
+explicit next-roadmap decision before new large implementation work
 ```
 
 Closed / accepted cycles:
@@ -68,6 +59,7 @@ VEHICLE-RENDER-UNIFY Stage 1+2: MERGED via PR #298 and accepted by Denis manual 
 VEHICLE-RENDER-UNIFY Stage 3: MERGED via PR #300 and accepted by Denis manual QA.
 VEHICLE-RENDER-UNIFY Stage 4: MERGED via PR #302 and accepted by Denis manual QA.
 ARENA-VISUAL-COMBAT-FIX-01: MERGED via PR #304 and accepted by Denis manual QA with known #305 follow-up.
+AOE4-inspired UX redesign slice: CLOSED after PR #319.
 ```
 
 Do not continue closed roadmaps by inertia.
@@ -90,6 +82,7 @@ docs/project/VISUAL_SYSTEM_AUDIT.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md
 docs/project/FOG_VISION_AUDIT_2026_06_21.md
+docs/project/AOE4_UX_ROADMAP_CLOSURE_2026_06_22.md
 ```
 
 Render/vehicle baseline references:
@@ -150,6 +143,14 @@ The project currently has:
 - RenderManager owns renderer construction, phased sync, visual bridge callbacks, and destroy;
 - GameScene keeps scene lifecycle, gameplay state, UI/menu callbacks, input, camera, placement, save/load;
 - Arena visual/combat baseline accepted after PR #304;
+- AoE4-inspired RTS UX layer closed after PR #319:
+  - bottom RTS HUD;
+  - 4x3 command card;
+  - minimap click/drag;
+  - multi-select and control groups;
+  - typed feedback/status/minimap pings;
+  - fog of war and vision;
+  - final UX polish;
 - known follow-up #305: Smoky muzzle origin on Wasp hull only.
 ```
 
@@ -210,70 +211,39 @@ GameScene no longer directly owns most renderer fields.
 10. [DONE] VISUAL-MINIMAP-03-VERYHIGH (PR #310) — Minimap MVP prototype.
 11. [DONE] VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — AoE4-inspired UX redesign roadmap (merged).
 12. [DONE] HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — Bottom HUD rebuild (merged PR #312).
-13. [DONE] COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 command card grid + grid hotkeys (merged PR #313).
-14. [DONE] MINIMAP-INTERACTION-04-VERYHIGHPLUS — minimap camera interaction (MERGED PR #314).
-15. [DONE] SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select, drag-box, control groups (MERGED PR #315).
-16. [DONE] FEEDBACK-ALERTS-06-HIGHPLUS — typed feedback, command errors, idle worker, minimap pings (MERGED PR #316).
-17. [DONE] FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog of war design audit (MERGED PR #317).
-18. [DONE] FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog of war implementation (MERGED PR #318).
-19. [ACTIVE NEXT] AOE4-UX-POLISH-PASS-09-HIGHPLUS — final AoE4-inspired RTS UX polish (DRAFT PR).
+13. [DONE] COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4x3 command card grid + grid hotkeys (merged PR #313).
+14. [DONE] MINIMAP-INTERACTION-04-VERYHIGHPLUS — minimap camera interaction (merged PR #314).
+15. [DONE] SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select, drag-box, control groups (merged PR #315).
+16. [DONE] FEEDBACK-ALERTS-06-HIGHPLUS — typed feedback, command errors, idle worker, minimap pings (merged PR #316).
+17. [DONE] FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog of war design audit (merged PR #317).
+18. [DONE] FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog of war implementation (merged PR #318).
+19. [DONE] AOE4-UX-POLISH-PASS-09-HIGHPLUS — final AoE4-inspired RTS UX polish (merged PR #319).
+20. [DECISION NEEDED] Choose next roadmap focus.
 ```
 
 ---
 
-## Next implementation direction
+## Next roadmap decision
 
-The selected direction is AoE4-inspired UX redesign for the HUD.
+No new large implementation step is active by default.
 
-Denis rejected the current HUD/command panel/minimap direction (PRs #308-#310).
-Those PRs are treated as technical prototypes, not final UX.
-
-The current step is AOE4-UX-POLISH-PASS-09:
+Candidate next directions:
 
 ```text
-AOE4-UX-POLISH-PASS-09-HIGHPLUS
-  Type: implementation PR (DRAFT, not ready for merge).
-  Status: pending GPT review + Denis manual QA.
-  Branch: ux/polish-pass-09
-  Deliverable: polished, cohesive HUD/minimap/fog/selection/feedback UX
-  This is NOT a new feature roadmap — visual/UX hardening pass only.
-  Previous step: FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS (MERGED PR #318).
-  Next likely task after merge: visual QA fixup if Denis finds issues,
-  or close AoE4 UX roadmap slice and move to next roadmap decision.
+- VISUAL-QA-FIXUP if Denis finds manual QA issues after #319.
+- #305 Wasp + Smoky muzzle origin follow-up.
+- Economy / production / progression roadmap.
+- Combat / enemy / AI roadmap.
+- Asset pipeline / turret integration roadmap.
+- Save/load hardening roadmap.
+- New visual roadmap slice: terrain/resources/main menu/civil visuals.
 ```
 
-Previous completed steps:
+Default rule:
 
 ```text
-VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — MERGED (docs/design PR, direction accepted by Denis)
-HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — MERGED via PR #312
-COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — MERGED via PR #313
-MINIMAP-INTERACTION-04-VERYHIGHPLUS — MERGED via PR #314
-SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — MERGED via PR #315
-FEEDBACK-ALERTS-06-HIGHPLUS — MERGED via PR #316
-```
-
-Implementation sequence (completed + active):
-
-```text
-1. VISUAL-AOE4-UX-REDESIGN-ROADMAP-01 — MERGED
-2. HUD-LAYOUT-REBUILD-02-VERYHIGHPLUS — MERGED via PR #312
-3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — MERGED via PR #313
-4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — MERGED via PR #314
-5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — MERGED via PR #315
-6. FEEDBACK-ALERTS-06-HIGHPLUS — MERGED via PR #316
-7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (MERGED via PR #317)
-8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (MERGED via PR #318)
-9. AOE4-UX-POLISH-PASS-09-HIGHPLUS — UX polish (DRAFT PR, current step)
-```
-
-Other future Visual Roadmap slices (not HUD-focused):
-
-```text
-- terrain/industrial map visual pass;
-- resource field visual refresh;
-- main menu visual refresh;
-- civil unit/building visual cleanup.
+Ask Denis to choose the next focus before preparing a High+ / Very High+ task.
+For any new large direction, prefer roadmap -> audit/design -> scoped implementation.
 ```
 
 ---
@@ -294,14 +264,11 @@ Do not start implementation if:
 - task reintroduces offset tuner tables or ENABLE_PILOT_GENERATED_TURRET_COMPOSITION;
 - task rewrites RenderManager/GameScene lifecycle without a concrete bug or accepted audit;
 - task adds new URL debug/test modes instead of using Arena/debug UI;
-- task touches combat, movement, economy, mapgen, pathfinding, save-load, bot/AI during Visual Roadmap work;
+- task touches combat, movement, economy, mapgen, pathfinding, save-load, bot/AI during unrelated Visual Roadmap work;
 - task asks Denis to do local repo context work that can run in GitHub;
 - task turns Codex from read-only local auditor into executor without explicit approval;
-- task continues polishing the current HUD (#308-#310) as final until redesign spec is accepted;
-- task implements HUD integration cleanup (VISUAL-HUD-INTEGRATION-04 is cancelled);
 - task copies AoE4 assets or exact layout;
-- task implements minimap interaction beyond MINIMAP-INTERACTION-04 scope (fog, enemy markers, control groups);
-- task mixes control groups with current 1/2/3 build hotkeys without resolving the conflict;
+- task reassigns 1-9 away from control groups;
 - task merges High+ visual PRs without Denis manual visual approval.
 ```
 
