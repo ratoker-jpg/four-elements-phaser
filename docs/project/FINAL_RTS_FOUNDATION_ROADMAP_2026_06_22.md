@@ -61,23 +61,23 @@ Do not continue any of these closed roadmaps by inertia.
 
 ## 4. Phase overview
 
-| Phase | Name | Focus | Size | PR count |
-|-------|------|-------|------|----------|
-| 0 | Roadmap/Audit only | This document + implementation audit | High | 1 (docs) |
-| 1 | Validation baseline / Red gates | Fix failing tests, qa:smoke, npm audit, command aliases before new implementation | High+ | 1-2 |
-| 2 | Unit factory production foundation | Extend ProducibleUnitType, production code path for combat units | High+ | 1 |
-| 3 | Hull + turret selection UI/model | Factory sub-screen to choose hull and turret | Very High | 1-2 |
-| 4 | Hull upgrade model | Separate hull M0-M3 progression and purchase | High+ | 1 |
-| 5 | Turret/weapon upgrade model | Separate turret M0-M3 progression and purchase | High+ | 1 |
-| 6 | Unit cost, production time, queue and Russian tooltips | Full cost table, queue rules, Russian UI labels | High+ | 1 |
-| 7 | Starting units and early playable loop milestone | 2 harvesters, 1 builder, 1 Wasp+Smoky M0 at game start + playable 5-10 min loop | High+ | 1 |
-| 8 | Balanced mirrored map generation and obstacles/ruins | Symmetric map, richer obstacle types | Very High | 1-2 |
-| 9 | Builder local construction placement | Builder builds near himself, not near HQ | High+ | 1 |
-| 10 | Shadows for units/buildings respecting camera projection | Real projected shadows for all entity types | High | 1 |
-| 11 | Movement feel: animations, start/stop inertia, dust | Tank movement inertia, dust VFX, no idle bobbing | High+ | 1 |
-| 12 | Fullscreen, Russian UI hardening, browser hotkey isolation, control group clarity | F11, Ctrl+1-9 browser safety, group badges | High | 1 |
-| 13 | Final QA, balance draft, save/load compatibility, smoke/e2e scenarios | Integration QA, balance pass, save migration | High+ | 1 |
-| 14 | Handoff gate for future next-roadmap | Closure + next-roadmap candidates | High | 1 (docs) |
+| Phase | Name | Focus | Size | Audit basis | PR count |
+|-------|------|-------|------|-------------|----------|
+| 0 | Roadmap/Audit only | This document + implementation audit | High | PR #322 | 1 (docs) |
+| 1 | Validation baseline / Red gates | Fix failing tests, qa:smoke, npm audit, command aliases before new implementation | High+ | Codex | 1-2 |
+| 2 | Unit factory production foundation | Extend ProducibleUnitType, production code path for combat units | High+ | Opus + PR #322 | 1 |
+| 3 | Hull + turret selection UI/model | Factory sub-screen to choose hull and turret | Very High | Opus + PR #322 | 1-2 |
+| 4 | Hull upgrade model | Separate hull M0-M3 progression and purchase | High+ | Opus + GLM | 1 |
+| 5 | Turret/weapon upgrade model | Separate turret M0-M3 progression and purchase | High+ | Opus + GLM | 1 |
+| 6 | Unit cost, production time, queue and Russian tooltips | Full cost table, queue rules, Russian UI labels | High+ | GLM + Opus | 1 |
+| 7 | Starting units and early playable loop milestone | 2 harvesters, 1 builder, 1 Wasp+Smoky M0 at game start + playable 5-10 min loop | High+ | Opus | 1 |
+| 8 | Balanced mirrored map generation and obstacles/ruins | Symmetric map, richer obstacle types | Very High | Opus + GLM | 1-2 |
+| 9 | Builder local construction placement | Builder builds near himself, not near HQ | High+ | Opus + GLM | 1 |
+| 10 | Shadows for units/buildings respecting camera projection | Real projected shadows for all entity types | High | PR #322 | 1 |
+| 11 | Movement feel: animations, start/stop inertia, dust | Tank movement inertia, dust VFX, no idle bobbing | High+ | Opus + GLM | 1 |
+| 12 | Fullscreen, Russian UI hardening, browser hotkey isolation, control group clarity | F11, Ctrl+1-9 browser safety, group badges | High | GLM + Codex | 1 |
+| 13 | Final QA, balance draft, save/load compatibility, smoke/e2e scenarios | Integration QA, balance pass, save migration | High+ | Codex + GLM | 1 |
+| 14 | Handoff gate for future next-roadmap | Closure + next-roadmap candidates | High | Opus + PR #322 | 1 (docs) |
 
 **Total estimated PRs: 14-17**
 
@@ -986,14 +986,17 @@ The following are NOT in this roadmap and must NOT be pulled into any phase:
 - Добавили Phase 1 (Validation Baseline / Red Gates) — починить падающие тесты и smoke перед новым кодом.
 - Добавили Early Playable Loop Milestone после Phase 7 — игрок проходит 5-10 минутный цикл на M0 юнитах.
 - M0-M3 апгрейды переформулированы: M0 достаточно для первого playable loop, полная балансировка M0-M3 откладывается.
-- Добавили GDD-lite / MVP определение — что это за игра, 10-минутный цикл, критерий приёмки.
+- Добавили GDD-lite / playable-loop acceptance condition — что это за игра, 10-минутный цикл, критерий приёмки (не MVP win/loss).
 - Добавили кандидаты следующего roadmap: Base-defense/pressure loop, Enemy AI strategic, Asset pipeline.
 - Добавили audit synthesis note (Opus = соединить экономику с боем, Codex = зелёный baseline, GLM = GDD/MVP).
 - Добавили явный out-of-scope список.
 - Заменили Risk на Size (High/High+/Very High) во всех фазах.
+- Добавили Audit basis колонку в phase overview — каждая фаза привязана к источнику (Codex/Opus/GLM/PR #322).
+- Выровняли нумерацию фаз в implementation audit с roadmap (Phase 1 = validation baseline).
 
 **Почему поменяли:**
 - Три полных аудита (Opus/Codex/GLM) показали: проект — две несоединённые половины (экономика + Arena-бой), красный npm test, сломанный qa:smoke. Нужен зелёный baseline и первый playable loop до Enemy AI.
+- Audit traceability нужна для GPT ревью: каждая фаза должна быть обоснована конкретным аудитом.
 
 **Что НЕ трогали:**
 - Никакого runtime-кода, ассетов, конфигов, тестов, зависимостей.

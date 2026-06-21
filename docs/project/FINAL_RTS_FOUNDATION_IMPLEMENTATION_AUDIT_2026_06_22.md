@@ -55,7 +55,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 | Harvester | 50 | 10 | 20s |
 | Wasp+Smoky (reserved) | 45 | 10 | 25s |
 
-**What must be built (Phase 1)**:
+**What must be built (Phase 2)**:
 - Extend `ProducibleUnitType` to support combat unit keys (e.g., `{hullId}:{turretId}`).
 - Add `CombatUnitProductionConfig` type.
 - Extend `startUnitProduction()` for combat units.
@@ -86,7 +86,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No dynamic cost computation for hull+turret combinations.
 - No production request model that carries hull+turret selection.
 
-**What must be built (Phase 2)**:
+**What must be built (Phase 3)**:
 - `FactoryProductionPanel` UI with hull column, turret column, cost display, "Produce" button.
 - Production request model with selected hull + turret.
 - Dynamic cost/time computation from hull base cost + turret base cost.
@@ -112,7 +112,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No hull upgrade lifecycle (purchase → timer → complete → stat update).
 - No visual hull upgrade (M-level sprite swap).
 
-**What must be built (Phase 3)**:
+**What must be built (Phase 4)**:
 - `HullUpgradeConfig` with M0-M3 cost, duration, stat deltas per hull.
 - `hullMod` field on `ModularCombatUnit`.
 - Hull upgrade action in command card.
@@ -137,7 +137,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No turret upgrade lifecycle.
 - No visual turret upgrade (M-level sprite swap).
 
-**What must be built (Phase 4)**:
+**What must be built (Phase 5)**:
 - `TurretUpgradeConfig` with M0-M3 cost, duration, stat deltas per turret.
 - `turretMod` field on `ModularCombatUnit` (independent of `hullMod`).
 - Turret upgrade action in command card.
@@ -145,7 +145,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - Visual M-level swap.
 - Russian labels.
 
-**Risk**: Medium. Very similar to Phase 3. If Phase 3 establishes the upgrade lifecycle pattern well, Phase 4 should be straightforward by analogy.
+**Risk**: Medium. Very similar to Phase 4. If Phase 4 establishes the upgrade lifecycle pattern well, Phase 5 should be straightforward by analogy.
 
 ---
 
@@ -164,7 +164,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No upgrade cost tables.
 - No comprehensive Russian tooltips for production/upgrade costs.
 
-**What must be built (Phase 5)**:
+**What must be built (Phase 6)**:
 - `src/config/productionCosts.ts` — complete cost/duration/queue tables.
 - Additive cost computation.
 - Production time formula.
@@ -187,13 +187,13 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No `StartingUnitConfig` type.
 - Starting positions may not be validated against mirrored maps.
 
-**What must be built (Phase 6)**:
+**What must be built (Phase 7)**:
 - `StartingUnitConfig`: 2 harvesters, 1 builder, 1 Wasp+Smoky M0.
 - Spawn logic for starter combat unit using modular vehicle system.
 - Position validation near HQ, collision avoidance between starting units.
-- Early-game loop verification (harvest → build → produce → move).
+- Early playable loop verification (harvest → build → produce → move).
 
-**Dependency note**: Phase 6 does NOT depend on Phase 7 (mirrored maps). Starting units work on the current map generator. Phase 7 will later re-validate positions against mirrored layouts as a follow-up.
+**Dependency note**: Phase 7 does NOT depend on Phase 8 (mirrored maps). Starting units work on the current map generator. Phase 8 will later re-validate positions against mirrored layouts as a follow-up.
 
 **Risk**: Medium. The modular vehicle system already handles combat unit creation. The gap is initialization code and position logic.
 
@@ -219,7 +219,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No obstacle rendering for production maps (only arena blockout rendering).
 - No mirrored resource placement.
 
-**What must be built (Phase 7)**:
+**What must be built (Phase 8)**:
 - Map mirroring: generate half-map, mirror to create symmetric full map.
 - Mirrored resource clusters and starting positions.
 - New obstacle types: rocks, industrial ruins, destroyed structures, walls/debris, tactical blockers.
@@ -248,9 +248,9 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No builder-centric site selection (current logic prefers sites near player buildings, not near the builder).
 - No build mode input handling.
 
-**Denis approval gate**: Phase 8 changes the builder placement model from auto-site-selection (near HQ/existing buildings) to player click-to-place (near builder). This is a significant UX change. Phase 8 implementation must not begin until Denis has explicitly approved the click-to-place interaction model. If Denis prefers to keep auto-placement for now, Phase 8 should be deferred or its scope reduced to builder-proximity validation only (no click-to-place preview).
+**Denis approval gate**: Phase 9 changes the builder placement model from auto-site-selection (near HQ/existing buildings) to player click-to-place (near builder). This is a significant UX change. Phase 9 implementation must not begin until Denis has explicitly approved the click-to-place interaction model. If Denis prefers to keep auto-placement for now, Phase 9 should be deferred or its scope reduced to builder-proximity validation only (no click-to-place preview).
 
-**What must be built (Phase 8)**:
+**What must be built (Phase 9)**:
 - Builder-centric placement model: site validation near builder, not near HQ.
 - Click-to-place preview: projected ground-plane diamond following cursor (using `CAMERA_PROJECTION_CONTRACT.md`).
 - Validity feedback (red preview for invalid placement).
@@ -276,7 +276,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No shadow shape variation (all shadows are identical ellipses).
 - No shadow alpha variation by entity type.
 
-**What must be built (Phase 9)**:
+**What must be built (Phase 10)**:
 - Consistent light direction model (fixed direction, e.g., from NW).
 - Light-direction-based shadow offset (taller entities = longer shadow).
 - Vehicle shadow upgrade: directional offset instead of fixed south.
@@ -305,9 +305,9 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No animation speed correlation with movement speed.
 - No explicit "no idle bobbing" enforcement (current behavior is correct but not tested/locked).
 
-**What must be built (Phase 10)**:
+**What must be built (Phase 11)**:
 - Ensure acceleration/braking curves produce smooth start/stop for all unit types (light hulls accelerate faster, heavy hulls stop slower).
-- Enable tank movement in default game mode (requires Phase 1 for combat unit creation).
+- Enable tank movement in default game mode (requires Phase 2 for combat unit creation).
 - Tank dust VFX when tanks are moving.
 - Animation speed correlation with movement speed.
 - No idle bobbing: verify and enforce that stationary units have no oscillation.
@@ -330,7 +330,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No localStorage persistence of fullscreen preference.
 - No browser fullscreen API integration (`requestFullscreen()` / `exitFullscreen()`).
 
-**What must be built (Phase 11)**:
+**What must be built (Phase 12)**:
 - F11 key binding with `preventDefault()` (browser default is native fullscreen toggle).
 - HUD fullscreen toggle button.
 - `document.documentElement.requestFullscreen()` / `exitFullscreen()` integration.
@@ -358,7 +358,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - Missing strings for fullscreen toggle.
 - Missing strings for control group badges.
 
-**What must be built (Phase 5, Phase 11)**:
+**What must be built (Phase 6, Phase 12)**:
 - Fill all missing Russian tooltip strings for production, upgrade, and factory panel features.
 - Fill missing strings for build mode, fullscreen, control group clarity.
 - Verify Russian text renders correctly at 1280x720 minimum.
@@ -381,7 +381,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No focus management (canvas focus vs browser focus).
 - No `stopPropagation()` for game-captured key combinations.
 
-**What must be built (Phase 11)**:
+**What must be built (Phase 12)**:
 - `event.preventDefault()` and `event.stopPropagation()` for Ctrl+1-9 when canvas is focused.
 - `event.preventDefault()` for F11 when canvas is focused.
 - Focus management: capture keyboard when canvas is focused, release when unfocused.
@@ -405,7 +405,7 @@ Note: Test counts were observed during a prior automated scan and have not been 
 - No group recall highlight (brief flash when group is recalled).
 - No assignment confirmation feedback with group number.
 
-**What must be built (Phase 11)**:
+**What must be built (Phase 12)**:
 - Small group number badge on unit selection indicator.
 - Group membership display in HUD selection panel.
 - Brief highlight when group is recalled (1-9 key).
