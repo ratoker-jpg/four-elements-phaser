@@ -309,7 +309,7 @@ describe('hit detection', () => {
   it('findDirectHitTarget finds nearest target along aim line', () => {
     const attacker = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
     // Place a target to the right
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -323,7 +323,7 @@ describe('hit detection', () => {
   it('findDirectHitTarget returns null if no target in range', () => {
     const attacker = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
     // Place target far away
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 15, 15);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 15, 15, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -333,7 +333,7 @@ describe('hit detection', () => {
 
   it('findSplashTargets damages vehicles in radius', () => {
     const attacker = createBlockoutVehicle('wasp', 'thunder', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const targetCenter = computeBodyWorldCenter(target, TEST_OFFSET);
@@ -344,7 +344,7 @@ describe('hit detection', () => {
 
   it('findSplashTargets ignores vehicles outside radius', () => {
     const attacker = createBlockoutVehicle('wasp', 'thunder', 'cyan', 5, 5);
-    const farTarget = createBlockoutVehicle('hunter', 'smoky', 'green', 15, 15);
+    const farTarget = createBlockoutVehicle('hunter', 'smoky', 'green', 15, 15, undefined, undefined, 'enemy');
     const vehicles = [attacker, farTarget];
 
     const impactX = computeBodyWorldCenter(attacker, TEST_OFFSET).x;
@@ -366,8 +366,8 @@ describe('hit detection', () => {
 
   it('findPenetrationTargets hits multiple vehicles along line', () => {
     const attacker = createBlockoutVehicle('wasp', 'railgun', 'cyan', 5, 5);
-    const target1 = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
-    const target2 = createBlockoutVehicle('viking', 'smoky', 'yellow', 9, 5);
+    const target1 = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
+    const target2 = createBlockoutVehicle('viking', 'smoky', 'yellow', 9, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target1, target2];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -379,7 +379,7 @@ describe('hit detection', () => {
 
   it('findConeTargets finds vehicles inside cone', () => {
     const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -394,8 +394,8 @@ describe('hit detection', () => {
     const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
     // Place a target forward (tile 6,4 is ~76px to the right at same screen Y)
     // and another vehicle behind (tile 4,6 is ~76px to the left at same screen Y)
-    const forward = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 4);
-    const behind = createBlockoutVehicle('viking', 'smoky', 'yellow', 4, 6);
+    const forward = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 4, undefined, undefined, 'enemy');
+    const behind = createBlockoutVehicle('viking', 'smoky', 'yellow', 4, 6, undefined, undefined, 'enemy');
     const vehicles = [attacker, forward, behind];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -409,7 +409,7 @@ describe('hit detection', () => {
 
   it('findBeamTargets finds targets along beam', () => {
     const attacker = createBlockoutVehicle('wasp', 'isida', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -422,8 +422,8 @@ describe('hit detection', () => {
   it('findShotgunTargets can hit multiple vehicles', () => {
     const attacker = createBlockoutVehicle('titan', 'hammer', 'cyan', 5, 5);
     // Place two targets side by side
-    const target1 = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
-    const target2 = createBlockoutVehicle('viking', 'smoky', 'yellow', 7, 4);
+    const target1 = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
+    const target2 = createBlockoutVehicle('viking', 'smoky', 'yellow', 7, 4, undefined, undefined, 'enemy');
     const vehicles = [attacker, target1, target2];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -433,7 +433,7 @@ describe('hit detection', () => {
 
   it('findRicochetTargets can hit target near segment', () => {
     const attacker = createBlockoutVehicle('wasp', 'ricochet', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -591,7 +591,7 @@ describe('applyBlockoutWeaponDamage for each damage kind', () => {
 
   it('smoky (direct) applies damage to target in range', () => {
     const attacker = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -605,7 +605,7 @@ describe('applyBlockoutWeaponDamage for each damage kind', () => {
 
   it('thunder (splash) applies splash damage', () => {
     const attacker = createBlockoutVehicle('mammoth', 'thunder', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -619,7 +619,7 @@ describe('applyBlockoutWeaponDamage for each damage kind', () => {
 
   it('railgun (penetration) damages targets', () => {
     const attacker = createBlockoutVehicle('dictator', 'railgun', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -633,7 +633,7 @@ describe('applyBlockoutWeaponDamage for each damage kind', () => {
 
   it('hammer (shotgun) distributes damage across pellets', () => {
     const attacker = createBlockoutVehicle('titan', 'hammer', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -705,7 +705,7 @@ describe('BLOCKOUT-07H+ fixup: VFX and damage cadence independence', () => {
     // then tickContinuousDamage checked the same field and returned [] because
     // elapsed < tickMs. Now they use separate timestamps.
     const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
 
@@ -733,7 +733,7 @@ describe('BLOCKOUT-07H+ fixup: VFX and damage cadence independence', () => {
 
   it('continuous damage repeats over scene time while fireHeld/isFiring', () => {
     const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0; // ensure cooldown is not a factor
@@ -762,7 +762,7 @@ describe('BLOCKOUT-07H+ fixup: VFX and damage cadence independence', () => {
 
   it('continuous damage stops after stopFiring', () => {
     const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0;
@@ -784,7 +784,7 @@ describe('BLOCKOUT-07H+ fixup: VFX and damage cadence independence', () => {
 
   it('VFX cadence does not block damage cadence', () => {
     const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0;
@@ -809,7 +809,7 @@ describe('BLOCKOUT-07H+ fixup: VFX and damage cadence independence', () => {
 
   it('damage cadence does not block VFX cadence', () => {
     const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5, undefined, undefined, 'enemy');
     startFiring(attacker);
     attacker.lastFiredAt = 0;
     attacker.lastStreamTickAt = 900; // VFX ticked a while ago
@@ -832,7 +832,7 @@ describe('BLOCKOUT-07H+ fixup: VFX and damage cadence independence', () => {
 
   it('single-shot weapons do not enter continuous damage', () => {
     const attacker = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0;
@@ -880,7 +880,7 @@ describe('BLOCKOUT-07H+ fixup: Twins continuous plasma damage', () => {
 
   it('Twins fireHeld/isFiring + tickContinuousDamage applies repeated plasma damage over scene time', () => {
     const attacker = createBlockoutVehicle('wasp', 'twins', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0; // ensure cooldown is not a factor
@@ -913,7 +913,7 @@ describe('BLOCKOUT-07H+ fixup: Twins continuous plasma damage', () => {
 
   it('Twins VFX cadence and damage cadence do not block each other', () => {
     const attacker = createBlockoutVehicle('wasp', 'twins', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0;
@@ -943,7 +943,7 @@ describe('BLOCKOUT-07H+ fixup: Twins continuous plasma damage', () => {
 
   it('Twins continuous damage stops after stopFiring', () => {
     const attacker = createBlockoutVehicle('wasp', 'twins', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0;
@@ -965,7 +965,7 @@ describe('BLOCKOUT-07H+ fixup: Twins continuous plasma damage', () => {
 
   it('flamethrower continuous damage still works after plasma fix', () => {
     const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0;
@@ -981,7 +981,7 @@ describe('BLOCKOUT-07H+ fixup: Twins continuous plasma damage', () => {
 
   it('vulcan continuous damage still works after plasma fix', () => {
     const attacker = createBlockoutVehicle('hunter', 'vulcan', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('wasp', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('wasp', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0;
@@ -997,7 +997,7 @@ describe('BLOCKOUT-07H+ fixup: Twins continuous plasma damage', () => {
 
   it('single-shot weapons do not enter continuous damage (smoky)', () => {
     const attacker = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0;
@@ -1012,7 +1012,7 @@ describe('BLOCKOUT-07H+ fixup: Twins continuous plasma damage', () => {
 
   it('single-shot weapons do not enter continuous damage (railgun)', () => {
     const attacker = createBlockoutVehicle('dictator', 'railgun', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
     startFiring(attacker);
     attacker.lastFiredAt = 0;
