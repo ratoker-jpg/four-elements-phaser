@@ -56,7 +56,7 @@ RTS-FND-P1A — Phase 1 source-of-truth docs + validation baseline status
   Size: High+
   Type: docs/status-focused implementation
   Goal: update source-of-truth docs and capture current validation baseline after PR #322 merge.
-  Status: IN PROGRESS (this PR).
+  Status: IN REVIEW via PR #323; after merge, P1A is DONE and next default step is P1B.
 ```
 
 Phase 1 sub-step sequence:
@@ -98,7 +98,7 @@ P1D — Combat hit-model failures
          Hit detection functions return null/empty when tests expect hits.
          Continuous damage (tickContinuousDamage) also fails.
   Key files: src/__tests__/blockoutDamage.test.ts, src/__tests__/blockoutObstacles.test.ts,
-             src/combat/blockoutDamage.ts (or equivalent)
+             src/state/blockoutDamage.ts
   Non-goals: no combat model rewrite, no new combat features, no architecture refactoring.
 
 P1E — Vite advisory maintenance
@@ -135,7 +135,7 @@ Each sub-step is a separate PR unless Denis approves combining them.
 |---------|--------|---------|---------------|
 | `npm run typecheck` | PASS | tsc --noEmit completed with no errors. | N/A |
 | `npm test` | FAIL (28 tests) | 4 test files: blockoutDamage (19), blockoutObstacles (2), commandRegistry (6), coreEconomyLoop (1). 5225 pass, 28 fail out of 5253 total. | P1B (commandRegistry), P1D (blockoutDamage, blockoutObstacles) |
-| `npm run build` | FAIL (ENOSPC) | TypeScript compilation passes. Vite build fails: ENOSPC — no space left on device. public/assets is 4.7G; disk is 9.9G. Build succeeds in CI/Denis environment with more disk. | Infrastructure / not a code bug |
+| `npm run build` | FAIL (ENOSPC) | TypeScript compilation passes. Vite build fails: ENOSPC — no space left on device. public/assets is 4.7G; disk is 9.9G. Build failure appears environment-related (ENOSPC), but CI/Denis environment must confirm successful build. | Infrastructure / not a code bug |
 | `npm run qa:smoke` | FAIL (ENOSPC) | qa:smoke runs build first, which fails on ENOSPC. Also fails writing _reports directory. Windows spawn('npx') issue cannot be tested in Linux CI. | P1C (Windows fix), Infrastructure (disk) |
 | `npm audit` | FAIL (1 high) | Vite <=6.4.2: launch-editor NTLMv2 disclosure + server.fs.deny bypass on Windows. Fix available via `npm audit fix`. | P1E |
 | `git diff --check` | PASS | No whitespace errors. | N/A |
@@ -145,7 +145,7 @@ Key observations:
 ```text
 - TypeScript type-checking is clean — no type errors.
 - Test failures are concentrated in combat hit-model (19) and command alias contract (7).
-- Build failure is environmental (disk space), not a code defect.
+- Build failure appears environment-related (ENOSPC), but CI/Denis environment must confirm successful build.
 - qa:smoke failure is partially environmental (disk) and partially a Windows-specific bug (spawn npx).
 - npm audit has one actionable high-severity item (Vite).
 ```

@@ -68,8 +68,12 @@ docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/FINAL_RTS_FOUNDATION_ROADMAP_2026_06_22.md
 docs/project/FINAL_RTS_FOUNDATION_IMPLEMENTATION_AUDIT_2026_06_22.md
+docs/project/GPT_WORKFLOW.md
+docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
+docs/project/AI_GRAPHIFY_WORKFLOW.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/GLM_EXECUTOR_RULES.md
+docs/project/GPT_PROJECT_LEAD_INSTRUCTIONS.md
 ```
 
 For visual/world-space/rendering/asset work, also read:

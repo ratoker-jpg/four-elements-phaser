@@ -96,7 +96,7 @@ The following validation failures are known and must be resolved or explicitly a
    These are pre-existing and predated AoE4 UX work.
 ```
 
-Phase 1 red gate rule: **No Phase 2+ implementation PR may be opened until Phase 1 is merged or its failures are explicitly accepted by Denis as known baseline.**
+Phase 1 red gate rule: **No Phase 2+ implementation PR may be opened until Phase 1 is closed via P1F, green, or explicitly accepted by Denis/GPT as known baseline.**
 
 ---
 
