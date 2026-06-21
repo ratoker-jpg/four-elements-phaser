@@ -19,8 +19,8 @@ PR #311 (AoE4 UX redesign roadmap) is merged — direction accepted.
 PR #312 (HUD layout rebuild) is merged — bottom HUD rebuilt.
 Denis rejected the current HUD/command panel/minimap direction visually and UX-wise.
 Direction changed: AoE4-inspired RTS UX redesign replaces the "continue integrating existing HUD" plan.
-Current operational task: FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS (fog of war and vision system implementation — DRAFT PR, pending GPT review + Denis manual QA).
-Previous completed task: FOG-VISION-AUDIT-07-HIGHPLUS-DOCS (MERGED via PR #317 — fog of war and vision system design audit).
+Current operational task: AOE4-UX-POLISH-PASS-09-HIGHPLUS (final AoE4-inspired RTS UX polish — DRAFT PR, pending GPT review + Denis manual QA).
+Previous completed task: FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS (MERGED via PR #318 — fog of war and vision system implementation).
 Number keys 1–9 are now control group recall keys (legacy 1/2/3 build aliases removed).
 S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset (per #313).
 ```
@@ -50,7 +50,8 @@ MINIMAP-INTERACTION-04 merged via PR #314 (click-to-camera, drag-to-pan, pointer
 +
 FEEDBACK-ALERTS-06 merged via PR #316 (typed feedback, command errors, minimap pings)
 FOG-VISION-AUDIT-07 merged via PR #317 (fog of war and vision system design audit)
-FOG-VISION-IMPLEMENTATION-08 in progress (fog of war implementation — DRAFT PR, pending review)
+FOG-VISION-IMPLEMENTATION-08 merged via PR #318 (fog of war and vision system)
+AOE4-UX-POLISH-PASS-09 in progress (final AoE4-inspired RTS UX polish — DRAFT PR)
 ```
 
 Closed / accepted cycles:
@@ -214,7 +215,8 @@ GameScene no longer directly owns most renderer fields.
 15. [DONE] SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select, drag-box, control groups (MERGED PR #315).
 16. [DONE] FEEDBACK-ALERTS-06-HIGHPLUS — typed feedback, command errors, idle worker, minimap pings (MERGED PR #316).
 17. [DONE] FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog of war design audit (MERGED PR #317).
-18. [ACTIVE NEXT] FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog of war implementation (DRAFT PR, pending review).
+18. [DONE] FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog of war implementation (MERGED PR #318).
+19. [ACTIVE NEXT] AOE4-UX-POLISH-PASS-09-HIGHPLUS — final AoE4-inspired RTS UX polish (DRAFT PR).
 ```
 
 ---
@@ -226,16 +228,18 @@ The selected direction is AoE4-inspired UX redesign for the HUD.
 Denis rejected the current HUD/command panel/minimap direction (PRs #308-#310).
 Those PRs are treated as technical prototypes, not final UX.
 
-The current step is FOG-VISION-IMPLEMENTATION-08:
+The current step is AOE4-UX-POLISH-PASS-09:
 
 ```text
-FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS
+AOE4-UX-POLISH-PASS-09-HIGHPLUS
   Type: implementation PR (DRAFT, not ready for merge).
   Status: pending GPT review + Denis manual QA.
-  Branch: fog/vision-implementation-08
-  Deliverable: working fog of war with minimap integration
-  Implementation: one PR with internal checkpoints (no 08A/08B/08C/08D split per Denis decision).
-  Next likely task after merge: AOE4-UX-POLISH-PASS-09-HIGHPLUS or fog fixup if QA finds issues.
+  Branch: ux/polish-pass-09
+  Deliverable: polished, cohesive HUD/minimap/fog/selection/feedback UX
+  This is NOT a new feature roadmap — visual/UX hardening pass only.
+  Previous step: FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS (MERGED PR #318).
+  Next likely task after merge: visual QA fixup if Denis finds issues,
+  or close AoE4 UX roadmap slice and move to next roadmap decision.
 ```
 
 Previous completed steps:
@@ -259,7 +263,8 @@ Implementation sequence (completed + active):
 5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — MERGED via PR #315
 6. FEEDBACK-ALERTS-06-HIGHPLUS — MERGED via PR #316
 7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (MERGED via PR #317)
-8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (DRAFT PR #318, one PR with internal checkpoints)
+8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (MERGED via PR #318)
+9. AOE4-UX-POLISH-PASS-09-HIGHPLUS — UX polish (DRAFT PR, current step)
 ```
 
 Other future Visual Roadmap slices (not HUD-focused):

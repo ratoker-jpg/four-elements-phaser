@@ -611,11 +611,11 @@ export class GameInputController {
     const h = Math.abs(this._dragEndY - this._dragStartY);
 
     // Fill
-    this.selectionRect.fillStyle(0x00ffff, 0.15);
+    this.selectionRect.fillStyle(0x00ffff, 0.2);
     this.selectionRect.fillRect(x, y, w, h);
 
     // Stroke
-    this.selectionRect.lineStyle(1, 0x00ffff, 0.8);
+    this.selectionRect.lineStyle(2, 0x00ffff, 0.8);
     this.selectionRect.strokeRect(x, y, w, h);
   }
 

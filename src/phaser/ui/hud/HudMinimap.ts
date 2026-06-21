@@ -368,7 +368,7 @@ export class HudMinimap {
     const alpha = Math.max(0, Math.min(1, pulse));
 
     ctx.strokeStyle = `rgba(0, 255, 255, ${alpha.toFixed(2)})`;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
     ctx.stroke();
@@ -444,10 +444,10 @@ export class HudMinimap {
         const my = MINIMAP_PADDING + ty * tileH;
 
         if (vis === 'unexplored') {
-          ctx.fillStyle = 'rgba(4, 6, 10, 0.92)';
+          ctx.fillStyle = 'rgba(4, 6, 10, 0.95)';
         } else {
           // explored but not visible
-          ctx.fillStyle = 'rgba(8, 12, 24, 0.5)';
+          ctx.fillStyle = 'rgba(8, 12, 24, 0.55)';
         }
 
         ctx.fillRect(mx, my, Math.ceil(tileW), Math.ceil(tileH));
@@ -462,7 +462,7 @@ export class HudMinimap {
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        background: rgba(4, 6, 10, 0.92);
+        background: rgba(4, 6, 10, 0.95);
         border-right: 1px solid rgba(212, 165, 116, 0.2);
         pointer-events: auto;
         user-select: none;

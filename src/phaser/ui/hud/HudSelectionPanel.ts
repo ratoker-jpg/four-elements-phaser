@@ -154,7 +154,7 @@ export class HudSelectionPanel {
         display: none;
         font-size: 12px;
         font-weight: 700;
-        color: #00ffff;
+        color: #60d0d0;
         background: rgba(0, 255, 255, 0.1);
         padding: 1px 6px;
         border-radius: 3px;

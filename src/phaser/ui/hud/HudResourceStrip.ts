@@ -130,7 +130,7 @@ export class HudResourceStrip {
       </div>
       <div class="hrs-item">
         <span class="hrs-icon hrs-icon-elements">&#9670;</span>
-        <span class="hrs-label">Elem</span>
+        <span class="hrs-label">Elements</span>
         <span class="hrs-value" id="hrs-elements">0/0</span>
       </div>
       <div class="hrs-item">
