@@ -19,8 +19,8 @@ PR #311 (AoE4 UX redesign roadmap) is merged — direction accepted.
 PR #312 (HUD layout rebuild) is merged — bottom HUD rebuilt.
 Denis rejected the current HUD/command panel/minimap direction visually and UX-wise.
 Direction changed: AoE4-inspired RTS UX redesign replaces the "continue integrating existing HUD" plan.
-Current operational task: FEEDBACK-ALERTS-06-HIGHPLUS (typed feedback, command errors, control group feedback, idle worker alert, minimap pings — DRAFT PR, pending GPT review + Denis manual QA).
-Previous completed task: SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS (MERGED via PR #315).
+Current operational task: FOG-VISION-AUDIT-07-HIGHPLUS-DOCS (fog of war and vision system design audit — DRAFT PR, pending GPT review + Denis approval).
+Previous completed task: FEEDBACK-ALERTS-06-HIGHPLUS (MERGED via PR #316 — typed feedback, command errors, control group feedback, idle worker alert, minimap pings).
 Number keys 1–9 are now control group recall keys (legacy 1/2/3 build aliases removed).
 S=Stop, F=Factory, R=Element Storage, HOME=Camera Reset (per #313).
 ```
@@ -48,7 +48,8 @@ COMMAND-CARD-REBUILD-03 merged via PR #313 (S=Stop, F=Factory, R=Storage, HOME=R
 +
 MINIMAP-INTERACTION-04 merged via PR #314 (click-to-camera, drag-to-pan, pointer capture)
 +
-FEEDBACK-ALERTS-06 in progress (typed feedback, command errors, minimap pings)
+FEEDBACK-ALERTS-06 merged via PR #316 (typed feedback, command errors, minimap pings)
+FOG-VISION-AUDIT-07 in progress (fog of war and vision system design audit — docs only)
 ```
 
 Closed / accepted cycles:
@@ -86,6 +87,7 @@ docs/project/VISUAL_ROADMAP.md
 docs/project/VISUAL_SYSTEM_AUDIT.md
 docs/project/CAMERA_PROJECTION_CONTRACT.md
 docs/project/VISUAL_AOE4_UX_REDESIGN_ROADMAP_2026_06_20.md
+docs/project/FOG_VISION_AUDIT_2026_06_21.md
 ```
 
 Render/vehicle baseline references:
@@ -209,7 +211,8 @@ GameScene no longer directly owns most renderer fields.
 13. [DONE] COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4×3 command card grid + grid hotkeys (merged PR #313).
 14. [DONE] MINIMAP-INTERACTION-04-VERYHIGHPLUS — minimap camera interaction (MERGED PR #314).
 15. [DONE] SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select, drag-box, control groups (MERGED PR #315).
-16. [ACTIVE NEXT] FEEDBACK-ALERTS-06-HIGHPLUS — typed feedback, command errors, idle worker, minimap pings (DRAFT PR, pending GPT review + Denis manual QA).
+16. [DONE] FEEDBACK-ALERTS-06-HIGHPLUS — typed feedback, command errors, idle worker, minimap pings (MERGED PR #316).
+17. [ACTIVE NEXT] FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog of war and vision system design audit (DRAFT PR, pending GPT review + Denis approval).
 ```
 
 ---
@@ -221,15 +224,16 @@ The selected direction is AoE4-inspired UX redesign for the HUD.
 Denis rejected the current HUD/command panel/minimap direction (PRs #308-#310).
 Those PRs are treated as technical prototypes, not final UX.
 
-The current step is FEEDBACK-ALERTS-06:
+The current step is FOG-VISION-AUDIT-07:
 
 ```text
-FEEDBACK-ALERTS-06-HIGHPLUS
-  Type: implementation PR (DRAFT).
-  Status: pending GPT review + Denis manual QA.
-  Branch: visual/feedback-alerts-06
-  Features: typed feedback, command errors, control group feedback, idle worker alert, minimap pings.
-  Deferred: fog, enemy markers, edge pan, attack-move, formations.
+FOG-VISION-AUDIT-07-HIGHPLUS-DOCS
+  Type: docs-only PR (DRAFT).
+  Status: pending GPT review + Denis approval.
+  Branch: docs/fog-vision-audit-07
+  Deliverable: docs/project/FOG_VISION_AUDIT_2026_06_21.md
+  Next likely task: FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS (split into 08A–08D per audit).
+  Fog is NOT yet implemented.
 ```
 
 Previous step (still awaiting acceptance):
@@ -249,9 +253,9 @@ After roadmap acceptance, implementation sequence:
 3. COMMAND-CARD-REBUILD-03-VERYHIGHPLUS — 4x3 grid + grid hotkeys
 4. MINIMAP-INTERACTION-04-VERYHIGHPLUS — click-to-camera + larger minimap
 5. SELECTION-CONTROL-GROUPS-05-VERYHIGHPLUS — multi-select + Ctrl+1..9 (MERGED)
-6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts (THIS STEP)
-7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (can parallel with 2-6)
-8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit)
+6. FEEDBACK-ALERTS-06-HIGHPLUS — toast lane + idle worker + alerts (MERGED PR #316)
+7. FOG-VISION-AUDIT-07-HIGHPLUS-DOCS — fog audit (THIS STEP)
+8. FOG-VISION-IMPLEMENTATION-08-VERYHIGHPLUS — fog system (after audit, split into 08A–08D)
 ```
 
 Other future Visual Roadmap slices (not HUD-focused):
