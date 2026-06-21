@@ -5,7 +5,7 @@ import {
 } from '../state/occupancy';
 import { findPath, findPathToAdjacent, type TileCoord } from '../state/pathfinding';
 import type { GameState, MapData, EconomyState } from '../state/types';
-
+import { createInitialVisionState } from '../state/visibility';
 // ─── Test helpers ──────────────────────────────────────────────────
 
 /** Build a minimal GameState for pathfinding tests. */
@@ -55,6 +55,7 @@ function makeTestState(overrides?: {
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
     production: { factories: [] },
+    vision: createInitialVisionState(48, 48),
   };
 }
 

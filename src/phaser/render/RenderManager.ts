@@ -46,6 +46,7 @@ import { BlockoutUpgradeRenderer } from './BlockoutUpgradeRenderer';
 import { BlockoutSandboxHudRenderer } from './BlockoutSandboxHudRenderer';
 import { CameraProjectionDebugRenderer } from './CameraProjectionDebugRenderer';
 import { GeneratedModularVehicleRenderer } from './GeneratedModularVehicleRenderer';
+import { FogRenderer } from './FogRenderer';
 
 import { AssetPreviewTool } from '../dev/AssetPreviewTool';
 import { AssetPreviewPanel } from '../dev/AssetPreviewPanel';
@@ -115,6 +116,7 @@ export class RenderManager {
   blockoutObstacleRenderer: BlockoutObstacleRenderer | null = null;
   blockoutUpgradeRenderer: BlockoutUpgradeRenderer | null = null;
   blockoutSandboxHudRenderer: BlockoutSandboxHudRenderer | null = null;
+  fogRenderer: FogRenderer | null = null;
   cameraProjectionDebugRenderer: CameraProjectionDebugRenderer | null = null;
   generatedModularVehicleRenderer: GeneratedModularVehicleRenderer | null = null;
   modularVehicleDevtoolsPanel: ModularVehicleDevtoolsPanel | null = null;
@@ -171,6 +173,12 @@ export class RenderManager {
 
     // 6. Motion FX renderer
     this.motionFxRenderer = new UnitMotionFxRenderer(this.scene, offset);
+
+    // 6.5 FOG-VISION-08: Fog renderer (between terrain and entities in depth sort)
+    // Only create for normal mode (not Arena — Arena has no fog)
+    if (!opts.arenaCtx.arenaMode) {
+      this.fogRenderer = new FogRenderer(this.scene, offset);
+    }
 
     // 7. Debug overlay renderer (devtools-gated)
     if (devtoolsActive) {
@@ -236,6 +244,7 @@ export class RenderManager {
    * Preserves exact sync order from original GameScene.update().
    */
   syncCivilRenderState(state: GameState, timeNow: number): void {
+    this.fogRenderer?.syncFromState(state);
     this.entityRenderer?.syncFromState(state);
     this.buildingStatusRenderer?.syncFromState(state);
     this.debugOverlayRenderer?.syncFromState(state);
@@ -405,6 +414,13 @@ export class RenderManager {
   }
 
   /**
+   * Get the fog renderer (needed by GameScene for devtools toggle).
+   */
+  getFogRenderer(): FogRenderer | null {
+    return this.fogRenderer;
+  }
+
+  /**
    * Get the terrain renderer bounds (needed by GameScene for camera setup).
    */
   getTerrainBounds(): Phaser.Geom.Rectangle | null {
@@ -442,6 +458,8 @@ export class RenderManager {
   destroy(): void {
     this.motionFxRenderer?.destroy();
     this.motionFxRenderer = null;
+    this.fogRenderer?.destroy();
+    this.fogRenderer = null;
     this.feedbackRenderer?.destroy();
     this.feedbackRenderer = null;
     this.debugOverlayRenderer?.destroy();

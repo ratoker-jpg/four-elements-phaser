@@ -10,6 +10,7 @@
 
 import type { BlockoutObstacleState } from './blockoutObstacleState';
 import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
+import type { VisionState } from './visibility';
 
 // ─── Terrain ────────────────────────────────────────────────────────
 
@@ -472,6 +473,10 @@ export interface GameState {
   // ── ARCH-01F: Production state ────────────────────────────────
   /** Production state for all units-factories. */
   production: ProductionState;
+
+  // ── FOG-VISION-08: Vision/fog state ────────────────────────────
+  /** Vision state for fog of war. Explored grid persists in saves; visible grid is recomputed. */
+  vision: VisionState;
 
   // ── BLOCKOUT-02H: Blockout vehicle state (dev-only, not persisted) ──
   /** Blockout vehicles — only populated in dev/arena mode.

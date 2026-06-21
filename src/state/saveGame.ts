@@ -16,14 +16,15 @@
 
 import type { Faction, GameState } from './types';
 import { ensureBuilderIds } from './createInitialState';
+import { normalizeVisionForLoadedState } from './visibility';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
 /** localStorage key for the save slots array. */
 const SAVE_STORAGE_KEY = 'four-elements-save-slots';
 
-/** Current save format version. */
-const SAVE_VERSION = 1;
+/** Current save format version. FOG-VISION-08: bumped to 2 for vision state. */
+const SAVE_VERSION = 2;
 
 /** Maximum number of save slots. */
 export const MAX_SAVE_SLOTS = 5;
@@ -157,11 +158,12 @@ function writeSlots(slots: SaveSlot[]): boolean {
   return storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(slots));
 }
 
-/** Validate a single slot has the required structure and version. */
+/** Validate a single slot has the required structure. Accepts version 1 and 2. */
 function isValidSlot(slot: unknown): slot is SaveSlot {
   if (typeof slot !== 'object' || slot === null) return false;
   const s = slot as Record<string, unknown>;
-  if (s.version !== SAVE_VERSION) return false;
+  // FOG-VISION-08: Accept both v1 (no vision) and v2 (with vision)
+  if (s.version !== 1 && s.version !== 2) return false;
   if (typeof s.id !== 'string') return false;
   if (typeof s.createdAt !== 'string') return false;
   if (typeof s.updatedAt !== 'string') return false;
@@ -214,13 +216,32 @@ function sanitizeForSave(gameState: GameState): GameState {
   const hasBlockoutVehicles = gameState.blockoutVehicles && gameState.blockoutVehicles.length > 0;
   const hasBlockoutObstacles = gameState.blockoutObstacles && gameState.blockoutObstacles.length > 0;
   
-  if (!hasBlockoutVehicles && !hasBlockoutObstacles) {
-    // No blockout data to strip — return as-is to avoid unnecessary copy
+  // FOG-VISION-08: Strip visible grid from save (recomputed on load).
+  // Only persist explored grid. Create a copy with visible=[] and dirty=true.
+  const hasVision = gameState.vision !== undefined;
+
+  if (!hasBlockoutVehicles && !hasBlockoutObstacles && !hasVision) {
+    // No blockout data or vision to transform — return as-is
     return gameState;
   }
-  // Create a shallow copy with blockoutVehicles and blockoutObstacles omitted
-  const { blockoutVehicles: _bv, blockoutObstacles: _bo, ...rest } = gameState;
-  return rest;
+  
+  // Create a shallow copy with transformations
+  const { blockoutVehicles: _bv, blockoutObstacles: _bo, vision: _vision, ...rest } = gameState;
+  
+  // FOG-VISION-08: Save only explored grid; visible is recomputed on load.
+  // FIXUP-1: Persist revision so it survives save/load round-trip.
+  const visionForSave = gameState.vision ? {
+    explored: gameState.vision.explored,
+    visible: [],  // not saved — recomputed on load via normalizeVisionForLoadedState
+    dirty: true,  // force recompute on load
+    revision: gameState.vision.revision,  // persisted so FogRenderer cache is valid after load
+  } : undefined;
+
+  return {
+    ...rest,
+    ...(hasBlockoutVehicles ? {} : {}),
+    ...(hasVision ? { vision: visionForSave } : {}),
+  } as GameState;
 }
 
 /**
@@ -303,7 +324,7 @@ export function loadGame(slotId: string): LoadResult {
     return { success: false, message: 'Save not found' };
   }
 
-  if (slot.version !== SAVE_VERSION) {
+  if (slot.version !== SAVE_VERSION && slot.version !== 1) {
     return { success: false, message: `Save version ${slot.version} not supported` };
   }
 
@@ -326,6 +347,16 @@ export function loadGame(slotId: string): LoadResult {
   if (gs.mapData?.builders) {
     ensureBuilderIds(gs.mapData);
   }
+
+  // FOG-VISION-08 FIXUP-1: Normalize vision state for all saves (v1 and v2).
+  // Handles: missing vision (v1 migration), empty/malformed visible grid
+  // (sanitizeForSave strips visible=[]), wrong dimensions, missing revision.
+  // Always sets dirty=true so recomputeVisibility runs on first update.
+  gs.vision = normalizeVisionForLoadedState(
+    gs.mapWidth ?? gs.mapData?.width ?? 48,
+    gs.mapHeight ?? gs.mapData?.height ?? 48,
+    gs.vision,
+  );
 
   return { success: true, message: 'Loaded', gameState: gs };
 }

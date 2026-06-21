@@ -24,6 +24,7 @@ import {
 import { resolveResourceRawAmount } from '../config/resourceClassRuntime';
 import { createHarvester } from './updateGameState';
 import { customMap1 } from '../data/maps/customMap1';
+import { createInitialVisionState, recomputeVisibility } from './visibility';
 
 /** Options for createInitialState. */
 export interface CreateInitialStateOptions {
@@ -131,7 +132,7 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
   // ARCH-16B: Derive mapName from mapData or use override
   const mapName = mapNameOverride ?? `Map ${mapData.width}x${mapData.height}`;
 
-  return {
+  const state: GameState = {
     mapId: `map-${faction}-${mapData.width}x${mapData.height}`,
     mapName,
     mapWidth: mapData.width,
@@ -149,7 +150,27 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     hqPosition,
     nextConstructionId: 0,
     production: arenaMode ? { factories: [] } : createInitialProduction(mapData),
+
+    // FOG-VISION-08: Initialize vision state and compute initial visibility
+    vision: createInitialVisionState(mapData.width, mapData.height),
   };
+
+  // FOG-VISION-08: Compute initial visibility from HQ and starting units
+  // Arena mode gets no fog (all tiles explored)
+  if (!arenaMode) {
+    recomputeVisibility(state);
+  } else {
+    // Arena: mark all tiles as explored so there is no fog
+    for (let y = 0; y < mapData.height; y++) {
+      for (let x = 0; x < mapData.width; x++) {
+        state.vision.explored[y][x] = true;
+        state.vision.visible[y][x] = true;
+      }
+    }
+    state.vision.dirty = false;
+  }
+
+  return state;
 }
 
 // ─── PHASER4-LOAD-02: Loaded-save sanitization ─────────────────────

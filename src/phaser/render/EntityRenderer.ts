@@ -26,6 +26,8 @@ import { getHqAssetKey } from '../../assets/buildingAssets';
 import { computeTargetDisplayWidth } from '../../assets/buildingPlacementMeta';
 import { getCivilUnitKey, CIVIL_FACTIONS } from '../../assets/civilUnitAssets';
 import type { ResourceStyle } from '../../state/gameSetup';
+import { getTileVisibility, type VisionState } from '../../state/visibility';
+import { EXPLORED_RESOURCE_ALPHA } from './FogRenderer';
 
 /**
  * EntityRenderer — renders and syncs entities from GameState onto the scene.
@@ -248,7 +250,7 @@ export class EntityRenderer {
   /** Sync all dynamic sprites from the current GameState. */
   syncFromState(state: GameState): void {
     this.syncHarvesters(state.harvesters);
-    this.syncResources(state.resourceNodes);
+    this.syncResources(state.resourceNodes, state.vision);
     this.constructionRenderer.syncFromState(state);
 
     // MODULAR-RUNTIME-03B: Retry clean modular placement while assets are loading.
@@ -333,13 +335,45 @@ export class EntityRenderer {
     }
   }
 
-  private syncResources(resourceNodes: ResourceNodeState[]): void {
+  /**
+   * Sync resource sprites with current state and fog visibility.
+   * FIXUP-2: Resources now respect fog state:
+   * - depleted → hidden (preserved from pre-fog behavior)
+   * - unexplored → hidden
+   * - explored but not visible → visible, dimmed alpha
+   * - visible → visible, full alpha
+   */
+  private syncResources(resourceNodes: ResourceNodeState[], vision: VisionState | undefined): void {
     for (const r of resourceNodes) {
       const img = this.resourceSprites.get(r.id);
       if (!img) continue;
 
-      if (r.depleted && img.visible) {
-        img.setVisible(false);
+      // Depleted resources are always hidden
+      if (r.depleted) {
+        if (img.visible) img.setVisible(false);
+        continue;
+      }
+
+      // No vision state (e.g. Arena) → show normally
+      if (!vision) {
+        if (!img.visible) img.setVisible(true);
+        img.setAlpha(1);
+        continue;
+      }
+
+      const tileVis = getTileVisibility(vision, r.tx, r.ty);
+      switch (tileVis) {
+        case 'unexplored':
+          img.setVisible(false);
+          break;
+        case 'explored':
+          img.setVisible(true);
+          img.setAlpha(EXPLORED_RESOURCE_ALPHA);
+          break;
+        case 'visible':
+          img.setVisible(true);
+          img.setAlpha(1);
+          break;
       }
     }
   }

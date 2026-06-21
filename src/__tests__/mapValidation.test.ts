@@ -20,7 +20,7 @@ import {
 import { buildOccupancyMap } from '../state/occupancy';
 import { createInitialState } from '../state/createInitialState';
 import type { GameState, MapData, EconomyState, ResourceNodeState } from '../state/types';
-
+import { createInitialVisionState } from '../state/visibility';
 // ─── Test helpers ──────────────────────────────────────────────────
 
 /** Build a minimal GameState for validation tests. */
@@ -97,6 +97,7 @@ function makeTestState(overrides?: {
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
     production: { factories: [] },
+    vision: createInitialVisionState(48, 48),
   };
 }
 
@@ -437,6 +438,7 @@ describe('CORE-STEP-03C: validateMap — generated resourceClass validation', ()
       hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
       nextConstructionId: 0,
       production: { factories: [] },
+    vision: createInitialVisionState(48, 48),
     };
   }
 
@@ -521,6 +523,7 @@ describe('CORE-STEP-03C: validateMap — generated resourceClass validation', ()
       hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
       nextConstructionId: 0,
       production: { factories: [] },
+    vision: createInitialVisionState(48, 48),
     };
 
     const result = validateMap(state);

@@ -15,6 +15,7 @@ import { updateGameState } from '../state/updateGameState';
 import { updateConstructionSiteProgress } from '../state/construction';
 import { constructionCompleted } from '../state/feedbackHelpers';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
+import { recomputeVisibility as recomputeVis, getVisionSourceSignature } from '../state/visibility';
 import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '../state/types';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
@@ -691,28 +692,28 @@ export class GameScene extends Phaser.Scene {
 
     // ARENA-01H+: Skip civil game loop in Arena mode (no harvesters, economy, construction)
     if (this.arenaCtx.runCivilLoop) {
-      // 1. Advance game state (harvester civil loop)
+      // FIXUP-2: Stable source signature — covers unit add/remove/movement/reorder/radius changes
+      const prevSig = getVisionSourceSignature(this.gameState);
       updateGameState(this.gameState, delta);
-
-      // 2. Auto-assign idle builders to pending construction sites
       assignIdleBuilders(this.gameState);
-
-      // 3. Advance builder movement (must come before construction progress)
       updateBuilders(this.gameState, delta);
-
-      // 4. Advance construction site progress (only for sites with active builder)
-      // FIXUP-2: Snapshot metadata before iterating (updateConstructionSiteProgress splices completed sites).
-      const siteSnapshots = this.gameState.mapData.constructionSites.map(s => ({ id: s.id, tx: s.tx, ty: s.ty, type: s.type }));
-      for (const snap of siteSnapshots) {
-        const siteId = `site-${snap.id}`;
-        const result = updateConstructionSiteProgress(this.gameState, siteId, delta);
+      const siteSnaps = this.gameState.mapData.constructionSites.map(s => ({ id: s.id, tx: s.tx, ty: s.ty, type: s.type }));
+      for (const snap of siteSnaps) {
+        const result = updateConstructionSiteProgress(this.gameState, `site-${snap.id}`, delta);
         if (result.completed) {
           console.log(`[GameScene] Construction completed: ${result.buildingId}`);
           const fb = constructionCompleted(snap.type);
           this.inputController?.showFeedback(fb.type, fb.message, 'construction-complete', { tx: snap.tx, ty: snap.ty });
         }
       }
+      // FIXUP-2: Mark dirty if source set changed (movement, add/remove, building completion)
+      if (this.gameState.vision) {
+        const newSig = getVisionSourceSignature(this.gameState);
+        if (newSig !== prevSig) this.gameState.vision.dirty = true;
+      }
     }
+
+    if (this.gameState.vision?.dirty) recomputeVis(this.gameState);
 
     // 5. Sync render layer (Stage 4 FIXUP-1: delegated to RenderManager)
     this.renderManager?.syncCivilRenderState(this.gameState, this.time.now);

@@ -8,7 +8,7 @@ import {
 } from '../state/occupancy';
 import { createInitialState } from '../state/createInitialState';
 import type { GameState, MapData, EconomyState } from '../state/types';
-
+import { createInitialVisionState } from '../state/visibility';
 // ─── Test helpers ──────────────────────────────────────────────────
 
 /** Build a minimal GameState with configurable features for targeted tests. */
@@ -104,6 +104,7 @@ function makeTestState(overrides?: {
     hqPosition: { tx: hqTx + 1, ty: hqTy + 1 },
     nextConstructionId: 0,
     production: { factories: [] },
+    vision: createInitialVisionState(48, 48),
   };
 }
 

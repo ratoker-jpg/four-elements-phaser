@@ -17,6 +17,7 @@ import { stripModularCombatFromState } from '../state/createInitialState';
 import { saveGame, loadGame, setSaveStorage, type SaveStorage } from '../state/saveGame';
 import type { GameState } from '../state/types';
 
+import { createInitialVisionState } from '../state/visibility';
 /** Create a minimal GameState for testing. */
 function createTestGameState(): GameState {
   return {
@@ -58,6 +59,7 @@ function createTestGameState(): GameState {
     hqPosition: { tx: 4, ty: 4 },
     nextConstructionId: 0,
     production: { factories: [] },
+    vision: createInitialVisionState(48, 48),
   };
 }
 
