@@ -23,17 +23,22 @@ The old repository `ratoker-jpg/four-elements-next` is donor/reference/specifica
 ## Current operating mode
 
 ```text
-NO CODE WITHOUT ACCEPTED ROADMAP/AUDIT FOR THE DIRECTION.
+RTS FOUNDATION ROADMAP — Phase 1 (Validation Baseline / Red Gates) ACTIVE.
+PR #322 merged. FINAL_RTS_FOUNDATION roadmap accepted.
+Phase 2+ is BLOCKED until Phase 1 is green or explicitly accepted by Denis/GPT.
+NO CODE WITHOUT PHASE 1 GREEN OR DENIS ACCEPTANCE for Phase 2+.
 ```
 
 Current active direction:
 
 ```text
+FINAL_RTS_FOUNDATION roadmap (Phase 1 active)
++
 Graphify-first AI workflow
 +
-repo/docs/source cleanup
+source-of-truth docs aligned to accepted roadmap
 +
-modular vehicle asset runtime integration planning
+accepted modular vehicle runtime / unified vehicle renderer baseline
 ```
 
 The active modular vehicle model is:
@@ -61,10 +66,14 @@ Read these first for project work:
 ```text
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
+docs/project/FINAL_RTS_FOUNDATION_ROADMAP_2026_06_22.md
+docs/project/FINAL_RTS_FOUNDATION_IMPLEMENTATION_AUDIT_2026_06_22.md
 docs/project/GPT_WORKFLOW.md
 docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
 docs/project/AI_GRAPHIFY_WORKFLOW.md
-docs/project/MODULAR_VEHICLE_ASSET_RUNTIME_ROADMAP_2026_06_14.md
+docs/project/CAMERA_PROJECTION_CONTRACT.md
+docs/project/GLM_EXECUTOR_RULES.md
+docs/project/GPT_PROJECT_LEAD_INSTRUCTIONS.md
 ```
 
 For visual/world-space/rendering/asset work, also read:
