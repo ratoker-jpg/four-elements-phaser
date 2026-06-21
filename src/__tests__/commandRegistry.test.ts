@@ -326,12 +326,13 @@ describe('registerMvpCommands', () => {
     commandRegistry.clear();
   });
 
-  it('registers all 11 primary MVP commands + 5 legacy aliases (FIXUP-2)', () => {
+  it('registers all 11 primary MVP commands + 2 legacy aliases (SELECTION-CONTROL-GROUPS-05)', () => {
     registerMvpCommands();
     const cmds = commandRegistry.list();
-    // FIXUP-2: 11 primary commands + 5 legacy aliases = 16 total
-    // (Removed build-units-factory-legacy and unit-stop-legacy)
-    expect(cmds).toHaveLength(16);
+    // SELECTION-CONTROL-GROUPS-05: Removed ONE/TWO/THREE legacy aliases.
+    // Number keys 1-9 are now used for control group recall/assign.
+    // 11 primary commands + 2 legacy aliases (B, P) = 13 total
+    expect(cmds).toHaveLength(13);
   });
 
   it('registers camera-reset with key HOME (FIXUP-1: moved from R to HOME)', () => {
@@ -360,12 +361,14 @@ describe('registerMvpCommands', () => {
     expect(commandRegistry.get('build-power-plant')!.key).toBe('A');
     expect(commandRegistry.get('build-units-factory')!.key).toBe('F');
     expect(commandRegistry.get('unit-stop')!.key).toBe('S');
-    // Legacy aliases
+    // Legacy aliases (SELECTION-CONTROL-GROUPS-05: ONE/TWO/THREE removed for control groups)
     expect(commandRegistry.get('build-separator-legacy')!.key).toBe('B');
     expect(commandRegistry.get('build-power-plant-legacy')!.key).toBe('P');
-    expect(commandRegistry.get('build-raw-storage-legacy')!.key).toBe('ONE');
-    expect(commandRegistry.get('build-matter-storage-legacy')!.key).toBe('TWO');
-    expect(commandRegistry.get('build-element-storage-legacy')!.key).toBe('THREE');
+    // Removed: build-raw-storage-legacy (ONE), build-matter-storage-legacy (TWO),
+    // build-element-storage-legacy (THREE) — number keys are now control groups
+    expect(commandRegistry.get('build-raw-storage-legacy')).toBeUndefined();
+    expect(commandRegistry.get('build-matter-storage-legacy')).toBeUndefined();
+    expect(commandRegistry.get('build-element-storage-legacy')).toBeUndefined();
   });
 
   it('does not register build-energy-plant (visual-ready guard)', () => {
@@ -418,10 +421,10 @@ describe('registerMvpCommands', () => {
   // ─── Idempotency tests (PR #111 fixup — Issue 1) ─────────────
 
   describe('idempotency', () => {
-    it('calling registerMvpCommands() twice keeps exactly 16 commands (FIXUP-2: 11 primary + 5 legacy)', () => {
+    it('calling registerMvpCommands() twice keeps exactly 13 commands (SELECTION-CONTROL-GROUPS-05: 11 primary + 2 legacy)', () => {
       registerMvpCommands();
       registerMvpCommands();
-      expect(commandRegistry.list()).toHaveLength(16);
+      expect(commandRegistry.list()).toHaveLength(13);
     });
 
     it('second call does not create duplicate key conflicts', () => {
@@ -500,14 +503,14 @@ describe('ensureMvpCommandsRegistered', () => {
 
   it('registers MVP commands when registry is empty', () => {
     ensureMvpCommandsRegistered();
-    expect(commandRegistry.list()).toHaveLength(16);
+    expect(commandRegistry.list()).toHaveLength(13);
   });
 
-  it('is idempotent — repeated calls keep exactly 16 commands', () => {
+  it('is idempotent — repeated calls keep exactly 13 commands', () => {
     ensureMvpCommandsRegistered();
     ensureMvpCommandsRegistered();
     ensureMvpCommandsRegistered();
-    expect(commandRegistry.list()).toHaveLength(16);
+    expect(commandRegistry.list()).toHaveLength(13);
   });
 
   it('does not remove existing execute callbacks', () => {
@@ -552,7 +555,7 @@ describe('getMvpCommandHotkey', () => {
     getMvpCommandHotkey('build-separator');
     getMvpCommandHotkey('build-separator');
     getMvpCommandHotkey('produce-builder');
-    expect(commandRegistry.list()).toHaveLength(16);
+    expect(commandRegistry.list()).toHaveLength(13);
   });
 });
 

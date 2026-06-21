@@ -423,7 +423,7 @@ describe('weapon damage blocked by obstacles', () => {
 
   it('direct damage blocked by obstacle between shooter and target', () => {
     const attacker = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -451,7 +451,7 @@ describe('weapon damage blocked by obstacles', () => {
 
   it('direct damage NOT blocked when obstacle is off line', () => {
     const attacker = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -474,7 +474,7 @@ describe('weapon damage blocked by obstacles', () => {
 
   it('penetration blocked by non-pierceable obstacle', () => {
     const attacker = createBlockoutVehicle('dictator', 'railgun', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -500,7 +500,7 @@ describe('weapon damage blocked by obstacles', () => {
 
   it('penetration passes pierceable low barrier', () => {
     const attacker = createBlockoutVehicle('dictator', 'railgun', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -528,7 +528,7 @@ describe('weapon damage blocked by obstacles', () => {
 
   it('cone damage blocked by obstacle between origin and target', () => {
     const attacker = createBlockoutVehicle('wasp', 'flamethrower', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 6, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -554,7 +554,7 @@ describe('weapon damage blocked by obstacles', () => {
 
   it('rapid tick damage blocked by obstacle', () => {
     const attacker = createBlockoutVehicle('titan', 'vulcan', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -579,7 +579,7 @@ describe('weapon damage blocked by obstacles', () => {
 
   it('plasma damage blocked by obstacle', () => {
     const attacker = createBlockoutVehicle('hunter', 'twins', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('viking', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('viking', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);
@@ -604,7 +604,7 @@ describe('weapon damage blocked by obstacles', () => {
 
   it('splash damage with obstacle moves impact point to obstacle', () => {
     const attacker = createBlockoutVehicle('mammoth', 'thunder', 'cyan', 5, 5);
-    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5);
+    const target = createBlockoutVehicle('hunter', 'smoky', 'green', 7, 5, undefined, undefined, 'enemy');
     const vehicles = [attacker, target];
 
     const bodyCenter = computeBodyWorldCenter(attacker, TEST_OFFSET);

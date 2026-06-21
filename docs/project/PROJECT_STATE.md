@@ -10,12 +10,15 @@ Updated: 2026-06-22
 ## Current mode
 
 ```text
-RTS FOUNDATION ROADMAP — Phase 1 (Validation Baseline / Red Gates) ACTIVE.
+RTS FOUNDATION ROADMAP — Phase 1 (Validation Baseline / Red Gates) code red gates resolved.
 
 PR #322 merged. FINAL_RTS_FOUNDATION roadmap accepted as source-of-truth direction.
+PR #323 completed P1A source-of-truth docs.
 Phase 0 (Roadmap/Audit) is CLOSED.
-Phase 1 (Validation Baseline / Red Gates) is ACTIVE.
-Phase 2+ implementation is BLOCKED until Phase 1 is green or explicitly accepted by Denis/GPT.
+Phase 1 code red gates are resolved. Final closure requires PR #324 merged and
+build/smoke confirmed in CI or Denis environment.
+CI confirmed: build-and-deploy PASS, qa-smoke PASS, Graphify PASS (GitHub Actions run 27917869231).
+Phase 2+ implementation is BLOCKED until PR #324 is merged.
 
 Previous completed cycle: AOE4-UX-POLISH-PASS-09-HIGHPLUS (MERGED via PR #319).
 Previous completed docs cycle: FINAL-RTS-FOUNDATION-ROADMAP-AUDIT-01 (MERGED via PR #322).
@@ -65,38 +68,55 @@ Do not continue closed roadmaps by inertia.
 
 ---
 
-## Known red gates (Phase 1)
+## Known red gates (Phase 1) — resolution status
 
-The following validation failures are known and must be resolved or explicitly accepted before Phase 2:
+The following validation issues were identified and their resolution status:
 
 ```text
-1. npm test — 28 failing tests across 4 files:
-   - blockoutDamage.test.ts: 19 failures (hit detection, damage application, continuous fire)
-   - blockoutObstacles.test.ts: 2 failures (damage with obstacles)
-   - commandRegistry.test.ts: 6 failures (legacy alias count mismatch — expects 16, gets 13)
-   - coreEconomyLoop.test.ts: 1 failure (legacy storage alias keys undefined)
+1. npm test — 28 failing tests: RESOLVED
+   - blockoutDamage.test.ts: 19 failures → FIXED
+     Root cause: test vehicles defaulted to team='ally'; isSameTeamAlly filter
+     removed same-team targets from hit detection. Fixed by setting target
+     vehicles to team='enemy'.
+   - blockoutObstacles.test.ts: 2 failures → FIXED
+     Same root cause as blockoutDamage. Fixed by setting target vehicles to team='enemy'.
+   - commandRegistry.test.ts: 6 failures → FIXED
+     Root cause: SELECTION-CONTROL-GROUPS-05 removed ONE/TWO/THREE legacy aliases
+     from source but tests still expected 16 commands (11+5). Updated tests to
+     expect 13 commands (11+2) and assert legacy storage aliases are undefined.
+   - coreEconomyLoop.test.ts: 1 failure → FIXED
+     Same root cause as commandRegistry. Updated test to assert legacy storage
+     aliases are undefined instead of expecting ONE/TWO/THREE keys.
 
-2. qa:smoke — fails: ENOSPC in this environment (public/assets 4.7G fills disk).
-   Windows spawn('npx') ENOENT issue is documented but not testable in Linux CI.
+2. qa:smoke Windows ENOENT: FIXED
+   Root cause: spawn('npx') without shell:true on Windows where npx is npx.cmd.
+   Fixed by adding platform detection: shell:true on Windows (process.platform === 'win32').
+   ENOSPC disk space failure is an environment constraint, not a code bug.
 
-3. npm audit — 1 high-severity Vite advisory (<=6.4.2, Windows fs deny bypass / launch-editor).
-   Fix available via npm audit fix. Requires maintenance PR.
+3. npm audit — Vite advisory: RESOLVED
+   Vite upgraded from 6.4.2 to 6.4.3 (patch version). npm audit now reports 0 vulnerabilities.
 
-4. command alias contract — commandRegistry source registers 13 MVP commands,
-   but tests expect 16 (11 primary + 5 legacy aliases).
-   Legacy storage build aliases (build-raw-storage-legacy, build-matter-storage-legacy,
-   build-element-storage-legacy) appear to have been removed from source but not from tests.
-   Decision needed: restore aliases in source or update tests.
+4. command alias contract: RESOLVED
+   Decision: do NOT restore ONE/TWO/THREE legacy aliases. Number keys 1-9 are
+   reserved for control groups (SELECTION-CONTROL-GROUPS-05). Tests aligned to source.
 
-5. combat hit-model failures — 19/28 test failures are in blockoutDamage.
-   Hit detection (findDirectHitTarget, findSplashTargets, findPenetrationTargets,
-   findConeTargets, findBeamTargets, findShotgunTargets, findRicochetTargets)
-   returns null/empty when tests expect hits.
-   Continuous damage (tickContinuousDamage) also fails.
-   These are pre-existing and predated AoE4 UX work.
+5. combat hit-model: RESOLVED
+   No combat system bug. Hit detection is correct — tests were using same-team
+   vehicles which isSameTeamAlly correctly filters out. After fixing team assignments,
+   all 70 blockoutDamage tests and 51 blockoutObstacles tests pass.
 ```
 
-Phase 1 red gate rule: **No Phase 2+ implementation PR may be opened until Phase 1 is closed via P1F, green, or explicitly accepted by Denis/GPT as known baseline.**
+Remaining environment constraint (not a code red gate):
+
+```text
+- npm run build fails with ENOSPC in GLM/Codex local environment (public/assets 4.7G on 9.9G disk).
+  This is a local disk constraint only. CI confirms build passes:
+  - build-and-deploy: PASS (GitHub Actions run 27917869231)
+  - qa-smoke: PASS (GitHub Actions run 27917869192)
+  - Graphify: PASS (GitHub Actions run 27917869212)
+```
+
+Phase 1 red gate rule: **No Phase 2+ implementation PR may be opened until PR #324 is merged. Code red gates are resolved. Build/smoke confirmed green in CI.**
 
 ---
 

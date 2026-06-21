@@ -405,18 +405,18 @@ describe('CORE-STEP-04H-FIXUP: build hotkeys and visual-ready guard', () => {
     expect(commandRegistry.get('build-element-storage')).toBeDefined();
   });
 
-  it('storage build commands have correct primary grid keys (FIXUP-2: W, E, R)', () => {
+  it('storage build commands have correct primary grid keys (SELECTION-CONTROL-GROUPS-05: W, E, R)', () => {
     commandRegistry.clear();
     registerMvpCommands();
-    // FIXUP-2: Primary grid keys are W/E/R, not ONE/TWO/THREE
-    // ONE/TWO/THREE are legacy aliases
+    // SELECTION-CONTROL-GROUPS-05: Primary grid keys are W/E/R
+    // ONE/TWO/THREE legacy aliases removed — number keys are now control groups
     expect(commandRegistry.get('build-raw-storage')!.key).toBe('W');
     expect(commandRegistry.get('build-matter-storage')!.key).toBe('E');
     expect(commandRegistry.get('build-element-storage')!.key).toBe('R');
-    // Legacy aliases still exist
-    expect(commandRegistry.get('build-raw-storage-legacy')!.key).toBe('ONE');
-    expect(commandRegistry.get('build-matter-storage-legacy')!.key).toBe('TWO');
-    expect(commandRegistry.get('build-element-storage-legacy')!.key).toBe('THREE');
+    // Removed legacy aliases (ONE/TWO/THREE → control groups)
+    expect(commandRegistry.get('build-raw-storage-legacy')).toBeUndefined();
+    expect(commandRegistry.get('build-matter-storage-legacy')).toBeUndefined();
+    expect(commandRegistry.get('build-element-storage-legacy')).toBeUndefined();
   });
 
   it('build-energy-plant command is NOT registered (visual-ready guard)', () => {

@@ -300,9 +300,12 @@ async function main() {
   let previewProcess;
   try {
     const { spawn } = await import('node:child_process');
+    // P1C: Use shell:true on Windows where npx is npx.cmd and won't resolve without a shell.
+    const isWin = process.platform === 'win32';
     previewProcess = spawn('npx', ['vite', 'preview', '--port', String(PREVIEW_PORT), '--strictPort'], {
       cwd: PROJECT_ROOT,
       stdio: 'pipe',
+      shell: isWin,
     });
 
     // Wait for server to be ready
