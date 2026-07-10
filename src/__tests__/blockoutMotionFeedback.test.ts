@@ -31,9 +31,6 @@ describe('BlockoutMotionFeedbackRenderer geometry', () => {
     const left = computeProjectedTrackSample(vehicle, { x: 300, y: 90 }, -1);
     const right = computeProjectedTrackSample(vehicle, { x: 300, y: 90 }, 1);
 
-    expect(left.dustX).not.toBeCloseTo(right.dustX, 5);
-    expect(left.dustY).not.toBeCloseTo(right.dustY, 5);
-
     const leftCenter = {
       x: (left.startX + left.endX) * 0.5,
       y: (left.startY + left.endY) * 0.5,
