@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: skirmish-p1-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   apply-and-validate:
     if: >-
@@ -21,6 +25,18 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            .github
+            src
+            tools
+            docs/project
+            public/assets/vfx_donor
+            AGENTS.md
+            package.json
+            package-lock.json
+            tsconfig.json
+            vite.config.ts
           persist-credentials: true
 
       - name: Skip completed bootstrap
