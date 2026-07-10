@@ -1,0 +1,79 @@
+name: SKIRMISH P2B Bootstrap
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: skirmish-p2b-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-validate:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/skirmish-p2b-combat-damage'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/skirmish-p2b-combat-damage
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            .github
+            src
+            tools
+            docs/project
+            AGENTS.md
+            package.json
+            package-lock.json
+            tsconfig.json
+            vite.config.ts
+          persist-credentials: true
+      - id: guard
+        run: |
+          if [ -f tools/apply_skirmish_p2b.py ]; then echo "apply=true" >> "$GITHUB_OUTPUT"; else echo "apply=false" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.guard.outputs.apply == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply implementation patch
+        if: steps.guard.outputs.apply == 'true'
+        run: python3 tools/apply_skirmish_p2b.py
+      - if: steps.guard.outputs.apply == 'true'
+        run: npm ci
+      - if: steps.guard.outputs.apply == 'true'
+        run: npm run sync:project-status -- --check
+      - if: steps.guard.outputs.apply == 'true'
+        run: npm run typecheck
+      - name: Focused combat suite
+        if: steps.guard.outputs.apply == 'true'
+        run: >-
+          npx vitest run
+          src/__tests__/combatUnitCombat.test.ts
+          src/__tests__/combatUnitMovement.test.ts
+          src/__tests__/combatUnits.test.ts
+          src/__tests__/commandRouter.test.ts
+          src/__tests__/unitCommands.test.ts
+          src/__tests__/saveGame.test.ts
+          src/__tests__/renderManager.test.ts
+      - if: steps.guard.outputs.apply == 'true'
+        run: npm audit --audit-level=high
+      - name: Commit implementation
+        if: steps.guard.outputs.apply == 'true'
+        run: |
+          rm tools/apply_skirmish_p2b.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tools/apply_skirmish_p2b.py
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "feat(combat): add Normal Game targeting and damage runtime"
+          git push origin agent/skirmish-p2b-combat-damage
