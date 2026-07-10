@@ -17,7 +17,7 @@ Updated: 2026-07-10
 ```text
 RTS FOUNDATION — Phase 3: Hull + turret selection UI/model
 Status: READY_FOR_DESIGN
-Last merged: PR #325 — Canonical multi-unit combat production foundation
+Last merged: PR #329 — Production, save/load and unit-cap lifecycle
 Next: Define and accept the minimal Units Factory hull/turret selection panel and its production request flow before implementation.
 Gate: Do not start Phase 3 implementation until the factory panel interaction model is accepted. Do not begin Enemy AI.
 ```
@@ -27,7 +27,7 @@ Gate: Do not start Phase 3 implementation until the factory panel interaction mo
 
 - Phase 0 roadmap/audit: closed via PR #322.
 - Phase 1 validation baseline: closed via PR #324.
-- Phase 2 canonical multi-unit combat production: closed via PR #325.
+- Phase 2 canonical multi-unit combat production: closed via PR #329.
 - Produced combat units use `GameState.combatUnits` as canonical state.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -37,7 +37,7 @@ Gate: Do not start Phase 3 implementation until the factory panel interaction mo
 | Check | Result |
 |---|---|
 | TypeScript | PASS |
-| Tests | PASS (5254 tests / 108 files) |
+| Tests | PASS (5261 tests / 110 files) |
 | Build | PASS (GitHub Validation) |
 | QA smoke | PASS (GitHub QA Smoke) |
 | Dependency audit | PASS (0 high-severity vulnerabilities) |
@@ -54,6 +54,8 @@ Automated checks do not replace visual acceptance for produced-unit rendering an
 ## Active follow-ups
 
 - Issue #305: calibrate Smoky muzzle origin on Wasp hull only.
+- Issue #330: complete manual visual QA for produced combat units in Normal mode.
+- Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.
 
 ## Current source-of-truth documents
 
