@@ -52,6 +52,12 @@ if phase2_lines not in generator:
         raise SystemExit("project-state Phase 1 anchor not found")
     generator = generator.replace(phase1_anchor, f"{phase1_anchor}\n{phase2_lines}", 1)
 
+generator = generator.replace(
+    "Status: generated active operational state  \nProject: ${status.project}  \nRepo: \\`${status.repository}\\`  \nUpdated: ${status.updated}",
+    "Status: generated active operational state\nProject: ${status.project}\nRepo: \\`${status.repository}\\`\nUpdated: ${status.updated}",
+    1,
+)
+
 start_marker = "function renderCurrentNext() {"
 end_marker = "\n}\n\nconst agentsCurrent"
 start = generator.index(start_marker)
@@ -59,8 +65,8 @@ end = generator.index(end_marker, start) + 2
 new_function = r'''function renderCurrentNext() {
   return `# CURRENT_NEXT_STEP.md
 
-Status: ${status.phaseCode} — ${status.phaseName}  
-Project: ${status.project}  
+Status: ${status.phaseCode} — ${status.phaseName}
+Project: ${status.project}
 Updated: ${status.updated}
 
 > Generated from \`docs/project/project-status.json\`. Run \`npm run sync:project-status\` after changing status.
