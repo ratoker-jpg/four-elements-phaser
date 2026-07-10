@@ -71,11 +71,25 @@ jobs:
         run: npm run sync:project-status -- --check
 
       - name: Typecheck
+        id: typecheck
         if: steps.guard.outputs.apply == 'true'
-        run: npm run typecheck
+        continue-on-error: true
+        run: npm run typecheck 2>&1 | tee typecheck.log
+
+      - name: Upload typecheck log
+        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skirmish-p2a-typecheck
+          path: typecheck.log
+          if-no-files-found: error
+
+      - name: Preserve typecheck failure
+        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'failure'
+        run: exit 1
 
       - name: Focused combat movement suite
-        if: steps.guard.outputs.apply == 'true'
+        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
         run: >-
           npx vitest run
           src/__tests__/combatUnitMovement.test.ts
@@ -88,11 +102,11 @@ jobs:
           src/__tests__/saveGame.test.ts
 
       - name: Dependency audit
-        if: steps.guard.outputs.apply == 'true'
+        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
         run: npm audit --audit-level=high
 
       - name: Commit implementation
-        if: steps.guard.outputs.apply == 'true'
+        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
         run: |
           rm tools/apply_skirmish_p2a.py
           git config user.name "github-actions[bot]"
