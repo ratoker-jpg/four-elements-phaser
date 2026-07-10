@@ -25,6 +25,18 @@ jobs:
         with:
           ref: feat/tank-motion-feedback
           fetch-depth: 0
+          sparse-checkout: |
+            .github
+            AGENTS.md
+            docs/project
+            src
+            tools
+            public/assets/vfx
+            package.json
+            package-lock.json
+            tsconfig.json
+            vite.config.ts
+            index.html
 
       - name: Apply deterministic renderer patch
         run: |
