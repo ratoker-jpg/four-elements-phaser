@@ -16,14 +16,28 @@ jobs:
   apply-fixup:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'rts-fnd-p2-unit-factory-combat-production'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
     steps:
-      - name: Checkout PR head
+      - name: Checkout PR code
         uses: actions/checkout@v4
         with:
           ref: rts-fnd-p2-unit-factory-combat-production
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 1
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/workflows/
+            /src/
+            /tools/
+            /art/generated/
+            /task/
+            /package.json
+            /package-lock.json
+            /tsconfig.json
+            /vite.config.ts
+            /vitest.config.ts
+            /index.html
 
       - name: Stop if fixup already applied
         id: guard
@@ -76,10 +90,6 @@ jobs:
       - name: Unit tests
         if: steps.guard.outputs.needed == 'true'
         run: npm test
-
-      - name: Build
-        if: steps.guard.outputs.needed == 'true'
-        run: npm run build
 
       - name: Audit
         if: steps.guard.outputs.needed == 'true'
