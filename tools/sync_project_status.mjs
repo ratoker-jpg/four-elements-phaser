@@ -109,6 +109,9 @@ ${renderStatusBlock()}
 - Skirmish Phase 1 bounded destruction lifecycle closed via PR #339.
 - Skirmish Phase 2A canonical movement, selection, occupancy and fog runtime closed via PR #341.
 - Skirmish Phase 2B targeting, turret aiming, firing, damage and bounded wreck cleanup closed via PR #342.
+- Skirmish Phase 3A config-driven T1 catalog and structured production closed via PR #344.
+- Skirmish Phase 3B selectable factory composer in the active HUD closed via PR #345.
+- Skirmish Phase 3C two-layer generated modular preview closed via PR #346.
 - Produced combat units use \`GameState.combatUnits\` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -183,29 +186,35 @@ ${renderStatusBlock()}
 
 ## Default next work
 
-1. Audit the complete structured production path from factory UI to queue item and spawned \`ModularCombatUnit\`:
-   - \`UnitProductionRequest\` and legacy \`ProducibleUnitType\` compatibility;
-   - component cost and time configuration;
-   - queue serialization and cancellation;
-   - spawn placement and deterministic IDs;
-   - modular renderer inputs.
-2. Define one config-driven T1 component catalog for Wasp, Hunter, Smoky and Railgun. Do not scatter matter, element or time constants across UI and production code.
-3. Implement pure additive composition helpers:
-   - unit matter cost = hull matter + turret matter;
-   - unit element cost = hull element units + turret element units;
-   - production time = max(hull time, turret time) + assembly offset;
-   - legal combinations are Wasp/Hunter × Smoky/Railgun only.
-4. Replace the fixed Wasp + Smoky production action with independent hull and turret selection while keeping Builder and Harvester available.
-5. Add a modular preview derived from the selected body, weapon and modification fields. Do not create combined hull × turret sprites.
-6. Show the selected combination, additive cost, production time and queue progress in Russian. Rejections must clearly explain missing factory, resources, capacity or invalid selection.
-7. Preserve structured requests through queueing, save/load and spawn. Migrate old \`wasp-smoky\` queue items to the canonical request.
-8. Add focused tests for all four combinations, calculation, queue persistence, cancellation/refund behavior and renderer inputs.
+1. Audit every global single-team assumption before changing behavior:
+   - top-level \`playerFaction\`, \`economy\`, \`vision\`, \`hqPosition\` and \`production\`;
+   - ownership of HQ, buildings, construction sites, Builders, Harvesters and combat units;
+   - save/load, summaries, unit-cap selectors, fog and production mutation paths.
+2. Define canonical pure data contracts:
+   - \`TeamController = human | ai\`;
+   - independent AI difficulty per enemy team;
+   - \`TeamState\` with faction, economy, unit cap, tech tier, vision, HQ reference, controller and elimination state;
+   - \`MatchState\` with four stable team IDs, player team ID and match clock/state.
+3. Add explicit ownership fields to structures and civil/combat units. Ownership must use stable team IDs or a single accepted faction-derived key, not implicit \`playerFaction\` checks.
+4. Create a deterministic migration from the current single-team \`GameState\`:
+   - preserve the current player economy, entities, queues and vision in the human team;
+   - create the other three team records without inventing map entities yet;
+   - keep temporary compatibility selectors for existing single-team systems while Phase 4 is split across PRs.
+5. Move resource, cap, tech and vision selectors behind owner-aware helpers. New code must never mutate another team through a top-level global reference.
+6. Bump and migrate the save schema only when the canonical data contract is stable. Old saves must load into the same deterministic human team.
+7. Add invariants and tests:
+   - exactly four unique factions and team IDs;
+   - exactly one human team;
+   - independent economy and vision objects;
+   - owner references resolve;
+   - mutation/production for one team leaves all other teams byte-equivalent.
+8. Keep this first slice data-focused. Rendering four bases, mirrored map generation, civil AI and strategic AI belong to later phases.
 
 ## Acceptance gate
 
 ${status.gate}
 
-Split the phase into reviewable slices if needed: first establish component configuration and pure production calculation, then wire the factory composer, preview and queue presentation.
+Prefer reviewable slices: P4A establishes contracts and migration; P4B routes economy/production/ownership selectors; P4C removes obsolete global assumptions after all call sites are owner-aware.
 
 ## Required validation for implementation PRs
 
@@ -225,13 +234,13 @@ ${listLines(status.manualQa)}
 
 ## Not next by default
 
-- Multi-team economy, mirrored map generation or strategic AI before their roadmap phases.
-- Headquarters damage, victory/defeat flow or elimination cleanup.
-- Full M0–M3 XP progression and upgrade purchase flow.
-- T2/T3 content or additional hulls and turrets beyond the accepted T1 roster.
-- Broad renderer, HUD or GameScene rewrite unrelated to the composer.
-- Full modular asset preload or a combined hull × turret sprite matrix.
-- Unrelated fix for issue #305 inside ${status.phaseCode}.
+- Symmetric four-corner map generation; that is Phase 5.
+- Running four civil economies and replacement AI; that is Phase 6.
+- Builder-local site search; that is Phase 7.
+- Strategic AI, squads, victory/defeat or XP progression.
+- Removing all compatibility fields in the first data-model PR.
+- Broad renderer or HUD rewrites unrelated to team ownership.
+- Unrelated issue #305 work inside ${status.phaseCode}.
 `;
 }
 

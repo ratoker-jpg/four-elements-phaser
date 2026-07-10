@@ -15,11 +15,11 @@ Updated: 2026-07-10
 Updated: 2026-07-10
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 3: T1 factory composer
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 4: Multi-team match state
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #342 — Normal Game targeting, firing and damage runtime
-Next: Implement a config-driven T1 factory composer that independently selects Wasp or Hunter and Smoky or Railgun, calculates additive cost and production time, previews the modular tank and queues a structured production request.
-Gate: All four legal T1 hull/turret combinations must be produced through structured requests, preserve separate hull and turret fields, render correctly and remain backward-compatible with Builder, Harvester and legacy Wasp + Smoky queue items.
+Last merged: PR #346 — Two-layer modular preview for the factory composer
+Next: Introduce canonical TeamState and MatchState data with four factions, independent economy, unit cap, tech tier, vision, controller and ownership fields, then migrate the existing single-team state and saves without cross-team resource mutation.
+Gate: Four teams must coexist in one canonical match state with independent resources, ownership and vision; mutating or producing for one team must not change another team, and existing single-team saves must migrate deterministically.
 ```
 <!-- PROJECT_STATUS:END -->
 
@@ -32,6 +32,9 @@ Gate: All four legal T1 hull/turret combinations must be produced through struct
 - Skirmish Phase 1 bounded destruction lifecycle closed via PR #339.
 - Skirmish Phase 2A canonical movement, selection, occupancy and fog runtime closed via PR #341.
 - Skirmish Phase 2B targeting, turret aiming, firing, damage and bounded wreck cleanup closed via PR #342.
+- Skirmish Phase 3A config-driven T1 catalog and structured production closed via PR #344.
+- Skirmish Phase 3B selectable factory composer in the active HUD closed via PR #345.
+- Skirmish Phase 3C two-layer generated modular preview closed via PR #346.
 - Produced combat units use `GameState.combatUnits` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -49,9 +52,10 @@ Gate: All four legal T1 hull/turret combinations must be produced through struct
 
 ## Manual QA still required
 
-- Produce two combat units in Normal Game, issue movement and attack commands and confirm they can fight, take damage and be removed after destruction.
-- Confirm Smoky fires on cooldown and Railgun waits for its wind-up before damage is applied.
-- Save and reload produced combat units during movement and combat; confirm ownership, HP, target and cooldown state remain coherent.
+- Select a completed units-factory and verify Wasp/Hunter and Smoky/Railgun can be selected independently in the active HUD.
+- Confirm all four T1 combinations show the correct Russian quote, production time and two-layer modular preview.
+- Queue and cancel combat, Builder and Harvester orders at the selected factory; verify progress and resources remain coherent.
+- Produce two combat units, fight, save and reload; confirm movement, HP, target and cooldown state remain coherent.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
 Automated checks do not replace visual acceptance for produced-unit rendering, destruction effects and save/load behavior.
@@ -62,7 +66,7 @@ Automated checks do not replace visual acceptance for produced-unit rendering, d
 - Issue #330: complete manual visual QA for produced combat units in Normal mode.
 - Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.
 - Issue #335: visually accept the donor VFX overlay, projected tracks and bounded dust.
-- Implement SKIRMISH-P3: config-driven T1 hull/turret composer, modular preview, structured queue display and all four legal combinations.
+- Implement SKIRMISH-P4A: canonical TeamState/MatchState, ownership fields, single-team migration and independent-team invariants.
 
 ## Current source-of-truth documents
 
