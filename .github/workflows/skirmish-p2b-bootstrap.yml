@@ -51,10 +51,23 @@ jobs:
         run: npm ci
       - if: steps.guard.outputs.apply == 'true'
         run: npm run sync:project-status -- --check
-      - if: steps.guard.outputs.apply == 'true'
-        run: npm run typecheck
-      - name: Focused combat suite
+      - id: typecheck
         if: steps.guard.outputs.apply == 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee p2b-typecheck.log
+      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skirmish-p2b-typecheck
+          path: p2b-typecheck.log
+          if-no-files-found: error
+      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'failure'
+        run: exit 1
+      - name: Focused combat suite
+        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
         run: >-
           npx vitest run
           src/__tests__/combatUnitCombat.test.ts
@@ -64,10 +77,10 @@ jobs:
           src/__tests__/unitCommands.test.ts
           src/__tests__/saveGame.test.ts
           src/__tests__/renderManager.test.ts
-      - if: steps.guard.outputs.apply == 'true'
+      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
         run: npm audit --audit-level=high
       - name: Commit implementation
-        if: steps.guard.outputs.apply == 'true'
+        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
         run: |
           rm tools/apply_skirmish_p2b.py
           git config user.name "github-actions[bot]"
