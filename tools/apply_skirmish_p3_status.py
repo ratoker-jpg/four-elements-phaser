@@ -44,11 +44,13 @@ status.update({
 STATUS_PATH.write_text(json.dumps(status, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 generator = GENERATOR_PATH.read_text(encoding="utf-8")
-old_baseline = """- Skirmish Phase 1 bounded destruction lifecycle closed via PR #339.\n- Produced combat units use `GameState.combatUnits` as canonical state; render data is derived."""
-new_baseline = """- Skirmish Phase 1 bounded destruction lifecycle closed via PR #339.\n- Skirmish Phase 2A canonical movement, selection, occupancy and fog runtime closed via PR #341.\n- Skirmish Phase 2B targeting, turret aiming, firing, damage and bounded wreck cleanup closed via PR #342.\n- Produced combat units use `GameState.combatUnits` as canonical state; render data is derived."""
-if old_baseline not in generator and new_baseline not in generator:
-    raise SystemExit("project-state baseline marker not found")
-generator = generator.replace(old_baseline, new_baseline, 1)
+phase1_anchor = "- Skirmish Phase 1 bounded destruction lifecycle closed via PR #339."
+phase2_lines = """- Skirmish Phase 2A canonical movement, selection, occupancy and fog runtime closed via PR #341.
+- Skirmish Phase 2B targeting, turret aiming, firing, damage and bounded wreck cleanup closed via PR #342."""
+if phase2_lines not in generator:
+    if phase1_anchor not in generator:
+        raise SystemExit("project-state Phase 1 anchor not found")
+    generator = generator.replace(phase1_anchor, f"{phase1_anchor}\n{phase2_lines}", 1)
 
 start_marker = "function renderCurrentNext() {"
 end_marker = "\n}\n\nconst agentsCurrent"
