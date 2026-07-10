@@ -15,4 +15,4 @@ This directory intentionally excludes:
 - Godot materials, scenes and generated import files;
 - unused textures from the donor's larger runtime asset set.
 
-The files are copied without re-encoding from the donor repository. `npm run validate:vfx-alpha` verifies that the imported PNGs retain transparent corners and do not render as opaque square cards.
+The selected PNG files are copied byte-for-byte without re-encoding. `npm run validate:vfx-alpha` verifies that the imported files retain transparent corners and do not render as opaque square cards.
