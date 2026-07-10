@@ -12,6 +12,7 @@ import type { BlockoutObstacleState } from './blockoutObstacleState';
 import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
 import type { BodyId, WeaponId } from '../config/blockoutProfiles';
 import type { VisionState } from './visibility';
+import { T1_ASSEMBLY_OFFSET_MS, T1_BODY_COMPONENTS, T1_WEAPON_COMPONENTS } from '../config/t1ProductionComponents';
 
 // ─── Terrain ────────────────────────────────────────────────────────
 
@@ -376,26 +377,29 @@ export const HARVESTER_PRODUCTION_ELEMENT_COST = 10;
 /** Harvester production duration in milliseconds. */
 export const HARVESTER_PRODUCTION_DURATION_MS = 20000;
 
-// ─── Reserved Modular Combat Constants (ARCH-01F, not implemented) ──────
+// ─── Legacy modular production aliases ────────────────────────────────
 
-/** Wasp chassis matter cost (reserved for future modular combat). */
-export const WASP_CHASSIS_MATTER_COST = 20;
-/** Wasp chassis element cost in elementUnits (reserved for future modular combat). */
-export const WASP_CHASSIS_ELEMENT_COST = 5;
-/** Wasp chassis production duration in milliseconds (reserved for future modular combat). */
-export const WASP_CHASSIS_PRODUCTION_DURATION_MS = 7000;
-/** Smoky weapon matter cost (reserved for future modular combat). */
-export const SMOKY_WEAPON_MATTER_COST = 25;
-/** Smoky weapon element cost in elementUnits (reserved for future modular combat). */
-export const SMOKY_WEAPON_ELEMENT_COST = 5;
-/** Smoky weapon production duration in milliseconds (reserved for future modular combat). */
-export const SMOKY_WEAPON_PRODUCTION_DURATION_MS = 18000;
-/** Total wasp+smoky unit matter cost (reserved for future modular combat). */
-export const WASP_SMOKY_TOTAL_MATTER_COST = 45;
-/** Total wasp+smoky unit element cost in elementUnits (reserved for future modular combat). */
-export const WASP_SMOKY_TOTAL_ELEMENT_COST = 10;
-/** Total wasp+smoky unit production duration in milliseconds (reserved for future modular combat). */
-export const WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS = 25000;
+/** @deprecated Use T1_BODY_COMPONENTS.wasp.matterCost. */
+export const WASP_CHASSIS_MATTER_COST = T1_BODY_COMPONENTS.wasp.matterCost;
+/** @deprecated Use T1_BODY_COMPONENTS.wasp.elementCost. */
+export const WASP_CHASSIS_ELEMENT_COST = T1_BODY_COMPONENTS.wasp.elementCost;
+/** @deprecated Use T1_BODY_COMPONENTS.wasp.productionDurationMs. */
+export const WASP_CHASSIS_PRODUCTION_DURATION_MS = T1_BODY_COMPONENTS.wasp.productionDurationMs;
+/** @deprecated Use T1_WEAPON_COMPONENTS.smoky.matterCost. */
+export const SMOKY_WEAPON_MATTER_COST = T1_WEAPON_COMPONENTS.smoky.matterCost;
+/** @deprecated Use T1_WEAPON_COMPONENTS.smoky.elementCost. */
+export const SMOKY_WEAPON_ELEMENT_COST = T1_WEAPON_COMPONENTS.smoky.elementCost;
+/** @deprecated Use T1_WEAPON_COMPONENTS.smoky.productionDurationMs. */
+export const SMOKY_WEAPON_PRODUCTION_DURATION_MS = T1_WEAPON_COMPONENTS.smoky.productionDurationMs;
+/** @deprecated Use getT1CombatProductionQuote(). */
+export const WASP_SMOKY_TOTAL_MATTER_COST = T1_BODY_COMPONENTS.wasp.matterCost + T1_WEAPON_COMPONENTS.smoky.matterCost;
+/** @deprecated Use getT1CombatProductionQuote(). */
+export const WASP_SMOKY_TOTAL_ELEMENT_COST = T1_BODY_COMPONENTS.wasp.elementCost + T1_WEAPON_COMPONENTS.smoky.elementCost;
+/** @deprecated Use getT1CombatProductionQuote(). */
+export const WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS = Math.max(
+  T1_BODY_COMPONENTS.wasp.productionDurationMs,
+  T1_WEAPON_COMPONENTS.smoky.productionDurationMs,
+) + T1_ASSEMBLY_OFFSET_MS;
 
 // ─── Storage Cap Constants (ARCH-01D) ────────────────────────────────
 

@@ -21,14 +21,7 @@ import {
   productionBlockLabel,
 } from '../../../state/statusHelpers';
 import { isVisualReadyBuilding, getBuildingDisplayName } from '../../../config/buildingRuntimeMapping';
-import {
-  BUILDER_PRODUCTION_MATTER_COST,
-  BUILDER_PRODUCTION_ELEMENT_COST,
-  HARVESTER_PRODUCTION_MATTER_COST,
-  HARVESTER_PRODUCTION_ELEMENT_COST,
-  WASP_SMOKY_TOTAL_MATTER_COST,
-  WASP_SMOKY_TOTAL_ELEMENT_COST,
-} from '../../../state/types';
+import { getProductionQuote } from '../../../state/production';
 import {
   type SlotKey,
   type CommandSlotState,
@@ -94,11 +87,8 @@ function formatBuildCost(buildingType: BuildingType): string {
 }
 
 function formatProduceCost(unitType: ProducibleUnitType): string {
-  switch (unitType) {
-    case 'builder': return `${BUILDER_PRODUCTION_MATTER_COST} M, ${BUILDER_PRODUCTION_ELEMENT_COST} E`;
-    case 'harvester': return `${HARVESTER_PRODUCTION_MATTER_COST} M, ${HARVESTER_PRODUCTION_ELEMENT_COST} E`;
-    case 'wasp-smoky': return `${WASP_SMOKY_TOTAL_MATTER_COST} M, ${WASP_SMOKY_TOTAL_ELEMENT_COST} E`;
-  }
+  const quote = getProductionQuote(unitType);
+  return quote ? `${quote.matterCost} M, ${quote.elementCost} E` : '';
 }
 
 // ─── Context-specific grid builders ─────────────────────────────────

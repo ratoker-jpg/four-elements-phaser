@@ -37,12 +37,6 @@ import {
   UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION,
   HQ_BASE_POWER,
   POWER_PLANT_GENERATION,
-  BUILDER_PRODUCTION_MATTER_COST,
-  BUILDER_PRODUCTION_ELEMENT_COST,
-  HARVESTER_PRODUCTION_MATTER_COST,
-  HARVESTER_PRODUCTION_ELEMENT_COST,
-  WASP_SMOKY_TOTAL_MATTER_COST,
-  WASP_SMOKY_TOTAL_ELEMENT_COST,
   QUEUE_LIMIT,
   DEFAULT_UNIT_CAP,
 } from './types';
@@ -50,6 +44,7 @@ import { BUILDING_CONFIG } from './construction';
 import { buildOccupancyMap, isPassable } from './occupancy';
 import { t } from '../config/localization';
 import { isVisualReadyBuilding } from '../config/buildingRuntimeMapping';
+import { getProductionQuote } from './production';
 
 // ─── Separator status ──────────────────────────────────────────────
 
@@ -171,13 +166,13 @@ export function getFactoryStatus(
 
   // If a specific unit type was requested, check affordability
   if (nextUnitType) {
-    const matterCost = getMatterCostForType(nextUnitType);
-    const elementCost = getElementCostForType(nextUnitType);
+    const quote = getProductionQuote(nextUnitType);
+    if (!quote) return 'blocked-no-matter';
 
-    if (state.economy.matter < matterCost) {
+    if (state.economy.matter < quote.matterCost) {
       return 'blocked-no-matter';
     }
-    if (state.economy.elements[state.playerFaction] < elementCost) {
+    if (state.economy.elements[state.playerFaction] < quote.elementCost) {
       return 'blocked-no-element';
     }
   }
@@ -388,14 +383,14 @@ export function getProductionBlockReason(
   }
 
   // Check matter cost
-  const matterCost = getMatterCostForType(unitType);
-  if (state.economy.matter < matterCost) {
+  const quote = getProductionQuote(unitType);
+  if (!quote) return 'insufficient-matter';
+  if (state.economy.matter < quote.matterCost) {
     return 'insufficient-matter';
   }
 
   // Check element cost
-  const elementCost = getElementCostForType(unitType);
-  if (state.economy.elements[state.playerFaction] < elementCost) {
+  if (state.economy.elements[state.playerFaction] < quote.elementCost) {
     return 'insufficient-element';
   }
 
@@ -407,31 +402,11 @@ export function getProductionBlockReason(
   return null;
 }
 
-// ─── Cost lookup helpers (shared by getFactoryStatus and getProductionBlockReason) ──
-
-/** Get matter cost for a producible unit type. */
-function getMatterCostForType(unitType: ProducibleUnitType): number {
-  switch (unitType) {
-    case 'builder': return BUILDER_PRODUCTION_MATTER_COST;
-    case 'harvester': return HARVESTER_PRODUCTION_MATTER_COST;
-    case 'wasp-smoky': return WASP_SMOKY_TOTAL_MATTER_COST;
-  }
-}
-
-/** Get element cost for a producible unit type. */
-function getElementCostForType(unitType: ProducibleUnitType): number {
-  switch (unitType) {
-    case 'builder': return BUILDER_PRODUCTION_ELEMENT_COST;
-    case 'harvester': return HARVESTER_PRODUCTION_ELEMENT_COST;
-    case 'wasp-smoky': return WASP_SMOKY_TOTAL_ELEMENT_COST;
-  }
-}
-
 // ─── Unit cap helpers (FIX-03) ─────────────────────────────────────────
 
 /** Count current player civil units (builders + harvesters + combat units). */
 export function getUnitCount(state: GameState): number {
-  return state.mapData.builders.length + state.harvesters.length + state.combatUnits.length;
+  return state.mapData.builders.length + state.harvesters.length + (state.combatUnits?.length ?? 0);
 }
 
 /** Get the current unit cap for the player. Sandbox MVP: fixed DEFAULT_UNIT_CAP. */

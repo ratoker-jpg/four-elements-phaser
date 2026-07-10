@@ -15,7 +15,6 @@ import type { EconomyState, GameState, MapData } from '../state/types';
 import {
   DEFAULT_UNIT_CAP,
   HQ_BASE_POWER,
-  WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS,
 } from '../state/types';
 
 function createMemoryStorage(): SaveStorage {
@@ -110,11 +109,14 @@ describe('combat production lifecycle integration', () => {
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
 
-    updateGameState(state, WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS);
+    const firstDurationMs = state.production.factories[0].queue[0].durationMs;
+    const secondDurationMs = state.production.factories[0].queue[1].durationMs;
+
+    updateGameState(state, firstDurationMs);
     expect(state.combatUnits).toHaveLength(1);
     expect(state.production.factories[0].queue).toHaveLength(1);
 
-    updateGameState(state, WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS);
+    updateGameState(state, secondDurationMs);
     expect(state.combatUnits).toHaveLength(2);
     expect(state.production.factories[0].queue).toHaveLength(0);
 
