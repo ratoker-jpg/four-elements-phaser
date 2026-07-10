@@ -84,7 +84,9 @@ jobs:
           end = text.find(end_marker, start)
           if start < 0 or end < 0:
               raise SystemExit('patch guard boundaries not found')
-          path.write_text(text[:start] + text[end:], encoding='utf-8')
+          text = text[:start] + text[end:]
+          text = text.replace('await patchValidationWorkflow();\n', '')
+          path.write_text(text, encoding='utf-8')
           PY
           node tools/apply_vfx_donor_patch.mjs
           rm tools/apply_vfx_donor_patch.mjs tools/final_validation_vfx.yml
