@@ -118,9 +118,13 @@ export function routeLmbClick(
       }
       return { action: 'select', selection: selectOne(unit) };
     }
-    case 'own-combat-vehicle':
-      // Combat vehicles are selected in Arena mode via BlockoutVehicleInputController.
-      return { action: 'select', selection: selectOne({ kind: 'harvester', id: target.id! }) };
+    case 'own-combat-vehicle': {
+      const unit: SelectableUnit = { kind: 'combat', id: target.id! };
+      if (shiftHeld) {
+        return { action: 'toggle-in-selection', selection: toggleInSelection(currentSelection, unit) };
+      }
+      return { action: 'select', selection: selectOne(unit) };
+    }
     case 'own-building':
       return { action: 'select', selection: selectOne({ kind: 'builder', id: target.id! }) };
     case 'enemy-unit':

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { ModularCombatUnit } from '../../state/types';
-import { combatUnitToRenderableEntity } from '../../state/combatUnits';
+import { combatUnitToRenderableEntity, getCombatUnitPosition } from '../../state/combatUnits';
 import { computeDepthValue } from './depthSorting';
 import { tileToScreen, type IsoPoint } from './isometric';
 import {
@@ -35,7 +35,8 @@ export class CombatUnitRenderer {
       activeIds.add(unit.id);
       const entry = this.getOrCreateEntry(unit.id);
       const entity = combatUnitToRenderableEntity(unit);
-      const screen = tileToScreen(unit.tx, unit.ty);
+      const position = getCombatUnitPosition(unit);
+      const screen = tileToScreen(position.tx, position.ty);
       const anchor = {
         x: screen.x + this.offset.x,
         y: screen.y + this.offset.y,
@@ -43,8 +44,8 @@ export class CombatUnitRenderer {
       const depth = computeDepthValue({
         id: unit.id,
         type: 'unit',
-        tx: unit.tx,
-        ty: unit.ty,
+        tx: position.tx,
+        ty: position.ty,
         offsetX: this.offset.x,
         offsetY: this.offset.y,
       });

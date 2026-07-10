@@ -43,7 +43,7 @@ export interface VisionSource {
   radius: number;
   /** Optional source id/type for debug/tests. */
   sourceId?: string;
-  sourceType?: 'hq' | 'building' | 'builder' | 'harvester';
+  sourceType?: 'hq' | 'building' | 'builder' | 'harvester' | 'combat';
 }
 
 // ─── Vision radius config ─────────────────────────────────────────
@@ -53,6 +53,9 @@ export const BUILDER_VISION_RADIUS = 4;
 
 /** Vision radius for harvester units. */
 export const HARVESTER_VISION_RADIUS = 5;
+
+/** Vision radius for production combat units. Wasp scouts through speed; both T1 hulls use this baseline. */
+export const COMBAT_UNIT_VISION_RADIUS = 4;
 
 /** HQ vision radius (matches BuildingConfig.visionRadius: 8). */
 export const HQ_VISION_RADIUS = 8;
@@ -192,6 +195,18 @@ export function collectVisionSources(state: GameState): VisionSource[] {
       radius: HARVESTER_VISION_RADIUS,
       sourceId: harvester.id,
       sourceType: 'harvester',
+    });
+  }
+
+  // Canonical production combat units owned by the player faction.
+  for (const unit of state.combatUnits) {
+    if (unit.faction !== state.playerFaction || unit.runtime?.isDestroyed) continue;
+    sources.push({
+      tx: Math.round(unit.runtime?.ftx ?? unit.tx),
+      ty: Math.round(unit.runtime?.fty ?? unit.ty),
+      radius: COMBAT_UNIT_VISION_RADIUS,
+      sourceId: unit.id,
+      sourceType: 'combat',
     });
   }
 

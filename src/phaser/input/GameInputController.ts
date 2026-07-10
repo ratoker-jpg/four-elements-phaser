@@ -671,6 +671,16 @@ export class GameInputController {
       }
     }
 
+    // Check canonical production combat units.
+    for (const unit of gameState.combatUnits) {
+      if (unit.faction !== gameState.playerFaction || unit.runtime?.isDestroyed) continue;
+      const pos = tileToScreen(unit.runtime?.ftx ?? unit.tx, unit.runtime?.fty ?? unit.ty);
+      const { sx, sy } = this.worldToScreen(pos.x + this.offset.x, pos.y + this.offset.y);
+      if (sx >= left && sx <= right && sy >= top && sy <= bottom && !this.isScreenYInActiveHud(sy)) {
+        selectedUnits.push({ kind: 'combat', id: unit.id });
+      }
+    }
+
     // Check harvesters — convert world positions to screen space
     for (const h of gameState.harvesters) {
       const worldPos = tileToScreen(h.ftx, h.fty);
@@ -802,6 +812,16 @@ export class GameInputController {
       }
     }
 
+    // Check own canonical combat units.
+    for (const unit of gameState.combatUnits) {
+      if (unit.faction !== gameState.playerFaction || unit.runtime?.isDestroyed) continue;
+      const dx = (unit.runtime?.ftx ?? unit.tx) - clickTx;
+      const dy = (unit.runtime?.fty ?? unit.ty) - clickTy;
+      if (Math.hypot(dx, dy) < SELECT_RADIUS) {
+        return { kind: 'own-combat-vehicle', id: unit.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
+      }
+    }
+
     // Check resources (for harvest commands)
     for (const r of gameState.resourceNodes) {
       if (r.depleted) continue;
@@ -917,7 +937,8 @@ export class GameInputController {
       // Single unit: use legacy single-unit move
       const result = issueManualMove(gameState, this.selection.units[0], tx, ty);
       if (result.ok) {
-        const label = this.selection.units[0].kind === 'builder' ? 'Строитель' : 'Сборщик';
+        const kind = this.selection.units[0].kind;
+        const label = kind === 'builder' ? 'Строитель' : kind === 'harvester' ? 'Сборщик' : 'Танк';
         this.showStatusCb(`${label} → (${tx},${ty})`, true);
         this.feedbackRenderer.addCommandOk(tx, ty, this.scene.time.now);
       } else {
@@ -968,15 +989,19 @@ export class GameInputController {
       const primary = this.selection.units[0];
       const label = primary.kind === 'builder'
         ? `Builder ${primary.id}`
-        : `Harvester ${primary.id}`;
+        : primary.kind === 'harvester'
+          ? `Harvester ${primary.id}`
+          : `Tank ${primary.id}`;
       this.showStatusCb(`Выбран: ${label}`, true);
     } else {
       const breakdown = getSelectionTypeBreakdown(this.selection);
       const parts: string[] = [];
       const bc = breakdown.get('builder') ?? 0;
       const hc = breakdown.get('harvester') ?? 0;
+      const cc = breakdown.get('combat') ?? 0;
       if (bc > 0) parts.push(`${bc} Builder${bc > 1 ? 's' : ''}`);
       if (hc > 0) parts.push(`${hc} Harvester${hc > 1 ? 's' : ''}`);
+      if (cc > 0) parts.push(`${cc} Tank${cc > 1 ? 's' : ''}`);
       this.showStatusCb(`Выбрано: ${parts.join(', ')}`, true);
     }
   }
@@ -1009,6 +1034,18 @@ export class GameInputController {
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < SELECT_RADIUS) {
           hoverTarget = { kind: 'own-builder', id: b.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
+          break;
+        }
+      }
+    }
+
+    if (!hoverTarget) {
+      for (const unit of gameState.combatUnits) {
+        if (unit.faction !== gameState.playerFaction || unit.runtime?.isDestroyed) continue;
+        const dx = (unit.runtime?.ftx ?? unit.tx) - clickTx;
+        const dy = (unit.runtime?.fty ?? unit.ty) - clickTy;
+        if (Math.hypot(dx, dy) < SELECT_RADIUS) {
+          hoverTarget = { kind: 'own-combat-vehicle', id: unit.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
           break;
         }
       }

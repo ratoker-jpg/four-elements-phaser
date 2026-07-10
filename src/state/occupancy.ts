@@ -149,11 +149,13 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
     getOrMake(flags, k).add('soft-occupied');
   }
 
-  // ── Soft-occupied: modular combat units ────────────────────────
-  for (const e of state.entities) {
-    if (e.kind === 'modular-combat') {
-      const k = key(e.tx, e.ty, width);
-      getOrMake(flags, k).add('soft-occupied');
+  // ── Soft-occupied: canonical production combat units ──────────
+  for (const unit of state.combatUnits ?? []) {
+    if (unit.runtime?.isDestroyed) continue;
+    const tx = Math.round(unit.runtime?.ftx ?? unit.tx);
+    const ty = Math.round(unit.runtime?.fty ?? unit.ty);
+    for (const tile of getOccupiedTiles(tx, ty, unit.bodyId)) {
+      getOrMake(flags, key(tile.tx, tile.ty, width)).add('soft-occupied');
     }
   }
 
@@ -227,7 +229,7 @@ export function isBuildable(map: OccupancyMap, tx: number, ty: number, w: number
 export function addUnitBlockers(
   state: GameState,
   map: OccupancyMap,
-  excludeType?: 'builder' | 'harvester',
+  excludeType?: 'builder' | 'harvester' | 'combat',
   excludeId?: number | string,
 ): void {
   // Add builders as impassable (except excluded)
@@ -242,6 +244,16 @@ export function addUnitBlockers(
     if (excludeType === 'harvester' && excludeId === h.id) continue;
     const k = key(Math.round(h.ftx), Math.round(h.fty), map.width);
     getOrMake(map.flags, k).add('impassable');
+  }
+
+  for (const unit of state.combatUnits ?? []) {
+    if (unit.runtime?.isDestroyed) continue;
+    if (excludeType === 'combat' && excludeId === unit.id) continue;
+    const tx = Math.round(unit.runtime?.ftx ?? unit.tx);
+    const ty = Math.round(unit.runtime?.fty ?? unit.ty);
+    for (const tile of getOccupiedTiles(tx, ty, unit.bodyId)) {
+      getOrMake(map.flags, key(tile.tx, tile.ty, map.width)).add('impassable');
+    }
   }
 }
 
@@ -261,7 +273,7 @@ export function isTileOccupiedByUnit(
   state: GameState,
   tx: number,
   ty: number,
-  excludeType?: 'builder' | 'harvester',
+  excludeType?: 'builder' | 'harvester' | 'combat',
   excludeId?: number | string,
 ): boolean {
   for (const b of state.mapData.builders) {
@@ -272,6 +284,14 @@ export function isTileOccupiedByUnit(
   for (const h of state.harvesters) {
     if (excludeType === 'harvester' && excludeId === h.id) continue;
     if (Math.round(h.ftx) === tx && Math.round(h.fty) === ty) return true;
+  }
+
+  for (const unit of state.combatUnits ?? []) {
+    if (unit.runtime?.isDestroyed) continue;
+    if (excludeType === 'combat' && excludeId === unit.id) continue;
+    const ux = Math.round(unit.runtime?.ftx ?? unit.tx);
+    const uy = Math.round(unit.runtime?.fty ?? unit.ty);
+    if (getOccupiedTiles(ux, uy, unit.bodyId).some(tile => tile.tx === tx && tile.ty === ty)) return true;
   }
 
   return false;

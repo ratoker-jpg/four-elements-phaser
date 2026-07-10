@@ -34,7 +34,9 @@ import { buildOccupancyMap, isPassable, addUnitBlockers, addVehicleBlockers } fr
 import { findPath, findPathToAdjacent } from './pathfinding';
 import { updateHarvesterManualMove, findResourceApproachTile } from './unitCommands';
 import { isResourceInfinite } from '../config/resourceClassRuntime';
-import { allocateCombatUnitId, getCombatProductionConfig } from './combatUnits';
+import { allocateCombatUnitId, createCombatUnitRuntime, getCombatProductionConfig } from './combatUnits';
+import { updateAllCombatUnitMovement } from './combatUnitMovement';
+export { directionFromDelta } from './unitDirection';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -76,6 +78,7 @@ export function updateGameState(state: GameState, deltaMs: number): void {
   for (const harvester of state.harvesters) {
     updateHarvester(state, harvester, moveDt);
   }
+  updateAllCombatUnitMovement(state, moveDt);
 
   // ARCH-01C/01E/01F: Unified power allocation + separator processing + factory production.
   // Power consumers (separators, factories) are allocated power in completed building order.
@@ -503,35 +506,6 @@ function findResourceById(
   return state.resourceNodes.find((r) => r.id === id) ?? null;
 }
 
-// ─── Direction computation (for render sync) ───────────────────────
-
-/**
- * Compute the 8-direction facing index from a tile-space movement vector.
- *
- * Maps to spritesheet row indices:
- *   E=0, SE=1, S=2, SW=3, W=4, NW=5, N=6, NE=7
- */
-export function directionFromDelta(dtx: number, dty: number): number {
-  // Convert tile-space delta to screen-space direction
-  const sdx = dtx - dty; // proportional to screen X movement
-  const sdy = dtx + dty; // proportional to screen Y movement
-
-  if (Math.abs(sdx) < 0.001 && Math.abs(sdy) < 0.001) return 2; // default: S
-
-  const angle = Math.atan2(sdy, sdx); // -PI..PI, screen-space
-
-  // Sector: quantise to 8 equal slices
-  // E=0 (angle ~0), SE=1 (angle ~PI/4), S=2 (angle ~PI/2),
-  // SW=3 (angle ~3PI/4), W=4 (angle ~±PI), NW=5 (angle ~-3PI/4),
-  // N=6 (angle ~-PI/2), NE=7 (angle ~-PI/4)
-  const sector = Math.round(angle / (Math.PI / 4));
-  const map: Record<number, number> = {
-    0: 0, 1: 1, 2: 2, 3: 3, 4: 4,
-    '-4': 4, '-3': 5, '-2': 6, '-1': 7,
-  };
-  return map[sector] ?? 2;
-}
-
 // ─── Separator processing cycle (ARCH-01C / ARCH-01E) ──────────────────
 
 /**
@@ -866,6 +840,7 @@ function spawnCombatUnit(
     dir: 2,
     turretDir: 2,
   };
+  combatUnit.runtime = createCombatUnitRuntime(combatUnit);
 
   // combatUnits is the sole canonical state. EntityRenderer derives visuals
   // from it each frame; do not duplicate produced units in state.entities.

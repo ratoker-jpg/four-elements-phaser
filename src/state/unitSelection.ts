@@ -20,7 +20,8 @@ import type { GameState } from './types';
 /** Identifies a selectable civil unit. */
 export type SelectableUnit =
   | { kind: 'builder'; id: string }
-  | { kind: 'harvester'; id: string };
+  | { kind: 'harvester'; id: string }
+  | { kind: 'combat'; id: string };
 
 /** Single = exactly one unit selected. */
 export interface SingleSelection {
@@ -138,6 +139,8 @@ export function pruneMissingEntities(selection: UnitSelection, state: GameState)
       return state.mapData.builders.some(b => b.id === u.id);
     } else if (u.kind === 'harvester') {
       return state.harvesters.some(h => h.id === u.id);
+    } else if (u.kind === 'combat') {
+      return state.combatUnits.some(unit => unit.id === u.id && !unit.runtime?.isDestroyed);
     }
     return false;
   });
@@ -196,6 +199,13 @@ export function getSelectionCenterTile(selection: UnitSelection, state: GameStat
         sumTy += h.fty;
         count++;
       }
+    } else if (u.kind === 'combat') {
+      const unit = state.combatUnits.find(candidate => candidate.id === u.id);
+      if (unit && !unit.runtime?.isDestroyed) {
+        sumTx += unit.runtime?.ftx ?? unit.tx;
+        sumTy += unit.runtime?.fty ?? unit.ty;
+        count++;
+      }
     }
   }
 
@@ -214,6 +224,11 @@ export function hasBuilderInSelection(selection: UnitSelection): boolean {
 export function hasHarvesterInSelection(selection: UnitSelection): boolean {
   if (!selection) return false;
   return selection.units.some(u => u.kind === 'harvester');
+}
+
+/** Whether any selected unit is a combat unit. */
+export function hasCombatInSelection(selection: UnitSelection): boolean {
+  return selection?.units.some(unit => unit.kind === 'combat') ?? false;
 }
 
 /** Whether all selected units are builders. */
