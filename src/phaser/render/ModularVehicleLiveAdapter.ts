@@ -234,7 +234,8 @@ interface PendingModularCombat {
   anchor: ScreenPoint;
   chassis: string;
   weapon: string;
-  mod: string;
+  hullMod: string;
+  turretMod: string;
   faction: string;
   dir?: number;
   turretDir?: number;
@@ -425,7 +426,8 @@ export class ModularVehicleLiveAdapter {
     anchor: ScreenPoint,
     chassis: string,
     weapon: string,
-    mod: string,
+    hullMod: string,
+    turretMod: string = hullMod,
   ): LiveAdapterResult {
     if (!ENABLE_MODULAR_VEHICLE_RENDER) {
       return { usedModular: false, plan: null, debugLabel: 'flag-off', fallbackReason: 'flag-off' };
@@ -449,7 +451,8 @@ export class ModularVehicleLiveAdapter {
       chassis,
       weapon,
       faction,
-      mod,
+      hullMod,
+      turretMod,
       dir: entity.dir,
       turretDir: entity.turretDir,
     });
@@ -519,7 +522,8 @@ export class ModularVehicleLiveAdapter {
       anchor,
       chassis,
       weapon,
-      mod,
+      hullMod,
+      turretMod,
       faction,
       dir: entity.dir,
       turretDir: entity.turretDir,
@@ -575,7 +579,8 @@ export class ModularVehicleLiveAdapter {
       chassis: p.chassis,
       weapon: p.weapon,
       faction: p.faction,
-      mod: p.mod,
+      hullMod: p.hullMod,
+      turretMod: p.turretMod,
       dir: p.dir,
       turretDir: p.turretDir,
     });

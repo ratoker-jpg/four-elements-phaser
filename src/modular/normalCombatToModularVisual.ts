@@ -109,7 +109,10 @@ export function normalCombatToModularVisual(args: {
   chassis: string;
   weapon: string;
   faction: Faction | string;
+  /** Legacy combined modification. Used only when split fields are absent. */
   mod?: string;
+  hullMod?: string;
+  turretMod?: string;
   dir?: number;
   turretDir?: number;
 }): NormalCombatToModularResult {
@@ -152,9 +155,9 @@ export function normalCombatToModularVisual(args: {
     };
   }
 
-  // mod → ModularModId (safe m0 default)
-  const hullMod = modStringToModularMod(args.mod ?? 'm0');
-  const turretMod = modStringToModularMod(args.mod ?? 'm0');
+  // Independent hull/turret modifications. Legacy mod remains a migration fallback.
+  const hullMod = modStringToModularMod(args.hullMod ?? args.mod ?? 'm0');
+  const turretMod = modStringToModularMod(args.turretMod ?? args.mod ?? 'm0');
 
   return {
     visual: {

@@ -145,15 +145,23 @@ export interface ConstructionSitePlacement {
 /** Modification level for modular combat units. */
 export type ModLevel = 'm0' | 'm1' | 'm2' | 'm3';
 
-/** Modular combat unit configuration. Phase 2: uses BodyId/WeaponId for flexible composition. */
+/** Canonical dynamic combat-unit state. Render entities are derived from this object. */
 export interface ModularCombatUnit {
+  id: string;
   tx: number;
   ty: number;
   bodyId: BodyId;
   weaponId: WeaponId;
-  mod: ModLevel;
+  /** Canonical split fields; optional only for old saves/test fixtures before normalization. */
+  hullMod?: ModLevel;
+  turretMod?: ModLevel;
   faction: Faction;
-  id: string;
+  /** Runtime 8-direction facing. */
+  dir?: number;
+  /** Runtime 8-direction turret facing; defaults to dir. */
+  turretDir?: number;
+  /** Legacy save field, migrated to hullMod/turretMod on load. */
+  mod?: ModLevel;
 }
 
 // ─── Map Data ───────────────────────────────────────────────────────
@@ -408,13 +416,29 @@ export const START_MATTER = 120;
 
 // ─── Production State (ARCH-01F) ────────────────────────────────────
 
-/** Unit types that can be produced by a units-factory. */
-export type ProducibleUnitType = 'builder' | 'harvester' | 'wasp-smoky';
+export type CivilUnitType = 'builder' | 'harvester';
+
+/** Backward-compatible command/UI identifiers. */
+export type ProducibleUnitType = CivilUnitType | 'wasp-smoky';
+
+export interface CombatProductionConfig {
+  bodyId: BodyId;
+  weaponId: WeaponId;
+  hullMod: ModLevel;
+  turretMod: ModLevel;
+}
+
+/** Structured queue request; Phase 3 can supply arbitrary legal combinations. */
+export type UnitProductionRequest =
+  | { kind: 'civil'; unitType: CivilUnitType }
+  | ({ kind: 'combat' } & CombatProductionConfig);
 
 /** A single item in a factory production queue. */
 export interface ProductionQueueItem {
-  /** The type of unit being produced. */
+  /** Backward-compatible label used by the current HUD and old saves. */
   unitType: ProducibleUnitType;
+  /** Canonical structured request. Optional only for old-save migration. */
+  request?: UnitProductionRequest;
   /** Milliseconds elapsed since production started. */
   elapsedMs: number;
   /** Total duration in milliseconds. */
@@ -474,6 +498,8 @@ export interface GameState {
   // ── ARCH-13E1: Construction state ─────────────────────────────
   /** Auto-incrementing counter for deterministic construction site IDs. */
   nextConstructionId: number;
+  /** Auto-incrementing counter for deterministic produced combat-unit IDs. Missing only in old saves/fixtures. */
+  nextCombatUnitId?: number;
 
   // ── ARCH-01F: Production state ────────────────────────────────
   /** Production state for all units-factories. */

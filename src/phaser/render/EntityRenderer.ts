@@ -11,6 +11,7 @@ import {
   ENABLE_MODULAR_VEHICLE_RENDER,
 } from './ModularVehicleLiveAdapter';
 import { ConstructionRenderer } from './ConstructionRenderer';
+import { CombatUnitRenderer } from './CombatUnitRenderer';
 import type {
   Faction,
   RenderableEntity,
@@ -197,6 +198,9 @@ export class EntityRenderer {
   /** Construction renderer — owns construction site + building placeholder graphics. */
   private constructionRenderer: ConstructionRenderer;
 
+  /** Produced combat units — canonical multi-entity runtime renderer. */
+  private combatUnitRenderer: CombatUnitRenderer;
+
   /** VISUAL-06E: Active resource visual style. */
   private resourceStyle: ResourceStyle;
 
@@ -207,6 +211,7 @@ export class EntityRenderer {
     this.modularTankRenderer = new ModularTankRenderer(scene, offset);
     this.modularAdapter = new ModularVehicleLiveAdapter(scene, offset, 100);
     this.constructionRenderer = new ConstructionRenderer(scene, offset);
+    this.combatUnitRenderer = new CombatUnitRenderer(scene, offset);
   }
 
   // ─── Static entity rendering (called once) ─────────────────────
@@ -252,6 +257,7 @@ export class EntityRenderer {
     this.syncHarvesters(state.harvesters);
     this.syncResources(state.resourceNodes, state.vision);
     this.constructionRenderer.syncFromState(state);
+    this.combatUnitRenderer.sync(state.combatUnits);
 
     // MODULAR-RUNTIME-03B: Retry clean modular placement while assets are loading.
     // Called each frame so that when textures finish loading, the modular
@@ -697,6 +703,7 @@ export class EntityRenderer {
     this.modularAdapter.destroy();
     this.modularTankRenderer.destroy();
     this.constructionRenderer.destroy();
+    this.combatUnitRenderer.destroy();
 
     for (const sprite of this.harvesterSprites.values()) {
       sprite.destroy();

@@ -17,14 +17,15 @@
 import type { Faction, GameState } from './types';
 import { ensureBuilderIds } from './createInitialState';
 import { normalizeVisionForLoadedState } from './visibility';
+import { normalizeCombatUnitState } from './combatUnits';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
 /** localStorage key for the save slots array. */
 const SAVE_STORAGE_KEY = 'four-elements-save-slots';
 
-/** Current save format version. Phase 2: bumped to 3 for combatUnits field. */
-const SAVE_VERSION = 3;
+/** Current save format version. Phase 2 fixup: canonical combat state + deterministic IDs. */
+const SAVE_VERSION = 4;
 
 /** Maximum number of save slots. */
 export const MAX_SAVE_SLOTS = 5;
@@ -163,8 +164,8 @@ function writeSlots(slots: SaveSlot[]): boolean {
 function isValidSlot(slot: unknown): slot is SaveSlot {
   if (typeof slot !== 'object' || slot === null) return false;
   const s = slot as Record<string, unknown>;
-  // Accept v1 (no vision), v2 (with vision), v3 (with combatUnits)
-  if (s.version !== 1 && s.version !== 2 && s.version !== 3) return false;
+  // Accept v1-v4; loadGame performs field migrations.
+  if (s.version !== 1 && s.version !== 2 && s.version !== 3 && s.version !== 4) return false;
   if (typeof s.id !== 'string') return false;
   if (typeof s.createdAt !== 'string') return false;
   if (typeof s.updatedAt !== 'string') return false;
@@ -325,7 +326,7 @@ export function loadGame(slotId: string): LoadResult {
     return { success: false, message: 'Save not found' };
   }
 
-  if (slot.version !== SAVE_VERSION && slot.version !== 1 && slot.version !== 2) {
+  if (slot.version !== SAVE_VERSION && slot.version !== 1 && slot.version !== 2 && slot.version !== 3) {
     return { success: false, message: `Save version ${slot.version} not supported` };
   }
 
@@ -349,10 +350,9 @@ export function loadGame(slotId: string): LoadResult {
     ensureBuilderIds(gs.mapData);
   }
 
-  // Phase 2: Migrate old saves without combatUnits field
-  if (!gs.combatUnits) {
-    gs.combatUnits = [];
-  }
+  // Phase 2 fixup: migrate missing arrays, old combined mod fields,
+  // duplicate/missing IDs and the deterministic ID counter.
+  normalizeCombatUnitState(gs);
 
   // FOG-VISION-08 FIXUP-1: Normalize vision state for all saves (v1 and v2).
   // Handles: missing vision (v1 migration), empty/malformed visible grid

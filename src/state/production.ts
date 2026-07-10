@@ -23,6 +23,7 @@
 import type {
   GameState,
   ProducibleUnitType,
+  UnitProductionRequest,
 } from './types';
 import {
   QUEUE_LIMIT,
@@ -37,6 +38,7 @@ import {
   WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS,
   DEFAULT_UNIT_CAP,
 } from './types';
+import { normalizeProductionRequest } from './combatUnits';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -119,8 +121,10 @@ export function startUnitProduction(
   state: GameState,
   factoryTx: number,
   factoryTy: number,
-  unitType: ProducibleUnitType,
+  input: ProducibleUnitType | UnitProductionRequest,
 ): ProductionResult {
+  const { unitType, request } = normalizeProductionRequest(input);
+
   // 1. Find the factory
   const factory = state.production.factories.find(
     f => f.tx === factoryTx && f.ty === factoryTy,
@@ -159,6 +163,7 @@ export function startUnitProduction(
   const durationMs = getProductionDuration(unitType);
   factory.queue.push({
     unitType,
+    request,
     elapsedMs: 0,
     durationMs,
     progress: 0,

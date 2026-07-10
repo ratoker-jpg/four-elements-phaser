@@ -1179,7 +1179,7 @@ describe('Phase 2: wasp-smoky combat unit production', () => {
     }
   });
 
-  it('processFactorySpawns creates a ModularCombatUnit with correct bodyId/weaponId/mod', () => {
+  it('processFactorySpawns creates a ModularCombatUnit with independent hull/turret mods', () => {
     const state = makeStateWithFactory({ matter: 200, elementUnits: 50 });
     startUnitProduction(state, 10, 10, 'wasp-smoky');
 
@@ -1197,7 +1197,9 @@ describe('Phase 2: wasp-smoky combat unit production', () => {
     const combatUnit = state.combatUnits[0];
     expect(combatUnit.bodyId).toBe('wasp');
     expect(combatUnit.weaponId).toBe('smoky');
-    expect(combatUnit.mod).toBe('m0');
+    expect(combatUnit.hullMod).toBe('m0');
+    expect(combatUnit.turretMod).toBe('m0');
+    expect(combatUnit.mod).toBeUndefined();
     expect(combatUnit.faction).toBe('cyan');
     expect(combatUnit.id).toBeTruthy();
     expect(factory.queue.length).toBe(0);

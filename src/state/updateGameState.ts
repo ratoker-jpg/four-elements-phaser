@@ -17,6 +17,7 @@ import type {
   HarvesterState,
   ResourceNodeState,
   ModularCombatUnit,
+  ProductionQueueItem,
 } from './types';
 import {
   SEP_RAW_COST,
@@ -33,6 +34,7 @@ import { buildOccupancyMap, isPassable, addUnitBlockers, addVehicleBlockers } fr
 import { findPath, findPathToAdjacent } from './pathfinding';
 import { updateHarvesterManualMove, findResourceApproachTile } from './unitCommands';
 import { isResourceInfinite } from '../config/resourceClassRuntime';
+import { allocateCombatUnitId, getCombatProductionConfig } from './combatUnits';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -718,7 +720,7 @@ function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState
     } else if (item.unitType === 'harvester') {
       spawnHarvesterUnit(state, spawnPos.tx, spawnPos.ty);
     } else if (item.unitType === 'wasp-smoky') {
-      spawnCombatUnit(state, spawnPos.tx, spawnPos.ty);
+      spawnCombatUnit(state, spawnPos.tx, spawnPos.ty, item);
     }
 
     factory.queue.shift();
@@ -843,28 +845,31 @@ function spawnHarvesterUnit(state: GameState, tx: number, ty: number): void {
  * Creates a ModularCombatUnit and a corresponding RenderableEntity.
  * Combat units count toward DEFAULT_UNIT_CAP.
  */
-function spawnCombatUnit(state: GameState, tx: number, ty: number): void {
-  const id = `combat-unit-${tx}-${ty}-${Date.now()}`;
-  const combatUnit: ModularCombatUnit = {
-    tx,
-    ty,
-    bodyId: 'wasp',
-    weaponId: 'smoky',
-    mod: 'm0',
-    faction: state.playerFaction,
-    id,
-  };
-  state.combatUnits.push(combatUnit);
+function spawnCombatUnit(
+  state: GameState,
+  tx: number,
+  ty: number,
+  item: ProductionQueueItem,
+): void {
+  const config = getCombatProductionConfig(item);
+  if (!config) return;
 
-  state.entities.push({
-    id,
-    kind: 'modular-combat',
+  const combatUnit: ModularCombatUnit = {
+    id: allocateCombatUnitId(state),
     tx,
     ty,
+    bodyId: config.bodyId,
+    weaponId: config.weaponId,
+    hullMod: config.hullMod,
+    turretMod: config.turretMod,
     faction: state.playerFaction,
-    dir: 2,        // default body facing: South
-    turretDir: 2,  // default turret facing: South
-  });
+    dir: 2,
+    turretDir: 2,
+  };
+
+  // combatUnits is the sole canonical state. EntityRenderer derives visuals
+  // from it each frame; do not duplicate produced units in state.entities.
+  state.combatUnits.push(combatUnit);
 }
 
 // ─── Power state recomputation (ARCH-01E) ────────────────────────────────

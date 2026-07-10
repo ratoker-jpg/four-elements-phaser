@@ -150,6 +150,7 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     economy: arenaMode ? createArenaEconomy() : createInitialEconomy(faction, mapData),
     hqPosition,
     nextConstructionId: 0,
+    nextCombatUnitId: 0,
     production: arenaMode ? { factories: [] } : createInitialProduction(mapData),
 
     // Phase 2: combat units — empty at start (produced via factory)
@@ -508,9 +509,12 @@ function createExtraModularCombat(
       ty: candidate.ty,
       bodyId: 'wasp',
       weaponId: 'smoky',
-      mod: 'm0',
+      hullMod: 'm0',
+      turretMod: 'm0',
       faction,
-      id: `combat-unit-${candidate.tx}-${candidate.ty}`,
+      id: `legacy-starter-combat-${candidate.tx}-${candidate.ty}`,
+      dir: 2,
+      turretDir: 2,
     }];
   }
 
