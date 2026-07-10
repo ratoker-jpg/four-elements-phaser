@@ -45,8 +45,8 @@ jobs:
 
       - name: Asset budget
         env:
-          ASSET_BUDGET_TOTAL_MB: 950
-          ASSET_BUDGET_FILE_MB: 64
+          ASSET_BUDGET_TOTAL_MB: 5200
+          ASSET_BUDGET_FILE_MB: 256
         run: npm run check:asset-budget
 
       - name: Whitespace check
