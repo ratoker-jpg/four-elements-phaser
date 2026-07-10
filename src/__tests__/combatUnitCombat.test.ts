@@ -10,7 +10,7 @@ import {
 import { updateAllCombatUnitMovement } from '../state/combatUnitMovement';
 import { routeRmbClick } from '../state/commandRouter';
 import { selectOne } from '../state/unitSelection';
-import { screenAngleFromDelta } from '../state/unitDirection';
+import { directionFromDelta, screenAngleFromDelta } from '../state/unitDirection';
 
 function makeMap(): MapData {
   return {
@@ -51,6 +51,14 @@ function aimAt(attacker: ModularCombatUnit, target: ModularCombatUnit): void {
   const t = normalizeCombatUnitRuntime(target);
   a.turretAngleDeg = screenAngleFromDelta(t.ftx - a.ftx, t.fty - a.fty);
 }
+
+describe('shared production combat direction mapping', () => {
+  it('preserves NW, N and NE after normalizing screen angles', () => {
+    expect(directionFromDelta(-1, 0)).toBe(5);
+    expect(directionFromDelta(-1, -1)).toBe(6);
+    expect(directionFromDelta(0, -1)).toBe(7);
+  });
+});
 
 describe('canonical Normal Game combat damage', () => {
   it('routes RMB enemy commands from a production combat selection to attack', () => {

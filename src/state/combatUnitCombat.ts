@@ -275,12 +275,13 @@ function clearInvalidTargetReferences(state: GameState): void {
 }
 
 function removeExpiredCombatWrecks(state: GameState, clock: number): void {
-  const survivors = (state.combatUnits ?? []).filter(unit => {
+  const units = state.combatUnits ?? [];
+  const survivors = units.filter(unit => {
     const runtime = normalizeCombatUnitRuntime(unit);
     if (!runtime.isDestroyed || runtime.destroyedAt === null) return true;
     return clock - runtime.destroyedAt < PRODUCTION_COMBAT_WRECK_LIFETIME_MS;
   });
-  if (survivors.length !== state.combatUnits.length) state.combatUnits.splice(0, state.combatUnits.length, ...survivors);
+  if (survivors.length !== units.length) units.splice(0, units.length, ...survivors);
 }
 
 function clearAttackOrder(runtime: ReturnType<typeof normalizeCombatUnitRuntime>): void {
