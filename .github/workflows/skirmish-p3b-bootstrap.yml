@@ -44,15 +44,26 @@ jobs:
           python3 tools/apply_skirmish_p3b.py
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('src/state/statusHelpers.ts')
-          text = path.read_text(encoding='utf-8')
+
+          status_path = Path('src/state/statusHelpers.ts')
+          status_text = status_path.read_text(encoding='utf-8')
           marker = "  BuildingType,\n  HarvesterState,"
           replacement = "  BuildingType,\n  ProducibleUnitType,\n  HarvesterState,"
-          if marker in text:
-              text = text.replace(marker, replacement, 1)
-          elif replacement not in text:
+          if marker in status_text:
+              status_text = status_text.replace(marker, replacement, 1)
+          elif replacement not in status_text:
               raise SystemExit('status helper type import marker not found')
-          path.write_text(text, encoding='utf-8')
+          status_path.write_text(status_text, encoding='utf-8')
+
+          test_path = Path('src/__tests__/commandRouter.test.ts')
+          test_text = test_path.read_text(encoding='utf-8')
+          old = "return { kind: 'own-building', id, tx, ty };"
+          new = "return { kind: 'own-building', id, buildingType: 'units-factory', tx, ty };"
+          if old in test_text:
+              test_text = test_text.replace(old, new, 1)
+          elif new not in test_text:
+              raise SystemExit('own building target marker not found')
+          test_path.write_text(test_text, encoding='utf-8')
           PY
       - if: steps.guard.outputs.apply == 'true'
         run: npm ci
