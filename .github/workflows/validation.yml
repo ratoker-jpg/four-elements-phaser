@@ -109,17 +109,31 @@ jobs:
         working-directory: target
         run: npm audit --audit-level=high
 
-      - name: Commit completed branch
+      - name: Stage generated result
+        working-directory: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git status --short
+          find public/assets/vfx/donor -maxdepth 1 -type f -printf '%s %p\n' | sort -nr
+
+      - name: Check generated diff
+        working-directory: target
+        run: git diff --cached --check
+
+      - name: Commit generated result
         working-directory: target
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
           git commit -m "feat(vfx): import pooled Godot donor texture overlay"
-          git push origin HEAD:feat/godot-vfx-donor-integration
+
+      - name: Push completed branch
+        working-directory: target
+        run: git push origin HEAD:feat/godot-vfx-donor-integration
 
   typecheck-test-audit:
     needs: apply-donor-vfx
