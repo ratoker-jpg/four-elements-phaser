@@ -12,6 +12,7 @@ import type { GameState, HarvesterState, HarvesterBlockedReason } from './types'
 import { buildOccupancyMap, isPassable, addUnitBlockers, addVehicleBlockers, isTileOccupiedByUnit } from './occupancy';
 import { findPath } from './pathfinding';
 import type { SelectableUnit, UnitSelection } from './unitSelection';
+import { issueCombatUnitMove, stopCombatUnit } from './combatUnitMovement';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ const MANUAL_COOLDOWN_MS = 800;
 /** Result of a move command. */
 export type MoveResult =
   | { ok: true }
-  | { ok: false; reason: 'no-unit-selected' | 'target-impassable' | 'target-occupied' | 'no-path' | 'unit-busy' };
+  | { ok: false; reason: 'no-unit-selected' | 'unit-destroyed' | 'target-impassable' | 'target-occupied' | 'no-path' | 'unit-busy' };
 
 /** Result of a resource approach computation. */
 export type ApproachResult =
@@ -89,6 +90,8 @@ export function issueManualMove(
     }
     // Note: reservation blockers not added for manual moves (player intentionality)
     return issueHarvesterManualMove(state, unit.id, targetTx, targetTy, occupancy);
+  } else if (unit.kind === 'combat') {
+    return issueCombatUnitMove(state, unit.id, targetTx, targetTy);
   } else if (unit.kind === 'builder') {
     // Target must not be occupied by another unit
     if (isTileOccupiedByUnit(state, targetTx, targetTy, 'builder', unit.id)) {
@@ -423,6 +426,10 @@ export function stopUnitCommand(
     h.blockedReason = undefined;
 
     return { ok: true };
+  }
+
+  if (unit.kind === 'combat') {
+    return stopCombatUnit(state, unit.id);
   }
 
   if (unit.kind === 'builder') {

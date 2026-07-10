@@ -145,6 +145,25 @@ export interface ConstructionSitePlacement {
 /** Modification level for modular combat units. */
 export type ModLevel = 'm0' | 'm1' | 'm2' | 'm3';
 
+export type CombatUnitOrder =
+  | { kind: 'idle' }
+  | { kind: 'move'; targetTx: number; targetTy: number };
+
+export interface CombatUnitRuntimeState {
+  ftx: number;
+  fty: number;
+  hp: number;
+  maxHp: number;
+  speedTilesPerSecond: number;
+  order: CombatUnitOrder;
+  path: Array<{ tx: number; ty: number }>;
+  pathIndex: number;
+  targetId: string | null;
+  weaponCooldownMs: number;
+  isDestroyed: boolean;
+  destroyedAt: number | null;
+}
+
 /** Canonical dynamic combat-unit state. Render entities are derived from this object. */
 export interface ModularCombatUnit {
   id: string;
@@ -160,6 +179,8 @@ export interface ModularCombatUnit {
   dir?: number;
   /** Runtime 8-direction turret facing; defaults to dir. */
   turretDir?: number;
+  /** Canonical production runtime. Optional only for old saves/test fixtures before normalization. */
+  runtime?: CombatUnitRuntimeState;
   /** Legacy save field, migrated to hullMod/turretMod on load. */
   mod?: ModLevel;
 }
