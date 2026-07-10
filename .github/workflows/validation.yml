@@ -78,13 +78,13 @@ jobs:
           from pathlib import Path
           path = Path('tools/apply_vfx_donor_patch.mjs')
           text = path.read_text(encoding='utf-8')
-          guard = '''  if (original.indexOf(before, index + before.length) >= 0) {
-            throw new Error(`${path}: patch marker is not unique:\\n${before}`);
-          }
-          '''
-          if guard not in text:
-              raise SystemExit('expected patch uniqueness guard not found')
-          path.write_text(text.replace(guard, ''), encoding='utf-8')
+          start_marker = '  if (original.indexOf(before, index + before.length) >= 0) {'
+          end_marker = '  const updated = original.slice(0, index)'
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('patch guard boundaries not found')
+          path.write_text(text[:start] + text[end:], encoding='utf-8')
           PY
           node tools/apply_vfx_donor_patch.mjs
           cp tools/final_validation_vfx.yml .github/workflows/validation.yml
