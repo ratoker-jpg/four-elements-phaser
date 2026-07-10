@@ -75,22 +75,34 @@ jobs:
       - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'failure'
         run: exit 1
       - name: Focused composer suite
+        id: focused
+        continue-on-error: true
         if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
-        run: >-
-          npx vitest run
-          src/__tests__/factoryComposerUi.test.ts
-          src/__tests__/commandRouter.test.ts
-          src/__tests__/unitSelection.test.ts
-          src/__tests__/controlGroups.test.ts
-          src/__tests__/selectionViewModel.test.ts
-          src/__tests__/commandPanelViewModel.test.ts
-          src/__tests__/visualHudCore01.test.ts
-          src/__tests__/statusHelpers.test.ts
-          src/__tests__/production.test.ts
-      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
+        shell: bash
+        run: |
+          set -o pipefail
+          npx vitest run \
+            src/__tests__/factoryComposerUi.test.ts \
+            src/__tests__/commandRouter.test.ts \
+            src/__tests__/unitSelection.test.ts \
+            src/__tests__/controlGroups.test.ts \
+            src/__tests__/selectionViewModel.test.ts \
+            src/__tests__/commandPanelViewModel.test.ts \
+            src/__tests__/visualHudCore01.test.ts \
+            src/__tests__/statusHelpers.test.ts \
+            src/__tests__/production.test.ts 2>&1 | tee p3b-focused.log
+      - if: steps.guard.outputs.apply == 'true' && steps.focused.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skirmish-p3b-focused
+          path: p3b-focused.log
+          if-no-files-found: error
+      - if: steps.guard.outputs.apply == 'true' && steps.focused.outcome == 'failure'
+        run: exit 1
+      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success' && steps.focused.outcome == 'success'
         run: npm audit --audit-level=high
       - name: Commit implementation
-        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
+        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success' && steps.focused.outcome == 'success'
         run: |
           rm tools/apply_skirmish_p3b.py
           git config user.name "github-actions[bot]"
