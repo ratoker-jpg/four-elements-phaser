@@ -1,0 +1,60 @@
+name: Cleanup PR Preview
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR preview number to remove
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cleanup-pr-preview-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve PR number
+        id: pr
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 1
+
+      - name: Remove preview
+        shell: bash
+        run: |
+          target="pr-preview/pr-${{ steps.pr.outputs.number }}"
+          if [ ! -e "$target" ]; then
+            echo "Preview $target does not exist; nothing to remove."
+            exit 0
+          fi
+
+          rm -rf "$target"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore(pages): remove PR #${{ steps.pr.outputs.number }} preview"
+          git push origin gh-pages
