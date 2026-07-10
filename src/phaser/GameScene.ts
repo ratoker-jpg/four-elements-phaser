@@ -927,20 +927,7 @@ export class GameScene extends Phaser.Scene {
       expireDamageEvents(nowMs);
     }
 
-    // SKIRMISH-P1: destroyed vehicles become non-interactive wrecks, then
-    // leave canonical state after a bounded delay. Run before render sync so
-    // stale adapters, selection and target references disappear this frame.
-    if (this.gameState.blockoutVehicles && this.devtoolsActive) {
-      const destruction = updateBlockoutDestructionLifecycle(
-        this.gameState.blockoutVehicles,
-        this.time.now,
-        this.reservationMap ?? undefined,
-      );
-      const selectedId = this.blockoutVehicleInputController?.selectedVehicleId ?? null;
-      if (selectedId && destruction.destroyedIds.includes(selectedId)) {
-        this.blockoutVehicleInputController?.setSelectedVehicleId(null);
-      }
-    }
+    if (this.gameState.blockoutVehicles && this.devtoolsActive && updateBlockoutDestructionLifecycle(this.gameState.blockoutVehicles, this.time.now, this.reservationMap ?? undefined).destroyedIds.includes(this.blockoutVehicleInputController?.selectedVehicleId ?? '')) this.blockoutVehicleInputController?.setSelectedVehicleId(null);
 
     // Stage 4 FIXUP-1: blockout render sync delegated to RenderManager
     this.renderManager?.syncBlockoutRenderState(
