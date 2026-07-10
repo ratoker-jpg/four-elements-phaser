@@ -15,11 +15,11 @@ Updated: 2026-07-10
 Updated: 2026-07-10
 
 ```text
-RTS FOUNDATION — Phase 3: Hull + turret selection UI/model
-Status: READY_FOR_DESIGN
-Last merged: PR #334 — Projected tracks and bounded dust
-Next: Define and accept the minimal Units Factory hull/turret selection panel and its production request flow before implementation.
-Gate: Do not start Phase 3 implementation until the factory panel interaction model is accepted. Do not begin Enemy AI.
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 2: Production combat runtime in Normal Game
+Status: READY_FOR_IMPLEMENTATION
+Last merged: PR #339 — Bounded combat destruction lifecycle
+Next: Extend canonical GameState.combatUnits so factory-produced tanks can move, stop, acquire targets, attack, take damage and die in Normal Game using shared pure Arena combat systems.
+Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState wholesale. Normal Game combatUnits remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.
 ```
 <!-- PROJECT_STATUS:END -->
 
@@ -27,7 +27,7 @@ Gate: Do not start Phase 3 implementation until the factory panel interaction mo
 
 - Phase 0 roadmap/audit: closed via PR #322.
 - Phase 1 validation baseline: closed via PR #324.
-- Phase 2 canonical multi-unit combat production: closed via PR #334.
+- Phase 2 canonical multi-unit combat production: closed via PR #339.
 - Produced combat units use `GameState.combatUnits` as canonical state.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -37,7 +37,7 @@ Gate: Do not start Phase 3 implementation until the factory panel interaction mo
 | Check | Result |
 |---|---|
 | TypeScript | PASS |
-| Tests | PASS (5266 tests / 112 files) |
+| Tests | PASS (5286 tests / 113 files) |
 | Build | PASS (GitHub Validation) |
 | QA smoke | PASS (GitHub QA Smoke) |
 | Dependency audit | PASS (0 high-severity vulnerabilities) |
@@ -45,9 +45,10 @@ Gate: Do not start Phase 3 implementation until the factory panel interaction mo
 
 ## Manual QA still required
 
+- Destroy an Arena tank and confirm the live modular model disappears immediately, followed by a short explosion, fading wreck and full removal after 1.8 seconds.
+- Confirm destroyed Arena tanks cannot be selected or assigned as targets and no longer retain tile reservations.
 - Produce two combat units in Normal mode and confirm both appear independently.
 - Save and reload with produced combat units; confirm visibility and unit cap remain correct.
-- Confirm builder and harvester production still work after Phase 2 changes.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
 Automated checks do not replace visual acceptance for produced-unit rendering and save/load behavior.
@@ -58,6 +59,7 @@ Automated checks do not replace visual acceptance for produced-unit rendering an
 - Issue #330: complete manual visual QA for produced combat units in Normal mode.
 - Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.
 - Issue #335: visually accept the donor VFX overlay, projected tracks and bounded dust.
+- Implement SKIRMISH-P2: production combat movement, orders, targeting, damage and persistence in Normal Game.
 
 ## Current source-of-truth documents
 

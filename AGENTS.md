@@ -26,11 +26,11 @@ The old repository `ratoker-jpg/four-elements-next` is donor/reference/specifica
 Updated: 2026-07-10
 
 ```text
-RTS FOUNDATION — Phase 3: Hull + turret selection UI/model
-Status: READY_FOR_DESIGN
-Last merged: PR #334 — Projected tracks and bounded dust
-Next: Define and accept the minimal Units Factory hull/turret selection panel and its production request flow before implementation.
-Gate: Do not start Phase 3 implementation until the factory panel interaction model is accepted. Do not begin Enemy AI.
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 2: Production combat runtime in Normal Game
+Status: READY_FOR_IMPLEMENTATION
+Last merged: PR #339 — Bounded combat destruction lifecycle
+Next: Extend canonical GameState.combatUnits so factory-produced tanks can move, stop, acquire targets, attack, take damage and die in Normal Game using shared pure Arena combat systems.
+Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState wholesale. Normal Game combatUnits remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.
 ```
 <!-- PROJECT_STATUS:END -->
 

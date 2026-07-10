@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: RTS-FND-P3 — Hull + turret selection UI/model  
+Status: SKIRMISH-P2 — Production combat runtime in Normal Game  
 Project: Four Elements Phaser  
 Updated: 2026-07-10
 
@@ -14,11 +14,11 @@ Updated: 2026-07-10
 Updated: 2026-07-10
 
 ```text
-RTS FOUNDATION — Phase 3: Hull + turret selection UI/model
-Status: READY_FOR_DESIGN
-Last merged: PR #334 — Projected tracks and bounded dust
-Next: Define and accept the minimal Units Factory hull/turret selection panel and its production request flow before implementation.
-Gate: Do not start Phase 3 implementation until the factory panel interaction model is accepted. Do not begin Enemy AI.
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 2: Production combat runtime in Normal Game
+Status: READY_FOR_IMPLEMENTATION
+Last merged: PR #339 — Bounded combat destruction lifecycle
+Next: Extend canonical GameState.combatUnits so factory-produced tanks can move, stop, acquire targets, attack, take damage and die in Normal Game using shared pure Arena combat systems.
+Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState wholesale. Normal Game combatUnits remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.
 ```
 <!-- PROJECT_STATUS:END -->
 
@@ -37,7 +37,7 @@ Gate: Do not start Phase 3 implementation until the factory panel interaction mo
 
 ## Acceptance gate
 
-Do not start Phase 3 implementation until the factory panel interaction model is accepted. Do not begin Enemy AI.
+Do not create a third combat-unit runtime or copy BlockoutVehicleState wholesale. Normal Game combatUnits remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.
 
 A design/audit PR may proceed. Runtime UI implementation should follow only after the interaction model is explicit enough to test.
 
@@ -55,9 +55,10 @@ A design/audit PR may proceed. Runtime UI implementation should follow only afte
 
 ## Manual QA carried from Phase 2
 
+- Destroy an Arena tank and confirm the live modular model disappears immediately, followed by a short explosion, fading wreck and full removal after 1.8 seconds.
+- Confirm destroyed Arena tanks cannot be selected or assigned as targets and no longer retain tile reservations.
 - Produce two combat units in Normal mode and confirm both appear independently.
 - Save and reload with produced combat units; confirm visibility and unit cap remain correct.
-- Confirm builder and harvester production still work after Phase 2 changes.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
 ## Not next by default
