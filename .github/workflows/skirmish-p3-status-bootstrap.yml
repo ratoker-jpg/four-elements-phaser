@@ -35,16 +35,31 @@ jobs:
         run: |
           if [ -f tools/apply_skirmish_p3_status.py ]; then echo "apply=true" >> "$GITHUB_OUTPUT"; else echo "apply=false" >> "$GITHUB_OUTPUT"; fi
       - name: Apply Phase 3 status
+        id: apply
         if: steps.guard.outputs.apply == 'true'
-        run: python3 tools/apply_skirmish_p3_status.py
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tools/apply_skirmish_p3_status.py 2>&1 | tee p3-status-bootstrap.log
+      - name: Upload bootstrap error
+        if: steps.guard.outputs.apply == 'true' && steps.apply.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skirmish-p3-status-bootstrap-log
+          path: p3-status-bootstrap.log
+          if-no-files-found: error
+      - name: Stop on bootstrap error
+        if: steps.guard.outputs.apply == 'true' && steps.apply.outcome == 'failure'
+        run: exit 1
       - name: Generate status documents
-        if: steps.guard.outputs.apply == 'true'
+        if: steps.guard.outputs.apply == 'true' && steps.apply.outcome == 'success'
         run: npm run sync:project-status
       - name: Verify generated status
-        if: steps.guard.outputs.apply == 'true'
+        if: steps.guard.outputs.apply == 'true' && steps.apply.outcome == 'success'
         run: npm run sync:project-status -- --check
       - name: Commit generated status
-        if: steps.guard.outputs.apply == 'true'
+        if: steps.guard.outputs.apply == 'true' && steps.apply.outcome == 'success'
         run: |
           rm tools/apply_skirmish_p3_status.py
           git config user.name "github-actions[bot]"
