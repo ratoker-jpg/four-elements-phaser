@@ -89,7 +89,22 @@ jobs:
 
       - name: Unit tests
         if: steps.guard.outputs.needed == 'true'
-        run: npm test
+        shell: bash
+        run: |
+          set +e
+          npm test > phase2-tests.log 2>&1
+          status=$?
+          cat phase2-tests.log
+          exit $status
+
+      - name: Upload test diagnostics
+        if: always() && steps.guard.outputs.needed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-test-diagnostics
+          path: phase2-tests.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Audit
         if: steps.guard.outputs.needed == 'true'
@@ -99,7 +114,7 @@ jobs:
         if: steps.guard.outputs.needed == 'true'
         shell: bash
         run: |
-          rm -f phase2-typecheck.log
+          rm -f phase2-typecheck.log phase2-tests.log
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
