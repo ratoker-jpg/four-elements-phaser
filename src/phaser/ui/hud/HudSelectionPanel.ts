@@ -8,6 +8,8 @@
 
 import type { GameState } from '../../../state/types';
 import type { UnitSelection } from '../../../state/unitSelection';
+import type { FactoryComposerState } from '../../../state/factoryComposer';
+import { buildFactoryComposerPreviewViewModel, type FactoryComposerPreviewViewModel } from './factoryComposerPreviewViewModel';
 import { buildSelectionViewModel, type SelectionViewModel } from './selectionViewModel';
 
 export class HudSelectionPanel {
@@ -23,6 +25,11 @@ export class HudSelectionPanel {
   private contentEl!: HTMLDivElement;
   private countEl!: HTMLSpanElement;
   private breakdownEl!: HTMLSpanElement;
+  private previewEl!: HTMLDivElement;
+  private previewHullImg!: HTMLImageElement;
+  private previewTurretImg!: HTMLImageElement;
+  private previewLabelEl!: HTMLSpanElement;
+  private previewFallbackEl!: HTMLDivElement;
 
   create(parent: HTMLElement): void {
     this.container = document.createElement('div');
@@ -41,15 +48,66 @@ export class HudSelectionPanel {
     this.contentEl = this.container.querySelector('#hsp-content')!;
     this.countEl = this.container.querySelector('#hsp-count')!;
     this.breakdownEl = this.container.querySelector('#hsp-breakdown')!;
+    this.previewEl = this.container.querySelector('#hsp-factory-preview')!;
+    this.previewHullImg = this.container.querySelector('#hsp-preview-hull')!;
+    this.previewTurretImg = this.container.querySelector('#hsp-preview-turret')!;
+    this.previewLabelEl = this.container.querySelector('#hsp-preview-label')!;
+    this.previewFallbackEl = this.container.querySelector('#hsp-preview-fallback')!;
+
+    const onLayerLoad = (event: Event) => {
+      (event.currentTarget as HTMLImageElement).dataset.loadState = 'loaded';
+      this.refreshPreviewLoadState();
+    };
+    const onLayerError = (event: Event) => {
+      (event.currentTarget as HTMLImageElement).dataset.loadState = 'failed';
+      this.refreshPreviewLoadState();
+    };
+    this.previewHullImg.addEventListener('load', onLayerLoad);
+    this.previewHullImg.addEventListener('error', onLayerError);
+    this.previewTurretImg.addEventListener('load', onLayerLoad);
+    this.previewTurretImg.addEventListener('error', onLayerError);
   }
 
-  update(state: GameState, selection: UnitSelection): void {
+  update(state: GameState, selection: UnitSelection, composer?: FactoryComposerState): void {
     const vm = buildSelectionViewModel(state, selection);
     this.applyViewModel(vm);
+    this.applyPreviewViewModel(buildFactoryComposerPreviewViewModel(state, selection, composer));
   }
 
   destroy(): void {
     this.container?.remove();
+  }
+
+  private applyPreviewViewModel(vm: FactoryComposerPreviewViewModel): void {
+    if (!vm.visible) {
+      this.previewEl.style.display = 'none';
+      this.previewHullImg.removeAttribute('src');
+      this.previewTurretImg.removeAttribute('src');
+      return;
+    }
+
+    this.previewEl.style.display = 'flex';
+    this.previewLabelEl.textContent = vm.label;
+    this.previewHullImg.alt = vm.alt;
+    this.previewTurretImg.alt = '';
+
+    if (this.previewHullImg.getAttribute('src') !== vm.hullSrc) {
+      this.previewHullImg.dataset.loadState = 'loading';
+      this.previewHullImg.src = vm.hullSrc;
+    }
+    if (this.previewTurretImg.getAttribute('src') !== vm.turretSrc) {
+      this.previewTurretImg.dataset.loadState = 'loading';
+      this.previewTurretImg.src = vm.turretSrc;
+    }
+    this.refreshPreviewLoadState();
+  }
+
+  private refreshPreviewLoadState(): void {
+    const failed = this.previewHullImg.dataset.loadState === 'failed'
+      || this.previewTurretImg.dataset.loadState === 'failed';
+    this.previewFallbackEl.style.display = failed ? 'flex' : 'none';
+    this.previewHullImg.style.visibility = failed ? 'hidden' : 'visible';
+    this.previewTurretImg.style.visibility = failed ? 'hidden' : 'visible';
   }
 
   private applyViewModel(vm: SelectionViewModel): void {
@@ -121,9 +179,71 @@ export class HudSelectionPanel {
       }
       #hsp-content {
         display: none;
+        flex-direction: row;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
+        height: 100%;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+      #hsp-info {
+        display: flex;
+        flex: 1;
+        min-width: 0;
         flex-direction: column;
         gap: 8px;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+      #hsp-factory-preview {
+        display: none;
+        flex: 0 0 136px;
+        width: 136px;
+        height: 150px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+      }
+      #hsp-preview-stage {
+        position: relative;
+        width: 132px;
+        height: 124px;
+        overflow: hidden;
+        border: 1px solid rgba(96, 208, 208, 0.22);
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 50% 62%, rgba(96, 208, 208, 0.14), transparent 52%),
+          linear-gradient(180deg, rgba(20, 31, 40, 0.8), rgba(5, 8, 12, 0.92));
+      }
+      .hsp-preview-layer {
+        position: absolute;
+        inset: -4px;
+        width: 140px;
+        height: 140px;
+        object-fit: contain;
+        pointer-events: none;
+        user-select: none;
+      }
+      #hsp-preview-hull { z-index: 1; }
+      #hsp-preview-turret { z-index: 2; }
+      #hsp-preview-fallback {
+        display: none;
+        position: absolute;
+        inset: 0;
+        align-items: center;
+        justify-content: center;
+        color: #70808a;
+        font-size: 11px;
+        text-align: center;
+        padding: 12px;
+      }
+      #hsp-preview-label {
+        max-width: 132px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #9ed9d9;
+        font-size: 11px;
+        font-weight: 600;
       }
       #hsp-header {
         display: flex;
@@ -208,20 +328,30 @@ export class HudSelectionPanel {
         <span id="hsp-empty-text">No selection</span>
       </div>
       <div id="hsp-content">
-        <div id="hsp-header">
-          <span id="hsp-name">—</span>
-          <span id="hsp-kind">—</span>
-          <span id="hsp-count">—</span>
-          <span id="hsp-faction">—</span>
+        <div id="hsp-factory-preview" aria-live="polite">
+          <div id="hsp-preview-stage">
+            <img id="hsp-preview-hull" class="hsp-preview-layer" draggable="false" alt="" />
+            <img id="hsp-preview-turret" class="hsp-preview-layer" draggable="false" alt="" />
+            <div id="hsp-preview-fallback">Предпросмотр недоступен</div>
+          </div>
+          <span id="hsp-preview-label">—</span>
         </div>
-        <div>
-          <span id="hsp-breakdown">—</span>
+        <div id="hsp-info">
+          <div id="hsp-header">
+            <span id="hsp-name">—</span>
+            <span id="hsp-kind">—</span>
+            <span id="hsp-count">—</span>
+            <span id="hsp-faction">—</span>
+          </div>
+          <div>
+            <span id="hsp-breakdown">—</span>
+          </div>
+          <div id="hsp-hp-bar">
+            <div id="hsp-hp-track"><div id="hsp-hp-fill"></div></div>
+            <span id="hsp-hp-text">—</span>
+          </div>
+          <div id="hsp-status">—</div>
         </div>
-        <div id="hsp-hp-bar">
-          <div id="hsp-hp-track"><div id="hsp-hp-fill"></div></div>
-          <span id="hsp-hp-text">—</span>
-        </div>
-        <div id="hsp-status">—</div>
       </div>
     `;
   }
