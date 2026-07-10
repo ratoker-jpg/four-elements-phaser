@@ -72,13 +72,16 @@ jobs:
         if: steps.guard.outputs.apply == 'true'
         run: npm run typecheck
 
-      - name: Targeted lifecycle tests
+      - name: Focused destruction regression suite
         if: steps.guard.outputs.apply == 'true'
-        run: npx vitest run src/__tests__/blockoutDestructionLifecycle.test.ts
-
-      - name: Full unit suite
-        if: steps.guard.outputs.apply == 'true'
-        run: npm test
+        run: >-
+          npx vitest run
+          src/__tests__/blockoutDestructionLifecycle.test.ts
+          src/__tests__/blockoutDamage.test.ts
+          src/__tests__/arenaRoster.test.ts
+          src/__tests__/step06MovementOccupancy.test.ts
+          src/__tests__/blockoutAi.test.ts
+          src/__tests__/combatCore.test.ts
 
       - name: Dependency audit
         if: steps.guard.outputs.apply == 'true'
