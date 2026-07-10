@@ -5,13 +5,13 @@ import {
   unprojectScreenToGround,
 } from '../config/cameraProjectionContract';
 
-export const MOTION_FEEDBACK_SPEED_THRESHOLD = 24;
-export const MOTION_FEEDBACK_EMIT_DISTANCE_PX = 12;
+export const MOTION_FEEDBACK_SPEED_THRESHOLD = 10;
+export const MOTION_FEEDBACK_EMIT_DISTANCE_PX = 8;
 export const MOTION_FEEDBACK_TELEPORT_DISTANCE_PX = 180;
-export const MOTION_FEEDBACK_TRACK_TTL_MS = 1_500;
-export const MOTION_FEEDBACK_DUST_TTL_MS = 620;
-export const MOTION_FEEDBACK_MAX_TRACKS = 120;
-export const MOTION_FEEDBACK_MAX_DUST = 48;
+export const MOTION_FEEDBACK_TRACK_TTL_MS = 2_600;
+export const MOTION_FEEDBACK_DUST_TTL_MS = 900;
+export const MOTION_FEEDBACK_MAX_TRACKS = 160;
+export const MOTION_FEEDBACK_MAX_DUST = 64;
 
 export interface MotionFeedbackOffset {
   x: number;
@@ -61,9 +61,9 @@ export function computeProjectedTrackSample(
 
   const sideX = -forwardY;
   const sideY = forwardX;
-  const rearOffset = 0.24;
-  const trackHalfSpacing = 0.16;
-  const trackHalfLength = 0.13;
+  const rearOffset = 0.29;
+  const trackHalfSpacing = 0.19;
+  const trackHalfLength = 0.18;
 
   const footX = centerGround.x - forwardX * rearOffset + sideX * trackHalfSpacing * side;
   const footY = centerGround.y - forwardY * rearOffset + sideY * trackHalfSpacing * side;
