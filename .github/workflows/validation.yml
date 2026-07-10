@@ -8,59 +8,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  sync-project-status:
-    if: github.event_name == 'pull_request' && github.head_ref == 'docs/donor-reuse-status-sync' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout status branch
-        uses: actions/checkout@v4
-        with:
-          ref: docs/donor-reuse-status-sync
-          fetch-depth: 0
-          sparse-checkout: |
-            .github
-            AGENTS.md
-            docs/project
-            tools
-            package.json
-            package-lock.json
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate active project documents
-        run: npm run sync:project-status
-
-      - name: Verify generated status
-        run: npm run check:project-status
-
-      - name: Commit generated documents
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add AGENTS.md docs/project/PROJECT_STATE.md docs/project/CURRENT_NEXT_STEP.md
-          git diff --cached --check
-          git commit -m "docs(status): sync donor reuse closure"
-          git push origin HEAD:docs/donor-reuse-status-sync
-
   typecheck-test-audit:
-    needs: sync-project-status
-    if: always() && needs.sync-project-status.result == 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
