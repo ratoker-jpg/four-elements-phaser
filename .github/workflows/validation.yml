@@ -87,7 +87,6 @@ jobs:
           path.write_text(text[:start] + text[end:], encoding='utf-8')
           PY
           node tools/apply_vfx_donor_patch.mjs
-          cp tools/final_validation_vfx.yml .github/workflows/validation.yml
           rm tools/apply_vfx_donor_patch.mjs tools/final_validation_vfx.yml
 
       - name: Install dependencies
