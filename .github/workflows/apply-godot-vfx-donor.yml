@@ -1,16 +1,21 @@
 name: Apply Godot VFX Donor
 
 on:
-  push:
+  pull_request_target:
+    types: [opened]
     branches: [main]
-    paths:
-      - .github/workflows/apply-godot-vfx-donor.yml
 
 permissions:
   contents: write
+  pull-requests: read
+
+concurrency:
+  group: apply-godot-vfx-donor
+  cancel-in-progress: false
 
 jobs:
   apply-donor-vfx:
+    if: github.event.pull_request.head.ref == 'feat/godot-vfx-donor-integration'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
