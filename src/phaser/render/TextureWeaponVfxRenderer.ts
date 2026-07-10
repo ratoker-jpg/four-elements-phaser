@@ -4,8 +4,13 @@ import { getWeaponVfxProfile } from '../../config/blockoutVfxData';
 import type { BlockoutWeaponVfxEvent } from '../../state/blockoutWeaponVfx';
 import { getVfxEvents } from '../../state/blockoutWeaponVfx';
 
-const TEXTURE_VFX_DEPTH = 126;
+const TEXTURE_VFX_DEPTH = 180;
 const MAX_POOLED_IMAGES = 96;
+const MUZZLE_SCALE = 1.7;
+const TRAIL_WIDTH_SCALE = 2;
+const IMPACT_SCALE = 1.65;
+const SMOKE_SCALE = 1.5;
+const NOISE_SCALE = 1.45;
 
 type TextureRole = 'muzzle' | 'trail' | 'impact' | 'smoke' | 'noise';
 
@@ -31,6 +36,7 @@ export class TextureWeaponVfxRenderer {
   private readonly activeVisuals = new Map<number, EventVisual>();
   private readonly allImages: Phaser.GameObjects.Image[] = [];
   private readonly freeImages: Phaser.GameObjects.Image[] = [];
+  private readonly missingTextureKeys = new Set<string>();
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -67,6 +73,7 @@ export class TextureWeaponVfxRenderer {
   destroy(): void {
     this.activeVisuals.clear();
     this.freeImages.length = 0;
+    this.missingTextureKeys.clear();
     for (const image of this.allImages) {
       image.destroy();
     }
@@ -108,7 +115,15 @@ export class TextureWeaponVfxRenderer {
     textureKey: string | undefined,
     additive: boolean,
   ): void {
-    if (!textureKey || !this.scene.textures.exists(textureKey)) return;
+    if (!textureKey) return;
+    if (!this.scene.textures.exists(textureKey)) {
+      if (!this.missingTextureKeys.has(textureKey)) {
+        this.missingTextureKeys.add(textureKey);
+        console.warn(`[TextureWeaponVfxRenderer] Missing donor texture: ${textureKey}`);
+      }
+      return;
+    }
+
     const image = this.acquireImage(textureKey);
     if (!image) return;
     image.setBlendMode(additive ? Phaser.BlendModes.ADD : Phaser.BlendModes.NORMAL);
@@ -121,12 +136,12 @@ export class TextureWeaponVfxRenderer {
       if (this.allImages.length >= MAX_POOLED_IMAGES) return null;
       image = this.scene.add.image(0, 0, textureKey);
       image.setOrigin(0.5, 0.5);
-      image.setDepth(TEXTURE_VFX_DEPTH);
       this.allImages.push(image);
     } else {
       image.setTexture(textureKey);
     }
 
+    image.setDepth(TEXTURE_VFX_DEPTH);
     image.setActive(true);
     image.setVisible(true);
     image.setAlpha(1);
@@ -189,12 +204,12 @@ export class TextureWeaponVfxRenderer {
     progress: number,
     fade: number,
   ): void {
-    const size = profile.muzzleTextureSizePx ?? 34;
-    const pulse = 0.85 + Math.sin(progress * Math.PI) * 0.35;
+    const size = (profile.muzzleTextureSizePx ?? 34) * MUZZLE_SCALE;
+    const pulse = 0.9 + Math.sin(progress * Math.PI) * 0.42;
     image.setPosition(event.originX, event.originY);
     image.setDisplaySize(size * pulse, size * pulse);
     image.setRotation(event.angle);
-    image.setAlpha(Math.min(1, fade * 1.8));
+    image.setAlpha(Math.min(1, 0.2 + fade * 2.1));
     image.setTint(profile.color);
   }
 
@@ -207,11 +222,12 @@ export class TextureWeaponVfxRenderer {
     angle: number,
     fade: number,
   ): void {
-    const width = profile.trailTextureWidthPx ?? Math.max(6, profile.width * 4);
+    const width = (profile.trailTextureWidthPx ?? Math.max(6, profile.width * 4))
+      * TRAIL_WIDTH_SCALE;
     image.setPosition((event.originX + end.x) * 0.5, (event.originY + end.y) * 0.5);
     image.setRotation(angle);
     image.setDisplaySize(distance, width);
-    image.setAlpha(Math.min(0.9, fade * 1.25));
+    image.setAlpha(Math.min(1, 0.16 + fade * 1.45));
     image.setTint(profile.color);
   }
 
@@ -222,13 +238,15 @@ export class TextureWeaponVfxRenderer {
     progress: number,
     fade: number,
   ): void {
-    const size = profile.impactTextureSizePx
-      ?? Math.max(26, (profile.impactRadiusPx ?? 8) * 2.4);
-    const grow = 0.72 + progress * 0.55;
+    const size = (
+      profile.impactTextureSizePx
+      ?? Math.max(26, (profile.impactRadiusPx ?? 8) * 2.4)
+    ) * IMPACT_SCALE;
+    const grow = 0.78 + progress * 0.72;
     image.setPosition(end.x, end.y);
-    image.setRotation(progress * 0.65);
+    image.setRotation(progress * 0.82);
     image.setDisplaySize(size * grow, size * grow);
-    image.setAlpha(Math.min(1, fade * 1.45));
+    image.setAlpha(Math.min(1, 0.12 + fade * 1.75));
     image.setTint(profile.secondaryColor ?? profile.color);
   }
 
@@ -239,12 +257,12 @@ export class TextureWeaponVfxRenderer {
     progress: number,
     fade: number,
   ): void {
-    const size = profile.smokeTextureSizePx ?? 48;
-    const grow = 0.72 + progress * 0.9;
-    image.setPosition(end.x, end.y - progress * 14);
-    image.setRotation(progress * 0.4);
+    const size = (profile.smokeTextureSizePx ?? 48) * SMOKE_SCALE;
+    const grow = 0.78 + progress * 1.08;
+    image.setPosition(end.x, end.y - progress * 18);
+    image.setRotation(progress * 0.52);
     image.setDisplaySize(size * grow, size * grow);
-    image.setAlpha(fade * 0.62);
+    image.setAlpha(Math.min(0.92, fade * 0.92));
     image.clearTint();
   }
 
@@ -256,15 +274,15 @@ export class TextureWeaponVfxRenderer {
     progress: number,
     fade: number,
   ): void {
-    const size = profile.noiseTextureSizePx ?? 38;
-    const t = 0.45 + progress * 0.35;
+    const size = (profile.noiseTextureSizePx ?? 38) * NOISE_SCALE;
+    const t = 0.4 + progress * 0.4;
     image.setPosition(
       Phaser.Math.Linear(event.originX, end.x, t),
       Phaser.Math.Linear(event.originY, end.y, t),
     );
-    image.setRotation(event.angle + progress * 0.55);
-    image.setDisplaySize(size * (0.85 + progress * 0.5), size * (0.7 + progress * 0.45));
-    image.setAlpha(fade * 0.5);
+    image.setRotation(event.angle + progress * 0.72);
+    image.setDisplaySize(size * (0.95 + progress * 0.62), size * (0.78 + progress * 0.52));
+    image.setAlpha(Math.min(0.82, fade * 0.82));
     image.setTint(profile.color);
   }
 
