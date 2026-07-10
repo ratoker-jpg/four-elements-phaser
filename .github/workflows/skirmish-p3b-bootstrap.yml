@@ -40,7 +40,20 @@ jobs:
           if [ -f tools/apply_skirmish_p3b.py ]; then echo "apply=true" >> "$GITHUB_OUTPUT"; else echo "apply=false" >> "$GITHUB_OUTPUT"; fi
       - name: Apply implementation patch
         if: steps.guard.outputs.apply == 'true'
-        run: python3 tools/apply_skirmish_p3b.py
+        run: |
+          python3 tools/apply_skirmish_p3b.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/state/statusHelpers.ts')
+          text = path.read_text(encoding='utf-8')
+          marker = "  BuildingType,\n  HarvesterState,"
+          replacement = "  BuildingType,\n  ProducibleUnitType,\n  HarvesterState,"
+          if marker in text:
+              text = text.replace(marker, replacement, 1)
+          elif replacement not in text:
+              raise SystemExit('status helper type import marker not found')
+          path.write_text(text, encoding='utf-8')
+          PY
       - if: steps.guard.outputs.apply == 'true'
         run: npm ci
       - if: steps.guard.outputs.apply == 'true'
