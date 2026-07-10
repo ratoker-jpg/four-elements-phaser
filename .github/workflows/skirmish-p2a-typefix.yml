@@ -1,0 +1,56 @@
+name: SKIRMISH P2A Type Fixup
+
+on:
+  pull_request:
+    branches: [main]
+    types: [synchronize, reopened]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: skirmish-p2a-typefix-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'agent/skirmish-p2a-combat-movement'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/skirmish-p2a-combat-movement
+          filter: blob:none
+          sparse-checkout: |
+            src
+            tools
+            package.json
+            package-lock.json
+            tsconfig.json
+          persist-credentials: true
+      - id: guard
+        run: |
+          if [ -f tools/apply_skirmish_p2a_typefix.py ]; then echo "apply=true" >> "$GITHUB_OUTPUT"; else echo "apply=false" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.guard.outputs.apply == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.guard.outputs.apply == 'true'
+        run: python3 tools/apply_skirmish_p2a_typefix.py
+      - if: steps.guard.outputs.apply == 'true'
+        run: npm ci
+      - if: steps.guard.outputs.apply == 'true'
+        run: npm run typecheck
+      - if: steps.guard.outputs.apply == 'true'
+        run: npx vitest run src/__tests__/combatUnitMovement.test.ts src/__tests__/unitCommands.test.ts src/__tests__/directionFromDelta.test.ts
+      - name: Commit fixup
+        if: steps.guard.outputs.apply == 'true'
+        run: |
+          rm tools/apply_skirmish_p2a_typefix.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tools/apply_skirmish_p2a_typefix.py
+          git diff --cached --check
+          git commit -m "fix(combat): align stop result and direction export"
+          git push origin agent/skirmish-p2a-combat-movement
