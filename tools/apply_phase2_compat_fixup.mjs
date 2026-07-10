@@ -2,10 +2,17 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 
-const path = 'src/state/types.ts';
-let text = await readFile(path, 'utf8');
+async function patch(path, replacements) {
+  let text = await readFile(path, 'utf8');
+  for (const [from, to, label] of replacements) {
+    if (!text.includes(from)) throw new Error(`${path}: missing target: ${label}`);
+    text = text.replace(from, to);
+  }
+  await writeFile(path, text);
+  console.log(`[phase2-compat-fixup] patched ${path}`);
+}
 
-const replacements = [
+await patch('src/state/types.ts', [
   [
 `  hullMod: ModLevel;
   turretMod: ModLevel;
@@ -25,12 +32,19 @@ const replacements = [
   nextCombatUnitId?: number;`,
     'legacy GameState counter compatibility',
   ],
-];
+]);
 
-for (const [from, to, label] of replacements) {
-  if (!text.includes(from)) throw new Error(`missing target: ${label}`);
-  text = text.replace(from, to);
-}
-
-await writeFile(path, text);
-console.log('[phase2-compat-fixup] patched src/state/types.ts');
+await patch('src/__tests__/production.test.ts', [
+  [
+`  it('processFactorySpawns creates a ModularCombatUnit with correct bodyId/weaponId/mod', () => {`,
+`  it('processFactorySpawns creates a ModularCombatUnit with independent hull/turret mods', () => {`,
+    'combat production test name',
+  ],
+  [
+`    expect(combatUnit.mod).toBe('m0');`,
+`    expect(combatUnit.hullMod).toBe('m0');
+    expect(combatUnit.turretMod).toBe('m0');
+    expect(combatUnit.mod).toBeUndefined();`,
+    'split combat modification assertions',
+  ],
+]);
