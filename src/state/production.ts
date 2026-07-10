@@ -33,12 +33,10 @@ import {
   HARVESTER_PRODUCTION_MATTER_COST,
   HARVESTER_PRODUCTION_ELEMENT_COST,
   HARVESTER_PRODUCTION_DURATION_MS,
-  WASP_SMOKY_TOTAL_MATTER_COST,
-  WASP_SMOKY_TOTAL_ELEMENT_COST,
-  WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS,
   DEFAULT_UNIT_CAP,
 } from './types';
 import { normalizeProductionRequest } from './combatUnits';
+import { getT1CombatProductionQuote } from '../config/t1ProductionComponents';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -68,33 +66,59 @@ export type CancelResult =
   | { ok: true }
   | { ok: false; reason: CancelRejectionReason };
 
-// ─── Cost lookup ────────────────────────────────────────────────────
+// ─── Canonical production quote ─────────────────────────────────────
 
-/** Get matter cost for a producible unit type. */
-function getMatterCost(unitType: ProducibleUnitType): number {
-  switch (unitType) {
-    case 'builder': return BUILDER_PRODUCTION_MATTER_COST;
-    case 'harvester': return HARVESTER_PRODUCTION_MATTER_COST;
-    case 'wasp-smoky': return WASP_SMOKY_TOTAL_MATTER_COST;
-  }
+export type ProductionRequestInput = ProducibleUnitType | UnitProductionRequest;
+
+export interface ProductionQuote {
+  unitType: ProducibleUnitType;
+  request: UnitProductionRequest;
+  displayNameRu: string;
+  matterCost: number;
+  elementCost: number;
+  durationMs: number;
 }
 
-/** Get element cost (in elementUnits) for a producible unit type. */
-function getElementCost(unitType: ProducibleUnitType): number {
-  switch (unitType) {
-    case 'builder': return BUILDER_PRODUCTION_ELEMENT_COST;
-    case 'harvester': return HARVESTER_PRODUCTION_ELEMENT_COST;
-    case 'wasp-smoky': return WASP_SMOKY_TOTAL_ELEMENT_COST;
+/** Resolve one canonical request, display label, cost and duration. */
+export function getProductionQuote(input: ProductionRequestInput): ProductionQuote | null {
+  const { unitType, request } = normalizeProductionRequest(input);
+  if (request.kind === 'civil') {
+    if (request.unitType === 'builder') {
+      return {
+        unitType,
+        request,
+        displayNameRu: 'Строитель',
+        matterCost: BUILDER_PRODUCTION_MATTER_COST,
+        elementCost: BUILDER_PRODUCTION_ELEMENT_COST,
+        durationMs: BUILDER_PRODUCTION_DURATION_MS,
+      };
+    }
+    return {
+      unitType,
+      request,
+      displayNameRu: 'Сборщик',
+      matterCost: HARVESTER_PRODUCTION_MATTER_COST,
+      elementCost: HARVESTER_PRODUCTION_ELEMENT_COST,
+      durationMs: HARVESTER_PRODUCTION_DURATION_MS,
+    };
   }
-}
 
-/** Get production duration in ms for a producible unit type. */
-function getProductionDuration(unitType: ProducibleUnitType): number {
-  switch (unitType) {
-    case 'builder': return BUILDER_PRODUCTION_DURATION_MS;
-    case 'harvester': return HARVESTER_PRODUCTION_DURATION_MS;
-    case 'wasp-smoky': return WASP_SMOKY_TOTAL_PRODUCTION_DURATION_MS;
-  }
+  const combat = getT1CombatProductionQuote(request);
+  if (!combat) return null;
+  return {
+    unitType: 'wasp-smoky',
+    request: {
+      kind: 'combat',
+      bodyId: combat.bodyId,
+      weaponId: combat.weaponId,
+      hullMod: combat.hullMod,
+      turretMod: combat.turretMod,
+    },
+    displayNameRu: combat.displayNameRu,
+    matterCost: combat.matterCost,
+    elementCost: combat.elementCost,
+    durationMs: combat.durationMs,
+  };
 }
 
 // ─── Public API ─────────────────────────────────────────────────────
@@ -123,8 +147,6 @@ export function startUnitProduction(
   factoryTy: number,
   input: ProducibleUnitType | UnitProductionRequest,
 ): ProductionResult {
-  const { unitType, request } = normalizeProductionRequest(input);
-
   // 1. Find the factory
   const factory = state.production.factories.find(
     f => f.tx === factoryTx && f.ty === factoryTy,
@@ -136,21 +158,24 @@ export function startUnitProduction(
     return { ok: false, reason: 'queue-full' };
   }
 
+  const quote = getProductionQuote(input);
+  if (!quote) return { ok: false, reason: 'unsupported-unit-type' };
+
   // 3. Check matter cost
-  const matterCost = getMatterCost(unitType);
+  const matterCost = quote.matterCost;
   if (state.economy.matter < matterCost) {
     return { ok: false, reason: 'insufficient-matter' };
   }
 
   // 4. Check element cost
-  const elementCost = getElementCost(unitType);
+  const elementCost = quote.elementCost;
   if (state.economy.elements[state.playerFaction] < elementCost) {
     return { ok: false, reason: 'insufficient-element' };
   }
 
   // 5. Check unit cap — block queueing if already at cap
   // Phase 2: combat units count toward the cap
-  const currentUnitCount = state.mapData.builders.length + state.harvesters.length + state.combatUnits.length;
+  const currentUnitCount = state.mapData.builders.length + state.harvesters.length + (state.combatUnits?.length ?? 0);
   if (currentUnitCount >= DEFAULT_UNIT_CAP) {
     return { ok: false, reason: 'unit-cap-reached' };
   }
@@ -160,10 +185,10 @@ export function startUnitProduction(
   state.economy.elements[state.playerFaction] -= elementCost;
 
   // 7. Create queue item
-  const durationMs = getProductionDuration(unitType);
+  const durationMs = quote.durationMs;
   factory.queue.push({
-    unitType,
-    request,
+    unitType: quote.unitType,
+    request: quote.request,
     elapsedMs: 0,
     durationMs,
     progress: 0,
