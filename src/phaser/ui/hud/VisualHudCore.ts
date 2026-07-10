@@ -111,7 +111,7 @@ export class VisualHudCore {
     composer?: FactoryComposerState,
   ): void {
     this.resourceStrip.update(state);
-    this.selectionPanel.update(state, this.currentSelection);
+    this.selectionPanel.update(state, this.currentSelection, composer);
     this.commandPanel.update(state, this.currentSelection, composer);
     // MINIMAP-INTERACTION-04: Pass selection to minimap for selected entity highlighting
     this.minimapSlot.update(state, cameraData, offset, this.currentSelection);
