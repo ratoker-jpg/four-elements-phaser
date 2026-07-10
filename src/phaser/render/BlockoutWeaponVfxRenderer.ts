@@ -24,6 +24,7 @@ import type { BlockoutWeaponVfxEvent } from '../../state/blockoutWeaponVfx';
 import { getVfxEvents } from '../../state/blockoutWeaponVfx';
 import type { VfxProfile } from '../../config/blockoutProfiles';
 import { getWeaponVfxProfile } from '../../config/blockoutVfxData';
+import { TextureWeaponVfxRenderer } from './TextureWeaponVfxRenderer';
 
 // ─── Visual constants ──────────────────────────────────────────────
 
@@ -35,11 +36,15 @@ const VFX_DEPTH = 125;
 export class BlockoutWeaponVfxRenderer {
   private scene: Phaser.Scene;
 
-  /** Graphics object for VFX rendering. */
+  /** Graphics object for VFX rendering and guaranteed fallback. */
   private graphics: Phaser.GameObjects.Graphics | null = null;
+
+  /** Pooled PNG overlay imported from the Godot donor project. */
+  private readonly textureRenderer: TextureWeaponVfxRenderer;
 
   constructor(scene: Phaser.Scene, _offset: IsoPoint) {
     this.scene = scene;
+    this.textureRenderer = new TextureWeaponVfxRenderer(scene);
   }
 
   // ─── Frame sync ──────────────────────────────────────────────────
@@ -73,6 +78,8 @@ export class BlockoutWeaponVfxRenderer {
 
       this.renderVfxEvent(event, vfxProfile, alpha, ageMs, durationMs);
     }
+
+    this.textureRenderer.syncFromState(nowMs);
   }
 
   // ─── VFX rendering by weapon type ────────────────────────────────
@@ -735,6 +742,7 @@ export class BlockoutWeaponVfxRenderer {
   // ─── Cleanup ─────────────────────────────────────────────────────
 
   destroy(): void {
+    this.textureRenderer.destroy();
     if (this.graphics) {
       this.graphics.destroy();
       this.graphics = null;

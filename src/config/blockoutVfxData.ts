@@ -8,6 +8,7 @@
 
 import type { VfxProfile } from './blockoutProfiles';
 import { getWeaponProfile } from './blockoutWeaponData';
+import { WEAPON_VFX_ASSET_KEYS } from '../assets/weaponVfxAssets';
 
 /** VFX profiles keyed by weapon behavior. */
 export const VFX_PROFILES: Record<string, VfxProfile> = {
@@ -21,6 +22,12 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     impactRadiusPx: 4,
     muzzleFlashRadiusPx: 5,
     effectLengthPx: 250,
+    muzzleTextureKey: WEAPON_VFX_ASSET_KEYS.MUZZLE_FLARE,
+    trailTextureKey: WEAPON_VFX_ASSET_KEYS.TRAIL,
+    impactTextureKey: WEAPON_VFX_ASSET_KEYS.IMPACT_SPARK,
+    muzzleTextureSizePx: 30,
+    trailTextureWidthPx: 8,
+    impactTextureSizePx: 28,
   },
   instant_splash: {
     behavior: 'instant_splash',
@@ -32,6 +39,14 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     impactRadiusPx: 40,
     muzzleFlashRadiusPx: 4,
     effectLengthPx: 200,
+    muzzleTextureKey: WEAPON_VFX_ASSET_KEYS.MUZZLE_FLARE,
+    trailTextureKey: WEAPON_VFX_ASSET_KEYS.TRAIL,
+    impactTextureKey: WEAPON_VFX_ASSET_KEYS.EXPLOSION,
+    smokeTextureKey: WEAPON_VFX_ASSET_KEYS.ROUND_SMOKE,
+    muzzleTextureSizePx: 34,
+    trailTextureWidthPx: 10,
+    impactTextureSizePx: 86,
+    smokeTextureSizePx: 64,
   },
   line_pierce: {
     behavior: 'line_pierce',
@@ -43,6 +58,12 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     impactRadiusPx: 0,
     muzzleFlashRadiusPx: 6,
     effectLengthPx: 400,
+    muzzleTextureKey: WEAPON_VFX_ASSET_KEYS.ENERGY_GLOW,
+    trailTextureKey: WEAPON_VFX_ASSET_KEYS.TRAIL,
+    impactTextureKey: WEAPON_VFX_ASSET_KEYS.ENERGY_HIT,
+    muzzleTextureSizePx: 44,
+    trailTextureWidthPx: 12,
+    impactTextureSizePx: 44,
   },
   charge_sniper: {
     behavior: 'charge_sniper',
@@ -56,6 +77,12 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     effectLengthPx: 450,
     coneAngleDeg: 0,
     chargePulseMs: 150,
+    muzzleTextureKey: WEAPON_VFX_ASSET_KEYS.ENERGY_GLOW,
+    trailTextureKey: WEAPON_VFX_ASSET_KEYS.TRAIL,
+    impactTextureKey: WEAPON_VFX_ASSET_KEYS.ENERGY_HIT,
+    muzzleTextureSizePx: 40,
+    trailTextureWidthPx: 8,
+    impactTextureSizePx: 36,
   },
   cone_stream: {
     behavior: 'cone_stream',
@@ -66,6 +93,12 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     effectLengthPx: 120,
     coneAngleDeg: 25,
     streamCadenceMs: 50,
+    muzzleTextureKey: WEAPON_VFX_ASSET_KEYS.FIRE_STREAM,
+    impactTextureKey: WEAPON_VFX_ASSET_KEYS.ROUND_SMOKE,
+    noiseTextureKey: WEAPON_VFX_ASSET_KEYS.CLOUD_NOISE,
+    muzzleTextureSizePx: 42,
+    impactTextureSizePx: 52,
+    noiseTextureSizePx: 48,
   },
   beam_support: {
     behavior: 'beam_support',
@@ -75,6 +108,12 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     durationMs: 50,
     effectLengthPx: 150,
     streamCadenceMs: 50,
+    muzzleTextureKey: WEAPON_VFX_ASSET_KEYS.ENERGY_GLOW,
+    trailTextureKey: WEAPON_VFX_ASSET_KEYS.TRAIL,
+    impactTextureKey: WEAPON_VFX_ASSET_KEYS.ENERGY_GLOW,
+    muzzleTextureSizePx: 30,
+    trailTextureWidthPx: 9,
+    impactTextureSizePx: 30,
   },
   rapid_fire_overheat: {
     behavior: 'rapid_fire_overheat',
@@ -86,6 +125,14 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     effectLengthPx: 200,
     streamCadenceMs: 60,
     overheatDurationMs: 3000,
+    muzzleTextureKey: WEAPON_VFX_ASSET_KEYS.MUZZLE_FLARE,
+    trailTextureKey: WEAPON_VFX_ASSET_KEYS.TRAIL,
+    impactTextureKey: WEAPON_VFX_ASSET_KEYS.IMPACT_SPARK,
+    smokeTextureKey: WEAPON_VFX_ASSET_KEYS.ROUND_SMOKE,
+    muzzleTextureSizePx: 24,
+    trailTextureWidthPx: 6,
+    impactTextureSizePx: 24,
+    smokeTextureSizePx: 34,
   },
   plasma_projectile: {
     behavior: 'plasma_projectile',
@@ -96,6 +143,12 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     effectLengthPx: 220,
     muzzleFlashRadiusPx: 3,
     streamCadenceMs: 600,
+    muzzleTextureKey: WEAPON_VFX_ASSET_KEYS.ENERGY_GLOW,
+    trailTextureKey: WEAPON_VFX_ASSET_KEYS.TRAIL,
+    impactTextureKey: WEAPON_VFX_ASSET_KEYS.ENERGY_HIT,
+    muzzleTextureSizePx: 28,
+    trailTextureWidthPx: 12,
+    impactTextureSizePx: 34,
   },
   ricochet_projectile: {
     behavior: 'ricochet_projectile',
@@ -105,6 +158,12 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     durationMs: 300,
     effectLengthPx: 200,
     bounceCount: 2,
+    muzzleTextureKey: WEAPON_VFX_ASSET_KEYS.ENERGY_GLOW,
+    trailTextureKey: WEAPON_VFX_ASSET_KEYS.TRAIL,
+    impactTextureKey: WEAPON_VFX_ASSET_KEYS.ENERGY_HIT,
+    muzzleTextureSizePx: 30,
+    trailTextureWidthPx: 10,
+    impactTextureSizePx: 34,
   },
   shotgun_cone: {
     behavior: 'shotgun_cone',
@@ -116,6 +175,14 @@ export const VFX_PROFILES: Record<string, VfxProfile> = {
     effectLengthPx: 150,
     coneAngleDeg: 30,
     pelletCount: 5,
+    muzzleTextureKey: WEAPON_VFX_ASSET_KEYS.HAMMER_BLAST,
+    trailTextureKey: WEAPON_VFX_ASSET_KEYS.TRAIL,
+    impactTextureKey: WEAPON_VFX_ASSET_KEYS.IMPACT_SPARK,
+    smokeTextureKey: WEAPON_VFX_ASSET_KEYS.ROUND_SMOKE,
+    muzzleTextureSizePx: 52,
+    trailTextureWidthPx: 7,
+    impactTextureSizePx: 28,
+    smokeTextureSizePx: 42,
   },
 };
 

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { loadGeneratedBuildingAndHqAssets, loadGeneratedCivilUnitAssets, loadArenaVisualAssets, loadGeneratedTerrainAndResourceAssets, loadGeneratedIndustrialTerrainAssets, loadGeneratedIndustrialFrameAssets, loadGeneratedIndustrialResourceAssets } from '../assets/runtimeGeneratedAssets';
+import { loadWeaponVfxAssets } from '../assets/weaponVfxAssets';
 import { isDevtoolsEnabled } from '../state/devCommands';
 // FIXUP-5: pilotVehicleLazyLoad import removed.
 // No pilot-era Wasp/Smoky preload in PreloadScene. Modular vehicle assets
@@ -47,6 +48,10 @@ export class PreloadScene extends Phaser.Scene {
 
     // --- Civil unit spritesheets (loaded from generated manifest) ---
     loadGeneratedCivilUnitAssets(this);
+
+    // --- Compact donor weapon VFX textures (always loaded, 10 alpha PNGs) ---
+    const weaponVfxAssets = loadWeaponVfxAssets(this);
+    console.log(`[PreloadScene] Weapon VFX textures queued: ${weaponVfxAssets.length}`);
 
     // --- Modular combat images (PHASER4-LOAD-02: devtools/arena only) ---
     if (isDevtoolsEnabled()) {

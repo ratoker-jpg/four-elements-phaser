@@ -34,6 +34,9 @@ jobs:
       - name: Project status consistency
         run: npm run check:project-status
 
+      - name: VFX alpha integrity
+        run: npm run validate:vfx-alpha
+
       - name: Typecheck
         run: npm run typecheck
 
