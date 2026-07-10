@@ -84,6 +84,10 @@ import {
   debugRenderFlags,
 } from '../../config/debugRenderFlags';
 import { BlockoutMotionFeedbackRenderer } from './BlockoutMotionFeedbackRenderer';
+import {
+  BLOCKOUT_EXPLOSION_DURATION_MS,
+  BLOCKOUT_WRECK_LIFETIME_MS,
+} from '../../state/blockoutDestructionLifecycle';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -419,8 +423,15 @@ export class BlockoutVehicleRenderer {
       // hull/turret sprites and let the modular adapter handle positioning.
       // Overlays (shadow, HP, selection, labels, weapon bars) are still drawn
       // in renderVehicle() — outside the modular guard.
-      const modularResult = this.modularAdapter.syncVehicle(vehicle);
-      const useModularBody = modularResult.usedModular;
+      let useModularBody = false;
+      if (vehicle.isDestroyed) {
+        // SKIRMISH-P1: remove the live modular tank immediately. The bounded
+        // procedural wreck below is the only death representation.
+        this.modularAdapter.removeVehicle(vehicle.id);
+      } else {
+        const modularResult = this.modularAdapter.syncVehicle(vehicle);
+        useModularBody = modularResult.usedModular;
+      }
 
       // Check for generated hull sprite (legacy path — skipped when modular active)
       // PIM-HULL-WASP-DIR-MAP-01: When calibration is active and vehicle is Wasp,
@@ -433,7 +444,9 @@ export class BlockoutVehicleRenderer {
         && isOverrideActive();
 
       let hullKey: string | null;
-      if (isWaspCalibrating) {
+      if (vehicle.isDestroyed) {
+        hullKey = null;
+      } else if (isWaspCalibrating) {
         const forcedDir16 = getForcedVisualDir16() as GeneratedHullDir16Index;
         hullKey = resolveGeneratedHullKeyForced(
           this.scene, vehicle.bodyId, vehicle.faction,
@@ -916,9 +929,11 @@ export class BlockoutVehicleRenderer {
       drawProjectedGroundDiamond(g, indicatorPos.x, indicatorPos.y, indicatorSize, this.offset);
     }
 
-    // ── BLOCKOUT-07H+: Destroyed vehicle rendering ────────────────
+    // ── SKIRMISH-P1: bounded explosion and fading wreck ────────────
     if (vehicle.isDestroyed) {
-      // Dimmed flat body on ground (no height)
+      const ageMs = Math.max(0, this.scene.time.now - vehicle.destroyedAt);
+      const wreckT = Math.min(1, ageMs / BLOCKOUT_WRECK_LIFETIME_MS);
+      const wreckAlpha = Math.max(0, 0.48 * (1 - wreckT));
       const cosA = Math.cos(bodyAngle);
       const sinA = Math.sin(bodyAngle);
       const localCorners = [
@@ -933,37 +948,49 @@ export class BlockoutVehicleRenderer {
         return projectWorldPoint(wx, wy, 0, this.offset);
       });
 
-      g.fillStyle(bodyColor, 0.3);
+      // Dark, fading hull silhouette. No permanent red X and no live turret.
+      g.fillStyle(0x181818, wreckAlpha);
       g.beginPath();
       g.moveTo(basePts[0].x, basePts[0].y);
-      for (let i = 1; i < basePts.length; i++) {
-        g.lineTo(basePts[i].x, basePts[i].y);
-      }
+      for (let i = 1; i < basePts.length; i++) g.lineTo(basePts[i].x, basePts[i].y);
       g.closePath();
       g.fillPath();
+      g.lineStyle(1.5, 0x5c5148, wreckAlpha * 1.4);
+      g.strokePath();
 
-      g.lineStyle(1, BODY_OUTLINE_COLOR, 0.5);
-      g.beginPath();
-      g.moveTo(basePts[0].x, basePts[0].y);
-      for (let i = 1; i < basePts.length; i++) {
-        g.lineTo(basePts[i].x, basePts[i].y);
+      // Short procedural explosion pulse. This is intentionally bounded and
+      // asset-independent so every hull has a valid death effect.
+      if (ageMs < BLOCKOUT_EXPLOSION_DURATION_MS) {
+        const explosionT = ageMs / BLOCKOUT_EXPLOSION_DURATION_MS;
+        const explosionAlpha = Math.max(0, 1 - explosionT);
+        const radius = 8 + explosionT * 30;
+        const explosionY = cy - 7;
+
+        g.fillStyle(0xffb020, 0.7 * explosionAlpha);
+        g.fillCircle(cx, explosionY, Math.max(2, radius * 0.46));
+        g.fillStyle(0xffe28a, 0.75 * explosionAlpha);
+        g.fillCircle(cx, explosionY, Math.max(1, radius * 0.22));
+        g.lineStyle(2.5, 0xff6a00, 0.9 * explosionAlpha);
+        g.strokeCircle(cx, explosionY, radius);
+
+        for (let i = 0; i < 8; i++) {
+          const angle = bodyAngle + (Math.PI * 2 * i) / 8;
+          const inner = radius * 0.35;
+          const outer = radius * (0.75 + (i % 2) * 0.18);
+          g.lineStyle(1.5, i % 2 === 0 ? 0xffcc55 : 0xff6a00, explosionAlpha);
+          g.beginPath();
+          g.moveTo(cx + Math.cos(angle) * inner, explosionY + Math.sin(angle) * inner);
+          g.lineTo(cx + Math.cos(angle) * outer, explosionY + Math.sin(angle) * outer);
+          g.strokePath();
+        }
+      } else {
+        const smokeT = Math.min(1, (ageMs - BLOCKOUT_EXPLOSION_DURATION_MS) / 700);
+        const smokeAlpha = Math.max(0, 0.22 * (1 - smokeT));
+        g.fillStyle(0x777777, smokeAlpha);
+        g.fillCircle(cx - 4, cy - 13 - smokeT * 7, 7 + smokeT * 5);
+        g.fillCircle(cx + 5, cy - 18 - smokeT * 10, 5 + smokeT * 4);
       }
-      g.closePath();
-      g.strokePath();
 
-      // X marker over body (use tile-unit size for consistency)
-      g.lineStyle(2, 0xff0000, 0.8);
-      const xSize = Math.min(halfW, halfH) * PROJ_TILE_W / 2 - 2;
-      g.beginPath();
-      g.moveTo(cx - xSize, cy - xSize);
-      g.lineTo(cx + xSize, cy + xSize);
-      g.strokePath();
-      g.beginPath();
-      g.moveTo(cx + xSize, cy - xSize);
-      g.lineTo(cx - xSize, cy + xSize);
-      g.strokePath();
-
-      // No turret/barrel or HP bar for destroyed vehicles
       return;
     }
 

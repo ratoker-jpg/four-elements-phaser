@@ -48,6 +48,7 @@ import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from '../state
 import { updateBlockoutRecoil, expireVfxEvents, tickContinuousFire, stopFiring } from '../state/blockoutWeaponVfx';
 import { updateAllWeaponResources, tryFireWithDamage, clearTargetAndWeaponState } from '../state/weaponFireCoordinator';
 import { tickContinuousDamage, expireDamageEvents } from '../state/blockoutDamage';
+import { updateBlockoutDestructionLifecycle } from '../state/blockoutDestructionLifecycle';
 import { MOVEMENT_PROFILES } from '../config/blockoutMovementData';
 import { getEffectiveMovementProfile } from '../state/blockoutUpgrades';
 import { computeProjectedBarrelTipScreenAtZ, computeBodyWorldCenter, computeProjectedTurretMountScreen } from './render/blockoutVehicleGeometry';
@@ -925,6 +926,9 @@ export class GameScene extends Phaser.Scene {
       // BLOCKOUT-07H+: Expire damage events
       expireDamageEvents(nowMs);
     }
+
+    if (this.gameState.blockoutVehicles && this.devtoolsActive && updateBlockoutDestructionLifecycle(this.gameState.blockoutVehicles, this.time.now, this.reservationMap ?? undefined).destroyedIds.includes(this.blockoutVehicleInputController?.selectedVehicleId ?? '')) this.blockoutVehicleInputController?.setSelectedVehicleId(null);
+
     // Stage 4 FIXUP-1: blockout render sync delegated to RenderManager
     this.renderManager?.syncBlockoutRenderState(
       this.gameState,

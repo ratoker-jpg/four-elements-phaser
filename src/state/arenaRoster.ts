@@ -94,6 +94,8 @@ export function decideRosterClick(
   selectedVehicleId: string | null,
   vehicles: BlockoutVehicleState[] | undefined,
 ): RosterClickAction {
+  if (row.isDestroyed) return { type: 'noop' };
+
   if (row.team === 'ally') {
     return { type: 'select', vehicleId: row.id };
   }

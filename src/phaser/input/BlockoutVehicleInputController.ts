@@ -229,6 +229,11 @@ export class BlockoutVehicleInputController {
    * @param vehicleId - Vehicle ID to select, or null to deselect
    */
   setSelectedVehicleId(vehicleId: string | null): void {
+    if (vehicleId) {
+      const candidate = this.getGameState().blockoutVehicles?.find(v => v.id === vehicleId);
+      if (!candidate || candidate.isDestroyed) vehicleId = null;
+    }
+
     // Clean up previous selection
     if (this._selectedVehicleId && this._selectedVehicleId !== vehicleId) {
       this.stopFiringOnVehicle(this._selectedVehicleId);
@@ -656,6 +661,7 @@ export class BlockoutVehicleInputController {
     let bestDist = Infinity;
 
     for (const vehicle of vehicles) {
+      if (vehicle.isDestroyed) continue;
       const bodySize = getBodyPixelSize(vehicle.bodyId);
       const hitRadius = Math.max(bodySize.w, bodySize.h) / 2 + HIT_RADIUS_PADDING;
 
