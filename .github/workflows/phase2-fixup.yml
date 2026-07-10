@@ -35,15 +35,19 @@ jobs:
             echo "needed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Apply repository patch
+      - name: Apply repository patches
         if: steps.guard.outputs.needed == 'true'
-        run: node tools/apply_phase2_combat_fixup.mjs
+        shell: bash
+        run: |
+          node tools/apply_phase2_combat_fixup.mjs
+          node tools/apply_phase2_compat_fixup.mjs
 
-      - name: Remove one-shot patcher and workflow
+      - name: Remove one-shot patchers and workflow
         if: steps.guard.outputs.needed == 'true'
         shell: bash
         run: |
           rm -f tools/apply_phase2_combat_fixup.mjs
+          rm -f tools/apply_phase2_compat_fixup.mjs
           rm -f .github/workflows/phase2-fixup.yml
 
       - name: Install dependencies
