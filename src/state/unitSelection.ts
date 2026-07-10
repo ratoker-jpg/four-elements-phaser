@@ -13,7 +13,7 @@
  * that lives in GameScene. This keeps the pure state model clean.
  */
 
-import type { GameState } from './types';
+import type { BuildingType, GameState } from './types';
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -21,7 +21,8 @@ import type { GameState } from './types';
 export type SelectableUnit =
   | { kind: 'builder'; id: string }
   | { kind: 'harvester'; id: string }
-  | { kind: 'combat'; id: string };
+  | { kind: 'combat'; id: string }
+  | { kind: 'building'; id: string; buildingType: BuildingType; tx: number; ty: number };
 
 /** Single = exactly one unit selected. */
 export interface SingleSelection {
@@ -39,6 +40,10 @@ export interface MultiSelection {
 
 /** Current selection state — null means nothing selected. */
 export type UnitSelection = SingleSelection | MultiSelection | null;
+
+export function getBuildingSelectionId(type: BuildingType, tx: number, ty: number): string {
+  return `building:${type}:${tx}:${ty}`;
+}
 
 // ─── Selection constructors ─────────────────────────────────────────
 
@@ -112,6 +117,10 @@ export function isHarvesterSelected(sel: UnitSelection): sel is SingleSelection 
   return primary !== null && primary.kind === 'harvester';
 }
 
+export function isBuildingSelected(sel: UnitSelection): boolean {
+  return getPrimarySelection(sel)?.kind === 'building';
+}
+
 /** Get all selected unit IDs. */
 export function getSelectedIds(selection: UnitSelection): string[] {
   if (!selection) return [];
@@ -141,6 +150,10 @@ export function pruneMissingEntities(selection: UnitSelection, state: GameState)
       return state.harvesters.some(h => h.id === u.id);
     } else if (u.kind === 'combat') {
       return state.combatUnits.some(unit => unit.id === u.id && !unit.runtime?.isDestroyed);
+    } else if (u.kind === 'building') {
+      return state.mapData.buildings.some(building =>
+        building.type === u.buildingType && building.tx === u.tx && building.ty === u.ty,
+      );
     }
     return false;
   });
@@ -206,6 +219,10 @@ export function getSelectionCenterTile(selection: UnitSelection, state: GameStat
         sumTy += unit.runtime?.fty ?? unit.ty;
         count++;
       }
+    } else if (u.kind === 'building') {
+      sumTx += u.tx + 0.5;
+      sumTy += u.ty + 0.5;
+      count++;
     }
   }
 

@@ -22,6 +22,7 @@
 
 import type { GameState } from '../../../state/types';
 import type { UnitSelection } from '../../../state/unitSelection';
+import type { FactoryComposerState } from '../../../state/factoryComposer';
 import {
   buildCommandCardViewModel,
 } from './commandPanelViewModel';
@@ -76,8 +77,8 @@ export class HudCommandPanel {
     this.emptyEl = this.container.querySelector('#hcp-empty')!;
   }
 
-  update(state: GameState, selection: UnitSelection): void {
-    const vm = buildCommandCardViewModel(state, selection);
+  update(state: GameState, selection: UnitSelection, composer?: FactoryComposerState): void {
+    const vm = buildCommandCardViewModel(state, selection, composer);
 
     // Update context label
     this.contextEl.textContent = vm.contextLabel || 'Commands';
@@ -222,11 +223,14 @@ export class HudCommandPanel {
   /** Shallow equality check to avoid unnecessary DOM rebuilds. */
   private vmEquals(a: CommandCardViewModel | null, b: CommandCardViewModel): boolean {
     if (!a) return false;
-    if (a.contextKind !== b.contextKind) return false;
-    // Check if any slot's command or state changed
+    if (a.contextKind !== b.contextKind || a.contextLabel !== b.contextLabel) return false;
+    // Check all player-visible fields so composer and queue updates repaint immediately.
     for (let i = 0; i < a.slots.length; i++) {
       if (a.slots[i].commandId !== b.slots[i].commandId) return false;
       if (a.slots[i].state !== b.slots[i].state) return false;
+      if (a.slots[i].label !== b.slots[i].label) return false;
+      if (a.slots[i].cost !== b.slots[i].cost) return false;
+      if (a.slots[i].tooltip !== b.slots[i].tooltip) return false;
       if (a.slots[i].disabledReason !== b.slots[i].disabledReason) return false;
     }
     return true;

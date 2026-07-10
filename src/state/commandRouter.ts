@@ -19,6 +19,7 @@
  * result from a given input event, selected unit, and click target.
  */
 
+import type { BuildingType } from './types';
 import type { UnitSelection, SelectableUnit } from './unitSelection';
 import { selectOne, toggleInSelection } from './unitSelection';
 
@@ -42,6 +43,8 @@ export interface ClickTarget {
   id?: string;
   /** Entity kind (for same-type double-click). */
   unitKind?: 'builder' | 'harvester';
+  /** Completed building type for building selection. */
+  buildingType?: BuildingType;
   /** Tile X of click position. */
   tx: number;
   /** Tile Y of click position. */
@@ -126,7 +129,17 @@ export function routeLmbClick(
       return { action: 'select', selection: selectOne(unit) };
     }
     case 'own-building':
-      return { action: 'select', selection: selectOne({ kind: 'builder', id: target.id! }) };
+      if (!target.buildingType) return { action: 'no-op' };
+      return {
+        action: 'select',
+        selection: selectOne({
+          kind: 'building',
+          id: target.id!,
+          buildingType: target.buildingType,
+          tx: target.tx,
+          ty: target.ty,
+        }),
+      };
     case 'enemy-unit':
     case 'enemy-building':
       return { action: 'no-op' };
@@ -158,9 +171,13 @@ export function routeRmbClick(
     return { action: 'no-op', reason: 'no-selected-unit' };
   }
 
+  const hasMovableUnit = currentSelection.units.some(unit => unit.kind !== 'building');
+
   switch (target.kind) {
     case 'ground': {
-      return { action: 'move', tx: target.tx, ty: target.ty };
+      return hasMovableUnit
+        ? { action: 'move', tx: target.tx, ty: target.ty }
+        : { action: 'no-op', reason: 'building-selected' };
     }
 
     case 'resource': {
@@ -169,7 +186,9 @@ export function routeRmbClick(
       if (hasHarvester) {
         return { action: 'harvest', tx: target.tx, ty: target.ty, resourceId: target.id };
       }
-      return { action: 'move', tx: target.tx, ty: target.ty };
+      return hasMovableUnit
+        ? { action: 'move', tx: target.tx, ty: target.ty }
+        : { action: 'no-op', reason: 'building-selected' };
     }
 
     case 'enemy-unit': {
@@ -242,7 +261,7 @@ export function routeSKey(
       // Blockout vehicle — clear target-lock
       return { action: 'clear-target-lock', unitId: u.id };
     }
-    unitIds.push(u.id);
+    if (u.kind !== 'building') unitIds.push(u.id);
   }
 
   if (unitIds.length > 0) {

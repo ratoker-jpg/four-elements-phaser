@@ -326,13 +326,13 @@ describe('registerMvpCommands', () => {
     commandRegistry.clear();
   });
 
-  it('registers all 12 primary MVP commands + 2 legacy aliases (SELECTION-CONTROL-GROUPS-05)', () => {
+  it('registers 14 existing commands plus 6 factory-composer commands', () => {
     registerMvpCommands();
     const cmds = commandRegistry.list();
     // SELECTION-CONTROL-GROUPS-05: Removed ONE/TWO/THREE legacy aliases.
     // Number keys 1-9 are now used for control group recall/assign.
-    // 11 primary commands + 2 legacy aliases (B, P) = 13 total
-    expect(cmds).toHaveLength(14);
+    // Existing registry contract remains intact; P3B adds six contextual composer commands.
+    expect(cmds).toHaveLength(20);
   });
 
   it('registers camera-reset with key HOME (FIXUP-1: moved from R to HOME)', () => {
@@ -382,6 +382,19 @@ describe('registerMvpCommands', () => {
     expect(commandRegistry.get('produce-harvester')!.key).toBe('G');
   });
 
+  it('registers all six contextual factory-composer commands', () => {
+    registerMvpCommands();
+    const ids = [
+      'factory-body-wasp',
+      'factory-body-hunter',
+      'factory-weapon-smoky',
+      'factory-weapon-railgun',
+      'factory-queue-combat',
+      'factory-cancel-first',
+    ];
+    for (const id of ids) expect(commandRegistry.get(id)).toBeDefined();
+  });
+
   it('no duplicate keys among MVP commands', () => {
     registerMvpCommands();
     const conflicts = commandRegistry.detectDuplicateKeys();
@@ -421,10 +434,10 @@ describe('registerMvpCommands', () => {
   // ─── Idempotency tests (PR #111 fixup — Issue 1) ─────────────
 
   describe('idempotency', () => {
-    it('calling registerMvpCommands() twice keeps exactly 13 commands (SELECTION-CONTROL-GROUPS-05: 12 primary + 2 legacy)', () => {
+    it('calling registerMvpCommands() twice keeps exactly 20 commands', () => {
       registerMvpCommands();
       registerMvpCommands();
-      expect(commandRegistry.list()).toHaveLength(14);
+      expect(commandRegistry.list()).toHaveLength(20);
     });
 
     it('second call does not create duplicate key conflicts', () => {
@@ -503,14 +516,14 @@ describe('ensureMvpCommandsRegistered', () => {
 
   it('registers MVP commands when registry is empty', () => {
     ensureMvpCommandsRegistered();
-    expect(commandRegistry.list()).toHaveLength(14);
+    expect(commandRegistry.list()).toHaveLength(20);
   });
 
-  it('is idempotent — repeated calls keep exactly 13 commands', () => {
+  it('is idempotent — repeated calls keep exactly 20 commands', () => {
     ensureMvpCommandsRegistered();
     ensureMvpCommandsRegistered();
     ensureMvpCommandsRegistered();
-    expect(commandRegistry.list()).toHaveLength(14);
+    expect(commandRegistry.list()).toHaveLength(20);
   });
 
   it('does not remove existing execute callbacks', () => {
@@ -555,7 +568,7 @@ describe('getMvpCommandHotkey', () => {
     getMvpCommandHotkey('build-separator');
     getMvpCommandHotkey('build-separator');
     getMvpCommandHotkey('produce-builder');
-    expect(commandRegistry.list()).toHaveLength(14);
+    expect(commandRegistry.list()).toHaveLength(20);
   });
 });
 

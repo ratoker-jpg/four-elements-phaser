@@ -9,9 +9,10 @@
  * - HP: averaged across selected units
  */
 
-import type { GameState, BuilderPlacement, HarvesterState } from '../../../state/types';
+import { QUEUE_LIMIT, type GameState, type BuilderPlacement, type HarvesterState } from '../../../state/types';
+import { getBuildingDisplayName } from '../../../config/buildingRuntimeMapping';
 import type { UnitSelection } from '../../../state/unitSelection';
-import { isUnitSelected, isBuilderSelected, isHarvesterSelected, getSelectionTypeBreakdown, getPrimarySelection } from '../../../state/unitSelection';
+import { isUnitSelected, isBuilderSelected, isHarvesterSelected, isBuildingSelected, getSelectionTypeBreakdown, getPrimarySelection } from '../../../state/unitSelection';
 
 export interface SelectionViewModel {
   /** Whether anything is selected. */
@@ -120,6 +121,27 @@ export function buildSelectionViewModel(
       hpCurrent: null,
       hpMax: null,
       status: builderStatus(builder),
+      count: 1,
+      typeBreakdown: '',
+    };
+  }
+
+  if (isBuildingSelected(selection)) {
+    const primary = getPrimarySelection(selection);
+    if (!primary || primary.kind !== 'building') return EMPTY_SELECTION;
+    const factory = primary.buildingType === 'units-factory'
+      ? state.production.factories.find(item => item.tx === primary.tx && item.ty === primary.ty)
+      : undefined;
+    return {
+      hasSelection: true,
+      name: getBuildingDisplayName(primary.buildingType) ?? primary.buildingType,
+      kind: 'building',
+      faction: state.playerFaction,
+      hpCurrent: null,
+      hpMax: null,
+      status: primary.buildingType === 'units-factory'
+        ? `Очередь: ${factory?.queue.length ?? 0}/${QUEUE_LIMIT}`
+        : 'Готово',
       count: 1,
       typeBreakdown: '',
     };

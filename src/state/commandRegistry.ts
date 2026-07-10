@@ -241,6 +241,14 @@ const MVP_COMMAND_DEFS: CommandDef[] = [
   { id: 'produce-builder',    label: 'Train Builder',         key: 'N', category: 'produce' },
   { id: 'produce-harvester',  label: 'Train Harvester',       key: 'G', category: 'produce' },
   { id: 'produce-wasp-smoky', label: 'Wasp+Smoky M0',         key: 'C', category: 'produce' },
+
+  // Factory-composer commands. Slot keys are assigned contextually by the HUD.
+  { id: 'factory-body-wasp', label: 'Корпус: Васп', key: 'FACTORY_BODY_WASP', category: 'building-action' },
+  { id: 'factory-body-hunter', label: 'Корпус: Хантер', key: 'FACTORY_BODY_HUNTER', category: 'building-action' },
+  { id: 'factory-weapon-smoky', label: 'Пушка: Смоки', key: 'FACTORY_WEAPON_SMOKY', category: 'building-action' },
+  { id: 'factory-weapon-railgun', label: 'Пушка: Рельса', key: 'FACTORY_WEAPON_RAILGUN', category: 'building-action' },
+  { id: 'factory-queue-combat', label: 'Собрать танк', key: 'FACTORY_QUEUE_COMBAT', category: 'produce' },
+  { id: 'factory-cancel-first', label: 'Отменить заказ', key: 'FACTORY_CANCEL_FIRST', category: 'building-action' },
 ];
 
 /**

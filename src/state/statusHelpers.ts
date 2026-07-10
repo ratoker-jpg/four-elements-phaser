@@ -44,7 +44,7 @@ import { BUILDING_CONFIG } from './construction';
 import { buildOccupancyMap, isPassable } from './occupancy';
 import { t } from '../config/localization';
 import { isVisualReadyBuilding } from '../config/buildingRuntimeMapping';
-import { getProductionQuote } from './production';
+import { getProductionQuote, type ProductionRequestInput } from './production';
 
 // ─── Separator status ──────────────────────────────────────────────
 
@@ -367,23 +367,24 @@ export type ProductionBlockReason =
  */
 export function getProductionBlockReason(
   state: GameState,
-  unitType: ProducibleUnitType,
+  input: ProductionRequestInput,
+  factoryTarget?: { tx: number; ty: number },
 ): ProductionBlockReason | null {
-  // Check for any completed factory
-  if (state.production.factories.length === 0) {
+  const factories = factoryTarget
+    ? state.production.factories.filter(factory => factory.tx === factoryTarget.tx && factory.ty === factoryTarget.ty)
+    : state.production.factories;
+
+  if (factories.length === 0) {
     return 'no-factory';
   }
 
-  // Check for queue room in any factory
-  const hasQueueRoom = state.production.factories.some(
-    f => f.queue.length < QUEUE_LIMIT,
-  );
+  const hasQueueRoom = factories.some(factory => factory.queue.length < QUEUE_LIMIT);
   if (!hasQueueRoom) {
     return 'queue-full';
   }
 
   // Check matter cost
-  const quote = getProductionQuote(unitType);
+  const quote = getProductionQuote(input);
   if (!quote) return 'insufficient-matter';
   if (state.economy.matter < quote.matterCost) {
     return 'insufficient-matter';

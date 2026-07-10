@@ -29,6 +29,7 @@
 
 import type { GameState } from '../../../state/types';
 import type { UnitSelection } from '../../../state/unitSelection';
+import type { FactoryComposerState } from '../../../state/factoryComposer';
 import {
   HUD_BAR_HEIGHT,
   HUD_MINIMAP_WIDTH,
@@ -107,10 +108,11 @@ export class VisualHudCore {
     state: GameState,
     cameraData: MinimapCameraData | null = null,
     offset: MinimapOffset = { x: 0, y: 0 },
+    composer?: FactoryComposerState,
   ): void {
     this.resourceStrip.update(state);
     this.selectionPanel.update(state, this.currentSelection);
-    this.commandPanel.update(state, this.currentSelection);
+    this.commandPanel.update(state, this.currentSelection, composer);
     // MINIMAP-INTERACTION-04: Pass selection to minimap for selected entity highlighting
     this.minimapSlot.update(state, cameraData, offset, this.currentSelection);
 

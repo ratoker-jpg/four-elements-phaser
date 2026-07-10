@@ -1,15 +1,15 @@
 import Phaser from 'phaser';
 import { screenToTile, tileToScreen, type IsoPoint } from '../render/isometric';
-import type { GameState, BuildingType, ProducibleUnitType } from '../../state/types';
-import { placeConstructionSite } from '../../state/construction';
+import type { GameState, BuildingType } from '../../state/types';
+import { BUILDING_CONFIG, placeConstructionSite } from '../../state/construction';
 import { findBuildSiteNearPlayerBuildings } from '../../state/buildSiteSelection';
 import { isVisualReadyBuilding } from '../../config/buildingRuntimeMapping';
-import { startUnitProduction, cancelFactoryQueueItem } from '../../state/production';
+import { startUnitProduction, cancelFactoryQueueItem, getProductionQuote, type ProductionRequestInput } from '../../state/production';
 import type { UnitSelection, SelectableUnit } from '../../state/unitSelection';
 import {
   clearSelection, isUnitSelected,
   selectMany, getSelectionTypeBreakdown,
-  hasHarvesterInSelection, getSelectionCenterTile,
+  hasHarvesterInSelection, getSelectionCenterTile, getPrimarySelection, getBuildingSelectionId,
 } from '../../state/unitSelection';
 import { issueManualMove, stopUnitCommand, issueMultiMoveCommand, stopUnitsCommand } from '../../state/unitCommands';
 import { issueCombatUnitAttack } from '../../state/combatUnitCombat';
@@ -37,6 +37,7 @@ import {
 import { ControlGroupManager } from '../../state/controlGroups';
 import { FeedbackStore, type FeedbackSeverity } from '../../state/feedbackStore';
 import { controlGroupAssigned, controlGroupEmpty, controlGroupRecalled, constructionStarted, buildFailureFeedback } from '../../state/feedbackHelpers';
+import { DEFAULT_FACTORY_COMPOSER_STATE, createFactoryComposerRequest, getFactoryComposerQuote, reduceFactoryComposer, type FactoryComposerCommandId, type FactoryComposerState } from '../../state/factoryComposer';
 
 /** FIXUP-1: Typed feedback params — single object for dedupe-aware feedback. */
 export interface FeedbackParams {
@@ -146,6 +147,9 @@ export class GameInputController {
 
   // SELECTION-CONTROL-GROUPS-05: Multi-selection state
   private selection: UnitSelection = null;
+
+  /** Ephemeral factory composer choice; not persisted in GameState. */
+  private factoryComposer: FactoryComposerState = { ...DEFAULT_FACTORY_COMPOSER_STATE };
 
   /** Control group manager. */
   private controlGroupManager: ControlGroupManager;
@@ -350,6 +354,36 @@ export class GameInputController {
       };
     }
 
+    const composerCommands: FactoryComposerCommandId[] = [
+      'factory-body-wasp', 'factory-body-hunter',
+      'factory-weapon-smoky', 'factory-weapon-railgun',
+    ];
+    for (const commandId of composerCommands) {
+      const command = commandRegistry.get(commandId);
+      if (command) command.execute = () => {
+        this.factoryComposer = reduceFactoryComposer(this.factoryComposer, commandId);
+        const quote = getFactoryComposerQuote(this.factoryComposer);
+        this.showStatusCb(`Выбрано: ${quote.displayNameRu}`, true);
+      };
+    }
+
+    const queueCombat = commandRegistry.get('factory-queue-combat');
+    if (queueCombat) queueCombat.execute = () => {
+      const result = this.requestQueueUnit(createFactoryComposerRequest(this.factoryComposer));
+      this.showStatusCb(result.message, result.success);
+    };
+
+    const cancelFirst = commandRegistry.get('factory-cancel-first');
+    if (cancelFirst) cancelFirst.execute = () => {
+      const selectedFactory = this.getSelectedFactory();
+      if (!selectedFactory) {
+        this.showStatusCb('Фабрика не выбрана', false);
+        return;
+      }
+      const result = cancelFactoryQueueItem(this.getGameState(), selectedFactory.tx, selectedFactory.ty, 0);
+      this.showStatusCb(result.ok ? 'Первый заказ отменён' : result.reason, result.ok);
+    };
+
     const unitStop = commandRegistry.get('unit-stop');
     if (unitStop) {
       unitStop.execute = () => {
@@ -429,22 +463,40 @@ export class GameInputController {
     }
   }
 
-  requestQueueUnit(unitType: ProducibleUnitType): ProductionRequestResult {
+  requestQueueUnit(input: ProductionRequestInput): ProductionRequestResult {
     const gameState = this.getGameState();
+    const factory = this.getSelectedFactory() ?? gameState.production.factories[0];
+    if (!factory) return { success: false, message: 'Нет готовой фабрики' };
 
-    const factory = gameState.production.factories[0];
-    if (!factory) {
-      return { success: false, message: 'no completed units-factory' };
-    }
-
-    const result = startUnitProduction(gameState, factory.tx, factory.ty, unitType);
+    const quote = getProductionQuote(input);
+    if (!quote) return { success: false, message: 'Недоступная комбинация' };
+    const result = startUnitProduction(gameState, factory.tx, factory.ty, input);
     if (result.ok) {
-      console.log(`[GameScene] ${unitType} queued at factory (${factory.tx},${factory.ty})`);
-      return { success: true, message: `${unitType} queued` };
-    } else {
-      console.info(`[GameScene] ${unitType} queue failed: ${result.reason}`);
-      return { success: false, message: result.reason };
+      console.log(`[GameScene] ${quote.displayNameRu} queued at factory (${factory.tx},${factory.ty})`);
+      return { success: true, message: `${quote.displayNameRu}: добавлено в очередь` };
     }
+    console.info(`[GameScene] ${quote.displayNameRu} queue failed: ${result.reason}`);
+    return { success: false, message: this.getProductionFailureMessage(result.reason) };
+  }
+
+  private getProductionFailureMessage(reason: string): string {
+    const messages: Record<string, string> = {
+      'factory-not-found': 'Фабрика не найдена',
+      'queue-full': 'Очередь фабрики заполнена',
+      'insufficient-matter': 'Недостаточно материи',
+      'insufficient-element': 'Недостаточно элементов фракции',
+      'unit-cap-reached': 'Достигнут лимит юнитов',
+      'unsupported-unit-type': 'Недоступная комбинация',
+    };
+    return messages[reason] ?? reason;
+  }
+
+  private getSelectedFactory(): GameState['production']['factories'][number] | null {
+    const primary = getPrimarySelection(this.selection);
+    if (!primary || primary.kind !== 'building' || primary.buildingType !== 'units-factory') return null;
+    return this.getGameState().production.factories.find(factory =>
+      factory.tx === primary.tx && factory.ty === primary.ty,
+    ) ?? null;
   }
 
   requestCancelQueueItem(factoryIndex: number, queueIndex: number): CancelRequestResult {
@@ -478,6 +530,10 @@ export class GameInputController {
    */
   getSelection(): UnitSelection {
     return this.selection;
+  }
+
+  getFactoryComposerState(): FactoryComposerState {
+    return { ...this.factoryComposer };
   }
 
   showStatus(message: string, success: boolean): void {
@@ -786,6 +842,29 @@ export class GameInputController {
 
   // ─── Click target detection ─────────────────────────────────────
 
+  private findOwnedBuildingTarget(
+    state: GameState,
+    clickTx: number,
+    clickTy: number,
+  ): ClickTarget | null {
+    for (let index = state.mapData.buildings.length - 1; index >= 0; index--) {
+      const building = state.mapData.buildings[index];
+      const config = BUILDING_CONFIG[building.type];
+      const width = config?.footprintW ?? 1;
+      const height = config?.footprintH ?? 1;
+      if (clickTx >= building.tx && clickTx < building.tx + width && clickTy >= building.ty && clickTy < building.ty + height) {
+        return {
+          kind: 'own-building',
+          id: getBuildingSelectionId(building.type, building.tx, building.ty),
+          buildingType: building.type,
+          tx: building.tx,
+          ty: building.ty,
+        };
+      }
+    }
+    return null;
+  }
+
   private detectClickTarget(pointer: Phaser.Input.Pointer): ClickTarget {
     const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const gameState = this.getGameState();
@@ -822,6 +901,9 @@ export class GameInputController {
         return { kind: 'own-combat-vehicle', id: unit.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
       }
     }
+
+    const buildingTarget = this.findOwnedBuildingTarget(gameState, clickTx, clickTy);
+    if (buildingTarget) return buildingTarget;
 
     // Check enemy production combat units.
     for (const unit of gameState.combatUnits) {
@@ -1019,7 +1101,9 @@ export class GameInputController {
         ? `Builder ${primary.id}`
         : primary.kind === 'harvester'
           ? `Harvester ${primary.id}`
-          : `Tank ${primary.id}`;
+          : primary.kind === 'combat'
+            ? `Tank ${primary.id}`
+            : primary.buildingType === 'units-factory' ? 'Фабрика юнитов' : primary.buildingType;
       this.showStatusCb(`Выбран: ${label}`, true);
     } else {
       const breakdown = getSelectionTypeBreakdown(this.selection);
@@ -1027,9 +1111,11 @@ export class GameInputController {
       const bc = breakdown.get('builder') ?? 0;
       const hc = breakdown.get('harvester') ?? 0;
       const cc = breakdown.get('combat') ?? 0;
+      const fc = breakdown.get('building') ?? 0;
       if (bc > 0) parts.push(`${bc} Builder${bc > 1 ? 's' : ''}`);
       if (hc > 0) parts.push(`${hc} Harvester${hc > 1 ? 's' : ''}`);
       if (cc > 0) parts.push(`${cc} Tank${cc > 1 ? 's' : ''}`);
+      if (fc > 0) parts.push(`${fc} Building${fc > 1 ? 's' : ''}`);
       this.showStatusCb(`Выбрано: ${parts.join(', ')}`, true);
     }
   }
@@ -1077,6 +1163,10 @@ export class GameInputController {
           break;
         }
       }
+    }
+
+    if (!hoverTarget) {
+      hoverTarget = this.findOwnedBuildingTarget(gameState, clickTx, clickTy);
     }
 
     if (!hoverTarget) {
@@ -1287,7 +1377,7 @@ export class GameInputController {
 
   private dispatchCommandCardHotkey(slotKey: SlotKey): void {
     const gameState = this.getGameState();
-    const vm = buildCommandCardViewModel(gameState, this.selection);
+    const vm = buildCommandCardViewModel(gameState, this.selection, this.factoryComposer);
 
     const matchingSlot = vm.slots.find(
       s => s.slotKey === slotKey && s.state === 'enabled',
@@ -1310,7 +1400,7 @@ export class GameInputController {
 
   private dispatchLegacyAlias(key: string): void {
     const gameState = this.getGameState();
-    const vm = buildCommandCardViewModel(gameState, this.selection);
+    const vm = buildCommandCardViewModel(gameState, this.selection, this.factoryComposer);
 
     const legacyToPrimary: Record<string, string> = {
       'B': 'build-separator',
@@ -1406,6 +1496,17 @@ export class GameInputController {
         const harvester = gameState.harvesters.find(h => h.id === unit.id);
         if (!harvester) continue;
         const screenPos = tileToScreen(harvester.ftx, harvester.fty);
+        ringX = screenPos.x + this.offset.x;
+        ringY = screenPos.y + this.offset.y;
+      } else if (unit.kind === 'combat') {
+        const combat = gameState.combatUnits.find(candidate => candidate.id === unit.id && !candidate.runtime?.isDestroyed);
+        if (!combat) continue;
+        const screenPos = tileToScreen(combat.runtime?.ftx ?? combat.tx, combat.runtime?.fty ?? combat.ty);
+        ringX = screenPos.x + this.offset.x;
+        ringY = screenPos.y + this.offset.y;
+      } else if (unit.kind === 'building') {
+        const config = BUILDING_CONFIG[unit.buildingType];
+        const screenPos = tileToScreen(unit.tx + (config?.footprintW ?? 1) / 2, unit.ty + (config?.footprintH ?? 1) / 2);
         ringX = screenPos.x + this.offset.x;
         ringY = screenPos.y + this.offset.y;
       } else {

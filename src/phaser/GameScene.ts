@@ -737,7 +737,7 @@ export class GameScene extends Phaser.Scene {
         zoom: cam.zoom,
       };
       const offset = this._offset ? { x: this._offset.x, y: this._offset.y } : { x: 0, y: 0 };
-      this.visualHudCore.update(this.gameState, cameraData, offset);
+      this.visualHudCore.update(this.gameState, cameraData, offset, this.inputController?.getFactoryComposerState());
     }
 
     // ARENA-01H+: Update ArenaMenu (primary Arena UX)
