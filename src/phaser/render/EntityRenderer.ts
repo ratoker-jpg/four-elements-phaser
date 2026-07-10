@@ -257,7 +257,7 @@ export class EntityRenderer {
     this.syncHarvesters(state.harvesters);
     this.syncResources(state.resourceNodes, state.vision);
     this.constructionRenderer.syncFromState(state);
-    this.combatUnitRenderer.sync(state.combatUnits);
+    this.combatUnitRenderer.sync(state.combatUnits, state.combatClockMs ?? 0);
 
     // MODULAR-RUNTIME-03B: Retry clean modular placement while assets are loading.
     // Called each frame so that when textures finish loading, the modular

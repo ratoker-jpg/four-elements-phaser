@@ -12,6 +12,7 @@ import {
   hasHarvesterInSelection, getSelectionCenterTile,
 } from '../../state/unitSelection';
 import { issueManualMove, stopUnitCommand, issueMultiMoveCommand, stopUnitsCommand } from '../../state/unitCommands';
+import { issueCombatUnitAttack } from '../../state/combatUnitCombat';
 import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
 import { commandRegistry, registerMvpCommands } from '../../state/commandRegistry';
 import { isScreenPointInHud, isScreenYInActiveHudArea } from '../ui/hud/hudLayout';
@@ -822,6 +823,16 @@ export class GameInputController {
       }
     }
 
+    // Check enemy production combat units.
+    for (const unit of gameState.combatUnits) {
+      if (unit.faction === gameState.playerFaction || unit.runtime?.isDestroyed) continue;
+      const dx = (unit.runtime?.ftx ?? unit.tx) - clickTx;
+      const dy = (unit.runtime?.fty ?? unit.ty) - clickTy;
+      if (Math.hypot(dx, dy) < SELECT_RADIUS) {
+        return { kind: 'enemy-unit', id: unit.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
+      }
+    }
+
     // Check resources (for harvest commands)
     for (const r of gameState.resourceNodes) {
       if (r.depleted) continue;
@@ -913,7 +924,7 @@ export class GameInputController {
         break;
       }
       case 'attack': {
-        this.showStatusCb('Атака: нет боевого юнита', false);
+        this.executeAttackCommand(routeResult.targetId, routeResult.tx, routeResult.ty);
         break;
       }
       case 'context-build': {
@@ -955,6 +966,23 @@ export class GameInputController {
         this.showStatusCb('Ошибка: нельзя двигать', false);
         this.feedbackRenderer.addCommandFail(tx, ty, this.scene.time.now);
       }
+    }
+  }
+
+  private executeAttackCommand(targetId: string, tx: number, ty: number): void {
+    if (!this.selection) return;
+    const state = this.getGameState();
+    let okCount = 0;
+    for (const selected of this.selection.units) {
+      if (selected.kind !== 'combat') continue;
+      if (issueCombatUnitAttack(state, selected.id, targetId).ok) okCount++;
+    }
+    if (okCount > 0) {
+      this.showStatusCb(`${okCount} танк(ов) → атака`, true);
+      this.feedbackRenderer.addCommandOk(tx, ty, this.scene.time.now);
+    } else {
+      this.showStatusCb('Ошибка: нет боевого юнита или цель недоступна', false);
+      this.feedbackRenderer.addCommandFail(tx, ty, this.scene.time.now);
     }
   }
 
@@ -1046,6 +1074,18 @@ export class GameInputController {
         const dy = (unit.runtime?.fty ?? unit.ty) - clickTy;
         if (Math.hypot(dx, dy) < SELECT_RADIUS) {
           hoverTarget = { kind: 'own-combat-vehicle', id: unit.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
+          break;
+        }
+      }
+    }
+
+    if (!hoverTarget) {
+      for (const unit of gameState.combatUnits) {
+        if (unit.faction === gameState.playerFaction || unit.runtime?.isDestroyed) continue;
+        const dx = (unit.runtime?.ftx ?? unit.tx) - clickTx;
+        const dy = (unit.runtime?.fty ?? unit.ty) - clickTy;
+        if (Math.hypot(dx, dy) < SELECT_RADIUS) {
+          hoverTarget = { kind: 'enemy-unit', id: unit.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
           break;
         }
       }

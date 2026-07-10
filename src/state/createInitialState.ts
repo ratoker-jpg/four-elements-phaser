@@ -151,6 +151,7 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     hqPosition,
     nextConstructionId: 0,
     nextCombatUnitId: 0,
+    combatClockMs: 0,
     production: arenaMode ? { factories: [] } : createInitialProduction(mapData),
 
     // Phase 2: combat units — empty at start (produced via factory)

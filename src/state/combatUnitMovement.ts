@@ -64,6 +64,9 @@ export function issueCombatUnitMove(
   if (!path) return { ok: false, reason: 'no-path' };
 
   runtime.targetId = null;
+  runtime.isWindingUp = false;
+  runtime.windUpRemainingMs = 0;
+  runtime.windUpTargetId = null;
   runtime.weaponCooldownMs = Math.max(0, runtime.weaponCooldownMs);
   runtime.path = path;
   runtime.pathIndex = 0;
@@ -92,12 +95,16 @@ export function stopCombatUnit(state: GameState, unitId: string): CombatStopResu
   runtime.path = [];
   runtime.pathIndex = 0;
   runtime.targetId = null;
+  runtime.isWindingUp = false;
+  runtime.windUpRemainingMs = 0;
+  runtime.windUpTargetId = null;
   return { ok: true };
 }
 
 export function updateCombatUnitMovement(unit: ModularCombatUnit, deltaMs: number): void {
   const runtime = normalizeCombatUnitRuntime(unit);
-  if (runtime.isDestroyed || runtime.order.kind !== 'move') return;
+  if (runtime.isDestroyed || runtime.order.kind === 'idle') return;
+  if (runtime.order.kind === 'attack' && runtime.path.length === 0) return;
 
   if (runtime.pathIndex >= runtime.path.length) {
     finishMove(unit, runtime);
@@ -149,5 +156,5 @@ function finishMove(unit: ModularCombatUnit, runtime: CombatUnitRuntimeState): v
   }
   runtime.path = [];
   runtime.pathIndex = 0;
-  runtime.order = { kind: 'idle' };
+  if (moveOrder) runtime.order = { kind: 'idle' };
 }
