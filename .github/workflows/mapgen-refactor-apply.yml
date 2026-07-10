@@ -1,0 +1,108 @@
+name: Mapgen Module Refactor Apply
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mapgen-module-refactor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-refactor:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'refactor/mapgen-foundation-modules'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/mapgen-foundation-modules
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /.github/workflows/
+            /src/
+            /tools/
+            /docs/project/
+            /AGENTS.md
+            /package.json
+            /package-lock.json
+            /tsconfig.json
+            /vite.config.ts
+            /vitest.config.ts
+            /index.html
+
+      - name: Check whether patch is needed
+        id: guard
+        shell: bash
+        run: |
+          if [ -f tools/apply_mapgen_module_refactor.mjs ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply module extraction
+        if: steps.guard.outputs.needed == 'true'
+        run: node tools/apply_mapgen_module_refactor.mjs
+
+      - name: Remove one-shot files
+        if: steps.guard.outputs.needed == 'true'
+        shell: bash
+        run: |
+          rm -f tools/apply_mapgen_module_refactor.mjs
+          rm -f .github/workflows/mapgen-refactor-apply.yml
+
+      - name: Install dependencies
+        if: steps.guard.outputs.needed == 'true'
+        run: npm ci
+
+      - name: Project status consistency
+        if: steps.guard.outputs.needed == 'true'
+        run: npm run check:project-status
+
+      - name: Typecheck
+        if: steps.guard.outputs.needed == 'true'
+        run: npm run typecheck
+
+      - name: Tests
+        if: steps.guard.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set +e
+          npm test > mapgen-tests.log 2>&1
+          status=$?
+          cat mapgen-tests.log
+          exit $status
+
+      - name: Upload test diagnostics
+        if: always() && steps.guard.outputs.needed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mapgen-refactor-test-diagnostics
+          path: mapgen-tests.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Audit
+        if: steps.guard.outputs.needed == 'true'
+        run: npm audit --audit-level=high
+
+      - name: Commit refactor
+        if: steps.guard.outputs.needed == 'true'
+        shell: bash
+        run: |
+          rm -f mapgen-tests.log
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "refactor(mapgen): split deterministic generation modules"
+          git push origin HEAD:refactor/mapgen-foundation-modules
