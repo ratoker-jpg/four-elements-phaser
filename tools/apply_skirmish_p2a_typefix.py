@@ -4,11 +4,11 @@ from pathlib import Path
 def replace_once(path: str, old: str, new: str) -> None:
     target = Path(path)
     text = target.read_text(encoding='utf-8')
-    if new in text:
+    if old in text:
+        target.write_text(text.replace(old, new, 1), encoding='utf-8')
         return
-    if old not in text:
+    if new not in text:
         raise SystemExit(f'marker not found: {path}: {old!r}')
-    target.write_text(text.replace(old, new, 1), encoding='utf-8')
 
 
 replace_once(
@@ -29,10 +29,16 @@ replace_once(
     "  | { ok: false; reason: 'no-unit-selected' | 'unit-busy' };",
     "  | { ok: false; reason: 'no-unit-selected' | 'unit-destroyed' | 'unit-busy' };",
 )
-replace_once(
-    'src/state/updateGameState.ts',
-    "import { directionFromDelta } from './unitDirection';\nexport { directionFromDelta } from './unitDirection';",
-    "export { directionFromDelta } from './unitDirection';",
-)
+
+update_path = Path('src/state/updateGameState.ts')
+update_text = update_path.read_text(encoding='utf-8')
+old_import = "import { directionFromDelta } from './unitDirection';\nexport { directionFromDelta } from './unitDirection';"
+new_export = "export { directionFromDelta } from './unitDirection';"
+if old_import in update_text:
+    update_path.write_text(update_text.replace(old_import, new_export, 1), encoding='utf-8')
+elif "import { directionFromDelta } from './unitDirection';" in update_text:
+    update_path.write_text(update_text.replace("import { directionFromDelta } from './unitDirection';\n", '', 1), encoding='utf-8')
+elif new_export not in update_text:
+    raise SystemExit('directionFromDelta export marker not found')
 
 print('SKIRMISH-P2A type fixup applied')
