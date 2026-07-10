@@ -83,6 +83,15 @@ export function createCombatUnitRuntime(unit: ModularCombatUnit): CombatUnitRunt
     pathIndex: 0,
     targetId: null,
     weaponCooldownMs: 0,
+    turretAngleDeg: (unit.turretDir ?? unit.dir ?? 2) * 45,
+    isWindingUp: false,
+    windUpRemainingMs: 0,
+    windUpTargetId: null,
+    repathCooldownMs: 0,
+    muzzleFlashUntilMs: 0,
+    damageFlashUntilMs: 0,
+    lastFiredAtMs: null,
+    lastDamageAmount: 0,
     isDestroyed: false,
     destroyedAt: null,
   };
@@ -95,7 +104,9 @@ export function normalizeCombatUnitRuntime(unit: ModularCombatUnit): CombatUnitR
     && Number.isFinite(raw.order.targetTx)
     && Number.isFinite(raw.order.targetTy)
     ? { kind: 'move' as const, targetTx: raw.order.targetTx, targetTy: raw.order.targetTy }
-    : { kind: 'idle' as const };
+    : raw?.order?.kind === 'attack' && typeof raw.order.targetId === 'string'
+      ? { kind: 'attack' as const, targetId: raw.order.targetId }
+      : { kind: 'idle' as const };
   const runtime: CombatUnitRuntimeState = {
     ftx: Number.isFinite(raw?.ftx) ? raw!.ftx : defaults.ftx,
     fty: Number.isFinite(raw?.fty) ? raw!.fty : defaults.fty,
@@ -112,12 +123,27 @@ export function normalizeCombatUnitRuntime(unit: ModularCombatUnit): CombatUnitR
     pathIndex: Number.isInteger(raw?.pathIndex) && raw!.pathIndex >= 0 ? raw!.pathIndex : 0,
     targetId: typeof raw?.targetId === 'string' ? raw.targetId : null,
     weaponCooldownMs: Number.isFinite(raw?.weaponCooldownMs) ? Math.max(0, raw!.weaponCooldownMs) : 0,
+    turretAngleDeg: Number.isFinite(raw?.turretAngleDeg) ? raw!.turretAngleDeg : defaults.turretAngleDeg,
+    isWindingUp: raw?.isWindingUp === true,
+    windUpRemainingMs: Number.isFinite(raw?.windUpRemainingMs) ? Math.max(0, raw!.windUpRemainingMs) : 0,
+    windUpTargetId: typeof raw?.windUpTargetId === 'string' ? raw.windUpTargetId : null,
+    repathCooldownMs: Number.isFinite(raw?.repathCooldownMs) ? Math.max(0, raw!.repathCooldownMs) : 0,
+    muzzleFlashUntilMs: Number.isFinite(raw?.muzzleFlashUntilMs) ? Math.max(0, raw!.muzzleFlashUntilMs) : 0,
+    damageFlashUntilMs: Number.isFinite(raw?.damageFlashUntilMs) ? Math.max(0, raw!.damageFlashUntilMs) : 0,
+    lastFiredAtMs: Number.isFinite(raw?.lastFiredAtMs) ? raw!.lastFiredAtMs : null,
+    lastDamageAmount: Number.isFinite(raw?.lastDamageAmount) ? Math.max(0, raw!.lastDamageAmount) : 0,
     isDestroyed: raw?.isDestroyed === true,
     destroyedAt: Number.isFinite(raw?.destroyedAt) ? raw!.destroyedAt : null,
   };
   runtime.hp = Math.min(runtime.hp, runtime.maxHp);
   if (runtime.pathIndex > runtime.path.length) runtime.pathIndex = runtime.path.length;
-  if (runtime.isDestroyed) runtime.order = { kind: 'idle' };
+  if (runtime.isDestroyed) {
+    runtime.order = { kind: 'idle' };
+    runtime.targetId = null;
+    runtime.path = [];
+    runtime.pathIndex = 0;
+    runtime.isWindingUp = false;
+  }
   unit.runtime = runtime;
   unit.tx = Math.round(runtime.ftx);
   unit.ty = Math.round(runtime.fty);

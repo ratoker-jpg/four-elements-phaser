@@ -147,7 +147,8 @@ export type ModLevel = 'm0' | 'm1' | 'm2' | 'm3';
 
 export type CombatUnitOrder =
   | { kind: 'idle' }
-  | { kind: 'move'; targetTx: number; targetTy: number };
+  | { kind: 'move'; targetTx: number; targetTy: number }
+  | { kind: 'attack'; targetId: string };
 
 export interface CombatUnitRuntimeState {
   ftx: number;
@@ -160,6 +161,15 @@ export interface CombatUnitRuntimeState {
   pathIndex: number;
   targetId: string | null;
   weaponCooldownMs: number;
+  turretAngleDeg: number;
+  isWindingUp: boolean;
+  windUpRemainingMs: number;
+  windUpTargetId: string | null;
+  repathCooldownMs: number;
+  muzzleFlashUntilMs: number;
+  damageFlashUntilMs: number;
+  lastFiredAtMs: number | null;
+  lastDamageAmount: number;
   isDestroyed: boolean;
   destroyedAt: number | null;
 }
@@ -527,6 +537,8 @@ export interface GameState {
   production: ProductionState;
 
   // ── Phase 2: Combat units ──────────────────────────────────────
+  /** Deterministic production-combat timeline used for cooldowns, flashes and wreck cleanup. */
+  combatClockMs?: number;
   /** All combat units produced by factories. Phase 2: wasp-smoky and future presets. */
   combatUnits: ModularCombatUnit[];
 

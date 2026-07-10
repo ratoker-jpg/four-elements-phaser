@@ -36,6 +36,7 @@ import { updateHarvesterManualMove, findResourceApproachTile } from './unitComma
 import { isResourceInfinite } from '../config/resourceClassRuntime';
 import { allocateCombatUnitId, createCombatUnitRuntime, getCombatProductionConfig } from './combatUnits';
 import { updateAllCombatUnitMovement } from './combatUnitMovement';
+import { updateAllCombatUnitCombat } from './combatUnitCombat';
 export { directionFromDelta } from './unitDirection';
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -78,6 +79,7 @@ export function updateGameState(state: GameState, deltaMs: number): void {
   for (const harvester of state.harvesters) {
     updateHarvester(state, harvester, moveDt);
   }
+  updateAllCombatUnitCombat(state, moveDt);
   updateAllCombatUnitMovement(state, moveDt);
 
   // ARCH-01C/01E/01F: Unified power allocation + separator processing + factory production.

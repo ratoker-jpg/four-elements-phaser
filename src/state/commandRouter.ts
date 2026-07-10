@@ -174,8 +174,8 @@ export function routeRmbClick(
 
     case 'enemy-unit': {
       // RMB on enemy with combat unit → attack / target-lock
-      const hasBlockout = currentSelection.units.some(u => u.kind === 'harvester' && u.id.startsWith('blockout-'));
-      if (hasBlockout) {
+      const hasCombat = currentSelection.units.some(u => u.kind === 'combat' || u.id.startsWith('blockout-'));
+      if (hasCombat) {
         return { action: 'attack', tx: target.tx, ty: target.ty, targetId: target.id! };
       }
       return { action: 'move', tx: target.tx, ty: target.ty };
@@ -308,8 +308,8 @@ export function determineCursorFeedback(
       return 'move';
     }
     case 'enemy-unit': {
-      const hasBlockout = currentSelection.units.some(u => u.id.startsWith('blockout-'));
-      if (isArenaMode || hasBlockout) {
+      const hasCombat = currentSelection.units.some(u => u.kind === 'combat' || u.id.startsWith('blockout-'));
+      if (isArenaMode || hasCombat) {
         return 'attack';
       }
       return 'move';
