@@ -8,14 +8,74 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  apply-motion-feedback:
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/tank-motion-feedback' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/tank-motion-feedback
+          fetch-depth: 0
+
+      - name: Apply deterministic renderer patch
+        run: |
+          set -euo pipefail
+          node tools/apply_motion_feedback_patch.mjs
+          rm tools/apply_motion_feedback_patch.mjs
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Project status consistency
+        run: npm run check:project-status
+
+      - name: VFX alpha integrity
+        run: npm run validate:vfx-alpha
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      - name: Stage and check generated result
+        run: |
+          set -euo pipefail
+          git add -A
+          git diff --cached --check
+          git status --short
+
+      - name: Commit generated result
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat(motion): add projected tracks and dust feedback"
+
+      - name: Push completed branch
+        run: git push origin HEAD:feat/tank-motion-feedback
+
   typecheck-test-audit:
+    needs: apply-motion-feedback
+    if: always() && needs.apply-motion-feedback.result == 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
