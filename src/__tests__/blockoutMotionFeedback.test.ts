@@ -9,9 +9,9 @@ import {
   MOTION_FEEDBACK_TRACK_TTL_MS,
   MOTION_FEEDBACK_TELEPORT_DISTANCE_PX,
   computeProjectedTrackSample,
-} from '../phaser/render/BlockoutMotionFeedbackRenderer';
+} from '../state/blockoutMotionFeedback';
 
-describe('BlockoutMotionFeedbackRenderer geometry', () => {
+describe('blockout motion feedback geometry', () => {
   it('projects a finite non-zero track segment onto the isometric ground plane', () => {
     const vehicle = createBlockoutVehicle('wasp', 'smoky', 'cyan', 5, 5, Math.PI / 4);
     const sample = computeProjectedTrackSample(vehicle, { x: 420, y: 120 }, -1);
