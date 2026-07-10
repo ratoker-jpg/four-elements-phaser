@@ -42,115 +42,39 @@
  * - Validation: uses mapValidation helpers for starter reachability
  */
 
-import type { MapData, TerrainType, ResourceType, Faction } from './types';
+import type { MapData, Faction } from './types';
 import type { MapStyle } from './gameSetup';
 import { resolveResourceAnchors } from '../config/resourceAnchors';
 import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
-import { ACCEPTED_RESOURCE_CLASS_IDS } from '../config/coreMechanicsTypes';
+import type { MapSizeOption, ValidatedGeneratedMapResult } from './generatedMapTypes';
+import {
+  createSeededRng,
+  normalizeSeed,
+  mapSizeToDimensions,
+} from './generatedMapSeed';
+import { generateIndustrialTerrain, generateTerrain } from './generatedMapTerrain';
+import { validateGeneratedMap } from './generatedMapValidation';
 
-// ─── Types ──────────────────────────────────────────────────────────
+export type { MapSizeOption, ValidatedGeneratedMapResult } from './generatedMapTypes';
+export {
+  GENERATED_MAP_ID_PREFIX,
+  MAP_SIZE_DIMENSIONS,
+  createRandomSeed,
+  generatedMapId,
+  generatedMapName,
+  isGeneratedRuntimeState,
+  mapSizeToDimensions,
+  normalizeSeed,
+} from './generatedMapSeed';
+export {
+  summarizeGeneratedMapQuality,
+  type GeneratedMapQualitySummary,
+} from './generatedMapValidation';
 
-/** Supported map size options. */
-export type MapSizeOption = 'small' | 'standard' | 'large';
+// ─── Shared configuration ────────────────────────────────────────────
 
-/** Dimensions for each map size option. */
-export const MAP_SIZE_DIMENSIONS: Record<MapSizeOption, { width: number; height: number }> = {
-  small: { width: 32, height: 32 },
-  standard: { width: 48, height: 48 },
-  large: { width: 64, height: 64 },
-};
-
-/** Map ID prefix for generated maps. */
-export const GENERATED_MAP_ID_PREFIX = 'generated';
-
-/** Maximum validation retry attempts before accepting best candidate. */
+/** Maximum validation retry attempts before accepting the best candidate. */
 export const MAX_VALIDATION_ATTEMPTS = 3;
-
-// ─── PRNG ───────────────────────────────────────────────────────────
-
-/**
- * Mulberry32 — simple deterministic PRNG.
- * Takes a 32-bit integer seed, returns a function that produces
- * floats in [0, 1).
- */
-function mulberry32(seed: number): () => number {
-  let state = seed | 0;
-  return () => {
-    state = (state + 0x6D2B79F5) | 0;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// ─── Seed helpers ───────────────────────────────────────────────────
-
-/**
- * Normalize a seed input to a 32-bit integer.
- *
- * - If the input is a numeric string, parse it directly.
- * - Otherwise, hash the string to a 32-bit integer using a simple
- *   DJB2-like hash for deterministic results.
- * - Empty string hashes to 0.
- */
-export function normalizeSeed(input: string): number {
-  const trimmed = input.trim();
-
-  // If it looks like a plain integer, use it directly
-  if (/^-?\d+$/.test(trimmed)) {
-    return parseInt(trimmed, 10) | 0;
-  }
-
-  // Hash the string to a 32-bit integer (DJB2 variant)
-  let hash = 5381;
-  for (let i = 0; i < trimmed.length; i++) {
-    hash = ((hash << 5) + hash + trimmed.charCodeAt(i)) | 0;
-  }
-  return hash;
-}
-
-/**
- * Create a random seed string (8 hex characters).
- * Uses Math.random() — not deterministic, but suitable for UI "random" button.
- */
-export function createRandomSeed(): string {
-  return Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0');
-}
-
-/**
- * Map a MapSizeOption to { width, height }.
- */
-export function mapSizeToDimensions(size: MapSizeOption): { width: number; height: number } {
-  return MAP_SIZE_DIMENSIONS[size];
-}
-
-/**
- * Generate a readable map name from seed and size.
- */
-export function generatedMapName(seed: string, size: MapSizeOption): string {
-  return `Generated (${size}, seed:${seed})`;
-}
-
-/**
- * Generate a mapId for a generated map.
- */
-export function generatedMapId(seed: string, size: MapSizeOption): string {
-  return `${GENERATED_MAP_ID_PREFIX}-${size}-${seed}`;
-}
-
-/**
- * Check if a runtime GameState belongs to a generated map.
- *
- * Runtime GameState.mapId is NOT "generated-..." — it is "map-{faction}-{W}x{H}".
- * But GameState.mapName for generated maps starts with "Generated" (set via
- * generatedMapName). This helper centralizes that detection so callers don't
- * need to know the naming convention.
- *
- * Works for both new generated games and loaded generated saves.
- */
-export function isGeneratedRuntimeState(state: { mapName: string }): boolean {
-  return state.mapName.startsWith('Generated');
-}
 
 // ─── Generated map creation ─────────────────────────────────────────
 
@@ -190,7 +114,7 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
   const W = dims.width;
   const H = dims.height;
   const seedInt = normalizeSeed(seed);
-  const rng = mulberry32(seedInt);
+  const rng = createSeededRng(seedInt);
 
   // ── Terrain: patch-based clustering or industrial flat fill ──
   const terrain = mapStyle === 'industrial'
@@ -261,162 +185,6 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
   };
 }
 
-// ─── Terrain generation (patch-based) ───────────────────────────────
-
-/**
- * Generate terrain using patch/cluster-based approach.
- *
- * TERRAIN-01: Improved clustering for natural-looking desert terrain.
- * TERRAIN-02A: Extended to 6-variant 256×128 sand tile family.
- *
- * Strategy:
- * 1. Fill entire map with 'sand' (dominant base).
- * 2. Place large primary patches using PRNG — these form the main
- *    visual clusters (radius 3–7).
- * 3. Place smaller accent patches for subtle variation (radius 1–3).
- * 4. Tiles within radius of a patch center get that patch's terrain type
- *    with smooth distance-based falloff.
- * 5. Sand remains the clear majority (~60-70%); patches form soft clusters.
- * 6. TERRAIN-02A: Second pass sprinkles detail variants (sand-ripple,
- *    sand-pebble, sand-cracked) onto base 'sand' tiles using PRNG for
- *    texture variety and repetition reduction.
- *
- * Improvements over original:
- * - Larger primary patches (radius up to 7) for bigger visual clusters
- * - Two-tier patch system: large primary + small accent patches
- * - Softer edge falloff using quadratic curve instead of linear
- * - Balanced type distribution: ~35% sand-light, ~25% sand-dark primary,
- *   with accent patches adding variety
- * - Fewer but larger patches reduce the scattered noise appearance
- * - TERRAIN-02A: Detail variant sprinkling adds ripple/pebble/cracked
- *   accents for texture variety without rotation
- *
- * Same seed + size always produces identical terrain.
- */
-function generateTerrain(rng: () => number, W: number, H: number): TerrainType[][] {
-  // Step 1: Fill with sand
-  const terrain: TerrainType[][] = [];
-  for (let y = 0; y < H; y++) {
-    const row: TerrainType[] = [];
-    for (let x = 0; x < W; x++) {
-      row.push('sand');
-    }
-    terrain.push(row);
-  }
-
-  interface TerrainPatch {
-    cx: number;
-    cy: number;
-    radius: number;
-    type: TerrainType;
-  }
-
-  // Step 2: Generate large primary patches
-  // Fewer patches but larger radius for natural-looking clusters
-  const primaryPatchCount = Math.floor((W * H) / 200); // ~5 for small, ~11 for standard, ~20 for large
-
-  const patches: TerrainPatch[] = [];
-  for (let i = 0; i < primaryPatchCount; i++) {
-    const cx = Math.floor(rng() * W);
-    const cy = Math.floor(rng() * H);
-    // Larger radius: 3-7 tiles for substantial visual clusters
-    const radius = 3 + Math.floor(rng() * 5);
-    // Balanced distribution: slightly more sand-light for desert feel
-    const typeRoll = rng();
-    const type: TerrainType = typeRoll < 0.55 ? 'sand-light' : 'sand-dark';
-    patches.push({ cx, cy, radius, type });
-  }
-
-  // Step 3: Generate smaller accent patches for subtle variation
-  const accentPatchCount = Math.floor((W * H) / 250); // ~4 for small, ~9 for standard, ~16 for large
-  for (let i = 0; i < accentPatchCount; i++) {
-    const cx = Math.floor(rng() * W);
-    const cy = Math.floor(rng() * H);
-    // Small accent patches: radius 1-3
-    const radius = 1 + Math.floor(rng() * 3);
-    // Accent patches are mostly the opposite type of nearby primary patches
-    const typeRoll = rng();
-    const type: TerrainType = typeRoll < 0.4 ? 'sand-dark' : typeRoll < 0.8 ? 'sand-light' : 'sand';
-    patches.push({ cx, cy, radius, type });
-  }
-
-  // Step 4: Apply patches — tiles within radius get the patch type
-  for (const patch of patches) {
-    for (let dy = -patch.radius; dy <= patch.radius; dy++) {
-      for (let dx = -patch.radius; dx <= patch.radius; dx++) {
-        // Chebyshev distance for more organic, less circular shapes
-        const chebyshevDist = Math.max(Math.abs(dx), Math.abs(dy));
-        if (chebyshevDist > patch.radius) continue;
-
-        const tx = patch.cx + dx;
-        const ty = patch.cy + dy;
-        if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
-
-        // Quadratic falloff for softer edges
-        // Near center: almost always applied. At edge: rarely applied.
-        const distRatio = chebyshevDist / patch.radius;
-        const applyProbability = 1.0 - distRatio * distRatio * 0.8;
-        if (rng() < applyProbability) {
-          terrain[ty][tx] = patch.type;
-        }
-      }
-    }
-  }
-
-  // Step 5: TERRAIN-02A/FIX-01 — Sprinkle detail variants onto base 'sand' tiles.
-  // After patch application, some 'sand' tiles get assigned a detail variant
-  // (ripple, pebble, cracked) for texture variety and repetition reduction.
-  // This is deterministic: same seed + size = same variant assignment.
-  //
-  // TERRAIN-FIX-01: Distribution reduced to avoid noisy per-cell variation.
-  // Pebble and cracked are now very rare accents (~2% each) to prevent
-  // one-cell noisy variation. Ripple is moderate (~5%) and forms soft
-  // scattered patches. The majority (~91%) remains clean 'sand'.
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      if (terrain[y][x] !== 'sand') continue;
-
-      const roll = rng();
-      if (roll < 0.05) {
-        // ~5% of sand tiles become ripple — moderate, clustered look
-        terrain[y][x] = 'sand-ripple';
-      } else if (roll < 0.07) {
-        // ~2% of sand tiles become pebble — rare accent
-        terrain[y][x] = 'sand-pebble';
-      } else if (roll < 0.09) {
-        // ~2% of sand tiles become cracked — rare accent
-        terrain[y][x] = 'sand-cracked';
-      }
-      // Remaining ~91% stay as 'sand' — dominant base
-    }
-  }
-
-  return terrain;
-}
-
-// ─── Industrial terrain generation (VISUAL-05A-PR2) ────────────────────
-
-/**
- * Generate a flat uniform industrial terrain map.
- *
- * VISUAL-05A-PR2: When mapStyle === 'industrial', the entire map is filled
- * with a single 'industrial' TerrainType. Visual variation (which tile ID
- * to show) is determined at render time by the WeightedTilePicker in
- * TerrainRenderer, NOT by the TerrainType. This keeps the state model
- * simple and avoids expanding terrain variants unnecessarily.
- */
-function generateIndustrialTerrain(W: number, H: number): TerrainType[][] {
-  const terrain: TerrainType[][] = [];
-  for (let y = 0; y < H; y++) {
-    const row: TerrainType[] = [];
-    for (let x = 0; x < W; x++) {
-      row.push('industrial');
-    }
-    terrain.push(row);
-  }
-  return terrain;
-}
-
 // ─── Resource generation (CORE-STEP-03B: anchor-based) ──────────────
 
 /**
@@ -446,10 +214,8 @@ function generateResources(
   hq: { tx: number; ty: number },
   occupied: Set<string>,
 ): MapData['resources'] {
-  // Resolve all anchors to concrete placements
   const resolvedPlacements = resolveResourceAnchors(W, H, hq, rng, occupied);
 
-  // Convert resolved placements to ResourcePlacement format
   return resolvedPlacements.map(placement => ({
     tx: placement.tx,
     ty: placement.ty,
@@ -478,20 +244,6 @@ function generateResources(
 // ─── Validation / fallback ──────────────────────────────────────────
 
 /**
- * Result of validated generated map creation.
- */
-export interface ValidatedGeneratedMapResult {
-  /** The generated map data. */
-  mapData: MapData;
-  /** Number of attempts before accepting this map. */
-  attempts: number;
-  /** Whether the map passed validation. */
-  valid: boolean;
-  /** Validation warning messages (empty if valid). */
-  warnings: string[];
-}
-
-/**
  * Create a validated generated map with retry fallback.
  *
  * Generates a candidate map, runs lightweight validation checks,
@@ -506,17 +258,14 @@ export function createValidatedGeneratedMapData(
   size: MapSizeOption,
   faction: Faction = 'cyan',
   mapStyle: MapStyle = 'sand',
-): ValidatedGeneratedMapResult {
+): ValidatedGeneratedMapResult<MapData> {
   const warnings: string[] = [];
   let bestMapData: MapData | null = null;
   let bestScore = -1;
 
   for (let attempt = 0; attempt < MAX_VALIDATION_ATTEMPTS; attempt++) {
-    // Deterministic seed offset for retry: append attempt number
     const attemptSeed = attempt === 0 ? seed : `${seed}__retry${attempt}`;
     const mapData = createGeneratedMapData(attemptSeed, size, faction, mapStyle);
-
-    // Run lightweight validation checks (pure, no GameState needed)
     const validation = validateGeneratedMap(mapData);
 
     if (validation.valid) {
@@ -528,7 +277,6 @@ export function createValidatedGeneratedMapData(
       };
     }
 
-    // Track best candidate by score
     if (validation.score > bestScore) {
       bestScore = validation.score;
       bestMapData = mapData;
@@ -537,219 +285,10 @@ export function createValidatedGeneratedMapData(
     warnings.push(`Attempt ${attempt + 1}: ${validation.issues.join('; ')}`);
   }
 
-  // All attempts failed — return best candidate with warnings
   return {
     mapData: bestMapData!,
     attempts: MAX_VALIDATION_ATTEMPTS,
     valid: false,
     warnings,
-  };
-}
-
-/**
- * Lightweight validation result for a generated MapData.
- *
- * This checks structural properties without requiring a full GameState.
- * For full BFS reachability validation, use validateMap() with a GameState.
- */
-interface GeneratedMapValidation {
-  valid: boolean;
-  score: number;
-  issues: string[];
-}
-
-/**
- * Validate a generated MapData for basic playability.
- *
- * Checks:
- * 1. Starter resources exist near HQ (within 10 tiles of HQ center)
- * 2. HQ area is clear of resources (no overlap with 3×3 footprint + 1 margin)
- * 3. Resources don't overlap each other (structural check)
- * 4. Central infinite deposit exists
- * 5. No obstacles within HQ clearance zone
- */
-function validateGeneratedMap(mapData: MapData): GeneratedMapValidation {
-  const issues: string[] = [];
-  let score = 0;
-  const hqCenterX = mapData.hq.tx + 1;
-  const hqCenterY = mapData.hq.ty + 1;
-
-  // Check 1: Starter resources near HQ
-  const nearResources = mapData.resources.filter(r => {
-    const dist = Math.sqrt((r.tx - hqCenterX) ** 2 + (r.ty - hqCenterY) ** 2);
-    return dist <= 10;
-  });
-  if (nearResources.length >= 4) {
-    score += 40;
-  } else if (nearResources.length >= 2) {
-    score += 20;
-    issues.push(`Only ${nearResources.length} resources near HQ`);
-  } else {
-    issues.push(`Insufficient resources near HQ: ${nearResources.length}`);
-  }
-
-  // Check 2: HQ area clear of resources
-  let hqClear = true;
-  for (const r of mapData.resources) {
-    for (let dy = 0; dy < r.footprint; dy++) {
-      for (let dx = 0; dx < r.footprint; dx++) {
-        const rtx = r.tx + dx;
-        const rty = r.ty + dy;
-        if (rtx >= mapData.hq.tx - 1 && rtx <= mapData.hq.tx + 3 &&
-            rty >= mapData.hq.ty - 1 && rty <= mapData.hq.ty + 3) {
-          hqClear = false;
-        }
-      }
-    }
-  }
-  if (hqClear) {
-    score += 30;
-  } else {
-    issues.push('Resources overlap HQ area');
-  }
-
-  // Check 3: No resource overlap (structural)
-  const resourceTiles = new Set<string>();
-  let noOverlap = true;
-  for (const r of mapData.resources) {
-    for (let dy = 0; dy < r.footprint; dy++) {
-      for (let dx = 0; dx < r.footprint; dx++) {
-        const key = `${r.tx + dx},${r.ty + dy}`;
-        if (resourceTiles.has(key)) {
-          noOverlap = false;
-        }
-        resourceTiles.add(key);
-      }
-    }
-  }
-  if (noOverlap) {
-    score += 20;
-  } else {
-    issues.push('Resources overlap each other');
-  }
-
-  // Check 4: Central infinite deposit (CORE-STEP-03B: also check resourceClass)
-  const hasInfinite = mapData.resources.some(r => r.type === 'infinite' || r.resourceClass === 'infinite');
-  if (hasInfinite) {
-    score += 10;
-  } else {
-    issues.push('No infinite resource deposit');
-  }
-
-  // Check 5: CORE-STEP-03C — Generated resourceClass validity
-  // Every generated resource must have a resourceClass that is a valid accepted ID.
-  // This validation is strict for generated maps; old/saved maps without
-  // resourceClass are handled separately in mapValidation.ts.
-  const acceptedSet = new Set<string>(ACCEPTED_RESOURCE_CLASS_IDS);
-  let missingClassCount = 0;
-  let invalidClassCount = 0;
-  let infiniteCount = 0;
-
-  for (const r of mapData.resources) {
-    if (!r.resourceClass) {
-      missingClassCount++;
-    } else if (!acceptedSet.has(r.resourceClass)) {
-      invalidClassCount++;
-    }
-    if (r.resourceClass === 'infinite') {
-      infiniteCount++;
-    }
-  }
-
-  if (missingClassCount > 0) {
-    issues.push(`${missingClassCount} generated resource(s) missing resourceClass`);
-  }
-  if (invalidClassCount > 0) {
-    issues.push(`${invalidClassCount} generated resource(s) have invalid resourceClass`);
-  }
-  // There should be exactly one infinite resourceClass deposit (the center 2x2)
-  if (infiniteCount !== 1) {
-    issues.push(`Expected exactly 1 infinite resourceClass deposit, found ${infiniteCount}`);
-  }
-
-  return {
-    valid: issues.length === 0,
-    score,
-    issues,
-  };
-}
-
-// ─── Quality diagnostics ────────────────────────────────────────────
-
-/**
- * Quality summary for a generated map.
- *
- * Provides a structured overview of map quality metrics
- * useful for devtools diagnostics.
- */
-export interface GeneratedMapQualitySummary {
-  /** Map dimensions. */
-  width: number;
-  height: number;
-  /** Total resource count. */
-  resourceCount: number;
-  /** Resource count by legacy type. */
-  resourcesByType: Record<ResourceType, number>;
-  /** Resource count by resourceClass (CORE-STEP-03B). */
-  resourcesByClass: Partial<Record<AcceptedResourceClassId, number>>;
-  /** Resources near HQ (within 10 tiles of HQ center). */
-  starterResourceCount: number;
-  /** Whether central infinite deposit exists. */
-  hasInfiniteDeposit: boolean;
-  /** Obstacle count. */
-  obstacleCount: number;
-  /** Decor count. */
-  decorCount: number;
-  /** Whether map passed lightweight validation. */
-  validationPassed: boolean;
-  /** Validation issues (empty if passed). */
-  validationIssues: string[];
-}
-
-/**
- * Summarize the quality of a generated map.
- *
- * Pure helper — no Phaser, no DOM. Useful for devtools diagnostics
- * and test assertions.
- */
-export function summarizeGeneratedMapQuality(mapData: MapData): GeneratedMapQualitySummary {
-  const hqCenterX = mapData.hq.tx + 1;
-  const hqCenterY = mapData.hq.ty + 1;
-
-  const resourcesByType: Record<ResourceType, number> = {
-    small: 0,
-    medium: 0,
-    large: 0,
-    infinite: 0,
-  };
-  const resourcesByClass: Partial<Record<AcceptedResourceClassId, number>> = {};
-  for (const r of mapData.resources) {
-    resourcesByType[r.type]++;
-    if (r.resourceClass) {
-      resourcesByClass[r.resourceClass] = (resourcesByClass[r.resourceClass] ?? 0) + 1;
-    }
-  }
-
-  const starterResourceCount = mapData.resources.filter(r => {
-    const dist = Math.sqrt((r.tx - hqCenterX) ** 2 + (r.ty - hqCenterY) ** 2);
-    return dist <= 10;
-  }).length;
-
-  const hasInfiniteDeposit = mapData.resources.some(r => r.type === 'infinite' || r.resourceClass === 'infinite');
-
-  const validation = validateGeneratedMap(mapData);
-
-  return {
-    width: mapData.width,
-    height: mapData.height,
-    resourceCount: mapData.resources.length,
-    resourcesByType,
-    resourcesByClass,
-    starterResourceCount,
-    hasInfiniteDeposit,
-    obstacleCount: mapData.obstacles.length,
-    decorCount: mapData.decor.length,
-    validationPassed: validation.valid,
-    validationIssues: validation.issues,
   };
 }
