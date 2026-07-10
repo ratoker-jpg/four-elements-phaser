@@ -5,7 +5,8 @@ export default defineConfig({
   publicDir: 'public',
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Production previews do not need source maps. Enable explicitly for diagnostics.
+    sourcemap: process.env.VITE_SOURCEMAP === 'true',
   },
   server: {
     port: 3000,
