@@ -23,7 +23,7 @@ jobs:
         with:
           ref: rts-fnd-p2-unit-factory-combat-production
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Stop if fixup already applied
         id: guard
