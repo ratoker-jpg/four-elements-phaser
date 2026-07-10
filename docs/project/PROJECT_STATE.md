@@ -25,10 +25,12 @@ Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState who
 
 ## Current baseline
 
-- Phase 0 roadmap/audit: closed via PR #322.
-- Phase 1 validation baseline: closed via PR #324.
-- Phase 2 canonical multi-unit combat production: closed via PR #339.
-- Produced combat units use `GameState.combatUnits` as canonical state.
+- RTS Foundation roadmap/audit accepted via PR #322.
+- Validation baseline closed via PR #324.
+- Canonical multi-unit combat production and save/load fixup closed via PR #325.
+- Playable Four-Faction Skirmish roadmap accepted via PR #338.
+- Skirmish Phase 1 bounded destruction lifecycle closed via PR #339.
+- Produced combat units use `GameState.combatUnits` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
 
@@ -51,7 +53,7 @@ Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState who
 - Save and reload with produced combat units; confirm visibility and unit cap remain correct.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
-Automated checks do not replace visual acceptance for produced-unit rendering and save/load behavior.
+Automated checks do not replace visual acceptance for produced-unit rendering, destruction effects and save/load behavior.
 
 ## Active follow-ups
 
@@ -67,11 +69,12 @@ Automated checks do not replace visual acceptance for produced-unit rendering an
 2. `docs/project/project-status.json`
 3. `docs/project/PROJECT_STATE.md`
 4. `docs/project/CURRENT_NEXT_STEP.md`
-5. `docs/project/FINAL_RTS_FOUNDATION_ROADMAP_2026_06_22.md`
-6. `docs/project/FINAL_RTS_FOUNDATION_IMPLEMENTATION_AUDIT_2026_06_22.md`
-7. `docs/project/CAMERA_PROJECTION_CONTRACT.md`
+5. `docs/project/PLAYABLE_FOUR_FACTION_SKIRMISH_ROADMAP_2026_07_10.md`
+6. `docs/project/FINAL_RTS_FOUNDATION_ROADMAP_2026_06_22.md`
+7. `docs/project/FINAL_RTS_FOUNDATION_IMPLEMENTATION_AUDIT_2026_06_22.md`
+8. `docs/project/CAMERA_PROJECTION_CONTRACT.md`
 
-Historical closure details belong in roadmap, audit and closure documents, not in this active state file.
+The Playable Four-Faction Skirmish roadmap is the active implementation queue. Historical closure details remain in the older roadmap, audit and closure documents.
 
 ## Non-negotiable architecture
 
@@ -81,6 +84,8 @@ Historical closure details belong in roadmap, audit and closure documents, not i
 - Do not create a combined hull × turret sprite matrix.
 - Modular assets load on demand; do not preload the full matrix.
 - Produced combat units are canonical in `combatUnits`; render data is derived.
+- Do not create a third combat runtime or copy `BlockoutVehicleState` wholesale into Normal Game.
+- Reuse/extract pure Arena movement, aiming, range, hit and damage systems.
 - Do not restore legacy Wasp preload, offset tuner, dual renderer or legacy GameWorld.
 
 ## Stop rules
@@ -88,8 +93,9 @@ Historical closure details belong in roadmap, audit and closure documents, not i
 Stop and correct the task if:
 
 - active docs disagree with `project-status.json`;
-- the selected phase lacks an accepted design where one is required;
+- work follows the old RTS Foundation phase queue instead of the active Skirmish roadmap;
+- Normal Game combat creates a parallel state source instead of extending canonical `combatUnits`;
 - visual/world-space work ignores `CAMERA_PROJECTION_CONTRACT.md`;
-- unrelated work changes combat, economy, map generation, save/load or renderer lifecycle;
+- unrelated work changes economy, map generation, save/load or renderer lifecycle;
 - a PR claims manual visual QA that was not performed;
 - required GitHub checks are red or absent.
