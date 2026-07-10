@@ -40,12 +40,22 @@ jobs:
         run: python3 tools/apply_skirmish_p2a_vision.py
       - if: steps.guard.outputs.apply == 'true'
         run: npm ci
-      - if: steps.guard.outputs.apply == 'true'
-        run: npm run typecheck
-      - if: steps.guard.outputs.apply == 'true'
+      - id: typecheck
+        if: steps.guard.outputs.apply == 'true'
+        continue-on-error: true
+        run: npm run typecheck 2>&1 | tee vision-typecheck.log
+      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skirmish-p2a-vision-typecheck
+          path: vision-typecheck.log
+          if-no-files-found: error
+      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'failure'
+        run: exit 1
+      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
         run: npx vitest run src/__tests__/combatUnitMovement.test.ts src/__tests__/fogVision08.test.ts
       - name: Commit fixup
-        if: steps.guard.outputs.apply == 'true'
+        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
         run: |
           rm tools/apply_skirmish_p2a_vision.py
           git config user.name "github-actions[bot]"
