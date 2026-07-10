@@ -27,14 +27,14 @@ Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState who
 1. Audit the exact boundary between canonical `GameState.combatUnits` and Arena-only `blockoutVehicles`:
    - movement and tile reservation;
    - turret aiming;
-   - weapon range/cooldown;
+   - weapon range and cooldown;
    - hit and armor calculation;
    - damage attribution and destruction;
-   - input/selection/command routing;
+   - input, selection and command routing;
    - save/load migration.
-2. Define the smallest backward-compatible Normal Game combat runtime fields on `ModularCombatUnit` or composed child state. Required first slice:
+2. Define the smallest backward-compatible Normal Game combat runtime fields on `ModularCombatUnit` or composed child state:
    - fractional tile position;
-   - HP/max HP;
+   - HP and max HP;
    - move/stop order;
    - current target;
    - weapon cooldown;
@@ -42,16 +42,15 @@ Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState who
 3. Extract or adapt pure shared helpers from Arena. Do not import Phaser or copy the complete `BlockoutVehicleState` into production state.
 4. Implement movement and stop commands for factory-produced combat units before attack behavior.
 5. Add target acquisition, turret aiming, firing, damage and bounded destruction using the shared combat formulas.
-6. Keep `CombatUnitRenderer` as a derived view of canonical state and update it from fractional position/facing.
+6. Keep `CombatUnitRenderer` as a derived view of canonical state and update it from fractional position and facing.
 7. Migrate old saves with safe defaults and preserve deterministic IDs.
-8. Add focused lifecycle tests and one end-to-end state test:
-   `produce → move → target → damage → destroy → save/load`.
+8. Add focused lifecycle tests and one end-to-end state test: `produce → move → target → damage → destroy → save/load`.
 
 ## Acceptance gate
 
-Do not create a third combat-unit runtime or copy `BlockoutVehicleState` wholesale. Normal Game `combatUnits` remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.
+Do not create a third combat-unit runtime or copy BlockoutVehicleState wholesale. Normal Game combatUnits remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.
 
-The phase should be split into reviewable PRs. The first implementation PR should establish the canonical runtime state and move/stop lifecycle without attempting strategic AI, multi-team economy or the factory composer.
+The phase should be split into reviewable PRs. The first implementation PR establishes canonical runtime state and move/stop lifecycle without strategic AI, multi-team economy or the factory composer.
 
 ## Required validation for implementation PRs
 
