@@ -154,6 +154,14 @@ describe('canonical Normal Game combat movement', () => {
     expect(issueCombatUnitMove(state, mover.id, 9, 6)).toEqual({ ok: false, reason: 'target-occupied' });
   });
 
+  it('keeps occupancy compatible with legacy partial GameState fixtures without combatUnits', () => {
+    const state = makeState();
+    const legacyFixture = { ...state, combatUnits: undefined } as unknown as typeof state;
+
+    expect(() => buildOccupancyMap(legacyFixture)).not.toThrow();
+    expect(() => isTileOccupiedByUnit(legacyFixture, 6, 6)).not.toThrow();
+  });
+
   it('derives occupancy from combatUnits rather than legacy entities', () => {
     const state = makeState();
     const unit = makeUnit();

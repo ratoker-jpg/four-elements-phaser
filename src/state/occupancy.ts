@@ -150,7 +150,7 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
   }
 
   // ── Soft-occupied: canonical production combat units ──────────
-  for (const unit of state.combatUnits) {
+  for (const unit of state.combatUnits ?? []) {
     if (unit.runtime?.isDestroyed) continue;
     const tx = Math.round(unit.runtime?.ftx ?? unit.tx);
     const ty = Math.round(unit.runtime?.fty ?? unit.ty);
@@ -246,7 +246,7 @@ export function addUnitBlockers(
     getOrMake(map.flags, k).add('impassable');
   }
 
-  for (const unit of state.combatUnits) {
+  for (const unit of state.combatUnits ?? []) {
     if (unit.runtime?.isDestroyed) continue;
     if (excludeType === 'combat' && excludeId === unit.id) continue;
     const tx = Math.round(unit.runtime?.ftx ?? unit.tx);
@@ -286,7 +286,7 @@ export function isTileOccupiedByUnit(
     if (Math.round(h.ftx) === tx && Math.round(h.fty) === ty) return true;
   }
 
-  for (const unit of state.combatUnits) {
+  for (const unit of state.combatUnits ?? []) {
     if (unit.runtime?.isDestroyed) continue;
     if (excludeType === 'combat' && excludeId === unit.id) continue;
     const ux = Math.round(unit.runtime?.ftx ?? unit.tx);
