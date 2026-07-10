@@ -56,13 +56,14 @@ export class CombatUnitRenderer {
         entry.adapter.setNormalRuntimeDepth(unit.id, depth);
       }
 
+      const legacyMod = unit.mod ?? 'm0';
       const result = entry.adapter.placeModularCombat(
         entity,
         anchor,
         unit.bodyId,
         unit.weaponId,
-        unit.hullMod,
-        unit.turretMod,
+        unit.hullMod ?? legacyMod,
+        unit.turretMod ?? legacyMod,
       );
 
       if (result.usedModular && ENABLE_MODULAR_VEHICLE_RENDER) {
