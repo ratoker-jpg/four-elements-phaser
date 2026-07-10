@@ -83,6 +83,7 @@ import {
 import {
   debugRenderFlags,
 } from '../../config/debugRenderFlags';
+import { BlockoutMotionFeedbackRenderer } from './BlockoutMotionFeedbackRenderer';
 
 
 // ─── Visual constants ──────────────────────────────────────────────
@@ -307,6 +308,9 @@ export class BlockoutVehicleRenderer {
   /** MODULAR-RUNTIME-03A: Live modular vehicle adapter. */
   private modularAdapter: ModularVehicleLiveAdapter;
 
+  /** Cosmetic projected tracks and dust; renderer-local and never saved. */
+  private motionFeedbackRenderer: BlockoutMotionFeedbackRenderer;
+
   /** Whether generated hull sprites have been logged (once). */
   private generatedHullLogged = false;
 
@@ -322,6 +326,7 @@ export class BlockoutVehicleRenderer {
     this.offset = offset;
     this.isDevtoolsActive = isDevtoolsActive ?? (() => false);
     this.modularAdapter = new ModularVehicleLiveAdapter(scene, offset, BLOCKOUT_DEPTH);
+    this.motionFeedbackRenderer = new BlockoutMotionFeedbackRenderer(scene, offset, BLOCKOUT_DEPTH);
   }
 
   // ─── Selection state ───────────────────────────────────────────
@@ -386,6 +391,7 @@ export class BlockoutVehicleRenderer {
    * Called each frame. Destroys stale graphics, creates new ones for new vehicles.
    */
   syncFromState(vehicles: BlockoutVehicleState[]): void {
+    this.motionFeedbackRenderer.syncFromState(vehicles, this.scene.time.now);
     const activeIds = new Set<string>();
 
     // fixup-5: ensure the shared ground-ring decal layer exists and clear it
@@ -1563,6 +1569,9 @@ export class BlockoutVehicleRenderer {
       this.placementPanel.destroy();
       this.placementPanel = null;
     }
+
+    // Cosmetic movement feedback is renderer-local and owns its Graphics layers.
+    this.motionFeedbackRenderer.destroy();
 
     // MODULAR-RUNTIME-03A: Clean up modular adapter
     this.modularAdapter.destroy();
