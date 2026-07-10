@@ -4,16 +4,16 @@
   "repository": "ratoker-jpg/four-elements-phaser",
   "roadmap": "PLAYABLE FOUR-FACTION SKIRMISH",
   "roadmapDocument": "docs/project/PLAYABLE_FOUR_FACTION_SKIRMISH_ROADMAP_2026_07_10.md",
-  "phase": 3,
-  "phaseCode": "SKIRMISH-P3",
-  "phaseName": "T1 factory composer",
+  "phase": 4,
+  "phaseCode": "SKIRMISH-P4",
+  "phaseName": "Multi-team match state",
   "status": "READY_FOR_IMPLEMENTATION",
   "updated": "2026-07-10",
-  "lastMergedPr": 342,
-  "lastMergedTitle": "Normal Game targeting, firing and damage runtime",
-  "lastMergedCommit": "2e1bc98a029ce6cc81028a587c91957c0b1c7678",
-  "nextStep": "Implement a config-driven T1 factory composer that independently selects Wasp or Hunter and Smoky or Railgun, calculates additive cost and production time, previews the modular tank and queues a structured production request.",
-  "gate": "All four legal T1 hull/turret combinations must be produced through structured requests, preserve separate hull and turret fields, render correctly and remain backward-compatible with Builder, Harvester and legacy Wasp + Smoky queue items.",
+  "lastMergedPr": 346,
+  "lastMergedTitle": "Two-layer modular preview for the factory composer",
+  "lastMergedCommit": "d7636b05afe3505172e0d8f0625694dd429ca5cc",
+  "nextStep": "Introduce canonical TeamState and MatchState data with four factions, independent economy, unit cap, tech tier, vision, controller and ownership fields, then migrate the existing single-team state and saves without cross-team resource mutation.",
+  "gate": "Four teams must coexist in one canonical match state with independent resources, ownership and vision; mutating or producing for one team must not change another team, and existing single-team saves must migrate deterministically.",
   "validation": {
     "typecheck": "PASS",
     "tests": "PASS (full Vitest suite)",
@@ -23,9 +23,10 @@
     "assetBudget": "PASS"
   },
   "manualQa": [
-    "Produce two combat units in Normal Game, issue movement and attack commands and confirm they can fight, take damage and be removed after destruction.",
-    "Confirm Smoky fires on cooldown and Railgun waits for its wind-up before damage is applied.",
-    "Save and reload produced combat units during movement and combat; confirm ownership, HP, target and cooldown state remain coherent.",
+    "Select a completed units-factory and verify Wasp/Hunter and Smoky/Railgun can be selected independently in the active HUD.",
+    "Confirm all four T1 combinations show the correct Russian quote, production time and two-layer modular preview.",
+    "Queue and cancel combat, Builder and Harvester orders at the selected factory; verify progress and resources remain coherent.",
+    "Produce two combat units, fight, save and reload; confirm movement, HP, target and cooldown state remain coherent.",
     "Accept donor weapon textures, projected tank tracks and dust in browser using issue #335."
   ],
   "activeFollowUps": [
@@ -33,6 +34,6 @@
     "Issue #330: complete manual visual QA for produced combat units in Normal mode.",
     "Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.",
     "Issue #335: visually accept the donor VFX overlay, projected tracks and bounded dust.",
-    "Implement SKIRMISH-P3: config-driven T1 hull/turret composer, modular preview, structured queue display and all four legal combinations."
+    "Implement SKIRMISH-P4A: canonical TeamState/MatchState, ownership fields, single-team migration and independent-team invariants."
   ]
 }

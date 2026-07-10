@@ -26,11 +26,11 @@ The old repository `ratoker-jpg/four-elements-next` is donor/reference/specifica
 Updated: 2026-07-10
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 3: T1 factory composer
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 4: Multi-team match state
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #342 — Normal Game targeting, firing and damage runtime
-Next: Implement a config-driven T1 factory composer that independently selects Wasp or Hunter and Smoky or Railgun, calculates additive cost and production time, previews the modular tank and queues a structured production request.
-Gate: All four legal T1 hull/turret combinations must be produced through structured requests, preserve separate hull and turret fields, render correctly and remain backward-compatible with Builder, Harvester and legacy Wasp + Smoky queue items.
+Last merged: PR #346 — Two-layer modular preview for the factory composer
+Next: Introduce canonical TeamState and MatchState data with four factions, independent economy, unit cap, tech tier, vision, controller and ownership fields, then migrate the existing single-team state and saves without cross-team resource mutation.
+Gate: Four teams must coexist in one canonical match state with independent resources, ownership and vision; mutating or producing for one team must not change another team, and existing single-team saves must migrate deterministically.
 ```
 <!-- PROJECT_STATUS:END -->
 
