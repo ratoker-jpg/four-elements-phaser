@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "project": "Four Elements Phaser",
+  "repository": "ratoker-jpg/four-elements-phaser",
+  "roadmap": "RTS FOUNDATION",
+  "phase": 3,
+  "phaseCode": "RTS-FND-P3",
+  "phaseName": "Hull + turret selection UI/model",
+  "status": "READY_FOR_DESIGN",
+  "updated": "2026-07-10",
+  "lastMergedPr": 325,
+  "lastMergedTitle": "Canonical multi-unit combat production foundation",
+  "lastMergedCommit": "40473ab99e54ea4e32b6fad2e35505ef16e0b2ea",
+  "nextStep": "Define and accept the minimal Units Factory hull/turret selection panel and its production request flow before implementation.",
+  "gate": "Do not start Phase 3 implementation until the factory panel interaction model is accepted. Do not begin Enemy AI.",
+  "validation": {
+    "typecheck": "PASS",
+    "tests": "PASS (5254 tests / 108 files)",
+    "build": "PASS (GitHub Validation)",
+    "smoke": "PASS (GitHub QA Smoke)",
+    "audit": "PASS (0 high-severity vulnerabilities)",
+    "assetBudget": "PASS"
+  },
+  "manualQa": [
+    "Produce two combat units in Normal mode and confirm both appear independently.",
+    "Save and reload with produced combat units; confirm visibility and unit cap remain correct.",
+    "Confirm builder and harvester production still work after Phase 2 changes."
+  ],
+  "activeFollowUps": [
+    "Issue #305: calibrate Smoky muzzle origin on Wasp hull only."
+  ]
+}
