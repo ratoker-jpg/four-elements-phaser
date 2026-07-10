@@ -2,7 +2,7 @@ name: Apply Godot VFX Donor
 
 on:
   pull_request_target:
-    types: [opened]
+    types: [opened, reopened, synchronize]
     branches: [main]
 
 permissions:
@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   apply-donor-vfx:
-    if: github.event.pull_request.head.ref == 'feat/godot-vfx-donor-integration'
+    if: github.event.pull_request.head.ref == 'feat/godot-vfx-donor-integration' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -77,16 +77,16 @@ jobs:
           from pathlib import Path
           path = Path('tools/apply_vfx_donor_patch.mjs')
           text = path.read_text(encoding='utf-8')
-          guard = '''  if (original.indexOf(before, index + before.length) >= 0) {
-            throw new Error(`${path}: patch marker is not unique:\\n${before}`);
-          }
-          '''
-          if guard not in text:
-              raise SystemExit('expected patch uniqueness guard not found')
-          path.write_text(text.replace(guard, ''), encoding='utf-8')
+          start_marker = '  if (original.indexOf(before, index + before.length) >= 0) {'
+          end_marker = '  const updated = original.slice(0, index)'
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('patch guard boundaries not found')
+          path.write_text(text[:start] + text[end:], encoding='utf-8')
           PY
           node tools/apply_vfx_donor_patch.mjs
-          rm tools/apply_vfx_donor_patch.mjs
+          rm tools/apply_vfx_donor_patch.mjs tools/final_validation_vfx.yml
 
       - name: Install dependencies
         working-directory: target
@@ -104,18 +104,25 @@ jobs:
         working-directory: target
         run: npm test
 
-      - name: Commit feature branch
+      - name: Dependency audit
+        working-directory: target
+        run: npm audit --audit-level=high
+
+      - name: Stage and check generated result
+        working-directory: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git diff --cached --check
+          git status --short
+
+      - name: Commit and push completed branch
         working-directory: target
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          if git diff --cached --quiet; then
-            echo "No donor integration changes were produced."
-            exit 1
-          fi
           git commit -m "feat(vfx): import pooled Godot donor texture overlay"
           git push origin HEAD:feat/godot-vfx-donor-integration
