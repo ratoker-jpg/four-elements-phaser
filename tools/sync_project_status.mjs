@@ -17,7 +17,7 @@ const status = JSON.parse(await readFile(STATUS_PATH, 'utf8'));
 
 function validateStatus(value) {
   const requiredStrings = [
-    'project', 'repository', 'roadmap', 'phaseCode', 'phaseName', 'status',
+    'project', 'repository', 'roadmap', 'roadmapDocument', 'phaseCode', 'phaseName', 'status',
     'updated', 'lastMergedTitle', 'lastMergedCommit', 'nextStep', 'gate',
   ];
   for (const key of requiredStrings) {
@@ -102,10 +102,12 @@ ${renderStatusBlock()}
 
 ## Current baseline
 
-- Phase 0 roadmap/audit: closed via PR #322.
-- Phase 1 validation baseline: closed via PR #324.
-- Phase 2 canonical multi-unit combat production: closed via PR #${status.lastMergedPr}.
-- Produced combat units use \`GameState.combatUnits\` as canonical state.
+- RTS Foundation roadmap/audit accepted via PR #322.
+- Validation baseline closed via PR #324.
+- Canonical multi-unit combat production and save/load fixup closed via PR #325.
+- Playable Four-Faction Skirmish roadmap accepted via PR #338.
+- Skirmish Phase 1 bounded destruction lifecycle closed via PR #339.
+- Produced combat units use \`GameState.combatUnits\` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
 
@@ -117,7 +119,7 @@ ${validationTable()}
 
 ${listLines(status.manualQa)}
 
-Automated checks do not replace visual acceptance for produced-unit rendering and save/load behavior.
+Automated checks do not replace visual acceptance for produced-unit rendering, destruction effects and save/load behavior.
 
 ## Active follow-ups
 
@@ -129,11 +131,12 @@ ${listLines(status.activeFollowUps)}
 2. \`docs/project/project-status.json\`
 3. \`docs/project/PROJECT_STATE.md\`
 4. \`docs/project/CURRENT_NEXT_STEP.md\`
-5. \`docs/project/FINAL_RTS_FOUNDATION_ROADMAP_2026_06_22.md\`
-6. \`docs/project/FINAL_RTS_FOUNDATION_IMPLEMENTATION_AUDIT_2026_06_22.md\`
-7. \`docs/project/CAMERA_PROJECTION_CONTRACT.md\`
+5. \`${status.roadmapDocument}\`
+6. \`docs/project/FINAL_RTS_FOUNDATION_ROADMAP_2026_06_22.md\`
+7. \`docs/project/FINAL_RTS_FOUNDATION_IMPLEMENTATION_AUDIT_2026_06_22.md\`
+8. \`docs/project/CAMERA_PROJECTION_CONTRACT.md\`
 
-Historical closure details belong in roadmap, audit and closure documents, not in this active state file.
+The Playable Four-Faction Skirmish roadmap is the active implementation queue. Historical closure details remain in the older roadmap, audit and closure documents.
 
 ## Non-negotiable architecture
 
@@ -143,6 +146,8 @@ Historical closure details belong in roadmap, audit and closure documents, not i
 - Do not create a combined hull × turret sprite matrix.
 - Modular assets load on demand; do not preload the full matrix.
 - Produced combat units are canonical in \`combatUnits\`; render data is derived.
+- Do not create a third combat runtime or copy \`BlockoutVehicleState\` wholesale into Normal Game.
+- Reuse or extract pure Arena movement, aiming, range, hit and damage systems.
 - Do not restore legacy Wasp preload, offset tuner, dual renderer or legacy GameWorld.
 
 ## Stop rules
@@ -150,9 +155,10 @@ Historical closure details belong in roadmap, audit and closure documents, not i
 Stop and correct the task if:
 
 - active docs disagree with \`project-status.json\`;
-- the selected phase lacks an accepted design where one is required;
+- work follows the old RTS Foundation phase queue instead of the active Skirmish roadmap;
+- Normal Game combat creates a parallel state source instead of extending canonical \`combatUnits\`;
 - visual/world-space work ignores \`CAMERA_PROJECTION_CONTRACT.md\`;
-- unrelated work changes combat, economy, map generation, save/load or renderer lifecycle;
+- unrelated work changes economy, map generation, save/load or renderer lifecycle;
 - a PR claims manual visual QA that was not performed;
 - required GitHub checks are red or absent.
 `;
@@ -175,22 +181,33 @@ ${renderStatusBlock()}
 
 ## Default next work
 
-1. Audit the existing \`ArenaUnitComposer\`, command-card integration and production request model as references.
-2. Define the smallest usable Units Factory panel:
-   - hull selection;
-   - turret selection;
-   - selected M-levels;
-   - calculated cost/time preview;
-   - queue and Produce action.
-3. Keep the structured \`UnitProductionRequest\`; do not return to growing preset string unions.
-4. Use the accepted modular model: hull separately, turret separately, socket/pivot metadata.
-5. Obtain visual/interaction acceptance before merging a High+ UI implementation.
+1. Audit the exact boundary between canonical \`GameState.combatUnits\` and Arena-only \`blockoutVehicles\`:
+   - movement and tile reservation;
+   - turret aiming;
+   - weapon range and cooldown;
+   - hit and armor calculation;
+   - damage attribution and destruction;
+   - input, selection and command routing;
+   - save/load migration.
+2. Define the smallest backward-compatible Normal Game combat runtime fields on \`ModularCombatUnit\` or composed child state:
+   - fractional tile position;
+   - HP and max HP;
+   - move/stop order;
+   - current target;
+   - weapon cooldown;
+   - destroyed state.
+3. Extract or adapt pure shared helpers from Arena. Do not import Phaser or copy the complete \`BlockoutVehicleState\` into production state.
+4. Implement movement and stop commands for factory-produced combat units before attack behavior.
+5. Add target acquisition, turret aiming, firing, damage and bounded destruction using the shared combat formulas.
+6. Keep \`CombatUnitRenderer\` as a derived view of canonical state and update it from fractional position and facing.
+7. Migrate old saves with safe defaults and preserve deterministic IDs.
+8. Add focused lifecycle tests and one end-to-end state test: \`produce → move → target → damage → destroy → save/load\`.
 
 ## Acceptance gate
 
 ${status.gate}
 
-A design/audit PR may proceed. Runtime UI implementation should follow only after the interaction model is explicit enough to test.
+The phase should be split into reviewable PRs. The first implementation PR establishes canonical runtime state and move/stop lifecycle without strategic AI, multi-team economy or the factory composer.
 
 ## Required validation for implementation PRs
 
@@ -204,19 +221,20 @@ A design/audit PR may proceed. Runtime UI implementation should follow only afte
 - \`git diff --check\`
 - final GitHub Actions status
 
-## Manual QA carried from Phase 2
+## Manual QA carried forward
 
 ${listLines(status.manualQa)}
 
 ## Not next by default
 
-- Enemy AI, waves or win/lose flow.
-- Full M0–M3 balance pass.
-- Mirrored map implementation before its roadmap phase.
+- Strategic Enemy AI, scouting, economy planning or win/lose flow.
+- Four-team state or mirrored four-corner map before their roadmap phases.
+- Factory hull/turret composer before the Normal Game combat runtime is functional.
+- Full M0–M3 XP progression.
 - Broad renderer or GameScene lifecycle rewrite.
 - Full modular asset preload.
 - Reopening closed AoE4 UX work by inertia.
-- Unrelated fix for issue #305 inside Phase 3.
+- Unrelated fix for issue #305 inside ${status.phaseCode}.
 `;
 }
 
