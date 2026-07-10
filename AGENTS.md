@@ -28,7 +28,7 @@ Updated: 2026-07-10
 ```text
 RTS FOUNDATION — Phase 3: Hull + turret selection UI/model
 Status: READY_FOR_DESIGN
-Last merged: PR #329 — Production, save/load and unit-cap lifecycle
+Last merged: PR #334 — Projected tracks and bounded dust
 Next: Define and accept the minimal Units Factory hull/turret selection panel and its production request flow before implementation.
 Gate: Do not start Phase 3 implementation until the factory panel interaction model is accepted. Do not begin Enemy AI.
 ```

@@ -8,14 +8,14 @@
   "phaseName": "Hull + turret selection UI/model",
   "status": "READY_FOR_DESIGN",
   "updated": "2026-07-10",
-  "lastMergedPr": 329,
-  "lastMergedTitle": "Production, save/load and unit-cap lifecycle",
-  "lastMergedCommit": "4e03302a3a564337f6b95e1c8bf64f5a4d3ef76d",
+  "lastMergedPr": 334,
+  "lastMergedTitle": "Projected tracks and bounded dust",
+  "lastMergedCommit": "5360c90fa832b90d41d00a78f9bb566030074adc",
   "nextStep": "Define and accept the minimal Units Factory hull/turret selection panel and its production request flow before implementation.",
   "gate": "Do not start Phase 3 implementation until the factory panel interaction model is accepted. Do not begin Enemy AI.",
   "validation": {
     "typecheck": "PASS",
-    "tests": "PASS (5261 tests / 110 files)",
+    "tests": "PASS (5266 tests / 112 files)",
     "build": "PASS (GitHub Validation)",
     "smoke": "PASS (GitHub QA Smoke)",
     "audit": "PASS (0 high-severity vulnerabilities)",
@@ -24,11 +24,13 @@
   "manualQa": [
     "Produce two combat units in Normal mode and confirm both appear independently.",
     "Save and reload with produced combat units; confirm visibility and unit cap remain correct.",
-    "Confirm builder and harvester production still work after Phase 2 changes."
+    "Confirm builder and harvester production still work after Phase 2 changes.",
+    "Accept donor weapon textures, projected tank tracks and dust in browser using issue #335."
   ],
   "activeFollowUps": [
     "Issue #305: calibrate Smoky muzzle origin on Wasp hull only.",
     "Issue #330: complete manual visual QA for produced combat units in Normal mode.",
-    "Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail."
+    "Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.",
+    "Issue #335: visually accept the donor VFX overlay, projected tracks and bounded dust."
   ]
 }
