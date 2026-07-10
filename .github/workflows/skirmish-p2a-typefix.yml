@@ -40,12 +40,25 @@ jobs:
         run: python3 tools/apply_skirmish_p2a_typefix.py
       - if: steps.guard.outputs.apply == 'true'
         run: npm ci
-      - if: steps.guard.outputs.apply == 'true'
-        run: npm run typecheck
-      - if: steps.guard.outputs.apply == 'true'
+      - id: typecheck
+        if: steps.guard.outputs.apply == 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee p2a-typefix.log
+      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skirmish-p2a-typefix-log
+          path: p2a-typefix.log
+          if-no-files-found: error
+      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'failure'
+        run: exit 1
+      - if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
         run: npx vitest run src/__tests__/combatUnitMovement.test.ts src/__tests__/unitCommands.test.ts src/__tests__/directionFromDelta.test.ts
       - name: Commit fixup
-        if: steps.guard.outputs.apply == 'true'
+        if: steps.guard.outputs.apply == 'true' && steps.typecheck.outcome == 'success'
         run: |
           rm tools/apply_skirmish_p2a_typefix.py
           git config user.name "github-actions[bot]"
