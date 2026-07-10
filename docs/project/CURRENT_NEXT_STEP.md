@@ -24,22 +24,34 @@ Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState who
 
 ## Default next work
 
-1. Audit the existing `ArenaUnitComposer`, command-card integration and production request model as references.
-2. Define the smallest usable Units Factory panel:
-   - hull selection;
-   - turret selection;
-   - selected M-levels;
-   - calculated cost/time preview;
-   - queue and Produce action.
-3. Keep the structured `UnitProductionRequest`; do not return to growing preset string unions.
-4. Use the accepted modular model: hull separately, turret separately, socket/pivot metadata.
-5. Obtain visual/interaction acceptance before merging a High+ UI implementation.
+1. Audit the exact boundary between canonical `GameState.combatUnits` and Arena-only `blockoutVehicles`:
+   - movement and tile reservation;
+   - turret aiming;
+   - weapon range/cooldown;
+   - hit and armor calculation;
+   - damage attribution and destruction;
+   - input/selection/command routing;
+   - save/load migration.
+2. Define the smallest backward-compatible Normal Game combat runtime fields on `ModularCombatUnit` or composed child state. Required first slice:
+   - fractional tile position;
+   - HP/max HP;
+   - move/stop order;
+   - current target;
+   - weapon cooldown;
+   - destroyed state.
+3. Extract or adapt pure shared helpers from Arena. Do not import Phaser or copy the complete `BlockoutVehicleState` into production state.
+4. Implement movement and stop commands for factory-produced combat units before attack behavior.
+5. Add target acquisition, turret aiming, firing, damage and bounded destruction using the shared combat formulas.
+6. Keep `CombatUnitRenderer` as a derived view of canonical state and update it from fractional position/facing.
+7. Migrate old saves with safe defaults and preserve deterministic IDs.
+8. Add focused lifecycle tests and one end-to-end state test:
+   `produce → move → target → damage → destroy → save/load`.
 
 ## Acceptance gate
 
-Do not create a third combat-unit runtime or copy BlockoutVehicleState wholesale. Normal Game combatUnits remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.
+Do not create a third combat-unit runtime or copy `BlockoutVehicleState` wholesale. Normal Game `combatUnits` remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.
 
-A design/audit PR may proceed. Runtime UI implementation should follow only after the interaction model is explicit enough to test.
+The phase should be split into reviewable PRs. The first implementation PR should establish the canonical runtime state and move/stop lifecycle without attempting strategic AI, multi-team economy or the factory composer.
 
 ## Required validation for implementation PRs
 
@@ -53,7 +65,7 @@ A design/audit PR may proceed. Runtime UI implementation should follow only afte
 - `git diff --check`
 - final GitHub Actions status
 
-## Manual QA carried from Phase 2
+## Manual QA carried forward
 
 - Destroy an Arena tank and confirm the live modular model disappears immediately, followed by a short explosion, fading wreck and full removal after 1.8 seconds.
 - Confirm destroyed Arena tanks cannot be selected or assigned as targets and no longer retain tile reservations.
@@ -63,10 +75,11 @@ A design/audit PR may proceed. Runtime UI implementation should follow only afte
 
 ## Not next by default
 
-- Enemy AI, waves or win/lose flow.
-- Full M0–M3 balance pass.
-- Mirrored map implementation before its roadmap phase.
+- Strategic Enemy AI, scouting, economy planning or win/lose flow.
+- Four-team state or mirrored four-corner map before their roadmap phases.
+- Factory hull/turret composer before the Normal Game combat runtime is functional.
+- Full M0–M3 XP progression.
 - Broad renderer or GameScene lifecycle rewrite.
 - Full modular asset preload.
 - Reopening closed AoE4 UX work by inertia.
-- Unrelated fix for issue #305 inside Phase 3.
+- Unrelated fix for issue #305 inside SKIRMISH-P2.
