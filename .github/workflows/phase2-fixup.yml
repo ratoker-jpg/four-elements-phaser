@@ -52,7 +52,22 @@ jobs:
 
       - name: Typecheck
         if: steps.guard.outputs.needed == 'true'
-        run: npm run typecheck
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > phase2-typecheck.log 2>&1
+          status=$?
+          cat phase2-typecheck.log
+          exit $status
+
+      - name: Upload typecheck diagnostics
+        if: always() && steps.guard.outputs.needed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-typecheck-diagnostics
+          path: phase2-typecheck.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Unit tests
         if: steps.guard.outputs.needed == 'true'
@@ -70,6 +85,7 @@ jobs:
         if: steps.guard.outputs.needed == 'true'
         shell: bash
         run: |
+          rm -f phase2-typecheck.log
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
