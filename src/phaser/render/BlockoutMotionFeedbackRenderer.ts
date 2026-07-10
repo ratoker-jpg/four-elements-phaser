@@ -134,39 +134,64 @@ export class BlockoutMotionFeedbackRenderer {
 
     if (distance < MOTION_FEEDBACK_EMIT_DISTANCE_PX) return;
 
-    const sample = computeProjectedTrackSample(vehicle, this.offset, history.nextSide);
+    const leftSample = computeProjectedTrackSample(vehicle, this.offset, -1);
+    const rightSample = computeProjectedTrackSample(vehicle, this.offset, 1);
     const speedFactor = Phaser.Math.Clamp(
-      (vehicle.speed - MOTION_FEEDBACK_SPEED_THRESHOLD) / 80,
+      (vehicle.speed - MOTION_FEEDBACK_SPEED_THRESHOLD) / 70,
       0,
       1,
     );
+    const strength = 0.78 + speedFactor * 0.22;
 
-    this.tracks.push({
-      ...sample,
-      createdAt: nowMs,
-      strength: 0.65 + speedFactor * 0.35,
-    });
-    if (this.tracks.length > MOTION_FEEDBACK_MAX_TRACKS) {
-      this.tracks.splice(0, this.tracks.length - MOTION_FEEDBACK_MAX_TRACKS);
-    }
+    // A tank has two tracks. Emitting both sides on every sample makes the
+    // feedback readable at gameplay zoom and avoids the dotted single-track
+    // appearance of the first implementation.
+    this.appendTrack(leftSample, nowMs, strength);
+    this.appendTrack(rightSample, nowMs, strength);
 
     history.emitCount += 1;
-    if (history.emitCount % 2 === 0 || speedFactor > 0.58) {
-      this.dust.push({
-        x: sample.dustX,
-        y: sample.dustY,
-        createdAt: nowMs,
-        radius: 3.5 + speedFactor * 4.5,
-        driftX: history.nextSide * (1.5 + speedFactor * 2.5),
-      });
-      if (this.dust.length > MOTION_FEEDBACK_MAX_DUST) {
-        this.dust.splice(0, this.dust.length - MOTION_FEEDBACK_MAX_DUST);
-      }
+    const primarySample = history.nextSide === -1 ? leftSample : rightSample;
+    this.appendDust(primarySample, history.nextSide, nowMs, speedFactor);
+
+    // At medium/high speed add a second smaller puff on the opposite track.
+    if (speedFactor > 0.35 || history.emitCount % 3 === 0) {
+      const secondarySide: -1 | 1 = history.nextSide === -1 ? 1 : -1;
+      const secondarySample = secondarySide === -1 ? leftSample : rightSample;
+      this.appendDust(secondarySample, secondarySide, nowMs, speedFactor * 0.82);
     }
 
     history.lastEmitX = currentX;
     history.lastEmitY = currentY;
     history.nextSide = history.nextSide === -1 ? 1 : -1;
+  }
+
+  private appendTrack(sample: ProjectedTrackSample, nowMs: number, strength: number): void {
+    this.tracks.push({
+      ...sample,
+      createdAt: nowMs,
+      strength,
+    });
+    if (this.tracks.length > MOTION_FEEDBACK_MAX_TRACKS) {
+      this.tracks.splice(0, this.tracks.length - MOTION_FEEDBACK_MAX_TRACKS);
+    }
+  }
+
+  private appendDust(
+    sample: ProjectedTrackSample,
+    side: -1 | 1,
+    nowMs: number,
+    speedFactor: number,
+  ): void {
+    this.dust.push({
+      x: sample.dustX,
+      y: sample.dustY,
+      createdAt: nowMs,
+      radius: 6 + speedFactor * 8,
+      driftX: side * (3 + speedFactor * 4),
+    });
+    if (this.dust.length > MOTION_FEEDBACK_MAX_DUST) {
+      this.dust.splice(0, this.dust.length - MOTION_FEEDBACK_MAX_DUST);
+    }
   }
 
   private expire(nowMs: number): void {
@@ -196,8 +221,15 @@ export class BlockoutMotionFeedbackRenderer {
         0,
         1,
       );
-      const alpha = (1 - progress) * 0.32 * track.strength;
-      trackGraphics.lineStyle(3, 0x1d1914, alpha);
+      const alpha = (1 - progress) * 0.62 * track.strength;
+
+      trackGraphics.lineStyle(5, 0x17130f, alpha);
+      trackGraphics.beginPath();
+      trackGraphics.moveTo(track.startX, track.startY);
+      trackGraphics.lineTo(track.endX, track.endY);
+      trackGraphics.strokePath();
+
+      trackGraphics.lineStyle(2, 0x51473b, alpha * 0.55);
       trackGraphics.beginPath();
       trackGraphics.moveTo(track.startX, track.startY);
       trackGraphics.lineTo(track.endX, track.endY);
@@ -212,14 +244,14 @@ export class BlockoutMotionFeedbackRenderer {
         1,
       );
       const fade = 1 - progress;
-      const radius = puff.radius * (0.7 + progress * 0.95);
+      const radius = puff.radius * (0.72 + progress * 1.15);
       const x = puff.x + puff.driftX * progress;
-      const y = puff.y - 10 * progress;
+      const y = puff.y - 13 * progress;
 
-      dustGraphics.fillStyle(0x8d8068, fade * 0.22);
+      dustGraphics.fillStyle(0x756957, fade * 0.42);
       dustGraphics.fillCircle(x, y, radius);
-      dustGraphics.fillStyle(0xb1a58d, fade * 0.12);
-      dustGraphics.fillCircle(x - radius * 0.28, y - radius * 0.18, radius * 0.62);
+      dustGraphics.fillStyle(0xb8aa8e, fade * 0.24);
+      dustGraphics.fillCircle(x - radius * 0.3, y - radius * 0.2, radius * 0.66);
     }
   }
 }
