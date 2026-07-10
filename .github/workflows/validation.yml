@@ -8,138 +8,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  apply-donor-vfx:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feat/godot-vfx-donor-integration' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    steps:
-      - name: Checkout Phaser feature branch
-        uses: actions/checkout@v4
-        with:
-          ref: feat/godot-vfx-donor-integration
-          fetch-depth: 0
-          path: target
-          sparse-checkout: |
-            .github
-            src
-            tools
-            public/assets/vfx
-            package.json
-            package-lock.json
-            tsconfig.json
-            vite.config.ts
-            index.html
-
-      - name: Checkout Godot donor subset
-        uses: actions/checkout@v4
-        with:
-          repository: ratoker-jpg/godot-tank-arena
-          ref: main
-          path: donor
-          sparse-checkout: |
-            assets/vfx/processed
-            docs/vfx_asset_audit.md
-
-      - name: Copy approved alpha-processed LeLu textures
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p target/public/assets/vfx/donor
-          files=(
-            T_flare8_vfx_alpha.png
-            T_VFX_spark44_alpha.png
-            T_VFX_exp_dissapear_alpha.png
-            T_VFX_Glo31_alpha.png
-            T_VFX_hit22_alpha.png
-            T_FirePanningCyl45_alpha.png
-            T_VFX_RoundSmoke71_alpha.png
-            T_trail12_alpha.png
-            T_CloudNoise_Tiled_alpha.png
-            T_BlastUi6_alpha.png
-          )
-          for file in "${files[@]}"; do
-            test -f "donor/assets/vfx/processed/$file"
-            install -m 0644 "donor/assets/vfx/processed/$file" "target/public/assets/vfx/donor/$file"
-          done
-
-      - name: Apply deterministic integration patch
-        working-directory: target
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('tools/apply_vfx_donor_patch.mjs')
-          text = path.read_text(encoding='utf-8')
-          start_marker = '  if (original.indexOf(before, index + before.length) >= 0) {'
-          end_marker = '  const updated = original.slice(0, index)'
-          start = text.find(start_marker)
-          end = text.find(end_marker, start)
-          if start < 0 or end < 0:
-              raise SystemExit('patch guard boundaries not found')
-          text = text[:start] + text[end:]
-          text = text.replace('await patchValidationWorkflow();\n', '')
-          path.write_text(text, encoding='utf-8')
-          PY
-          node tools/apply_vfx_donor_patch.mjs
-          rm tools/apply_vfx_donor_patch.mjs tools/final_validation_vfx.yml
-
-      - name: Install dependencies
-        working-directory: target
-        run: npm ci
-
-      - name: Validate VFX alpha
-        working-directory: target
-        run: npm run validate:vfx-alpha
-
-      - name: Typecheck
-        working-directory: target
-        run: npm run typecheck
-
-      - name: Unit tests
-        working-directory: target
-        run: npm test
-
-      - name: Dependency audit
-        working-directory: target
-        run: npm audit --audit-level=high
-
-      - name: Stage generated result
-        working-directory: target
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add -A
-          git status --short
-          find public/assets/vfx/donor -maxdepth 1 -type f -printf '%s %p\n' | sort -nr
-
-      - name: Check generated diff
-        working-directory: target
-        run: git diff --cached --check
-
-      - name: Commit generated result
-        working-directory: target
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "feat(vfx): import pooled Godot donor texture overlay"
-
-      - name: Push completed branch
-        working-directory: target
-        run: git push origin HEAD:feat/godot-vfx-donor-integration
-
   typecheck-test-audit:
-    needs: apply-donor-vfx
-    if: always() && needs.apply-donor-vfx.result == 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -157,6 +33,9 @@ jobs:
 
       - name: Project status consistency
         run: npm run check:project-status
+
+      - name: VFX alpha integrity
+        run: npm run validate:vfx-alpha
 
       - name: Typecheck
         run: npm run typecheck
