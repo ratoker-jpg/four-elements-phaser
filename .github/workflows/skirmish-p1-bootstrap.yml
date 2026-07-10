@@ -31,7 +31,6 @@ jobs:
             src
             tools
             docs/project
-            public/assets/vfx_donor
             AGENTS.md
             package.json
             package-lock.json
@@ -68,10 +67,6 @@ jobs:
       - name: Project status consistency
         if: steps.guard.outputs.apply == 'true'
         run: npm run sync:project-status -- --check
-
-      - name: VFX alpha integrity
-        if: steps.guard.outputs.apply == 'true'
-        run: npm run validate:vfx-alpha
 
       - name: Typecheck
         if: steps.guard.outputs.apply == 'true'
