@@ -36,7 +36,6 @@ import { updateHarvesterManualMove, findResourceApproachTile } from './unitComma
 import { isResourceInfinite } from '../config/resourceClassRuntime';
 import { allocateCombatUnitId, createCombatUnitRuntime, getCombatProductionConfig } from './combatUnits';
 import { updateAllCombatUnitMovement } from './combatUnitMovement';
-import { directionFromDelta } from './unitDirection';
 export { directionFromDelta } from './unitDirection';
 
 // ─── Constants ──────────────────────────────────────────────────────

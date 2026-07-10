@@ -372,7 +372,7 @@ function moveTowardTile(
 /** Result of a stop command. */
 export type StopResult =
   | { ok: true }
-  | { ok: false; reason: 'no-unit-selected' | 'unit-busy' };
+  | { ok: false; reason: 'no-unit-selected' | 'unit-destroyed' | 'unit-busy' };
 
 /**
  * Stop the selected unit's current command.

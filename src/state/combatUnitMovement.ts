@@ -19,6 +19,10 @@ import { directionFromDelta } from './unitDirection';
 
 const ARRIVAL_THRESHOLD = 0.03;
 
+export type CombatStopResult =
+  | { ok: true }
+  | { ok: false; reason: 'no-unit-selected' | 'unit-destroyed' };
+
 export type CombatMoveResult =
   | { ok: true }
   | {
@@ -77,7 +81,7 @@ export function issueCombatUnitMove(
   return { ok: true };
 }
 
-export function stopCombatUnit(state: GameState, unitId: string): CombatMoveResult {
+export function stopCombatUnit(state: GameState, unitId: string): CombatStopResult {
   const unit = state.combatUnits.find(candidate => candidate.id === unitId);
   if (!unit) return { ok: false, reason: 'no-unit-selected' };
 
