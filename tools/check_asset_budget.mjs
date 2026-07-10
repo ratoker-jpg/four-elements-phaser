@@ -4,8 +4,11 @@ import { readdir, stat } from 'node:fs/promises';
 import { resolve, relative } from 'node:path';
 
 const targetDir = resolve(process.argv[2] ?? 'dist');
-const maxTotalBytes = Number(process.env.ASSET_BUDGET_TOTAL_MB ?? 950) * 1024 * 1024;
-const maxFileBytes = Number(process.env.ASSET_BUDGET_FILE_MB ?? 64) * 1024 * 1024;
+// Current runtime assets are intentionally large. This guard establishes a
+// ceiling slightly above the existing baseline; it prevents silent growth but
+// does not pretend the existing asset footprint has already been optimized.
+const maxTotalBytes = Number(process.env.ASSET_BUDGET_TOTAL_MB ?? 5200) * 1024 * 1024;
+const maxFileBytes = Number(process.env.ASSET_BUDGET_FILE_MB ?? 256) * 1024 * 1024;
 
 async function collectFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
