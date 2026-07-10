@@ -3,6 +3,7 @@
   "project": "Four Elements Phaser",
   "repository": "ratoker-jpg/four-elements-phaser",
   "roadmap": "PLAYABLE FOUR-FACTION SKIRMISH",
+  "roadmapDocument": "docs/project/PLAYABLE_FOUR_FACTION_SKIRMISH_ROADMAP_2026_07_10.md",
   "phase": 2,
   "phaseCode": "SKIRMISH-P2",
   "phaseName": "Production combat runtime in Normal Game",
