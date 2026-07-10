@@ -16,7 +16,7 @@ Updated: 2026-07-10
 ```text
 RTS FOUNDATION — Phase 3: Hull + turret selection UI/model
 Status: READY_FOR_DESIGN
-Last merged: PR #329 — Production, save/load and unit-cap lifecycle
+Last merged: PR #334 — Projected tracks and bounded dust
 Next: Define and accept the minimal Units Factory hull/turret selection panel and its production request flow before implementation.
 Gate: Do not start Phase 3 implementation until the factory panel interaction model is accepted. Do not begin Enemy AI.
 ```
@@ -58,6 +58,7 @@ A design/audit PR may proceed. Runtime UI implementation should follow only afte
 - Produce two combat units in Normal mode and confirm both appear independently.
 - Save and reload with produced combat units; confirm visibility and unit cap remain correct.
 - Confirm builder and harvester production still work after Phase 2 changes.
+- Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
 ## Not next by default
 
