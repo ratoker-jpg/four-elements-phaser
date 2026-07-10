@@ -1,7 +1,7 @@
 # AGENTS.md — Four Elements Phaser
 
 Status: active root agent instructions  
-Updated: 2026-06-14
+Updated: 2026-07-10
 
 ---
 
@@ -9,7 +9,7 @@ Updated: 2026-06-14
 
 ```text
 repo: ratoker-jpg/four-elements-phaser
-engine: Phaser 4
+engine: Phaser 4.1.0
 language: TypeScript
 build: Vite
 renderer: Phaser-first / WebGL-only
@@ -22,76 +22,49 @@ The old repository `ratoker-jpg/four-elements-next` is donor/reference/specifica
 
 ## Current operating mode
 
-```text
-RTS FOUNDATION ROADMAP — Phase 1 (Validation Baseline / Red Gates) ACTIVE.
-PR #322 merged. FINAL_RTS_FOUNDATION roadmap accepted.
-Phase 2+ is BLOCKED until Phase 1 is green or explicitly accepted by Denis/GPT.
-NO CODE WITHOUT PHASE 1 GREEN OR DENIS ACCEPTANCE for Phase 2+.
-```
-
-Current active direction:
+<!-- PROJECT_STATUS:START -->
+Updated: 2026-07-10
 
 ```text
-FINAL_RTS_FOUNDATION roadmap (Phase 1 active)
-+
-Graphify-first AI workflow
-+
-source-of-truth docs aligned to accepted roadmap
-+
-accepted modular vehicle runtime / unified vehicle renderer baseline
+RTS FOUNDATION — Phase 3: Hull + turret selection UI/model
+Status: READY_FOR_DESIGN
+Last merged: PR #325 — Canonical multi-unit combat production foundation
+Next: Define and accept the minimal Units Factory hull/turret selection panel and its production request flow before implementation.
+Gate: Do not start Phase 3 implementation until the factory panel interaction model is accepted. Do not begin Enemy AI.
 ```
+<!-- PROJECT_STATUS:END -->
 
-The active modular vehicle model is:
-
-```text
-hull sprite separately
-+
-turret sprite separately
-+
-socket/pivot metadata
-```
-
-The rejected production model is:
-
-```text
-combined hull x turret production matrix
-```
+The status block above is generated from `docs/project/project-status.json`. Do not edit it manually.
 
 ---
 
-## Active source-of-truth docs
+## Active source-of-truth documents
 
-Read these first for project work:
+Read these first:
 
 ```text
+AGENTS.md
+docs/project/project-status.json
 docs/project/PROJECT_STATE.md
 docs/project/CURRENT_NEXT_STEP.md
 docs/project/FINAL_RTS_FOUNDATION_ROADMAP_2026_06_22.md
 docs/project/FINAL_RTS_FOUNDATION_IMPLEMENTATION_AUDIT_2026_06_22.md
+docs/project/CAMERA_PROJECTION_CONTRACT.md
+```
+
+Workflow and agent rules:
+
+```text
 docs/project/GPT_WORKFLOW.md
 docs/project/AI_ORCHESTRATION_RULES_2026_06_14.md
 docs/project/AI_GRAPHIFY_WORKFLOW.md
-docs/project/CAMERA_PROJECTION_CONTRACT.md
-docs/project/GLM_EXECUTOR_RULES.md
 docs/project/GPT_PROJECT_LEAD_INSTRUCTIONS.md
+docs/project/GLM_EXECUTOR_RULES.md
+docs/project/OPUS_ARCHITECT_AUDIT_RULES.md
+docs/project/CODEX_LOCAL_AUDITOR_RULES.md
 ```
 
-For visual/world-space/rendering/asset work, also read:
-
-```text
-docs/project/CAMERA_PROJECTION_CONTRACT.md
-```
-
-Agent-specific docs:
-
-```text
-GPT:   docs/project/GPT_PROJECT_LEAD_INSTRUCTIONS.md
-GLM:   docs/project/GLM_EXECUTOR_RULES.md
-Opus:  docs/project/OPUS_ARCHITECT_AUDIT_RULES.md
-Codex: docs/project/CODEX_LOCAL_AUDITOR_RULES.md
-```
-
-Closed/old roadmap docs are references only. They are not active implementation queues.
+Closed/old roadmap documents are references only, not active queues.
 
 ---
 
@@ -100,102 +73,101 @@ Closed/old roadmap docs are references only. They are not active implementation 
 ```text
 GPT   = project lead / task router / PR reviewer / docs keeper
 GLM   = High/High+ executor after accepted audit/roadmap
-Opus  = system architect, broad auditor, complex High+ executor when justified
-Codex = read-only local auditor for Denis's computer-only files/assets
-Denis = product owner and merge decision maker
+Opus  = system architect / broad auditor / complex executor when justified
+Codex = local/repository auditor and implementation helper when available
+Denis = product owner and final visual acceptance owner
 ```
 
-Do not swap these roles silently.
+Do not swap roles silently. Do not claim Denis manual QA unless he actually performed it.
+
+---
+
+## Validation contract
+
+Every implementation PR must pass:
+
+```text
+npm run check:project-status
+npm run typecheck
+npm test
+npm audit --audit-level=high
+npm run build
+npm run check:asset-budget
+npm run qa:smoke
+git diff --check
+final GitHub Actions status
+```
+
+If a local environment is blocked by disk space, report it honestly and use GitHub Actions as the build/smoke authority.
 
 ---
 
 ## Graphify-first rule
 
-For broad repo reasoning, cleanup audits, architecture audits, and High/High+ planning, use the GitHub Actions Graphify artifact first when available.
+For broad repository reasoning, cleanup audits, architecture audits and High/High+ planning, use the GitHub Actions Graphify artifact first when available.
 
-Workflow:
-
-```text
-.github/workflows/graphify.yml
-```
-
-Do not commit `graphify-out/` by default.
-
-Do not ask Denis to repeatedly download repo/PRs locally for standard context generation.
+Do not commit `graphify-out/` by default. Do not ask Denis to repeatedly download repository context that can be generated in GitHub.
 
 ---
 
 ## Roadmap/audit model
 
-Preferred model:
+Preferred:
 
 ```text
-roadmap with many steps
--> one broad durable Opus audit when needed
--> High/High+ implementation steps
--> PR review
--> docs update
+broad durable roadmap/audit
+-> bounded implementation PR
+-> automated validation
+-> review
+-> manual visual QA when needed
+-> merge
+-> generated status update
 ```
 
-Avoid:
-
-```text
-1 tiny task -> 1 audit -> 1 tiny task -> 1 audit
-```
-
-Do not do audits for theater. Use audits when the system/direction is genuinely broad or risky.
+Avoid one tiny audit per tiny patch. Do not perform audits for ceremony.
 
 ---
 
-## Current modular vehicle constraints
+## Modular vehicle constraints
 
-Local staging facts may exist outside the repo:
-
-```text
-D:\Desktop\Модели\game_asset_staging\modular_cyan_v1\
-```
-
-Known staging summary:
+Accepted production model:
 
 ```text
-448 hull PNG
-640 turret PNG
-1088 runtime PNG total
-warnings 0
+hull sprite separately
++
+turret sprite separately
++
+socket/pivot/muzzle metadata
++
+on-demand loading
++
+combatUnits as canonical produced-unit state
 ```
 
-Rules:
+Rejected:
 
 ```text
-- do not import the full staging package before cleanup/loader/renderer plan is accepted;
-- do not preload all 1088 PNG at startup;
-- do not use combined hull x turret production matrix;
-- do not manually tune per-PNG offsets as source of truth;
-- use socket/pivot metadata;
-- integrate visual QA through Arena/debug UI, not new URL flag sprawl.
+combined hull × turret production matrix
+full modular matrix preload
+old Wasp M0 preload
+manual per-PNG production offset tables
+dual renderers / legacy GameWorld
 ```
+
+Produced combat units must not be duplicated into independent persistent render state. Render inputs are derived from canonical game state.
 
 ---
 
 ## Camera/projection non-negotiables
 
-For every visual/world-space/rendering/asset task, read:
-
-```text
-docs/project/CAMERA_PROJECTION_CONTRACT.md
-```
-
-Rules:
+For every visual, world-space, rendering or asset task, read `docs/project/CAMERA_PROJECTION_CONTRACT.md`.
 
 ```text
 - fixed isometric / axonometric 2.5D camera;
-- not top-down;
-- not side-view;
-- pan + zoom allowed;
-- camera rotation forbidden;
-- projection formula: screen = origin + x*basisX + y*basisY + z*basisZ;
-- ground markers/rings/shadows/ranges/footprints must be projected onto ground plane;
-- no top-down screen circles for ground-space concepts.
+- no camera rotation;
+- screen = origin + x*basisX + y*basisY + z*basisZ;
+- ground markers, shadows, ranges and footprints use projected ground-plane geometry;
+- no top-down screen circles for world-space concepts.
 ```
 
 ---
@@ -209,26 +181,24 @@ Standard
 Debug / Отладка
 Arena / Арена
 ArenaMenu
-Arena debug/inspection panels
+Arena inspection panels
 ```
 
-Do not add a new query-string flag for every visual test.
-
-Query flags may exist for automation/smoke/dev shortcuts only. They are not final manual acceptance UX.
+Do not add a query-string mode for every visual test. Query flags are acceptable only for automation and smoke shortcuts.
 
 ---
 
 ## GitHub-first rule
 
-Repository-level context, validation, graph generation, and PR review preparation should happen in GitHub workflows/artifacts when possible.
+Repository context, validation, graph generation, PR review and status synchronization should happen in GitHub when possible.
 
-Local machine work is for:
+Local machine work is reserved for:
 
 ```text
 - Blender/export work;
-- local-only asset/file audits;
-- manual visual QA that cannot run in GitHub;
-- explicitly approved emergency reproduction.
+- local-only assets;
+- manual visual QA;
+- explicitly approved reproduction that cannot run in CI.
 ```
 
 ---
@@ -236,25 +206,27 @@ Local machine work is for:
 ## Strict non-goals unless explicitly scoped
 
 ```text
-- no combat/movement/economy/mapgen/save-load changes during asset runtime cleanup;
-- no PR #263 continuation by inertia;
-- no final all-faction asset import;
-- no package/runtime dependency for Graphify;
+- no Enemy AI before the dedicated roadmap;
 - no hidden temporary architecture expected to be cleaned later;
-- no Rex runtime dependencies without separate audit/approval;
-- no Canvas renderer;
-- no renderer bridge;
-- no legacy GameWorld;
-- no WorldRenderSnapshot;
-- no dual renderer.
+- no unrelated combat/economy/mapgen/save-load changes inside visual or asset work;
+- no Rex runtime dependency without separate approval;
+- no Canvas fallback;
+- no renderer bridge, legacy GameWorld, WorldRenderSnapshot or dual renderer;
+- no full all-faction asset import by inertia;
+- no reopening closed AoE4 UX work by inertia.
 ```
 
 ---
 
 ## Documentation hygiene
 
-Active docs must be explicit and few.
+`docs/project/project-status.json` is the only editable active-status source.
 
-Stale docs must be marked closed/historical or archived and removed from required reading lists.
+After changing it:
 
-Docs containing obsolete approval phrases such as `Жду Делай` must not be active instructions.
+```text
+npm run sync:project-status
+npm run check:project-status
+```
+
+Commit the JSON and generated documents together. CI must fail when generated status files drift.
