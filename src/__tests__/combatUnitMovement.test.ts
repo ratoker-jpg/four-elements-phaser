@@ -18,6 +18,7 @@ import {
   selectMany,
 } from '../state/unitSelection';
 import { routeLmbClick } from '../state/commandRouter';
+import { collectVisionSources, getVisionSourceSignature } from '../state/visibility';
 import {
   loadGame,
   resetSaveStorage,
@@ -180,6 +181,24 @@ describe('canonical Normal Game combat movement', () => {
 
     const mixed = selectMany([{ kind: 'combat', id: unit.id }, { kind: 'harvester', id: 'missing' }]);
     expect(pruneMissingEntities(mixed, state)?.units).toEqual([{ kind: 'combat', id: unit.id }]);
+  });
+
+  it('uses fractional combat movement as a fog vision source', () => {
+    const state = makeState();
+    const unit = makeUnit();
+    state.combatUnits = [unit];
+    normalizeCombatUnitState(state);
+
+    const before = getVisionSourceSignature(state);
+    unit.runtime!.ftx = 9.4;
+    unit.runtime!.fty = 7.6;
+    const source = collectVisionSources(state).find(candidate => candidate.sourceId === unit.id);
+
+    expect(source).toMatchObject({ tx: 9, ty: 8, radius: 4, sourceType: 'combat' });
+    expect(getVisionSourceSignature(state)).not.toBe(before);
+
+    unit.runtime!.isDestroyed = true;
+    expect(collectVisionSources(state).some(candidate => candidate.sourceId === unit.id)).toBe(false);
   });
 
   it('persists runtime fields and migrates missing runtime on load', () => {
