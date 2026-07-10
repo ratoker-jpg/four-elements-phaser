@@ -54,6 +54,7 @@ function makeMinimalState(overrides: Partial<GameState> = {}): GameState {
     playerFaction: 'cyan',
     extraHarvesters: [],
     extraModularCombat: [],
+    combatUnits: [],
     harvesters: [],
     resourceNodes: [],
     economy: {

@@ -10,6 +10,7 @@
 
 import type { BlockoutObstacleState } from './blockoutObstacleState';
 import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
+import type { BodyId, WeaponId } from '../config/blockoutProfiles';
 import type { VisionState } from './visibility';
 
 // ─── Terrain ────────────────────────────────────────────────────────
@@ -141,14 +142,26 @@ export interface ConstructionSitePlacement {
 
 // ─── Extra Starter Units (not from saved map) ──────────────────────
 
-/** Modular combat unit configuration. State-only until visual assets exist. */
+/** Modification level for modular combat units. */
+export type ModLevel = 'm0' | 'm1' | 'm2' | 'm3';
+
+/** Canonical dynamic combat-unit state. Render entities are derived from this object. */
 export interface ModularCombatUnit {
+  id: string;
   tx: number;
   ty: number;
-  chassis: 'wasp';
-  weapon: 'smoky';
-  mod: 'm0';
+  bodyId: BodyId;
+  weaponId: WeaponId;
+  /** Canonical split fields; optional only for old saves/test fixtures before normalization. */
+  hullMod?: ModLevel;
+  turretMod?: ModLevel;
   faction: Faction;
+  /** Runtime 8-direction facing. */
+  dir?: number;
+  /** Runtime 8-direction turret facing; defaults to dir. */
+  turretDir?: number;
+  /** Legacy save field, migrated to hullMod/turretMod on load. */
+  mod?: ModLevel;
 }
 
 // ─── Map Data ───────────────────────────────────────────────────────
@@ -403,13 +416,29 @@ export const START_MATTER = 120;
 
 // ─── Production State (ARCH-01F) ────────────────────────────────────
 
-/** Unit types that can be produced by a units-factory. */
-export type ProducibleUnitType = 'builder' | 'harvester';
+export type CivilUnitType = 'builder' | 'harvester';
+
+/** Backward-compatible command/UI identifiers. */
+export type ProducibleUnitType = CivilUnitType | 'wasp-smoky';
+
+export interface CombatProductionConfig {
+  bodyId: BodyId;
+  weaponId: WeaponId;
+  hullMod: ModLevel;
+  turretMod: ModLevel;
+}
+
+/** Structured queue request; Phase 3 can supply arbitrary legal combinations. */
+export type UnitProductionRequest =
+  | { kind: 'civil'; unitType: CivilUnitType }
+  | ({ kind: 'combat' } & CombatProductionConfig);
 
 /** A single item in a factory production queue. */
 export interface ProductionQueueItem {
-  /** The type of unit being produced. */
+  /** Backward-compatible label used by the current HUD and old saves. */
   unitType: ProducibleUnitType;
+  /** Canonical structured request. Optional only for old-save migration. */
+  request?: UnitProductionRequest;
   /** Milliseconds elapsed since production started. */
   elapsedMs: number;
   /** Total duration in milliseconds. */
@@ -469,10 +498,16 @@ export interface GameState {
   // ── ARCH-13E1: Construction state ─────────────────────────────
   /** Auto-incrementing counter for deterministic construction site IDs. */
   nextConstructionId: number;
+  /** Auto-incrementing counter for deterministic produced combat-unit IDs. Missing only in old saves/fixtures. */
+  nextCombatUnitId?: number;
 
   // ── ARCH-01F: Production state ────────────────────────────────
   /** Production state for all units-factories. */
   production: ProductionState;
+
+  // ── Phase 2: Combat units ──────────────────────────────────────
+  /** All combat units produced by factories. Phase 2: wasp-smoky and future presets. */
+  combatUnits: ModularCombatUnit[];
 
   // ── FOG-VISION-08: Vision/fog state ────────────────────────────
   /** Vision state for fog of war. Explored grid persists in saves; visible grid is recomputed. */

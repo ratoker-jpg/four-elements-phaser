@@ -41,6 +41,7 @@ function createNormalGameState(overrides?: Partial<GameState['economy']>): GameS
       terrain: [],
     },
     harvesters: [],
+    combatUnits: [],
     playerFaction: 'cyan',
     economy: {
       raw: 100,

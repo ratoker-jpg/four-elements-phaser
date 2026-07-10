@@ -85,6 +85,7 @@ function createTestGameState(): GameState {
     playerFaction: 'cyan',
     extraHarvesters: [],
     extraModularCombat: [],
+    combatUnits: [],
     harvesters: [],
     resourceNodes: [],
     economy: {

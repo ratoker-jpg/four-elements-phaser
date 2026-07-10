@@ -17,14 +17,15 @@
 import type { Faction, GameState } from './types';
 import { ensureBuilderIds } from './createInitialState';
 import { normalizeVisionForLoadedState } from './visibility';
+import { normalizeCombatUnitState } from './combatUnits';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
 /** localStorage key for the save slots array. */
 const SAVE_STORAGE_KEY = 'four-elements-save-slots';
 
-/** Current save format version. FOG-VISION-08: bumped to 2 for vision state. */
-const SAVE_VERSION = 2;
+/** Current save format version. Phase 2 fixup: canonical combat state + deterministic IDs. */
+const SAVE_VERSION = 4;
 
 /** Maximum number of save slots. */
 export const MAX_SAVE_SLOTS = 5;
@@ -60,6 +61,7 @@ export interface SaveSummary {
   resourcesCount: number;
   buildingsCount: number;
   harvestersCount: number;
+  combatUnitsCount: number;
 }
 
 /** Full save slot payload: metadata + serialized game state. */
@@ -158,12 +160,12 @@ function writeSlots(slots: SaveSlot[]): boolean {
   return storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(slots));
 }
 
-/** Validate a single slot has the required structure. Accepts version 1 and 2. */
+/** Validate a single slot has the required structure. Accepts version 1, 2, and 3. */
 function isValidSlot(slot: unknown): slot is SaveSlot {
   if (typeof slot !== 'object' || slot === null) return false;
   const s = slot as Record<string, unknown>;
-  // FOG-VISION-08: Accept both v1 (no vision) and v2 (with vision)
-  if (s.version !== 1 && s.version !== 2) return false;
+  // Accept v1-v4; loadGame performs field migrations.
+  if (s.version !== 1 && s.version !== 2 && s.version !== 3 && s.version !== 4) return false;
   if (typeof s.id !== 'string') return false;
   if (typeof s.createdAt !== 'string') return false;
   if (typeof s.updatedAt !== 'string') return false;
@@ -324,7 +326,7 @@ export function loadGame(slotId: string): LoadResult {
     return { success: false, message: 'Save not found' };
   }
 
-  if (slot.version !== SAVE_VERSION && slot.version !== 1) {
+  if (slot.version !== SAVE_VERSION && slot.version !== 1 && slot.version !== 2 && slot.version !== 3) {
     return { success: false, message: `Save version ${slot.version} not supported` };
   }
 
@@ -347,6 +349,10 @@ export function loadGame(slotId: string): LoadResult {
   if (gs.mapData?.builders) {
     ensureBuilderIds(gs.mapData);
   }
+
+  // Phase 2 fixup: migrate missing arrays, old combined mod fields,
+  // duplicate/missing IDs and the deterministic ID counter.
+  normalizeCombatUnitState(gs);
 
   // FOG-VISION-08 FIXUP-1: Normalize vision state for all saves (v1 and v2).
   // Handles: missing vision (v1 migration), empty/malformed visible grid
@@ -390,6 +396,7 @@ function buildSummary(gs: GameState): SaveSummary {
     resourcesCount: gs.resourceNodes.filter(r => !r.depleted).length,
     buildingsCount: gs.mapData.buildings.length,
     harvestersCount: gs.harvesters.length,
+    combatUnitsCount: gs.combatUnits.length,
   };
 }
 
@@ -409,6 +416,9 @@ export function formatSaveSlotSummary(summary: SaveSummary): string {
   }
   if (summary.harvestersCount > 0) {
     parts.push(`Hrv: ${summary.harvestersCount}`);
+  }
+  if (summary.combatUnitsCount > 0) {
+    parts.push(`Cmb: ${summary.combatUnitsCount}`);
   }
   return parts.join(' | ');
 }

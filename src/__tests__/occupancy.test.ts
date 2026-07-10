@@ -78,6 +78,7 @@ function makeTestState(overrides?: {
     playerFaction: 'cyan',
     extraHarvesters: [],
     extraModularCombat: [],
+    combatUnits: [],
     harvesters: (overrides?.harvesters ?? []).map((h, i) => ({
       id: `h-${i}`,
       ftx: h.ftx,

@@ -26,6 +26,8 @@ import {
   BUILDER_PRODUCTION_ELEMENT_COST,
   HARVESTER_PRODUCTION_MATTER_COST,
   HARVESTER_PRODUCTION_ELEMENT_COST,
+  WASP_SMOKY_TOTAL_MATTER_COST,
+  WASP_SMOKY_TOTAL_ELEMENT_COST,
 } from '../../../state/types';
 import {
   type SlotKey,
@@ -78,6 +80,7 @@ const BUILD_COMMAND_IDS: Record<BuildingType, string> = {
 export const PRODUCE_COMMANDS: { unitType: ProducibleUnitType; commandId: string }[] = [
   { unitType: 'builder', commandId: 'produce-builder' },
   { unitType: 'harvester', commandId: 'produce-harvester' },
+  { unitType: 'wasp-smoky', commandId: 'produce-wasp-smoky' },
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -91,10 +94,11 @@ function formatBuildCost(buildingType: BuildingType): string {
 }
 
 function formatProduceCost(unitType: ProducibleUnitType): string {
-  if (unitType === 'builder') {
-    return `${BUILDER_PRODUCTION_MATTER_COST} M, ${BUILDER_PRODUCTION_ELEMENT_COST} E`;
+  switch (unitType) {
+    case 'builder': return `${BUILDER_PRODUCTION_MATTER_COST} M, ${BUILDER_PRODUCTION_ELEMENT_COST} E`;
+    case 'harvester': return `${HARVESTER_PRODUCTION_MATTER_COST} M, ${HARVESTER_PRODUCTION_ELEMENT_COST} E`;
+    case 'wasp-smoky': return `${WASP_SMOKY_TOTAL_MATTER_COST} M, ${WASP_SMOKY_TOTAL_ELEMENT_COST} E`;
   }
-  return `${HARVESTER_PRODUCTION_MATTER_COST} M, ${HARVESTER_PRODUCTION_ELEMENT_COST} E`;
 }
 
 // ─── Context-specific grid builders ─────────────────────────────────
@@ -144,6 +148,52 @@ function harvesterGrid(_state: GameState): CommandCardSlot[] {
     'unit-stop', 'Stop',
     'enabled', '', '', 'Stop current action  [S]',
     'unit-action',
+  );
+
+  return grid;
+}
+
+/**
+ * Building context grid — shown when a factory building is selected.
+ *
+ * Row 3 (Z/X/C): Production commands
+ *   Z: Train Builder
+ *   X: Train Harvester
+ *   C: Wasp+Smoky M0
+ *
+ * Exported for future use when building selection is implemented in UnitSelection.
+ */
+export function buildingGrid(state: GameState): CommandCardSlot[] {
+  let grid = emptyGrid();
+
+  // Z slot: produce-builder
+  const builderDesc = produceCommandDesc('builder', state);
+  grid = assignSlot(
+    grid, 'Z',
+    builderDesc.id, builderDesc.label,
+    builderDesc.state === 'enabled' ? 'enabled' : 'disabled',
+    builderDesc.disabledReason, builderDesc.cost, builderDesc.tooltip,
+    'produce',
+  );
+
+  // X slot: produce-harvester
+  const harvesterDesc = produceCommandDesc('harvester', state);
+  grid = assignSlot(
+    grid, 'X',
+    harvesterDesc.id, harvesterDesc.label,
+    harvesterDesc.state === 'enabled' ? 'enabled' : 'disabled',
+    harvesterDesc.disabledReason, harvesterDesc.cost, harvesterDesc.tooltip,
+    'produce',
+  );
+
+  // C slot: produce-wasp-smoky
+  const waspSmokyDesc = produceCommandDesc('wasp-smoky', state);
+  grid = assignSlot(
+    grid, 'C',
+    waspSmokyDesc.id, waspSmokyDesc.label,
+    waspSmokyDesc.state === 'enabled' ? 'enabled' : 'disabled',
+    waspSmokyDesc.disabledReason, waspSmokyDesc.cost, waspSmokyDesc.tooltip,
+    'produce',
   );
 
   return grid;
@@ -219,6 +269,11 @@ export function buildCommandCardViewModel(
       slots: harvesterGrid(state),
     };
   }
+
+  // NOTE: Building selection (contextKind: 'building') is not yet wired
+  // because UnitSelection does not support building selections.
+  // When building selection is added, call buildingGrid(state) here.
+  // See buildingGrid() above for the factory production grid layout.
 
   return {
     contextKind: 'unknown',

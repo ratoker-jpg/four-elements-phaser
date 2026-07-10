@@ -227,6 +227,7 @@ export class ModularTankRenderer {
       chassis,
       weapon,
       mod,
+      mod,
     );
 
     if (result.usedModular) {

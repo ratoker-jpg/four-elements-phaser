@@ -16,6 +16,8 @@ import type {
   GameState,
   HarvesterState,
   ResourceNodeState,
+  ModularCombatUnit,
+  ProductionQueueItem,
 } from './types';
 import {
   SEP_RAW_COST,
@@ -32,6 +34,7 @@ import { buildOccupancyMap, isPassable, addUnitBlockers, addVehicleBlockers } fr
 import { findPath, findPathToAdjacent } from './pathfinding';
 import { updateHarvesterManualMove, findResourceApproachTile } from './unitCommands';
 import { isResourceInfinite } from '../config/resourceClassRuntime';
+import { allocateCombatUnitId, getCombatProductionConfig } from './combatUnits';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -699,7 +702,8 @@ function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState
     // Queued units do NOT count toward cap, but spawning a completed
     // item must recheck the live unit count. If cap is reached, the
     // completed item stays in queue and retries on later ticks.
-    const liveUnitCount = state.mapData.builders.length + state.harvesters.length;
+    // Phase 2: combat units count toward the cap.
+    const liveUnitCount = state.mapData.builders.length + state.harvesters.length + state.combatUnits.length;
     if (liveUnitCount >= DEFAULT_UNIT_CAP) {
       break;
     }
@@ -715,6 +719,8 @@ function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState
       spawnBuilder(state, spawnPos.tx, spawnPos.ty);
     } else if (item.unitType === 'harvester') {
       spawnHarvesterUnit(state, spawnPos.tx, spawnPos.ty);
+    } else if (item.unitType === 'wasp-smoky') {
+      spawnCombatUnit(state, spawnPos.tx, spawnPos.ty, item);
     }
 
     factory.queue.shift();
@@ -831,6 +837,39 @@ function spawnHarvesterUnit(state: GameState, tx: number, ty: number): void {
     ty,
     faction: state.playerFaction,
   });
+}
+
+/**
+ * Phase 2: Spawn a wasp+smoky combat unit at the given tile position.
+ *
+ * Creates a ModularCombatUnit and a corresponding RenderableEntity.
+ * Combat units count toward DEFAULT_UNIT_CAP.
+ */
+function spawnCombatUnit(
+  state: GameState,
+  tx: number,
+  ty: number,
+  item: ProductionQueueItem,
+): void {
+  const config = getCombatProductionConfig(item);
+  if (!config) return;
+
+  const combatUnit: ModularCombatUnit = {
+    id: allocateCombatUnitId(state),
+    tx,
+    ty,
+    bodyId: config.bodyId,
+    weaponId: config.weaponId,
+    hullMod: config.hullMod,
+    turretMod: config.turretMod,
+    faction: state.playerFaction,
+    dir: 2,
+    turretDir: 2,
+  };
+
+  // combatUnits is the sole canonical state. EntityRenderer derives visuals
+  // from it each frame; do not duplicate produced units in state.entities.
+  state.combatUnits.push(combatUnit);
 }
 
 // ─── Power state recomputation (ARCH-01E) ────────────────────────────────

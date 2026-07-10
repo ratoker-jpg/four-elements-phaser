@@ -82,6 +82,7 @@ function makeStateWithSeparator(overrides?: {
     playerFaction: 'cyan',
     extraHarvesters: [],
     extraModularCombat: [],
+    combatUnits: [],
     harvesters: [],
     resourceNodes: [],
     economy,
@@ -125,6 +126,7 @@ function makeStateWithFactory(overrides?: {
     playerFaction: 'cyan',
     extraHarvesters: [],
     extraModularCombat: [],
+    combatUnits: [],
     harvesters: [],
     resourceNodes: [],
     economy: {
@@ -761,6 +763,7 @@ describe('FIX-04: hasFactorySpawnTile', () => {
       playerFaction: 'cyan',
       extraHarvesters: [],
       extraModularCombat: [],
+    combatUnits: [],
       harvesters: [],
       resourceNodes: [],
       economy: {
