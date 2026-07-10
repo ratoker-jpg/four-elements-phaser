@@ -26,11 +26,11 @@ The old repository `ratoker-jpg/four-elements-next` is donor/reference/specifica
 Updated: 2026-07-10
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 2: Production combat runtime in Normal Game
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 3: T1 factory composer
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #339 — Bounded combat destruction lifecycle
-Next: Extend canonical GameState.combatUnits so factory-produced tanks can move, stop, acquire targets, attack, take damage and die in Normal Game using shared pure Arena combat systems.
-Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState wholesale. Normal Game combatUnits remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.
+Last merged: PR #342 — Normal Game targeting, firing and damage runtime
+Next: Implement a config-driven T1 factory composer that independently selects Wasp or Hunter and Smoky or Railgun, calculates additive cost and production time, previews the modular tank and queues a structured production request.
+Gate: All four legal T1 hull/turret combinations must be produced through structured requests, preserve separate hull and turret fields, render correctly and remain backward-compatible with Builder, Harvester and legacy Wasp + Smoky queue items.
 ```
 <!-- PROJECT_STATUS:END -->
 

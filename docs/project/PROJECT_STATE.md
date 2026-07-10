@@ -1,8 +1,8 @@
 # PROJECT_STATE.md
 
-Status: generated active operational state  
-Project: Four Elements Phaser  
-Repo: `ratoker-jpg/four-elements-phaser`  
+Status: generated active operational state
+Project: Four Elements Phaser
+Repo: `ratoker-jpg/four-elements-phaser`
 Updated: 2026-07-10
 
 > Generated from `docs/project/project-status.json`. Run `npm run sync:project-status` after changing status.
@@ -15,11 +15,11 @@ Updated: 2026-07-10
 Updated: 2026-07-10
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 2: Production combat runtime in Normal Game
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 3: T1 factory composer
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #339 — Bounded combat destruction lifecycle
-Next: Extend canonical GameState.combatUnits so factory-produced tanks can move, stop, acquire targets, attack, take damage and die in Normal Game using shared pure Arena combat systems.
-Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState wholesale. Normal Game combatUnits remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.
+Last merged: PR #342 — Normal Game targeting, firing and damage runtime
+Next: Implement a config-driven T1 factory composer that independently selects Wasp or Hunter and Smoky or Railgun, calculates additive cost and production time, previews the modular tank and queues a structured production request.
+Gate: All four legal T1 hull/turret combinations must be produced through structured requests, preserve separate hull and turret fields, render correctly and remain backward-compatible with Builder, Harvester and legacy Wasp + Smoky queue items.
 ```
 <!-- PROJECT_STATUS:END -->
 
@@ -30,6 +30,8 @@ Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState who
 - Canonical multi-unit combat production and save/load fixup closed via PR #325.
 - Playable Four-Faction Skirmish roadmap accepted via PR #338.
 - Skirmish Phase 1 bounded destruction lifecycle closed via PR #339.
+- Skirmish Phase 2A canonical movement, selection, occupancy and fog runtime closed via PR #341.
+- Skirmish Phase 2B targeting, turret aiming, firing, damage and bounded wreck cleanup closed via PR #342.
 - Produced combat units use `GameState.combatUnits` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -39,7 +41,7 @@ Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState who
 | Check | Result |
 |---|---|
 | TypeScript | PASS |
-| Tests | PASS (5286 tests / 113 files) |
+| Tests | PASS (full Vitest suite) |
 | Build | PASS (GitHub Validation) |
 | QA smoke | PASS (GitHub QA Smoke) |
 | Dependency audit | PASS (0 high-severity vulnerabilities) |
@@ -47,10 +49,9 @@ Gate: Do not create a third combat-unit runtime or copy BlockoutVehicleState who
 
 ## Manual QA still required
 
-- Destroy an Arena tank and confirm the live modular model disappears immediately, followed by a short explosion, fading wreck and full removal after 1.8 seconds.
-- Confirm destroyed Arena tanks cannot be selected or assigned as targets and no longer retain tile reservations.
-- Produce two combat units in Normal mode and confirm both appear independently.
-- Save and reload with produced combat units; confirm visibility and unit cap remain correct.
+- Produce two combat units in Normal Game, issue movement and attack commands and confirm they can fight, take damage and be removed after destruction.
+- Confirm Smoky fires on cooldown and Railgun waits for its wind-up before damage is applied.
+- Save and reload produced combat units during movement and combat; confirm ownership, HP, target and cooldown state remain coherent.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
 Automated checks do not replace visual acceptance for produced-unit rendering, destruction effects and save/load behavior.
@@ -61,7 +62,7 @@ Automated checks do not replace visual acceptance for produced-unit rendering, d
 - Issue #330: complete manual visual QA for produced combat units in Normal mode.
 - Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.
 - Issue #335: visually accept the donor VFX overlay, projected tracks and bounded dust.
-- Implement SKIRMISH-P2: production combat movement, orders, targeting, damage and persistence in Normal Game.
+- Implement SKIRMISH-P3: config-driven T1 hull/turret composer, modular preview, structured queue display and all four legal combinations.
 
 ## Current source-of-truth documents
 

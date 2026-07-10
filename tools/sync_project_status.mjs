@@ -87,9 +87,9 @@ function replaceMarkedBlock(text, replacement, path) {
 function renderProjectState() {
   return `# PROJECT_STATE.md
 
-Status: generated active operational state  
-Project: ${status.project}  
-Repo: \`${status.repository}\`  
+Status: generated active operational state
+Project: ${status.project}
+Repo: \`${status.repository}\`
 Updated: ${status.updated}
 
 > Generated from \`docs/project/project-status.json\`. Run \`npm run sync:project-status\` after changing status.
@@ -107,6 +107,8 @@ ${renderStatusBlock()}
 - Canonical multi-unit combat production and save/load fixup closed via PR #325.
 - Playable Four-Faction Skirmish roadmap accepted via PR #338.
 - Skirmish Phase 1 bounded destruction lifecycle closed via PR #339.
+- Skirmish Phase 2A canonical movement, selection, occupancy and fog runtime closed via PR #341.
+- Skirmish Phase 2B targeting, turret aiming, firing, damage and bounded wreck cleanup closed via PR #342.
 - Produced combat units use \`GameState.combatUnits\` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -167,8 +169,8 @@ Stop and correct the task if:
 function renderCurrentNext() {
   return `# CURRENT_NEXT_STEP.md
 
-Status: ${status.phaseCode} — ${status.phaseName}  
-Project: ${status.project}  
+Status: ${status.phaseCode} — ${status.phaseName}
+Project: ${status.project}
 Updated: ${status.updated}
 
 > Generated from \`docs/project/project-status.json\`. Run \`npm run sync:project-status\` after changing status.
@@ -181,33 +183,29 @@ ${renderStatusBlock()}
 
 ## Default next work
 
-1. Audit the exact boundary between canonical \`GameState.combatUnits\` and Arena-only \`blockoutVehicles\`:
-   - movement and tile reservation;
-   - turret aiming;
-   - weapon range and cooldown;
-   - hit and armor calculation;
-   - damage attribution and destruction;
-   - input, selection and command routing;
-   - save/load migration.
-2. Define the smallest backward-compatible Normal Game combat runtime fields on \`ModularCombatUnit\` or composed child state:
-   - fractional tile position;
-   - HP and max HP;
-   - move/stop order;
-   - current target;
-   - weapon cooldown;
-   - destroyed state.
-3. Extract or adapt pure shared helpers from Arena. Do not import Phaser or copy the complete \`BlockoutVehicleState\` into production state.
-4. Implement movement and stop commands for factory-produced combat units before attack behavior.
-5. Add target acquisition, turret aiming, firing, damage and bounded destruction using the shared combat formulas.
-6. Keep \`CombatUnitRenderer\` as a derived view of canonical state and update it from fractional position and facing.
-7. Migrate old saves with safe defaults and preserve deterministic IDs.
-8. Add focused lifecycle tests and one end-to-end state test: \`produce → move → target → damage → destroy → save/load\`.
+1. Audit the complete structured production path from factory UI to queue item and spawned \`ModularCombatUnit\`:
+   - \`UnitProductionRequest\` and legacy \`ProducibleUnitType\` compatibility;
+   - component cost and time configuration;
+   - queue serialization and cancellation;
+   - spawn placement and deterministic IDs;
+   - modular renderer inputs.
+2. Define one config-driven T1 component catalog for Wasp, Hunter, Smoky and Railgun. Do not scatter matter, element or time constants across UI and production code.
+3. Implement pure additive composition helpers:
+   - unit matter cost = hull matter + turret matter;
+   - unit element cost = hull element units + turret element units;
+   - production time = max(hull time, turret time) + assembly offset;
+   - legal combinations are Wasp/Hunter × Smoky/Railgun only.
+4. Replace the fixed Wasp + Smoky production action with independent hull and turret selection while keeping Builder and Harvester available.
+5. Add a modular preview derived from the selected body, weapon and modification fields. Do not create combined hull × turret sprites.
+6. Show the selected combination, additive cost, production time and queue progress in Russian. Rejections must clearly explain missing factory, resources, capacity or invalid selection.
+7. Preserve structured requests through queueing, save/load and spawn. Migrate old \`wasp-smoky\` queue items to the canonical request.
+8. Add focused tests for all four combinations, calculation, queue persistence, cancellation/refund behavior and renderer inputs.
 
 ## Acceptance gate
 
 ${status.gate}
 
-The phase should be split into reviewable PRs. The first implementation PR establishes canonical runtime state and move/stop lifecycle without strategic AI, multi-team economy or the factory composer.
+Split the phase into reviewable slices if needed: first establish component configuration and pure production calculation, then wire the factory composer, preview and queue presentation.
 
 ## Required validation for implementation PRs
 
@@ -227,13 +225,12 @@ ${listLines(status.manualQa)}
 
 ## Not next by default
 
-- Strategic Enemy AI, scouting, economy planning or win/lose flow.
-- Four-team state or mirrored four-corner map before their roadmap phases.
-- Factory hull/turret composer before the Normal Game combat runtime is functional.
-- Full M0–M3 XP progression.
-- Broad renderer or GameScene lifecycle rewrite.
-- Full modular asset preload.
-- Reopening closed AoE4 UX work by inertia.
+- Multi-team economy, mirrored map generation or strategic AI before their roadmap phases.
+- Headquarters damage, victory/defeat flow or elimination cleanup.
+- Full M0–M3 XP progression and upgrade purchase flow.
+- T2/T3 content or additional hulls and turrets beyond the accepted T1 roster.
+- Broad renderer, HUD or GameScene rewrite unrelated to the composer.
+- Full modular asset preload or a combined hull × turret sprite matrix.
 - Unrelated fix for issue #305 inside ${status.phaseCode}.
 `;
 }

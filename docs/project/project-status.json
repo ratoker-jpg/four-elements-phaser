@@ -4,29 +4,28 @@
   "repository": "ratoker-jpg/four-elements-phaser",
   "roadmap": "PLAYABLE FOUR-FACTION SKIRMISH",
   "roadmapDocument": "docs/project/PLAYABLE_FOUR_FACTION_SKIRMISH_ROADMAP_2026_07_10.md",
-  "phase": 2,
-  "phaseCode": "SKIRMISH-P2",
-  "phaseName": "Production combat runtime in Normal Game",
+  "phase": 3,
+  "phaseCode": "SKIRMISH-P3",
+  "phaseName": "T1 factory composer",
   "status": "READY_FOR_IMPLEMENTATION",
   "updated": "2026-07-10",
-  "lastMergedPr": 339,
-  "lastMergedTitle": "Bounded combat destruction lifecycle",
-  "lastMergedCommit": "66e906de55ded4cd8ec292115574465095004c3a",
-  "nextStep": "Extend canonical GameState.combatUnits so factory-produced tanks can move, stop, acquire targets, attack, take damage and die in Normal Game using shared pure Arena combat systems.",
-  "gate": "Do not create a third combat-unit runtime or copy BlockoutVehicleState wholesale. Normal Game combatUnits remain canonical; Arena movement, aiming, range, hit and damage logic must be extracted or adapted as shared pure systems.",
+  "lastMergedPr": 342,
+  "lastMergedTitle": "Normal Game targeting, firing and damage runtime",
+  "lastMergedCommit": "2e1bc98a029ce6cc81028a587c91957c0b1c7678",
+  "nextStep": "Implement a config-driven T1 factory composer that independently selects Wasp or Hunter and Smoky or Railgun, calculates additive cost and production time, previews the modular tank and queues a structured production request.",
+  "gate": "All four legal T1 hull/turret combinations must be produced through structured requests, preserve separate hull and turret fields, render correctly and remain backward-compatible with Builder, Harvester and legacy Wasp + Smoky queue items.",
   "validation": {
     "typecheck": "PASS",
-    "tests": "PASS (5286 tests / 113 files)",
+    "tests": "PASS (full Vitest suite)",
     "build": "PASS (GitHub Validation)",
     "smoke": "PASS (GitHub QA Smoke)",
     "audit": "PASS (0 high-severity vulnerabilities)",
     "assetBudget": "PASS"
   },
   "manualQa": [
-    "Destroy an Arena tank and confirm the live modular model disappears immediately, followed by a short explosion, fading wreck and full removal after 1.8 seconds.",
-    "Confirm destroyed Arena tanks cannot be selected or assigned as targets and no longer retain tile reservations.",
-    "Produce two combat units in Normal mode and confirm both appear independently.",
-    "Save and reload with produced combat units; confirm visibility and unit cap remain correct.",
+    "Produce two combat units in Normal Game, issue movement and attack commands and confirm they can fight, take damage and be removed after destruction.",
+    "Confirm Smoky fires on cooldown and Railgun waits for its wind-up before damage is applied.",
+    "Save and reload produced combat units during movement and combat; confirm ownership, HP, target and cooldown state remain coherent.",
     "Accept donor weapon textures, projected tank tracks and dust in browser using issue #335."
   ],
   "activeFollowUps": [
@@ -34,6 +33,6 @@
     "Issue #330: complete manual visual QA for produced combat units in Normal mode.",
     "Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.",
     "Issue #335: visually accept the donor VFX overlay, projected tracks and bounded dust.",
-    "Implement SKIRMISH-P2: production combat movement, orders, targeting, damage and persistence in Normal Game."
+    "Implement SKIRMISH-P3: config-driven T1 hull/turret composer, modular preview, structured queue display and all four legal combinations."
   ]
 }
