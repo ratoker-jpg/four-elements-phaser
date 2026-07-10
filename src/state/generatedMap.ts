@@ -55,7 +55,7 @@ import {
 import { generateIndustrialTerrain, generateTerrain } from './generatedMapTerrain';
 import { validateGeneratedMap } from './generatedMapValidation';
 
-export type { MapSizeOption } from './generatedMapTypes';
+export type { MapSizeOption, ValidatedGeneratedMapResult } from './generatedMapTypes';
 export {
   GENERATED_MAP_ID_PREFIX,
   MAP_SIZE_DIMENSIONS,
@@ -214,10 +214,8 @@ function generateResources(
   hq: { tx: number; ty: number },
   occupied: Set<string>,
 ): MapData['resources'] {
-  // Resolve all anchors to concrete placements
   const resolvedPlacements = resolveResourceAnchors(W, H, hq, rng, occupied);
 
-  // Convert resolved placements to ResourcePlacement format
   return resolvedPlacements.map(placement => ({
     tx: placement.tx,
     ty: placement.ty,
@@ -266,11 +264,8 @@ export function createValidatedGeneratedMapData(
   let bestScore = -1;
 
   for (let attempt = 0; attempt < MAX_VALIDATION_ATTEMPTS; attempt++) {
-    // Deterministic seed offset for retry: append attempt number
     const attemptSeed = attempt === 0 ? seed : `${seed}__retry${attempt}`;
     const mapData = createGeneratedMapData(attemptSeed, size, faction, mapStyle);
-
-    // Run lightweight validation checks (pure, no GameState needed)
     const validation = validateGeneratedMap(mapData);
 
     if (validation.valid) {
@@ -282,7 +277,6 @@ export function createValidatedGeneratedMapData(
       };
     }
 
-    // Track best candidate by score
     if (validation.score > bestScore) {
       bestScore = validation.score;
       bestMapData = mapData;
@@ -291,7 +285,6 @@ export function createValidatedGeneratedMapData(
     warnings.push(`Attempt ${attempt + 1}: ${validation.issues.join('; ')}`);
   }
 
-  // All attempts failed — return best candidate with warnings
   return {
     mapData: bestMapData!,
     attempts: MAX_VALIDATION_ATTEMPTS,
