@@ -216,6 +216,18 @@ export interface VfxProfile {
   overheatDurationMs?: number;
   /** Charge pulse duration in ms for shaft. BLOCKOUT-06H+. */
   chargePulseMs?: number;
+  /** Optional runtime texture keys. Graphics primitives remain the fallback. */
+  muzzleTextureKey?: string;
+  trailTextureKey?: string;
+  impactTextureKey?: string;
+  smokeTextureKey?: string;
+  noiseTextureKey?: string;
+  /** Display sizing for the pooled texture overlay. */
+  muzzleTextureSizePx?: number;
+  trailTextureWidthPx?: number;
+  impactTextureSizePx?: number;
+  smokeTextureSizePx?: number;
+  noiseTextureSizePx?: number;
 }
 
 // ─── Damage Profile ────────────────────────────────────────────────
