@@ -62,8 +62,9 @@ export function normalizeCombatUnitState(state: GameState): void {
   if (!Array.isArray(state.combatUnits)) state.combatUnits = [];
 
   const usedIds = new Set<string>();
-  let nextId = Number.isInteger(state.nextCombatUnitId) && state.nextCombatUnitId >= 0
-    ? state.nextCombatUnitId
+  const storedNextId = state.nextCombatUnitId;
+  let nextId = typeof storedNextId === 'number' && Number.isInteger(storedNextId) && storedNextId >= 0
+    ? storedNextId
     : 0;
 
   for (const rawUnit of state.combatUnits) {
@@ -94,7 +95,7 @@ export function normalizeCombatUnitState(state: GameState): void {
 export function allocateCombatUnitId(state: GameState): string {
   normalizeCombatUnitState(state);
   const usedIds = new Set(state.combatUnits.map(unit => unit.id));
-  let nextId = state.nextCombatUnitId;
+  let nextId = state.nextCombatUnitId ?? 0;
   while (usedIds.has(`combat-unit-${nextId}`)) nextId++;
   state.nextCombatUnitId = nextId + 1;
   return `combat-unit-${nextId}`;
