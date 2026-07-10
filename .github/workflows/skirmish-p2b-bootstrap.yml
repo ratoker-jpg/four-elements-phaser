@@ -46,7 +46,20 @@ jobs:
           cache: npm
       - name: Apply implementation patch
         if: steps.guard.outputs.apply == 'true'
-        run: python3 tools/apply_skirmish_p2b.py
+        run: |
+          python3 tools/apply_skirmish_p2b.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/__tests__/combatUnitCombat.test.ts')
+          text = path.read_text(encoding='utf-8')
+          old = "      weaponCooldownMs: 0, isDestroyed: false, destroyedAt: null,\n    };\n    state.combatUnits = [unit];"
+          new = "      weaponCooldownMs: 0, isDestroyed: false, destroyedAt: null,\n    } as any;\n    state.combatUnits = [unit];"
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('legacy runtime fixture marker not found')
+          path.write_text(text, encoding='utf-8')
+          PY
       - if: steps.guard.outputs.apply == 'true'
         run: npm ci
       - if: steps.guard.outputs.apply == 'true'
