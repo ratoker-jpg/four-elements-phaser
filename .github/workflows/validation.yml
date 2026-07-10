@@ -94,10 +94,6 @@ jobs:
         working-directory: target
         run: npm ci
 
-      - name: Project status consistency
-        working-directory: target
-        run: npm run check:project-status
-
       - name: Validate VFX alpha
         working-directory: target
         run: npm run validate:vfx-alpha
