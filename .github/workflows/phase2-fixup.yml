@@ -1,0 +1,78 @@
+name: Phase 2 Combat Fixup
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase2-combat-fixup-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-fixup:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'rts-fnd-p2-unit-factory-combat-production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: rts-fnd-p2-unit-factory-combat-production
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Stop if fixup already applied
+        id: guard
+        shell: bash
+        run: |
+          if [ ! -f tools/apply_phase2_combat_fixup.mjs ]; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply repository patch
+        if: steps.guard.outputs.needed == 'true'
+        run: node tools/apply_phase2_combat_fixup.mjs
+
+      - name: Remove one-shot patcher and workflow
+        if: steps.guard.outputs.needed == 'true'
+        shell: bash
+        run: |
+          rm -f tools/apply_phase2_combat_fixup.mjs
+          rm -f .github/workflows/phase2-fixup.yml
+
+      - name: Install dependencies
+        if: steps.guard.outputs.needed == 'true'
+        run: npm ci
+
+      - name: Typecheck
+        if: steps.guard.outputs.needed == 'true'
+        run: npm run typecheck
+
+      - name: Unit tests
+        if: steps.guard.outputs.needed == 'true'
+        run: npm test
+
+      - name: Build
+        if: steps.guard.outputs.needed == 'true'
+        run: npm run build
+
+      - name: Audit
+        if: steps.guard.outputs.needed == 'true'
+        run: npm audit --audit-level=high
+
+      - name: Commit fixup
+        if: steps.guard.outputs.needed == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "RTS-FND-P2 fixup: canonical multi-unit combat runtime"
+          git push origin HEAD:rts-fnd-p2-unit-factory-combat-production
