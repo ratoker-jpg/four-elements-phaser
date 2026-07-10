@@ -476,7 +476,19 @@ export class GameInputController {
       return { success: true, message: `${quote.displayNameRu}: добавлено в очередь` };
     }
     console.info(`[GameScene] ${quote.displayNameRu} queue failed: ${result.reason}`);
-    return { success: false, message: result.reason };
+    return { success: false, message: this.getProductionFailureMessage(result.reason) };
+  }
+
+  private getProductionFailureMessage(reason: string): string {
+    const messages: Record<string, string> = {
+      'factory-not-found': 'Фабрика не найдена',
+      'queue-full': 'Очередь фабрики заполнена',
+      'insufficient-matter': 'Недостаточно материи',
+      'insufficient-element': 'Недостаточно элементов фракции',
+      'unit-cap-reached': 'Достигнут лимит юнитов',
+      'unsupported-unit-type': 'Недоступная комбинация',
+    };
+    return messages[reason] ?? reason;
   }
 
   private getSelectedFactory(): GameState['production']['factories'][number] | null {

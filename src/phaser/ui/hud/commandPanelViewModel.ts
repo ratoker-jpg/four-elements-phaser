@@ -10,7 +10,7 @@
  * This module does NOT modify any game state.
  */
 
-import type { GameState, BuildingType, ProducibleUnitType } from '../../../state/types';
+import { QUEUE_LIMIT, type GameState, type BuildingType, type ProducibleUnitType } from '../../../state/types';
 import type { FactoryComposerState } from '../../../state/factoryComposer';
 import type { UnitSelection } from '../../../state/unitSelection';
 import { isUnitSelected, isBuilderSelected, isHarvesterSelected, isBuildingSelected, isAllBuilders, isAllHarvesters, getPrimarySelection } from '../../../state/unitSelection';
@@ -24,6 +24,7 @@ import {
 import { isVisualReadyBuilding, getBuildingDisplayName } from '../../../config/buildingRuntimeMapping';
 import { getProductionQuote } from '../../../state/production';
 import { DEFAULT_FACTORY_COMPOSER_STATE, createFactoryComposerRequest, formatProductionDuration, getFactoryComposerQuote, getQueueItemDisplayName } from '../../../state/factoryComposer';
+import { T1_BODY_COMPONENTS, T1_WEAPON_COMPONENTS } from '../../../config/t1ProductionComponents';
 import {
   type SlotKey,
   type CommandSlotState,
@@ -174,10 +175,11 @@ export function buildingGrid(
     );
   };
 
-  component('Q', 'factory-body-wasp', 'Васп', composer.bodyId === 'wasp', '20 M · 5 E');
-  component('W', 'factory-body-hunter', 'Хантер', composer.bodyId === 'hunter', '35 M · 7 E');
-  component('A', 'factory-weapon-smoky', 'Смоки', composer.weaponId === 'smoky', '25 M · 5 E');
-  component('S', 'factory-weapon-railgun', 'Рельса', composer.weaponId === 'railgun', '45 M · 8 E');
+  const componentCost = (matter: number, element: number) => `${matter} M · ${element} E`;
+  component('Q', 'factory-body-wasp', T1_BODY_COMPONENTS.wasp.displayNameRu, composer.bodyId === 'wasp', componentCost(T1_BODY_COMPONENTS.wasp.matterCost, T1_BODY_COMPONENTS.wasp.elementCost));
+  component('W', 'factory-body-hunter', T1_BODY_COMPONENTS.hunter.displayNameRu, composer.bodyId === 'hunter', componentCost(T1_BODY_COMPONENTS.hunter.matterCost, T1_BODY_COMPONENTS.hunter.elementCost));
+  component('A', 'factory-weapon-smoky', T1_WEAPON_COMPONENTS.smoky.displayNameRu, composer.weaponId === 'smoky', componentCost(T1_WEAPON_COMPONENTS.smoky.matterCost, T1_WEAPON_COMPONENTS.smoky.elementCost));
+  component('S', 'factory-weapon-railgun', T1_WEAPON_COMPONENTS.railgun.displayNameRu, composer.weaponId === 'railgun', componentCost(T1_WEAPON_COMPONENTS.railgun.matterCost, T1_WEAPON_COMPONENTS.railgun.elementCost));
 
   const blockReason = getProductionBlockReason(state, request, factoryTarget);
   const queueEnabled = blockReason === null;
@@ -224,7 +226,7 @@ function factoryContextLabel(
   const active = queue[0]
     ? ` · сейчас: ${getQueueItemDisplayName(queue[0])} ${Math.round(queue[0].progress * 100)}%`
     : '';
-  return `Фабрика · ${quote.displayNameRu} · очередь ${queue.length}/2${active}`;
+  return `Фабрика · ${quote.displayNameRu} · очередь ${queue.length}/${QUEUE_LIMIT}${active}`;
 }
 
 /**

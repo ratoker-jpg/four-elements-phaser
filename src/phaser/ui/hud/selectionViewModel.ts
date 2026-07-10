@@ -9,7 +9,7 @@
  * - HP: averaged across selected units
  */
 
-import type { GameState, BuilderPlacement, HarvesterState } from '../../../state/types';
+import { QUEUE_LIMIT, type GameState, type BuilderPlacement, type HarvesterState } from '../../../state/types';
 import { getBuildingDisplayName } from '../../../config/buildingRuntimeMapping';
 import type { UnitSelection } from '../../../state/unitSelection';
 import { isUnitSelected, isBuilderSelected, isHarvesterSelected, isBuildingSelected, getSelectionTypeBreakdown, getPrimarySelection } from '../../../state/unitSelection';
@@ -140,7 +140,7 @@ export function buildSelectionViewModel(
       hpCurrent: null,
       hpMax: null,
       status: primary.buildingType === 'units-factory'
-        ? `Очередь: ${factory?.queue.length ?? 0}/2`
+        ? `Очередь: ${factory?.queue.length ?? 0}/${QUEUE_LIMIT}`
         : 'Готово',
       count: 1,
       typeBreakdown: '',
