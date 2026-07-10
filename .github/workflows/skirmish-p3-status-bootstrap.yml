@@ -1,0 +1,56 @@
+name: SKIRMISH P3 Status Bootstrap
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: skirmish-p3-status-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  sync-status:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/skirmish-p3-status'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/skirmish-p3-status
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            .github
+            docs/project
+            tools
+            AGENTS.md
+            package.json
+          persist-credentials: true
+      - id: guard
+        run: |
+          if [ -f tools/apply_skirmish_p3_status.py ]; then echo "apply=true" >> "$GITHUB_OUTPUT"; else echo "apply=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Apply Phase 3 status
+        if: steps.guard.outputs.apply == 'true'
+        run: python3 tools/apply_skirmish_p3_status.py
+      - name: Generate status documents
+        if: steps.guard.outputs.apply == 'true'
+        run: npm run sync:project-status
+      - name: Verify generated status
+        if: steps.guard.outputs.apply == 'true'
+        run: npm run sync:project-status -- --check
+      - name: Commit generated status
+        if: steps.guard.outputs.apply == 'true'
+        run: |
+          rm tools/apply_skirmish_p3_status.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add AGENTS.md docs/project tools/sync_project_status.mjs tools/apply_skirmish_p3_status.py
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "docs(status): activate SKIRMISH-P3 factory composer"
+          git push origin agent/skirmish-p3-status
