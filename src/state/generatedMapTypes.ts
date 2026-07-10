@@ -4,8 +4,8 @@ import type { MapData } from './types';
 export type MapSizeOption = 'small' | 'standard' | 'large';
 
 /** Result of generated-map validation with deterministic retry fallback. */
-export interface ValidatedGeneratedMapResult {
-  mapData: MapData;
+export interface ValidatedGeneratedMapResult<TMapData = MapData> {
+  mapData: TMapData;
   attempts: number;
   valid: boolean;
   warnings: string[];
