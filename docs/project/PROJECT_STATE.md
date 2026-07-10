@@ -85,7 +85,7 @@ The Playable Four-Faction Skirmish roadmap is the active implementation queue. H
 - Modular assets load on demand; do not preload the full matrix.
 - Produced combat units are canonical in `combatUnits`; render data is derived.
 - Do not create a third combat runtime or copy `BlockoutVehicleState` wholesale into Normal Game.
-- Reuse/extract pure Arena movement, aiming, range, hit and damage systems.
+- Reuse or extract pure Arena movement, aiming, range, hit and damage systems.
 - Do not restore legacy Wasp preload, offset tuner, dual renderer or legacy GameWorld.
 
 ## Stop rules
