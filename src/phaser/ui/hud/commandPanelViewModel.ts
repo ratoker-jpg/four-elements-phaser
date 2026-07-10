@@ -11,8 +11,9 @@
  */
 
 import type { GameState, BuildingType, ProducibleUnitType } from '../../../state/types';
+import type { FactoryComposerState } from '../../../state/factoryComposer';
 import type { UnitSelection } from '../../../state/unitSelection';
-import { isUnitSelected, isBuilderSelected, isHarvesterSelected, isAllBuilders, isAllHarvesters } from '../../../state/unitSelection';
+import { isUnitSelected, isBuilderSelected, isHarvesterSelected, isBuildingSelected, isAllBuilders, isAllHarvesters, getPrimarySelection } from '../../../state/unitSelection';
 import { BUILDING_CONFIG } from '../../../state/construction';
 import {
   getBuildBlockReason,
@@ -22,6 +23,7 @@ import {
 } from '../../../state/statusHelpers';
 import { isVisualReadyBuilding, getBuildingDisplayName } from '../../../config/buildingRuntimeMapping';
 import { getProductionQuote } from '../../../state/production';
+import { DEFAULT_FACTORY_COMPOSER_STATE, createFactoryComposerRequest, formatProductionDuration, getFactoryComposerQuote, getQueueItemDisplayName } from '../../../state/factoryComposer';
 import {
   type SlotKey,
   type CommandSlotState,
@@ -143,50 +145,86 @@ function harvesterGrid(_state: GameState): CommandCardSlot[] {
   return grid;
 }
 
-/**
- * Building context grid — shown when a factory building is selected.
- *
- * Row 3 (Z/X/C): Production commands
- *   Z: Train Builder
- *   X: Train Harvester
- *   C: Wasp+Smoky M0
- *
- * Exported for future use when building selection is implemented in UnitSelection.
- */
-export function buildingGrid(state: GameState): CommandCardSlot[] {
+/** Factory composer grid for the selected completed units-factory. */
+export function buildingGrid(
+  state: GameState,
+  selection: UnitSelection = null,
+  composer: FactoryComposerState = DEFAULT_FACTORY_COMPOSER_STATE,
+): CommandCardSlot[] {
   let grid = emptyGrid();
+  const primary = getPrimarySelection(selection);
+  if (!primary || primary.kind !== 'building' || primary.buildingType !== 'units-factory') return grid;
 
-  // Z slot: produce-builder
-  const builderDesc = produceCommandDesc('builder', state);
+  const factoryTarget = { tx: primary.tx, ty: primary.ty };
+  const factory = state.production.factories.find(item => item.tx === primary.tx && item.ty === primary.ty);
+  const quote = getFactoryComposerQuote(composer);
+  const request = createFactoryComposerRequest(composer);
+
+  const component = (
+    slotKey: SlotKey,
+    commandId: string,
+    label: string,
+    selected: boolean,
+    cost: string,
+  ) => {
+    grid = assignSlot(
+      grid, slotKey, commandId, `${selected ? '●' : '○'} ${label}`,
+      'enabled', '', cost, `${label}${selected ? ' — выбрано' : ''}  [${slotKey}]`,
+      'building-action',
+    );
+  };
+
+  component('Q', 'factory-body-wasp', 'Васп', composer.bodyId === 'wasp', '20 M · 5 E');
+  component('W', 'factory-body-hunter', 'Хантер', composer.bodyId === 'hunter', '35 M · 7 E');
+  component('A', 'factory-weapon-smoky', 'Смоки', composer.weaponId === 'smoky', '25 M · 5 E');
+  component('S', 'factory-weapon-railgun', 'Рельса', composer.weaponId === 'railgun', '45 M · 8 E');
+
+  const blockReason = getProductionBlockReason(state, request, factoryTarget);
+  const queueEnabled = blockReason === null;
   grid = assignSlot(
-    grid, 'Z',
-    builderDesc.id, builderDesc.label,
-    builderDesc.state === 'enabled' ? 'enabled' : 'disabled',
-    builderDesc.disabledReason, builderDesc.cost, builderDesc.tooltip,
+    grid, 'Z', 'factory-queue-combat', 'Собрать танк',
+    queueEnabled ? 'enabled' : 'disabled',
+    queueEnabled ? '' : productionBlockLabel(blockReason!),
+    `${quote.matterCost} M · ${quote.elementCost} E · ${formatProductionDuration(quote.durationMs)}`,
+    queueEnabled
+      ? `${quote.displayNameRu}: поставить в очередь  [Z]`
+      : `${quote.displayNameRu}: ${productionBlockLabel(blockReason!)}  [Z]`,
     'produce',
   );
 
-  // X slot: produce-harvester
-  const harvesterDesc = produceCommandDesc('harvester', state);
-  grid = assignSlot(
-    grid, 'X',
-    harvesterDesc.id, harvesterDesc.label,
-    harvesterDesc.state === 'enabled' ? 'enabled' : 'disabled',
-    harvesterDesc.disabledReason, harvesterDesc.cost, harvesterDesc.tooltip,
-    'produce',
-  );
+  const builderDesc = produceCommandDesc('builder', state, factoryTarget);
+  grid = assignSlot(grid, 'X', builderDesc.id, 'Строитель', builderDesc.state === 'enabled' ? 'enabled' : 'disabled', builderDesc.disabledReason, builderDesc.cost, builderDesc.tooltip, 'produce');
+  const harvesterDesc = produceCommandDesc('harvester', state, factoryTarget);
+  grid = assignSlot(grid, 'C', harvesterDesc.id, 'Сборщик', harvesterDesc.state === 'enabled' ? 'enabled' : 'disabled', harvesterDesc.disabledReason, harvesterDesc.cost, harvesterDesc.tooltip, 'produce');
 
-  // C slot: produce-wasp-smoky
-  const waspSmokyDesc = produceCommandDesc('wasp-smoky', state);
+  const canCancel = (factory?.queue.length ?? 0) > 0;
+  const firstItem = factory?.queue[0];
   grid = assignSlot(
-    grid, 'C',
-    waspSmokyDesc.id, waspSmokyDesc.label,
-    waspSmokyDesc.state === 'enabled' ? 'enabled' : 'disabled',
-    waspSmokyDesc.disabledReason, waspSmokyDesc.cost, waspSmokyDesc.tooltip,
-    'produce',
+    grid, 'V', 'factory-cancel-first', 'Отменить заказ',
+    canCancel ? 'enabled' : 'disabled',
+    canCancel ? '' : 'Очередь пуста',
+    firstItem ? getQueueItemDisplayName(firstItem) : '',
+    canCancel ? `Отменить первый заказ: ${getQueueItemDisplayName(firstItem!)}  [V]` : 'Очередь пуста  [V]',
+    'building-action',
   );
 
   return grid;
+}
+
+function factoryContextLabel(
+  state: GameState,
+  selection: UnitSelection,
+  composer: FactoryComposerState,
+): string {
+  const primary = getPrimarySelection(selection);
+  if (!primary || primary.kind !== 'building') return 'Фабрика';
+  const factory = state.production.factories.find(item => item.tx === primary.tx && item.ty === primary.ty);
+  const quote = getFactoryComposerQuote(composer);
+  const queue = factory?.queue ?? [];
+  const active = queue[0]
+    ? ` · сейчас: ${getQueueItemDisplayName(queue[0])} ${Math.round(queue[0].progress * 100)}%`
+    : '';
+  return `Фабрика · ${quote.displayNameRu} · очередь ${queue.length}/2${active}`;
 }
 
 /**
@@ -225,6 +263,7 @@ function emptySelectionGrid(): CommandCardSlot[] {
 export function buildCommandCardViewModel(
   state: GameState,
   selection: UnitSelection,
+  composer: FactoryComposerState = DEFAULT_FACTORY_COMPOSER_STATE,
 ): CommandCardViewModel {
   if (!isUnitSelected(selection)) {
     return {
@@ -260,10 +299,16 @@ export function buildCommandCardViewModel(
     };
   }
 
-  // NOTE: Building selection (contextKind: 'building') is not yet wired
-  // because UnitSelection does not support building selections.
-  // When building selection is added, call buildingGrid(state) here.
-  // See buildingGrid() above for the factory production grid layout.
+  if (isBuildingSelected(selection)) {
+    const primary = getPrimarySelection(selection);
+    if (primary?.kind === 'building' && primary.buildingType === 'units-factory') {
+      return {
+        contextKind: 'building',
+        contextLabel: factoryContextLabel(state, selection, composer),
+        slots: buildingGrid(state, selection, composer),
+      };
+    }
+  }
 
   return {
     contextKind: 'unknown',
@@ -308,6 +353,7 @@ export function buildCommandPanelViewModel(
 export function produceCommandDesc(
   unitType: ProducibleUnitType,
   state: GameState,
+  factoryTarget?: { tx: number; ty: number },
 ): CommandDescriptor {
   const entry = PRODUCE_COMMANDS.find(p => p.unitType === unitType);
   if (!entry) {
@@ -325,7 +371,7 @@ export function produceCommandDesc(
   const commandId = entry.commandId;
   const displayName = unitType.charAt(0).toUpperCase() + unitType.slice(1);
   const cost = formatProduceCost(unitType);
-  const blockReason = getProductionBlockReason(state, unitType);
+  const blockReason = getProductionBlockReason(state, unitType, factoryTarget);
   const enabled = blockReason === null;
   const disabledReason = enabled ? '' : productionBlockLabel(blockReason);
 
@@ -358,6 +404,15 @@ export function getCommandSlotKey(
 
   if (contextKind === 'harvester') {
     if (commandId === 'unit-stop') return STOP_SLOT;
+  }
+  if (contextKind === 'building') {
+    const factorySlots: Record<string, SlotKey> = {
+      'factory-body-wasp': 'Q', 'factory-body-hunter': 'W',
+      'factory-weapon-smoky': 'A', 'factory-weapon-railgun': 'S',
+      'factory-queue-combat': 'Z', 'produce-builder': 'X',
+      'produce-harvester': 'C', 'factory-cancel-first': 'V',
+    };
+    return factorySlots[commandId];
   }
 
   return undefined;

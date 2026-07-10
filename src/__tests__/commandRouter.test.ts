@@ -42,7 +42,7 @@ function enemyUnitTarget(id = 'e1', tx = 7, ty = 7): ClickTarget {
 }
 
 function ownBuildingTarget(id = 'bld1', tx = 2, ty = 2): ClickTarget {
-  return { kind: 'own-building', id, tx, ty };
+  return { kind: 'own-building', id, buildingType: 'units-factory', tx, ty };
 }
 
 // Helper to create a blockout vehicle selection
