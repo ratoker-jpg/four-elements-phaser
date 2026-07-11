@@ -1,6 +1,7 @@
 import type { MapData, ResourceType } from './types';
 import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
 import { ACCEPTED_RESOURCE_CLASS_IDS } from '../config/coreMechanicsTypes';
+import { validateCenterInfinityContract } from './centerInfinity';
 
 export interface GeneratedMapValidation {
   valid: boolean;
@@ -85,6 +86,10 @@ export function validateGeneratedMap(mapData: MapData): GeneratedMapValidation {
   }
   if (infiniteCount !== 1) {
     issues.push(`Expected exactly 1 infinite resourceClass deposit, found ${infiniteCount}`);
+  }
+
+  for (const issue of validateCenterInfinityContract(mapData)) {
+    if (!issues.includes(issue)) issues.push(issue);
   }
 
   return { valid: issues.length === 0, score, issues };

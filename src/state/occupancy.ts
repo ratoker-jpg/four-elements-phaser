@@ -20,6 +20,7 @@ import type { GameState } from './types';
 import { BUILDING_CONFIG } from './construction';
 import { getOccupiedTiles } from './bodyFootprint';
 import { getMapHeadquarters, HQ_FOOTPRINT } from './mapHeadquarters';
+import { getCenterProtectedTiles, isExactCenterInfinity } from './centerInfinity';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -91,6 +92,15 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
       flags, width, hq.tx, hq.ty, HQ_FOOTPRINT, HQ_FOOTPRINT,
       'impassable', 'unbuildable',
     );
+  }
+
+  // ── Protected center zone — construction-blocked, movement remains open ──
+  if (state.mapData.resources.some(resource =>
+    isExactCenterInfinity(resource, width, height),
+  )) {
+    for (const tile of getCenterProtectedTiles(width, height)) {
+      getOrMake(flags, key(tile.tx, tile.ty, width)).add('unbuildable');
+    }
   }
 
   // ── Resources — ARCH-05X: impassable for movement while non-depleted

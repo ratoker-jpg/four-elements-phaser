@@ -6,6 +6,9 @@ import {
 import { resolveResourceRawAmount } from '../config/resourceClassRuntime';
 import type { Faction, HqPlacement, ResourcePlacement } from './types';
 import { mirrorPlacement, type MapSymmetry } from './mapSymmetry';
+import {
+  createCenterInfinityPlacement, getCenterProtectedTiles,
+} from './centerInfinity';
 
 export type ResourceQuadrant = Faction;
 
@@ -144,21 +147,15 @@ export function createSymmetricGeneratedResources(
   const anchorOccupied = new Set(occupied);
   const resolved = resolveResourceAnchors(width, height, cyanHq, rng, anchorOccupied);
   const finite = resolved.filter(placement => placement.resourceClass !== 'infinite');
-  const infinite = resolved.find(placement => placement.resourceClass === 'infinite');
 
   const finalOccupied = new Set(occupied);
   const output: ResourcePlacement[] = [];
 
-  // Reserve the center before accepting contested quartets so no mirrored finite
-  // placement can occupy the shared Infinity footprint.
-  let infinitePlacement: ResourcePlacement | null = null;
-  if (infinite) {
-    infinitePlacement = toResourcePlacement(infinite);
-    if (placementIsInBounds(infinitePlacement, width, height)) {
-      markPlacement(finalOccupied, infinitePlacement);
-    } else {
-      infinitePlacement = null;
-    }
+  // Reserve the full protected center zone before accepting contested quartets.
+  // The exact 2x2 Infinity placement is canonical and no longer depends on anchors.
+  const infinitePlacement = createCenterInfinityPlacement(width, height);
+  for (const tile of getCenterProtectedTiles(width, height)) {
+    finalOccupied.add(`${tile.tx},${tile.ty}`);
   }
 
   for (const baseResolved of finite) {
@@ -173,7 +170,7 @@ export function createSymmetricGeneratedResources(
     }
   }
 
-  if (infinitePlacement) output.push(infinitePlacement);
+  output.push(infinitePlacement);
   return output;
 }
 
