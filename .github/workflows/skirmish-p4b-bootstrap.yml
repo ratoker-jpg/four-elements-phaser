@@ -25,7 +25,7 @@ jobs:
       - name: Detect bootstrap
         id: bootstrap
         run: |
-          if [ -f tools/apply_skirmish_p4b.py ]; then
+          if [ -f tools/apply_skirmish_p4b_fix2.py ]; then
             echo "apply=true" >> "$GITHUB_OUTPUT"
           else
             echo "apply=false" >> "$GITHUB_OUTPUT"
@@ -34,10 +34,13 @@ jobs:
       - name: Apply implementation
         if: steps.bootstrap.outputs.apply == 'true'
         run: |
-          python3 tools/apply_skirmish_p4b.py
-          if [ -f tools/apply_skirmish_p4b_fix1.py ]; then
-            python3 tools/apply_skirmish_p4b_fix1.py
+          if [ ! -f src/__tests__/ownerAwareControl.test.ts ]; then
+            python3 tools/apply_skirmish_p4b.py
+            if [ -f tools/apply_skirmish_p4b_fix1.py ]; then
+              python3 tools/apply_skirmish_p4b_fix1.py
+            fi
           fi
+          python3 tools/apply_skirmish_p4b_fix2.py
 
       - uses: actions/setup-node@v4
         with:
@@ -87,5 +90,5 @@ jobs:
             echo "No implementation changes to commit"
             exit 0
           fi
-          git commit -m "Enforce owner-aware player control"
+          git commit -m "Preserve destroyed-unit control semantics"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
