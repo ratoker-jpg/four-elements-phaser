@@ -22,47 +22,29 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Detect bootstrap
+      - name: Detect remaining fix
         id: bootstrap
         run: |
-          if [ -f tools/apply_skirmish_p5a.py ]; then
+          if [ -f tools/apply_skirmish_p5a_fix2.py ] && ! grep -q "starterDirectionX" src/config/resourceAnchors.ts; then
             echo "apply=true" >> "$GITHUB_OUTPUT"
           else
             echo "apply=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Apply implementation
-        id: apply
+      - name: Apply remaining P5A fix
         if: steps.bootstrap.outputs.apply == 'true'
-        continue-on-error: true
-        run: |
-          {
-            python3 tools/apply_skirmish_p5a.py
-            python3 tools/apply_skirmish_p5a_fix1.py
-            python3 tools/apply_skirmish_p5a_fix2.py
-          } > p5a-apply.log 2>&1
+        run: python3 tools/apply_skirmish_p5a_fix2.py
 
       - uses: actions/setup-node@v4
-        if: steps.apply.outcome == 'success'
         with:
           node-version: 22
           cache: npm
 
       - run: npm ci
-        if: steps.apply.outcome == 'success'
       - run: npm run sync:project-status -- --check
-        if: steps.apply.outcome == 'success'
-
-      - name: TypeScript
-        id: typecheck
-        if: steps.apply.outcome == 'success'
-        continue-on-error: true
-        run: npm run typecheck > typecheck.log 2>&1
+      - run: npm run typecheck
 
       - name: Focused P5A tests
-        id: focused
-        if: steps.apply.outcome == 'success'
-        continue-on-error: true
         run: >-
           npx vitest run
           src/__tests__/fourHeadquarters.test.ts
@@ -73,50 +55,15 @@ jobs:
           src/__tests__/buildSiteSelection.test.ts
           src/__tests__/matchState.test.ts
           src/__tests__/saveGame.test.ts
-          > p5a-tests.log 2>&1
-
-      - uses: actions/upload-artifact@v4
-        if: always() && steps.bootstrap.outputs.apply == 'true'
-        with:
-          name: skirmish-p5a-diagnostics
-          path: |
-            p5a-apply.log
-            typecheck.log
-            p5a-tests.log
-          if-no-files-found: ignore
-
-      - name: Enforce patch application
-        if: steps.apply.outcome != 'success'
-        run: |
-          cat p5a-apply.log
-          exit 1
-
-      - name: Enforce TypeScript
-        if: steps.apply.outcome == 'success' && steps.typecheck.outcome != 'success'
-        run: |
-          cat typecheck.log
-          exit 1
-
-      - name: Enforce focused tests
-        if: steps.apply.outcome == 'success' && steps.focused.outcome != 'success'
-        run: |
-          cat p5a-tests.log
-          exit 1
 
       - run: npm audit --audit-level=high
-        if: steps.apply.outcome == 'success'
       - run: git diff --check
-        if: steps.apply.outcome == 'success'
 
-      - name: Commit implementation
-        if: steps.apply.outcome == 'success'
+      - name: Commit remaining implementation
+        if: steps.bootstrap.outputs.apply == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/state src/config/resourceAnchors.ts src/__tests__/fourHeadquarters.test.ts
-          if git diff --cached --quiet; then
-            echo "No implementation changes to commit"
-            exit 0
-          fi
-          git commit -m "Implement canonical four-corner Headquarters"
+          git add src/config/resourceAnchors.ts src/__tests__/fourHeadquarters.test.ts
+          git commit -m "Orient starter resources for all Headquarters corners"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
