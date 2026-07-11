@@ -25,7 +25,7 @@ jobs:
       - name: Detect bootstrap
         id: bootstrap
         run: |
-          if [ -f tools/apply_skirmish_p4b_fix2.py ]; then
+          if [ -f tools/apply_skirmish_p4b_fix3.py ]; then
             echo "apply=true" >> "$GITHUB_OUTPUT"
           else
             echo "apply=false" >> "$GITHUB_OUTPUT"
@@ -40,7 +40,10 @@ jobs:
               python3 tools/apply_skirmish_p4b_fix1.py
             fi
           fi
-          python3 tools/apply_skirmish_p4b_fix2.py
+          if ! grep -q "removes destroyed human tanks" src/__tests__/ownerAwareControl.test.ts; then
+            python3 tools/apply_skirmish_p4b_fix2.py
+          fi
+          python3 tools/apply_skirmish_p4b_fix3.py
 
       - uses: actions/setup-node@v4
         with:
@@ -77,6 +80,8 @@ jobs:
           src/__tests__/combatUnitMovement.test.ts
           src/__tests__/combatUnitCombat.test.ts
           src/__tests__/buildSiteSelection.test.ts
+          src/__tests__/builder.test.ts
+          src/__tests__/construction.test.ts
       - run: npm audit --audit-level=high
       - run: git diff --check
 
@@ -90,5 +95,5 @@ jobs:
             echo "No implementation changes to commit"
             exit 0
           fi
-          git commit -m "Preserve destroyed-unit control semantics"
+          git commit -m "Enforce construction ownership boundaries"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
