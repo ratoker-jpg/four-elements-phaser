@@ -325,9 +325,6 @@ export function updateConstructionSiteProgress(
     const bi = site.builderIndex;
     if (bi < state.mapData.builders.length) {
       const builder = state.mapData.builders[bi];
-      if (resolveEntityTeamId(state, builder) !== resolveEntityTeamId(state, site)) {
-        return { completed: false };
-      }
       builder.busy = false;
       builder.phase = 'idle';
       builder.assignedSiteId = -1;

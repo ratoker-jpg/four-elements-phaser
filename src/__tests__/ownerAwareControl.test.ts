@@ -7,6 +7,12 @@ import { normalizeCombatUnitState } from '../state/combatUnits';
 import { issuePlayerCombatUnitAttack } from '../state/combatUnitCombat';
 import { ControlGroupManager } from '../state/controlGroups';
 import { issueManualMove, stopUnitCommand } from '../state/unitCommands';
+import {
+  getBuildBlockReason,
+  getFactoryStatus,
+  getProductionBlockReason,
+  getUnitCount,
+} from '../state/statusHelpers';
 import { pruneMissingEntities, selectMany } from '../state/unitSelection';
 import {
   getSelectableUnitControl,
@@ -119,6 +125,32 @@ describe('SKIRMISH-P4B owner-aware player control', () => {
     expect(foreign.phase).toBe('idle');
     expect(foreign.path).toEqual([]);
     expect(stopUnitCommand(state, { kind: 'builder', id: foreign.id })).toEqual({ ok: false, reason: 'not-owner' });
+  });
+
+  it('keeps build and production button state aligned with human ownership', () => {
+    const state = makeState();
+    state.mapData.builders[0].busy = true;
+    state.mapData.builders[0].phase = 'building';
+    state.match!.teams['team-cyan'].economy.matter = 0;
+    state.match!.teams['team-cyan'].economy.elements.cyan = 0;
+    state.match!.teams['team-green'].economy.matter = 500;
+    state.match!.teams['team-green'].economy.elements.green = 500;
+
+    expect(getBuildBlockReason(state, 'separator')).toBe('no-idle-builder');
+
+    const humanFactory = state.production.factories[0];
+    expect(getProductionBlockReason(state, 'builder', { tx: humanFactory.tx, ty: humanFactory.ty }))
+      .toBe('insufficient-matter');
+
+    state.production.factories = state.production.factories.filter(factory => factory.ownerTeamId === 'team-green');
+    expect(getProductionBlockReason(state, 'builder')).toBe('no-factory');
+    expect(getFactoryStatus(state, state.production.factories[0], 'builder')).toBe('idle');
+  });
+
+  it('counts unit cap usage independently for each team', () => {
+    const state = makeState();
+    expect(getUnitCount(state, 'team-cyan')).toBe(3);
+    expect(getUnitCount(state, 'team-green')).toBe(3);
   });
 
   it('assigns pending construction only to a Builder owned by the site team', () => {
