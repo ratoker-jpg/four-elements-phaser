@@ -119,6 +119,20 @@ describe('SKIRMISH-P4B owner-aware player control', () => {
     expect(stopUnitCommand(state, { kind: 'builder', id: foreign.id })).toEqual({ ok: false, reason: 'not-owner' });
   });
 
+  it('removes destroyed human tanks from selection while preserving unit-destroyed command results', () => {
+    const state = makeState();
+    const humanTank = state.combatUnits.find(unit => unit.id === 'human-tank')!;
+    humanTank.runtime!.isDestroyed = true;
+    humanTank.runtime!.destroyedAt = 0;
+
+    const selection = selectMany([{ kind: 'combat', id: 'human-tank' }]);
+    expect(pruneMissingEntities(selection, state)).toBeNull();
+    expect(issueManualMove(state, { kind: 'combat', id: 'human-tank' }, 5, 8))
+      .toEqual({ ok: false, reason: 'unit-destroyed' });
+    expect(stopUnitCommand(state, { kind: 'combat', id: 'human-tank' }))
+      .toEqual({ ok: false, reason: 'unit-destroyed' });
+  });
+
   it('rejects a foreign player attacker but keeps the generic combat runtime available', () => {
     const state = makeState();
     expect(issuePlayerCombatUnitAttack(state, 'foreign-tank', 'human-tank')).toEqual({ ok: false, reason: 'not-owner' });

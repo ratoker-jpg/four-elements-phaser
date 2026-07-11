@@ -144,7 +144,13 @@ export function isUnitInSelection(selection: UnitSelection, id: string): boolean
 export function pruneMissingEntities(selection: UnitSelection, state: GameState): UnitSelection {
   if (!selection) return null;
 
-  const remaining = selection.units.filter(unit => isSelectableUnitHumanOwned(state, unit));
+  const remaining = selection.units.filter(unit => {
+    if (unit.kind === 'combat') {
+      const combat = state.combatUnits.find(candidate => candidate.id === unit.id);
+      if (!combat || combat.runtime?.isDestroyed) return false;
+    }
+    return isSelectableUnitHumanOwned(state, unit);
+  });
 
   if (remaining.length === 0) return null;
   if (remaining.length === 1) return selectOne(remaining[0]);
