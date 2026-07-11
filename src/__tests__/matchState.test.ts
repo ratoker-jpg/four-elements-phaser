@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { customMap1 } from '../data/maps/customMap1';
+import { canPlaceBuilding, placeConstructionSite, updateConstructionSiteProgress } from '../state/construction';
 import { createInitialState } from '../state/createInitialState';
 import { collectVisionSources } from '../state/visibility';
 import { createHarvester, updateGameState } from '../state/updateGameState';
@@ -17,6 +18,17 @@ import type { GameState } from '../state/types';
 function freshState(): GameState {
   const map = JSON.parse(JSON.stringify(customMap1));
   return createInitialState(map, 'cyan');
+}
+
+function findBuildableSeparatorTile(state: GameState): { tx: number; ty: number } {
+  for (let ty = 0; ty < state.mapHeight; ty++) {
+    for (let tx = 0; tx < state.mapWidth; tx++) {
+      if (canPlaceBuilding(state, 'separator', tx, ty, 'team-green').valid) {
+        return { tx, ty };
+      }
+    }
+  }
+  throw new Error('No buildable separator tile found');
 }
 
 class MemoryStorage implements SaveStorage {
@@ -48,7 +60,6 @@ describe('SKIRMISH-P4A multi-team match state', () => {
     expect(state.economy).toBe(match.teams['team-cyan'].economy);
     expect(state.vision).toBe(match.teams['team-cyan'].vision);
   });
-
 
   it('preserves normalized match and vision object identity during runtime updates', () => {
     const state = freshState();
@@ -87,7 +98,11 @@ describe('SKIRMISH-P4A multi-team match state', () => {
     expect(state.mapData.buildings.every(unit => unit.ownerTeamId === 'team-cyan')).toBe(true);
     expect(state.harvesters.every(unit => unit.ownerTeamId === 'team-cyan')).toBe(true);
     expect(state.production.factories.every(unit => unit.ownerTeamId === 'team-cyan')).toBe(true);
-    expect(state.entities.filter(entity => entity.kind !== 'resource').every(entity => entity.ownerTeamId === 'team-cyan')).toBe(true);
+    expect(
+      state.entities
+        .filter(entity => entity.kind !== 'resource')
+        .every(entity => entity.ownerTeamId === 'team-cyan'),
+    ).toBe(true);
   });
 
   it('deducts production costs only from the factory owner team', () => {
@@ -111,14 +126,90 @@ describe('SKIRMISH-P4A multi-team match state', () => {
     expect(match.teams['team-cyan'].economy.matter).toBe(humanMatter);
   });
 
-  it('round-trips the match state and restores human compatibility aliases', () => {
+  it('deducts construction costs and registers the completed building for its owner team', () => {
+    const state = freshState();
+    const match = normalizeMatchState(state);
+    const humanMatter = match.teams['team-cyan'].economy.matter;
+    const green = match.teams['team-green'];
+    green.economy.matter = 500;
+    const target = findBuildableSeparatorTile(state);
+
+    const placed = placeConstructionSite(
+      state,
+      'separator',
+      target.tx,
+      target.ty,
+      'team-green',
+    );
+    expect(placed.ok).toBe(true);
+    expect(green.economy.matter).toBe(440);
+    expect(match.teams['team-cyan'].economy.matter).toBe(humanMatter);
+
+    const site = state.mapData.constructionSites.find(item => item.ownerTeamId === 'team-green')!;
+    site.pending = false;
+    site.elapsed = site.duration;
+    expect(updateConstructionSiteProgress(state, `site-${site.id}`, 0).completed).toBe(true);
+    expect(
+      state.mapData.buildings.some(building =>
+        building.tx === target.tx
+        && building.ty === target.ty
+        && building.ownerTeamId === 'team-green',
+      ),
+    ).toBe(true);
+    expect(
+      green.economy.separators.some(separator =>
+        separator.tx === target.tx
+        && separator.ty === target.ty
+        && separator.ownerTeamId === 'team-green',
+      ),
+    ).toBe(true);
+  });
+
+  it('spawns a completed factory order with the factory owner and faction', () => {
+    const state = freshState();
+    state.mapData.buildings.push({
+      tx: 30,
+      ty: 30,
+      type: 'units-factory',
+      ownerTeamId: 'team-green',
+    });
+    state.production.factories.push({
+      tx: 30,
+      ty: 30,
+      ownerTeamId: 'team-green',
+      active: false,
+      queue: [{
+        unitType: 'builder',
+        request: { kind: 'civil', unitType: 'builder' },
+        elapsedMs: 15_000,
+        durationMs: 15_000,
+        progress: 1,
+        completed: true,
+      }],
+    });
+
+    updateGameState(state, 0);
+    const spawned = state.mapData.builders.find(builder => builder.ownerTeamId === 'team-green');
+    expect(spawned).toBeDefined();
+    expect(
+      state.entities.some(entity =>
+        entity.id === spawned!.id
+        && entity.ownerTeamId === 'team-green'
+        && entity.faction === 'green',
+      ),
+    ).toBe(true);
+  });
+
+  it('round-trips every team and restores human compatibility aliases', () => {
     const state = freshState();
     state.match!.teams['team-green'].economy.matter = 333;
+    state.match!.activeTeamIds = state.match!.activeTeamIds.filter(id => id !== 'team-green');
     const saved = saveGame(state, state.mapId);
     expect(saved.success).toBe(true);
     const loaded = loadGame(saved.slotId!);
     expect(loaded.success).toBe(true);
     expect(loaded.gameState!.match!.teams['team-green'].economy.matter).toBe(333);
+    expect(loaded.gameState!.match!.activeTeamIds).not.toContain('team-green');
     expect(loaded.gameState!.economy).toBe(loaded.gameState!.match!.teams['team-cyan'].economy);
     expect(loaded.gameState!.vision).toBe(loaded.gameState!.match!.teams['team-cyan'].vision);
   });
@@ -133,8 +224,15 @@ describe('SKIRMISH-P4A multi-team match state', () => {
     for (const harvester of legacy.harvesters) delete harvester.ownerTeamId;
     for (const factory of legacy.production.factories) delete factory.ownerTeamId;
     storage.setItem('four-elements-save-slots', JSON.stringify([{
-      id: 'legacy-v4', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
-      faction: 'cyan', mapId: legacy.mapId, mapName: legacy.mapName, summary: {}, version: 4, gameState: legacy,
+      id: 'legacy-v4',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      faction: 'cyan',
+      mapId: legacy.mapId,
+      mapName: legacy.mapName,
+      summary: {},
+      version: 4,
+      gameState: legacy,
     }]));
 
     const loaded = loadGame('legacy-v4');
