@@ -21,6 +21,7 @@ import type { GameState, BuilderPlacement, ConstructionSitePlacement } from './t
 import { buildOccupancyMap, addUnitBlockers, addVehicleBlockers } from './occupancy';
 import { findPathToAdjacent } from './pathfinding';
 import { BUILDING_CONFIG } from './construction';
+import { resolveEntityTeamId } from './teamOwnership';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -53,8 +54,13 @@ export function assignIdleBuilders(state: GameState): void {
     // Only assign to sites that need a builder
     if (site.builderIndex !== -1) continue;
 
-    // Find an idle builder
-    const builderIndex = state.mapData.builders.findIndex(b => b.phase === 'idle' && !b.busy);
+    // Find an idle builder owned by the same team as the site.
+    const siteOwnerTeamId = resolveEntityTeamId(state, site);
+    const builderIndex = state.mapData.builders.findIndex(builder =>
+      builder.phase === 'idle'
+      && !builder.busy
+      && resolveEntityTeamId(state, builder) === siteOwnerTeamId,
+    );
     if (builderIndex === -1) continue;
 
     const builder = state.mapData.builders[builderIndex];
@@ -209,6 +215,10 @@ function handleMovingToSite(
     // Construction move — verify the assigned site still exists
     const site = findSiteById(state, builder.assignedSiteId);
     if (!site) {
+      releaseBuilder(state, builderIndex);
+      return;
+    }
+    if (resolveEntityTeamId(state, site) !== resolveEntityTeamId(state, builder)) {
       releaseBuilder(state, builderIndex);
       return;
     }

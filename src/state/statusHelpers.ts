@@ -28,6 +28,7 @@ import type {
   BuildingType,
   ProducibleUnitType,
   HarvesterState,
+  TeamId,
 } from './types';
 import {
   SEP_RAW_COST,
@@ -38,13 +39,14 @@ import {
   HQ_BASE_POWER,
   POWER_PLANT_GENERATION,
   QUEUE_LIMIT,
-  DEFAULT_UNIT_CAP,
 } from './types';
 import { BUILDING_CONFIG } from './construction';
 import { buildOccupancyMap, isPassable } from './occupancy';
 import { t } from '../config/localization';
 import { isVisualReadyBuilding } from '../config/buildingRuntimeMapping';
 import { getProductionQuote, type ProductionRequestInput } from './production';
+import { ensureMatchState, getOwningTeam } from './matchState';
+import { isHumanOwned, resolveEntityTeamId } from './teamOwnership';
 
 // ─── Separator status ──────────────────────────────────────────────
 
@@ -77,20 +79,22 @@ export function getSeparatorStatus(
   // If actively processing, report that
   if (sep.active) return 'processing';
 
-  const faction = state.playerFaction;
+  const owner = getOwningTeam(state, sep.ownerTeamId);
+  const economy = owner.economy;
+  const faction = owner.faction;
 
   // Check raw availability
-  if (state.economy.raw < SEP_RAW_COST) {
+  if (economy.raw < SEP_RAW_COST) {
     return 'blocked-no-raw';
   }
 
   // Check matter cap room
-  if (state.economy.matter + SEP_MATTER_YIELD > state.economy.matterCap) {
+  if (economy.matter + SEP_MATTER_YIELD > economy.matterCap) {
     return 'blocked-matter-cap';
   }
 
   // Check element cap room
-  if (state.economy.elements[faction] + SEP_ELEMENT_YIELD > state.economy.elementCap) {
+  if (economy.elements[faction] + SEP_ELEMENT_YIELD > economy.elementCap) {
     return 'blocked-element-cap';
   }
 
@@ -99,7 +103,7 @@ export function getSeparatorStatus(
   // resources but is not active is likely power-blocked.
   // Check if there is any remaining power capacity for this separator.
   const powerAvailable = computeAvailablePowerForBuilding(
-    state, 'separator', sep.tx, sep.ty,
+    state, 'separator', sep.tx, sep.ty, owner.id,
   );
   if (!powerAvailable) {
     return 'blocked-power';
@@ -141,6 +145,8 @@ export function getFactoryStatus(
   factory: UnitFactoryRuntimeState,
   nextUnitType?: ProducibleUnitType,
 ): FactoryStatus {
+  const owner = getOwningTeam(state, factory.ownerTeamId);
+
   // Check if currently producing
   const activeItem = factory.queue.find(item => !item.completed);
   if (activeItem && factory.active) {
@@ -169,16 +175,16 @@ export function getFactoryStatus(
     const quote = getProductionQuote(nextUnitType);
     if (!quote) return 'blocked-no-matter';
 
-    if (state.economy.matter < quote.matterCost) {
+    if (owner.economy.matter < quote.matterCost) {
       return 'blocked-no-matter';
     }
-    if (state.economy.elements[state.playerFaction] < quote.elementCost) {
+    if (owner.economy.elements[owner.faction] < quote.elementCost) {
       return 'blocked-no-element';
     }
   }
 
   // Check unit cap (if we were to produce another unit, would cap be hit?)
-  if (getUnitCount(state) >= getUnitCap(state)) {
+  if (getUnitCount(state, owner.id) >= getUnitCap(state, owner.id)) {
     return 'blocked-unit-cap';
   }
 
@@ -218,7 +224,8 @@ export function getFactorySpawnBlockReason(
   if (!factory.queue[0].completed) return null;
 
   // Check 1: Unit cap
-  if (getUnitCount(state) >= getUnitCap(state)) {
+  const owner = getOwningTeam(state, factory.ownerTeamId);
+  if (getUnitCount(state, owner.id) >= getUnitCap(state, owner.id)) {
     return 'unit-cap-reached';
   }
 
@@ -332,9 +339,11 @@ export function getBuildBlockReason(
     return 'not-buildable';
   }
 
-  // Check for idle builder
+  const human = getOwningTeam(state);
+
+  // Check for an idle human-owned builder.
   const hasIdleBuilder = state.mapData.builders.some(
-    b => b.phase === 'idle' && !b.busy,
+    builder => isHumanOwned(state, builder) && builder.phase === 'idle' && !builder.busy,
   );
   if (!hasIdleBuilder) {
     return 'no-idle-builder';
@@ -342,7 +351,7 @@ export function getBuildBlockReason(
 
   // Check matter cost
   const config = BUILDING_CONFIG[buildingType];
-  if (config && state.economy.matter < config.costMatter) {
+  if (config && human.economy.matter < config.costMatter) {
     return 'insufficient-matter';
   }
 
@@ -370,9 +379,11 @@ export function getProductionBlockReason(
   input: ProductionRequestInput,
   factoryTarget?: { tx: number; ty: number },
 ): ProductionBlockReason | null {
-  const factories = factoryTarget
-    ? state.production.factories.filter(factory => factory.tx === factoryTarget.tx && factory.ty === factoryTarget.ty)
-    : state.production.factories;
+  const human = getOwningTeam(state);
+  const factories = state.production.factories.filter(factory =>
+    isHumanOwned(state, factory)
+    && (!factoryTarget || (factory.tx === factoryTarget.tx && factory.ty === factoryTarget.ty)),
+  );
 
   if (factories.length === 0) {
     return 'no-factory';
@@ -386,17 +397,17 @@ export function getProductionBlockReason(
   // Check matter cost
   const quote = getProductionQuote(input);
   if (!quote) return 'insufficient-matter';
-  if (state.economy.matter < quote.matterCost) {
+  if (human.economy.matter < quote.matterCost) {
     return 'insufficient-matter';
   }
 
   // Check element cost
-  if (state.economy.elements[state.playerFaction] < quote.elementCost) {
+  if (human.economy.elements[human.faction] < quote.elementCost) {
     return 'insufficient-element';
   }
 
   // Check unit cap
-  if (getUnitCount(state) >= getUnitCap(state)) {
+  if (getUnitCount(state, human.id) >= getUnitCap(state, human.id)) {
     return 'unit-cap-reached';
   }
 
@@ -405,16 +416,20 @@ export function getProductionBlockReason(
 
 // ─── Unit cap helpers (FIX-03) ─────────────────────────────────────────
 
-/** Count current player civil units (builders + harvesters + combat units). */
-export function getUnitCount(state: GameState): number {
-  return state.mapData.builders.length + state.harvesters.length + (state.combatUnits?.length ?? 0);
+/** Count civil and combat units owned by one team. Defaults to the human team. */
+export function getUnitCount(state: GameState, ownerTeamId?: TeamId): number {
+  const match = ensureMatchState(state);
+  const resolvedOwnerTeamId = ownerTeamId ?? match.humanTeamId;
+  return state.mapData.builders.filter(unit => resolveEntityTeamId(state, unit) === resolvedOwnerTeamId).length
+    + state.harvesters.filter(unit => resolveEntityTeamId(state, unit) === resolvedOwnerTeamId).length
+    + (state.combatUnits?.filter(unit => resolveEntityTeamId(state, unit) === resolvedOwnerTeamId).length ?? 0);
 }
 
-/** Get the current unit cap for the player. Sandbox MVP: fixed DEFAULT_UNIT_CAP. */
-export function getUnitCap(state: GameState): number {
-  // Sandbox MVP: fixed cap. Future: command-relay buildings may add to cap.
-  void state; // used for future building-based cap
-  return DEFAULT_UNIT_CAP;
+/** Get the configured unit cap for one team. Defaults to the human team. */
+export function getUnitCap(state: GameState, ownerTeamId?: TeamId): number {
+  const match = ensureMatchState(state);
+  const resolvedOwnerTeamId = ownerTeamId ?? match.humanTeamId;
+  return match.teams[resolvedOwnerTeamId].unitCap;
 }
 
 // ─── Internal helpers ───────────────────────────────────────────────
@@ -432,24 +447,30 @@ function computeAvailablePowerForBuilding(
   buildingType: 'separator' | 'units-factory',
   buildingTx: number,
   buildingTy: number,
+  ownerTeamId: TeamId,
 ): boolean {
-  let remainingPower = HQ_BASE_POWER +
-    state.mapData.buildings.filter(b => b.type === 'power-plant').length * POWER_PLANT_GENERATION;
+  const owner = getOwningTeam(state, ownerTeamId);
+  let remainingPower = (owner.hqPosition ? HQ_BASE_POWER : 0)
+    + state.mapData.buildings.filter(building =>
+      resolveEntityTeamId(state, building) === owner.id && building.type === 'power-plant',
+    ).length * POWER_PLANT_GENERATION;
 
   // Build lookup maps for runtime state
-  const separatorMap = new Map<string, typeof state.economy.separators[0]>();
-  for (const sep of state.economy.separators) {
+  const separatorMap = new Map<string, typeof owner.economy.separators[0]>();
+  for (const sep of owner.economy.separators) {
     separatorMap.set(`${sep.tx},${sep.ty}`, sep);
   }
 
   const factoryMap = new Map<string, typeof state.production.factories[0]>();
   for (const factory of state.production.factories) {
+    if (resolveEntityTeamId(state, factory) !== owner.id) continue;
     factoryMap.set(`${factory.tx},${factory.ty}`, factory);
   }
 
   const targetKey = `${buildingTx},${buildingTy}`;
 
   for (const building of state.mapData.buildings) {
+    if (resolveEntityTeamId(state, building) !== owner.id) continue;
     const key = `${building.tx},${building.ty}`;
 
     if (building.type === 'separator') {
@@ -458,9 +479,9 @@ function computeAvailablePowerForBuilding(
 
       // Check resource conditions
       const hasResources =
-        state.economy.raw >= SEP_RAW_COST &&
-        state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
-        state.economy.elements[state.playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
+        owner.economy.raw >= SEP_RAW_COST &&
+        owner.economy.matter + SEP_MATTER_YIELD <= owner.economy.matterCap &&
+        owner.economy.elements[owner.faction] + SEP_ELEMENT_YIELD <= owner.economy.elementCap;
 
       if (!hasResources) continue;
 

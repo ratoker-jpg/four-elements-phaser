@@ -24,7 +24,8 @@
  * - No multiple building types (only 'separator' configured)
  */
 
-import type { GameState, BuildingType } from './types';
+import type { GameState, BuildingType, TeamId } from './types';
+import { ensureMatchState } from './matchState';
 import { canPlaceBuilding, BUILDING_CONFIG } from './construction';
 
 // ─── Public types ──────────────────────────────────────────────────
@@ -107,17 +108,23 @@ function collectFootprints(state: GameState): Footprint[] {
  * Anchors are the centers of: HQ, completed buildings, active construction sites.
  * The search prioritises sites nearest to these anchors.
  */
-function collectAnchors(state: GameState): Array<{ tx: number; ty: number }> {
+function collectAnchors(
+  state: GameState,
+  ownerTeamId: TeamId,
+): Array<{ tx: number; ty: number }> {
   const anchors: Array<{ tx: number; ty: number }> = [];
 
-  // HQ center
-  anchors.push({
-    tx: state.mapData.hq.tx + 1,
-    ty: state.mapData.hq.ty + 1,
-  });
+  // HQ center — only the requesting team's HQ is an anchor.
+  if ((state.mapData.hq.ownerTeamId ?? ownerTeamId) === ownerTeamId) {
+    anchors.push({
+      tx: state.mapData.hq.tx + 1,
+      ty: state.mapData.hq.ty + 1,
+    });
+  }
 
   // Completed building centers
   for (const b of state.mapData.buildings) {
+    if ((b.ownerTeamId ?? ownerTeamId) !== ownerTeamId) continue;
     const config = BUILDING_CONFIG[b.type];
     const fpW = config?.footprintW ?? 1;
     const fpH = config?.footprintH ?? 1;
@@ -129,6 +136,7 @@ function collectAnchors(state: GameState): Array<{ tx: number; ty: number }> {
 
   // Construction site centers
   for (const c of state.mapData.constructionSites) {
+    if ((c.ownerTeamId ?? ownerTeamId) !== ownerTeamId) continue;
     const config = BUILDING_CONFIG[c.type];
     const fpW = config?.footprintW ?? 1;
     const fpH = config?.footprintH ?? 1;
@@ -211,6 +219,7 @@ export function findBuildSiteNearPlayerBuildings(
   state: GameState,
   buildingType: BuildingType,
   options?: Partial<BuildSiteSearchOptions>,
+  ownerTeamId?: TeamId,
 ): BuildSiteResult {
   // 1. Validate building type
   const config = BUILDING_CONFIG[buildingType];
@@ -218,9 +227,12 @@ export function findBuildSiteNearPlayerBuildings(
 
   const gapTiles = options?.gapTiles ?? DEFAULT_OPTIONS.gapTiles;
   const maxRadius = options?.maxRadius ?? DEFAULT_OPTIONS.maxRadius;
+  const match = ensureMatchState(state);
+  const resolvedOwnerTeamId = ownerTeamId ?? match.humanTeamId;
 
   // 2. Collect anchors and footprints
-  const anchors = collectAnchors(state);
+  const anchors = collectAnchors(state, resolvedOwnerTeamId);
+  if (anchors.length === 0) return { ok: false, reason: 'no-valid-site' };
   const footprints = collectFootprints(state);
 
   // 3. Compute candidate center offset
@@ -253,7 +265,9 @@ export function findBuildSiteNearPlayerBuildings(
   // 5. Check each candidate
   for (const candidate of candidates) {
     // Must pass canPlaceBuilding (bounds, occupancy, resources, cost)
-    const placement = canPlaceBuilding(state, buildingType, candidate.tx, candidate.ty);
+    const placement = canPlaceBuilding(
+      state, buildingType, candidate.tx, candidate.ty, resolvedOwnerTeamId,
+    );
     if (!placement.valid) continue;
 
     // Must pass gap rule around existing building/construction footprints

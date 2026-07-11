@@ -25,6 +25,7 @@ import { RAW_STORAGE_RAW_BONUS, MATTER_STORAGE_MATTER_BONUS, ELEMENT_STORAGE_ELE
 import { buildOccupancyMap, isBuildable } from './occupancy';
 import { isVisualReadyBuilding } from '../config/buildingRuntimeMapping';
 import { getOwningTeam, ensureMatchState } from './matchState';
+import { resolveEntityTeamId } from './teamOwnership';
 
 // ─── Building Configuration ─────────────────────────────────────────
 
@@ -256,6 +257,9 @@ export function updateConstructionSiteProgress(
   // don't advance progress.
   if (site.builderIndex >= 0 && site.builderIndex < state.mapData.builders.length) {
     const builder = state.mapData.builders[site.builderIndex];
+    if (resolveEntityTeamId(state, builder) !== resolveEntityTeamId(state, site)) {
+      return { completed: false };
+    }
     if (builder.phase !== 'building') {
       return { completed: false };
     }

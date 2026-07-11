@@ -10,9 +10,10 @@ import {
   clearSelection, isUnitSelected,
   selectMany, getSelectionTypeBreakdown,
   hasHarvesterInSelection, getSelectionCenterTile, getPrimarySelection, getBuildingSelectionId,
+  pruneMissingEntities,
 } from '../../state/unitSelection';
 import { issueManualMove, stopUnitCommand, issueMultiMoveCommand, stopUnitsCommand } from '../../state/unitCommands';
-import { issueCombatUnitAttack } from '../../state/combatUnitCombat';
+import { issuePlayerCombatUnitAttack } from '../../state/combatUnitCombat';
 import type { BuildRequestResult, ProductionRequestResult, CancelRequestResult } from '../ui/PlaytestHud';
 import { commandRegistry, registerMvpCommands } from '../../state/commandRegistry';
 import { isScreenPointInHud, isScreenYInActiveHudArea } from '../ui/hud/hudLayout';
@@ -38,6 +39,8 @@ import { ControlGroupManager } from '../../state/controlGroups';
 import { FeedbackStore, type FeedbackSeverity } from '../../state/feedbackStore';
 import { controlGroupAssigned, controlGroupEmpty, controlGroupRecalled, constructionStarted, buildFailureFeedback } from '../../state/feedbackHelpers';
 import { DEFAULT_FACTORY_COMPOSER_STATE, createFactoryComposerRequest, getFactoryComposerQuote, reduceFactoryComposer, type FactoryComposerCommandId, type FactoryComposerState } from '../../state/factoryComposer';
+import { ensureMatchState } from '../../state/matchState';
+import { isHumanOwned } from '../../state/teamOwnership';
 
 /** FIXUP-1: Typed feedback params — single object for dedupe-aware feedback. */
 export interface FeedbackParams {
@@ -256,6 +259,7 @@ export class GameInputController {
    * Called from GameScene.update().
    */
   update(): void {
+    this.selection = pruneMissingEntities(this.selection, this.getGameState());
     this.updateSelectionHighlight();
     this.updateCursorFeedback();
     this.expireFeedback();
@@ -275,9 +279,13 @@ export class GameInputController {
 
     const gameState = this.getGameState();
     // Count idle builders (not busy, phase idle)
-    const idleBuilders = gameState.mapData.builders.filter(b => b.phase === 'idle' && !b.busy).length;
+    const idleBuilders = gameState.mapData.builders.filter(
+      builder => isHumanOwned(gameState, builder) && builder.phase === 'idle' && !builder.busy,
+    ).length;
     // Count idle harvesters
-    const idleHarvesters = gameState.harvesters.filter(h => h.phase === 'idle').length;
+    const idleHarvesters = gameState.harvesters.filter(
+      harvester => isHumanOwned(gameState, harvester) && harvester.phase === 'idle',
+    ).length;
     const totalIdle = idleBuilders + idleHarvesters;
 
     if (totalIdle > 0) {
@@ -443,17 +451,24 @@ export class GameInputController {
       return { success: false, message: `${buildingType} is not buildable yet`, buildingType, code: 'not-buildable' };
     }
 
-    const hasIdleBuilder = gameState.mapData.builders.some(b => b.phase === 'idle' && !b.busy);
+    const match = ensureMatchState(gameState);
+    const hasIdleBuilder = gameState.mapData.builders.some(
+      builder => isHumanOwned(gameState, builder) && builder.phase === 'idle' && !builder.busy,
+    );
     if (!hasIdleBuilder) {
       return { success: false, message: 'no idle builder', buildingType, code: 'no-idle-builder' };
     }
 
-    const site = findBuildSiteNearPlayerBuildings(gameState, buildingType);
+    const site = findBuildSiteNearPlayerBuildings(
+      gameState, buildingType, undefined, match.humanTeamId,
+    );
     if (!site.ok) {
       return { success: false, message: `no valid build site`, buildingType, code: 'no-build-site' };
     }
 
-    const result = placeConstructionSite(gameState, buildingType, site.tx, site.ty);
+    const result = placeConstructionSite(
+      gameState, buildingType, site.tx, site.ty, match.humanTeamId,
+    );
     if (result.ok) {
       console.log(`[GameScene] Construction site placed: ${result.siteId} at (${site.tx},${site.ty})`);
       return { success: true, message: `${buildingType} site placed`, buildingType, tileTarget: { tx: site.tx, ty: site.ty } };
@@ -465,7 +480,8 @@ export class GameInputController {
 
   requestQueueUnit(input: ProductionRequestInput): ProductionRequestResult {
     const gameState = this.getGameState();
-    const factory = this.getSelectedFactory() ?? gameState.production.factories[0];
+    const factory = this.getSelectedFactory()
+      ?? gameState.production.factories.find(candidate => isHumanOwned(gameState, candidate));
     if (!factory) return { success: false, message: 'Нет готовой фабрики' };
 
     const quote = getProductionQuote(input);
@@ -494,8 +510,11 @@ export class GameInputController {
   private getSelectedFactory(): GameState['production']['factories'][number] | null {
     const primary = getPrimarySelection(this.selection);
     if (!primary || primary.kind !== 'building' || primary.buildingType !== 'units-factory') return null;
-    return this.getGameState().production.factories.find(factory =>
-      factory.tx === primary.tx && factory.ty === primary.ty,
+    const state = this.getGameState();
+    return state.production.factories.find(factory =>
+      factory.tx === primary.tx
+      && factory.ty === primary.ty
+      && isHumanOwned(state, factory),
     ) ?? null;
   }
 
@@ -503,6 +522,9 @@ export class GameInputController {
     const gameState = this.getGameState();
 
     const factory = gameState.production.factories[factoryIndex];
+    if (factory && !isHumanOwned(gameState, factory)) {
+      return { success: false, message: 'factory not owned' };
+    }
     if (!factory) {
       return { success: false, message: 'factory not found' };
     }
@@ -529,6 +551,7 @@ export class GameInputController {
    * VISUAL-HUD-CORE-01: Expose current selection for the HUD selection panel.
    */
   getSelection(): UnitSelection {
+    this.selection = pruneMissingEntities(this.selection, this.getGameState());
     return this.selection;
   }
 
@@ -717,6 +740,7 @@ export class GameInputController {
 
     // Check builders — convert world positions to screen space
     for (const b of gameState.mapData.builders) {
+      if (!isHumanOwned(gameState, b)) continue;
       const worldPos = tileToScreen(b.ftx, b.fty);
       const worldX = worldPos.x + this.offset.x;
       const worldY = worldPos.y + this.offset.y;
@@ -730,7 +754,7 @@ export class GameInputController {
 
     // Check canonical production combat units.
     for (const unit of gameState.combatUnits) {
-      if (unit.faction !== gameState.playerFaction || unit.runtime?.isDestroyed) continue;
+      if (!isHumanOwned(gameState, unit) || unit.runtime?.isDestroyed) continue;
       const pos = tileToScreen(unit.runtime?.ftx ?? unit.tx, unit.runtime?.fty ?? unit.ty);
       const { sx, sy } = this.worldToScreen(pos.x + this.offset.x, pos.y + this.offset.y);
       if (sx >= left && sx <= right && sy >= top && sy <= bottom && !this.isScreenYInActiveHud(sy)) {
@@ -740,6 +764,7 @@ export class GameInputController {
 
     // Check harvesters — convert world positions to screen space
     for (const h of gameState.harvesters) {
+      if (!isHumanOwned(gameState, h)) continue;
       const worldPos = tileToScreen(h.ftx, h.fty);
       const worldX = worldPos.x + this.offset.x;
       const worldY = worldPos.y + this.offset.y;
@@ -807,6 +832,7 @@ export class GameInputController {
     // FIXUP-2: Use isScreenYInActiveHud to respect HUD active gate.
     if (target.unitKind === 'builder') {
       for (const b of gameState.mapData.builders) {
+        if (!isHumanOwned(gameState, b)) continue;
         const worldPos = tileToScreen(b.ftx, b.fty);
         const worldX = worldPos.x + this.offset.x;
         const worldY = worldPos.y + this.offset.y;
@@ -819,6 +845,7 @@ export class GameInputController {
       }
     } else if (target.unitKind === 'harvester') {
       for (const h of gameState.harvesters) {
+        if (!isHumanOwned(gameState, h)) continue;
         const worldPos = tileToScreen(h.ftx, h.fty);
         const worldX = worldPos.x + this.offset.x;
         const worldY = worldPos.y + this.offset.y;
@@ -842,7 +869,7 @@ export class GameInputController {
 
   // ─── Click target detection ─────────────────────────────────────
 
-  private findOwnedBuildingTarget(
+  private findBuildingTarget(
     state: GameState,
     clickTx: number,
     clickTy: number,
@@ -854,7 +881,7 @@ export class GameInputController {
       const height = config?.footprintH ?? 1;
       if (clickTx >= building.tx && clickTx < building.tx + width && clickTy >= building.ty && clickTy < building.ty + height) {
         return {
-          kind: 'own-building',
+          kind: isHumanOwned(state, building) ? 'own-building' : 'enemy-building',
           id: getBuildingSelectionId(building.type, building.tx, building.ty),
           buildingType: building.type,
           tx: building.tx,
@@ -874,6 +901,7 @@ export class GameInputController {
 
     // Check own harvesters
     for (const h of gameState.harvesters) {
+      if (!isHumanOwned(gameState, h)) continue;
       const dx = h.ftx - clickTx;
       const dy = h.fty - clickTy;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -884,6 +912,7 @@ export class GameInputController {
 
     // Check own builders
     for (const b of gameState.mapData.builders) {
+      if (!isHumanOwned(gameState, b)) continue;
       const dx = b.ftx - clickTx;
       const dy = b.fty - clickTy;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -894,7 +923,7 @@ export class GameInputController {
 
     // Check own canonical combat units.
     for (const unit of gameState.combatUnits) {
-      if (unit.faction !== gameState.playerFaction || unit.runtime?.isDestroyed) continue;
+      if (!isHumanOwned(gameState, unit) || unit.runtime?.isDestroyed) continue;
       const dx = (unit.runtime?.ftx ?? unit.tx) - clickTx;
       const dy = (unit.runtime?.fty ?? unit.ty) - clickTy;
       if (Math.hypot(dx, dy) < SELECT_RADIUS) {
@@ -902,12 +931,12 @@ export class GameInputController {
       }
     }
 
-    const buildingTarget = this.findOwnedBuildingTarget(gameState, clickTx, clickTy);
+    const buildingTarget = this.findBuildingTarget(gameState, clickTx, clickTy);
     if (buildingTarget) return buildingTarget;
 
     // Check enemy production combat units.
     for (const unit of gameState.combatUnits) {
-      if (unit.faction === gameState.playerFaction || unit.runtime?.isDestroyed) continue;
+      if (isHumanOwned(gameState, unit) || unit.runtime?.isDestroyed) continue;
       const dx = (unit.runtime?.ftx ?? unit.tx) - clickTx;
       const dy = (unit.runtime?.fty ?? unit.ty) - clickTy;
       if (Math.hypot(dx, dy) < SELECT_RADIUS) {
@@ -993,6 +1022,7 @@ export class GameInputController {
   // ─── RMB click handler ──────────────────────────────────────────
 
   private handleRightClick(pointer: Phaser.Input.Pointer): void {
+    this.selection = pruneMissingEntities(this.selection, this.getGameState());
     const target = this.detectClickTarget(pointer);
     const routeResult = routeRmbClick(target, this.selection);
 
@@ -1057,7 +1087,7 @@ export class GameInputController {
     let okCount = 0;
     for (const selected of this.selection.units) {
       if (selected.kind !== 'combat') continue;
-      if (issueCombatUnitAttack(state, selected.id, targetId).ok) okCount++;
+      if (issuePlayerCombatUnitAttack(state, selected.id, targetId).ok) okCount++;
     }
     if (okCount > 0) {
       this.showStatusCb(`${okCount} танк(ов) → атака`, true);
@@ -1132,6 +1162,7 @@ export class GameInputController {
     let hoverTarget: ClickTarget | null = null;
 
     for (const h of gameState.harvesters) {
+      if (!isHumanOwned(gameState, h)) continue;
       const dx = h.ftx - clickTx;
       const dy = h.fty - clickTy;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1143,6 +1174,7 @@ export class GameInputController {
 
     if (!hoverTarget) {
       for (const b of gameState.mapData.builders) {
+        if (!isHumanOwned(gameState, b)) continue;
         const dx = b.ftx - clickTx;
         const dy = b.fty - clickTy;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1155,7 +1187,7 @@ export class GameInputController {
 
     if (!hoverTarget) {
       for (const unit of gameState.combatUnits) {
-        if (unit.faction !== gameState.playerFaction || unit.runtime?.isDestroyed) continue;
+        if (!isHumanOwned(gameState, unit) || unit.runtime?.isDestroyed) continue;
         const dx = (unit.runtime?.ftx ?? unit.tx) - clickTx;
         const dy = (unit.runtime?.fty ?? unit.ty) - clickTy;
         if (Math.hypot(dx, dy) < SELECT_RADIUS) {
@@ -1166,12 +1198,12 @@ export class GameInputController {
     }
 
     if (!hoverTarget) {
-      hoverTarget = this.findOwnedBuildingTarget(gameState, clickTx, clickTy);
+      hoverTarget = this.findBuildingTarget(gameState, clickTx, clickTy);
     }
 
     if (!hoverTarget) {
       for (const unit of gameState.combatUnits) {
-        if (unit.faction === gameState.playerFaction || unit.runtime?.isDestroyed) continue;
+        if (isHumanOwned(gameState, unit) || unit.runtime?.isDestroyed) continue;
         const dx = (unit.runtime?.ftx ?? unit.tx) - clickTx;
         const dy = (unit.runtime?.fty ?? unit.ty) - clickTy;
         if (Math.hypot(dx, dy) < SELECT_RADIUS) {
@@ -1302,6 +1334,7 @@ export class GameInputController {
     const ctrlHeld = this.scene.input.keyboard?.addKey('CTRL')?.isDown ?? false;
 
     if (ctrlHeld) {
+      this.selection = pruneMissingEntities(this.selection, gameState);
       // Ctrl+Number: assign current selection to group
       this.controlGroupManager.assignGroup(numberKey, this.selection);
       if (this.selection) {
@@ -1344,8 +1377,9 @@ export class GameInputController {
   // ─── S key handler ──────────────────────────────────────────────
 
   private handleStopKey(): void {
-    const routeResult = routeSKey(this.selection);
     const gameState = this.getGameState();
+    this.selection = pruneMissingEntities(this.selection, gameState);
+    const routeResult = routeSKey(this.selection);
 
     switch (routeResult.action) {
       case 'stop': {
@@ -1377,6 +1411,7 @@ export class GameInputController {
 
   private dispatchCommandCardHotkey(slotKey: SlotKey): void {
     const gameState = this.getGameState();
+    this.selection = pruneMissingEntities(this.selection, gameState);
     const vm = buildCommandCardViewModel(gameState, this.selection, this.factoryComposer);
 
     const matchingSlot = vm.slots.find(
@@ -1400,6 +1435,7 @@ export class GameInputController {
 
   private dispatchLegacyAlias(key: string): void {
     const gameState = this.getGameState();
+    this.selection = pruneMissingEntities(this.selection, gameState);
     const vm = buildCommandCardViewModel(gameState, this.selection, this.factoryComposer);
 
     const legacyToPrimary: Record<string, string> = {
