@@ -42,7 +42,25 @@ jobs:
 
       - run: npm ci
       - run: npm run sync:project-status -- --check
-      - run: npm run typecheck
+
+      - name: TypeScript
+        id: typecheck
+        continue-on-error: true
+        run: npm run typecheck > typecheck.log 2>&1
+
+      - name: Upload TypeScript diagnostics
+        if: always() && steps.bootstrap.outputs.apply == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skirmish-p4b-typecheck
+          path: typecheck.log
+
+      - name: Enforce TypeScript
+        if: steps.typecheck.outcome != 'success'
+        run: |
+          cat typecheck.log
+          exit 1
+
       - name: Focused owner-control tests
         run: >-
           npx vitest run
