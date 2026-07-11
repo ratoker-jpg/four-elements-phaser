@@ -51,6 +51,16 @@ export function factionForTeamId(teamId: TeamId): Faction {
   return TEAM_FACTIONS[teamId];
 }
 
+function isFaction(value: unknown): value is Faction {
+  return value === 'cyan' || value === 'green' || value === 'yellow' || value === 'purple';
+}
+
+function resolveHumanFaction(state: GameState): Faction {
+  if (isFaction(state.playerFaction)) return state.playerFaction;
+  const hqFaction = state.mapData?.hq?.faction;
+  return isFaction(hqFaction) ? hqFaction : 'cyan';
+}
+
 function createBaselineTeamEconomy(): EconomyState {
   return {
     raw: START_RAW,
@@ -63,6 +73,20 @@ function createBaselineTeamEconomy(): EconomyState {
     matterCap: HQ_MATTER_CAP,
     elementCap: HQ_ELEMENT_CAP,
   };
+}
+
+function ensureEconomyShape(economy: EconomyState | undefined): EconomyState {
+  const target = economy ?? createBaselineTeamEconomy();
+  target.raw ??= 0;
+  target.matter ??= 0;
+  target.elements ??= { cyan: 0, green: 0, yellow: 0, purple: 0 };
+  target.powerGenerated ??= 0;
+  target.powerConsumed ??= 0;
+  target.separators ??= [];
+  target.rawCap ??= HQ_RAW_CAP;
+  target.matterCap ??= HQ_MATTER_CAP;
+  target.elementCap ??= HQ_ELEMENT_CAP;
+  return target;
 }
 
 function hasValidVisionDimensions(width: number, height: number, vision: VisionState | undefined): vision is VisionState {
@@ -139,7 +163,12 @@ function isTeamId(value: unknown): value is TeamId {
 export function normalizeMatchState(state: GameState): MatchState {
   const mapWidth = state.mapWidth ?? state.mapData?.width ?? 48;
   const mapHeight = state.mapHeight ?? state.mapData?.height ?? 48;
-  const humanTeamId = teamIdForFaction(state.playerFaction);
+  const humanFaction = resolveHumanFaction(state);
+  state.playerFaction = humanFaction;
+  const humanTeamId = teamIdForFaction(humanFaction);
+  const legacyHumanHqPosition = state.hqPosition ?? (state.mapData?.hq
+    ? { tx: state.mapData.hq.tx + 1, ty: state.mapData.hq.ty + 1 }
+    : null);
   const existing = state.match;
   const existingTeams = existing?.teams as Partial<Record<TeamId, TeamState>> | undefined;
   const teams = {} as Record<TeamId, TeamState>;
@@ -147,7 +176,9 @@ export function normalizeMatchState(state: GameState): MatchState {
   for (const teamId of TEAM_IDS) {
     const current = existingTeams?.[teamId];
     const isHuman = teamId === humanTeamId;
-    const economy = current?.economy ?? (isHuman ? state.economy : createBaselineTeamEconomy());
+    const economy = ensureEconomyShape(
+      current?.economy ?? (isHuman ? state.economy : createBaselineTeamEconomy()),
+    );
     const sourceVision = current?.vision ?? (isHuman ? state.vision : undefined);
     teams[teamId] = {
       id: teamId,
@@ -159,7 +190,7 @@ export function normalizeMatchState(state: GameState): MatchState {
       unitCap: current?.unitCap ?? DEFAULT_UNIT_CAP,
       techTier: current?.techTier ?? 1,
       hqPosition: isHuman
-        ? (current?.hqPosition ?? { ...state.hqPosition })
+        ? (current?.hqPosition ?? legacyHumanHqPosition)
         : (current?.hqPosition ?? null),
       eliminated: current?.eliminated ?? false,
     };
@@ -184,7 +215,7 @@ export function normalizeMatchState(state: GameState): MatchState {
 
 /** Cheap runtime boundary: preserve object identity once the match is normalized. */
 export function ensureMatchState(state: GameState): MatchState {
-  const expectedHumanTeamId = teamIdForFaction(state.playerFaction);
+  const expectedHumanTeamId = teamIdForFaction(resolveHumanFaction(state));
   const match = state.match;
   if (!match || match.humanTeamId !== expectedHumanTeamId) return normalizeMatchState(state);
   if (TEAM_IDS.some(teamId => !match.teams?.[teamId])) return normalizeMatchState(state);
@@ -214,15 +245,19 @@ export function getHumanTeam(state: GameState): TeamState {
 
 function normalizeOwnership(state: GameState, match: MatchState): void {
   const humanTeamId = match.humanTeamId;
-  state.mapData.hq.ownerTeamId ??= teamIdForFaction(state.mapData.hq.faction);
+  if (state.mapData?.hq) {
+    state.mapData.hq.ownerTeamId ??= teamIdForFaction(
+      isFaction(state.mapData.hq.faction) ? state.mapData.hq.faction : state.playerFaction,
+    );
+  }
 
-  for (const building of state.mapData.buildings) building.ownerTeamId ??= humanTeamId;
-  for (const builder of state.mapData.builders) builder.ownerTeamId ??= humanTeamId;
-  for (const site of state.mapData.constructionSites) site.ownerTeamId ??= humanTeamId;
-  for (const harvester of state.harvesters) {
+  for (const building of state.mapData?.buildings ?? []) building.ownerTeamId ??= humanTeamId;
+  for (const builder of state.mapData?.builders ?? []) builder.ownerTeamId ??= humanTeamId;
+  for (const site of state.mapData?.constructionSites ?? []) site.ownerTeamId ??= humanTeamId;
+  for (const harvester of state.harvesters ?? []) {
     harvester.ownerTeamId ??= teamIdForFaction(harvester.faction);
   }
-  for (const unit of state.combatUnits) {
+  for (const unit of state.combatUnits ?? []) {
     unit.ownerTeamId ??= teamIdForFaction(unit.faction);
   }
   for (const unit of state.extraModularCombat ?? []) {
@@ -231,14 +266,14 @@ function normalizeOwnership(state: GameState, match: MatchState): void {
   for (const harvester of state.extraHarvesters ?? []) {
     harvester.ownerTeamId ??= teamIdForFaction(harvester.faction);
   }
-  for (const factory of state.production.factories) factory.ownerTeamId ??= humanTeamId;
+  for (const factory of state.production?.factories ?? []) factory.ownerTeamId ??= humanTeamId;
   for (const teamId of TEAM_IDS) {
     for (const separator of match.teams[teamId].economy.separators) {
       separator.ownerTeamId ??= teamId;
     }
   }
 
-  for (const entity of state.entities) {
+  for (const entity of state.entities ?? []) {
     if (entity.kind === 'resource') continue;
     entity.ownerTeamId ??= entity.faction
       ? teamIdForFaction(entity.faction)

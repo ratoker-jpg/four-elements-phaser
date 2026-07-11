@@ -132,9 +132,6 @@ export function canPlaceBuilding(
   ty: number,
   ownerTeamId?: TeamId,
 ): PlacementResult {
-  ensureMatchState(state);
-  const owner = getOwningTeam(state, ownerTeamId);
-
   // 1. Unknown building type
   const config = BUILDING_CONFIG[buildingType];
   if (!config) return { valid: false, reason: 'unknown-building-type' };
@@ -144,6 +141,8 @@ export function canPlaceBuilding(
   if (isVisualReadyBuilding(buildingType)) {
     return { valid: false, reason: 'not-buildable' };
   }
+
+  const owner = getOwningTeam(state, ownerTeamId);
 
   // 2. Out of bounds — check that the entire footprint fits within the map
   if (tx < 0 || ty < 0 || tx + config.footprintW > state.mapWidth || ty + config.footprintH > state.mapHeight) {
@@ -180,15 +179,15 @@ export function placeConstructionSite(
   ty: number,
   ownerTeamId?: TeamId,
 ): { ok: true; siteId: string } | { ok: false; reason: PlacementRejectionReason } {
-  // Validate first — no mutation on failure
-  const match = ensureMatchState(state);
-  const resolvedOwnerTeamId = ownerTeamId ?? match.humanTeamId;
-  const owner = match.teams[resolvedOwnerTeamId];
-  const validation = canPlaceBuilding(state, buildingType, tx, ty, resolvedOwnerTeamId);
+  // Validate first — rejected commands must not normalize or mutate state.
+  const validation = canPlaceBuilding(state, buildingType, tx, ty, ownerTeamId);
   if (!validation.valid) {
     return { ok: false, reason: validation.reason };
   }
 
+  const match = ensureMatchState(state);
+  const resolvedOwnerTeamId = ownerTeamId ?? match.humanTeamId;
+  const owner = match.teams[resolvedOwnerTeamId];
   const config = BUILDING_CONFIG[buildingType]!; // guaranteed non-null after validation
 
   // Deduct matter
