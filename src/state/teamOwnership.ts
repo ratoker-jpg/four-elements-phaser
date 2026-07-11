@@ -57,9 +57,7 @@ export function getSelectableUnitControl(
   } else if (unit.kind === 'harvester') {
     entity = state.harvesters.find(candidate => candidate.id === unit.id);
   } else if (unit.kind === 'combat') {
-    const combat = state.combatUnits.find(candidate => candidate.id === unit.id);
-    if (!combat || combat.runtime?.isDestroyed) return 'missing';
-    entity = combat;
+    entity = state.combatUnits.find(candidate => candidate.id === unit.id);
   } else {
     entity = state.mapData.buildings.find(candidate =>
       candidate.type === unit.buildingType
