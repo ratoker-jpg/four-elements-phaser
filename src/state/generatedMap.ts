@@ -44,8 +44,7 @@
 
 import type { MapData, Faction } from './types';
 import type { MapStyle } from './gameSetup';
-import { resolveResourceAnchors } from '../config/resourceAnchors';
-import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
+import { createSymmetricGeneratedResources } from './symmetricResources';
 import type { MapSizeOption, ValidatedGeneratedMapResult } from './generatedMapTypes';
 import {
   createSeededRng,
@@ -88,9 +87,8 @@ export const MAX_VALIDATION_ATTEMPTS = 3;
  * - `hq` remains the selected human faction compatibility alias
  * - One idle human Builder placed toward the map center
  * - Anchor-based resource placement using 6-class model (CORE-STEP-03B)
- * - Starter zone: very_poor/poor/medium near HQ
- * - Side zone: medium/rich at intermediate distance
- * - Contested zone: rich/very_rich farther from HQ
+ * - Mirrored finite starter/side/contested resources in all four quadrants
+ * - Equal resource classes, footprints and deterministic raw value per quadrant
  * - Center: infinite 2x2 deposit
  * - Obstacles and decor are deferred (empty arrays) — no visual assets yet
  * - No buildings (MVP)
@@ -147,8 +145,10 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
     }
   }
 
-  // ── Resources: anchor-based placement using 6-class model (CORE-STEP-03B) ──
-  const resources = generateResources(rng, W, H, hq, occupied);
+  // ── Resources: generate once from cyan SW and mirror accepted quartets ──
+  const resources = createSymmetricGeneratedResources(
+    rng, W, H, headquarters, occupied,
+  );
 
   // ── Obstacles ──
   // Obstacles are NOT placed in player-facing generated maps because they
@@ -178,45 +178,7 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
   };
 }
 
-// ─── Resource generation (CORE-STEP-03B: anchor-based) ──────────────
-
-/**
- * Generate resource placements for a map using anchor-based placement.
- *
- * CORE-STEP-03B: Replaces random scatter with deterministic anchor-based
- * resource layout using the accepted 6-class resource model.
- *
- * Each generated resource includes:
- * - tx, ty: position
- * - type: legacy ResourceType (for harvester/render compatibility)
- * - footprint: tile footprint size
- * - resourceClass: AcceptedResourceClassId (source of truth for new model)
- *
- * Strategy:
- * 1. Compute anchor positions from map dimensions and HQ position
- * 2. Apply controlled variation around anchors using PRNG
- * 3. Resolve each anchor to a concrete placement with resourceClass + legacyType
- *
- * Resources never overlap each other or the HQ area.
- * Same seed + size always produces identical placements.
- */
-function generateResources(
-  rng: () => number,
-  W: number,
-  H: number,
-  hq: { tx: number; ty: number },
-  occupied: Set<string>,
-): MapData['resources'] {
-  const resolvedPlacements = resolveResourceAnchors(W, H, hq, rng, occupied);
-
-  return resolvedPlacements.map(placement => ({
-    tx: placement.tx,
-    ty: placement.ty,
-    type: placement.legacyType,
-    footprint: placement.footprint,
-    resourceClass: placement.resourceClass as AcceptedResourceClassId,
-  }));
-}
+// ─── Symmetric resource generation lives in symmetricResources.ts ──
 
 // ─── Obstacle/Decor generation (DEFERRED) ──────────────────────────
 //
