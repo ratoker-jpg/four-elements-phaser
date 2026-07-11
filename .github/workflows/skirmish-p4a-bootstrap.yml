@@ -33,7 +33,11 @@ jobs:
 
       - name: Apply implementation
         if: steps.bootstrap.outputs.apply == 'true'
-        run: python3 tools/apply_skirmish_p4a.py
+        run: |
+          python3 tools/apply_skirmish_p4a.py
+          if [ -f tools/apply_skirmish_p4a_fix1.py ]; then
+            python3 tools/apply_skirmish_p4a_fix1.py
+          fi
 
       - uses: actions/setup-node@v4
         with:
