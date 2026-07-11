@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGeneratedMapData } from '../state/generatedMap';
+import { createGeneratedMapData, createValidatedGeneratedMapData } from '../state/generatedMap';
 import { createInitialState } from '../state/createInitialState';
 import {
   createFourCornerHeadquarters,
@@ -46,6 +46,20 @@ describe('SKIRMISH-P5A four-corner Headquarters', () => {
       expect(map.hq).toEqual(map.headquarters!.find(hq => hq.faction === faction));
       expect(map.builders).toHaveLength(1);
       expect(map.builders[0].ownerTeamId).toBe(`team-${faction}`);
+    },
+  );
+
+  it.each(['cyan', 'green', 'yellow', 'purple'] as Faction[])(
+    'keeps starter resources in bounds and validates the selected %s corner',
+    faction => {
+      const result = createValidatedGeneratedMapData(`corner-validation-${faction}`, 'standard', faction);
+      expect(result.valid).toBe(true);
+      for (const resource of result.mapData.resources) {
+        expect(resource.tx).toBeGreaterThanOrEqual(0);
+        expect(resource.ty).toBeGreaterThanOrEqual(0);
+        expect(resource.tx + resource.footprint).toBeLessThanOrEqual(result.mapData.width);
+        expect(resource.ty + resource.footprint).toBeLessThanOrEqual(result.mapData.height);
+      }
     },
   );
 
