@@ -14,6 +14,7 @@
  */
 
 import type { BuildingType, GameState } from './types';
+import { isSelectableUnitHumanOwned } from './teamOwnership';
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -143,20 +144,7 @@ export function isUnitInSelection(selection: UnitSelection, id: string): boolean
 export function pruneMissingEntities(selection: UnitSelection, state: GameState): UnitSelection {
   if (!selection) return null;
 
-  const remaining = selection.units.filter(u => {
-    if (u.kind === 'builder') {
-      return state.mapData.builders.some(b => b.id === u.id);
-    } else if (u.kind === 'harvester') {
-      return state.harvesters.some(h => h.id === u.id);
-    } else if (u.kind === 'combat') {
-      return state.combatUnits.some(unit => unit.id === u.id && !unit.runtime?.isDestroyed);
-    } else if (u.kind === 'building') {
-      return state.mapData.buildings.some(building =>
-        building.type === u.buildingType && building.tx === u.tx && building.ty === u.ty,
-      );
-    }
-    return false;
-  });
+  const remaining = selection.units.filter(unit => isSelectableUnitHumanOwned(state, unit));
 
   if (remaining.length === 0) return null;
   if (remaining.length === 1) return selectOne(remaining[0]);

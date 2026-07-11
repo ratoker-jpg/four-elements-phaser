@@ -15,6 +15,7 @@ import {
   buildOccupancyMap,
 } from './occupancy';
 import { findPathToAdjacent } from './pathfinding';
+import { isHumanOwned } from './teamOwnership';
 import {
   directionFromScreenAngle,
   rotateAngleTowards,
@@ -40,10 +41,27 @@ export type CombatAttackResult =
   | { ok: true }
   | { ok: false; reason: 'attacker-not-found' | 'target-not-found' | 'attacker-destroyed' | 'target-destroyed' | 'friendly-target' };
 
+export type PlayerCombatAttackResult = CombatAttackResult
+  | { ok: false; reason: 'not-owner' };
+
 export interface CombatDamageResult {
   rawDamage: number;
   finalDamage: number;
   killed: boolean;
+}
+
+/** Player-facing attack command. AI/runtime code continues to use issueCombatUnitAttack. */
+export function issuePlayerCombatUnitAttack(
+  state: GameState,
+  attackerId: string,
+  targetId: string,
+): PlayerCombatAttackResult {
+  const attacker = state.combatUnits.find(unit => unit.id === attackerId);
+  if (!attacker) return { ok: false, reason: 'attacker-not-found' };
+  if (!isHumanOwned(state, attacker)) return { ok: false, reason: 'not-owner' };
+  const target = state.combatUnits.find(unit => unit.id === targetId);
+  if (target && isHumanOwned(state, target)) return { ok: false, reason: 'friendly-target' };
+  return issueCombatUnitAttack(state, attackerId, targetId);
 }
 
 export function issueCombatUnitAttack(

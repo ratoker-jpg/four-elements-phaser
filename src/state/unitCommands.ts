@@ -13,6 +13,7 @@ import { buildOccupancyMap, isPassable, addUnitBlockers, addVehicleBlockers, isT
 import { findPath } from './pathfinding';
 import type { SelectableUnit, UnitSelection } from './unitSelection';
 import { issueCombatUnitMove, stopCombatUnit } from './combatUnitMovement';
+import { getSelectableUnitControl } from './teamOwnership';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ const MANUAL_COOLDOWN_MS = 800;
 /** Result of a move command. */
 export type MoveResult =
   | { ok: true }
-  | { ok: false; reason: 'no-unit-selected' | 'unit-destroyed' | 'target-impassable' | 'target-occupied' | 'no-path' | 'unit-busy' };
+  | { ok: false; reason: 'no-unit-selected' | 'unit-destroyed' | 'not-owner' | 'target-impassable' | 'target-occupied' | 'no-path' | 'unit-busy' };
 
 /** Result of a resource approach computation. */
 export type ApproachResult =
@@ -70,6 +71,10 @@ export function issueManualMove(
   targetTx: number,
   targetTy: number,
 ): MoveResult {
+  const control = getSelectableUnitControl(state, unit);
+  if (control === 'foreign') return { ok: false, reason: 'not-owner' };
+  if (control === 'missing') return { ok: false, reason: 'no-unit-selected' };
+
   const occupancy = buildOccupancyMap(state);
 
   // Target must be passable
@@ -372,7 +377,7 @@ function moveTowardTile(
 /** Result of a stop command. */
 export type StopResult =
   | { ok: true }
-  | { ok: false; reason: 'no-unit-selected' | 'unit-destroyed' | 'unit-busy' };
+  | { ok: false; reason: 'no-unit-selected' | 'unit-destroyed' | 'not-owner' | 'unit-busy' };
 
 /**
  * Stop the selected unit's current command.
@@ -388,6 +393,10 @@ export function stopUnitCommand(
   state: GameState,
   unit: SelectableUnit,
 ): StopResult {
+  const control = getSelectableUnitControl(state, unit);
+  if (control === 'foreign') return { ok: false, reason: 'not-owner' };
+  if (control === 'missing') return { ok: false, reason: 'no-unit-selected' };
+
   if (unit.kind === 'harvester') {
     const h = state.harvesters.find(h => h.id === unit.id);
     if (!h) return { ok: false, reason: 'no-unit-selected' };

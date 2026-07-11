@@ -46,28 +46,34 @@ export function isHumanOwnedBuilding(
   return isHumanOwned(state, building);
 }
 
-/** Resolve a selection reference to live state and verify human control. */
+/** Resolve a selection reference to live state and distinguish missing from foreign. */
+export function getSelectableUnitControl(
+  state: GameState,
+  unit: SelectableUnit,
+): 'human' | 'foreign' | 'missing' {
+  let entity: OwnedEntityRef | undefined;
+  if (unit.kind === 'builder') {
+    entity = state.mapData.builders.find(candidate => candidate.id === unit.id);
+  } else if (unit.kind === 'harvester') {
+    entity = state.harvesters.find(candidate => candidate.id === unit.id);
+  } else if (unit.kind === 'combat') {
+    const combat = state.combatUnits.find(candidate => candidate.id === unit.id);
+    if (!combat || combat.runtime?.isDestroyed) return 'missing';
+    entity = combat;
+  } else {
+    entity = state.mapData.buildings.find(candidate =>
+      candidate.type === unit.buildingType
+      && candidate.tx === unit.tx
+      && candidate.ty === unit.ty,
+    );
+  }
+  if (!entity) return 'missing';
+  return isHumanOwned(state, entity) ? 'human' : 'foreign';
+}
+
 export function isSelectableUnitHumanOwned(
   state: GameState,
   unit: SelectableUnit,
 ): boolean {
-  if (unit.kind === 'builder') {
-    const builder = state.mapData.builders.find(candidate => candidate.id === unit.id);
-    return !!builder && isHumanOwned(state, builder);
-  }
-  if (unit.kind === 'harvester') {
-    const harvester = state.harvesters.find(candidate => candidate.id === unit.id);
-    return !!harvester && isHumanOwned(state, harvester);
-  }
-  if (unit.kind === 'combat') {
-    const combat = state.combatUnits.find(candidate => candidate.id === unit.id);
-    return !!combat && !combat.runtime?.isDestroyed && isHumanOwned(state, combat);
-  }
-
-  const building = state.mapData.buildings.find(candidate =>
-    candidate.type === unit.buildingType
-    && candidate.tx === unit.tx
-    && candidate.ty === unit.ty,
-  );
-  return !!building && isHumanOwned(state, building);
+  return getSelectableUnitControl(state, unit) === 'human';
 }
