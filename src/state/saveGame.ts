@@ -18,6 +18,7 @@ import type { Faction, GameState } from './types';
 import { ensureBuilderIds } from './createInitialState';
 import { normalizeVisionForLoadedState } from './visibility';
 import { normalizeCombatUnitState } from './combatUnits';
+import { normalizeMatchState } from './matchState';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ import { normalizeCombatUnitState } from './combatUnits';
 const SAVE_STORAGE_KEY = 'four-elements-save-slots';
 
 /** Current save format version. Phase 2 fixup: canonical combat state + deterministic IDs. */
-const SAVE_VERSION = 4;
+const SAVE_VERSION = 5;
 
 /** Maximum number of save slots. */
 export const MAX_SAVE_SLOTS = 5;
@@ -164,8 +165,8 @@ function writeSlots(slots: SaveSlot[]): boolean {
 function isValidSlot(slot: unknown): slot is SaveSlot {
   if (typeof slot !== 'object' || slot === null) return false;
   const s = slot as Record<string, unknown>;
-  // Accept v1-v4; loadGame performs field migrations.
-  if (s.version !== 1 && s.version !== 2 && s.version !== 3 && s.version !== 4) return false;
+  // Accept v1-v5; loadGame performs field migrations.
+  if (s.version !== 1 && s.version !== 2 && s.version !== 3 && s.version !== 4 && s.version !== 5) return false;
   if (typeof s.id !== 'string') return false;
   if (typeof s.createdAt !== 'string') return false;
   if (typeof s.updatedAt !== 'string') return false;
@@ -214,36 +215,31 @@ export function getLatestSaveMeta(): SaveSlotMeta | null {
  * Does not bump save version. Does not change save schema.
  */
 function sanitizeForSave(gameState: GameState): GameState {
-  // BLOCKOUT-08H: Strip blockoutObstacles in addition to blockoutVehicles
-  const hasBlockoutVehicles = gameState.blockoutVehicles && gameState.blockoutVehicles.length > 0;
-  const hasBlockoutObstacles = gameState.blockoutObstacles && gameState.blockoutObstacles.length > 0;
-  
-  // FOG-VISION-08: Strip visible grid from save (recomputed on load).
-  // Only persist explored grid. Create a copy with visible=[] and dirty=true.
-  const hasVision = gameState.vision !== undefined;
+  const clone = (typeof structuredClone === 'function'
+    ? structuredClone(gameState)
+    : JSON.parse(JSON.stringify(gameState))) as GameState;
+  const match = normalizeMatchState(clone);
 
-  if (!hasBlockoutVehicles && !hasBlockoutObstacles && !hasVision) {
-    // No blockout data or vision to transform — return as-is
-    return gameState;
+  clone.blockoutVehicles = undefined;
+  clone.blockoutObstacles = undefined;
+  for (const team of Object.values(match.teams)) {
+    team.vision = {
+      explored: team.vision.explored.map(row => [...row]),
+      visible: [],
+      dirty: true,
+      revision: team.vision.revision,
+    };
+    team.economy = {
+      ...team.economy,
+      elements: { ...team.economy.elements },
+      separators: team.economy.separators.map(separator => ({ ...separator })),
+    };
   }
-  
-  // Create a shallow copy with transformations
-  const { blockoutVehicles: _bv, blockoutObstacles: _bo, vision: _vision, ...rest } = gameState;
-  
-  // FOG-VISION-08: Save only explored grid; visible is recomputed on load.
-  // FIXUP-1: Persist revision so it survives save/load round-trip.
-  const visionForSave = gameState.vision ? {
-    explored: gameState.vision.explored,
-    visible: [],  // not saved — recomputed on load via normalizeVisionForLoadedState
-    dirty: true,  // force recompute on load
-    revision: gameState.vision.revision,  // persisted so FogRenderer cache is valid after load
-  } : undefined;
 
-  return {
-    ...rest,
-    ...(hasBlockoutVehicles ? {} : {}),
-    ...(hasVision ? { vision: visionForSave } : {}),
-  } as GameState;
+  const human = match.teams[match.humanTeamId];
+  clone.economy = human.economy;
+  clone.vision = human.vision;
+  return clone;
 }
 
 /**
@@ -326,7 +322,7 @@ export function loadGame(slotId: string): LoadResult {
     return { success: false, message: 'Save not found' };
   }
 
-  if (slot.version !== SAVE_VERSION && slot.version !== 1 && slot.version !== 2 && slot.version !== 3) {
+  if (slot.version !== SAVE_VERSION && slot.version !== 1 && slot.version !== 2 && slot.version !== 3 && slot.version !== 4) {
     return { success: false, message: `Save version ${slot.version} not supported` };
   }
 
@@ -363,6 +359,7 @@ export function loadGame(slotId: string): LoadResult {
     gs.mapHeight ?? gs.mapData?.height ?? 48,
     gs.vision,
   );
+  normalizeMatchState(gs);
 
   return { success: true, message: 'Loaded', gameState: gs };
 }
