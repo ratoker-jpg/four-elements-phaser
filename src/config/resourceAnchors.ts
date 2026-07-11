@@ -153,10 +153,17 @@ export function getResourceAnchors(
     { dx: 6, dy: -7, cls: 'medium' },
   ];
 
+  const starterDirectionX = Math.sign(dxToCenter) || 1;
+  const starterDirectionY = Math.sign(dyToCenter) || -1;
   for (const off of starterOffsets) {
+    // The accepted offsets were authored for the south-west start. Convert
+    // them to center-relative magnitudes and orient them toward the map center
+    // so every selected corner remains in bounds before P5B mirrors all zones.
+    const relativeX = Math.abs(off.dx - 1) * starterDirectionX;
+    const relativeY = Math.abs(off.dy - 1) * starterDirectionY;
     anchors.push({
-      tx: hq.tx + off.dx,
-      ty: hq.ty + off.dy,
+      tx: hqCenterX + relativeX,
+      ty: hqCenterY + relativeY,
       resourceClass: off.cls,
       zone: 'starter',
       variationRadius: 0, // No variation for starter — must be reliable

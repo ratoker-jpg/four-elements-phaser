@@ -19,6 +19,7 @@
 import type { GameState } from './types';
 import { BUILDING_CONFIG } from './construction';
 import { getOccupiedTiles } from './bodyFootprint';
+import { getMapHeadquarters, HQ_FOOTPRINT } from './mapHeadquarters';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -84,9 +85,13 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
   const height = state.mapHeight;
   const flags = new Map<number, Set<TileFlag>>();
 
-  // ── HQ — 3×3 footprint ────────────────────────────────────────
-  markFootprint(flags, width, state.mapData.hq.tx, state.mapData.hq.ty, 3, 3,
-    'impassable', 'unbuildable');
+  // ── Headquarters — canonical 3×3 footprints ──────────────────
+  for (const hq of getMapHeadquarters(state.mapData)) {
+    markFootprint(
+      flags, width, hq.tx, hq.ty, HQ_FOOTPRINT, HQ_FOOTPRINT,
+      'impassable', 'unbuildable',
+    );
+  }
 
   // ── Resources — ARCH-05X: impassable for movement while non-depleted
   //   Harvesters must approach adjacent tiles, not drive onto the resource center.
