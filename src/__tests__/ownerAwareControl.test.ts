@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { MapData, ModularCombatUnit } from '../state/types';
 import { createInitialState } from '../state/createInitialState';
+import { assignIdleBuilders } from '../state/builder';
+import { updateConstructionSiteProgress } from '../state/construction';
 import { normalizeCombatUnitState } from '../state/combatUnits';
 import { issuePlayerCombatUnitAttack } from '../state/combatUnitCombat';
 import { ControlGroupManager } from '../state/controlGroups';
@@ -117,6 +119,50 @@ describe('SKIRMISH-P4B owner-aware player control', () => {
     expect(foreign.phase).toBe('idle');
     expect(foreign.path).toEqual([]);
     expect(stopUnitCommand(state, { kind: 'builder', id: foreign.id })).toEqual({ ok: false, reason: 'not-owner' });
+  });
+
+  it('assigns pending construction only to a Builder owned by the site team', () => {
+    const state = makeState();
+    state.mapData.constructionSites.push({
+      tx: 8,
+      ty: 4,
+      type: 'separator',
+      elapsed: 0,
+      duration: 10_000,
+      progress: 0,
+      builderIndex: -1,
+      id: 50,
+      pending: true,
+      ownerTeamId: 'team-green',
+    });
+
+    assignIdleBuilders(state);
+    const site = state.mapData.constructionSites[0];
+    expect(site.builderIndex).toBe(1);
+    expect(state.mapData.builders[0].busy).toBe(false);
+    expect(state.mapData.builders[1].busy).toBe(true);
+    expect(state.mapData.builders[1].assignedSiteId).toBe(50);
+  });
+
+  it('does not advance a site when its assigned Builder belongs to another team', () => {
+    const state = makeState();
+    state.mapData.builders[0].phase = 'building';
+    state.mapData.builders[0].busy = true;
+    state.mapData.constructionSites.push({
+      tx: 8,
+      ty: 4,
+      type: 'separator',
+      elapsed: 0,
+      duration: 10_000,
+      progress: 0,
+      builderIndex: 0,
+      id: 51,
+      pending: false,
+      ownerTeamId: 'team-green',
+    });
+
+    expect(updateConstructionSiteProgress(state, 'site-51', 200)).toEqual({ completed: false });
+    expect(state.mapData.constructionSites[0].elapsed).toBe(0);
   });
 
   it('removes destroyed human tanks from selection while preserving unit-destroyed command results', () => {
