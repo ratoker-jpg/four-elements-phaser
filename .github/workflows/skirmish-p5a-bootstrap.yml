@@ -48,19 +48,9 @@ jobs:
         continue-on-error: true
         run: npm run typecheck > typecheck.log 2>&1
 
-      - uses: actions/upload-artifact@v4
-        if: always() && steps.bootstrap.outputs.apply == 'true'
-        with:
-          name: skirmish-p5a-typecheck
-          path: typecheck.log
-
-      - name: Enforce TypeScript
-        if: steps.typecheck.outcome != 'success'
-        run: |
-          cat typecheck.log
-          exit 1
-
       - name: Focused P5A tests
+        id: focused
+        continue-on-error: true
         run: >-
           npx vitest run
           src/__tests__/fourHeadquarters.test.ts
@@ -70,6 +60,28 @@ jobs:
           src/__tests__/buildSiteSelection.test.ts
           src/__tests__/matchState.test.ts
           src/__tests__/saveGame.test.ts
+          > p5a-tests.log 2>&1
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.bootstrap.outputs.apply == 'true'
+        with:
+          name: skirmish-p5a-diagnostics
+          path: |
+            typecheck.log
+            p5a-tests.log
+
+      - name: Enforce TypeScript
+        if: steps.typecheck.outcome != 'success'
+        run: |
+          cat typecheck.log
+          exit 1
+
+      - name: Enforce focused tests
+        if: steps.focused.outcome != 'success'
+        run: |
+          cat p5a-tests.log
+          exit 1
+
       - run: npm audit --audit-level=high
       - run: git diff --check
 
