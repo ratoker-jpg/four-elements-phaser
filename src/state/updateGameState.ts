@@ -18,6 +18,7 @@ import type {
   ResourceNodeState,
   ModularCombatUnit,
   ProductionQueueItem,
+  TeamId,
 } from './types';
 import {
   SEP_RAW_COST,
@@ -28,7 +29,6 @@ import {
   POWER_PLANT_GENERATION,
   SEPARATOR_ACTIVE_POWER_CONSUMPTION,
   UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION,
-  DEFAULT_UNIT_CAP,
 } from './types';
 import { buildOccupancyMap, isPassable, addUnitBlockers, addVehicleBlockers } from './occupancy';
 import { findPath, findPathToAdjacent } from './pathfinding';
@@ -37,6 +37,7 @@ import { isResourceInfinite } from '../config/resourceClassRuntime';
 import { allocateCombatUnitId, createCombatUnitRuntime, getCombatProductionConfig } from './combatUnits';
 import { updateAllCombatUnitMovement } from './combatUnitMovement';
 import { updateAllCombatUnitCombat } from './combatUnitCombat';
+import { getOwningTeam, normalizeMatchState } from './matchState';
 export { directionFromDelta } from './unitDirection';
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ const ARRIVAL_THRESHOLD = 0.03;
  * given the same input state and delta.
  */
 export function updateGameState(state: GameState, deltaMs: number): void {
+  normalizeMatchState(state);
   // Clamp delta for movement to prevent huge jumps after tab-switch.
   // Production/separators use the full deltaMs for accurate time advancement.
   const moveDt = Math.min(deltaMs, 200);
@@ -318,8 +320,10 @@ function handleReturningToHQ(
 ): void {
   // On first entry, compute return path
   if (!h.returnPath) {
-    const hqTx = state.hqPosition.tx;
-    const hqTy = state.hqPosition.ty;
+    const owner = getOwningTeam(state, h.ownerTeamId, h.faction);
+    const ownerHq = owner.hqPosition ?? state.hqPosition;
+    const hqTx = ownerHq.tx;
+    const hqTy = ownerHq.ty;
     const startTx = Math.round(h.ftx);
     const startTy = Math.round(h.fty);
     const occupancy = buildOccupancyMap(state);
@@ -412,10 +416,13 @@ function handleUnloading(
   h.unloadTimer -= dt;
   if (h.unloadTimer > 0) return; // still unloading
 
+  const owner = getOwningTeam(state, h.ownerTeamId, h.faction);
+  const economy = owner.economy;
+
   // ARCH-01D: Enforce raw cap on harvester unload.
   // Transfer as much cargo as fits within rawCap; keep remaining in cargo.
   // Do not lose cargo silently — if raw is at cap, keep cargo and wait.
-  const room = state.economy.rawCap - state.economy.raw;
+  const room = economy.rawCap - economy.raw;
   if (room <= 0) {
     // Raw storage full — keep cargo, stay at HQ position.
     // Set a short unload timer so the harvester retries next frame
@@ -426,7 +433,7 @@ function handleUnloading(
   }
 
   const transfer = Math.min(h.cargoRaw, room);
-  state.economy.raw += transfer;
+  economy.raw += transfer;
   h.cargoRaw -= transfer;
   h.blockedReason = undefined; // Making progress — clear any previous block
 
@@ -524,135 +531,92 @@ function findResourceById(
  * When power is unavailable, progress is preserved (not reset).
  */
 function allocatePowerAndProcess(state: GameState, dt: number): void {
-  const playerFaction = state.playerFaction;
+  const match = normalizeMatchState(state);
+  const remainingPower = new Map<TeamId, number>();
+  for (const teamId of match.activeTeamIds) {
+    const team = match.teams[teamId];
+    const powerPlants = state.mapData.buildings.filter(
+      building => (building.ownerTeamId ?? match.humanTeamId) === teamId && building.type === 'power-plant',
+    ).length;
+    remainingPower.set(teamId, (team.hqPosition ? HQ_BASE_POWER : 0) + powerPlants * POWER_PLANT_GENERATION);
+  }
 
-  // Compute total available power
-  let remainingPower = HQ_BASE_POWER +
-    state.mapData.buildings.filter(b => b.type === 'power-plant').length * POWER_PLANT_GENERATION;
-
-  // Build lookup maps for separator and factory runtime state by position
   const separatorMap = new Map<string, typeof state.economy.separators[0]>();
-  for (const sep of state.economy.separators) {
-    separatorMap.set(`${sep.tx},${sep.ty}`, sep);
+  for (const teamId of match.activeTeamIds) {
+    for (const separator of match.teams[teamId].economy.separators) {
+      const ownerTeamId = separator.ownerTeamId ?? teamId;
+      separatorMap.set(`${ownerTeamId}:${separator.tx},${separator.ty}`, separator);
+    }
   }
 
   const factoryMap = new Map<string, typeof state.production.factories[0]>();
   for (const factory of state.production.factories) {
-    factoryMap.set(`${factory.tx},${factory.ty}`, factory);
+    const ownerTeamId = factory.ownerTeamId ?? match.humanTeamId;
+    factoryMap.set(`${ownerTeamId}:${factory.tx},${factory.ty}`, factory);
   }
 
-  // Iterate buildings in completed build order
   for (const building of state.mapData.buildings) {
+    const ownerTeamId = building.ownerTeamId ?? match.humanTeamId;
+    const owner = match.teams[ownerTeamId];
+    let availablePower = remainingPower.get(ownerTeamId) ?? 0;
+
     if (building.type === 'separator') {
-      const sep = separatorMap.get(`${building.tx},${building.ty}`);
-      if (!sep) continue;
-
-      // ARCH-01D: Check resource/cap conditions for separator to process
+      const separator = separatorMap.get(`${ownerTeamId}:${building.tx},${building.ty}`);
+      if (!separator) continue;
+      const economy = owner.economy;
       const hasResources =
-        state.economy.raw >= SEP_RAW_COST &&
-        state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
-        state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
-
-      if (!hasResources) {
-        sep.active = false;
+        economy.raw >= SEP_RAW_COST
+        && economy.matter + SEP_MATTER_YIELD <= economy.matterCap
+        && economy.elements[owner.faction] + SEP_ELEMENT_YIELD <= economy.elementCap;
+      if (!hasResources || availablePower < SEPARATOR_ACTIVE_POWER_CONSUMPTION) {
+        separator.active = false;
         continue;
       }
 
-      // Check power
-      if (remainingPower < SEPARATOR_ACTIVE_POWER_CONSUMPTION) {
-        sep.active = false;
-        continue;
-      }
-
-      // Allocate power and process
-      remainingPower -= SEPARATOR_ACTIVE_POWER_CONSUMPTION;
-      sep.active = true;
-
-      // Advance progress
-      sep.progress += dt / SEP_CYCLE_MS;
-
-      // Complete as many full cycles as progress allows
-      while (sep.progress >= 1) {
-        // Re-check resource conditions before consuming each cycle
+      availablePower -= SEPARATOR_ACTIVE_POWER_CONSUMPTION;
+      remainingPower.set(ownerTeamId, availablePower);
+      separator.active = true;
+      separator.progress += dt / SEP_CYCLE_MS;
+      while (separator.progress >= 1) {
         if (
-          state.economy.raw < SEP_RAW_COST ||
-          state.economy.matter + SEP_MATTER_YIELD > state.economy.matterCap ||
-          state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD > state.economy.elementCap
+          economy.raw < SEP_RAW_COST
+          || economy.matter + SEP_MATTER_YIELD > economy.matterCap
+          || economy.elements[owner.faction] + SEP_ELEMENT_YIELD > economy.elementCap
         ) {
-          sep.active = false;
-          remainingPower += SEPARATOR_ACTIVE_POWER_CONSUMPTION;
-          sep.progress = Math.min(sep.progress, 1);
+          separator.active = false;
+          remainingPower.set(ownerTeamId, availablePower + SEPARATOR_ACTIVE_POWER_CONSUMPTION);
+          separator.progress = Math.min(separator.progress, 1);
           break;
         }
-
-        // Consume raw, yield matter and elementUnits
-        state.economy.raw -= SEP_RAW_COST;
-        state.economy.matter += SEP_MATTER_YIELD;
-        state.economy.elements[playerFaction] += SEP_ELEMENT_YIELD;
-
-        sep.progress -= 1;
-      }
-
-      // After processing, re-check active state
-      const stillHasResources =
-        state.economy.raw >= SEP_RAW_COST &&
-        state.economy.matter + SEP_MATTER_YIELD <= state.economy.matterCap &&
-        state.economy.elements[playerFaction] + SEP_ELEMENT_YIELD <= state.economy.elementCap;
-      if (!stillHasResources) {
-        sep.active = false;
-        remainingPower += SEPARATOR_ACTIVE_POWER_CONSUMPTION;
+        economy.raw -= SEP_RAW_COST;
+        economy.matter += SEP_MATTER_YIELD;
+        economy.elements[owner.faction] += SEP_ELEMENT_YIELD;
+        separator.progress -= 1;
       }
     } else if (building.type === 'units-factory') {
-      const factory = factoryMap.get(`${building.tx},${building.ty}`);
+      const factory = factoryMap.get(`${ownerTeamId}:${building.tx},${building.ty}`);
       if (!factory) continue;
-
-      // Check if factory has anything to produce
       const unfinishedItem = factory.queue.find(item => !item.completed);
       if (!unfinishedItem) {
         factory.active = false;
-        // Still try to spawn any completed items
         processFactorySpawns(state, factory);
         continue;
       }
-
-      // Check power
-      if (remainingPower < UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION) {
+      if (availablePower < UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION) {
         factory.active = false;
-        // Still try to spawn any completed items (doesn't consume power)
         processFactorySpawns(state, factory);
         continue;
       }
-
-      // Allocate power for this factory
-      remainingPower -= UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION;
+      availablePower -= UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION;
+      remainingPower.set(ownerTeamId, availablePower);
       factory.active = true;
-
-      // Advance progress on the first unfinished item
       unfinishedItem.elapsedMs += dt;
       unfinishedItem.progress = Math.min(unfinishedItem.elapsedMs / unfinishedItem.durationMs, 1);
-
       if (unfinishedItem.progress >= 1) {
         unfinishedItem.completed = true;
         unfinishedItem.progress = 1;
       }
-
-      // Try to spawn completed items
       processFactorySpawns(state, factory);
-    }
-  }
-
-  // Mark any separators not found in mapData.buildings as inactive
-  // (shouldn't happen in normal flow, but safety)
-  for (const sep of state.economy.separators) {
-    if (!separatorMap.has(`${sep.tx},${sep.ty}`)) {
-      // Already processed above or not in buildings — skip
-    }
-  }
-
-  // Mark any factories not found in mapData.buildings as inactive
-  for (const factory of state.production.factories) {
-    if (!factoryMap.has(`${factory.tx},${factory.ty}`)) {
-      // Not in buildings — shouldn't happen
     }
   }
 }
@@ -679,8 +643,14 @@ function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState
     // item must recheck the live unit count. If cap is reached, the
     // completed item stays in queue and retries on later ticks.
     // Phase 2: combat units count toward the cap.
-    const liveUnitCount = state.mapData.builders.length + state.harvesters.length + state.combatUnits.length;
-    if (liveUnitCount >= DEFAULT_UNIT_CAP) {
+    const match = normalizeMatchState(state);
+    const ownerTeamId = factory.ownerTeamId ?? match.humanTeamId;
+    const owner = match.teams[ownerTeamId];
+    const liveUnitCount =
+      state.mapData.builders.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
+      + state.harvesters.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
+      + state.combatUnits.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length;
+    if (liveUnitCount >= owner.unitCap) {
       break;
     }
 
@@ -692,11 +662,11 @@ function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState
     }
 
     if (item.unitType === 'builder') {
-      spawnBuilder(state, spawnPos.tx, spawnPos.ty);
+      spawnBuilder(state, spawnPos.tx, spawnPos.ty, ownerTeamId);
     } else if (item.unitType === 'harvester') {
-      spawnHarvesterUnit(state, spawnPos.tx, spawnPos.ty);
+      spawnHarvesterUnit(state, spawnPos.tx, spawnPos.ty, ownerTeamId);
     } else if (item.unitType === 'wasp-smoky') {
-      spawnCombatUnit(state, spawnPos.tx, spawnPos.ty, item);
+      spawnCombatUnit(state, spawnPos.tx, spawnPos.ty, item, ownerTeamId);
     }
 
     factory.queue.shift();
@@ -770,11 +740,13 @@ function getRingCandidates(
 /**
  * Spawn a builder unit at the given tile position.
  */
-function spawnBuilder(state: GameState, tx: number, ty: number): void {
+function spawnBuilder(state: GameState, tx: number, ty: number, ownerTeamId: TeamId): void {
+  const owner = getOwningTeam(state, ownerTeamId);
   // BUILDER-ID: Generate a stable, unique ID for the spawned builder.
   const id = `builder-spawn-${tx}-${ty}-${Date.now()}`;
   const builder: BuilderPlacement = {
     id,
+    ownerTeamId: owner.id,
     tx,
     ty,
     busy: false,
@@ -794,16 +766,18 @@ function spawnBuilder(state: GameState, tx: number, ty: number): void {
     kind: 'builder',
     tx,
     ty,
-    faction: state.playerFaction,
+    faction: owner.faction,
+    ownerTeamId: owner.id,
   });
 }
 
 /**
  * Spawn a harvester unit at the given tile position.
  */
-function spawnHarvesterUnit(state: GameState, tx: number, ty: number): void {
+function spawnHarvesterUnit(state: GameState, tx: number, ty: number, ownerTeamId: TeamId): void {
+  const owner = getOwningTeam(state, ownerTeamId);
   const id = `harvester-spawn-${tx}-${ty}-${Date.now()}`;
-  const harvester = createHarvester(id, tx, ty, state.playerFaction);
+  const harvester = createHarvester(id, tx, ty, owner.faction, owner.id);
   state.harvesters.push(harvester);
 
   state.entities.push({
@@ -811,7 +785,8 @@ function spawnHarvesterUnit(state: GameState, tx: number, ty: number): void {
     kind: 'harvester',
     tx,
     ty,
-    faction: state.playerFaction,
+    faction: owner.faction,
+    ownerTeamId: owner.id,
   });
 }
 
@@ -826,19 +801,22 @@ function spawnCombatUnit(
   tx: number,
   ty: number,
   item: ProductionQueueItem,
+  ownerTeamId: TeamId,
 ): void {
+  const owner = getOwningTeam(state, ownerTeamId);
   const config = getCombatProductionConfig(item);
   if (!config) return;
 
   const combatUnit: ModularCombatUnit = {
     id: allocateCombatUnitId(state),
+    ownerTeamId: owner.id,
     tx,
     ty,
     bodyId: config.bodyId,
     weaponId: config.weaponId,
     hullMod: config.hullMod,
     turretMod: config.turretMod,
-    faction: state.playerFaction,
+    faction: owner.faction,
     dir: 2,
     turretDir: 2,
   };
@@ -861,16 +839,22 @@ function spawnCombatUnit(
  * powerConsumed reflects the active state determined during the update.
  */
 function recomputePower(state: GameState): void {
-  const powerPlantCount = state.mapData.buildings.filter(b => b.type === 'power-plant').length;
-  state.economy.powerGenerated = HQ_BASE_POWER + powerPlantCount * POWER_PLANT_GENERATION;
-
-  // powerConsumed = count of active separators * SEPARATOR_ACTIVE_POWER_CONSUMPTION
-  //              + count of active factories producing * UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION
-  const activeSeparatorCount = state.economy.separators.filter(s => s.active).length;
-  const activeFactoryCount = state.production.factories.filter(f => f.active).length;
-  state.economy.powerConsumed =
-    activeSeparatorCount * SEPARATOR_ACTIVE_POWER_CONSUMPTION +
-    activeFactoryCount * UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION;
+  const match = normalizeMatchState(state);
+  for (const teamId of match.activeTeamIds) {
+    const team = match.teams[teamId];
+    const powerPlantCount = state.mapData.buildings.filter(
+      building => (building.ownerTeamId ?? match.humanTeamId) === teamId && building.type === 'power-plant',
+    ).length;
+    team.economy.powerGenerated = (team.hqPosition ? HQ_BASE_POWER : 0)
+      + powerPlantCount * POWER_PLANT_GENERATION;
+    const activeSeparatorCount = team.economy.separators.filter(separator => separator.active).length;
+    const activeFactoryCount = state.production.factories.filter(
+      factory => (factory.ownerTeamId ?? match.humanTeamId) === teamId && factory.active,
+    ).length;
+    team.economy.powerConsumed =
+      activeSeparatorCount * SEPARATOR_ACTIVE_POWER_CONSUMPTION
+      + activeFactoryCount * UNITS_FACTORY_ACTIVE_POWER_CONSUMPTION;
+  }
 }
 
 // ─── Factory helpers ────────────────────────────────────────────────
@@ -881,9 +865,11 @@ export function createHarvester(
   tx: number,
   ty: number,
   faction: Faction = 'cyan',
+  ownerTeamId?: TeamId,
 ): HarvesterState {
   return {
     id,
+    ownerTeamId,
     ftx: tx,
     fty: ty,
     faction,

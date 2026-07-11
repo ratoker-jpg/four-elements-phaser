@@ -29,6 +29,11 @@ export type TerrainType =
 
 export type Faction = 'cyan' | 'green' | 'yellow' | 'purple';
 
+export type TeamId = 'team-cyan' | 'team-green' | 'team-yellow' | 'team-purple';
+export type TeamController = 'human' | 'ai';
+export type AiDifficulty = 'recruit' | 'lieutenant' | 'veteran';
+export type TechTier = 1 | 2 | 3;
+
 // ─── Resources ──────────────────────────────────────────────────────
 
 export type ResourceType = 'small' | 'medium' | 'large' | 'infinite';
@@ -85,6 +90,7 @@ export interface HqPlacement {
   tx: number;
   ty: number;
   faction: Faction;
+  ownerTeamId?: TeamId;
 }
 
 // ─── Buildings ──────────────────────────────────────────────────────
@@ -103,6 +109,7 @@ export interface BuildingPlacement {
   tx: number;
   ty: number;
   type: BuildingType;
+  ownerTeamId?: TeamId;
 }
 
 // ─── Builders ───────────────────────────────────────────────────────
@@ -112,6 +119,7 @@ export type BuilderPhase = 'idle' | 'moving-to-site' | 'building';
 export interface BuilderPlacement {
   /** BUILDER-ID: Stable string ID for this builder (e.g., 'builder-0', 'builder-spawn-...'). */
   id: string;
+  ownerTeamId?: TeamId;
   tx: number;
   ty: number;
   busy: boolean;
@@ -139,6 +147,7 @@ export interface ConstructionSitePlacement {
   builderIndex: number;
   id: number;
   pending: boolean;
+  ownerTeamId?: TeamId;
 }
 
 // ─── Extra Starter Units (not from saved map) ──────────────────────
@@ -178,6 +187,7 @@ export interface CombatUnitRuntimeState {
 /** Canonical dynamic combat-unit state. Render entities are derived from this object. */
 export interface ModularCombatUnit {
   id: string;
+  ownerTeamId?: TeamId;
   tx: number;
   ty: number;
   bodyId: BodyId;
@@ -220,6 +230,7 @@ export type EntityKind = 'hq' | 'builder' | 'harvester' | 'resource' | 'modular-
 /** A flattened renderable entity for the render layer convenience. */
 export interface RenderableEntity {
   id: string;
+  ownerTeamId?: TeamId;
   kind: EntityKind;
   tx: number;
   ty: number;
@@ -255,6 +266,7 @@ export type HarvesterBlockedReason =
 /** Runtime state for a single harvester unit. */
 export interface HarvesterState {
   id: string;
+  ownerTeamId?: TeamId;
   /** Fractional tile X — updated every frame during movement. */
   ftx: number;
   /** Fractional tile Y — updated every frame during movement. */
@@ -345,6 +357,7 @@ export interface SeparatorRuntimeState {
   progress: number;
   /** Whether the separator is actively processing (has enough raw). */
   active: boolean;
+  ownerTeamId?: TeamId;
 }
 
 // ─── Power Constants (ARCH-01E) ──────────────────────────────────────
@@ -486,6 +499,7 @@ export interface ProductionQueueItem {
 
 /** Runtime state for a single completed units-factory building. */
 export interface UnitFactoryRuntimeState {
+  ownerTeamId?: TeamId;
   /** Tile X of the factory building (top-left of footprint). */
   tx: number;
   /** Tile Y of the factory building (top-left of footprint). */
@@ -502,6 +516,25 @@ export interface ProductionState {
   factories: UnitFactoryRuntimeState[];
 }
 
+export interface TeamState {
+  id: TeamId;
+  faction: Faction;
+  controller: TeamController;
+  difficulty: AiDifficulty | null;
+  economy: EconomyState;
+  vision: VisionState;
+  unitCap: number;
+  techTier: TechTier;
+  hqPosition: { tx: number; ty: number } | null;
+  eliminated: boolean;
+}
+
+export interface MatchState {
+  humanTeamId: TeamId;
+  activeTeamIds: TeamId[];
+  teams: Record<TeamId, TeamState>;
+}
+
 // ─── Game State ─────────────────────────────────────────────────────
 
 /** Top-level game state. Pure data, no methods, no Phaser. */
@@ -516,8 +549,10 @@ export interface GameState {
   /** Flattened renderable entities derived from mapData + extra starter units. */
   entities: RenderableEntity[];
   playerFaction: Faction;
+  /** Canonical four-team state. Optional only for old saves and legacy fixtures. */
+  match?: MatchState;
   /** Extra starter units not present in the original saved map. */
-  extraHarvesters: Array<{ tx: number; ty: number; faction: Faction }>;
+  extraHarvesters: Array<{ tx: number; ty: number; faction: Faction; ownerTeamId?: TeamId }> ;
   extraModularCombat: ModularCombatUnit[];
 
   // ── PR3: Runtime state ──────────────────────────────────────────

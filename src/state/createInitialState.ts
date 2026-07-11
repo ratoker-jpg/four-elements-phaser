@@ -26,6 +26,7 @@ import { resolveResourceRawAmount } from '../config/resourceClassRuntime';
 import { createHarvester } from './updateGameState';
 import { customMap1 } from '../data/maps/customMap1';
 import { createInitialVisionState, recomputeVisibility } from './visibility';
+import { createInitialMatchState, normalizeMatchState } from './matchState';
 
 /** Options for createInitialState. */
 export interface CreateInitialStateOptions {
@@ -133,6 +134,9 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
   // ARCH-16B: Derive mapName from mapData or use override
   const mapName = mapNameOverride ?? `Map ${mapData.width}x${mapData.height}`;
 
+  const economy = arenaMode ? createArenaEconomy() : createInitialEconomy(faction, mapData);
+  const vision = createInitialVisionState(mapData.width, mapData.height);
+
   const state: GameState = {
     mapId: `map-${faction}-${mapData.width}x${mapData.height}`,
     mapName,
@@ -147,7 +151,7 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     // PR3 runtime state
     harvesters,
     resourceNodes,
-    economy: arenaMode ? createArenaEconomy() : createInitialEconomy(faction, mapData),
+    economy,
     hqPosition,
     nextConstructionId: 0,
     nextCombatUnitId: 0,
@@ -157,9 +161,19 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     // Phase 2: combat units — empty at start (produced via factory)
     combatUnits: [],
 
-    // FOG-VISION-08: Initialize vision state and compute initial visibility
-    vision: createInitialVisionState(mapData.width, mapData.height),
+    // FOG-VISION-08: Human compatibility alias points at the human TeamState vision.
+    vision,
+    match: createInitialMatchState({
+      humanFaction: faction,
+      humanEconomy: economy,
+      humanVision: vision,
+      humanHqPosition: hqPosition,
+      mapWidth: mapData.width,
+      mapHeight: mapData.height,
+    }),
   };
+
+  normalizeMatchState(state);
 
   // FOG-VISION-08: Compute initial visibility from HQ and starting units
   // Arena mode gets no fog (all tiles explored)

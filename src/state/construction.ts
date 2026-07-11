@@ -20,10 +20,11 @@
  * - No economy redesign beyond matter-based construction deduction
  */
 
-import type { GameState, BuildingType } from './types';
+import type { GameState, BuildingType, TeamId } from './types';
 import { RAW_STORAGE_RAW_BONUS, MATTER_STORAGE_MATTER_BONUS, ELEMENT_STORAGE_ELEMENT_BONUS } from './types';
 import { buildOccupancyMap, isBuildable } from './occupancy';
 import { isVisualReadyBuilding } from '../config/buildingRuntimeMapping';
+import { getOwningTeam, normalizeMatchState } from './matchState';
 
 // ─── Building Configuration ─────────────────────────────────────────
 
@@ -129,7 +130,11 @@ export function canPlaceBuilding(
   buildingType: BuildingType,
   tx: number,
   ty: number,
+  ownerTeamId?: TeamId,
 ): PlacementResult {
+  normalizeMatchState(state);
+  const owner = getOwningTeam(state, ownerTeamId);
+
   // 1. Unknown building type
   const config = BUILDING_CONFIG[buildingType];
   if (!config) return { valid: false, reason: 'unknown-building-type' };
@@ -152,7 +157,7 @@ export function canPlaceBuilding(
   }
 
   // 4. Insufficient matter
-  if (state.economy.matter < config.costMatter) {
+  if (owner.economy.matter < config.costMatter) {
     return { valid: false, reason: 'insufficient-resources' };
   }
 
@@ -173,9 +178,13 @@ export function placeConstructionSite(
   buildingType: BuildingType,
   tx: number,
   ty: number,
+  ownerTeamId?: TeamId,
 ): { ok: true; siteId: string } | { ok: false; reason: PlacementRejectionReason } {
   // Validate first — no mutation on failure
-  const validation = canPlaceBuilding(state, buildingType, tx, ty);
+  const match = normalizeMatchState(state);
+  const resolvedOwnerTeamId = ownerTeamId ?? match.humanTeamId;
+  const owner = match.teams[resolvedOwnerTeamId];
+  const validation = canPlaceBuilding(state, buildingType, tx, ty, resolvedOwnerTeamId);
   if (!validation.valid) {
     return { ok: false, reason: validation.reason };
   }
@@ -183,7 +192,7 @@ export function placeConstructionSite(
   const config = BUILDING_CONFIG[buildingType]!; // guaranteed non-null after validation
 
   // Deduct matter
-  state.economy.matter -= config.costMatter;
+  owner.economy.matter -= config.costMatter;
 
   // Create construction site with deterministic ID
   const siteId = `site-${state.nextConstructionId}`;
@@ -197,6 +206,7 @@ export function placeConstructionSite(
     builderIndex: -1,
     id: state.nextConstructionId,
     pending: true,
+    ownerTeamId: resolvedOwnerTeamId,
   });
   state.nextConstructionId++;
 
@@ -234,6 +244,7 @@ export function updateConstructionSiteProgress(
   if (siteIndex === -1) return { completed: false };
 
   const site = state.mapData.constructionSites[siteIndex];
+  const owner = getOwningTeam(state, site.ownerTeamId);
 
   // ARCH-13E3: Do not advance progress if builder hasn't started building yet.
   // site.pending === true means no builder is actively building at this site.
@@ -269,25 +280,27 @@ export function updateConstructionSiteProgress(
     tx: site.tx,
     ty: site.ty,
     type: site.type,
+    ownerTeamId: owner.id,
   });
 
   // ARCH-01C: Register completed separator into economy separator runtime state.
   if (site.type === 'separator') {
-    state.economy.separators.push({
+    owner.economy.separators.push({
       tx: site.tx,
       ty: site.ty,
       progress: 0,
       active: false,
+      ownerTeamId: owner.id,
     });
   }
 
   // ARCH-01D / CORE-STEP-04H+: Apply storage cap bonuses for completed storage buildings.
   if (site.type === 'raw-storage') {
-    state.economy.rawCap += RAW_STORAGE_RAW_BONUS;
+    owner.economy.rawCap += RAW_STORAGE_RAW_BONUS;
   } else if (site.type === 'matter-storage') {
-    state.economy.matterCap += MATTER_STORAGE_MATTER_BONUS;
+    owner.economy.matterCap += MATTER_STORAGE_MATTER_BONUS;
   } else if (site.type === 'element-storage') {
-    state.economy.elementCap += ELEMENT_STORAGE_ELEMENT_BONUS;
+    owner.economy.elementCap += ELEMENT_STORAGE_ELEMENT_BONUS;
   }
   // energy-plant: visual-ready, no gameplay mechanic yet
 
@@ -298,6 +311,7 @@ export function updateConstructionSiteProgress(
       ty: site.ty,
       queue: [],
       active: false,
+      ownerTeamId: owner.id,
     });
   }
 

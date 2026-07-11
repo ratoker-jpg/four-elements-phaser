@@ -33,10 +33,10 @@ import {
   HARVESTER_PRODUCTION_MATTER_COST,
   HARVESTER_PRODUCTION_ELEMENT_COST,
   HARVESTER_PRODUCTION_DURATION_MS,
-  DEFAULT_UNIT_CAP,
 } from './types';
 import { normalizeProductionRequest } from './combatUnits';
 import { getT1CombatProductionQuote } from '../config/t1ProductionComponents';
+import { normalizeMatchState } from './matchState';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -147,11 +147,15 @@ export function startUnitProduction(
   factoryTy: number,
   input: ProducibleUnitType | UnitProductionRequest,
 ): ProductionResult {
+  const match = normalizeMatchState(state);
+
   // 1. Find the factory
   const factory = state.production.factories.find(
     f => f.tx === factoryTx && f.ty === factoryTy,
   );
   if (!factory) return { ok: false, reason: 'factory-not-found' };
+  const ownerTeamId = factory.ownerTeamId ?? match.humanTeamId;
+  const owner = match.teams[ownerTeamId];
 
   // 2. Check queue limit
   if (factory.queue.length >= QUEUE_LIMIT) {
@@ -163,26 +167,29 @@ export function startUnitProduction(
 
   // 3. Check matter cost
   const matterCost = quote.matterCost;
-  if (state.economy.matter < matterCost) {
+  if (owner.economy.matter < matterCost) {
     return { ok: false, reason: 'insufficient-matter' };
   }
 
   // 4. Check element cost
   const elementCost = quote.elementCost;
-  if (state.economy.elements[state.playerFaction] < elementCost) {
+  if (owner.economy.elements[owner.faction] < elementCost) {
     return { ok: false, reason: 'insufficient-element' };
   }
 
   // 5. Check unit cap — block queueing if already at cap
   // Phase 2: combat units count toward the cap
-  const currentUnitCount = state.mapData.builders.length + state.harvesters.length + (state.combatUnits?.length ?? 0);
-  if (currentUnitCount >= DEFAULT_UNIT_CAP) {
+  const currentUnitCount =
+    state.mapData.builders.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
+    + state.harvesters.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
+    + (state.combatUnits?.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length ?? 0);
+  if (currentUnitCount >= owner.unitCap) {
     return { ok: false, reason: 'unit-cap-reached' };
   }
 
   // 6. Deduct costs
-  state.economy.matter -= matterCost;
-  state.economy.elements[state.playerFaction] -= elementCost;
+  owner.economy.matter -= matterCost;
+  owner.economy.elements[owner.faction] -= elementCost;
 
   // 7. Create queue item
   const durationMs = quote.durationMs;
