@@ -1,0 +1,69 @@
+name: SKIRMISH P4B Bootstrap
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: skirmish-p4b-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Detect bootstrap
+        id: bootstrap
+        run: |
+          if [ -f tools/apply_skirmish_p4b.py ]; then
+            echo "apply=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apply=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply implementation
+        if: steps.bootstrap.outputs.apply == 'true'
+        run: python3 tools/apply_skirmish_p4b.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run sync:project-status -- --check
+      - run: npm run typecheck
+      - name: Focused owner-control tests
+        run: >-
+          npx vitest run
+          src/__tests__/ownerAwareControl.test.ts
+          src/__tests__/selectionControlGroups05.test.ts
+          src/__tests__/commandRouter.test.ts
+          src/__tests__/combatUnitMovement.test.ts
+          src/__tests__/combatUnitCombat.test.ts
+          src/__tests__/buildSiteSelection.test.ts
+      - run: npm audit --audit-level=high
+      - run: git diff --check
+
+      - name: Commit implementation
+        if: steps.bootstrap.outputs.apply == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/state src/phaser/input/GameInputController.ts src/__tests__/ownerAwareControl.test.ts
+          if git diff --cached --quiet; then
+            echo "No implementation changes to commit"
+            exit 0
+          fi
+          git commit -m "Enforce owner-aware player control"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
