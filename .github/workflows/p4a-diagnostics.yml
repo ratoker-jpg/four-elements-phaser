@@ -1,0 +1,32 @@
+name: P4A Vitest Diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  vitest-json:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Full Vitest JSON
+        id: vitest
+        continue-on-error: true
+        run: npx vitest run --reporter=json --outputFile=vitest-results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p4a-vitest-results
+          path: vitest-results.json
+      - name: Enforce Vitest
+        if: steps.vitest.outcome != 'success'
+        run: exit 1
