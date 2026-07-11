@@ -13,6 +13,8 @@ import { QUEUE_LIMIT, type GameState, type BuilderPlacement, type HarvesterState
 import { getBuildingDisplayName } from '../../../config/buildingRuntimeMapping';
 import type { UnitSelection } from '../../../state/unitSelection';
 import { isUnitSelected, isBuilderSelected, isHarvesterSelected, isBuildingSelected, getSelectionTypeBreakdown, getPrimarySelection } from '../../../state/unitSelection';
+import { getHumanTeam } from '../../../state/matchState';
+import { resolveEntityFaction } from '../../../state/teamOwnership';
 
 export interface SelectionViewModel {
   /** Whether anything is selected. */
@@ -97,7 +99,7 @@ export function buildSelectionViewModel(
       hasSelection: true,
       name: 'Multiple Units',
       kind: 'multi',
-      faction: state.playerFaction,
+      faction: getHumanTeam(state).faction,
       hpCurrent: null,
       hpMax: null,
       status: `${count} unit${count !== 1 ? 's' : ''} selected`,
@@ -117,7 +119,7 @@ export function buildSelectionViewModel(
       hasSelection: true,
       name: 'Builder',
       kind: 'builder',
-      faction: state.playerFaction,
+      faction: resolveEntityFaction(state, builder),
       hpCurrent: null,
       hpMax: null,
       status: builderStatus(builder),
@@ -129,6 +131,10 @@ export function buildSelectionViewModel(
   if (isBuildingSelected(selection)) {
     const primary = getPrimarySelection(selection);
     if (!primary || primary.kind !== 'building') return EMPTY_SELECTION;
+    const building = state.mapData.buildings.find(item =>
+      item.type === primary.buildingType && item.tx === primary.tx && item.ty === primary.ty,
+    );
+    if (!building) return EMPTY_SELECTION;
     const factory = primary.buildingType === 'units-factory'
       ? state.production.factories.find(item => item.tx === primary.tx && item.ty === primary.ty)
       : undefined;
@@ -136,7 +142,7 @@ export function buildSelectionViewModel(
       hasSelection: true,
       name: getBuildingDisplayName(primary.buildingType) ?? primary.buildingType,
       kind: 'building',
-      faction: state.playerFaction,
+      faction: resolveEntityFaction(state, building),
       hpCurrent: null,
       hpMax: null,
       status: primary.buildingType === 'units-factory'
@@ -157,7 +163,7 @@ export function buildSelectionViewModel(
       hasSelection: true,
       name: 'Harvester',
       kind: 'harvester',
-      faction: harvester.faction,
+      faction: resolveEntityFaction(state, harvester),
       hpCurrent: null,
       hpMax: null,
       status: harvesterStatus(harvester),

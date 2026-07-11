@@ -1,6 +1,7 @@
 import type { GameState } from '../../../state/types';
 import type { UnitSelection } from '../../../state/unitSelection';
 import { getPrimarySelection } from '../../../state/unitSelection';
+import { resolveEntityFaction } from '../../../state/teamOwnership';
 import {
   DEFAULT_FACTORY_COMPOSER_STATE,
   getFactoryComposerQuote,
@@ -50,11 +51,16 @@ export function buildFactoryComposerPreviewViewModel(
     return { ...EMPTY_FACTORY_COMPOSER_PREVIEW };
   }
 
+  const building = state.mapData.buildings.find(item =>
+    item.type === 'units-factory' && item.tx === primary.tx && item.ty === primary.ty,
+  );
+  if (!building) return { ...EMPTY_FACTORY_COMPOSER_PREVIEW };
+
   const quote = getFactoryComposerQuote(composer);
   const turretId = weaponIdToTurretId(quote.weaponId);
   if (!turretId) return { ...EMPTY_FACTORY_COMPOSER_PREVIEW };
 
-  const faction = resolveGeneratedHullFaction(state.playerFaction);
+  const faction = resolveGeneratedHullFaction(resolveEntityFaction(state, building));
   return {
     visible: true,
     hullSrc: getGeneratedHullAssetPath(quote.bodyId, faction, quote.hullMod, FACTORY_PREVIEW_DIR16),

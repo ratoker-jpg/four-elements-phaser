@@ -5,7 +5,7 @@ import type {
   ModularCombatUnit,
   TeamId,
 } from './types';
-import { ensureMatchState, teamIdForFaction } from './matchState';
+import { ensureMatchState, factionForTeamId, teamIdForFaction } from './matchState';
 import type { SelectableUnit } from './unitSelection';
 
 export interface OwnedEntityRef {
@@ -22,6 +22,14 @@ export function resolveEntityTeamId(
   if (entity.ownerTeamId && match.teams[entity.ownerTeamId]) return entity.ownerTeamId;
   if (entity.faction) return teamIdForFaction(entity.faction);
   return match.humanTeamId;
+}
+
+/** Resolve the visual/gameplay faction from canonical team ownership. */
+export function resolveEntityFaction(
+  state: GameState,
+  entity: OwnedEntityRef,
+): Faction {
+  return factionForTeamId(resolveEntityTeamId(state, entity));
 }
 
 export function isHumanOwned(
