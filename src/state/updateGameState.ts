@@ -37,7 +37,7 @@ import { isResourceInfinite } from '../config/resourceClassRuntime';
 import { allocateCombatUnitId, createCombatUnitRuntime, getCombatProductionConfig } from './combatUnits';
 import { updateAllCombatUnitMovement } from './combatUnitMovement';
 import { updateAllCombatUnitCombat } from './combatUnitCombat';
-import { getOwningTeam, normalizeMatchState } from './matchState';
+import { getOwningTeam, ensureMatchState } from './matchState';
 export { directionFromDelta } from './unitDirection';
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ const ARRIVAL_THRESHOLD = 0.03;
  * given the same input state and delta.
  */
 export function updateGameState(state: GameState, deltaMs: number): void {
-  normalizeMatchState(state);
+  ensureMatchState(state);
   // Clamp delta for movement to prevent huge jumps after tab-switch.
   // Production/separators use the full deltaMs for accurate time advancement.
   const moveDt = Math.min(deltaMs, 200);
@@ -321,9 +321,12 @@ function handleReturningToHQ(
   // On first entry, compute return path
   if (!h.returnPath) {
     const owner = getOwningTeam(state, h.ownerTeamId, h.faction);
-    const ownerHq = owner.hqPosition ?? state.hqPosition;
-    const hqTx = ownerHq.tx;
-    const hqTy = ownerHq.ty;
+    if (!owner.hqPosition) {
+      h.blockedReason = 'no-path-to-hq';
+      return;
+    }
+    const hqTx = owner.hqPosition.tx;
+    const hqTy = owner.hqPosition.ty;
     const startTx = Math.round(h.ftx);
     const startTy = Math.round(h.fty);
     const occupancy = buildOccupancyMap(state);
@@ -531,7 +534,7 @@ function findResourceById(
  * When power is unavailable, progress is preserved (not reset).
  */
 function allocatePowerAndProcess(state: GameState, dt: number): void {
-  const match = normalizeMatchState(state);
+  const match = ensureMatchState(state);
   const remainingPower = new Map<TeamId, number>();
   for (const teamId of match.activeTeamIds) {
     const team = match.teams[teamId];
@@ -593,6 +596,17 @@ function allocatePowerAndProcess(state: GameState, dt: number): void {
         economy.elements[owner.faction] += SEP_ELEMENT_YIELD;
         separator.progress -= 1;
       }
+      const stillHasResources =
+        economy.raw >= SEP_RAW_COST
+        && economy.matter + SEP_MATTER_YIELD <= economy.matterCap
+        && economy.elements[owner.faction] + SEP_ELEMENT_YIELD <= economy.elementCap;
+      if (separator.active && !stillHasResources) {
+        separator.active = false;
+        remainingPower.set(
+          ownerTeamId,
+          (remainingPower.get(ownerTeamId) ?? 0) + SEPARATOR_ACTIVE_POWER_CONSUMPTION,
+        );
+      }
     } else if (building.type === 'units-factory') {
       const factory = factoryMap.get(`${ownerTeamId}:${building.tx},${building.ty}`);
       if (!factory) continue;
@@ -643,7 +657,7 @@ function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState
     // item must recheck the live unit count. If cap is reached, the
     // completed item stays in queue and retries on later ticks.
     // Phase 2: combat units count toward the cap.
-    const match = normalizeMatchState(state);
+    const match = ensureMatchState(state);
     const ownerTeamId = factory.ownerTeamId ?? match.humanTeamId;
     const owner = match.teams[ownerTeamId];
     const liveUnitCount =
@@ -839,7 +853,7 @@ function spawnCombatUnit(
  * powerConsumed reflects the active state determined during the update.
  */
 function recomputePower(state: GameState): void {
-  const match = normalizeMatchState(state);
+  const match = ensureMatchState(state);
   for (const teamId of match.activeTeamIds) {
     const team = match.teams[teamId];
     const powerPlantCount = state.mapData.buildings.filter(

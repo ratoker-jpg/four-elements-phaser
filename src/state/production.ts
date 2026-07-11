@@ -36,7 +36,7 @@ import {
 } from './types';
 import { normalizeProductionRequest } from './combatUnits';
 import { getT1CombatProductionQuote } from '../config/t1ProductionComponents';
-import { normalizeMatchState } from './matchState';
+import { ensureMatchState } from './matchState';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -147,7 +147,7 @@ export function startUnitProduction(
   factoryTy: number,
   input: ProducibleUnitType | UnitProductionRequest,
 ): ProductionResult {
-  const match = normalizeMatchState(state);
+  const match = ensureMatchState(state);
 
   // 1. Find the factory
   const factory = state.production.factories.find(

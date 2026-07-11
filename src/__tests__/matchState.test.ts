@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { customMap1 } from '../data/maps/customMap1';
 import { createInitialState } from '../state/createInitialState';
+import { collectVisionSources } from '../state/visibility';
+import { createHarvester, updateGameState } from '../state/updateGameState';
 import { TEAM_IDS, normalizeMatchState } from '../state/matchState';
 import { startUnitProduction } from '../state/production';
 import {
@@ -45,6 +47,37 @@ describe('SKIRMISH-P4A multi-team match state', () => {
     expect(new Set(TEAM_IDS.map(id => match.teams[id].vision)).size).toBe(4);
     expect(state.economy).toBe(match.teams['team-cyan'].economy);
     expect(state.vision).toBe(match.teams['team-cyan'].vision);
+  });
+
+
+  it('preserves normalized match and vision object identity during runtime updates', () => {
+    const state = freshState();
+    const match = state.match;
+    const vision = state.vision;
+    state.vision.dirty = false;
+    updateGameState(state, 0);
+    expect(state.match).toBe(match);
+    expect(state.vision).toBe(vision);
+    expect(state.vision.dirty).toBe(false);
+  });
+
+  it('does not expose foreign civil units as human fog vision sources', () => {
+    const state = freshState();
+    const foreign = createHarvester('green-scout', 20, 20, 'green', 'team-green');
+    state.harvesters.push(foreign);
+    const sources = collectVisionSources(state);
+    expect(sources.some(source => source.sourceId === 'green-scout')).toBe(false);
+  });
+
+  it('blocks a foreign Harvester when its team has no Headquarters instead of using the human HQ', () => {
+    const state = freshState();
+    const foreign = createHarvester('green-returner', 20, 20, 'green', 'team-green');
+    foreign.phase = 'returning-to-hq';
+    foreign.cargoRaw = 10;
+    state.harvesters.push(foreign);
+    updateGameState(state, 16);
+    expect(foreign.blockedReason).toBe('no-path-to-hq');
+    expect(foreign.returnPath).toBeUndefined();
   });
 
   it('assigns the human owner to legacy initial entities', () => {

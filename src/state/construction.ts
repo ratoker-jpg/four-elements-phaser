@@ -24,7 +24,7 @@ import type { GameState, BuildingType, TeamId } from './types';
 import { RAW_STORAGE_RAW_BONUS, MATTER_STORAGE_MATTER_BONUS, ELEMENT_STORAGE_ELEMENT_BONUS } from './types';
 import { buildOccupancyMap, isBuildable } from './occupancy';
 import { isVisualReadyBuilding } from '../config/buildingRuntimeMapping';
-import { getOwningTeam, normalizeMatchState } from './matchState';
+import { getOwningTeam, ensureMatchState } from './matchState';
 
 // ─── Building Configuration ─────────────────────────────────────────
 
@@ -132,7 +132,7 @@ export function canPlaceBuilding(
   ty: number,
   ownerTeamId?: TeamId,
 ): PlacementResult {
-  normalizeMatchState(state);
+  ensureMatchState(state);
   const owner = getOwningTeam(state, ownerTeamId);
 
   // 1. Unknown building type
@@ -181,7 +181,7 @@ export function placeConstructionSite(
   ownerTeamId?: TeamId,
 ): { ok: true; siteId: string } | { ok: false; reason: PlacementRejectionReason } {
   // Validate first — no mutation on failure
-  const match = normalizeMatchState(state);
+  const match = ensureMatchState(state);
   const resolvedOwnerTeamId = ownerTeamId ?? match.humanTeamId;
   const owner = match.teams[resolvedOwnerTeamId];
   const validation = canPlaceBuilding(state, buildingType, tx, ty, resolvedOwnerTeamId);

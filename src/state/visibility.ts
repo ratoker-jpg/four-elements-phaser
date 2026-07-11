@@ -13,7 +13,7 @@
  * - Diamond radius using Manhattan distance (|dx| + |dy| <= radius)
  */
 
-import type { BuildingType, GameState } from './types';
+import type { BuildingType, Faction, GameState, TeamId } from './types';
 import { BUILDING_TYPE_TO_PRODUCTION_ID } from '../config/buildingRuntimeMapping';
 import { BUILDING_CONFIGS } from '../config/buildingData';
 import type { AcceptedBuildingId } from '../config/coreMechanicsTypes';
@@ -143,10 +143,16 @@ export function getVisionRadiusForRuntimeBuildingType(buildingType: BuildingType
  */
 export function collectVisionSources(state: GameState): VisionSource[] {
   const sources: VisionSource[] = [];
+  const humanTeamId = state.match?.humanTeamId;
+  const isHumanOwned = (ownerTeamId?: TeamId, faction?: Faction): boolean => {
+    if (ownerTeamId && humanTeamId) return ownerTeamId === humanTeamId;
+    if (faction) return faction === state.playerFaction;
+    return true;
+  };
 
   // HQ is always a vision source
   const hq = state.mapData.hq;
-  if (hq) {
+  if (hq && isHumanOwned(hq.ownerTeamId, hq.faction)) {
     const hqRadius = HQ_VISION_RADIUS;
     const bonus = hq.faction === 'purple' ? PURPLE_FACTION_VISION_BONUS : 0;
     sources.push({
@@ -161,6 +167,7 @@ export function collectVisionSources(state: GameState): VisionSource[] {
   // Completed buildings
   const playerFaction = state.playerFaction;
   for (const building of state.mapData.buildings) {
+    if (!isHumanOwned(building.ownerTeamId)) continue;
     const radius = getVisionRadiusForRuntimeBuildingType(building.type);
     if (radius > 0) {
       const bonus = playerFaction === 'purple' ? PURPLE_FACTION_VISION_BONUS : 0;
@@ -178,6 +185,7 @@ export function collectVisionSources(state: GameState): VisionSource[] {
 
   // Builders
   for (const builder of state.mapData.builders) {
+    if (!isHumanOwned(builder.ownerTeamId)) continue;
     sources.push({
       tx: Math.round(builder.ftx),
       ty: Math.round(builder.fty),
@@ -189,6 +197,7 @@ export function collectVisionSources(state: GameState): VisionSource[] {
 
   // Harvesters
   for (const harvester of state.harvesters) {
+    if (!isHumanOwned(harvester.ownerTeamId, harvester.faction)) continue;
     sources.push({
       tx: Math.round(harvester.ftx),
       ty: Math.round(harvester.fty),
@@ -200,7 +209,7 @@ export function collectVisionSources(state: GameState): VisionSource[] {
 
   // Canonical production combat units owned by the player faction.
   for (const unit of state.combatUnits) {
-    if (unit.faction !== state.playerFaction || unit.runtime?.isDestroyed) continue;
+    if (!isHumanOwned(unit.ownerTeamId, unit.faction) || unit.runtime?.isDestroyed) continue;
     sources.push({
       tx: Math.round(unit.runtime?.ftx ?? unit.tx),
       ty: Math.round(unit.runtime?.fty ?? unit.ty),

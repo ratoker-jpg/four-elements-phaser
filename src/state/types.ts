@@ -552,7 +552,7 @@ export interface GameState {
   /** Canonical four-team state. Optional only for old saves and legacy fixtures. */
   match?: MatchState;
   /** Extra starter units not present in the original saved map. */
-  extraHarvesters: Array<{ tx: number; ty: number; faction: Faction; ownerTeamId?: TeamId }> ;
+  extraHarvesters: Array<{ tx: number; ty: number; faction: Faction; ownerTeamId?: TeamId }>;
   extraModularCombat: ModularCombatUnit[];
 
   // ── PR3: Runtime state ──────────────────────────────────────────

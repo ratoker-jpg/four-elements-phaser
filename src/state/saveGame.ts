@@ -222,8 +222,7 @@ function sanitizeForSave(gameState: GameState): GameState {
 
   clone.blockoutVehicles = undefined;
   clone.blockoutObstacles = undefined;
-  for (const teamId of match.activeTeamIds) {
-    const team = match.teams[teamId];
+  for (const team of Object.values(match.teams)) {
     team.vision = {
       explored: team.vision.explored.map(row => [...row]),
       visible: [],
