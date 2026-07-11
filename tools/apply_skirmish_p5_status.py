@@ -35,16 +35,14 @@ status.update({
 STATUS.write_text(json.dumps(status, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
 
 text = GENERATOR.read_text(encoding='utf-8')
-old_baseline = """- Skirmish Phase 3C two-layer generated modular preview closed via PR #346.
-- Produced combat units use `GameState.combatUnits` as canonical state; render data is derived."""
-new_baseline = """- Skirmish Phase 3C two-layer generated modular preview closed via PR #346.
-- Skirmish Phase 4A canonical four-team state, ownership and save v5 migration closed via PR #348.
+phase3_line = '- Skirmish Phase 3C two-layer generated modular preview closed via PR #346.'
+phase4_lines = '''- Skirmish Phase 4A canonical four-team state, ownership and save v5 migration closed via PR #348.
 - Skirmish Phase 4B owner-aware selection, commands, construction and HUD selectors closed via PR #349.
-- Skirmish Phase 4C owner-aware rendering, presentation and dev tools closed via PR #350.
-- Produced combat units use `GameState.combatUnits` as canonical state; render data is derived."""
-if old_baseline not in text:
-    raise RuntimeError('baseline marker not found')
-text = text.replace(old_baseline, new_baseline, 1)
+- Skirmish Phase 4C owner-aware rendering, presentation and dev tools closed via PR #350.'''
+if phase4_lines not in text:
+    if phase3_line not in text:
+        raise RuntimeError('Phase 3C baseline anchor not found')
+    text = text.replace(phase3_line, f'{phase3_line}\n{phase4_lines}', 1)
 
 start = text.find('function renderCurrentNext() {')
 end = text.find('\nconst agentsCurrent =', start)
