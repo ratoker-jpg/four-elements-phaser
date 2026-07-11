@@ -22,6 +22,7 @@ import { BLOCKOUT_SPAWN_VEHICLE_IDS, VEHICLE_PROFILES } from '../config/blockout
 import { BODY_PROFILES } from '../config/blockoutBodyData';
 import { WEAPON_PROFILES } from '../config/blockoutWeaponData';
 import type { BodyId, WeaponId } from '../config/blockoutProfiles';
+import { getHumanTeam } from './matchState';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -67,42 +68,46 @@ export { isArenaEnabled, ARENA_MAP_ID };
  * Add raw minerals (respects rawCap).
  */
 export function devAddRaw(state: GameState): DevCommandResult {
-  const room = state.economy.rawCap - state.economy.raw;
+  const economy = getHumanTeam(state).economy;
+  const room = economy.rawCap - economy.raw;
   if (room <= 0) {
     return { success: false, message: 'Raw storage full' };
   }
   const add = Math.min(DEV_RAW_ADD, room);
-  state.economy.raw += add;
-  return { success: true, message: `+${add} Raw (${state.economy.raw}/${state.economy.rawCap})` };
+  economy.raw += add;
+  return { success: true, message: `+${add} Raw (${economy.raw}/${economy.rawCap})` };
 }
 
 /**
  * Add matter (respects matterCap).
  */
 export function devAddMatter(state: GameState): DevCommandResult {
-  const room = state.economy.matterCap - state.economy.matter;
+  const economy = getHumanTeam(state).economy;
+  const room = economy.matterCap - economy.matter;
   if (room <= 0) {
     return { success: false, message: 'Matter storage full' };
   }
   const add = Math.min(DEV_MATTER_ADD, room);
-  state.economy.matter += add;
-  return { success: true, message: `+${add} Matter (${state.economy.matter}/${state.economy.matterCap})` };
+  economy.matter += add;
+  return { success: true, message: `+${add} Matter (${economy.matter}/${economy.matterCap})` };
 }
 
 /**
  * Add faction element units (respects elementCap).
  */
 export function devAddFactionElement(state: GameState): DevCommandResult {
-  const faction = state.playerFaction;
-  const current = state.economy.elements[faction];
-  const room = state.economy.elementCap - current;
+  const human = getHumanTeam(state);
+  const economy = human.economy;
+  const faction = human.faction;
+  const current = economy.elements[faction];
+  const room = economy.elementCap - current;
   if (room <= 0) {
     return { success: false, message: 'Element storage full' };
   }
   const add = Math.min(DEV_ELEMENT_ADD, room);
-  state.economy.elements[faction] += add;
-  const displayed = (state.economy.elements[faction] / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
-  const capDisplayed = (state.economy.elementCap / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
+  economy.elements[faction] += add;
+  const displayed = (economy.elements[faction] / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
+  const capDisplayed = (economy.elementCap / ELEMENT_UNITS_PER_ELEMENT).toFixed(1);
   const label = faction.charAt(0).toUpperCase() + faction.slice(1);
   return { success: true, message: `+${(add / ELEMENT_UNITS_PER_ELEMENT).toFixed(1)} ${label} (${displayed}/${capDisplayed})` };
 }
@@ -112,9 +117,10 @@ export function devAddFactionElement(state: GameState): DevCommandResult {
  * DEV-ONLY: bypasses normal cap constraints by setting values to caps.
  */
 export function devMaxResources(state: GameState): DevCommandResult {
-  state.economy.raw = state.economy.rawCap;
-  state.economy.matter = state.economy.matterCap;
-  state.economy.elements[state.playerFaction] = state.economy.elementCap;
+  const human = getHumanTeam(state);
+  human.economy.raw = human.economy.rawCap;
+  human.economy.matter = human.economy.matterCap;
+  human.economy.elements[human.faction] = human.economy.elementCap;
   return { success: true, message: 'DEV: All resources maxed' };
 }
 
@@ -122,9 +128,10 @@ export function devMaxResources(state: GameState): DevCommandResult {
  * Set all resources to zero.
  */
 export function devZeroResources(state: GameState): DevCommandResult {
-  state.economy.raw = 0;
-  state.economy.matter = 0;
-  state.economy.elements[state.playerFaction] = 0;
+  const human = getHumanTeam(state);
+  human.economy.raw = 0;
+  human.economy.matter = 0;
+  human.economy.elements[human.faction] = 0;
   return { success: true, message: 'All resources zeroed' };
 }
 
@@ -143,6 +150,7 @@ export function devResetArenaCommand(): DevCommandResult {
  * Spawn a builder unit near the HQ on a passable tile.
  */
 export function devSpawnBuilder(state: GameState): DevCommandResult {
+  const human = getHumanTeam(state);
   const pos = findSpawnTileNearHq(state);
   if (!pos) {
     return { success: false, message: 'No valid spawn tile near HQ' };
@@ -151,6 +159,7 @@ export function devSpawnBuilder(state: GameState): DevCommandResult {
   const id = `dev-builder-${pos.tx}-${pos.ty}-${Date.now()}`;
   const builder = {
     id,
+    ownerTeamId: human.id,
     tx: pos.tx,
     ty: pos.ty,
     busy: false,
@@ -171,7 +180,8 @@ export function devSpawnBuilder(state: GameState): DevCommandResult {
     kind: 'builder',
     tx: pos.tx,
     ty: pos.ty,
-    faction: state.playerFaction,
+    faction: human.faction,
+    ownerTeamId: human.id,
   });
 
   return { success: true, message: `Builder spawned at (${pos.tx}, ${pos.ty})` };
@@ -181,13 +191,14 @@ export function devSpawnBuilder(state: GameState): DevCommandResult {
  * Spawn a harvester unit near the HQ on a passable tile.
  */
 export function devSpawnHarvester(state: GameState): DevCommandResult {
+  const human = getHumanTeam(state);
   const pos = findSpawnTileNearHq(state);
   if (!pos) {
     return { success: false, message: 'No valid spawn tile near HQ' };
   }
 
   const id = `dev-harvester-${pos.tx}-${pos.ty}-${Date.now()}`;
-  const harvester = createHarvester(id, pos.tx, pos.ty, state.playerFaction);
+  const harvester = createHarvester(id, pos.tx, pos.ty, human.faction, human.id);
   state.harvesters.push(harvester);
 
   state.entities.push({
@@ -195,7 +206,8 @@ export function devSpawnHarvester(state: GameState): DevCommandResult {
     kind: 'harvester',
     tx: pos.tx,
     ty: pos.ty,
-    faction: state.playerFaction,
+    faction: human.faction,
+    ownerTeamId: human.id,
   });
 
   return { success: true, message: `Harvester spawned at (${pos.tx}, ${pos.ty})` };
@@ -222,7 +234,9 @@ export function devSpawnHarvester(state: GameState): DevCommandResult {
  * Exported for testing.
  */
 export function findSpawnTileNearHq(state: GameState): { tx: number; ty: number } | null {
-  const hq = state.mapData.hq;
+  const humanHq = getHumanTeam(state).hqPosition;
+  if (!humanHq) return null;
+  const hq = { tx: humanHq.tx - 1, ty: humanHq.ty - 1 };
   const occupancyMap = buildOccupancyMap(state);
 
   // BLOCKOUT-02H fixup: Build a set of positions occupied by blockout vehicles

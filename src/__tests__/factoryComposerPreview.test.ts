@@ -47,9 +47,10 @@ describe('SKIRMISH-P3C factory composer preview view model', () => {
     }
   });
 
-  it('uses the player faction asset variant', () => {
+  it('uses the selected factory owner faction asset variant', () => {
     const state = makeState();
-    state.playerFaction = 'purple';
+    state.mapData.buildings[0].ownerTeamId = 'team-purple';
+    state.production.factories[0].ownerTeamId = 'team-purple';
     const vm = buildFactoryComposerPreviewViewModel(state, factorySelection(), { bodyId: 'hunter', weaponId: 'railgun' });
     expect(vm.hullSrc).toContain('/purple/m0/hunter_purple_m0_');
     expect(vm.turretSrc).toContain('/purple/m0/railgun_purple_m0_');

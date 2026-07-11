@@ -7,7 +7,8 @@ import { DIR_ROW, IDLE_FRAME } from '../../assets/assetManifest';
 import { BUILDER_RENDER_SCALE } from '../../config/unitRenderConfig';
 import { directionFromDelta } from '../../state/updateGameState';
 import { getBuildingPlacementMeta, type BuildingPlacementMeta } from '../../assets/buildingPlacementMeta';
-import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPlacement, Faction } from '../../state/types';
+import type { GameState, ConstructionSitePlacement, BuildingPlacement, BuilderPlacement } from '../../state/types';
+import { resolveEntityFaction } from '../../state/teamOwnership';
 
 /**
  * ConstructionRenderer — renders construction sites, completed buildings, and builders.
@@ -79,8 +80,8 @@ export class ConstructionRenderer {
   /** Builder Sprite objects keyed by builder ID (BUILDER-ID: stable ID-based mapping). */
   private builderSprites = new Map<string, Phaser.GameObjects.Sprite>();
 
-  /** Whether a missing-texture error has already been logged (avoid spam). */
-  private builderTextureErrorLogged = false;
+  /** Missing builder texture keys already reported (avoid per-frame spam). */
+  private builderTextureErrorsLogged = new Set<string>();
 
   /** Previous builder tile positions for direction calculation. BUILDER-ID: keyed by builder ID. */
   private builderPrevTile = new Map<string, { ftx: number; fty: number }>();
@@ -99,8 +100,8 @@ export class ConstructionRenderer {
   /** Sync rendered construction sites, buildings, and builders from current GameState. */
   syncFromState(state: GameState): void {
     this.syncConstructionSites(state.mapData.constructionSites);
-    this.syncBuildings(state.mapData.buildings, state.playerFaction);
-    this.syncBuilders(state.mapData.builders, state.playerFaction);
+    this.syncBuildings(state);
+    this.syncBuilders(state);
   }
 
   private syncConstructionSites(sites: ConstructionSitePlacement[]): void {
@@ -131,10 +132,11 @@ export class ConstructionRenderer {
     }
   }
 
-  private syncBuildings(buildings: BuildingPlacement[], faction: Faction): void {
+  private syncBuildings(state: GameState): void {
     const activeKeys = new Set<string>();
 
-    for (const building of buildings) {
+    for (const building of state.mapData.buildings) {
+      const faction = resolveEntityFaction(state, building);
       const key = `${building.tx},${building.ty}`;
       activeKeys.add(key);
 
@@ -150,7 +152,12 @@ export class ConstructionRenderer {
           this.buildingGraphics.delete(key);
         }
 
-        // Create building Image if not already present
+        // Recreate the image if ownership changed to another faction asset.
+        const currentImage = this.buildingImages.get(key);
+        if (currentImage && currentImage.texture.key !== meta.assetKey) {
+          currentImage.destroy();
+          this.buildingImages.delete(key);
+        }
         if (!this.buildingImages.has(key)) {
           this.createBuildingImage(building, meta);
         }
@@ -235,41 +242,34 @@ export class ConstructionRenderer {
     this.buildingImages.set(key, image);
   }
 
-  private syncBuilders(builders: BuilderPlacement[], faction: Faction): void {
-    const textureKey = getCivilUnitKey(faction, 'builder');
-    const textureExists = this.scene.textures.exists(textureKey);
-
-    if (!textureExists) {
-      // ASSET-01 guarantees builder textures are loaded. Missing texture = bug.
-      if (!this.builderTextureErrorLogged) {
-        console.error(
-          `[ConstructionRenderer] Builder texture "${textureKey}" not found! ` +
-          `ASSET-01 guarantees this texture is preloaded. Check PreloadScene and civilUnitAssets.ts.`,
-        );
-        this.builderTextureErrorLogged = true;
-      }
-      // Skip rendering builders — do NOT silently fall back to circles.
-      // Destroy any stale sprites from a previous frame.
-      for (const [id, sprite] of this.builderSprites) {
-        sprite.destroy();
-        this.builderSprites.delete(id);
-        this.builderPrevTile.delete(id);
-      }
-      return;
-    }
-
-    // Texture exists — clear the error flag if it was set from a transient issue
-    this.builderTextureErrorLogged = false;
-
-    // BUILDER-ID: Track active builder IDs for stale sprite cleanup
+  private syncBuilders(state: GameState): void {
     const activeBuilderIds = new Set<string>();
 
-    for (const builder of builders) {
+    for (const builder of state.mapData.builders) {
       activeBuilderIds.add(builder.id);
+      const faction = resolveEntityFaction(state, builder);
+      const textureKey = getCivilUnitKey(faction, 'builder');
+      if (!this.scene.textures.exists(textureKey)) {
+        if (!this.builderTextureErrorsLogged.has(textureKey)) {
+          console.error(
+            `[ConstructionRenderer] Builder texture "${textureKey}" not found! ` +
+            `ASSET-01 guarantees this texture is preloaded. Check PreloadScene and civilUnitAssets.ts.`,
+          );
+          this.builderTextureErrorsLogged.add(textureKey);
+        }
+        const staleSprite = this.builderSprites.get(builder.id);
+        if (staleSprite) {
+          staleSprite.destroy();
+          this.builderSprites.delete(builder.id);
+          this.builderPrevTile.delete(builder.id);
+        }
+        continue;
+      }
+
+      this.builderTextureErrorsLogged.delete(textureKey);
       this.syncBuilderSprite(builder, textureKey);
     }
 
-    // Destroy sprites for removed builders
     for (const [id, sprite] of this.builderSprites) {
       if (!activeBuilderIds.has(id)) {
         sprite.destroy();
@@ -305,6 +305,9 @@ export class ConstructionRenderer {
 
     // Get or create sprite — keyed by builder.id (BUILDER-ID)
     let sprite = this.builderSprites.get(builder.id);
+    if (sprite && sprite.texture.key !== textureKey) {
+      sprite.setTexture(textureKey, frameIndex);
+    }
     if (!sprite) {
       sprite = this.scene.add.sprite(worldX, worldY, textureKey, frameIndex);
       sprite.setScale(BUILDER_RENDER_SCALE);
