@@ -38,6 +38,9 @@ jobs:
           if [ -f tools/apply_skirmish_p4a_fix1.py ]; then
             python3 tools/apply_skirmish_p4a_fix1.py
           fi
+          if [ -f tools/apply_skirmish_p4a_fix2.py ]; then
+            python3 tools/apply_skirmish_p4a_fix2.py
+          fi
 
       - uses: actions/setup-node@v4
         with:
@@ -73,6 +76,7 @@ jobs:
           src/__tests__/construction.test.ts
           src/__tests__/saveGame.test.ts
           src/__tests__/updateGameState.test.ts
+          src/__tests__/fogVision08.test.ts
       - run: npm audit --audit-level=high
       - run: git diff --check
 
@@ -86,5 +90,5 @@ jobs:
             echo "No implementation changes to commit"
             exit 0
           fi
-          git commit -m "Implement canonical multi-team match state"
+          git commit -m "Harden multi-team ownership boundaries"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
