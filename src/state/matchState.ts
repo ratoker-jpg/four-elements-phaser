@@ -21,6 +21,7 @@ import {
   normalizeVisionForLoadedState,
   type VisionState,
 } from './visibility';
+import { getHeadquartersCenter, normalizeMapHeadquarters } from './mapHeadquarters';
 
 export const TEAM_IDS: readonly TeamId[] = [
   'team-cyan',
@@ -165,10 +166,15 @@ export function normalizeMatchState(state: GameState): MatchState {
   const mapHeight = state.mapHeight ?? state.mapData?.height ?? 48;
   const humanFaction = resolveHumanFaction(state);
   state.playerFaction = humanFaction;
+  const headquarters = normalizeMapHeadquarters(state.mapData, humanFaction);
   const humanTeamId = teamIdForFaction(humanFaction);
-  const legacyHumanHqPosition = state.hqPosition ?? (state.mapData?.hq
-    ? { tx: state.mapData.hq.tx + 1, ty: state.mapData.hq.ty + 1 }
-    : null);
+  const hqPositionByTeam = new Map<TeamId, { tx: number; ty: number }>();
+  for (const hq of headquarters) {
+    hqPositionByTeam.set(hq.ownerTeamId ?? teamIdForFaction(hq.faction), getHeadquartersCenter(hq));
+  }
+  const legacyHumanHqPosition = hqPositionByTeam.get(humanTeamId)
+    ?? state.hqPosition
+    ?? null;
   const existing = state.match;
   const existingTeams = existing?.teams as Partial<Record<TeamId, TeamState>> | undefined;
   const teams = {} as Record<TeamId, TeamState>;
@@ -189,9 +195,9 @@ export function normalizeMatchState(state: GameState): MatchState {
       vision: normalizeTeamVision(mapWidth, mapHeight, sourceVision),
       unitCap: current?.unitCap ?? DEFAULT_UNIT_CAP,
       techTier: current?.techTier ?? 1,
-      hqPosition: isHuman
-        ? (current?.hqPosition ?? legacyHumanHqPosition)
-        : (current?.hqPosition ?? null),
+      hqPosition: current?.hqPosition
+        ?? hqPositionByTeam.get(teamId)
+        ?? (isHuman ? legacyHumanHqPosition : null),
       eliminated: current?.eliminated ?? false,
     };
   }
@@ -245,9 +251,9 @@ export function getHumanTeam(state: GameState): TeamState {
 
 function normalizeOwnership(state: GameState, match: MatchState): void {
   const humanTeamId = match.humanTeamId;
-  if (state.mapData?.hq) {
-    state.mapData.hq.ownerTeamId ??= teamIdForFaction(
-      isFaction(state.mapData.hq.faction) ? state.mapData.hq.faction : state.playerFaction,
+  for (const hq of state.mapData?.headquarters ?? (state.mapData?.hq ? [state.mapData.hq] : [])) {
+    hq.ownerTeamId ??= teamIdForFaction(
+      isFaction(hq.faction) ? hq.faction : state.playerFaction,
     );
   }
 

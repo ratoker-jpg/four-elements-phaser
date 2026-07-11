@@ -26,7 +26,10 @@ import { resolveResourceRawAmount } from '../config/resourceClassRuntime';
 import { createHarvester } from './updateGameState';
 import { customMap1 } from '../data/maps/customMap1';
 import { createInitialVisionState, recomputeVisibility } from './visibility';
-import { createInitialMatchState, normalizeMatchState } from './matchState';
+import {
+  createInitialMatchState, factionForTeamId, normalizeMatchState, teamIdForFaction,
+} from './matchState';
+import { getMapHeadquarters, normalizeMapHeadquarters } from './mapHeadquarters';
 
 /** Options for createInitialState. */
 export interface CreateInitialStateOptions {
@@ -74,6 +77,7 @@ export interface CreateInitialStateOptions {
 export function createInitialState(mapData: MapData = customMap1, playerFaction?: Faction, mapNameOverride?: string, options?: CreateInitialStateOptions): GameState {
   // Resolve player faction: explicit override > map data default
   const faction = playerFaction ?? (mapData.hq.faction as Faction);
+  normalizeMapHeadquarters(mapData, faction);
 
   // ARENA-01H+: Arena mode skips Normal Game entities
   const arenaMode = options?.arenaMode ?? false;
@@ -107,6 +111,7 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
       tx: h.tx,
       ty: h.ty,
       faction: h.faction,
+      ownerTeamId: h.ownerTeamId,
     });
   }
 
@@ -118,6 +123,7 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
       tx: mc.tx,
       ty: mc.ty,
       faction: mc.faction,
+      ownerTeamId: mc.ownerTeamId,
       dir: 2, // default body facing: South
       turretDir: 2, // default turret facing: South (matches bodyDir)
     });
@@ -326,13 +332,13 @@ function createInitialEconomy(_playerFaction: Faction, mapData: MapData): Econom
 
 /** Build HarvesterState[] from extra harvester positions. */
 function buildHarvesterStates(
-  extraHarvesters: Array<{ tx: number; ty: number; faction: Faction }>,
+  extraHarvesters: Array<{ tx: number; ty: number; faction: Faction; ownerTeamId?: import('./types').TeamId }>,
   _mapData: MapData,
 ): HarvesterState[] {
   // Currently the only harvesters are the extra ones
   // (no harvesters in the saved map data schema)
   return extraHarvesters.map((h, i) =>
-    createHarvester(`harvester-${i}`, h.tx, h.ty, h.faction),
+    createHarvester(`harvester-${i}`, h.tx, h.ty, h.faction, h.ownerTeamId),
   );
 }
 
@@ -371,6 +377,7 @@ function createInitialProduction(mapData: MapData): ProductionState {
       ty: b.ty,
       queue: [],
       active: false,
+      ownerTeamId: b.ownerTeamId,
     }));
 
   return { factories };
@@ -394,23 +401,29 @@ function flattenMapEntities(mapData: MapData, faction: Faction, arenaMode: boole
   let nextId = 1;
   const id = (prefix: string) => `${prefix}-${nextId++}`;
 
-  // HQ
-  entities.push({
-    id: id('hq'),
-    kind: 'hq',
-    tx: mapData.hq.tx,
-    ty: mapData.hq.ty,
-    faction,
-  });
+  // Canonical Headquarters. Legacy maps normalize to one human entry.
+  for (const hq of getMapHeadquarters(mapData)) {
+    const ownerTeamId = hq.ownerTeamId ?? teamIdForFaction(hq.faction);
+    entities.push({
+      id: `hq-${ownerTeamId}`,
+      kind: 'hq',
+      tx: hq.tx,
+      ty: hq.ty,
+      faction: hq.faction,
+      ownerTeamId,
+    });
+  }
 
   // Builders from saved map — use builder.id (stable ID from ensureBuilderIds)
   for (const builder of mapData.builders) {
+    const ownerTeamId = builder.ownerTeamId ?? teamIdForFaction(faction);
     entities.push({
       id: builder.id,
       kind: 'builder',
       tx: builder.tx,
       ty: builder.ty,
-      faction,
+      faction: factionForTeamId(ownerTeamId),
+      ownerTeamId,
     });
   }
 
@@ -451,12 +464,14 @@ function flattenMapEntities(mapData: MapData, faction: Faction, arenaMode: boole
 
   // Buildings — state-only, no visual assets yet
   for (const building of mapData.buildings) {
+    const ownerTeamId = building.ownerTeamId ?? teamIdForFaction(faction);
     entities.push({
       id: id('building'),
       kind: 'hq',
       tx: building.tx,
       ty: building.ty,
-      faction,
+      faction: factionForTeamId(ownerTeamId),
+      ownerTeamId,
       stateOnly: true,
     });
   }
@@ -464,7 +479,9 @@ function flattenMapEntities(mapData: MapData, faction: Faction, arenaMode: boole
   return entities;
 }
 
-function createExtraHarvesters(mapData: MapData, faction: Faction): Array<{ tx: number; ty: number; faction: Faction }> {
+function createExtraHarvesters(
+  mapData: MapData, faction: Faction,
+): Array<{ tx: number; ty: number; faction: Faction; ownerTeamId: import('./types').TeamId }> {
   const hqCx = mapData.hq.tx + 1; // HQ footprint center x (approx)
   const hqCy = mapData.hq.ty + 1;
 
@@ -490,12 +507,15 @@ function createExtraHarvesters(mapData: MapData, faction: Faction): Array<{ tx: 
     }
   }
 
-  return positions.map(p => ({ ...p, faction }));
+  const ownerTeamId = teamIdForFaction(faction);
+  return positions.map(p => ({ ...p, faction, ownerTeamId }));
 }
 
 function createExtraModularCombat(
   mapData: MapData,
-  extraHarvesters: Array<{ tx: number; ty: number; faction: Faction }>,
+  extraHarvesters: Array<{
+    tx: number; ty: number; faction: Faction; ownerTeamId?: import('./types').TeamId;
+  }>,
   faction: Faction,
 ): ModularCombatUnit[] {
   const occupied = buildStarterOccupiedSet(mapData, extraHarvesters);
@@ -527,6 +547,7 @@ function createExtraModularCombat(
       hullMod: 'm0',
       turretMod: 'm0',
       faction,
+      ownerTeamId: teamIdForFaction(faction),
       id: `legacy-starter-combat-${candidate.tx}-${candidate.ty}`,
       dir: 2,
       turretDir: 2,
@@ -542,9 +563,11 @@ function buildStarterOccupiedSet(
 ): Set<string> {
   const occupied = new Set<string>();
 
-  for (let dy = 0; dy < 3; dy++) {
-    for (let dx = 0; dx < 3; dx++) {
-      occupied.add(`${mapData.hq.tx + dx},${mapData.hq.ty + dy}`);
+  for (const hq of getMapHeadquarters(mapData)) {
+    for (let dy = 0; dy < 3; dy++) {
+      for (let dx = 0; dx < 3; dx++) {
+        occupied.add(`${hq.tx + dx},${hq.ty + dy}`);
+      }
     }
   }
 

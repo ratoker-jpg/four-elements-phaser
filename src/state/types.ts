@@ -213,7 +213,10 @@ export interface MapData {
   width: number;
   height: number;
   terrain: TerrainType[][];
+  /** Human compatibility alias; canonical new maps may contain all four entries below. */
   hq: HqPlacement;
+  /** Canonical map Headquarters placements. Missing on legacy maps/saves. */
+  headquarters?: HqPlacement[];
   resources: ResourcePlacement[];
   obstacles: ObstaclePlacement[];
   decor: DecorPlacement[];

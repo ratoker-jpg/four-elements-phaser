@@ -27,6 +27,7 @@
 import type { GameState, BuildingType, TeamId } from './types';
 import { ensureMatchState } from './matchState';
 import { canPlaceBuilding, BUILDING_CONFIG } from './construction';
+import { getHeadquartersCenter, getMapHeadquarters, HQ_FOOTPRINT } from './mapHeadquarters';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -69,13 +70,15 @@ const DEFAULT_OPTIONS: BuildSiteSearchOptions = {
 function collectFootprints(state: GameState): Footprint[] {
   const footprints: Footprint[] = [];
 
-  // HQ — 3x3 footprint
-  footprints.push({
-    tx: state.mapData.hq.tx,
-    ty: state.mapData.hq.ty,
-    fpW: 3,
-    fpH: 3,
-  });
+  // All canonical Headquarters — 3x3 footprints.
+  for (const hq of getMapHeadquarters(state.mapData)) {
+    footprints.push({
+      tx: hq.tx,
+      ty: hq.ty,
+      fpW: HQ_FOOTPRINT,
+      fpH: HQ_FOOTPRINT,
+    });
+  }
 
   // Completed buildings
   for (const b of state.mapData.buildings) {
@@ -114,12 +117,10 @@ function collectAnchors(
 ): Array<{ tx: number; ty: number }> {
   const anchors: Array<{ tx: number; ty: number }> = [];
 
-  // HQ center — only the requesting team's HQ is an anchor.
-  if ((state.mapData.hq.ownerTeamId ?? ownerTeamId) === ownerTeamId) {
-    anchors.push({
-      tx: state.mapData.hq.tx + 1,
-      ty: state.mapData.hq.ty + 1,
-    });
+  // Only the requesting team's canonical Headquarters is an anchor.
+  for (const hq of getMapHeadquarters(state.mapData)) {
+    if (hq.ownerTeamId !== ownerTeamId) continue;
+    anchors.push(getHeadquartersCenter(hq));
   }
 
   // Completed building centers

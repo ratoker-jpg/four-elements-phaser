@@ -54,6 +54,7 @@ import {
 } from './generatedMapSeed';
 import { generateIndustrialTerrain, generateTerrain } from './generatedMapTerrain';
 import { validateGeneratedMap } from './generatedMapValidation';
+import { createFourCornerHeadquarters, HQ_FOOTPRINT } from './mapHeadquarters';
 
 export type { MapSizeOption, ValidatedGeneratedMapResult } from './generatedMapTypes';
 export {
@@ -78,29 +79,14 @@ export const MAX_VALIDATION_ATTEMPTS = 3;
 
 // ─── Generated map creation ─────────────────────────────────────────
 
-/** HQ X offset from left edge (near left side for lower-left start). */
-const HQ_OFFSET_TX = 4;
-
-/**
- * HQ Y offset from bottom edge: mapHeight - 7.
- * Places HQ in the lower-left start zone so the player expands
- * toward the center/north-east. For a 3×3 HQ footprint at (4, mapHeight-7),
- * the bottom edge of the HQ is at row mapHeight-4, leaving 3 tiles of
- * margin from the bottom map edge.
- *
- * Examples: 32×32 → (4,25), 48×48 → (4,41), 64×64 → (4,57)
- */
-function hqOffsetTy(mapHeight: number): number {
-  return mapHeight - 7;
-}
-
 /**
  * Create a deterministic generated MapData from seed and size.
  *
  * The map has:
  * - Patch-based terrain with sand-dominant base and soft sand-light/sand-dark patches
- * - HQ at (4, mapHeight-7) with a 3×3 footprint (lower-left start zone)
- * - One idle builder NE of HQ at (hq.tx+1, hq.ty-1)
+ * - Four mirrored 3×3 Headquarters in the map corners
+ * - `hq` remains the selected human faction compatibility alias
+ * - One idle human Builder placed toward the map center
  * - Anchor-based resource placement using 6-class model (CORE-STEP-03B)
  * - Starter zone: very_poor/poor/medium near HQ
  * - Side zone: medium/rich at intermediate distance
@@ -121,16 +107,20 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
     ? generateIndustrialTerrain(W, H)
     : generateTerrain(rng, W, H);
 
-  // ── HQ: lower-left start zone ──
-  const hqTy = hqOffsetTy(H);
-  const hq = { tx: HQ_OFFSET_TX, ty: hqTy, faction };
+  // ── Headquarters: create one south-west placement and mirror over X/Y ──
+  const headquarters = createFourCornerHeadquarters(W, H);
+  const hq = headquarters.find(candidate => candidate.faction === faction)!;
 
-  // ── Builder: NE of HQ, toward map center ──
+  // ── Human Builder: immediately outside the HQ toward map center ──
+  // Preserve the legacy lower-left spawn contract (within two tiles of hq top-left).
   const builderTx = hq.tx + 1;
-  const builderTy = hq.ty - 1;
+  const builderTy = hq.ty < H / 2
+    ? hq.ty + HQ_FOOTPRINT
+    : hq.ty - 1;
   const builders = [
     {
       id: 'builder-0',
+      ownerTeamId: hq.ownerTeamId,
       tx: builderTx,
       ty: builderTy,
       busy: false,
@@ -148,10 +138,12 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
   // ── Occupied set: track all placed items to prevent overlap ──
   const occupied = new Set<string>();
 
-  // Mark HQ area as occupied (3×3 footprint + 1 tile margin)
-  for (let dy = -1; dy <= 3; dy++) {
-    for (let dx = -1; dx <= 3; dx++) {
-      occupied.add(`${hq.tx + dx},${hq.ty + dy}`);
+  // Mark all HQ areas as occupied (3×3 footprint + 1 tile margin).
+  for (const headquartersPlacement of headquarters) {
+    for (let dy = -1; dy <= HQ_FOOTPRINT; dy++) {
+      for (let dx = -1; dx <= HQ_FOOTPRINT; dx++) {
+        occupied.add(`${headquartersPlacement.tx + dx},${headquartersPlacement.ty + dy}`);
+      }
     }
   }
 
@@ -175,7 +167,8 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
     width: W,
     height: H,
     terrain,
-    hq,
+    hq: { ...hq },
+    headquarters,
     resources,
     obstacles,
     decor,
