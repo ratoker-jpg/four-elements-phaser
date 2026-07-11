@@ -30,8 +30,21 @@ jobs:
             echo "apply=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Apply Phase 5 status
+        id: apply
         if: steps.bootstrap.outputs.apply == 'true'
-        run: python3 tools/apply_skirmish_p5_status.py
+        continue-on-error: true
+        run: python3 tools/apply_skirmish_p5_status.py > status-bootstrap.log 2>&1
+      - name: Upload status diagnostics
+        if: always() && steps.bootstrap.outputs.apply == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skirmish-p5-status-diagnostics
+          path: status-bootstrap.log
+      - name: Enforce status bootstrap
+        if: steps.apply.outcome == 'failure'
+        run: |
+          cat status-bootstrap.log
+          exit 1
       - uses: actions/setup-node@v4
         with:
           node-version: 22
