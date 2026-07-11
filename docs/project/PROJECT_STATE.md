@@ -3,7 +3,7 @@
 Status: generated active operational state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Updated: 2026-07-10
+Updated: 2026-07-11
 
 > Generated from `docs/project/project-status.json`. Run `npm run sync:project-status` after changing status.
 
@@ -12,14 +12,14 @@ Updated: 2026-07-10
 ## Current mode
 
 <!-- PROJECT_STATUS:START -->
-Updated: 2026-07-10
+Updated: 2026-07-11
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 4: Multi-team match state
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 5: Symmetric four-corner map
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #346 — Two-layer modular preview for the factory composer
-Next: Introduce canonical TeamState and MatchState data with four factions, independent economy, unit cap, tech tier, vision, controller and ownership fields, then migrate the existing single-team state and saves without cross-team resource mutation.
-Gate: Four teams must coexist in one canonical match state with independent resources, ownership and vision; mutating or producing for one team must not change another team, and existing single-team saves must migrate deterministically.
+Last merged: PR #350 — Owner-aware rendering, HUD faction data and dev spawning
+Next: Introduce a backward-compatible four-Headquarters map contract, generate deterministic corner starts by mirroring one accepted placement, then mirror finite quadrant resources around one shared center Infinity deposit.
+Gate: The same seed and size must produce exactly four unique non-overlapping corner Headquarters, equivalent finite resource value and access per quadrant, one protected center Infinity deposit, and deterministic validation results.
 ```
 <!-- PROJECT_STATUS:END -->
 
@@ -35,6 +35,9 @@ Gate: Four teams must coexist in one canonical match state with independent reso
 - Skirmish Phase 3A config-driven T1 catalog and structured production closed via PR #344.
 - Skirmish Phase 3B selectable factory composer in the active HUD closed via PR #345.
 - Skirmish Phase 3C two-layer generated modular preview closed via PR #346.
+- Skirmish Phase 4A canonical four-team state, ownership and save v5 migration closed via PR #348.
+- Skirmish Phase 4B owner-aware selection, commands, construction and HUD selectors closed via PR #349.
+- Skirmish Phase 4C owner-aware rendering, presentation and dev tools closed via PR #350.
 - Produced combat units use `GameState.combatUnits` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -52,10 +55,10 @@ Gate: Four teams must coexist in one canonical match state with independent reso
 
 ## Manual QA still required
 
-- Select a completed units-factory and verify Wasp/Hunter and Smoky/Railgun can be selected independently in the active HUD.
-- Confirm all four T1 combinations show the correct Russian quote, production time and two-layer modular preview.
-- Queue and cancel combat, Builder and Harvester orders at the selected factory; verify progress and resources remain coherent.
-- Produce two combat units, fight, save and reload; confirm movement, HP, target and cooldown state remain coherent.
+- Start a generated map for each player faction and verify the camera and human compatibility HQ resolve to the selected team corner.
+- Inspect all four corners and confirm each Headquarters and Builder uses the owning faction assets.
+- Confirm finite resource groups are equivalent by quadrant and the center contains exactly one Infinity deposit with four approaches.
+- Produce combat units, save and reload; confirm team ownership, factory preview, movement and HP remain coherent.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
 Automated checks do not replace visual acceptance for produced-unit rendering, destruction effects and save/load behavior.
@@ -66,7 +69,7 @@ Automated checks do not replace visual acceptance for produced-unit rendering, d
 - Issue #330: complete manual visual QA for produced combat units in Normal mode.
 - Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.
 - Issue #335: visually accept the donor VFX overlay, projected tracks and bounded dust.
-- Implement SKIRMISH-P4A: canonical TeamState/MatchState, ownership fields, single-team migration and independent-team invariants.
+- Implement SKIRMISH-P5A: canonical four-Headquarters map data, legacy HQ migration and deterministic corner placement.
 
 ## Current source-of-truth documents
 

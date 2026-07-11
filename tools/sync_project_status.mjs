@@ -112,6 +112,9 @@ ${renderStatusBlock()}
 - Skirmish Phase 3A config-driven T1 catalog and structured production closed via PR #344.
 - Skirmish Phase 3B selectable factory composer in the active HUD closed via PR #345.
 - Skirmish Phase 3C two-layer generated modular preview closed via PR #346.
+- Skirmish Phase 4A canonical four-team state, ownership and save v5 migration closed via PR #348.
+- Skirmish Phase 4B owner-aware selection, commands, construction and HUD selectors closed via PR #349.
+- Skirmish Phase 4C owner-aware rendering, presentation and dev tools closed via PR #350.
 - Produced combat units use \`GameState.combatUnits\` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -186,35 +189,43 @@ ${renderStatusBlock()}
 
 ## Default next work
 
-1. Audit every global single-team assumption before changing behavior:
-   - top-level \`playerFaction\`, \`economy\`, \`vision\`, \`hqPosition\` and \`production\`;
-   - ownership of HQ, buildings, construction sites, Builders, Harvesters and combat units;
-   - save/load, summaries, unit-cap selectors, fog and production mutation paths.
-2. Define canonical pure data contracts:
-   - \`TeamController = human | ai\`;
-   - independent AI difficulty per enemy team;
-   - \`TeamState\` with faction, economy, unit cap, tech tier, vision, HQ reference, controller and elimination state;
-   - \`MatchState\` with four stable team IDs, player team ID and match clock/state.
-3. Add explicit ownership fields to structures and civil/combat units. Ownership must use stable team IDs or a single accepted faction-derived key, not implicit \`playerFaction\` checks.
-4. Create a deterministic migration from the current single-team \`GameState\`:
-   - preserve the current player economy, entities, queues and vision in the human team;
-   - create the other three team records without inventing map entities yet;
-   - keep temporary compatibility selectors for existing single-team systems while Phase 4 is split across PRs.
-5. Move resource, cap, tech and vision selectors behind owner-aware helpers. New code must never mutate another team through a top-level global reference.
-6. Bump and migrate the save schema only when the canonical data contract is stable. Old saves must load into the same deterministic human team.
-7. Add invariants and tests:
-   - exactly four unique factions and team IDs;
-   - exactly one human team;
-   - independent economy and vision objects;
-   - owner references resolve;
-   - mutation/production for one team leaves all other teams byte-equivalent.
-8. Keep this first slice data-focused. Rendering four bases, mirrored map generation, civil AI and strategic AI belong to later phases.
+1. Define one backward-compatible map contract for four Headquarters:
+   - add canonical four-team Headquarters placements with stable owner IDs;
+   - preserve the legacy human \`mapData.hq\` alias during migration;
+   - keep Headquarters footprints at 3x3 and reject duplicate or overlapping owners.
+2. Implement deterministic corner placement as P5A:
+   - generate one accepted lower-left Headquarters placement;
+   - mirror it vertically and horizontally for the other three teams;
+   - use one fixed faction-to-corner mapping;
+   - update \`TeamState.hqPosition\` from canonical map placements.
+3. Make map infrastructure multi-HQ aware:
+   - occupancy and construction exclusion must include all Headquarters;
+   - render all Headquarters with owner faction assets;
+   - map validation must report per-team exits rather than checking only the human HQ;
+   - old custom maps and saves must still normalize to one human Headquarters plus three teams without map entities.
+4. Implement symmetric finite resources as P5B:
+   - generate finite starter/side/contested placements in one quadrant;
+   - mirror placements across X and Y without overlap;
+   - preserve equal resource classes, footprints and total finite value per quadrant;
+   - keep resource IDs/order deterministic.
+5. Implement the center contract as P5C:
+   - exactly one Infinity deposit centered deterministically;
+   - construction exclusion around the center footprint;
+   - at least four passable approach sectors;
+   - no finite resource or Headquarters overlap with the protected center zone.
+6. Add fairness validation as P5D:
+   - exactly four unique corner teams and Headquarters;
+   - equal finite resource value by quadrant;
+   - at least two exits from every start zone;
+   - every team can reach starter resources and the center;
+   - same seed and size produce byte-equivalent structural output.
+7. Keep this phase map-focused. Civil AI, simultaneous economy updates, HQ combat and victory remain later phases.
 
 ## Acceptance gate
 
 ${status.gate}
 
-Prefer reviewable slices: P4A establishes contracts and migration; P4B routes economy/production/ownership selectors; P4C removes obsolete global assumptions after all call sites are owner-aware.
+Prefer reviewable slices: P5A establishes four-HQ contracts and corner placement; P5B mirrors finite resources; P5C establishes protected center Infinity; P5D adds fairness/path validation and closes the phase.
 
 ## Required validation for implementation PRs
 
@@ -234,12 +245,11 @@ ${listLines(status.manualQa)}
 
 ## Not next by default
 
-- Symmetric four-corner map generation; that is Phase 5.
 - Running four civil economies and replacement AI; that is Phase 6.
 - Builder-local site search; that is Phase 7.
-- Strategic AI, squads, victory/defeat or XP progression.
-- Removing all compatibility fields in the first data-model PR.
-- Broad renderer or HUD rewrites unrelated to team ownership.
+- Headquarters damage, elimination and victory/defeat; that is Phase 8.
+- Faction bonuses, XP, M0-M3 progression or strategic AI.
+- Broad terrain, obstacle or asset changes unrelated to symmetric map contracts.
 - Unrelated issue #305 work inside ${status.phaseCode}.
 `;
 }
