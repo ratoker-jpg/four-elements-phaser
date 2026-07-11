@@ -4,14 +4,14 @@ import {
   type ResolvedAnchorPlacement,
 } from '../config/resourceAnchors';
 import { resolveResourceRawAmount } from '../config/resourceClassRuntime';
-import type { Faction, HqPlacement, MapData, ResourcePlacement } from './types';
-import { mirrorPlacement, type MapSymmetryMode } from './mapSymmetry';
+import type { Faction, HqPlacement, ResourcePlacement } from './types';
+import { mirrorPlacement, type MapSymmetry } from './mapSymmetry';
 
 export type ResourceQuadrant = Faction;
 
 const QUADRANT_MIRRORS: ReadonlyArray<{
   faction: ResourceQuadrant;
-  mode: MapSymmetryMode | null;
+  mode: MapSymmetry | null;
 }> = [
   { faction: 'cyan', mode: null },
   { faction: 'green', mode: 'horizontal' },
@@ -79,7 +79,7 @@ function mirrorResourcePlacement(
   placement: ResourcePlacement,
   width: number,
   height: number,
-  mode: MapSymmetryMode | null,
+  mode: MapSymmetry | null,
 ): ResourcePlacement {
   if (!mode) return { ...placement };
   const mirrored = mirrorPlacement(
