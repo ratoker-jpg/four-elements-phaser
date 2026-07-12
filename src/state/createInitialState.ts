@@ -91,7 +91,7 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
   // ARENA-01H+: Arena mode flattens to empty (no HQ, no builders, no resources)
   const entities = flattenMapEntities(mapData, faction, arenaMode);
 
-  // Add extra starter units not present in the original saved map
+  // Add deterministic starter Harvesters for every canonical Headquarters
   // ARENA-01H+: Arena mode has no extra harvesters
   const extraHarvesters = arenaMode ? [] : createExtraHarvesters(mapData, faction);
 
@@ -106,7 +106,7 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
   // Add extra harvesters to the entity list
   for (const h of extraHarvesters) {
     entities.push({
-      id: `extra-harvester-${h.tx}-${h.ty}`,
+      id: `extra-harvester-${h.ownerTeamId ?? h.faction}-${h.tx}-${h.ty}`,
       kind: 'harvester',
       tx: h.tx,
       ty: h.ty,
@@ -337,9 +337,19 @@ function buildHarvesterStates(
 ): HarvesterState[] {
   // Currently the only harvesters are the extra ones
   // (no harvesters in the saved map data schema)
-  return extraHarvesters.map((h, i) =>
-    createHarvester(`harvester-${i}`, h.tx, h.ty, h.faction, h.ownerTeamId),
-  );
+  const perTeamIndex = new Map<string, number>();
+  return extraHarvesters.map(h => {
+    const ownerTeamId = h.ownerTeamId ?? teamIdForFaction(h.faction);
+    const index = perTeamIndex.get(ownerTeamId) ?? 0;
+    perTeamIndex.set(ownerTeamId, index + 1);
+    return createHarvester(
+      `harvester-${ownerTeamId}-${index}`,
+      h.tx,
+      h.ty,
+      h.faction,
+      ownerTeamId,
+    );
+  });
 }
 
 /** Build ResourceNodeState[] from map data resource placements. */
@@ -480,35 +490,48 @@ function flattenMapEntities(mapData: MapData, faction: Faction, arenaMode: boole
 }
 
 function createExtraHarvesters(
-  mapData: MapData, faction: Faction,
+  mapData: MapData, _faction: Faction,
 ): Array<{ tx: number; ty: number; faction: Faction; ownerTeamId: import('./types').TeamId }> {
-  const hqCx = mapData.hq.tx + 1; // HQ footprint center x (approx)
-  const hqCy = mapData.hq.ty + 1;
-
-  const positions: Array<{ tx: number; ty: number }> = [];
-
-  // VISUAL-05A-PR4: Place harvesters NE of HQ (toward map center) since HQ
-  // is now in the lower-left. Prefer north and east spawn tiles.
-  const candidates = [
-    { tx: hqCx + 2, ty: hqCy },        // east
-    { tx: hqCx + 2, ty: hqCy - 1 },    // east-north
-    { tx: hqCx + 1, ty: hqCy - 2 },    // north-east
-    { tx: hqCx, ty: hqCy - 2 },         // north
-    { tx: hqCx - 1, ty: hqCy - 2 },     // west-north
-  ];
-
+  // SKIRMISH-P6A: create two deterministic Harvesters per canonical Headquarters.
+  // Legacy one-HQ maps therefore retain two human Harvesters and do not invent
+  // civil units for teams that have no map Headquarters.
   const occupied = buildStarterOccupiedSet(mapData);
+  const harvesters: Array<{
+    tx: number;
+    ty: number;
+    faction: Faction;
+    ownerTeamId: import('./types').TeamId;
+  }> = [];
 
-  for (const c of candidates) {
-    if (positions.length >= 2) break;
-    if (isFreeStarterTile(mapData, occupied, c.tx, c.ty)) {
-      positions.push(c);
-      occupied.add(`${c.tx},${c.ty}`);
+  for (const hq of getMapHeadquarters(mapData)) {
+    const hqCx = hq.tx + 1;
+    const hqCy = hq.ty + 1;
+    const towardCenterX = hq.tx < mapData.width / 2 ? 1 : -1;
+    const towardCenterY = hq.ty < mapData.height / 2 ? 1 : -1;
+    const candidates = [
+      { tx: hqCx + 2 * towardCenterX, ty: hqCy },
+      { tx: hqCx + 2 * towardCenterX, ty: hqCy + towardCenterY },
+      { tx: hqCx + towardCenterX, ty: hqCy + 2 * towardCenterY },
+      { tx: hqCx, ty: hqCy + 2 * towardCenterY },
+      { tx: hqCx - towardCenterX, ty: hqCy + 2 * towardCenterY },
+    ];
+    const ownerTeamId = hq.ownerTeamId ?? teamIdForFaction(hq.faction);
+    let spawned = 0;
+
+    for (const candidate of candidates) {
+      if (spawned >= 2) break;
+      if (!isFreeStarterTile(mapData, occupied, candidate.tx, candidate.ty)) continue;
+      harvesters.push({
+        ...candidate,
+        faction: hq.faction,
+        ownerTeamId,
+      });
+      occupied.add(`${candidate.tx},${candidate.ty}`);
+      spawned++;
     }
   }
 
-  const ownerTeamId = teamIdForFaction(faction);
-  return positions.map(p => ({ ...p, faction, ownerTeamId }));
+  return harvesters;
 }
 
 function createExtraModularCombat(

@@ -39,13 +39,16 @@ describe('SKIRMISH-P5A four-corner Headquarters', () => {
   });
 
   it.each(['cyan', 'green', 'yellow', 'purple'] as Faction[])(
-    'binds the legacy hq alias and starter Builder to the selected %s team',
+    'binds the legacy hq alias while keeping four canonical starter Builders for selected %s',
     faction => {
       const map = createGeneratedMapData('four-corners', 'standard', faction);
       expect(map.headquarters).toEqual(createFourCornerHeadquarters(48, 48));
       expect(map.hq).toEqual(map.headquarters!.find(hq => hq.faction === faction));
-      expect(map.builders).toHaveLength(1);
-      expect(map.builders[0].ownerTeamId).toBe(`team-${faction}`);
+      expect(map.builders).toHaveLength(4);
+      expect(new Set(map.builders.map(builder => builder.ownerTeamId))).toEqual(new Set([
+        'team-cyan', 'team-green', 'team-yellow', 'team-purple',
+      ]));
+      expect(map.builders.some(builder => builder.ownerTeamId === `team-${faction}`)).toBe(true);
     },
   );
 
