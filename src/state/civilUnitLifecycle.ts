@@ -3,6 +3,7 @@ import type {
   CivilUnitType,
   GameState,
   HarvesterState,
+  RenderableEntity,
   TeamId,
 } from './types';
 import { ensureMatchState } from './matchState';
@@ -39,6 +40,8 @@ function normalizeHarvester(harvester: HarvesterState): HarvesterState {
 }
 
 export function normalizeCivilUnitDurability(state: GameState): void {
+  state.mapData.builders ??= [];
+  state.harvesters ??= [];
   for (const builder of state.mapData.builders) normalizeBuilder(builder);
   for (const harvester of state.harvesters) normalizeHarvester(harvester);
   state.civilClockMs = Math.max(0, state.civilClockMs ?? 0);
@@ -58,6 +61,102 @@ function inferNextCivilUnitId(state: GameState): number {
     if (match) next = Math.max(next, Number(match[1]) + 1);
   }
   return next;
+}
+
+function resolveCivilOwnerTeamId(
+  state: GameState,
+  ownerTeamId: TeamId | undefined,
+): TeamId {
+  const match = ensureMatchState(state);
+  return ownerTeamId && match.teams[ownerTeamId]
+    ? ownerTeamId
+    : match.humanTeamId;
+}
+
+/**
+ * Normalize old saves into one canonical civil-unit representation.
+ *
+ * - repairs missing or duplicate IDs deterministically;
+ * - restores owner/faction, durability and deterministic counters;
+ * - rebuilds Builder/Harvester render entities from canonical state;
+ * - keeps destroyed civil wrecks non-renderable until bounded cleanup.
+ */
+export function normalizeCivilUnitState(state: GameState): void {
+  const match = ensureMatchState(state);
+  state.mapData.builders ??= [];
+  state.harvesters ??= [];
+  state.entities ??= [];
+
+  const usedIds = new Set<string>();
+  let migrationCounter = 0;
+  const allocateMigrationId = (
+    kind: CivilUnitKind,
+    ownerTeamId: TeamId,
+  ): string => {
+    let id = '';
+    do {
+      id = `civil-migrated-${ownerTeamId}-${kind}-${migrationCounter++}`;
+    } while (usedIds.has(id));
+    return id;
+  };
+
+  for (const builder of state.mapData.builders) {
+    const ownerTeamId = resolveCivilOwnerTeamId(state, builder.ownerTeamId);
+    builder.ownerTeamId = ownerTeamId;
+    if (typeof builder.id !== 'string' || builder.id.length === 0 || usedIds.has(builder.id)) {
+      builder.id = allocateMigrationId('builder', ownerTeamId);
+    }
+    usedIds.add(builder.id);
+    normalizeBuilder(builder);
+  }
+
+  for (const harvester of state.harvesters) {
+    const ownerTeamId = resolveCivilOwnerTeamId(state, harvester.ownerTeamId);
+    harvester.ownerTeamId = ownerTeamId;
+    harvester.faction = match.teams[ownerTeamId].faction;
+    if (typeof harvester.id !== 'string' || harvester.id.length === 0 || usedIds.has(harvester.id)) {
+      harvester.id = allocateMigrationId('harvester', ownerTeamId);
+    }
+    usedIds.add(harvester.id);
+    normalizeHarvester(harvester);
+  }
+
+  state.nextCivilUnitId = Math.max(
+    0,
+    state.nextCivilUnitId ?? 0,
+    inferNextCivilUnitId(state),
+  );
+  state.civilClockMs = Math.max(0, state.civilClockMs ?? 0);
+
+  const nonCivilEntities = state.entities.filter(entity =>
+    entity.kind !== 'builder' && entity.kind !== 'harvester',
+  );
+  const civilEntities: RenderableEntity[] = [];
+  for (const builder of state.mapData.builders) {
+    if (builder.isDestroyed) continue;
+    const ownerTeamId = resolveCivilOwnerTeamId(state, builder.ownerTeamId);
+    civilEntities.push({
+      id: builder.id,
+      kind: 'builder',
+      tx: Math.round(builder.ftx),
+      ty: Math.round(builder.fty),
+      faction: match.teams[ownerTeamId].faction,
+      ownerTeamId,
+    });
+  }
+  for (const harvester of state.harvesters) {
+    if (harvester.isDestroyed) continue;
+    const ownerTeamId = resolveCivilOwnerTeamId(state, harvester.ownerTeamId);
+    civilEntities.push({
+      id: harvester.id,
+      kind: 'harvester',
+      tx: Math.round(harvester.ftx),
+      ty: Math.round(harvester.fty),
+      faction: match.teams[ownerTeamId].faction,
+      ownerTeamId,
+    });
+  }
+  state.entities = [...nonCivilEntities, ...civilEntities];
 }
 
 export function allocateCivilUnitId(
