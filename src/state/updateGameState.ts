@@ -38,6 +38,12 @@ import { allocateCombatUnitId, createCombatUnitRuntime, getCombatProductionConfi
 import { updateAllCombatUnitMovement } from './combatUnitMovement';
 import { updateAllCombatUnitCombat } from './combatUnitCombat';
 import { getOwningTeam, ensureMatchState } from './matchState';
+import {
+  allocateCivilUnitId,
+  BUILDER_MAX_HP,
+  HARVESTER_MAX_HP,
+  updateCivilUnitLifecycle,
+} from './civilUnitLifecycle';
 export { directionFromDelta } from './unitDirection';
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -74,11 +80,13 @@ const ARRIVAL_THRESHOLD = 0.03;
  */
 export function updateGameState(state: GameState, deltaMs: number): void {
   ensureMatchState(state);
+  updateCivilUnitLifecycle(state, deltaMs);
   // Clamp delta for movement to prevent huge jumps after tab-switch.
   // Production/separators use the full deltaMs for accurate time advancement.
   const moveDt = Math.min(deltaMs, 200);
 
   for (const harvester of state.harvesters) {
+    if (harvester.isDestroyed) continue;
     updateHarvester(state, harvester, moveDt);
   }
   updateAllCombatUnitCombat(state, moveDt);
@@ -661,8 +669,8 @@ function processFactorySpawns(state: GameState, factory: UnitFactoryRuntimeState
     const ownerTeamId = factory.ownerTeamId ?? match.humanTeamId;
     const owner = match.teams[ownerTeamId];
     const liveUnitCount =
-      state.mapData.builders.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
-      + state.harvesters.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
+      state.mapData.builders.filter(unit => !unit.isDestroyed && (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
+      + state.harvesters.filter(unit => !unit.isDestroyed && (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
       + state.combatUnits.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length;
     if (liveUnitCount >= owner.unitCap) {
       break;
@@ -756,8 +764,7 @@ function getRingCandidates(
  */
 function spawnBuilder(state: GameState, tx: number, ty: number, ownerTeamId: TeamId): void {
   const owner = getOwningTeam(state, ownerTeamId);
-  // BUILDER-ID: Generate a stable, unique ID for the spawned builder.
-  const id = `builder-spawn-${tx}-${ty}-${Date.now()}`;
+  const id = allocateCivilUnitId(state, 'builder', owner.id);
   const builder: BuilderPlacement = {
     id,
     ownerTeamId: owner.id,
@@ -772,6 +779,10 @@ function spawnBuilder(state: GameState, tx: number, ty: number, ownerTeamId: Tea
     targetTx: tx,
     targetTy: ty,
     assignedSiteId: -1,
+    hp: BUILDER_MAX_HP,
+    maxHp: BUILDER_MAX_HP,
+    isDestroyed: false,
+    destroyedAt: null,
   };
   state.mapData.builders.push(builder);
 
@@ -790,7 +801,7 @@ function spawnBuilder(state: GameState, tx: number, ty: number, ownerTeamId: Tea
  */
 function spawnHarvesterUnit(state: GameState, tx: number, ty: number, ownerTeamId: TeamId): void {
   const owner = getOwningTeam(state, ownerTeamId);
-  const id = `harvester-spawn-${tx}-${ty}-${Date.now()}`;
+  const id = allocateCivilUnitId(state, 'harvester', owner.id);
   const harvester = createHarvester(id, tx, ty, owner.faction, owner.id);
   state.harvesters.push(harvester);
 
@@ -894,5 +905,9 @@ export function createHarvester(
     gatherTimer: 0,
     unloadTimer: 0,
     speedTilesPerSecond: DEFAULT_SPEED,
+    hp: HARVESTER_MAX_HP,
+    maxHp: HARVESTER_MAX_HP,
+    isDestroyed: false,
+    destroyedAt: null,
   };
 }

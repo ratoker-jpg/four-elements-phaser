@@ -57,7 +57,8 @@ export function assignIdleBuilders(state: GameState): void {
     // Find an idle builder owned by the same team as the site.
     const siteOwnerTeamId = resolveEntityTeamId(state, site);
     const builderIndex = state.mapData.builders.findIndex(builder =>
-      builder.phase === 'idle'
+      !builder.isDestroyed
+      && builder.phase === 'idle'
       && !builder.busy
       && resolveEntityTeamId(state, builder) === siteOwnerTeamId,
     );
@@ -128,6 +129,7 @@ export function updateBuilders(state: GameState, deltaMs: number): void {
 
   for (let bi = 0; bi < state.mapData.builders.length; bi++) {
     const builder = state.mapData.builders[bi];
+    if (builder.isDestroyed) continue;
     updateBuilder(state, builder, bi, dt);
   }
 }

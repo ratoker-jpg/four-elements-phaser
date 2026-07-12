@@ -133,6 +133,11 @@ export interface BuilderPlacement {
   assignedSiteId: number;
   /** ARCH-05X hardening: true when moving to a manual-move target (not a construction site). */
   manualMove?: boolean;
+  /** Civil durability fields are optional only for old saves and fixtures. */
+  hp?: number;
+  maxHp?: number;
+  isDestroyed?: boolean;
+  destroyedAt?: number | null;
 }
 
 // ─── Construction Sites ─────────────────────────────────────────────
@@ -307,6 +312,11 @@ export interface HarvesterState {
   manualCooldownMs?: number;
   /** Reason when harvester is blocked and cannot make progress. Cleared when progress resumes. */
   blockedReason?: HarvesterBlockedReason;
+  /** Civil durability fields are optional only for old saves and fixtures. */
+  hp?: number;
+  maxHp?: number;
+  isDestroyed?: boolean;
+  destroyedAt?: number | null;
 }
 
 // ─── Resource Node State (PR3) ─────────────────────────────────────
@@ -573,6 +583,10 @@ export interface GameState {
   nextConstructionId: number;
   /** Auto-incrementing counter for deterministic produced combat-unit IDs. Missing only in old saves/fixtures. */
   nextCombatUnitId?: number;
+  /** Auto-incrementing counter for deterministic produced civil-unit IDs. */
+  nextCivilUnitId?: number;
+  /** Deterministic civil destruction/replacement timeline. */
+  civilClockMs?: number;
 
   // ── ARCH-01F: Production state ────────────────────────────────
   /** Production state for all units-factories. */

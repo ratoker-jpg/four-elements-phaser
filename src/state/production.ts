@@ -180,8 +180,8 @@ export function startUnitProduction(
   // 5. Check unit cap — block queueing if already at cap
   // Phase 2: combat units count toward the cap
   const currentUnitCount =
-    state.mapData.builders.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
-    + state.harvesters.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
+    state.mapData.builders.filter(unit => !unit.isDestroyed && (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
+    + state.harvesters.filter(unit => !unit.isDestroyed && (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length
     + (state.combatUnits?.filter(unit => (unit.ownerTeamId ?? match.humanTeamId) === ownerTeamId).length ?? 0);
   if (currentUnitCount >= owner.unitCap) {
     return { ok: false, reason: 'unit-cap-reached' };
