@@ -1,11 +1,18 @@
 /**
  * Canonical Normal Game combat lifecycle for factory-produced tanks.
  *
- * Pure TypeScript. Uses production body/weapon configs directly and keeps
- * GameState.combatUnits as the only source of truth.
+ * Pure TypeScript. GameState.combatUnits remains the only combat-unit source
+ * of truth. Headquarters are resolved through the canonical map contract.
  */
 
-import type { GameState, ModularCombatUnit, ModLevel } from './types';
+import type {
+  Faction,
+  GameState,
+  HqPlacement,
+  ModularCombatUnit,
+  ModLevel,
+  TeamId,
+} from './types';
 import { normalizeCombatUnitRuntime } from './combatUnits';
 import { getWeaponConfig, getWeaponMLevelValue } from '../config/weaponData';
 import { applyArmorReduction, getEffectiveTurretTurnSpeed } from './bodyCombatStats';
@@ -15,7 +22,14 @@ import {
   buildOccupancyMap,
 } from './occupancy';
 import { findPathToAdjacent } from './pathfinding';
-import { isHumanOwned } from './teamOwnership';
+import { isHumanOwned, resolveEntityTeamId } from './teamOwnership';
+import { ensureMatchState, teamIdForFaction } from './matchState';
+import {
+  getHeadquartersById,
+  applyHeadquartersDamage,
+  normalizeHeadquartersCombatState,
+} from './headquartersCombat';
+import { HQ_FOOTPRINT } from './mapHeadquarters';
 import {
   directionFromScreenAngle,
   rotateAngleTowards,
@@ -39,7 +53,16 @@ const MOD_INDEX: Record<ModLevel, 0 | 1 | 2 | 3> = {
 
 export type CombatAttackResult =
   | { ok: true }
-  | { ok: false; reason: 'attacker-not-found' | 'target-not-found' | 'attacker-destroyed' | 'target-destroyed' | 'friendly-target' };
+  | {
+      ok: false;
+      reason:
+        | 'attacker-not-found'
+        | 'target-not-found'
+        | 'attacker-destroyed'
+        | 'attacker-eliminated'
+        | 'target-destroyed'
+        | 'friendly-target';
+    };
 
 export type PlayerCombatAttackResult = CombatAttackResult
   | { ok: false; reason: 'not-owner' };
@@ -48,6 +71,91 @@ export interface CombatDamageResult {
   rawDamage: number;
   finalDamage: number;
   killed: boolean;
+}
+
+export type ResolvedCombatTarget =
+  | {
+      kind: 'combat-unit';
+      id: string;
+      ownerTeamId: TeamId;
+      faction: Faction;
+      tx: number;
+      ty: number;
+      width: 1;
+      height: 1;
+      centerX: number;
+      centerY: number;
+      unit: ModularCombatUnit;
+    }
+  | {
+      kind: 'headquarters';
+      id: string;
+      ownerTeamId: TeamId;
+      faction: Faction;
+      tx: number;
+      ty: number;
+      width: typeof HQ_FOOTPRINT;
+      height: typeof HQ_FOOTPRINT;
+      centerX: number;
+      centerY: number;
+      headquarters: HqPlacement;
+    };
+
+/** Resolve a live combat unit or 3x3 Headquarters through one target contract. */
+export function resolveCombatTarget(
+  state: GameState,
+  targetId: string,
+): ResolvedCombatTarget | null {
+  const unit = state.combatUnits.find(candidate => candidate.id === targetId);
+  if (unit) {
+    const runtime = normalizeCombatUnitRuntime(unit);
+    if (runtime.isDestroyed) return null;
+    return {
+      kind: 'combat-unit',
+      id: unit.id,
+      ownerTeamId: resolveEntityTeamId(state, unit),
+      faction: unit.faction,
+      tx: Math.round(runtime.ftx),
+      ty: Math.round(runtime.fty),
+      width: 1,
+      height: 1,
+      centerX: runtime.ftx,
+      centerY: runtime.fty,
+      unit,
+    };
+  }
+
+  const headquarters = getHeadquartersById(state, targetId);
+  if (!headquarters || headquarters.isDestroyed || (headquarters.hp ?? 0) <= 0) return null;
+  const ownerTeamId = headquarters.ownerTeamId ?? teamIdForFaction(headquarters.faction);
+  return {
+    kind: 'headquarters',
+    id: headquarters.id ?? `hq-${ownerTeamId}`,
+    ownerTeamId,
+    faction: headquarters.faction,
+    tx: headquarters.tx,
+    ty: headquarters.ty,
+    width: HQ_FOOTPRINT,
+    height: HQ_FOOTPRINT,
+    centerX: headquarters.tx + (HQ_FOOTPRINT - 1) / 2,
+    centerY: headquarters.ty + (HQ_FOOTPRINT - 1) / 2,
+    headquarters,
+  };
+}
+
+/** Distance from a unit center to the closest occupied target tile center. */
+export function distanceToCombatTarget(
+  attackerX: number,
+  attackerY: number,
+  target: ResolvedCombatTarget,
+): number {
+  const minX = target.tx;
+  const maxX = target.tx + target.width - 1;
+  const minY = target.ty;
+  const maxY = target.ty + target.height - 1;
+  const nearestX = Math.max(minX, Math.min(maxX, attackerX));
+  const nearestY = Math.max(minY, Math.min(maxY, attackerY));
+  return Math.hypot(nearestX - attackerX, nearestY - attackerY);
 }
 
 /** Player-facing attack command. AI/runtime code continues to use issueCombatUnitAttack. */
@@ -59,8 +167,10 @@ export function issuePlayerCombatUnitAttack(
   const attacker = state.combatUnits.find(unit => unit.id === attackerId);
   if (!attacker) return { ok: false, reason: 'attacker-not-found' };
   if (!isHumanOwned(state, attacker)) return { ok: false, reason: 'not-owner' };
-  const target = state.combatUnits.find(unit => unit.id === targetId);
-  if (target && isHumanOwned(state, target)) return { ok: false, reason: 'friendly-target' };
+  const target = resolveCombatTarget(state, targetId);
+  if (target && target.ownerTeamId === ensureMatchState(state).humanTeamId) {
+    return { ok: false, reason: 'friendly-target' };
+  }
   return issueCombatUnitAttack(state, attackerId, targetId);
 }
 
@@ -71,14 +181,21 @@ export function issueCombatUnitAttack(
 ): CombatAttackResult {
   const attacker = state.combatUnits.find(unit => unit.id === attackerId);
   if (!attacker) return { ok: false, reason: 'attacker-not-found' };
-  const target = state.combatUnits.find(unit => unit.id === targetId);
-  if (!target) return { ok: false, reason: 'target-not-found' };
-
   const attackerRuntime = normalizeCombatUnitRuntime(attacker);
-  const targetRuntime = normalizeCombatUnitRuntime(target);
   if (attackerRuntime.isDestroyed) return { ok: false, reason: 'attacker-destroyed' };
-  if (targetRuntime.isDestroyed) return { ok: false, reason: 'target-destroyed' };
-  if (attacker.faction === target.faction) return { ok: false, reason: 'friendly-target' };
+
+  const attackerTeamId = resolveEntityTeamId(state, attacker);
+  if (ensureMatchState(state).teams[attackerTeamId].eliminated) {
+    return { ok: false, reason: 'attacker-eliminated' };
+  }
+
+  const target = resolveCombatTarget(state, targetId);
+  if (!target) {
+    const destroyedHq = normalizeHeadquartersCombatState(state)
+      .some(hq => hq.id === targetId && hq.isDestroyed);
+    return { ok: false, reason: destroyedHq ? 'target-destroyed' : 'target-not-found' };
+  }
+  if (target.ownerTeamId === attackerTeamId) return { ok: false, reason: 'friendly-target' };
 
   attackerRuntime.order = { kind: 'attack', targetId };
   attackerRuntime.targetId = targetId;
@@ -96,23 +213,27 @@ export function updateAllCombatUnitCombat(state: GameState, deltaMs: number): vo
   state.combatClockMs = Math.max(0, state.combatClockMs ?? 0) + dt;
   const clock = state.combatClockMs;
   const units = state.combatUnits ?? [];
+  const match = ensureMatchState(state);
 
   for (const unit of units) {
     const runtime = normalizeCombatUnitRuntime(unit);
     runtime.weaponCooldownMs = Math.max(0, runtime.weaponCooldownMs - dt);
     runtime.repathCooldownMs = Math.max(0, runtime.repathCooldownMs - dt);
-
     if (runtime.isWindingUp) {
       runtime.windUpRemainingMs = Math.max(0, runtime.windUpRemainingMs - dt);
     }
-
     if (runtime.isDestroyed) continue;
+
+    const ownerTeamId = resolveEntityTeamId(state, unit);
+    if (match.teams[ownerTeamId].eliminated) {
+      clearAttackOrder(runtime);
+      continue;
+    }
 
     if (runtime.order.kind === 'idle') {
       const autoTarget = findNearestEnemyInRange(state, unit);
       if (autoTarget) issueCombatUnitAttack(state, unit.id, autoTarget.id);
     }
-
     if (runtime.order.kind === 'attack') {
       updateAttackOrder(state, unit, dt, clock);
     }
@@ -129,7 +250,10 @@ export function applyCombatUnitDamage(
   rawDamage: number,
 ): CombatDamageResult {
   const targetRuntime = normalizeCombatUnitRuntime(target);
-  if (targetRuntime.isDestroyed || attacker.faction === target.faction) {
+  if (
+    targetRuntime.isDestroyed
+    || resolveEntityTeamId(state, attacker) === resolveEntityTeamId(state, target)
+  ) {
     return { rawDamage, finalDamage: 0, killed: false };
   }
 
@@ -141,18 +265,7 @@ export function applyCombatUnitDamage(
   targetRuntime.damageFlashUntilMs = (state.combatClockMs ?? 0) + PRODUCTION_COMBAT_DAMAGE_FLASH_MS;
 
   const killed = targetRuntime.hp <= 0;
-  if (killed) {
-    targetRuntime.isDestroyed = true;
-    targetRuntime.destroyedAt = state.combatClockMs ?? 0;
-    targetRuntime.order = { kind: 'idle' };
-    targetRuntime.targetId = null;
-    targetRuntime.path = [];
-    targetRuntime.pathIndex = 0;
-    targetRuntime.isWindingUp = false;
-    targetRuntime.windUpRemainingMs = 0;
-    targetRuntime.windUpTargetId = null;
-  }
-
+  if (killed) destroyCombatUnitRuntime(targetRuntime, state.combatClockMs ?? 0);
   return { rawDamage, finalDamage, killed };
 }
 
@@ -164,17 +277,17 @@ function updateAttackOrder(
 ): void {
   const runtime = normalizeCombatUnitRuntime(attacker);
   const targetId = runtime.order.kind === 'attack' ? runtime.order.targetId : runtime.targetId;
-  const target = targetId ? state.combatUnits.find(unit => unit.id === targetId) : undefined;
-  if (!target || target.faction === attacker.faction || normalizeCombatUnitRuntime(target).isDestroyed) {
+  const target = targetId ? resolveCombatTarget(state, targetId) : null;
+  const attackerTeamId = resolveEntityTeamId(state, attacker);
+  if (!target || target.ownerTeamId === attackerTeamId) {
     clearAttackOrder(runtime);
     return;
   }
 
   runtime.targetId = target.id;
-  const targetRuntime = normalizeCombatUnitRuntime(target);
-  const dx = targetRuntime.ftx - runtime.ftx;
-  const dy = targetRuntime.fty - runtime.fty;
-  const distance = Math.hypot(dx, dy);
+  const dx = target.centerX - runtime.ftx;
+  const dy = target.centerY - runtime.fty;
+  const distance = distanceToCombatTarget(runtime.ftx, runtime.fty, target);
   const weapon = getWeaponConfig(attacker.weaponId);
   if (!weapon) {
     clearAttackOrder(runtime);
@@ -186,7 +299,8 @@ function updateAttackOrder(
   const turnSpeed = getEffectiveTurretTurnSpeed(attacker.weaponId, turretLevel);
   runtime.turretAngleDeg = rotateAngleTowards(runtime.turretAngleDeg, desiredAngle, turnSpeed * dt / 1000);
   attacker.turretDir = directionFromScreenAngle(runtime.turretAngleDeg);
-  const aimed = Math.abs(shortestAngleDelta(runtime.turretAngleDeg, desiredAngle)) <= PRODUCTION_COMBAT_AIM_TOLERANCE_DEG;
+  const aimed = Math.abs(shortestAngleDelta(runtime.turretAngleDeg, desiredAngle))
+    <= PRODUCTION_COMBAT_AIM_TOLERANCE_DEG;
 
   if (distance > weapon.maxRange) {
     cancelWindUp(runtime);
@@ -217,7 +331,7 @@ function updateAttackOrder(
 function fireAtTarget(
   state: GameState,
   attacker: ModularCombatUnit,
-  target: ModularCombatUnit,
+  target: ResolvedCombatTarget,
   clock: number,
 ): void {
   const runtime = normalizeCombatUnitRuntime(attacker);
@@ -229,7 +343,16 @@ function fireAtTarget(
     : 0;
   if (directDamage <= 0) return;
 
-  applyCombatUnitDamage(state, attacker, target, directDamage);
+  if (target.kind === 'combat-unit') {
+    applyCombatUnitDamage(state, attacker, target.unit, directDamage);
+  } else {
+    applyHeadquartersDamage(
+      state,
+      resolveEntityTeamId(state, attacker),
+      target.id,
+      directDamage,
+    );
+  }
   runtime.weaponCooldownMs = getWeaponMLevelValue(weapon.cooldown, level);
   runtime.muzzleFlashUntilMs = clock + PRODUCTION_COMBAT_MUZZLE_FLASH_MS;
   runtime.lastFiredAtMs = clock;
@@ -239,10 +362,9 @@ function fireAtTarget(
 function refreshAttackPath(
   state: GameState,
   attacker: ModularCombatUnit,
-  target: ModularCombatUnit,
+  target: ResolvedCombatTarget,
 ): void {
   const runtime = normalizeCombatUnitRuntime(attacker);
-  const targetRuntime = normalizeCombatUnitRuntime(target);
   const occupancy = buildOccupancyMap(state);
   addUnitBlockers(state, occupancy, 'combat', attacker.id);
   if (state.blockoutVehicles) addVehicleBlockers(state.blockoutVehicles, occupancy);
@@ -250,45 +372,53 @@ function refreshAttackPath(
     occupancy,
     Math.round(runtime.ftx),
     Math.round(runtime.fty),
-    Math.round(targetRuntime.ftx),
-    Math.round(targetRuntime.fty),
-    1,
-    1,
+    target.tx,
+    target.ty,
+    target.width,
+    target.height,
   );
   runtime.path = path ?? [];
   runtime.pathIndex = 0;
   runtime.repathCooldownMs = PRODUCTION_COMBAT_REPATH_MS;
 }
 
-function findNearestEnemyInRange(state: GameState, attacker: ModularCombatUnit): ModularCombatUnit | null {
+function findNearestEnemyInRange(
+  state: GameState,
+  attacker: ModularCombatUnit,
+): ResolvedCombatTarget | null {
   const runtime = normalizeCombatUnitRuntime(attacker);
   const weapon = getWeaponConfig(attacker.weaponId);
   if (!weapon) return null;
+  const attackerTeamId = resolveEntityTeamId(state, attacker);
 
-  let nearest: ModularCombatUnit | null = null;
-  let nearestDistance = Infinity;
+  const targets: ResolvedCombatTarget[] = [];
   for (const candidate of state.combatUnits ?? []) {
-    if (candidate.id === attacker.id || candidate.faction === attacker.faction) continue;
-    const targetRuntime = normalizeCombatUnitRuntime(candidate);
-    if (targetRuntime.isDestroyed) continue;
-    const distance = Math.hypot(targetRuntime.ftx - runtime.ftx, targetRuntime.fty - runtime.fty);
-    if (distance <= weapon.maxRange && distance < nearestDistance) {
-      nearest = candidate;
-      nearestDistance = distance;
-    }
+    if (candidate.id === attacker.id) continue;
+    const target = resolveCombatTarget(state, candidate.id);
+    if (target && target.ownerTeamId !== attackerTeamId) targets.push(target);
   }
-  return nearest;
+  for (const headquarters of normalizeHeadquartersCombatState(state)) {
+    if (!headquarters.id) continue;
+    const target = resolveCombatTarget(state, headquarters.id);
+    if (target && target.ownerTeamId !== attackerTeamId) targets.push(target);
+  }
+
+  targets.sort((a, b) => {
+    const da = distanceToCombatTarget(runtime.ftx, runtime.fty, a);
+    const db = distanceToCombatTarget(runtime.ftx, runtime.fty, b);
+    return da - db
+      || (a.kind === b.kind ? 0 : a.kind === 'combat-unit' ? -1 : 1)
+      || a.id.localeCompare(b.id);
+  });
+  return targets.find(target =>
+    distanceToCombatTarget(runtime.ftx, runtime.fty, target) <= weapon.maxRange,
+  ) ?? null;
 }
 
 function clearInvalidTargetReferences(state: GameState): void {
-  const validTargets = new Set(
-    (state.combatUnits ?? [])
-      .filter(unit => !normalizeCombatUnitRuntime(unit).isDestroyed)
-      .map(unit => unit.id),
-  );
   for (const unit of state.combatUnits ?? []) {
     const runtime = normalizeCombatUnitRuntime(unit);
-    if (runtime.targetId && !validTargets.has(runtime.targetId)) clearAttackOrder(runtime);
+    if (runtime.targetId && !resolveCombatTarget(state, runtime.targetId)) clearAttackOrder(runtime);
   }
 }
 
@@ -300,6 +430,22 @@ function removeExpiredCombatWrecks(state: GameState, clock: number): void {
     return clock - runtime.destroyedAt < PRODUCTION_COMBAT_WRECK_LIFETIME_MS;
   });
   if (survivors.length !== units.length) units.splice(0, units.length, ...survivors);
+}
+
+function destroyCombatUnitRuntime(
+  runtime: ReturnType<typeof normalizeCombatUnitRuntime>,
+  clock: number,
+): void {
+  runtime.hp = 0;
+  runtime.isDestroyed = true;
+  runtime.destroyedAt = clock;
+  runtime.order = { kind: 'idle' };
+  runtime.targetId = null;
+  runtime.path = [];
+  runtime.pathIndex = 0;
+  runtime.isWindingUp = false;
+  runtime.windUpRemainingMs = 0;
+  runtime.windUpTargetId = null;
 }
 
 function clearAttackOrder(runtime: ReturnType<typeof normalizeCombatUnitRuntime>): void {

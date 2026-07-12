@@ -201,7 +201,10 @@ export function routeRmbClick(
     }
 
     case 'enemy-building': {
-      return { action: 'move', tx: target.tx, ty: target.ty };
+      const hasCombat = currentSelection.units.some(u => u.kind === 'combat' || u.id.startsWith('blockout-'));
+      return hasCombat
+        ? { action: 'attack', tx: target.tx, ty: target.ty, targetId: target.id! }
+        : { action: 'move', tx: target.tx, ty: target.ty };
     }
 
     case 'own-harvester':
@@ -333,8 +336,10 @@ export function determineCursorFeedback(
       }
       return 'move';
     }
-    case 'enemy-building':
-      return 'move';
+    case 'enemy-building': {
+      const hasCombat = currentSelection.units.some(u => u.kind === 'combat' || u.id.startsWith('blockout-'));
+      return hasCombat ? 'attack' : 'move';
+    }
     case 'own-harvester':
     case 'own-builder':
     case 'own-combat-vehicle':
