@@ -26,7 +26,22 @@
 
 import type { GameState, BuildingType, TeamId } from './types';
 import { ensureMatchState } from './matchState';
-import { canPlaceBuilding, BUILDING_CONFIG } from './construction';
+import {
+  canPlaceBuilding,
+  BUILDING_CONFIG,
+  placeConstructionSite,
+  type PlacementRejectionReason,
+} from './construction';
+import {
+  addUnitBlockers,
+  addVehicleBlockers,
+  buildOccupancyMap,
+  getFlags,
+  type OccupancyMap,
+} from './occupancy';
+import { findPathToAdjacent, type TileCoord } from './pathfinding';
+import { resolveEntityTeamId } from './teamOwnership';
+import { isVisualReadyBuilding } from '../config/buildingRuntimeMapping';
 import { getHeadquartersCenter, getMapHeadquarters, HQ_FOOTPRINT } from './mapHeadquarters';
 
 // ─── Public types ──────────────────────────────────────────────────
@@ -43,6 +58,37 @@ export interface BuildSiteSearchOptions {
 export type BuildSiteResult =
   | { ok: true; tx: number; ty: number }
   | { ok: false; reason: 'no-valid-site' | 'unknown-building-type' };
+
+/** Rejection reasons for selected-Builder local construction. */
+export type BuilderLocalBuildFailureReason =
+  | PlacementRejectionReason
+  | 'builder-not-found'
+  | 'builder-unavailable'
+  | 'foreign-builder'
+  | 'no-valid-site';
+
+/** Search result includes the exact Builder and validated path. */
+export type BuilderLocalBuildSiteResult =
+  | {
+      ok: true;
+      tx: number;
+      ty: number;
+      builderId: string;
+      builderIndex: number;
+      path: TileCoord[];
+    }
+  | { ok: false; reason: BuilderLocalBuildFailureReason };
+
+/** Atomic placement result for the selected Builder. */
+export type BuilderLocalConstructionResult =
+  | {
+      ok: true;
+      siteId: string;
+      tx: number;
+      ty: number;
+      builderId: string;
+    }
+  | { ok: false; reason: BuilderLocalBuildFailureReason };
 
 // ─── Internal helpers ──────────────────────────────────────────────
 
@@ -280,4 +326,218 @@ export function findBuildSiteNearPlayerBuildings(
   }
 
   return { ok: false, reason: 'no-valid-site' };
+}
+
+
+// ─── SKIRMISH-P7: selected-Builder local construction ───────────────
+
+function footprintContainsSoftOccupied(
+  map: OccupancyMap,
+  tx: number,
+  ty: number,
+  fpW: number,
+  fpH: number,
+): boolean {
+  for (let dy = 0; dy < fpH; dy++) {
+    for (let dx = 0; dx < fpW; dx++) {
+      if (getFlags(map, tx + dx, ty + dy).has('soft-occupied')) return true;
+    }
+  }
+  return false;
+}
+
+function markCandidateImpassable(
+  map: OccupancyMap,
+  tx: number,
+  ty: number,
+  fpW: number,
+  fpH: number,
+): void {
+  for (let dy = 0; dy < fpH; dy++) {
+    for (let dx = 0; dx < fpW; dx++) {
+      const key = (tx + dx) + (ty + dy) * map.width;
+      const flags = map.flags.get(key) ?? new Set();
+      flags.add('impassable');
+      map.flags.set(key, flags);
+    }
+  }
+}
+
+/**
+ * Find the nearest deterministic legal and reachable site around one exact Builder.
+ * No state mutation or resource deduction occurs during search.
+ */
+export function findBuildSiteNearBuilder(
+  state: GameState,
+  buildingType: BuildingType,
+  builderId: string,
+  options?: Partial<BuildSiteSearchOptions>,
+  ownerTeamId?: TeamId,
+): BuilderLocalBuildSiteResult {
+  const config = BUILDING_CONFIG[buildingType];
+  if (!config) return { ok: false, reason: 'unknown-building-type' };
+  if (isVisualReadyBuilding(buildingType)) return { ok: false, reason: 'not-buildable' };
+
+  const match = ensureMatchState(state);
+  const resolvedOwnerTeamId = ownerTeamId ?? match.humanTeamId;
+  const builderIndex = state.mapData.builders.findIndex(builder => builder.id === builderId);
+  if (builderIndex < 0) return { ok: false, reason: 'builder-not-found' };
+  const builder = state.mapData.builders[builderIndex];
+  if (resolveEntityTeamId(state, builder) !== resolvedOwnerTeamId) {
+    return { ok: false, reason: 'foreign-builder' };
+  }
+  if (builder.isDestroyed || builder.busy || builder.phase !== 'idle') {
+    return { ok: false, reason: 'builder-unavailable' };
+  }
+  if (match.teams[resolvedOwnerTeamId].economy.matter < config.costMatter) {
+    return { ok: false, reason: 'insufficient-resources' };
+  }
+
+  const gapTiles = options?.gapTiles ?? DEFAULT_OPTIONS.gapTiles;
+  const maxRadius = options?.maxRadius ?? DEFAULT_OPTIONS.maxRadius;
+  const footprints = collectFootprints(state);
+  const occupancy = buildOccupancyMap(state);
+  const anchorTx = Math.round(builder.ftx);
+  const anchorTy = Math.round(builder.fty);
+  const centerOffsetX = Math.floor(config.footprintW / 2);
+  const centerOffsetY = Math.floor(config.footprintH / 2);
+  const candidates: Array<{ tx: number; ty: number; distance: number }> = [];
+
+  for (let ty = 0; ty <= state.mapHeight - config.footprintH; ty++) {
+    for (let tx = 0; tx <= state.mapWidth - config.footprintW; tx++) {
+      const distance = Math.abs(tx + centerOffsetX - anchorTx)
+        + Math.abs(ty + centerOffsetY - anchorTy);
+      if (distance <= maxRadius) candidates.push({ tx, ty, distance });
+    }
+  }
+  candidates.sort((a, b) =>
+    a.distance - b.distance || a.tx - b.tx || a.ty - b.ty,
+  );
+
+  for (const candidate of candidates) {
+    const placement = canPlaceBuilding(
+      state,
+      buildingType,
+      candidate.tx,
+      candidate.ty,
+      resolvedOwnerTeamId,
+    );
+    if (!placement.valid) continue;
+    if (!passesGapRule(
+      candidate.tx,
+      candidate.ty,
+      config.footprintW,
+      config.footprintH,
+      footprints,
+      gapTiles,
+    )) continue;
+    if (footprintContainsSoftOccupied(
+      occupancy,
+      candidate.tx,
+      candidate.ty,
+      config.footprintW,
+      config.footprintH,
+    )) continue;
+
+    const pathMap = buildOccupancyMap(state);
+    addUnitBlockers(state, pathMap, 'builder', builder.id);
+    if (state.blockoutVehicles) addVehicleBlockers(state.blockoutVehicles, pathMap);
+    markCandidateImpassable(
+      pathMap,
+      candidate.tx,
+      candidate.ty,
+      config.footprintW,
+      config.footprintH,
+    );
+    const path = findPathToAdjacent(
+      pathMap,
+      anchorTx,
+      anchorTy,
+      candidate.tx,
+      candidate.ty,
+      config.footprintW,
+      config.footprintH,
+    );
+    if (!path) continue;
+
+    return {
+      ok: true,
+      tx: candidate.tx,
+      ty: candidate.ty,
+      builderId,
+      builderIndex,
+      path,
+    };
+  }
+
+  return { ok: false, reason: 'no-valid-site' };
+}
+
+/**
+ * Atomically search, charge, create and bind a construction site to one Builder.
+ * Failed requests leave economy, Builders and construction sites unchanged.
+ */
+export function placeConstructionNearBuilder(
+  state: GameState,
+  buildingType: BuildingType,
+  builderId: string,
+  options?: Partial<BuildSiteSearchOptions>,
+  ownerTeamId?: TeamId,
+): BuilderLocalConstructionResult {
+  const search = findBuildSiteNearBuilder(
+    state,
+    buildingType,
+    builderId,
+    options,
+    ownerTeamId,
+  );
+  if (!search.ok) return search;
+
+  const match = ensureMatchState(state);
+  const resolvedOwnerTeamId = ownerTeamId ?? match.humanTeamId;
+  const placed = placeConstructionSite(
+    state,
+    buildingType,
+    search.tx,
+    search.ty,
+    resolvedOwnerTeamId,
+  );
+  if (!placed.ok) return { ok: false, reason: placed.reason };
+
+  const site = state.mapData.constructionSites.find(candidate =>
+    `site-${candidate.id}` === placed.siteId,
+  );
+  const builder = state.mapData.builders[search.builderIndex];
+  if (!site || !builder || builder.id !== builderId) {
+    throw new Error('Builder-local construction transaction lost canonical state');
+  }
+
+  const startTx = Math.round(builder.ftx);
+  const startTy = Math.round(builder.fty);
+  builder.busy = true;
+  builder.phase = search.path.length === 0 ? 'building' : 'moving-to-site';
+  builder.assignedSiteId = site.id;
+  builder.path = search.path.map(tile => ({ ...tile }));
+  builder.pathIndex = 0;
+  builder.targetTx = search.path.length > 0
+    ? search.path[search.path.length - 1].tx
+    : startTx;
+  builder.targetTy = search.path.length > 0
+    ? search.path[search.path.length - 1].ty
+    : startTy;
+  builder.manualMove = undefined;
+  site.builderIndex = search.builderIndex;
+  site.pending = search.path.length > 0;
+  if (search.path.length === 0) {
+    builder.tx = startTx;
+    builder.ty = startTy;
+  }
+
+  return {
+    ok: true,
+    siteId: placed.siteId,
+    tx: search.tx,
+    ty: search.ty,
+    builderId,
+  };
 }
