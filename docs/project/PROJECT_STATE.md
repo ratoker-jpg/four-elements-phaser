@@ -15,11 +15,11 @@ Updated: 2026-07-12
 Updated: 2026-07-12
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 6: Four-team civil economy
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 7: Builder-local automatic construction
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #355 — Four-team exits, reachability and structural fairness validation
-Next: Spawn one Builder and two Harvesters for every canonical team, bind each civil loop to its owner Headquarters and economy, then harden processing, depletion and save/load without cross-team mutation.
-Gate: Four teams must harvest, unload, process and spend resources simultaneously; every civil unit must use only its owner Headquarters and economy; finite deposits must deplete, the center Infinity must not, and save/load must preserve all four loops deterministically.
+Last merged: PR #360 — Four-team civil save/load and migration
+Next: Replace Headquarters/building-anchor placement with an expanding-ring search around the selected Builder, validate footprint spacing and Builder reachability, assign that exact Builder, and preserve resources on every failed request.
+Gate: Moving the selected Builder must change where the next building is constructed; the chosen site must be the nearest deterministic legal and reachable footprint within a bounded radius, with one empty tile between buildings, no resource charge on failure and clear Russian feedback.
 ```
 <!-- PROJECT_STATUS:END -->
 
@@ -43,6 +43,11 @@ Gate: Four teams must harvest, unload, process and spend resources simultaneousl
 - Skirmish Phase 5B symmetric finite resources closed via PR #353.
 - Skirmish Phase 5C canonical center Infinity contract closed via PR #354.
 - Skirmish Phase 5D exits, reachability and structural fairness validation closed via PR #355.
+- Skirmish Phase 6 activation established via PR #356.
+- Skirmish Phase 6A deterministic four-team civil bootstrap closed via PR #357.
+- Skirmish Phase 6B owner-isolated harvesting, processing, storage and power closed via PR #358.
+- Skirmish Phase 6C deterministic civil destruction and AI replacement closed via PR #359.
+- Skirmish Phase 6D save v6, civil migration and deterministic continuation closed via PR #360.
 - Produced combat units use `GameState.combatUnits` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -60,9 +65,10 @@ Gate: Four teams must harvest, unload, process and spend resources simultaneousl
 
 ## Manual QA still required
 
-- Start a generated map as each player faction and confirm all four Headquarters, Builders and Harvesters use their owner faction assets.
-- Observe all four civil loops simultaneously and confirm Harvesters return only to their owner Headquarters.
-- Confirm finite quadrant resources deplete while the center Infinity remains available from all four approaches.
+- Move one Builder away from Headquarters, select it and confirm the next building is placed near that Builder rather than the base.
+- Select different Builders in different corners and confirm each build request uses the selected Builder and owner economy.
+- Block every site inside the bounded radius and confirm no matter is deducted and Russian failure feedback is shown.
+- Confirm completed buildings preserve one empty tile between footprints and Builders can physically reach the assigned site.
 - Produce combat units, save and reload; confirm team ownership, factory preview, movement and HP remain coherent.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
@@ -74,7 +80,7 @@ Automated checks do not replace visual acceptance for produced-unit rendering, d
 - Issue #330: complete manual visual QA for produced combat units in Normal mode.
 - Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.
 - Issue #335: visually accept the donor VFX overlay, projected tracks and bounded dust.
-- Implement SKIRMISH-P6A: deterministic four-team civil-unit bootstrap and owner-HQ binding.
+- Implement SKIRMISH-P7: selected-Builder local search, reachability and exact assignment.
 
 ## Current source-of-truth documents
 

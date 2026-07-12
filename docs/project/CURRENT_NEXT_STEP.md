@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: SKIRMISH-P6 — Four-team civil economy
+Status: SKIRMISH-P7 — Builder-local automatic construction
 Project: Four Elements Phaser
 Updated: 2026-07-12
 
@@ -14,43 +14,50 @@ Updated: 2026-07-12
 Updated: 2026-07-12
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 6: Four-team civil economy
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 7: Builder-local automatic construction
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #355 — Four-team exits, reachability and structural fairness validation
-Next: Spawn one Builder and two Harvesters for every canonical team, bind each civil loop to its owner Headquarters and economy, then harden processing, depletion and save/load without cross-team mutation.
-Gate: Four teams must harvest, unload, process and spend resources simultaneously; every civil unit must use only its owner Headquarters and economy; finite deposits must deplete, the center Infinity must not, and save/load must preserve all four loops deterministically.
+Last merged: PR #360 — Four-team civil save/load and migration
+Next: Replace Headquarters/building-anchor placement with an expanding-ring search around the selected Builder, validate footprint spacing and Builder reachability, assign that exact Builder, and preserve resources on every failed request.
+Gate: Moving the selected Builder must change where the next building is constructed; the chosen site must be the nearest deterministic legal and reachable footprint within a bounded radius, with one empty tile between buildings, no resource charge on failure and clear Russian feedback.
 ```
 <!-- PROJECT_STATUS:END -->
 
 ## Default next work
 
-1. Implement deterministic four-team civil bootstrap as P6A:
-   - generated four-HQ maps receive one Builder and two Harvesters per team;
-   - civil-unit IDs are stable and independent from the selected human faction;
-   - every unit receives canonical `ownerTeamId` and faction data;
-   - spawn tiles are passable, deterministic and local to the owner Headquarters;
-   - legacy one-HQ maps and old saves do not invent enemy civil units.
-2. Complete owner-aware harvesting and processing as P6B:
-   - Harvesters select resources, return and unload through their owner team only;
-   - Headquarters, separators, storage caps, power and factories mutate only the owner economy;
-   - finite resources deplete once globally; the center Infinity never depletes;
-   - simultaneous team updates must not depend on the human faction alias.
-3. Add civil destruction and bounded replacement as P6C:
-   - destroyed Builders and Harvesters stop acting and release occupancy;
-   - AI teams can replace missing minimum civil units without hidden resources;
-   - replacement requests obey team unit caps, power and production ownership;
-   - deterministic IDs replace remaining `Date.now()` civil spawn IDs.
-4. Close persistence and isolation as P6D:
-   - save/load preserves four economies, civil ownership, cargo, targets and processing progress;
-   - old saves migrate into the canonical four-team shape;
-   - tests prove no cross-team resource mutation and deterministic replay behavior.
-5. Keep this phase civil-only. Builder-local placement, Headquarters combat, faction bonuses, XP and strategic combat AI remain later phases.
+1. Make the selected Builder the only construction anchor:
+   - resolve the primary selected Builder by stable ID;
+   - reject missing, foreign, busy or destroyed Builders;
+   - use the Builder's current fractional tile position rather than Headquarters or existing buildings;
+   - keep owner economy and ownership explicit.
+2. Implement bounded deterministic local site search:
+   - expand outward in Manhattan rings from the selected Builder;
+   - validate the full building footprint and map bounds;
+   - preserve one complete empty tile between building/construction footprints;
+   - reject resources, obstacles, units and protected center tiles;
+   - break equal-distance ties deterministically.
+3. Validate Builder reachability before spending resources:
+   - find at least one passable tile adjacent to the candidate footprint;
+   - compute a cardinal path from the selected Builder to that approach tile;
+   - reject unreachable candidates and continue the local search;
+   - return no-valid-site after the bounded radius is exhausted.
+4. Bind construction to the exact selected Builder:
+   - create the site only after search and path validation succeed;
+   - deduct matter only on successful placement;
+   - assign the selected Builder and validated path immediately;
+   - do not let another idle Builder steal the request.
+5. Add Russian failure feedback and regression coverage:
+   - no selected Builder;
+   - Builder busy/destroyed/foreign;
+   - insufficient matter;
+   - no reachable legal site;
+   - deterministic placement and no mutation on every rejection.
+6. Keep this phase construction-only. Headquarters combat, faction bonuses, XP and strategic combat AI remain later phases.
 
 ## Acceptance gate
 
-Four teams must harvest, unload, process and spend resources simultaneously; every civil unit must use only its owner Headquarters and economy; finite deposits must deplete, the center Infinity must not, and save/load must preserve all four loops deterministically.
+Moving the selected Builder must change where the next building is constructed; the chosen site must be the nearest deterministic legal and reachable footprint within a bounded radius, with one empty tile between buildings, no resource charge on failure and clear Russian feedback.
 
-Prefer reviewable slices: P6A establishes deterministic team-owned civil starts; P6B closes simultaneous harvesting and processing; P6C handles civil loss and replacement; P6D closes save/load, isolation and the phase.
+This phase should close through one cohesive implementation PR plus a status closure PR; do not split the placement algorithm from exact Builder assignment because the transaction must remain atomic.
 
 ## Required validation for implementation PRs
 
@@ -66,18 +73,18 @@ Prefer reviewable slices: P6A establishes deterministic team-owned civil starts;
 
 ## Manual QA carried forward
 
-- Start a generated map as each player faction and confirm all four Headquarters, Builders and Harvesters use their owner faction assets.
-- Observe all four civil loops simultaneously and confirm Harvesters return only to their owner Headquarters.
-- Confirm finite quadrant resources deplete while the center Infinity remains available from all four approaches.
+- Move one Builder away from Headquarters, select it and confirm the next building is placed near that Builder rather than the base.
+- Select different Builders in different corners and confirm each build request uses the selected Builder and owner economy.
+- Block every site inside the bounded radius and confirm no matter is deducted and Russian failure feedback is shown.
+- Confirm completed buildings preserve one empty tile between footprints and Builders can physically reach the assigned site.
 - Produce combat units, save and reload; confirm team ownership, factory preview, movement and HP remain coherent.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
 ## Not next by default
 
-- Builder-local automatic construction; that is Phase 7.
 - Headquarters damage, elimination and victory/defeat; that is Phase 8.
 - Faction bonuses; that is Phase 9.
 - XP and independent M0-M3 upgrades; that is Phase 10.
 - Strategic combat AI; that is Phase 11.
-- Broad terrain, obstacle or asset changes unrelated to four-team civil economy.
-- Unrelated issue #305 work inside SKIRMISH-P6.
+- Broad terrain, obstacle or asset changes unrelated to Builder-local construction.
+- Unrelated issue #305 work inside SKIRMISH-P7.
