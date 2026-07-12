@@ -104,15 +104,19 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     ? createExtraModularCombat(mapData, extraHarvesters, faction)
     : [];
 
-  // Add extra harvesters to the entity list
+  // Add extra harvesters using the same deterministic IDs as runtime state.
+  const starterHarvesterIndex = new Map<string, number>();
   for (const h of extraHarvesters) {
+    const ownerTeamId = h.ownerTeamId ?? teamIdForFaction(h.faction);
+    const index = starterHarvesterIndex.get(ownerTeamId) ?? 0;
+    starterHarvesterIndex.set(ownerTeamId, index + 1);
     entities.push({
-      id: `extra-harvester-${h.ownerTeamId ?? h.faction}-${h.tx}-${h.ty}`,
+      id: `harvester-${ownerTeamId}-${index}`,
       kind: 'harvester',
       tx: h.tx,
       ty: h.ty,
       faction: h.faction,
-      ownerTeamId: h.ownerTeamId,
+      ownerTeamId,
     });
   }
 
@@ -166,6 +170,8 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     hqPosition,
     nextConstructionId: 0,
     nextCombatUnitId: 0,
+    nextCivilUnitId: 0,
+    civilClockMs: 0,
     combatClockMs: 0,
     production: arenaMode ? { factories: [] } : createInitialProduction(mapData),
 

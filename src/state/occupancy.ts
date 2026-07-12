@@ -154,12 +154,14 @@ export function buildOccupancyMap(state: GameState): OccupancyMap {
 
   // ── Soft-occupied: builders (rounded tile position) ──────────────
   for (const b of state.mapData.builders) {
+    if (b.isDestroyed) continue;
     const k = key(Math.round(b.ftx), Math.round(b.fty), width);
     getOrMake(flags, k).add('soft-occupied');
   }
 
   // ── Soft-occupied: harvesters (rounded tile position) ──────────
   for (const h of state.harvesters) {
+    if (h.isDestroyed) continue;
     const k = key(Math.round(h.ftx), Math.round(h.fty), width);
     getOrMake(flags, k).add('soft-occupied');
   }
@@ -249,6 +251,7 @@ export function addUnitBlockers(
 ): void {
   // Add builders as impassable (except excluded)
   for (const b of state.mapData.builders) {
+    if (b.isDestroyed) continue;
     if (excludeType === 'builder' && excludeId === b.id) continue;
     const k = key(Math.round(b.ftx), Math.round(b.fty), map.width);
     getOrMake(map.flags, k).add('impassable');
@@ -256,6 +259,7 @@ export function addUnitBlockers(
 
   // Add harvesters as impassable (except excluded)
   for (const h of state.harvesters) {
+    if (h.isDestroyed) continue;
     if (excludeType === 'harvester' && excludeId === h.id) continue;
     const k = key(Math.round(h.ftx), Math.round(h.fty), map.width);
     getOrMake(map.flags, k).add('impassable');
@@ -292,11 +296,13 @@ export function isTileOccupiedByUnit(
   excludeId?: number | string,
 ): boolean {
   for (const b of state.mapData.builders) {
+    if (b.isDestroyed) continue;
     if (excludeType === 'builder' && excludeId === b.id) continue;
     if (Math.round(b.ftx) === tx && Math.round(b.fty) === ty) return true;
   }
 
   for (const h of state.harvesters) {
+    if (h.isDestroyed) continue;
     if (excludeType === 'harvester' && excludeId === h.id) continue;
     if (Math.round(h.ftx) === tx && Math.round(h.fty) === ty) return true;
   }
