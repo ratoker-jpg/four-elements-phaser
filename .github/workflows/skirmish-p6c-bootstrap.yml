@@ -32,8 +32,15 @@ jobs:
 
       - run: npm ci
       - run: npm run sync:project-status -- --check
-      - run: npm run typecheck
+
+      - name: TypeScript
+        id: typecheck
+        continue-on-error: true
+        run: npm run typecheck > typecheck.log 2>&1
+
       - name: Focused P6C tests
+        id: focused
+        continue-on-error: true
         run: >-
           npx vitest run
           src/__tests__/civilUnitLifecycle.test.ts
@@ -41,6 +48,29 @@ jobs:
           src/__tests__/builder.test.ts
           src/__tests__/occupancy.test.ts
           src/__tests__/fourTeamCivilBootstrap.test.ts
+          > p6c-tests.log 2>&1
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: skirmish-p6c-diagnostics
+          path: |
+            typecheck.log
+            p6c-tests.log
+          if-no-files-found: ignore
+
+      - name: Enforce TypeScript
+        if: steps.typecheck.outcome != 'success'
+        run: |
+          cat typecheck.log
+          exit 1
+
+      - name: Enforce focused tests
+        if: steps.focused.outcome != 'success'
+        run: |
+          cat p6c-tests.log
+          exit 1
+
       - run: npm audit --audit-level=high
       - run: git diff --check
 
