@@ -26,11 +26,11 @@ The old repository `ratoker-jpg/four-elements-next` is donor/reference/specifica
 Updated: 2026-07-12
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 6: Four-team civil economy
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 7: Builder-local automatic construction
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #355 — Four-team exits, reachability and structural fairness validation
-Next: Spawn one Builder and two Harvesters for every canonical team, bind each civil loop to its owner Headquarters and economy, then harden processing, depletion and save/load without cross-team mutation.
-Gate: Four teams must harvest, unload, process and spend resources simultaneously; every civil unit must use only its owner Headquarters and economy; finite deposits must deplete, the center Infinity must not, and save/load must preserve all four loops deterministically.
+Last merged: PR #360 — Four-team civil save/load and migration
+Next: Replace Headquarters/building-anchor placement with an expanding-ring search around the selected Builder, validate footprint spacing and Builder reachability, assign that exact Builder, and preserve resources on every failed request.
+Gate: Moving the selected Builder must change where the next building is constructed; the chosen site must be the nearest deterministic legal and reachable footprint within a bounded radius, with one empty tile between buildings, no resource charge on failure and clear Russian feedback.
 ```
 <!-- PROJECT_STATUS:END -->
 

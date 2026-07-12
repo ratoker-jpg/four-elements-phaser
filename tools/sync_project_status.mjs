@@ -120,6 +120,11 @@ ${renderStatusBlock()}
 - Skirmish Phase 5B symmetric finite resources closed via PR #353.
 - Skirmish Phase 5C canonical center Infinity contract closed via PR #354.
 - Skirmish Phase 5D exits, reachability and structural fairness validation closed via PR #355.
+- Skirmish Phase 6 activation established via PR #356.
+- Skirmish Phase 6A deterministic four-team civil bootstrap closed via PR #357.
+- Skirmish Phase 6B owner-isolated harvesting, processing, storage and power closed via PR #358.
+- Skirmish Phase 6C deterministic civil destruction and AI replacement closed via PR #359.
+- Skirmish Phase 6D save v6, civil migration and deterministic continuation closed via PR #360.
 - Produced combat units use \`GameState.combatUnits\` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -194,33 +199,40 @@ ${renderStatusBlock()}
 
 ## Default next work
 
-1. Implement deterministic four-team civil bootstrap as P6A:
-   - generated four-HQ maps receive one Builder and two Harvesters per team;
-   - civil-unit IDs are stable and independent from the selected human faction;
-   - every unit receives canonical \`ownerTeamId\` and faction data;
-   - spawn tiles are passable, deterministic and local to the owner Headquarters;
-   - legacy one-HQ maps and old saves do not invent enemy civil units.
-2. Complete owner-aware harvesting and processing as P6B:
-   - Harvesters select resources, return and unload through their owner team only;
-   - Headquarters, separators, storage caps, power and factories mutate only the owner economy;
-   - finite resources deplete once globally; the center Infinity never depletes;
-   - simultaneous team updates must not depend on the human faction alias.
-3. Add civil destruction and bounded replacement as P6C:
-   - destroyed Builders and Harvesters stop acting and release occupancy;
-   - AI teams can replace missing minimum civil units without hidden resources;
-   - replacement requests obey team unit caps, power and production ownership;
-   - deterministic IDs replace remaining \`Date.now()\` civil spawn IDs.
-4. Close persistence and isolation as P6D:
-   - save/load preserves four economies, civil ownership, cargo, targets and processing progress;
-   - old saves migrate into the canonical four-team shape;
-   - tests prove no cross-team resource mutation and deterministic replay behavior.
-5. Keep this phase civil-only. Builder-local placement, Headquarters combat, faction bonuses, XP and strategic combat AI remain later phases.
+1. Make the selected Builder the only construction anchor:
+   - resolve the primary selected Builder by stable ID;
+   - reject missing, foreign, busy or destroyed Builders;
+   - use the Builder's current fractional tile position rather than Headquarters or existing buildings;
+   - keep owner economy and ownership explicit.
+2. Implement bounded deterministic local site search:
+   - expand outward in Manhattan rings from the selected Builder;
+   - validate the full building footprint and map bounds;
+   - preserve one complete empty tile between building/construction footprints;
+   - reject resources, obstacles, units and protected center tiles;
+   - break equal-distance ties deterministically.
+3. Validate Builder reachability before spending resources:
+   - find at least one passable tile adjacent to the candidate footprint;
+   - compute a cardinal path from the selected Builder to that approach tile;
+   - reject unreachable candidates and continue the local search;
+   - return no-valid-site after the bounded radius is exhausted.
+4. Bind construction to the exact selected Builder:
+   - create the site only after search and path validation succeed;
+   - deduct matter only on successful placement;
+   - assign the selected Builder and validated path immediately;
+   - do not let another idle Builder steal the request.
+5. Add Russian failure feedback and regression coverage:
+   - no selected Builder;
+   - Builder busy/destroyed/foreign;
+   - insufficient matter;
+   - no reachable legal site;
+   - deterministic placement and no mutation on every rejection.
+6. Keep this phase construction-only. Headquarters combat, faction bonuses, XP and strategic combat AI remain later phases.
 
 ## Acceptance gate
 
 ${status.gate}
 
-Prefer reviewable slices: P6A establishes deterministic team-owned civil starts; P6B closes simultaneous harvesting and processing; P6C handles civil loss and replacement; P6D closes save/load, isolation and the phase.
+This phase should close through one cohesive implementation PR plus a status closure PR; do not split the placement algorithm from exact Builder assignment because the transaction must remain atomic.
 
 ## Required validation for implementation PRs
 
@@ -240,12 +252,11 @@ ${listLines(status.manualQa)}
 
 ## Not next by default
 
-- Builder-local automatic construction; that is Phase 7.
 - Headquarters damage, elimination and victory/defeat; that is Phase 8.
 - Faction bonuses; that is Phase 9.
 - XP and independent M0-M3 upgrades; that is Phase 10.
 - Strategic combat AI; that is Phase 11.
-- Broad terrain, obstacle or asset changes unrelated to four-team civil economy.
+- Broad terrain, obstacle or asset changes unrelated to Builder-local construction.
 - Unrelated issue #305 work inside ${status.phaseCode}.
 `;
 }
