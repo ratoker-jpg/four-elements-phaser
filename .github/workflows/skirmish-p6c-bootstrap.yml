@@ -23,7 +23,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Apply implementation
-        run: python3 tools/apply_skirmish_p6c.py
+        run: |
+          python3 tools/apply_skirmish_p6c.py
+          sed -i 's/builder\.destroyedAt === null/builder.destroyedAt == null/' src/state/civilUnitLifecycle.ts
+          sed -i 's/harvester\.destroyedAt === null/harvester.destroyedAt == null/' src/state/civilUnitLifecycle.ts
 
       - uses: actions/setup-node@v4
         with:
