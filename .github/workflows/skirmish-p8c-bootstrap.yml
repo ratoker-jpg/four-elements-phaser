@@ -22,8 +22,47 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Apply implementation
-        run: python3 tools/apply_skirmish_p8c.py
+      - name: Apply implementation and result identity fix
+        run: |
+          python3 tools/apply_skirmish_p8c.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/phaser/GameScene.ts')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              "import { evaluateMatchResult, isMatchFinished, resolveRestartSetup } from '../state/matchResult';",
+              "import { evaluateMatchResult, resolveRestartSetup } from '../state/matchResult';",
+              1,
+          )
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('src/state/matchResult.ts')
+          text = path.read_text(encoding='utf-8')
+          old = """  state.matchResult = {
+              outcome,
+              winnerTeamId: outcome === 'victory' ? winnerTeamId : null,
+              defeatedTeamIds,
+              resolvedAtMs,
+            };
+            return state.matchResult;"""
+          new = """  const normalized: MatchResultState = {
+              outcome,
+              winnerTeamId: outcome === 'victory' ? winnerTeamId : null,
+              defeatedTeamIds,
+              resolvedAtMs,
+            };
+            if (raw) {
+              Object.assign(raw, normalized);
+              state.matchResult = raw;
+            } else {
+              state.matchResult = normalized;
+            }
+            return state.matchResult;"""
+          if old not in text:
+              raise RuntimeError('match result normalization marker not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
 
       - uses: actions/setup-node@v4
         with:
@@ -32,45 +71,14 @@ jobs:
 
       - run: npm ci
       - run: npm run sync:project-status -- --check
-
-      - name: TypeScript
-        id: typecheck
-        continue-on-error: true
-        run: npm run typecheck > typecheck.log 2>&1
-
-      - name: Focused P8C tests
-        id: focused
-        continue-on-error: true
-        run: >-
+      - run: npm run typecheck
+      - run: >-
           npx vitest run
           src/__tests__/matchResult.test.ts
           src/__tests__/headquartersCombatTargeting.test.ts
           src/__tests__/headquartersCombat.test.ts
           src/__tests__/saveGame.test.ts
           src/__tests__/fourTeamSaveLoad.test.ts
-          > p8c-tests.log 2>&1
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: skirmish-p8c-diagnostics
-          path: |
-            typecheck.log
-            p8c-tests.log
-          if-no-files-found: ignore
-
-      - name: Enforce TypeScript
-        if: steps.typecheck.outcome != 'success'
-        run: |
-          cat typecheck.log
-          exit 1
-
-      - name: Enforce focused tests
-        if: steps.focused.outcome != 'success'
-        run: |
-          cat p8c-tests.log
-          exit 1
-
       - run: npm audit --audit-level=high
       - run: git diff --check
 
