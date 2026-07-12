@@ -23,14 +23,14 @@ The old repository `ratoker-jpg/four-elements-next` is donor/reference/specifica
 ## Current operating mode
 
 <!-- PROJECT_STATUS:START -->
-Updated: 2026-07-11
+Updated: 2026-07-12
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 5: Symmetric four-corner map
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 6: Four-team civil economy
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #350 — Owner-aware rendering, HUD faction data and dev spawning
-Next: Introduce a backward-compatible four-Headquarters map contract, generate deterministic corner starts by mirroring one accepted placement, then mirror finite quadrant resources around one shared center Infinity deposit.
-Gate: The same seed and size must produce exactly four unique non-overlapping corner Headquarters, equivalent finite resource value and access per quadrant, one protected center Infinity deposit, and deterministic validation results.
+Last merged: PR #355 — Four-team exits, reachability and structural fairness validation
+Next: Spawn one Builder and two Harvesters for every canonical team, bind each civil loop to its owner Headquarters and economy, then harden processing, depletion and save/load without cross-team mutation.
+Gate: Four teams must harvest, unload, process and spend resources simultaneously; every civil unit must use only its owner Headquarters and economy; finite deposits must deplete, the center Infinity must not, and save/load must preserve all four loops deterministically.
 ```
 <!-- PROJECT_STATUS:END -->
 

@@ -3,7 +3,7 @@
 Status: generated active operational state
 Project: Four Elements Phaser
 Repo: `ratoker-jpg/four-elements-phaser`
-Updated: 2026-07-11
+Updated: 2026-07-12
 
 > Generated from `docs/project/project-status.json`. Run `npm run sync:project-status` after changing status.
 
@@ -12,14 +12,14 @@ Updated: 2026-07-11
 ## Current mode
 
 <!-- PROJECT_STATUS:START -->
-Updated: 2026-07-11
+Updated: 2026-07-12
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 5: Symmetric four-corner map
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 6: Four-team civil economy
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #350 — Owner-aware rendering, HUD faction data and dev spawning
-Next: Introduce a backward-compatible four-Headquarters map contract, generate deterministic corner starts by mirroring one accepted placement, then mirror finite quadrant resources around one shared center Infinity deposit.
-Gate: The same seed and size must produce exactly four unique non-overlapping corner Headquarters, equivalent finite resource value and access per quadrant, one protected center Infinity deposit, and deterministic validation results.
+Last merged: PR #355 — Four-team exits, reachability and structural fairness validation
+Next: Spawn one Builder and two Harvesters for every canonical team, bind each civil loop to its owner Headquarters and economy, then harden processing, depletion and save/load without cross-team mutation.
+Gate: Four teams must harvest, unload, process and spend resources simultaneously; every civil unit must use only its owner Headquarters and economy; finite deposits must deplete, the center Infinity must not, and save/load must preserve all four loops deterministically.
 ```
 <!-- PROJECT_STATUS:END -->
 
@@ -38,6 +38,11 @@ Gate: The same seed and size must produce exactly four unique non-overlapping co
 - Skirmish Phase 4A canonical four-team state, ownership and save v5 migration closed via PR #348.
 - Skirmish Phase 4B owner-aware selection, commands, construction and HUD selectors closed via PR #349.
 - Skirmish Phase 4C owner-aware rendering, presentation and dev tools closed via PR #350.
+- Skirmish Phase 5 activation and reviewable map slices established via PR #351.
+- Skirmish Phase 5A canonical four-corner Headquarters closed via PR #352.
+- Skirmish Phase 5B symmetric finite resources closed via PR #353.
+- Skirmish Phase 5C canonical center Infinity contract closed via PR #354.
+- Skirmish Phase 5D exits, reachability and structural fairness validation closed via PR #355.
 - Produced combat units use `GameState.combatUnits` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -55,9 +60,9 @@ Gate: The same seed and size must produce exactly four unique non-overlapping co
 
 ## Manual QA still required
 
-- Start a generated map for each player faction and verify the camera and human compatibility HQ resolve to the selected team corner.
-- Inspect all four corners and confirm each Headquarters and Builder uses the owning faction assets.
-- Confirm finite resource groups are equivalent by quadrant and the center contains exactly one Infinity deposit with four approaches.
+- Start a generated map as each player faction and confirm all four Headquarters, Builders and Harvesters use their owner faction assets.
+- Observe all four civil loops simultaneously and confirm Harvesters return only to their owner Headquarters.
+- Confirm finite quadrant resources deplete while the center Infinity remains available from all four approaches.
 - Produce combat units, save and reload; confirm team ownership, factory preview, movement and HP remain coherent.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
@@ -69,7 +74,7 @@ Automated checks do not replace visual acceptance for produced-unit rendering, d
 - Issue #330: complete manual visual QA for produced combat units in Normal mode.
 - Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.
 - Issue #335: visually accept the donor VFX overlay, projected tracks and bounded dust.
-- Implement SKIRMISH-P5A: canonical four-Headquarters map data, legacy HQ migration and deterministic corner placement.
+- Implement SKIRMISH-P6A: deterministic four-team civil-unit bootstrap and owner-HQ binding.
 
 ## Current source-of-truth documents
 
