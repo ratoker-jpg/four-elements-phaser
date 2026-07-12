@@ -19,14 +19,15 @@ import { ensureBuilderIds } from './createInitialState';
 import { normalizeVisionForLoadedState } from './visibility';
 import { normalizeCombatUnitState } from './combatUnits';
 import { normalizeMatchState } from './matchState';
+import { normalizeCivilUnitState } from './civilUnitLifecycle';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
 /** localStorage key for the save slots array. */
 const SAVE_STORAGE_KEY = 'four-elements-save-slots';
 
-/** Current save format version. Phase 2 fixup: canonical combat state + deterministic IDs. */
-const SAVE_VERSION = 5;
+/** Current save format version. Phase 6: canonical four-team civil economy and lifecycle. */
+const SAVE_VERSION = 6;
 
 /** Maximum number of save slots. */
 export const MAX_SAVE_SLOTS = 5;
@@ -161,12 +162,12 @@ function writeSlots(slots: SaveSlot[]): boolean {
   return storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(slots));
 }
 
-/** Validate a single slot has the required structure. Accepts version 1, 2, and 3. */
+/** Validate a single slot has the required structure. Accepts migrations from v1-v6. */
 function isValidSlot(slot: unknown): slot is SaveSlot {
   if (typeof slot !== 'object' || slot === null) return false;
   const s = slot as Record<string, unknown>;
-  // Accept v1-v5; loadGame performs field migrations.
-  if (s.version !== 1 && s.version !== 2 && s.version !== 3 && s.version !== 4 && s.version !== 5) return false;
+  // Accept v1-v6; loadGame performs field migrations.
+  if (![1, 2, 3, 4, 5, 6].includes(s.version as number)) return false;
   if (typeof s.id !== 'string') return false;
   if (typeof s.createdAt !== 'string') return false;
   if (typeof s.updatedAt !== 'string') return false;
@@ -219,6 +220,7 @@ function sanitizeForSave(gameState: GameState): GameState {
     ? structuredClone(gameState)
     : JSON.parse(JSON.stringify(gameState))) as GameState;
   const match = normalizeMatchState(clone);
+  normalizeCivilUnitState(clone);
 
   clone.blockoutVehicles = undefined;
   clone.blockoutObstacles = undefined;
@@ -322,7 +324,7 @@ export function loadGame(slotId: string): LoadResult {
     return { success: false, message: 'Save not found' };
   }
 
-  if (slot.version !== SAVE_VERSION && slot.version !== 1 && slot.version !== 2 && slot.version !== 3 && slot.version !== 4) {
+  if (slot.version < 1 || slot.version > SAVE_VERSION) {
     return { success: false, message: `Save version ${slot.version} not supported` };
   }
 
@@ -360,6 +362,7 @@ export function loadGame(slotId: string): LoadResult {
     gs.vision,
   );
   normalizeMatchState(gs);
+  normalizeCivilUnitState(gs);
 
   return { success: true, message: 'Loaded', gameState: gs };
 }
@@ -392,8 +395,8 @@ function buildSummary(gs: GameState): SaveSummary {
     powerGenerated: gs.economy.powerGenerated,
     resourcesCount: gs.resourceNodes.filter(r => !r.depleted).length,
     buildingsCount: gs.mapData.buildings.length,
-    harvestersCount: gs.harvesters.length,
-    combatUnitsCount: gs.combatUnits.length,
+    harvestersCount: gs.harvesters.filter(unit => !unit.isDestroyed).length,
+    combatUnitsCount: gs.combatUnits.filter(unit => !unit.runtime?.isDestroyed).length,
   };
 }
 
