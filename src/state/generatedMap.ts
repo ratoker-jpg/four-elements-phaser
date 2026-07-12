@@ -85,7 +85,7 @@ export const MAX_VALIDATION_ATTEMPTS = 3;
  * - Patch-based terrain with sand-dominant base and soft sand-light/sand-dark patches
  * - Four mirrored 3×3 Headquarters in the map corners
  * - `hq` remains the selected human faction compatibility alias
- * - One idle human Builder placed toward the map center
+ * - One idle Builder per canonical team placed toward the map center
  * - Anchor-based resource placement using 6-class model (CORE-STEP-03B)
  * - Mirrored finite starter/side/contested resources in all four quadrants
  * - Equal resource classes, footprints and deterministic raw value per quadrant
@@ -109,16 +109,17 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
   const headquarters = createFourCornerHeadquarters(W, H);
   const hq = headquarters.find(candidate => candidate.faction === faction)!;
 
-  // ── Human Builder: immediately outside the HQ toward map center ──
-  // Preserve the legacy lower-left spawn contract (within two tiles of hq top-left).
-  const builderTx = hq.tx + 1;
-  const builderTy = hq.ty < H / 2
-    ? hq.ty + HQ_FOOTPRINT
-    : hq.ty - 1;
-  const builders = [
-    {
-      id: 'builder-0',
-      ownerTeamId: hq.ownerTeamId,
+  // ── SKIRMISH-P6A: one deterministic Builder per canonical Headquarters ──
+  // Spawn on the vertical HQ edge facing the map center. Canonical HQ order
+  // keeps IDs and structure independent from the selected human faction.
+  const builders = headquarters.map((headquartersPlacement, index) => {
+    const builderTx = headquartersPlacement.tx + 1;
+    const builderTy = headquartersPlacement.ty < H / 2
+      ? headquartersPlacement.ty + HQ_FOOTPRINT
+      : headquartersPlacement.ty - 1;
+    return {
+      id: `builder-${index}`,
+      ownerTeamId: headquartersPlacement.ownerTeamId,
       tx: builderTx,
       ty: builderTy,
       busy: false,
@@ -130,8 +131,8 @@ export function createGeneratedMapData(seed: string, size: MapSizeOption, factio
       targetTx: builderTx,
       targetTy: builderTy,
       assignedSiteId: -1,
-    },
-  ];
+    };
+  });
 
   // ── Occupied set: track all placed items to prevent overlap ──
   const occupied = new Set<string>();
