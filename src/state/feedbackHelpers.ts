@@ -30,7 +30,13 @@ export function buildBlockFeedback(reason: BuildBlockReason): { message: string;
 export function buildFailureFeedback(code: string | undefined): { message: string; type: FeedbackSeverity } {
   switch (code) {
     // Standard BuildBlockReason
-    case 'no-idle-builder': return buildBlockFeedback('no-idle-builder');
+    case 'no-idle-builder':
+    case 'no-selected-builder':
+    case 'builder-not-found':
+    case 'builder-unavailable':
+      return buildBlockFeedback('no-idle-builder');
+    case 'foreign-builder':
+      return { message: t('fb_commandUnavailable'), type: 'warning' };
     case 'insufficient-matter': return buildBlockFeedback('insufficient-matter');
     case 'not-buildable': return buildBlockFeedback('not-buildable');
     // Additional runtime codes from requestBuild()

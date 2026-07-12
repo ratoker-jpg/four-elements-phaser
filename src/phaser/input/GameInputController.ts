@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { screenToTile, tileToScreen, type IsoPoint } from '../render/isometric';
 import type { GameState, BuildingType } from '../../state/types';
-import { BUILDING_CONFIG, placeConstructionSite } from '../../state/construction';
-import { findBuildSiteNearPlayerBuildings } from '../../state/buildSiteSelection';
+import { BUILDING_CONFIG } from '../../state/construction';
+import { placeConstructionNearBuilder } from '../../state/buildSiteSelection';
 import { isVisualReadyBuilding } from '../../config/buildingRuntimeMapping';
 import { startUnitProduction, cancelFactoryQueueItem, getProductionQuote, type ProductionRequestInput } from '../../state/production';
 import type { UnitSelection, SelectableUnit } from '../../state/unitSelection';
@@ -452,30 +452,56 @@ export class GameInputController {
     }
 
     const match = ensureMatchState(gameState);
-    const hasIdleBuilder = gameState.mapData.builders.some(
-      builder => isHumanOwned(gameState, builder) && builder.phase === 'idle' && !builder.busy,
-    );
-    if (!hasIdleBuilder) {
-      return { success: false, message: 'no idle builder', buildingType, code: 'no-idle-builder' };
+    const primary = getPrimarySelection(this.selection);
+    if (!primary || primary.kind !== 'builder') {
+      return {
+        success: false,
+        message: 'Выбери свободного строителя',
+        buildingType,
+        code: 'no-selected-builder',
+      };
     }
 
-    const site = findBuildSiteNearPlayerBuildings(
-      gameState, buildingType, undefined, match.humanTeamId,
-    );
-    if (!site.ok) {
-      return { success: false, message: `no valid build site`, buildingType, code: 'no-build-site' };
-    }
-
-    const result = placeConstructionSite(
-      gameState, buildingType, site.tx, site.ty, match.humanTeamId,
+    const result = placeConstructionNearBuilder(
+      gameState,
+      buildingType,
+      primary.id,
+      undefined,
+      match.humanTeamId,
     );
     if (result.ok) {
-      console.log(`[GameScene] Construction site placed: ${result.siteId} at (${site.tx},${site.ty})`);
-      return { success: true, message: `${buildingType} site placed`, buildingType, tileTarget: { tx: site.tx, ty: site.ty } };
-    } else {
-      console.warn(`[GameScene] Placement failed at (${site.tx},${site.ty}): ${result.reason}`);
-      return { success: false, message: `placement failed: ${result.reason}`, buildingType, code: result.reason };
+      console.log(
+        `[GameScene] Builder ${result.builderId} placed ${result.siteId} at (${result.tx},${result.ty})`,
+      );
+      return {
+        success: true,
+        message: `${buildingType}: строительство начато`,
+        buildingType,
+        tileTarget: { tx: result.tx, ty: result.ty },
+      };
     }
+
+    const code = result.reason === 'insufficient-resources'
+      ? 'insufficient-matter'
+      : result.reason === 'no-valid-site'
+        ? 'no-build-site'
+        : result.reason;
+    const messages: Record<string, string> = {
+      'builder-not-found': 'Выбранный строитель не найден',
+      'builder-unavailable': 'Строитель занят или уничтожен',
+      'foreign-builder': 'Нельзя отдавать приказ чужому строителю',
+      'insufficient-resources': 'Недостаточно материи',
+      'no-valid-site': 'Рядом со строителем нет доступного места',
+      'unknown-building-type': 'Неизвестный тип здания',
+      'not-buildable': 'Это здание пока недоступно',
+    };
+    console.info(`[GameScene] Builder-local placement failed: ${result.reason}`);
+    return {
+      success: false,
+      message: messages[result.reason] ?? 'Не удалось начать строительство',
+      buildingType,
+      code,
+    };
   }
 
   requestQueueUnit(input: ProductionRequestInput): ProductionRequestResult {
