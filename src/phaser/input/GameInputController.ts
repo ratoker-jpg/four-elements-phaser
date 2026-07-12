@@ -40,6 +40,7 @@ import { FeedbackStore, type FeedbackSeverity } from '../../state/feedbackStore'
 import { controlGroupAssigned, controlGroupEmpty, controlGroupRecalled, constructionStarted, buildFailureFeedback } from '../../state/feedbackHelpers';
 import { DEFAULT_FACTORY_COMPOSER_STATE, createFactoryComposerRequest, getFactoryComposerQuote, reduceFactoryComposer, type FactoryComposerCommandId, type FactoryComposerState } from '../../state/factoryComposer';
 import { ensureMatchState } from '../../state/matchState';
+import { getMapHeadquarters, HQ_FOOTPRINT } from '../../state/mapHeadquarters';
 import { isHumanOwned } from '../../state/teamOwnership';
 
 /** FIXUP-1: Typed feedback params — single object for dedupe-aware feedback. */
@@ -895,6 +896,30 @@ export class GameInputController {
 
   // ─── Click target detection ─────────────────────────────────────
 
+  private findHeadquartersTarget(
+    state: GameState,
+    clickTx: number,
+    clickTy: number,
+  ): ClickTarget | null {
+    const headquarters = getMapHeadquarters(state.mapData);
+    for (let index = headquarters.length - 1; index >= 0; index--) {
+      const hq = headquarters[index];
+      if (hq.isDestroyed || !hq.id) continue;
+      if (
+        clickTx >= hq.tx && clickTx < hq.tx + HQ_FOOTPRINT
+        && clickTy >= hq.ty && clickTy < hq.ty + HQ_FOOTPRINT
+      ) {
+        return {
+          kind: isHumanOwned(state, hq) ? 'own-building' : 'enemy-building',
+          id: hq.id,
+          tx: hq.tx,
+          ty: hq.ty,
+        };
+      }
+    }
+    return null;
+  }
+
   private findBuildingTarget(
     state: GameState,
     clickTx: number,
@@ -956,6 +981,9 @@ export class GameInputController {
         return { kind: 'own-combat-vehicle', id: unit.id, tx: Math.round(clickTx), ty: Math.round(clickTy) };
       }
     }
+
+    const headquartersTarget = this.findHeadquartersTarget(gameState, clickTx, clickTy);
+    if (headquartersTarget) return headquartersTarget;
 
     const buildingTarget = this.findBuildingTarget(gameState, clickTx, clickTy);
     if (buildingTarget) return buildingTarget;

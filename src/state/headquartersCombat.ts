@@ -5,6 +5,9 @@ import {
   normalizeMapHeadquarters,
 } from './mapHeadquarters';
 import { ensureMatchState, teamIdForFaction } from './matchState';
+import { normalizeCombatUnitRuntime } from './combatUnits';
+import { applyCivilUnitDamage } from './civilUnitLifecycle';
+import { resolveEntityTeamId } from './teamOwnership';
 
 export type HeadquartersDamageFailureReason =
   | 'attacker-eliminated'
@@ -112,6 +115,33 @@ export function eliminateTeamForDestroyedHeadquarters(
   for (const factory of state.production.factories) {
     if ((factory.ownerTeamId ?? match.humanTeamId) !== teamId) continue;
     factory.active = false;
+    factory.queue = [];
+  }
+
+  for (const unit of state.combatUnits) {
+    if (resolveEntityTeamId(state, unit) !== teamId) continue;
+    const runtime = normalizeCombatUnitRuntime(unit);
+    if (runtime.isDestroyed) continue;
+    runtime.hp = 0;
+    runtime.isDestroyed = true;
+    runtime.destroyedAt = state.combatClockMs ?? 0;
+    runtime.order = { kind: 'idle' };
+    runtime.targetId = null;
+    runtime.path = [];
+    runtime.pathIndex = 0;
+    runtime.isWindingUp = false;
+    runtime.windUpRemainingMs = 0;
+    runtime.windUpTargetId = null;
+  }
+  for (const builder of [...state.mapData.builders]) {
+    if (resolveEntityTeamId(state, builder) === teamId && !builder.isDestroyed) {
+      applyCivilUnitDamage(state, builder.id, Number.MAX_SAFE_INTEGER);
+    }
+  }
+  for (const harvester of [...state.harvesters]) {
+    if (resolveEntityTeamId(state, harvester) === teamId && !harvester.isDestroyed) {
+      applyCivilUnitDamage(state, harvester.id, Number.MAX_SAFE_INTEGER);
+    }
   }
   return !wasEliminated;
 }

@@ -31,8 +31,7 @@ export function normalizeHeadquartersRuntime(
   const maxHp = Math.max(1, finiteOr(hq.maxHp, HEADQUARTERS_MAX_HP));
   const hp = Math.max(0, Math.min(maxHp, finiteOr(hq.hp, maxHp)));
   const isDestroyed = hq.isDestroyed === true || hp <= 0;
-  return {
-    ...hq,
+  return Object.assign(hq, {
     faction,
     ownerTeamId,
     id: `hq-${ownerTeamId}`,
@@ -45,7 +44,7 @@ export function normalizeHeadquartersRuntime(
       : null,
     damageFlashUntilMs: Math.max(0, finiteOr(hq.damageFlashUntilMs, 0)),
     lastDamageAmount: Math.max(0, finiteOr(hq.lastDamageAmount, 0)),
-  };
+  });
 }
 
 export function getHeadquartersCenter(hq: HqPlacement): { tx: number; ty: number } {
@@ -128,25 +127,19 @@ export function normalizeMapHeadquarters(
       continue;
     }
     const ownerTeamId = teamIdForMapFaction(faction);
-    byFaction.set(faction, normalizeHeadquartersRuntime({
-      ...candidate,
-      tx: candidate.tx,
-      ty: candidate.ty,
+    byFaction.set(
       faction,
-      ownerTeamId,
-    }, faction, ownerTeamId));
+      normalizeHeadquartersRuntime(candidate, faction, ownerTeamId),
+    );
   }
 
   if (!byFaction.has(humanFaction)) {
     const legacy = mapData.hq;
     const ownerTeamId = teamIdForMapFaction(humanFaction);
-    byFaction.set(humanFaction, normalizeHeadquartersRuntime({
-      ...legacy,
-      tx: legacy.tx,
-      ty: legacy.ty,
-      faction: humanFaction,
-      ownerTeamId,
-    }, humanFaction, ownerTeamId));
+    byFaction.set(
+      humanFaction,
+      normalizeHeadquartersRuntime(legacy, humanFaction, ownerTeamId),
+    );
   }
 
   const headquarters = FOUR_CORNER_FACTIONS
