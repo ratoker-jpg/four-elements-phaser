@@ -1,0 +1,1138 @@
+{
+  "sourceZip": "modular_cyan_v1.zip",
+  "sourceManifest": "public/assets/units/metadata/turret_pivot_manifest_modular_cyan_v1.json",
+  "version": "MODULAR_CYAN_EXPORT_V1",
+  "renderStrategy": "fixed_512_frame",
+  "fixedOrthoScale": 860.0,
+  "filter": {
+    "turret": "smoky",
+    "faction": "cyan",
+    "turretMod": "m0"
+  },
+  "pilotPngCount": 16,
+  "imageSize": {
+    "w": 512,
+    "h": 512
+  },
+  "records": [
+    {
+      "kind": "turret",
+      "turret": "smoky",
+      "source": "Smoky_01.3ds",
+      "faction": "cyan",
+      "turretMod": "m0",
+      "importer": "import_scene.max3ds",
+      "renderStrategy": "fixed_512_frame",
+      "fixedOrthoScale": 860.0,
+      "pivotSource": "Box02.origin",
+      "pivotFormula": "metadata_current",
+      "pivotVariant": "final_metadata_current",
+      "pivotApproval": "accepted_from_V9_visual_smoke_or_existing_manual_override",
+      "pivotAnchorLocal": [
+        0.0,
+        0.0,
+        -3.8e-05
+      ],
+      "pivotDiagnostics": {
+        "pivot_formula": "metadata_current",
+        "pivot_variant": "final_metadata_current",
+        "variant_label": "FINAL metadata current pivot",
+        "metadata_pivot_object": "Box02",
+        "anchor_source": "Box02.origin",
+        "actual_pivot_object": "Box02",
+        "anchor_local": [
+          0.0,
+          0.0,
+          -3.8e-05
+        ]
+      },
+      "muzzleObject": "muzzle01",
+      "muzzleLocal": [
+        -0.027405,
+        281.712891,
+        44.777828
+      ],
+      "uvLayers": [
+        "UVMap"
+      ],
+      "texture": "D:\\Desktop\\Модели\\Пушки\\Лайтмап\\cyan\\smoky\\smoky_m0.png",
+      "textureExists": true,
+      "records": [
+        {
+          "dir": 0,
+          "dirName": "E",
+          "yaw": 0.0,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir00_E.png",
+          "alpha": 9294,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -66.0,
+                -115.500244,
+                -1.1e-05
+              ],
+              "max": [
+                66.0,
+                280.5,
+                71.367516
+              ],
+              "center": [
+                0.0,
+                82.499878,
+                35.683754
+              ],
+              "size": [
+                132.0,
+                396.000244,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 374.583,
+            "y": 186.572
+          },
+          "muzzleNorm": {
+            "x": 0.731607,
+            "y": 0.364398
+          }
+        },
+        {
+          "dir": 1,
+          "dirName": "ESE",
+          "yaw": -22.5,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir01_ESE.png",
+          "alpha": 10281,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -92.547424,
+                -119.336838,
+                -1.1e-05
+              ],
+              "max": [
+                117.257217,
+                263.254944,
+                71.367516
+              ],
+              "center": [
+                12.354897,
+                71.959053,
+                35.683754
+              ],
+              "size": [
+                209.804642,
+                382.591797,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 410.944,
+            "y": 207.095
+          },
+          "muzzleNorm": {
+            "x": 0.802625,
+            "y": 0.404482
+          }
+        },
+        {
+          "dir": 2,
+          "dirName": "SE",
+          "yaw": -45.0,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir02_SE.png",
+          "alpha": 10411,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -105.005493,
+                -105.005478,
+                -1.1e-05
+              ],
+              "max": [
+                205.931717,
+                205.931671,
+                71.367516
+              ],
+              "center": [
+                50.463112,
+                50.463097,
+                35.683754
+              ],
+              "size": [
+                310.937195,
+                310.937134,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 423.717,
+            "y": 231.305
+          },
+          "muzzleNorm": {
+            "x": 0.827572,
+            "y": 0.451768
+          }
+        },
+        {
+          "dir": 3,
+          "dirName": "SSE",
+          "yaw": -67.5,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir03_SSE.png",
+          "alpha": 10216,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -119.336838,
+                -92.547432,
+                -1.1e-05
+              ],
+              "max": [
+                263.254913,
+                117.25721,
+                71.367516
+              ],
+              "center": [
+                71.959038,
+                12.354889,
+                35.683754
+              ],
+              "size": [
+                382.591736,
+                209.804642,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 410.957,
+            "y": 255.515
+          },
+          "muzzleNorm": {
+            "x": 0.80265,
+            "y": 0.499053
+          }
+        },
+        {
+          "dir": 4,
+          "dirName": "S",
+          "yaw": -90.0,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir04_S.png",
+          "alpha": 9221,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -115.500244,
+                -66.0,
+                -1.1e-05
+              ],
+              "max": [
+                280.5,
+                66.0,
+                71.367516
+              ],
+              "center": [
+                82.499878,
+                0.0,
+                35.683754
+              ],
+              "size": [
+                396.000244,
+                132.0,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 374.606,
+            "y": 276.041
+          },
+          "muzzleNorm": {
+            "x": 0.731652,
+            "y": 0.539143
+          }
+        },
+        {
+          "dir": 5,
+          "dirName": "SSW",
+          "yaw": -112.5,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir05_SSW.png",
+          "alpha": 8027,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -119.336838,
+                -117.257225,
+                -1.1e-05
+              ],
+              "max": [
+                263.254944,
+                92.547432,
+                71.367516
+              ],
+              "center": [
+                71.959053,
+                -12.354897,
+                35.683754
+              ],
+              "size": [
+                382.591797,
+                209.804657,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 320.198,
+            "y": 289.757
+          },
+          "muzzleNorm": {
+            "x": 0.625387,
+            "y": 0.565932
+          }
+        },
+        {
+          "dir": 6,
+          "dirName": "SW",
+          "yaw": -135.0,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir06_SW.png",
+          "alpha": 6887,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -105.005486,
+                -205.931702,
+                -1.1e-05
+              ],
+              "max": [
+                205.931686,
+                105.005486,
+                71.367516
+              ],
+              "center": [
+                50.4631,
+                -50.463108,
+                35.683754
+              ],
+              "size": [
+                310.937164,
+                310.937195,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 256.016,
+            "y": 294.575
+          },
+          "muzzleNorm": {
+            "x": 0.500031,
+            "y": 0.575342
+          }
+        },
+        {
+          "dir": 7,
+          "dirName": "WSW",
+          "yaw": -157.5,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir07_WSW.png",
+          "alpha": 8027,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -92.54744,
+                -263.254944,
+                -1.1e-05
+              ],
+              "max": [
+                117.257225,
+                119.336838,
+                71.367516
+              ],
+              "center": [
+                12.354893,
+                -71.959053,
+                35.683754
+              ],
+              "size": [
+                209.804657,
+                382.591797,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 191.832,
+            "y": 289.762
+          },
+          "muzzleNorm": {
+            "x": 0.374672,
+            "y": 0.565941
+          }
+        },
+        {
+          "dir": 8,
+          "dirName": "W",
+          "yaw": -180.0,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir08_W.png",
+          "alpha": 9192,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -66.000008,
+                -280.5,
+                -1.1e-05
+              ],
+              "max": [
+                66.000008,
+                115.500244,
+                71.367516
+              ],
+              "center": [
+                0.0,
+                -82.499878,
+                35.683754
+              ],
+              "size": [
+                132.000015,
+                396.000244,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 137.417,
+            "y": 276.05
+          },
+          "muzzleNorm": {
+            "x": 0.268393,
+            "y": 0.53916
+          }
+        },
+        {
+          "dir": 9,
+          "dirName": "WNW",
+          "yaw": -202.5,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir09_WNW.png",
+          "alpha": 10216,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -117.257133,
+                -263.254974,
+                -1.1e-05
+              ],
+              "max": [
+                92.547409,
+                119.336845,
+                71.367516
+              ],
+              "center": [
+                -12.354862,
+                -71.959061,
+                35.683754
+              ],
+              "size": [
+                209.804535,
+                382.591827,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 101.055,
+            "y": 255.527
+          },
+          "muzzleNorm": {
+            "x": 0.197373,
+            "y": 0.499076
+          }
+        },
+        {
+          "dir": 10,
+          "dirName": "NW",
+          "yaw": -225.0,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir10_NW.png",
+          "alpha": 10412,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -205.931656,
+                -205.931732,
+                -1.1e-05
+              ],
+              "max": [
+                105.00547,
+                105.005501,
+                71.367516
+              ],
+              "center": [
+                -50.463093,
+                -50.463116,
+                35.683754
+              ],
+              "size": [
+                310.937134,
+                310.937225,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 88.282,
+            "y": 231.317
+          },
+          "muzzleNorm": {
+            "x": 0.172426,
+            "y": 0.451791
+          }
+        },
+        {
+          "dir": 11,
+          "dirName": "NNW",
+          "yaw": -247.5,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir11_NNW.png",
+          "alpha": 10281,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -263.254944,
+                -117.257233,
+                -1.1e-05
+              ],
+              "max": [
+                119.336838,
+                92.54744,
+                71.367516
+              ],
+              "center": [
+                -71.959053,
+                -12.354897,
+                35.683754
+              ],
+              "size": [
+                382.591797,
+                209.804672,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 101.043,
+            "y": 207.106
+          },
+          "muzzleNorm": {
+            "x": 0.19735,
+            "y": 0.404504
+          }
+        },
+        {
+          "dir": 12,
+          "dirName": "N",
+          "yaw": -270.0,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir12_N.png",
+          "alpha": 9269,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -280.5,
+                -66.000008,
+                -1.1e-05
+              ],
+              "max": [
+                115.500244,
+                66.000008,
+                71.367516
+              ],
+              "center": [
+                -82.499878,
+                0.0,
+                35.683754
+              ],
+              "size": [
+                396.000244,
+                132.000015,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 137.394,
+            "y": 186.581
+          },
+          "muzzleNorm": {
+            "x": 0.268348,
+            "y": 0.364416
+          }
+        },
+        {
+          "dir": 13,
+          "dirName": "NNE",
+          "yaw": -292.5,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir13_NNE.png",
+          "alpha": 8059,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -263.254913,
+                -92.547447,
+                -1.1e-05
+              ],
+              "max": [
+                119.336838,
+                117.257301,
+                71.367516
+              ],
+              "center": [
+                -71.959038,
+                12.354927,
+                35.683754
+              ],
+              "size": [
+                382.591736,
+                209.804749,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 191.802,
+            "y": 172.865
+          },
+          "muzzleNorm": {
+            "x": 0.374613,
+            "y": 0.337627
+          }
+        },
+        {
+          "dir": 14,
+          "dirName": "NE",
+          "yaw": -315.0,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir14_NE.png",
+          "alpha": 6871,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -205.931747,
+                -105.005463,
+                -1.1e-05
+              ],
+              "max": [
+                105.005508,
+                205.931641,
+                71.367516
+              ],
+              "center": [
+                -50.46312,
+                50.463089,
+                35.683754
+              ],
+              "size": [
+                310.937256,
+                310.937103,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 255.984,
+            "y": 168.047
+          },
+          "muzzleNorm": {
+            "x": 0.499969,
+            "y": 0.328217
+          }
+        },
+        {
+          "dir": 15,
+          "dirName": "ENE",
+          "yaw": -337.5,
+          "png": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_dir15_ENE.png",
+          "alpha": 8062,
+          "pivotPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorPixel": {
+            "x": 256.0,
+            "y": 256.0
+          },
+          "anchorNorm": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "imageSize": {
+            "w": 512,
+            "h": 512
+          },
+          "renderStrategy": "fixed_512_frame",
+          "camera": {
+            "renderStrategy": "fixed_512_frame",
+            "fixedOrthoScale": 860.0,
+            "anchorWorld": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "anchorPixelExpected": {
+              "x": 256.0,
+              "y": 256.0
+            },
+            "bbox": {
+              "min": [
+                -117.257248,
+                -119.33683,
+                -1.1e-05
+              ],
+              "max": [
+                92.54744,
+                263.254944,
+                71.367516
+              ],
+              "center": [
+                -12.354904,
+                71.959061,
+                35.683754
+              ],
+              "size": [
+                209.804688,
+                382.591766,
+                71.367523
+              ]
+            }
+          },
+          "muzzlePixel": {
+            "x": 320.167,
+            "y": 172.86
+          },
+          "muzzleNorm": {
+            "x": 0.625326,
+            "y": 0.337617
+          }
+        }
+      ],
+      "contactSheet": "D:\\Desktop\\Модели\\tests\\modular_cyan_export_v1\\turrets\\smoky\\cyan\\m0\\smoky_cyan_m0_contact_sheet_16dirs.png",
+      "warnings": []
+    }
+  ]
+}
