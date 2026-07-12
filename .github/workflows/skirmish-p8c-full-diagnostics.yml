@@ -165,10 +165,14 @@ jobs:
           if old_setup not in text:
               raise RuntimeError('match setup initialization not found')
           text = text.replace(old_setup, new_setup, 1)
-          text = text.replace('    this.finishMatchIfNeeded();', '    this.matchResultController.showIfFinished();', 1)
+          text = text.replace(
+              '    this.finishMatchIfNeeded();',
+              '    this.matchResultController?.showIfFinished();',
+              1,
+          )
           text = text.replace(
               '      if (this.finishMatchIfNeeded()) return;',
-              '      if (this.matchResultController.showIfFinished()) return;',
+              '      if (this.matchResultController?.showIfFinished()) return;',
               1,
           )
           text, count = re.subn(
