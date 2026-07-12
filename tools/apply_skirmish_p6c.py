@@ -216,7 +216,7 @@ function removeRenderableEntity(state: GameState, id: string): void {
 
 export function updateCivilUnitLifecycle(state: GameState, deltaMs: number): void {
   normalizeCivilUnitDurability(state);
-  const dt = Math.min(Math.max(deltaMs, 0), 200);
+  const dt = Math.max(deltaMs, 0);
   state.civilClockMs = (state.civilClockMs ?? 0) + dt;
   removeExpiredCivilWrecks(state);
   queueAiCivilReplacements(state);
