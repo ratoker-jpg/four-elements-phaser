@@ -101,12 +101,15 @@ describe('SKIRMISH-P5A four-corner Headquarters', () => {
   it('migrates a legacy map to one human-owned HQ without inventing three map entities', () => {
     const map = legacyMap();
     const headquarters = normalizeMapHeadquarters(map, 'purple');
-    expect(headquarters).toEqual([{
+    expect(headquarters).toEqual([expect.objectContaining({
       tx: 2,
       ty: 14,
       faction: 'purple',
       ownerTeamId: 'team-purple',
-    }]);
+      id: 'hq-team-purple',
+      hp: 4000,
+      isDestroyed: false,
+    })]);
     expect(map.hq).toEqual(headquarters[0]);
     const state = createInitialState(map, 'purple');
     expect(state.entities.filter(entity => entity.kind === 'hq' && !entity.stateOnly)).toHaveLength(1);

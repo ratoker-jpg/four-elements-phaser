@@ -455,7 +455,7 @@ function flattenMapEntities(mapData: MapData, faction: Faction, arenaMode: boole
   for (const hq of getMapHeadquarters(mapData)) {
     const ownerTeamId = hq.ownerTeamId ?? teamIdForFaction(hq.faction);
     entities.push({
-      id: `hq-${ownerTeamId}`,
+      id: hq.id ?? `hq-${ownerTeamId}`,
       kind: 'hq',
       tx: hq.tx,
       ty: hq.ty,

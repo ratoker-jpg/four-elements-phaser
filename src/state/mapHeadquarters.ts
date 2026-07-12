@@ -3,6 +3,9 @@ import { mirrorPlacement } from './mapSymmetry';
 
 export const HQ_FOOTPRINT = 3;
 export const HQ_CORNER_MARGIN = 4;
+export const HEADQUARTERS_MAX_HP = 4000;
+export const HEADQUARTERS_ARMOR = 0.20;
+export const HEADQUARTERS_DAMAGE_FLASH_MS = 220;
 
 export const FOUR_CORNER_FACTIONS: readonly Faction[] = [
   'cyan',
@@ -13,6 +16,36 @@ export const FOUR_CORNER_FACTIONS: readonly Faction[] = [
 
 function teamIdForMapFaction(faction: Faction): TeamId {
   return `team-${faction}` as TeamId;
+}
+
+function finiteOr(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+/** Upgrade one Headquarters placement into the canonical combat shape. */
+export function normalizeHeadquartersRuntime(
+  hq: HqPlacement,
+  faction: Faction = hq.faction,
+  ownerTeamId: TeamId = hq.ownerTeamId ?? teamIdForMapFaction(faction),
+): HqPlacement {
+  const maxHp = Math.max(1, finiteOr(hq.maxHp, HEADQUARTERS_MAX_HP));
+  const hp = Math.max(0, Math.min(maxHp, finiteOr(hq.hp, maxHp)));
+  const isDestroyed = hq.isDestroyed === true || hp <= 0;
+  return {
+    ...hq,
+    faction,
+    ownerTeamId,
+    id: `hq-${ownerTeamId}`,
+    maxHp,
+    hp: isDestroyed ? 0 : hp,
+    armor: Math.max(0, Math.min(0.95, finiteOr(hq.armor, HEADQUARTERS_ARMOR))),
+    isDestroyed,
+    destroyedAt: isDestroyed
+      ? Math.max(0, finiteOr(hq.destroyedAt ?? undefined, 0))
+      : null,
+    damageFlashUntilMs: Math.max(0, finiteOr(hq.damageFlashUntilMs, 0)),
+    lastDamageAmount: Math.max(0, finiteOr(hq.lastDamageAmount, 0)),
+  };
 }
 
 export function getHeadquartersCenter(hq: HqPlacement): { tx: number; ty: number } {
@@ -94,22 +127,26 @@ export function normalizeMapHeadquarters(
         || candidate.ty + HQ_FOOTPRINT > mapData.height) {
       continue;
     }
-    byFaction.set(faction, {
+    const ownerTeamId = teamIdForMapFaction(faction);
+    byFaction.set(faction, normalizeHeadquartersRuntime({
+      ...candidate,
       tx: candidate.tx,
       ty: candidate.ty,
       faction,
-      ownerTeamId: teamIdForMapFaction(faction),
-    });
+      ownerTeamId,
+    }, faction, ownerTeamId));
   }
 
   if (!byFaction.has(humanFaction)) {
     const legacy = mapData.hq;
-    byFaction.set(humanFaction, {
+    const ownerTeamId = teamIdForMapFaction(humanFaction);
+    byFaction.set(humanFaction, normalizeHeadquartersRuntime({
+      ...legacy,
       tx: legacy.tx,
       ty: legacy.ty,
       faction: humanFaction,
-      ownerTeamId: teamIdForMapFaction(humanFaction),
-    });
+      ownerTeamId,
+    }, humanFaction, ownerTeamId));
   }
 
   const headquarters = FOUR_CORNER_FACTIONS

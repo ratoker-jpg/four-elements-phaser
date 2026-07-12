@@ -21,7 +21,7 @@ import {
   normalizeVisionForLoadedState,
   type VisionState,
 } from './visibility';
-import { getHeadquartersCenter, normalizeMapHeadquarters } from './mapHeadquarters';
+import { getHeadquartersCenter, getMapHeadquarters, normalizeMapHeadquarters } from './mapHeadquarters';
 
 export const TEAM_IDS: readonly TeamId[] = [
   'team-cyan',
@@ -171,8 +171,11 @@ export function normalizeMatchState(state: GameState): MatchState {
   const headquarters = normalizeMapHeadquarters(state.mapData, humanFaction);
   const humanTeamId = teamIdForFaction(humanFaction);
   const hqPositionByTeam = new Map<TeamId, { tx: number; ty: number }>();
+  const hqByTeam = new Map<TeamId, (typeof headquarters)[number]>();
   for (const hq of headquarters) {
-    hqPositionByTeam.set(hq.ownerTeamId ?? teamIdForFaction(hq.faction), getHeadquartersCenter(hq));
+    const ownerTeamId = hq.ownerTeamId ?? teamIdForFaction(hq.faction);
+    hqByTeam.set(ownerTeamId, hq);
+    if (!hq.isDestroyed) hqPositionByTeam.set(ownerTeamId, getHeadquartersCenter(hq));
   }
   const legacyHumanHqPosition = hqPositionByTeam.get(humanTeamId)
     ?? state.hqPosition
@@ -184,6 +187,8 @@ export function normalizeMatchState(state: GameState): MatchState {
   for (const teamId of TEAM_IDS) {
     const current = existingTeams?.[teamId];
     const isHuman = teamId === humanTeamId;
+    const headquartersPlacement = hqByTeam.get(teamId);
+    const eliminated = current?.eliminated === true || headquartersPlacement?.isDestroyed === true;
     const economy = ensureEconomyShape(
       current?.economy ?? (isHuman ? state.economy : createBaselineTeamEconomy()),
     );
@@ -197,17 +202,20 @@ export function normalizeMatchState(state: GameState): MatchState {
       vision: normalizeTeamVision(mapWidth, mapHeight, sourceVision),
       unitCap: current?.unitCap ?? DEFAULT_UNIT_CAP,
       techTier: current?.techTier ?? 1,
-      hqPosition: current?.hqPosition
-        ?? hqPositionByTeam.get(teamId)
-        ?? (isHuman ? legacyHumanHqPosition : null),
-      eliminated: current?.eliminated ?? false,
+      hqPosition: eliminated
+        ? null
+        : (current?.hqPosition
+          ?? hqPositionByTeam.get(teamId)
+          ?? (isHuman ? legacyHumanHqPosition : null)),
+      eliminated,
     };
   }
 
-  const activeTeamIds = [...new Set(existing?.activeTeamIds?.filter(isTeamId) ?? TEAM_IDS)];
+  const activeTeamIds = [...new Set(existing?.activeTeamIds?.filter(isTeamId) ?? TEAM_IDS)]
+    .filter(teamId => !teams[teamId].eliminated);
   const match: MatchState = {
     humanTeamId,
-    activeTeamIds: activeTeamIds.length > 0 ? activeTeamIds : [...TEAM_IDS],
+    activeTeamIds,
     teams,
   };
   state.match = match;
@@ -227,6 +235,11 @@ export function ensureMatchState(state: GameState): MatchState {
   const match = state.match;
   if (!match || match.humanTeamId !== expectedHumanTeamId) return normalizeMatchState(state);
   if (TEAM_IDS.some(teamId => !match.teams?.[teamId])) return normalizeMatchState(state);
+  const headquarters = getMapHeadquarters(state.mapData);
+  if (headquarters.some(hq => {
+    const ownerTeamId = hq.ownerTeamId ?? teamIdForFaction(hq.faction);
+    return hq.isDestroyed === true && !match.teams[ownerTeamId].eliminated;
+  })) return normalizeMatchState(state);
   const human = match.teams[match.humanTeamId];
   if (state.economy !== human.economy || state.vision !== human.vision) {
     return normalizeMatchState(state);

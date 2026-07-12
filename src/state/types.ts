@@ -91,6 +91,17 @@ export interface HqPlacement {
   ty: number;
   faction: Faction;
   ownerTeamId?: TeamId;
+  /** Stable combat target ID. Optional only on old maps/saves. */
+  id?: string;
+  /** Canonical Headquarters durability. Optional only on old maps/saves. */
+  hp?: number;
+  maxHp?: number;
+  /** Fractional damage reduction in the inclusive range 0..0.95. */
+  armor?: number;
+  isDestroyed?: boolean;
+  destroyedAt?: number | null;
+  damageFlashUntilMs?: number;
+  lastDamageAmount?: number;
 }
 
 // ─── Buildings ──────────────────────────────────────────────────────
