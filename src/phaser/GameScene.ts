@@ -16,9 +16,11 @@ import { updateConstructionSiteProgress } from '../state/construction';
 import { constructionCompleted } from '../state/feedbackHelpers';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import { recomputeVisibility as recomputeVis, getVisionSourceSignature } from '../state/visibility';
-import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '../state/types';
+import type { GameState, BuildingType, ProducibleUnitType, TerrainType, MatchSetupSnapshot } from '../state/types';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
+import { MatchResultOverlay } from './ui/MatchResultOverlay';
+import { evaluateMatchResult, resolveRestartSetup } from '../state/matchResult';
 import type { GameSetupConfig } from '../state/gameSetup';
 import { DEFAULT_SETUP, getMapDataFromConfig, getMapDisplayName, resolveResourceStyleForMapStyle } from '../state/gameSetup';
 import type { MapStyle, ResourceStyle } from '../state/gameSetup';
@@ -122,6 +124,7 @@ export class GameScene extends Phaser.Scene {
   private playtestHud: PlaytestHud | null = null;
   private visualHudCore: VisualHudCore | null = null;
   private pauseMenu: PauseMenu | null = null;
+  private matchResultOverlay: MatchResultOverlay | null = null;
   private gameState!: GameState;
   private hqWorldX: number = 0;
   private hqWorldY: number = 0;
@@ -186,13 +189,15 @@ export class GameScene extends Phaser.Scene {
       // VISUAL-05A-PR2 fix: Infer mapStyle from loaded terrain so industrial
       // saves render correctly instead of falling back to sand (DEFAULT_SETUP).
       const inferredStyle = inferMapStyleFromTerrain(data.loadedGameState.mapData.terrain);
-      this.setupConfig = {
-        ...DEFAULT_SETUP,
-        faction: data.loadedGameState.playerFaction,
-        mapId: data.mapId ?? 'customMap1',
-        mapStyle: inferredStyle,
-        resourceStyle: resolveResourceStyleForMapStyle(inferredStyle),
-      };
+      this.setupConfig = data.loadedGameState.matchSetup
+        ? { ...data.loadedGameState.matchSetup }
+        : {
+          ...DEFAULT_SETUP,
+          faction: data.loadedGameState.playerFaction,
+          mapId: data.mapId ?? 'customMap1',
+          mapStyle: inferredStyle,
+          resourceStyle: resolveResourceStyleForMapStyle(inferredStyle),
+        };
       this.loadedGameState = data.loadedGameState;
       // Fix 1: Preserve loaded slot ID for re-save
       this.currentSaveSlotId = data.saveSlotId ?? null;
@@ -250,6 +255,9 @@ export class GameScene extends Phaser.Scene {
       const mapNameOverride = getMapDisplayName(this.setupConfig);
       this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride, { includeModularCombat: this.devtoolsActive });
     }
+
+    this.gameState.matchSetup = { ...this.setupConfig } as MatchSetupSnapshot;
+    evaluateMatchResult(this.gameState);
 
     // CORE-STEP-06H+: Initialize tile reservation map for grid movement
     this.reservationMap = new TileReservationMap(this.gameState.mapWidth);
@@ -685,6 +693,7 @@ export class GameScene extends Phaser.Scene {
       `Resources: ${s.resourceNodes.length} | ` +
       `Drag: pan | Wheel: zoom | HOME: reset camera | T: debug overlay | S: Stop | F: Factory | R: Element Storage | 1-9: control groups | Ctrl+1-9: assign group`,
     );
+    this.finishMatchIfNeeded();
   }
 
   update(_time: number, delta: number): void {
@@ -696,6 +705,7 @@ export class GameScene extends Phaser.Scene {
       // FIXUP-2: Stable source signature — covers unit add/remove/movement/reorder/radius changes
       const prevSig = getVisionSourceSignature(this.gameState);
       updateGameState(this.gameState, delta);
+      if (this.finishMatchIfNeeded()) return;
       assignIdleBuilders(this.gameState);
       updateBuilders(this.gameState, delta);
       const siteSnaps = this.gameState.mapData.constructionSites.map(s => ({ id: s.id, tx: s.tx, ty: s.ty, type: s.type }));
@@ -948,6 +958,32 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ─── Helpers ────────────────────────────────────────────────────
+
+  private finishMatchIfNeeded(): boolean {
+    const result = evaluateMatchResult(this.gameState);
+    if (result.outcome === 'ongoing') return false;
+    if (this.matchResultOverlay?.isVisible()) return true;
+
+    this.paused = true;
+    this.inputController?.destroy();
+    this.inputController = null;
+    this.matchResultOverlay = new MatchResultOverlay();
+    this.matchResultOverlay.show(result, {
+      onRestart: () => {
+        const restartSetup = resolveRestartSetup(
+          this.gameState,
+          this.setupConfig as MatchSetupSnapshot,
+        );
+        this.paused = false;
+        this.scene.restart({ ...restartSetup });
+      },
+      onMainMenu: () => {
+        this.paused = false;
+        this.scene.start('MainMenuScene');
+      },
+    });
+    return true;
+  }
 
   /**
    * ARENA-VISUAL-COMBAT-FIX-01 Fix 6: Compute barrel tip screen position.
@@ -1288,6 +1324,8 @@ export class GameScene extends Phaser.Scene {
     this.arenaMenu = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
+    this.matchResultOverlay?.destroy();
+    this.matchResultOverlay = null;
     this.playtestHud?.destroy();
     this.playtestHud = null;
     this.visualHudCore?.destroy();

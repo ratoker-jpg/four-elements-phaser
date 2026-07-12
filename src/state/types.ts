@@ -32,6 +32,27 @@ export type Faction = 'cyan' | 'green' | 'yellow' | 'purple';
 export type TeamId = 'team-cyan' | 'team-green' | 'team-yellow' | 'team-purple';
 export type TeamController = 'human' | 'ai';
 export type AiDifficulty = 'recruit' | 'lieutenant' | 'veteran';
+
+export type MatchOutcome = 'ongoing' | 'victory' | 'defeat';
+
+export interface MatchResultState {
+  outcome: MatchOutcome;
+  winnerTeamId: TeamId | null;
+  defeatedTeamIds: TeamId[];
+  resolvedAtMs: number | null;
+}
+
+/** Serializable new-game setup used by result-screen restart. */
+export interface MatchSetupSnapshot {
+  faction: Faction;
+  mapId: string;
+  mapMode: 'fixed' | 'generated';
+  mapSize: 'small' | 'standard' | 'large';
+  seed: string;
+  gameMode: 'standard' | 'debug' | 'arena';
+  mapStyle: 'sand' | 'industrial';
+  resourceStyle: 'legacy' | 'industrial';
+}
 export type TechTier = 1 | 2 | 3;
 
 // ─── Resources ──────────────────────────────────────────────────────
@@ -575,6 +596,10 @@ export interface GameState {
   playerFaction: Faction;
   /** Canonical four-team state. Optional only for old saves and legacy fixtures. */
   match?: MatchState;
+  /** Persistent match result. Optional only for old saves and fixtures. */
+  matchResult?: MatchResultState;
+  /** Serializable setup used to restart with the same map seed/options. */
+  matchSetup?: MatchSetupSnapshot;
   /** Extra starter units not present in the original saved map. */
   extraHarvesters: Array<{ tx: number; ty: number; faction: Faction; ownerTeamId?: TeamId }>;
   extraModularCombat: ModularCombatUnit[];
