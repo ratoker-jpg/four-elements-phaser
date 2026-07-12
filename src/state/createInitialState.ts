@@ -9,6 +9,7 @@ import type {
   SeparatorRuntimeState,
   ProductionState,
   ModularCombatUnit,
+  TeamId,
 } from './types';
 import {
   START_RAW,
@@ -27,7 +28,7 @@ import { createHarvester } from './updateGameState';
 import { customMap1 } from '../data/maps/customMap1';
 import { createInitialVisionState, recomputeVisibility } from './visibility';
 import {
-  createInitialMatchState, factionForTeamId, normalizeMatchState, teamIdForFaction,
+  createInitialMatchState, factionForTeamId, normalizeMatchState, teamIdForFaction, TEAM_IDS,
 } from './matchState';
 import { getMapHeadquarters, normalizeMapHeadquarters } from './mapHeadquarters';
 
@@ -140,7 +141,11 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
   // ARCH-16B: Derive mapName from mapData or use override
   const mapName = mapNameOverride ?? `Map ${mapData.width}x${mapData.height}`;
 
-  const economy = arenaMode ? createArenaEconomy() : createInitialEconomy(faction, mapData);
+  const humanTeamId = teamIdForFaction(faction);
+  const teamEconomies = arenaMode
+    ? undefined
+    : createInitialTeamEconomies(mapData, humanTeamId);
+  const economy = arenaMode ? createArenaEconomy() : teamEconomies![humanTeamId];
   const vision = createInitialVisionState(mapData.width, mapData.height);
 
   const state: GameState = {
@@ -172,6 +177,7 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     match: createInitialMatchState({
       humanFaction: faction,
       humanEconomy: economy,
+      teamEconomies,
       humanVision: vision,
       humanHqPosition: hqPosition,
       mapWidth: mapData.width,
@@ -285,25 +291,49 @@ function createArenaEconomy(): EconomyState {
   };
 }
 
-/** Create initial EconomyState with ROADMAP starting values. */
-function createInitialEconomy(_playerFaction: Faction, mapData: MapData): EconomyState {
-  // ARCH-01C: Initialize separator runtime state from existing completed separator buildings.
-  const separators: SeparatorRuntimeState[] = mapData.buildings
-    .filter(b => b.type === 'separator')
-    .map(b => ({
-      tx: b.tx,
-      ty: b.ty,
+/** Create one isolated initial economy for every canonical team. */
+function createInitialTeamEconomies(
+  mapData: MapData,
+  humanTeamId: TeamId,
+): Record<TeamId, EconomyState> {
+  const economies = {} as Record<TeamId, EconomyState>;
+  for (const teamId of TEAM_IDS) {
+    economies[teamId] = createInitialEconomyForTeam(mapData, teamId, humanTeamId);
+  }
+  return economies;
+}
+
+function buildingOwnerTeamId(
+  building: MapData['buildings'][number],
+  humanTeamId: TeamId,
+): TeamId {
+  // Legacy buildings without ownership remain human-owned during migration.
+  return building.ownerTeamId ?? humanTeamId;
+}
+
+/** Derive storage, separators and power from buildings owned by exactly one team. */
+function createInitialEconomyForTeam(
+  mapData: MapData,
+  teamId: TeamId,
+  humanTeamId: TeamId,
+): EconomyState {
+  const ownedBuildings = mapData.buildings.filter(
+    building => buildingOwnerTeamId(building, humanTeamId) === teamId,
+  );
+  const separators: SeparatorRuntimeState[] = ownedBuildings
+    .filter(building => building.type === 'separator')
+    .map(building => ({
+      tx: building.tx,
+      ty: building.ty,
       progress: 0,
       active: false,
+      ownerTeamId: teamId,
     }));
 
-  // ARCH-01D: Initialize caps from existing completed buildings.
-  // Base HQ caps + bonuses from raw-storage and matter-storage buildings.
   let rawCap = HQ_RAW_CAP;
   let matterCap = HQ_MATTER_CAP;
   let elementCap = HQ_ELEMENT_CAP;
-
-  for (const building of mapData.buildings) {
+  for (const building of ownedBuildings) {
     if (building.type === 'raw-storage') {
       rawCap += RAW_STORAGE_RAW_BONUS;
     } else if (building.type === 'matter-storage') {
@@ -313,15 +343,19 @@ function createInitialEconomy(_playerFaction: Faction, mapData: MapData): Econom
     }
   }
 
-  // ARCH-01E: Compute powerGenerated from HQ base + power-plant buildings.
-  const powerPlantCount = mapData.buildings.filter(b => b.type === 'power-plant').length;
-  const powerGenerated = HQ_BASE_POWER + powerPlantCount * POWER_PLANT_GENERATION;
+  const hasHeadquarters = getMapHeadquarters(mapData).some(hq =>
+    (hq.ownerTeamId ?? teamIdForFaction(hq.faction)) === teamId,
+  );
+  const powerPlantCount = ownedBuildings.filter(
+    building => building.type === 'power-plant',
+  ).length;
 
   return {
     raw: START_RAW,
     matter: START_MATTER,
     elements: { cyan: 0, green: 0, yellow: 0, purple: 0 },
-    powerGenerated,
+    powerGenerated: (hasHeadquarters ? HQ_BASE_POWER : 0)
+      + powerPlantCount * POWER_PLANT_GENERATION,
     powerConsumed: 0,
     separators,
     rawCap,

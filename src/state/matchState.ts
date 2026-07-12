@@ -115,6 +115,7 @@ function normalizeTeamVision(
 export interface CreateInitialMatchStateInput {
   humanFaction: Faction;
   humanEconomy: EconomyState;
+  teamEconomies?: Partial<Record<TeamId, EconomyState>>;
   humanVision: VisionState;
   humanHqPosition: { tx: number; ty: number };
   mapWidth: number;
@@ -135,7 +136,8 @@ export function createInitialMatchState(input: CreateInitialMatchStateInput): Ma
       faction: factionForTeamId(teamId),
       controller: isHuman ? 'human' : 'ai',
       difficulty: isHuman ? null : aiDifficulty,
-      economy: isHuman ? input.humanEconomy : createBaselineTeamEconomy(),
+      economy: input.teamEconomies?.[teamId]
+        ?? (isHuman ? input.humanEconomy : createBaselineTeamEconomy()),
       vision: isHuman
         ? input.humanVision
         : createInitialVisionState(input.mapWidth, input.mapHeight),
