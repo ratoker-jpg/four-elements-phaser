@@ -87,6 +87,8 @@ export function updateGameState(state: GameState, deltaMs: number): void {
 
   for (const harvester of state.harvesters) {
     if (harvester.isDestroyed) continue;
+    const owner = getOwningTeam(state, harvester.ownerTeamId, harvester.faction);
+    if (owner.eliminated) continue;
     updateHarvester(state, harvester, moveDt);
   }
   updateAllCombatUnitCombat(state, moveDt);

@@ -47,6 +47,7 @@ export type ProductionRejectionReason =
   | 'insufficient-matter'
   | 'insufficient-element'
   | 'unit-cap-reached'
+  | 'team-eliminated'
   | 'unsupported-unit-type';
 
 /** Result of a startUnitProduction call. */
@@ -156,6 +157,7 @@ export function startUnitProduction(
   if (!factory) return { ok: false, reason: 'factory-not-found' };
   const ownerTeamId = factory.ownerTeamId ?? match.humanTeamId;
   const owner = match.teams[ownerTeamId];
+  if (owner.eliminated) return { ok: false, reason: 'team-eliminated' };
 
   // 2. Check queue limit
   if (factory.queue.length >= QUEUE_LIMIT) {
