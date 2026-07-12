@@ -118,7 +118,7 @@ describe('SKIRMISH-P5D four-team fairness validation', () => {
         size,
         faction,
       );
-      expect(result.valid, result.validation.issues.join('; ')).toBe(true);
+      expect(result.valid, result.warnings.join('; ')).toBe(true);
       expect(validateFourCornerMapFairness(result.mapData).valid).toBe(true);
     }
   });
