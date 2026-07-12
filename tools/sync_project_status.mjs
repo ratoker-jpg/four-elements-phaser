@@ -125,6 +125,8 @@ ${renderStatusBlock()}
 - Skirmish Phase 6B owner-isolated harvesting, processing, storage and power closed via PR #358.
 - Skirmish Phase 6C deterministic civil destruction and AI replacement closed via PR #359.
 - Skirmish Phase 6D save v6, civil migration and deterministic continuation closed via PR #360.
+- Skirmish Phase 7 activation established via PR #361.
+- Skirmish Phase 7 selected-Builder local automatic construction closed via PR #362.
 - Produced combat units use \`GameState.combatUnits\` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -199,40 +201,40 @@ ${renderStatusBlock()}
 
 ## Default next work
 
-1. Make the selected Builder the only construction anchor:
-   - resolve the primary selected Builder by stable ID;
-   - reject missing, foreign, busy or destroyed Builders;
-   - use the Builder's current fractional tile position rather than Headquarters or existing buildings;
-   - keep owner economy and ownership explicit.
-2. Implement bounded deterministic local site search:
-   - expand outward in Manhattan rings from the selected Builder;
-   - validate the full building footprint and map bounds;
-   - preserve one complete empty tile between building/construction footprints;
-   - reject resources, obstacles, units and protected center tiles;
-   - break equal-distance ties deterministically.
-3. Validate Builder reachability before spending resources:
-   - find at least one passable tile adjacent to the candidate footprint;
-   - compute a cardinal path from the selected Builder to that approach tile;
-   - reject unreachable candidates and continue the local search;
-   - return no-valid-site after the bounded radius is exhausted.
-4. Bind construction to the exact selected Builder:
-   - create the site only after search and path validation succeed;
-   - deduct matter only on successful placement;
-   - assign the selected Builder and validated path immediately;
-   - do not let another idle Builder steal the request.
-5. Add Russian failure feedback and regression coverage:
-   - no selected Builder;
-   - Builder busy/destroyed/foreign;
-   - insufficient matter;
-   - no reachable legal site;
-   - deterministic placement and no mutation on every rejection.
-6. Keep this phase construction-only. Headquarters combat, faction bonuses, XP and strategic combat AI remain later phases.
+1. Establish canonical Headquarters combat state as P8A:
+   - give every canonical Headquarters a stable target ID, HP, max HP, armor and destruction timestamps;
+   - migrate legacy maps/saves without inventing duplicate Headquarters;
+   - keep \`mapData.hq\` as the selected-human compatibility alias only;
+   - persist damaged and destroyed Headquarters deterministically.
+2. Extend production combat targeting as P8B:
+   - resolve combat-unit and Headquarters targets through one target abstraction;
+   - path and range calculations use Headquarters 3x3 footprints;
+   - reject friendly, missing, destroyed and eliminated targets;
+   - apply damage, cooldown, muzzle feedback and target cleanup consistently.
+3. Apply team elimination transactionally:
+   - mark the owner team eliminated once when its Headquarters reaches zero HP;
+   - stop that team's factories, queues and civil replacement policy;
+   - disable or clean remaining owned units through bounded transitions;
+   - keep other teams and economies unaffected.
+4. Complete match result and UX as P8C:
+   - human Headquarters destroyed means Defeat;
+   - all three enemy Headquarters destroyed means Victory;
+   - freeze new human commands after result;
+   - expose one deterministic result overlay and restart with the same seed/setup;
+   - preserve result state through save/load.
+5. Add pure-state, integration and browser coverage:
+   - partial HQ damage and save/load;
+   - single-team elimination isolation;
+   - victory and defeat exactly once;
+   - post-elimination production/AI rejection;
+   - restart retains the same generated-map seed.
+6. Keep this phase match-result focused. Faction bonuses, XP/M0-M3 and strategic AI remain later phases.
 
 ## Acceptance gate
 
 ${status.gate}
 
-This phase should close through one cohesive implementation PR plus a status closure PR; do not split the placement algorithm from exact Builder assignment because the transaction must remain atomic.
+Prefer reviewable slices: P8A establishes Headquarters state and damage; P8B connects combat targeting and elimination; P8C closes result UX, persistence and the phase.
 
 ## Required validation for implementation PRs
 
@@ -252,11 +254,10 @@ ${listLines(status.manualQa)}
 
 ## Not next by default
 
-- Headquarters damage, elimination and victory/defeat; that is Phase 8.
 - Faction bonuses; that is Phase 9.
 - XP and independent M0-M3 upgrades; that is Phase 10.
 - Strategic combat AI; that is Phase 11.
-- Broad terrain, obstacle or asset changes unrelated to Builder-local construction.
+- Broad terrain, obstacle or asset changes unrelated to Headquarters combat/result flow.
 - Unrelated issue #305 work inside ${status.phaseCode}.
 `;
 }

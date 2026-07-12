@@ -26,11 +26,11 @@ The old repository `ratoker-jpg/four-elements-next` is donor/reference/specifica
 Updated: 2026-07-12
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 7: Builder-local automatic construction
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 8: Headquarters combat, elimination and match result
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #360 — Four-team civil save/load and migration
-Next: Replace Headquarters/building-anchor placement with an expanding-ring search around the selected Builder, validate footprint spacing and Builder reachability, assign that exact Builder, and preserve resources on every failed request.
-Gate: Moving the selected Builder must change where the next building is constructed; the chosen site must be the nearest deterministic legal and reachable footprint within a bounded radius, with one empty tile between buildings, no resource charge on failure and clear Russian feedback.
+Last merged: PR #362 — Selected-Builder local automatic construction
+Next: Introduce canonical Headquarters durability and target IDs, route production combat attacks against enemy Headquarters, eliminate teams on HQ destruction, then expose deterministic victory/defeat state and a restart-with-same-seed result flow.
+Gate: Every canonical Headquarters must be targetable, damageable and persistable; destroying one must eliminate only its owner team and disable that team's production/replacement logic; losing the human HQ must produce Defeat and destroying all three enemy HQs must produce Victory.
 ```
 <!-- PROJECT_STATUS:END -->
 

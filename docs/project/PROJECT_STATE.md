@@ -15,11 +15,11 @@ Updated: 2026-07-12
 Updated: 2026-07-12
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 7: Builder-local automatic construction
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 8: Headquarters combat, elimination and match result
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #360 — Four-team civil save/load and migration
-Next: Replace Headquarters/building-anchor placement with an expanding-ring search around the selected Builder, validate footprint spacing and Builder reachability, assign that exact Builder, and preserve resources on every failed request.
-Gate: Moving the selected Builder must change where the next building is constructed; the chosen site must be the nearest deterministic legal and reachable footprint within a bounded radius, with one empty tile between buildings, no resource charge on failure and clear Russian feedback.
+Last merged: PR #362 — Selected-Builder local automatic construction
+Next: Introduce canonical Headquarters durability and target IDs, route production combat attacks against enemy Headquarters, eliminate teams on HQ destruction, then expose deterministic victory/defeat state and a restart-with-same-seed result flow.
+Gate: Every canonical Headquarters must be targetable, damageable and persistable; destroying one must eliminate only its owner team and disable that team's production/replacement logic; losing the human HQ must produce Defeat and destroying all three enemy HQs must produce Victory.
 ```
 <!-- PROJECT_STATUS:END -->
 
@@ -48,6 +48,8 @@ Gate: Moving the selected Builder must change where the next building is constru
 - Skirmish Phase 6B owner-isolated harvesting, processing, storage and power closed via PR #358.
 - Skirmish Phase 6C deterministic civil destruction and AI replacement closed via PR #359.
 - Skirmish Phase 6D save v6, civil migration and deterministic continuation closed via PR #360.
+- Skirmish Phase 7 activation established via PR #361.
+- Skirmish Phase 7 selected-Builder local automatic construction closed via PR #362.
 - Produced combat units use `GameState.combatUnits` as canonical state; render data is derived.
 - Full Validation, QA Smoke, Graphify and asset-budget checks are available in GitHub Actions.
 - Number keys 1–9 recall control groups; Ctrl+1–9 assigns them.
@@ -65,11 +67,12 @@ Gate: Moving the selected Builder must change where the next building is constru
 
 ## Manual QA still required
 
-- Move one Builder away from Headquarters, select it and confirm the next building is placed near that Builder rather than the base.
-- Select different Builders in different corners and confirm each build request uses the selected Builder and owner economy.
-- Block every site inside the bounded radius and confirm no matter is deducted and Russian failure feedback is shown.
-- Confirm completed buildings preserve one empty tile between footprints and Builders can physically reach the assigned site.
-- Produce combat units, save and reload; confirm team ownership, factory preview, movement and HP remain coherent.
+- Attack each enemy Headquarters with produced tanks and confirm HP, damage feedback and owner faction remain correct.
+- Destroy one enemy Headquarters and confirm only that team stops production and civil replacement while other teams continue.
+- Destroy all three enemy Headquarters and confirm Victory appears once with restart using the same seed.
+- Destroy the human Headquarters and confirm Defeat appears once and gameplay commands stop.
+- Save and load before and after an HQ is damaged/eliminated and confirm HP, eliminated teams and match result persist.
+- Move a selected Builder and confirm construction still starts locally after the Phase 8 changes.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
 Automated checks do not replace visual acceptance for produced-unit rendering, destruction effects and save/load behavior.
@@ -80,7 +83,7 @@ Automated checks do not replace visual acceptance for produced-unit rendering, d
 - Issue #330: complete manual visual QA for produced combat units in Normal mode.
 - Issue #331: audit and reduce the current runtime asset footprint below the 5.2 GB guardrail.
 - Issue #335: visually accept the donor VFX overlay, projected tracks and bounded dust.
-- Implement SKIRMISH-P7: selected-Builder local search, reachability and exact assignment.
+- Implement SKIRMISH-P8A: canonical Headquarters durability, damage and elimination state.
 
 ## Current source-of-truth documents
 

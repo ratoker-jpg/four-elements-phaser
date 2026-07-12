@@ -1,6 +1,6 @@
 # CURRENT_NEXT_STEP.md
 
-Status: SKIRMISH-P7 — Builder-local automatic construction
+Status: SKIRMISH-P8 — Headquarters combat, elimination and match result
 Project: Four Elements Phaser
 Updated: 2026-07-12
 
@@ -14,50 +14,50 @@ Updated: 2026-07-12
 Updated: 2026-07-12
 
 ```text
-PLAYABLE FOUR-FACTION SKIRMISH — Phase 7: Builder-local automatic construction
+PLAYABLE FOUR-FACTION SKIRMISH — Phase 8: Headquarters combat, elimination and match result
 Status: READY_FOR_IMPLEMENTATION
-Last merged: PR #360 — Four-team civil save/load and migration
-Next: Replace Headquarters/building-anchor placement with an expanding-ring search around the selected Builder, validate footprint spacing and Builder reachability, assign that exact Builder, and preserve resources on every failed request.
-Gate: Moving the selected Builder must change where the next building is constructed; the chosen site must be the nearest deterministic legal and reachable footprint within a bounded radius, with one empty tile between buildings, no resource charge on failure and clear Russian feedback.
+Last merged: PR #362 — Selected-Builder local automatic construction
+Next: Introduce canonical Headquarters durability and target IDs, route production combat attacks against enemy Headquarters, eliminate teams on HQ destruction, then expose deterministic victory/defeat state and a restart-with-same-seed result flow.
+Gate: Every canonical Headquarters must be targetable, damageable and persistable; destroying one must eliminate only its owner team and disable that team's production/replacement logic; losing the human HQ must produce Defeat and destroying all three enemy HQs must produce Victory.
 ```
 <!-- PROJECT_STATUS:END -->
 
 ## Default next work
 
-1. Make the selected Builder the only construction anchor:
-   - resolve the primary selected Builder by stable ID;
-   - reject missing, foreign, busy or destroyed Builders;
-   - use the Builder's current fractional tile position rather than Headquarters or existing buildings;
-   - keep owner economy and ownership explicit.
-2. Implement bounded deterministic local site search:
-   - expand outward in Manhattan rings from the selected Builder;
-   - validate the full building footprint and map bounds;
-   - preserve one complete empty tile between building/construction footprints;
-   - reject resources, obstacles, units and protected center tiles;
-   - break equal-distance ties deterministically.
-3. Validate Builder reachability before spending resources:
-   - find at least one passable tile adjacent to the candidate footprint;
-   - compute a cardinal path from the selected Builder to that approach tile;
-   - reject unreachable candidates and continue the local search;
-   - return no-valid-site after the bounded radius is exhausted.
-4. Bind construction to the exact selected Builder:
-   - create the site only after search and path validation succeed;
-   - deduct matter only on successful placement;
-   - assign the selected Builder and validated path immediately;
-   - do not let another idle Builder steal the request.
-5. Add Russian failure feedback and regression coverage:
-   - no selected Builder;
-   - Builder busy/destroyed/foreign;
-   - insufficient matter;
-   - no reachable legal site;
-   - deterministic placement and no mutation on every rejection.
-6. Keep this phase construction-only. Headquarters combat, faction bonuses, XP and strategic combat AI remain later phases.
+1. Establish canonical Headquarters combat state as P8A:
+   - give every canonical Headquarters a stable target ID, HP, max HP, armor and destruction timestamps;
+   - migrate legacy maps/saves without inventing duplicate Headquarters;
+   - keep `mapData.hq` as the selected-human compatibility alias only;
+   - persist damaged and destroyed Headquarters deterministically.
+2. Extend production combat targeting as P8B:
+   - resolve combat-unit and Headquarters targets through one target abstraction;
+   - path and range calculations use Headquarters 3x3 footprints;
+   - reject friendly, missing, destroyed and eliminated targets;
+   - apply damage, cooldown, muzzle feedback and target cleanup consistently.
+3. Apply team elimination transactionally:
+   - mark the owner team eliminated once when its Headquarters reaches zero HP;
+   - stop that team's factories, queues and civil replacement policy;
+   - disable or clean remaining owned units through bounded transitions;
+   - keep other teams and economies unaffected.
+4. Complete match result and UX as P8C:
+   - human Headquarters destroyed means Defeat;
+   - all three enemy Headquarters destroyed means Victory;
+   - freeze new human commands after result;
+   - expose one deterministic result overlay and restart with the same seed/setup;
+   - preserve result state through save/load.
+5. Add pure-state, integration and browser coverage:
+   - partial HQ damage and save/load;
+   - single-team elimination isolation;
+   - victory and defeat exactly once;
+   - post-elimination production/AI rejection;
+   - restart retains the same generated-map seed.
+6. Keep this phase match-result focused. Faction bonuses, XP/M0-M3 and strategic AI remain later phases.
 
 ## Acceptance gate
 
-Moving the selected Builder must change where the next building is constructed; the chosen site must be the nearest deterministic legal and reachable footprint within a bounded radius, with one empty tile between buildings, no resource charge on failure and clear Russian feedback.
+Every canonical Headquarters must be targetable, damageable and persistable; destroying one must eliminate only its owner team and disable that team's production/replacement logic; losing the human HQ must produce Defeat and destroying all three enemy HQs must produce Victory.
 
-This phase should close through one cohesive implementation PR plus a status closure PR; do not split the placement algorithm from exact Builder assignment because the transaction must remain atomic.
+Prefer reviewable slices: P8A establishes Headquarters state and damage; P8B connects combat targeting and elimination; P8C closes result UX, persistence and the phase.
 
 ## Required validation for implementation PRs
 
@@ -73,18 +73,18 @@ This phase should close through one cohesive implementation PR plus a status clo
 
 ## Manual QA carried forward
 
-- Move one Builder away from Headquarters, select it and confirm the next building is placed near that Builder rather than the base.
-- Select different Builders in different corners and confirm each build request uses the selected Builder and owner economy.
-- Block every site inside the bounded radius and confirm no matter is deducted and Russian failure feedback is shown.
-- Confirm completed buildings preserve one empty tile between footprints and Builders can physically reach the assigned site.
-- Produce combat units, save and reload; confirm team ownership, factory preview, movement and HP remain coherent.
+- Attack each enemy Headquarters with produced tanks and confirm HP, damage feedback and owner faction remain correct.
+- Destroy one enemy Headquarters and confirm only that team stops production and civil replacement while other teams continue.
+- Destroy all three enemy Headquarters and confirm Victory appears once with restart using the same seed.
+- Destroy the human Headquarters and confirm Defeat appears once and gameplay commands stop.
+- Save and load before and after an HQ is damaged/eliminated and confirm HP, eliminated teams and match result persist.
+- Move a selected Builder and confirm construction still starts locally after the Phase 8 changes.
 - Accept donor weapon textures, projected tank tracks and dust in browser using issue #335.
 
 ## Not next by default
 
-- Headquarters damage, elimination and victory/defeat; that is Phase 8.
 - Faction bonuses; that is Phase 9.
 - XP and independent M0-M3 upgrades; that is Phase 10.
 - Strategic combat AI; that is Phase 11.
-- Broad terrain, obstacle or asset changes unrelated to Builder-local construction.
-- Unrelated issue #305 work inside SKIRMISH-P7.
+- Broad terrain, obstacle or asset changes unrelated to Headquarters combat/result flow.
+- Unrelated issue #305 work inside SKIRMISH-P8.
