@@ -37,6 +37,7 @@ import { isResourceInfinite } from '../config/resourceClassRuntime';
 import { allocateCombatUnitId, createCombatUnitRuntime, getCombatProductionConfig } from './combatUnits';
 import { updateAllCombatUnitMovement } from './combatUnitMovement';
 import { updateAllCombatUnitCombat } from './combatUnitCombat';
+import { evaluateMatchResult, isMatchFinished } from './matchResult';
 import { getOwningTeam, ensureMatchState } from './matchState';
 import {
   allocateCivilUnitId,
@@ -79,6 +80,7 @@ const ARRIVAL_THRESHOLD = 0.03;
  * given the same input state and delta.
  */
 export function updateGameState(state: GameState, deltaMs: number): void {
+  if (isMatchFinished(state)) return;
   ensureMatchState(state);
   updateCivilUnitLifecycle(state, deltaMs);
   // Clamp delta for movement to prevent huge jumps after tab-switch.
@@ -100,6 +102,7 @@ export function updateGameState(state: GameState, deltaMs: number): void {
 
   // ARCH-01E: Recompute power state after separator processing and factory production
   recomputePower(state);
+  evaluateMatchResult(state);
 }
 
 // ─── Harvester state machine ────────────────────────────────────────

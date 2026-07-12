@@ -16,11 +16,12 @@ import { updateConstructionSiteProgress } from '../state/construction';
 import { constructionCompleted } from '../state/feedbackHelpers';
 import { assignIdleBuilders, updateBuilders } from '../state/builder';
 import { recomputeVisibility as recomputeVis, getVisionSourceSignature } from '../state/visibility';
-import type { GameState, BuildingType, ProducibleUnitType, TerrainType } from '../state/types';
+import type { GameState, BuildingType, ProducibleUnitType } from '../state/types';
 import { validateMap } from '../state/mapValidation';
 import { PauseMenu } from './ui/PauseMenu';
+import { MatchResultSceneController, resolveLoadedGameSetup } from './match/MatchResultSceneController';
 import type { GameSetupConfig } from '../state/gameSetup';
-import { DEFAULT_SETUP, getMapDataFromConfig, getMapDisplayName, resolveResourceStyleForMapStyle } from '../state/gameSetup';
+import { DEFAULT_SETUP, getMapDataFromConfig, getMapDisplayName } from '../state/gameSetup';
 import type { MapStyle, ResourceStyle } from '../state/gameSetup';
 import { saveGame } from '../state/saveGame';
 import { loadUiSettings, applyUiScale } from '../state/uiSettings';
@@ -87,17 +88,6 @@ export interface LoadSceneData {
   saveSlotId?: string;
 }
 
-/**
- * Infer mapStyle from terrain data in a loaded save.
- * VISUAL-05A-PR2 fix: When a saved game is loaded, the setupConfig
- * is built from DEFAULT_SETUP which has mapStyle='sand'. If the saved
- * terrain contains any 'industrial' tiles, we must render as industrial
- * or the terrain will be invisible (TERRAIN_KEY_MAP.industrial is '').
- */
-function inferMapStyleFromTerrain(terrain: TerrainType[][]): MapStyle {
-  return terrain.some(row => row.some(t => t === 'industrial')) ? 'industrial' : 'sand';
-}
-
 export class GameScene extends Phaser.Scene {
   // Stage 4: RenderManager owns all renderer fields.
   // GameScene accesses them via getters for backward compatibility.
@@ -122,6 +112,7 @@ export class GameScene extends Phaser.Scene {
   private playtestHud: PlaytestHud | null = null;
   private visualHudCore: VisualHudCore | null = null;
   private pauseMenu: PauseMenu | null = null;
+  private matchResultController: MatchResultSceneController | null = null;
   private gameState!: GameState;
   private hqWorldX: number = 0;
   private hqWorldY: number = 0;
@@ -183,16 +174,10 @@ export class GameScene extends Phaser.Scene {
    */
   init(data: GameSetupConfig | LoadSceneData): void {
     if ('loadedGameState' in data && data.loadedGameState) {
-      // VISUAL-05A-PR2 fix: Infer mapStyle from loaded terrain so industrial
-      // saves render correctly instead of falling back to sand (DEFAULT_SETUP).
-      const inferredStyle = inferMapStyleFromTerrain(data.loadedGameState.mapData.terrain);
-      this.setupConfig = {
-        ...DEFAULT_SETUP,
-        faction: data.loadedGameState.playerFaction,
-        mapId: data.mapId ?? 'customMap1',
-        mapStyle: inferredStyle,
-        resourceStyle: resolveResourceStyleForMapStyle(inferredStyle),
-      };
+      this.setupConfig = resolveLoadedGameSetup(
+      data.loadedGameState,
+      data.mapId,
+    );
       this.loadedGameState = data.loadedGameState;
       // Fix 1: Preserve loaded slot ID for re-save
       this.currentSaveSlotId = data.saveSlotId ?? null;
@@ -250,6 +235,12 @@ export class GameScene extends Phaser.Scene {
       const mapNameOverride = getMapDisplayName(this.setupConfig);
       this.gameState = createInitialState(mapData, this.setupConfig.faction, mapNameOverride, { includeModularCombat: this.devtoolsActive });
     }
+
+    this.matchResultController = new MatchResultSceneController({
+    scene: this, getState: () => this.gameState, getSetup: () => this.setupConfig,
+    setPaused: paused => { this.paused = paused; },
+    disableInput: () => { this.inputController?.destroy(); this.inputController = null; },
+  });
 
     // CORE-STEP-06H+: Initialize tile reservation map for grid movement
     this.reservationMap = new TileReservationMap(this.gameState.mapWidth);
@@ -685,6 +676,7 @@ export class GameScene extends Phaser.Scene {
       `Resources: ${s.resourceNodes.length} | ` +
       `Drag: pan | Wheel: zoom | HOME: reset camera | T: debug overlay | S: Stop | F: Factory | R: Element Storage | 1-9: control groups | Ctrl+1-9: assign group`,
     );
+    this.matchResultController?.showIfFinished();
   }
 
   update(_time: number, delta: number): void {
@@ -696,6 +688,7 @@ export class GameScene extends Phaser.Scene {
       // FIXUP-2: Stable source signature — covers unit add/remove/movement/reorder/radius changes
       const prevSig = getVisionSourceSignature(this.gameState);
       updateGameState(this.gameState, delta);
+      if (this.matchResultController?.showIfFinished()) return;
       assignIdleBuilders(this.gameState);
       updateBuilders(this.gameState, delta);
       const siteSnaps = this.gameState.mapData.constructionSites.map(s => ({ id: s.id, tx: s.tx, ty: s.ty, type: s.type }));
@@ -1288,6 +1281,8 @@ export class GameScene extends Phaser.Scene {
     this.arenaMenu = null;
     this.pauseMenu?.destroy();
     this.pauseMenu = null;
+    this.matchResultController?.destroy();
+    this.matchResultController = null;
     this.playtestHud?.destroy();
     this.playtestHud = null;
     this.visualHudCore?.destroy();

@@ -21,14 +21,15 @@ import { normalizeCombatUnitState } from './combatUnits';
 import { normalizeMatchState } from './matchState';
 import { normalizeCivilUnitState } from './civilUnitLifecycle';
 import { normalizeHeadquartersCombatState } from './headquartersCombat';
+import { normalizeMatchResultState } from './matchResult';
 
 // ─── Constants ──────────────────────────────────────────────────────
 
 /** localStorage key for the save slots array. */
 const SAVE_STORAGE_KEY = 'four-elements-save-slots';
 
-/** Current save format version. Phase 8A: canonical Headquarters durability and elimination. */
-const SAVE_VERSION = 7;
+/** Current save format version. Phase 8C: persistent match result and restart setup. */
+const SAVE_VERSION = 8;
 
 /** Maximum number of save slots. */
 export const MAX_SAVE_SLOTS = 5;
@@ -163,12 +164,12 @@ function writeSlots(slots: SaveSlot[]): boolean {
   return storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(slots));
 }
 
-/** Validate a single slot has the required structure. Accepts migrations from v1-v7. */
+/** Validate a single slot has the required structure. Accepts migrations from v1-v8. */
 function isValidSlot(slot: unknown): slot is SaveSlot {
   if (typeof slot !== 'object' || slot === null) return false;
   const s = slot as Record<string, unknown>;
-  // Accept v1-v7; loadGame performs field migrations.
-  if (![1, 2, 3, 4, 5, 6, 7].includes(s.version as number)) return false;
+  // Accept v1-v8; loadGame performs field migrations.
+  if (![1, 2, 3, 4, 5, 6, 7, 8].includes(s.version as number)) return false;
   if (typeof s.id !== 'string') return false;
   if (typeof s.createdAt !== 'string') return false;
   if (typeof s.updatedAt !== 'string') return false;
@@ -223,6 +224,7 @@ function sanitizeForSave(gameState: GameState): GameState {
   const match = normalizeMatchState(clone);
   normalizeCivilUnitState(clone);
   normalizeHeadquartersCombatState(clone);
+  normalizeMatchResultState(clone);
 
   clone.blockoutVehicles = undefined;
   clone.blockoutObstacles = undefined;
@@ -366,6 +368,7 @@ export function loadGame(slotId: string): LoadResult {
   normalizeMatchState(gs);
   normalizeCivilUnitState(gs);
   normalizeHeadquartersCombatState(gs);
+  normalizeMatchResultState(gs);
 
   return { success: true, message: 'Loaded', gameState: gs };
 }

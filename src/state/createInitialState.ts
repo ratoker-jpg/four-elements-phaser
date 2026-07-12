@@ -31,6 +31,7 @@ import {
   createInitialMatchState, factionForTeamId, normalizeMatchState, teamIdForFaction, TEAM_IDS,
 } from './matchState';
 import { getMapHeadquarters, normalizeMapHeadquarters } from './mapHeadquarters';
+import { createOngoingMatchResult } from './matchResult';
 
 /** Options for createInitialState. */
 export interface CreateInitialStateOptions {
@@ -160,6 +161,7 @@ export function createInitialState(mapData: MapData = customMap1, playerFaction?
     mapData,
     entities,
     playerFaction: faction,
+    matchResult: createOngoingMatchResult(),
     extraHarvesters,
     extraModularCombat,
 
