@@ -2,6 +2,7 @@ import type { MapData, ResourceType } from './types';
 import type { AcceptedResourceClassId } from '../config/coreMechanicsTypes';
 import { ACCEPTED_RESOURCE_CLASS_IDS } from '../config/coreMechanicsTypes';
 import { validateCenterInfinityContract } from './centerInfinity';
+import { validateFourCornerMapFairness } from './fourCornerFairness';
 
 export interface GeneratedMapValidation {
   valid: boolean;
@@ -90,6 +91,11 @@ export function validateGeneratedMap(mapData: MapData): GeneratedMapValidation {
 
   for (const issue of validateCenterInfinityContract(mapData)) {
     if (!issues.includes(issue)) issues.push(issue);
+  }
+  if (mapData.headquarters?.length === 4) {
+    for (const issue of validateFourCornerMapFairness(mapData).issues) {
+      if (!issues.includes(issue)) issues.push(issue);
+    }
   }
 
   return { valid: issues.length === 0, score, issues };
